@@ -38,6 +38,7 @@
     "backfill-patient-bookings-v2": "tsx scripts/backfill-patient-bookings-v2.ts",
     "backfill-rubitime-compat-snapshots": "tsx scripts/backfill-rubitime-compat-snapshots.ts",
     "backfill-rubitime-history-to-patient-bookings": "tsx scripts/backfill-rubitime-history-to-patient-bookings.ts",
+    "backfill-rubitime-records-and-clients": "tsx scripts/backfill-rubitime-records-and-clients.ts",
     "realign-webapp-integrator-user": "tsx scripts/realign-webapp-integrator-user-projection.ts",
     "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts",
     "media-preview:tick": "tsx scripts/media-preview-process-tick.ts",

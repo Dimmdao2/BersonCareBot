@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
 import { listBroadcastAuditAction } from "../../broadcasts/actions";
-import { BroadcastForm } from "../../broadcasts/BroadcastForm";
+import { BroadcastForm, type BroadcastFormPrefill } from "../../broadcasts/BroadcastForm";
 import { BroadcastAuditLog } from "../../broadcasts/BroadcastAuditLog";
 import { BroadcastDeliveryArchiveClient } from "../../broadcasts/BroadcastDeliveryArchiveClient";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -45,6 +45,9 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
   const [loading, setLoading] = useState(true);
   /** Мобильный вид: "list" = форма, "detail" = журнал. На desktop обе панели видны. */
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  /** Префилл формы из журнала: entry + монотонный nonce. */
+  const [prefill, setPrefill] = useState<BroadcastFormPrefill | undefined>(undefined);
+  const prefillNonceRef = useRef(0);
 
   const refreshLog = useCallback(async () => {
     const data = await listBroadcastAuditAction(50);
@@ -80,7 +83,7 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
           Журнал →
         </Button>
       </div>
-      <BroadcastForm onBroadcastSent={() => void refreshLog()} />
+      <BroadcastForm onBroadcastSent={() => void refreshLog()} prefill={prefill} />
     </section>
   );
 
@@ -98,7 +101,15 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
         {loading ? (
           <p className="text-sm text-muted-foreground">Загрузка…</p>
         ) : (
-          <BroadcastAuditLog entries={entries} onArchive={onArchive} />
+          <BroadcastAuditLog
+            entries={entries}
+            onArchive={onArchive}
+            onCreateFrom={(entry) => {
+              prefillNonceRef.current += 1;
+              setPrefill({ entry, nonce: prefillNonceRef.current });
+              setMobileView("list");
+            }}
+          />
         )}
       </section>
     </div>

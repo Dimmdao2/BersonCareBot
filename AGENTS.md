@@ -343,6 +343,12 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 Пути к локальным `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (например webapp dev: `apps/webapp/.env.dev`). Тот же принцип: **сначала** загрузить файл, в котором задан `DATABASE_URL`, **потом** `psql`.
 
+**Prod и dev — в одной PostgreSQL** (`bcb_webapp_prod` + `bcb_webapp_dev` на `127.0.0.1:5432`). Прод трогать нельзя; dev-роль не видит схемы прода — это норма, а не пустая база.
+
+### Пересоздание / обновление dev-базы из prod-дампа
+
+Канон с командами и граблями — [`docs/ARCHITECTURE/DB_DUMPS/README.md`](docs/ARCHITECTURE/DB_DUMPS/README.md) (раздел «Пересоздание dev-базы из prod-дампа»). Чего **не** делать (ломали вживую): `pg_restore --clean` поверх живой схемы; `--single-transaction` (откат из-за `COMMENT ON EXTENSION`); `REASSIGN OWNED BY bcb_webapp_prod` (задевает боевую базу — владельца задавать через `--no-owner --role=bcb_webapp_dev_user`). Пересоздание базы — только суперюзер `postgres` (роли `bcb_*` без `CREATEDB`): дать команды пользователю, не запускать самому. Миграциями «с нуля» схему не собирать — базу+леджер даёт дамп, `pnpm migrate` накатывает дельту.
+
 ### Скрипты в репозитории
 
 Если в комментарии к SQL написано «подставьте `DATABASE_URL`» — для хоста всегда дописывай полный префикс `set -a && source …` из таблицы выше, иначе команда неполная.

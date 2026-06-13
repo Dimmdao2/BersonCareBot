@@ -13,6 +13,8 @@ type Props = {
   entries: BroadcastAuditEntry[];
   /** Колбэк перехода в архив ошибок доставки (тот же, что верхняя ссылка «Архив ошибок доставки» в BroadcastsTab). */
   onArchive?: () => void;
+  /** Колбэк «Создать на основе»: передаёт запись журнала для префилла формы. */
+  onCreateFrom?: (entry: BroadcastAuditEntry) => void;
 };
 
 function deliveryProgressLine(entry: BroadcastAuditEntry): string {
@@ -27,7 +29,7 @@ function deliveryIncomplete(entry: BroadcastAuditEntry): boolean {
   return entry.sentCount + entry.errorCount + entry.blockedRecipientCount < planned;
 }
 
-export function BroadcastAuditLog({ entries, onArchive }: Props) {
+export function BroadcastAuditLog({ entries, onArchive, onCreateFrom }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (entries.length === 0) {
@@ -102,8 +104,8 @@ export function BroadcastAuditLog({ entries, onArchive }: Props) {
                 {entry.deliveryJobsTotal === 0 ? (
                   <p>Запись без постановки в очередь: итог по списку получателей.</p>
                 ) : null}
-                {onArchive && (
-                  <p>
+                <p className="flex flex-wrap gap-x-3 gap-y-1">
+                  {onArchive && (
                     <button
                       type="button"
                       onClick={onArchive}
@@ -111,8 +113,17 @@ export function BroadcastAuditLog({ entries, onArchive }: Props) {
                     >
                       Открыть ошибки →
                     </button>
-                  </p>
-                )}
+                  )}
+                  {onCreateFrom && (
+                    <button
+                      type="button"
+                      onClick={() => onCreateFrom(entry)}
+                      className="text-xs underline hover:no-underline"
+                    >
+                      Создать на основе
+                    </button>
+                  )}
+                </p>
               </div>
             )}
           </div>

@@ -49,5 +49,8 @@ _old/logs/
 *.local
 *.swp
 
+# Transient working files (DB dumps, import CSVs with PII, audit logs) — never commit
+.tmp/
+
 # Git
 .git/

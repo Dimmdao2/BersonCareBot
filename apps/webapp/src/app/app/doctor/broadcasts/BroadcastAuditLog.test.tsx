@@ -181,4 +181,29 @@ describe("BroadcastAuditLog", () => {
     await userEvent.click(screen.getByRole("button", { name: /Открыть ошибки/i }));
     expect(onArchive).toHaveBeenCalledTimes(1);
   });
+
+  // ----- "Создать на основе" -----
+
+  it("does not render 'Создать на основе' when onCreateFrom is not provided", async () => {
+    render(<BroadcastAuditLog entries={[makeEntry()]} />);
+    await userEvent.click(screen.getByRole("button", { name: /Напоминание о приёме/ }));
+    expect(screen.queryByText(/Создать на основе/i)).not.toBeInTheDocument();
+  });
+
+  it("renders 'Создать на основе' in expanded block when onCreateFrom is provided", async () => {
+    const onCreateFrom = vi.fn();
+    render(<BroadcastAuditLog entries={[makeEntry()]} onCreateFrom={onCreateFrom} />);
+    await userEvent.click(screen.getByRole("button", { name: /Напоминание о приёме/ }));
+    expect(screen.getByRole("button", { name: /Создать на основе/i })).toBeInTheDocument();
+  });
+
+  it("calls onCreateFrom with the entry when 'Создать на основе' is clicked", async () => {
+    const onCreateFrom = vi.fn();
+    const entry = makeEntry({ id: "e-test", messageTitle: "Тест рассылки" });
+    render(<BroadcastAuditLog entries={[entry]} onCreateFrom={onCreateFrom} />);
+    await userEvent.click(screen.getByRole("button", { name: /Тест рассылки/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Создать на основе/i }));
+    expect(onCreateFrom).toHaveBeenCalledTimes(1);
+    expect(onCreateFrom).toHaveBeenCalledWith(entry);
+  });
 });

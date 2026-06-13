@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState, useEffect } from "react";
+import { useTransition, useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type {
   BroadcastAuditEntry,
@@ -44,11 +44,20 @@ const CHANNEL_TILE_LABELS: Record<BroadcastChannel, string> = {
   notification_bell: "Bell",
 };
 
-type Props = {
-  onBroadcastSent?: (entry: BroadcastAuditEntry) => void;
+/** Параметры префилла формы из записи журнала. */
+export type BroadcastFormPrefill = {
+  entry: BroadcastAuditEntry;
+  /** Монотонный счётчик; при каждом новом «Создать на основе» инкрементируется. */
+  nonce: number;
 };
 
-export function BroadcastForm({ onBroadcastSent }: Props) {
+type Props = {
+  onBroadcastSent?: (entry: BroadcastAuditEntry) => void;
+  /** Если передан — применяет данные записи журнала в форму при изменении nonce. */
+  prefill?: BroadcastFormPrefill;
+};
+
+export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
   const [isPending, startTransition] = useTransition();
   const [stage, setStage] = useState<Stage>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -67,6 +76,13 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
 
+  /**
+   * Отслеживает последний применённый nonce префилла.
+   * Используется для того, чтобы draft-эффект не затирал
+   * префилл, применённый после маунта (nonce > 0).
+   */
+  const appliedPrefillNonceRef = useRef<number>(0);
+
   // Load draft and channel counts on mount
   useEffect(() => {
     void (async () => {
@@ -75,7 +91,9 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
         getChannelCountsAction().catch(() => null),
       ]);
       if (counts) setChannelCounts(counts);
-      if (draft) {
+      // Не применяем черновик, если за время асинхронной загрузки
+      // пользователь уже применил префилл (nonce > 0).
+      if (draft && appliedPrefillNonceRef.current === 0) {
         if (draft.category) setCategory(draft.category);
         if (draft.audience) setAudience(draft.audience);
         if (draft.channels.length > 0) setSelectedChannels(new Set(draft.channels));
@@ -84,6 +102,29 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
       }
     })();
   }, []);
+
+  // Применяем префилл при изменении nonce (идемпотентно: повторный клик
+  // «Создать на основе» по той же записи инкрементирует nonce → эффект снова сработает).
+  useEffect(() => {
+    if (!prefill || prefill.nonce === 0) return;
+    appliedPrefillNonceRef.current = prefill.nonce;
+    const { entry } = prefill;
+    // Сбрасываем форму в редактируемое состояние
+    setStage("idle");
+    setSentEntry(null);
+    setPreview(null);
+    setErrorMsg(null);
+    // Применяем данные из записи журнала
+    setCategory(entry.category);
+    setAudience(entry.audienceFilter);
+    const channels = new Set(
+      entry.channels.filter((ch) => (BROADCAST_ACTIVE_CHANNELS as readonly string[]).includes(ch)),
+    );
+    setSelectedChannels(channels.size > 0 ? channels : new Set(BROADCAST_ACTIVE_CHANNELS));
+    setTitle(entry.messageTitle);
+    setBody(entry.messageBody);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce]);
 
   const isFormLocked = stage === "previewing" || stage === "confirming";
 

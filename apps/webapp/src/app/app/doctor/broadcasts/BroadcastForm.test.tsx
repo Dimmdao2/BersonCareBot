@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const previewBroadcastAction = vi.fn();
@@ -19,7 +19,7 @@ vi.mock("./actions", () => ({
 }));
 
 import { BroadcastForm } from "./BroadcastForm";
-import type { BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import type { BroadcastAuditEntry, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
 import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
 
 /** Минимальный ответ превью, совместимый с `BroadcastConfirmStep`. */
@@ -309,5 +309,106 @@ describe("BroadcastForm", () => {
       expect(screen.getByText("77")).toBeInTheDocument();
       expect(screen.getByText("33")).toBeInTheDocument();
     });
+  });
+
+  // ----- Prefill (Создать на основе) -----
+
+  const makePrefillEntry = (overrides: Partial<BroadcastAuditEntry> = {}): BroadcastAuditEntry => ({
+    id: "pe1",
+    actorId: "doctor-1",
+    category: "important_notice",
+    audienceFilter: "active_clients",
+    messageTitle: "Важное сообщение",
+    messageBody: "Текст важного сообщения для тестирования",
+    channels: ["sms", "push"],
+    executedAt: "2026-06-01T09:00:00.000Z",
+    previewOnly: false,
+    audienceSize: 50,
+    deliveryJobsTotal: 50,
+    sentCount: 50,
+    errorCount: 0,
+    blockedRecipientCount: 0,
+    attachMenuAfterSend: false,
+    ...overrides,
+  });
+
+  it("applies prefill entry data when prefill prop is provided (title, body, category, audience)", async () => {
+    const entry = makePrefillEntry();
+    render(<BroadcastForm prefill={{ entry, nonce: 1 }} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Важное сообщение")).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue("Текст важного сообщения для тестирования")).toBeInTheDocument();
+    // Category "important_notice" → "Важное"
+    expect(screen.getByRole("button", { name: "Важное" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Организационное" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("applies prefill channels (active channels from entry)", async () => {
+    const entry = makePrefillEntry({ channels: ["sms", "email"] });
+    render(<BroadcastForm prefill={{ entry, nonce: 1 }} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Важное сообщение")).toBeInTheDocument();
+    });
+    // SMS channel checkbox should be checked
+    const smsLabel = screen.getByText("SMS").closest("label");
+    expect(smsLabel?.querySelector('input[type="checkbox"]')).toBeChecked();
+    // Telegram should NOT be checked (not in prefill channels)
+    const telegramLabel = screen.getByText("Telegram").closest("label");
+    expect(telegramLabel?.querySelector('input[type="checkbox"]')).not.toBeChecked();
+  });
+
+  it("re-applies prefill when nonce increments (idempotency: same entry, new nonce)", async () => {
+    const entry = makePrefillEntry();
+    const { rerender } = render(<BroadcastForm prefill={{ entry, nonce: 1 }} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Важное сообщение")).toBeInTheDocument();
+    });
+
+    // Simulate user clearing the title
+    await userEvent.clear(screen.getByLabelText(/заголовок/i));
+    expect(screen.getByLabelText(/заголовок/i)).toHaveValue("");
+
+    // Re-click "Создать на основе" (same entry, new nonce)
+    await act(async () => {
+      rerender(<BroadcastForm prefill={{ entry, nonce: 2 }} />);
+    });
+
+    // Prefill should be re-applied
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Важное сообщение")).toBeInTheDocument();
+    });
+  });
+
+  it("prefill overrides draft: draft does not overwrite prefill applied before draft loads", async () => {
+    // Simulate slow draft load
+    let resolveDraft!: (v: unknown) => void;
+    loadDraftAction.mockReturnValue(new Promise((r) => { resolveDraft = r; }));
+
+    const entry = makePrefillEntry();
+    render(<BroadcastForm prefill={{ entry, nonce: 1 }} />);
+
+    // Prefill is applied immediately (effect runs synchronously after mount)
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Важное сообщение")).toBeInTheDocument();
+    });
+
+    // Now resolve the draft with different data
+    await act(async () => {
+      resolveDraft({
+        category: "service",
+        audience: "all",
+        channels: ["telegram"],
+        title: "Черновик заголовок",
+        body: "Черновик текст",
+      });
+    });
+
+    // Draft should NOT overwrite the prefill
+    expect(screen.getByDisplayValue("Важное сообщение")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Черновик заголовок")).not.toBeInTheDocument();
   });
 });
