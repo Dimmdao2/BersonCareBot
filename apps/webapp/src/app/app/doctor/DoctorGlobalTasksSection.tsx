@@ -10,22 +10,31 @@ import { cn } from "@/lib/utils";
 import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
 import { SpecialistTaskRow as TaskRow } from "./clients/SpecialistTaskRow";
 
-/** Сортировка: сначала задачи с дедлайном сегодня, затем по дате дедлайна, затем без срока. */
+/**
+ * Сортировка: сначала к выполнению (просроченные + сегодня) — по дате asc (самые
+ * просроченные сверху), затем будущие по дате, затем без срока. (R2)
+ */
 function sortTasksByDeadline(tasks: SpecialistTaskRow[], todayIso: string): SpecialistTaskRow[] {
+  const rank = (t: SpecialistTaskRow): number => {
+    if (t.dueAt == null) return 2;
+    return t.dueAt.slice(0, 10) <= todayIso ? 0 : 1;
+  };
   return [...tasks].sort((a, b) => {
-    const aToday = a.dueAt != null && a.dueAt.startsWith(todayIso);
-    const bToday = b.dueAt != null && b.dueAt.startsWith(todayIso);
-    if (aToday !== bToday) return aToday ? -1 : 1;
-    if (!a.dueAt && !b.dueAt) return 0;
-    if (!a.dueAt) return 1;
-    if (!b.dueAt) return -1;
+    const ra = rank(a);
+    const rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    if (a.dueAt == null || b.dueAt == null) return 0;
     return a.dueAt.localeCompare(b.dueAt);
   });
 }
 
-/** Задачи с дедлайном сегодня. */
+/**
+ * Задачи к выполнению на сегодня = дедлайн сегодня ИЛИ просроченные (вчера и раньше).
+ * R2: «просрочено так просрочено» — просроченные не скрываем, показываем вместе с сегодняшними.
+ * Сравнение по дате-части ISO (YYYY-MM-DD) лексикографически корректно.
+ */
 function filterTodayTasks(tasks: SpecialistTaskRow[], todayIso: string): SpecialistTaskRow[] {
-  return tasks.filter((t) => t.dueAt != null && t.dueAt.startsWith(todayIso));
+  return tasks.filter((t) => t.dueAt != null && t.dueAt.slice(0, 10) <= todayIso);
 }
 
 export function DoctorGlobalTasksSection({

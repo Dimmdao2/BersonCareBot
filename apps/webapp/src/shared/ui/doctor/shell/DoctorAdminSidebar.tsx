@@ -55,7 +55,7 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminS
         )}
       >
         <span
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-foreground/5 text-foreground"
           aria-hidden
         >
           <Stethoscope className="size-[18px]" strokeWidth={NAV_STRIP_ICON_STROKE} />

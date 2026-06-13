@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
-import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
+import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 
 type ClientsScope = "all" | "archived";
 
@@ -60,7 +60,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
     <DoctorAppShell title="Клиенты" user={session.user}>
       <section
         id="doctor-clients-list-section"
-        className={doctorSectionCardClass}
+        className={doctorPageStackClass}
       >
         <DoctorClientsPanel
           allClients={allClients}

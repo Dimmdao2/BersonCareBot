@@ -4,8 +4,8 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { cn } from "@/lib/utils";
-import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import {
   SCHEDULE_BASE,
   SCHEDULE_TABS,
@@ -60,39 +60,36 @@ type ScheduleTabsNavProps = {
 };
 
 function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
+  // Табы живут в слоте `tabs` per-page шапки DoctorPageHeader (единый sticky-заголовок,
+  // без отдельной липкой полосы и двойного бордера). Здесь — только ряд кнопок.
   return (
-    <nav
+    <div
       id="doctor-schedule-tabs"
-      className={cn(
-        "sticky z-20 -mx-3 mb-4 border-b border-border/60 bg-background/95 px-3 py-2 backdrop-blur-md supports-backdrop-filter:bg-background/90",
-        DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-      )}
       aria-label="Разделы расписания"
+      className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      <div className="flex gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {SCHEDULE_TABS.map((tab) => {
-          const active = tab.id === activeTab;
-          const itemClass = cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-            active
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          );
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              aria-current={active ? "page" : undefined}
-              onClick={() => onTabClick(tab.id)}
-              className={itemClass}
-              data-testid={`tab-btn-${tab.id}`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+      {SCHEDULE_TABS.map((tab) => {
+        const active = tab.id === activeTab;
+        const itemClass = cn(
+          "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+          active
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        );
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            aria-current={active ? "page" : undefined}
+            onClick={() => onTabClick(tab.id)}
+            className={itemClass}
+            data-testid={`tab-btn-${tab.id}`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -220,7 +217,11 @@ export function DoctorScheduleShell({
 
   return (
     <DoctorAppShell title="Расписание">
-      <ScheduleTabsNav activeTab={activeTab} onTabClick={handleTabChange} />
+      <DoctorPageHeader
+        id="doctor-schedule-header"
+        title="Расписание"
+        tabs={<ScheduleTabsNav activeTab={activeTab} onTabClick={handleTabChange} />}
+      />
       {SCHEDULE_TAB_REGISTRY.map((entry) => {
         if (!mountedTabs.has(entry.id)) return null;
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
