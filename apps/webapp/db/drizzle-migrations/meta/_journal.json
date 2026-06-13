@@ -834,6 +834,13 @@
       "when": 1786100000000,
       "tag": "0118_drop_legacy_break_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1786200000000,
+      "tag": "0119_be_appointments_soft_delete",
+      "breakpoints": true
     }
   ]
 }

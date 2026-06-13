@@ -189,6 +189,18 @@ export type IntegratorEventsDeps = {
   supportCommunication?: SupportCommunicationPort;
   reminderProjection?: ReminderProjectionPort;
   appointmentProjection?: AppointmentProjectionPort;
+  /**
+   * F1b: inbound Rubitime delete → also soft-delete the CANONICAL `be_appointments` row
+   * (legacy soft-delete via `appointmentProjection.softDeleteByIntegratorId` does not touch canonical).
+   * Best-effort + silent: no events/notifications; missing mapping is fine.
+   */
+  bookingEngineCanonicalSoftDelete?: {
+    softDeleteAppointmentByRubitimeExternalId: (input: {
+      organizationId: string;
+      rubitimeId: string;
+    }) => Promise<boolean>;
+    getDefaultOrganizationId: () => Promise<string>;
+  };
   patientBooking?: Pick<PatientBookingService, "applyRubitimeUpdate">;
   rubitimeCanonicalProjection?: Pick<RubitimeBridgePort, "upsertCanonicalFromRubitimeRecord"> & {
     getDefaultOrganizationId: () => Promise<string>;
@@ -901,6 +913,43 @@ export async function handleIntegratorEvent(
         retryable: false,
       };
     }
+
+    // Inbound Rubitime delete/remove → silent soft-delete (NO `booking.cancelled`, NO patient/staff
+    // notification). Distinct from a Rubitime CANCEL (status 4 → `cancelled`), which is upserted below.
+    // Cascades to patient_bookings / canonical via softDeleteByIntegratorId.
+    if (status === "deleted") {
+      try {
+        await ap.softDeleteByIntegratorId(integratorRecordId);
+        // Also soft-delete the CANONICAL be_appointments row (legacy soft-delete above does not
+        // touch canonical, which drives calendar / slot-availability / KPI). Best-effort + silent:
+        // no events/notifications; if no canonical mapping exists, that's fine.
+        if (deps.bookingEngineCanonicalSoftDelete) {
+          try {
+            const organizationId =
+              await deps.bookingEngineCanonicalSoftDelete.getDefaultOrganizationId();
+            await deps.bookingEngineCanonicalSoftDelete.softDeleteAppointmentByRubitimeExternalId({
+              organizationId,
+              rubitimeId: integratorRecordId,
+            });
+          } catch (canonErr) {
+            console.warn("[integrator-events] canonical soft-delete best-effort failed", {
+              integratorRecordId,
+              error: canonErr instanceof Error ? canonErr.message : String(canonErr),
+            });
+          }
+        }
+        revalidatePath(routePaths.cabinet);
+        revalidatePath(routePaths.patient);
+        return { accepted: true, reason: "soft_deleted" };
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "unknown error";
+        return {
+          accepted: false,
+          reason: withPgMeta(`appointment.record.upserted (deleted): ${reason}`, err),
+        };
+      }
+    }
+
     const purgedRow = await ap.getRecordByIntegratorId(integratorRecordId);
     if (purgedRow?.deletedAt) {
       return { accepted: true, reason: "skipped_purged" };

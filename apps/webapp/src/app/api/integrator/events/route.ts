@@ -171,6 +171,16 @@ export async function POST(request: Request) {
     supportCommunication: deps.supportCommunication,
     reminderProjection: deps.reminderProjection,
     appointmentProjection: deps.appointmentProjection,
+    bookingEngineCanonicalSoftDelete:
+      deps.bookingEnginePort?.softDeleteAppointmentByRubitimeExternalId
+        ? {
+            softDeleteAppointmentByRubitimeExternalId:
+              deps.bookingEnginePort.softDeleteAppointmentByRubitimeExternalId.bind(
+                deps.bookingEnginePort,
+              ),
+            getDefaultOrganizationId: () => deps.bookingEnginePort!.getDefaultOrganizationId(),
+          }
+        : undefined,
     patientBooking: deps.patientBooking,
     rubitimeCanonicalProjection:
       deps.bookingEnginePort && deps.rubitimeCanonicalProjection

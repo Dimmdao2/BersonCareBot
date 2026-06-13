@@ -862,6 +862,41 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       });
     },
 
+    async softDeleteAppointmentByRubitimeExternalId(input: {
+      organizationId: string;
+      rubitimeId: string;
+    }) {
+      const rubitimeId = input.rubitimeId.trim();
+      if (!rubitimeId) return false;
+      const db = getDrizzle();
+      const mapped = await db
+        .select({ canonicalId: beExternalEntityMappings.canonicalId })
+        .from(beExternalEntityMappings)
+        .where(
+          and(
+            eq(beExternalEntityMappings.organizationId, input.organizationId),
+            eq(beExternalEntityMappings.entityType, "appointment"),
+            eq(beExternalEntityMappings.externalSystem, "rubitime"),
+            eq(beExternalEntityMappings.externalId, rubitimeId),
+          ),
+        )
+        .limit(1);
+      const canonicalId = mapped[0]?.canonicalId?.trim();
+      if (!canonicalId) return false;
+      const updated = await db
+        .update(beAppointments)
+        .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(beAppointments.organizationId, input.organizationId),
+            eq(beAppointments.id, canonicalId),
+            isNull(beAppointments.deletedAt),
+          ),
+        )
+        .returning({ id: beAppointments.id });
+      return updated.length > 0;
+    },
+
     async listSpecialistRooms(organizationId) {
       const db = getDrizzle();
       const rows = await db

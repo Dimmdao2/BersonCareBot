@@ -347,6 +347,8 @@ export const beAppointments = pgTable(
     attributionJson: jsonb("attribution_json").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    /** F1b: inbound Rubitime delete/remove → silent canonical soft-delete (excluded from calendar/availability/KPI). */
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     index("idx_be_appointments_org_start").using(

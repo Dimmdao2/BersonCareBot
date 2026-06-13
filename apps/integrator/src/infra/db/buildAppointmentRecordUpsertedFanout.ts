@@ -6,7 +6,7 @@ export type BookingUpsertFanoutSource = {
   externalRecordId: string;
   phoneNormalized: string | null;
   recordAt: string | null;
-  status: 'created' | 'updated' | 'canceled';
+  status: 'created' | 'updated' | 'canceled' | 'deleted';
   payloadJson: Record<string, unknown>;
   lastEvent: string;
   updatedAt: string;

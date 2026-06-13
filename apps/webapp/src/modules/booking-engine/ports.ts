@@ -140,6 +140,15 @@ export type BookingEnginePort = {
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
   /** Hard delete is used only for immediate create rollback before side-effects. */
   deleteAppointmentHard?(input: { organizationId: string; appointmentId: string }): Promise<boolean>;
+  /**
+   * F1b: silent canonical soft-delete from an inbound Rubitime delete/remove. Resolves the
+   * canonical appointment via `be_external_entity_mappings` (external_id → canonical_id) and sets
+   * `deleted_at`. No events/notifications. Returns true if a canonical row was soft-deleted.
+   */
+  softDeleteAppointmentByRubitimeExternalId?(input: {
+    organizationId: string;
+    rubitimeId: string;
+  }): Promise<boolean>;
   upsertRubitimeAppointmentMapping(input: {
     organizationId: string;
     appointmentId: string;

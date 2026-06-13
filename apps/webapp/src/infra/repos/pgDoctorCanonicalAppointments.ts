@@ -145,7 +145,12 @@ export function createPgDoctorCanonicalAppointmentsPort(
     ): Promise<AppointmentRow[]> {
       const db = getDrizzle();
       const organizationId = await getDefaultOrganizationId();
-      const base = and(eq(beAppointments.organizationId, organizationId), isNotNull(beAppointments.startAt));
+      // F1b: soft-deleted (deleted_at) canonical rows are hidden from all doctor reads.
+      const base = and(
+        eq(beAppointments.organizationId, organizationId),
+        isNull(beAppointments.deletedAt),
+        isNotNull(beAppointments.startAt),
+      );
       const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
 
       let rows: ListRow[] = [];
@@ -170,7 +175,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .where(and(eq(beAppointments.organizationId, organizationId), userAudience, gte(beAppointments.startAt, from), lt(beAppointments.startAt, toExclusive)))
+          .where(and(eq(beAppointments.organizationId, organizationId), isNull(beAppointments.deletedAt), userAudience, gte(beAppointments.startAt, from), lt(beAppointments.startAt, toExclusive)))
           .orderBy(desc(beAppointments.startAt));
       } else if (filter.kind === "futureActive") {
         const nowIso = new Date().toISOString();
@@ -229,6 +234,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               eq(beAppointments.organizationId, organizationId),
+              isNull(beAppointments.deletedAt),
               userAudience,
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
@@ -245,6 +251,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               eq(beAppointments.organizationId, organizationId),
+              isNull(beAppointments.deletedAt),
               userAudience,
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`date_trunc('month', NOW())`),
@@ -270,12 +277,14 @@ export function createPgDoctorCanonicalAppointmentsPort(
       const userAudience = appointmentUserAudienceCond(excluded);
       const rangeCond = and(
         eq(beAppointments.organizationId, organizationId),
+        isNull(beAppointments.deletedAt),
         gte(beAppointments.startAt, from),
         lt(beAppointments.startAt, toExclusive),
         userAudience,
       );
       const createdInRangeCond = and(
         eq(beAppointments.organizationId, organizationId),
+        isNull(beAppointments.deletedAt),
         gte(beAppointments.createdAt, from),
         lt(beAppointments.createdAt, toExclusive),
         userAudience,
@@ -317,6 +326,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               eq(beAppointmentCancellations.organizationId, organizationId),
+              isNull(beAppointments.deletedAt),
               gte(beAppointmentCancellations.createdAt, from),
               lt(beAppointmentCancellations.createdAt, toExclusive),
               userAudience,
@@ -329,6 +339,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               eq(beAppointmentReschedules.organizationId, organizationId),
+              isNull(beAppointments.deletedAt),
               gte(beAppointmentReschedules.createdAt, from),
               lt(beAppointmentReschedules.createdAt, toExclusive),
               userAudience,
@@ -340,6 +351,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               eq(beAppointments.organizationId, organizationId),
+              isNull(beAppointments.deletedAt),
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
               userAudience,
@@ -365,7 +377,11 @@ export function createPgDoctorCanonicalAppointmentsPort(
       const db = getDrizzle();
       const organizationId = await getDefaultOrganizationId();
       const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
-      const orgCond = and(eq(beAppointments.organizationId, organizationId), userAudience);
+      const orgCond = and(
+        eq(beAppointments.organizationId, organizationId),
+        isNull(beAppointments.deletedAt),
+        userAudience,
+      );
       const nowIso = new Date().toISOString();
 
       const [futureR, monthR, cancelR] = await Promise.all([
@@ -432,6 +448,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
       // Base condition: non-cancelled, start_at in [from, toExclusive)
       const activeRangeCond = and(
         eq(beAppointments.organizationId, organizationId),
+        isNull(beAppointments.deletedAt),
         gte(beAppointments.startAt, from),
         lt(beAppointments.startAt, toExclusive),
         notInArray(beAppointments.status, [...CANCELLED_STATUSES]),
@@ -444,6 +461,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
       // Cancelled with start_at in window (for cancellationsInPeriod §13.1)
       const cancelledRangeCond = and(
         eq(beAppointments.organizationId, organizationId),
+        isNull(beAppointments.deletedAt),
         gte(beAppointments.startAt, from),
         lt(beAppointments.startAt, toExclusive),
         inArray(beAppointments.status, [...CANCELLED_STATUSES]),
@@ -507,6 +525,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
             sql`NOT EXISTS (
               SELECT 1 FROM be_appointments earlier
               WHERE earlier.organization_id = ${organizationId}
+                AND earlier.deleted_at IS NULL
                 AND earlier.platform_user_id = ${beAppointments.platformUserId}
                 AND (
                   earlier.start_at < ${beAppointments.startAt}

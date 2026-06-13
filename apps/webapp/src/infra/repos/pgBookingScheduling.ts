@@ -173,6 +173,8 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       const apptConds = [
         eq(beAppointments.organizationId, organizationId),
         specialistId ? eq(beAppointments.specialistId, specialistId) : sql`true`,
+        // F1b: soft-deleted appointments do not reserve the slot.
+        isNull(beAppointments.deletedAt),
         gte(beAppointments.endAt, rangeStart),
         lte(beAppointments.startAt, rangeEnd),
         inArray(beAppointments.status, ACTIVE_APPOINTMENT_STATUSES),

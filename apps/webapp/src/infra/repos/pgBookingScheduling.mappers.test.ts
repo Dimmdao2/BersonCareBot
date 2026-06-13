@@ -16,8 +16,20 @@ vi.mock("@/modules/booking-scheduling/service", () => ({
   buildSlotsForContext: vi.fn(),
 }));
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { mapRawWorkingDayRow, type RawWorkingDayRow } from "./pgBookingScheduling";
+
+const repoDir = dirname(fileURLToPath(import.meta.url));
+
+describe("pgBookingScheduling soft-delete filter (F1b)", () => {
+  it("listBusyIntervals excludes soft-deleted canonical rows (deleted_at IS NULL)", () => {
+    const src = readFileSync(join(repoDir, "pgBookingScheduling.ts"), "utf8");
+    expect(src).toContain("isNull(beAppointments.deletedAt)");
+  });
+});
 
 const SENTINEL_ID = "aaaabbbb-cccc-4ddd-8eee-ffffffffffff";
 const ORG_ID     = "11111111-1111-4111-8111-111111111111";

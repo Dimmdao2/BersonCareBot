@@ -590,5 +590,49 @@
         }
       }
     ]
+  },
+  {
+    "id": "rubitime.record.deleted",
+    "source": "rubitime",
+    "event": "webhook.received",
+    "match": {
+      "input": {
+        "entity": "record",
+        "action": "deleted"
+      }
+    },
+    "steps": [
+      {
+        "action": "event.log",
+        "mode": "sync",
+        "params": {
+          "eventStore": "booking",
+          "source": "{{source}}",
+          "eventType": "{{event}}",
+          "eventId": "{{meta.eventId}}",
+          "occurredAt": "{{meta.occurredAt}}",
+          "correlationId": "{{meta.correlationId}}",
+          "body": "{{input}}"
+        }
+      },
+      {
+        "action": "booking.upsert",
+        "mode": "sync",
+        "params": {
+          "externalRecordId": "{{input.recordId}}",
+          "phoneNormalized": "{{input.phone}}",
+          "recordAt": "{{input.recordAt}}",
+          "status": "deleted",
+          "rubitimeStatusCode": "{{input.statusCode}}",
+          "payloadJson": "{{input.record}}",
+          "lastEvent": "{{input.action}}",
+          "gcalEventId": "{{input.gcalEventId}}",
+          "rubitimeCooperatorId": "{{input.cooperatorId}}",
+          "dateTimeEnd": "{{input.dateTimeEnd}}",
+          "timeNormalizationStatus": "{{input.timeNormalizationStatus}}",
+          "timeNormalizationFieldErrors": "{{input.timeNormalizationFieldErrors}}"
+        }
+      }
+    ]
   }
 ]

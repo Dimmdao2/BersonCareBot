@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointments,
@@ -150,6 +150,8 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       const db = getDrizzle();
       const conds = [
         eq(beAppointments.organizationId, filters.organizationId),
+        // F1b: soft-deleted appointments are not shown on the calendar.
+        isNull(beAppointments.deletedAt),
         gte(beAppointments.endAt, filters.rangeStart),
         lte(beAppointments.startAt, filters.rangeEnd),
       ];

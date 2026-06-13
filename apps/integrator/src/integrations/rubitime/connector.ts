@@ -11,7 +11,11 @@ import { buildRubitimeDedupFingerprint } from './rubitimePayloadHash.js';
 
 export type RubitimeIncomingPayload = {
   entity: 'record';
-  action: 'created' | 'updated' | 'canceled';
+  /**
+   * `deleted` = Rubitime удалил запись (delete/remove webhook) → silent soft-delete в нашей БД
+   * (НЕ `cancelled`, без уведомлений). `canceled` = реальная отмена (status 4) → статус `cancelled`.
+   */
+  action: 'created' | 'updated' | 'canceled' | 'deleted';
   status?: string;
   statusCode?: string;
   recordId?: string;
@@ -120,8 +124,10 @@ function parseNameToFirstLast(name: string): { firstName?: string; lastName?: st
 function normalizeRubitimeAction(event: RubitimeWebhookBodyValidated['event']): RubitimeIncomingPayload['action'] {
   if (event === 'event-create-record') return 'created';
   if (event === 'event-update-record') return 'updated';
-  if (event === 'event-delete-record' || event === 'event-remove-record') return 'canceled';
-  return 'canceled';
+  // Rubitime delete/remove → silent soft-delete (НЕ отмена). Реальная отмена приходит как
+  // event-update-record со status 4 → action 'updated' + status 'canceled' (см. scripts.json).
+  if (event === 'event-delete-record' || event === 'event-remove-record') return 'deleted';
+  return 'deleted';
 }
 
 /**
@@ -250,6 +256,7 @@ export async function syncRubitimeWebhookBodyToGoogleCalendar(
     incoming.action !== 'created'
     && incoming.action !== 'updated'
     && incoming.action !== 'canceled'
+    && incoming.action !== 'deleted'
   ) {
     return null;
   }
@@ -257,11 +264,16 @@ export async function syncRubitimeWebhookBodyToGoogleCalendar(
   if (typeof recordId !== 'string' || recordId.trim().length === 0) {
     return null;
   }
+  // `deleted` (Rubitime delete/remove) тоже удаляет событие из Google Calendar — как и `canceled`.
+  const gcalAction: RubitimeCalendarSyncEvent['action'] =
+    incoming.action === 'canceled' || incoming.action === 'deleted'
+      ? 'canceled'
+      : incoming.action;
   const syncPayload: RubitimeCalendarSyncEvent = {
-    action: incoming.action,
+    action: gcalAction,
     rubRecordId: recordId.trim(),
     titleMarker:
-      incoming.action === 'canceled' ? 'none' : resolveRubitimeIncomingCalendarTitleMarker(incoming),
+      gcalAction === 'canceled' ? 'none' : resolveRubitimeIncomingCalendarTitleMarker(incoming),
   };
   if (incoming.recordAt !== undefined) syncPayload.recordAt = incoming.recordAt;
   if (incoming.record !== undefined) syncPayload.record = incoming.record;
