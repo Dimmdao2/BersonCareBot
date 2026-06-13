@@ -88,28 +88,30 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
   );
 
   const rightPane = (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto">
-      <p className="text-sm text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+      <p className="shrink-0 text-sm text-muted-foreground">
         После отправки сообщения ставятся в очередь; счётчики в журнале обновляются по мере
         работы воркера.{" "}
         <button type="button" onClick={onArchive} className={doctorInlineLinkClass}>
           Архив ошибок доставки
         </button>
       </p>
-      <section className={doctorSectionCardClass}>
-        <h2 className={cn(doctorSectionTitleClass, "mb-1")}>Журнал рассылок</h2>
+      <section className={cn(doctorSectionCardClass, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
+        <h2 className={cn(doctorSectionTitleClass, "mb-1 shrink-0")}>Журнал рассылок</h2>
         {loading ? (
           <p className="text-sm text-muted-foreground">Загрузка…</p>
         ) : (
-          <BroadcastAuditLog
-            entries={entries}
-            onArchive={onArchive}
-            onCreateFrom={(entry) => {
-              prefillNonceRef.current += 1;
-              setPrefill({ entry, nonce: prefillNonceRef.current });
-              setMobileView("list");
-            }}
-          />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <BroadcastAuditLog
+              entries={entries}
+              onArchive={onArchive}
+              onCreateFrom={(entry) => {
+                prefillNonceRef.current += 1;
+                setPrefill({ entry, nonce: prefillNonceRef.current });
+                setMobileView("list");
+              }}
+            />
+          </div>
         )}
       </section>
     </div>

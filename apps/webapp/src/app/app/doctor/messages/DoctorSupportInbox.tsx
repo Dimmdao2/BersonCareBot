@@ -347,7 +347,7 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
             ← К списку
           </Button>
         }
-        className="lg:grid-cols-[1fr_1.2fr] h-full"
+        className="lg:grid-cols-[0.8fr_1.6fr] h-full"
       />
     </div>
   );

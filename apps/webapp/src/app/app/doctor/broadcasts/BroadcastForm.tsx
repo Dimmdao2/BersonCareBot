@@ -325,7 +325,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Каналы · куда отправить
         </p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid auto-cols-fr grid-flow-col gap-2">
           {BROADCAST_ACTIVE_CHANNELS.map((ch) => {
             const active = selectedChannels.has(ch);
             const count = channelCounts ? channelCounts[ch as keyof BroadcastChannelCounts] : null;
