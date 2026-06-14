@@ -23,9 +23,24 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
 1. **#3 Курсы → top-level nav** — DONE (commit `feat(doctor-nav): promote Курсы…`).
    Route already existed; pure `doctorNavLinks.ts` reorg + test.
 2. **#1 Аналитика → one page, 4 tabs** (Клиенты · Контент · Приложение · Уведомления)
-   — IN PROGRESS. Fold the 4 existing subpages into a single tabbed page (tab
-   pattern from `DoctorScheduleShell` + `DoctorPageHeader` tabs slot), shared period
-   toolbar, redirects from old subpage URLs, nav cluster → single item.
+   — DONE + verified (commit `feat(doctor-analytics): consolidate…`). Page-shell
+   `/app/doctor/analytics` (`DoctorAnalyticsShell`, keepMounted client tabs in the
+   `DoctorPageHeader` tabs slot, `?tab=` URL-sync). Клиенты gets a server SSR
+   snapshot; Контент/Приложение/Уведомления self-fetch. 308 redirects from
+   `/analytics/clients`, `/usage`, `/analytics/notifications`. Nav cluster → single
+   admin-only link. **Verified** live (worktree dev server, dev:admin): all 4 tabs
+   render real data, tab switching + legacy redirects work, typecheck clean, nav
+   test green.
+   - **Phase-2 refinements (not done):** (a) dedup the push-open-rate chart — it
+     currently appears as «вар 1» on Контент and «вар 2» on Уведомления; pick one
+     source. (b) Воронка записи + broadcast read-receipts blocks await backend
+     events that don't exist yet (see gaps below). (c) Pin down the
+     «клиент / потенциальный» definition in code. (d) Optionally re-home the
+     content-engagement charts (practice completions / video opens) fully into the
+     Контент tab. (e) Old page.tsx files (`analytics/clients`, `usage`,
+     `analytics/notifications`) are now unreachable behind 308s — candidates for
+     deletion once the new shell is accepted (their client components are still
+     used by the tabs and must stay).
 3. **#2 Контент** — system sections vs «Статьи и страницы», card/list grid, material
    editor wiring, 👁 visibility pattern extended from Разминки.
 4. **#4 Главная пациента** — editor already exists at `/app/doctor/patient-home`
