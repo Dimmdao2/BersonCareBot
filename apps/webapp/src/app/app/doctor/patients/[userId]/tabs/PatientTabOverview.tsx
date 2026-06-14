@@ -1,206 +1,305 @@
 "use client";
 
 /**
- * PatientTabOverview — Wave 3: full «Обзор» UI.
+ * PatientTabOverview — Wave 4: «Обзор» tab wired to real backend.
  * Two columns 50/50:
  *   LEFT  — KPIs · Сигналы · Актуальные симптомы · Динамика симптомов · Выполнение упражнений
  *   RIGHT — Заметки · Задачи · Программа и комментарии · Сообщения
  *
- * All data is MOCK inline; mark TODO(backend) where real sources are needed.
+ * All widgets fetch independently; each degrades gracefully on error/empty.
+ * Parallel fetches via Promise.all — no waterfall.
+ * Pattern mirrors PatientTabRecords.tsx / PatientTabKarta.tsx.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { ActiveComplaint } from "@/modules/patient-clinical/ports";
+import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
+import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
+import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
-  doctorSectionItemClass,
   doctorStatCardShellClass,
   doctorMetricValueClass,
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 
 // ---------------------------------------------------------------------------
-// Types (mock data shapes)
+// Backend response types
 // ---------------------------------------------------------------------------
 
-type Signal = { id: string; text: string; link: string };
+interface ClinicalApiResponse {
+  ok: boolean;
+  state: {
+    complaints: ActiveComplaint[];
+  };
+  visits: Array<{
+    id: string;
+    date: string;
+    type: "first" | "repeat";
+    dynamics?: Array<{ id: string; label: string; from: number; to: number; note: string; priority: boolean }>;
+  }>;
+}
 
-type Symptom = {
+interface AppointmentItem {
   id: string;
-  location: string; // e.g. "Бедро / правое / боль ноющая"
-  score: number; // current 0-10
-  prevScore?: number; // previous visit score
-  since?: string; // e.g. "05.01"
-  isPrimary: boolean;
-};
+  dateTime: string;
+  status: "upcoming" | "completed" | "rescheduled" | "canceled";
+  serviceName?: string | null;
+  location?: string | null;
+  durationMin?: number | null;
+}
+
+interface AppointmentsApiResponse {
+  appointments: AppointmentItem[];
+}
+
+interface PackageItem {
+  id: string;
+  title?: string | null;
+  quantityInitial?: number | null;
+  remaining?: number | null;
+  validUntil?: string | null;
+  status?: string | null;
+}
+
+interface PackagesApiResponse {
+  ok: boolean;
+  packages: PackageItem[];
+}
+
+interface NotesApiResponse {
+  ok: boolean;
+  notes: DoctorNoteRow[];
+}
+
+interface TasksApiResponse {
+  ok: boolean;
+  tasks: SpecialistTaskRow[];
+}
+
+interface TreatmentInstanceItem {
+  id: string;
+  title: string;
+  status: "active" | "completed" | "archived" | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TreatmentInstanceStage {
+  id: string;
+  title: string;
+  status: string;
+  sortOrder: number;
+  groups: Array<{ id: string; title: string; systemKind?: string | null }>;
+  items: Array<{
+    id: string;
+    itemType: string;
+    sortOrder: number;
+    snapshot?: { title?: string | null; loadType?: string | null; difficulty?: number | null } | null;
+    effectiveComment?: string | null;
+    settings?: Record<string, unknown> | null;
+  }>;
+}
+
+interface TreatmentInstanceDetailResponse {
+  ok: boolean;
+  item: TreatmentInstanceItem & { stages: TreatmentInstanceStage[] };
+}
+
+interface ProgramInstancesApiResponse {
+  ok: boolean;
+  items: TreatmentInstanceItem[];
+}
+
+interface SignalsApiResponse {
+  ok: boolean;
+  signals: ProactiveInsightRow[];
+}
+
+interface CalendarDay {
+  date: string; // YYYY-MM-DD
+  completedCount: number;
+}
+
+interface ExerciseCalendarApiResponse {
+  ok: boolean;
+  days: CalendarDay[];
+}
+
+interface MessagesApiResponse {
+  ok: boolean;
+  conversationId?: string;
+  messages: SerializedSupportMessage[];
+  unreadFromUserCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Aggregated fetch state
+// ---------------------------------------------------------------------------
+
+type WidgetStatus = "loading" | "ok" | "error" | "empty";
+
+interface OverviewData {
+  // Clinical
+  clinicalStatus: WidgetStatus;
+  complaints: ActiveComplaint[];
+  symptomSeries: SymptomSeries[];
+
+  // KPI — Control (appointments)
+  appointmentsStatus: WidgetStatus;
+  controlDays: number | null;
+  controlDate: string | null;
+
+  // KPI — Package
+  packageStatus: WidgetStatus;
+  activePackage: PackageItem | null;
+
+  // Treatment program
+  programStatus: WidgetStatus;
+  programTitle: string | null;
+  programStages: TreatmentInstanceStage[];
+  programCurrentStage: TreatmentInstanceStage | null;
+  programCurrentStageIndex: number; // 0-based index into programStages
+
+  // Notes
+  notesStatus: WidgetStatus;
+  notes: DoctorNoteRow[];
+
+  // Tasks
+  tasksStatus: WidgetStatus;
+  tasks: SpecialistTaskRow[];
+
+  // Signals
+  signalsStatus: WidgetStatus;
+  signals: ProactiveInsightRow[];
+
+  // Exercise calendar
+  calendarStatus: WidgetStatus;
+  calendarDays: CalendarDay[];
+
+  // Messages
+  messagesStatus: WidgetStatus;
+  messages: SerializedSupportMessage[];
+  unreadFromUserCount: number;
+}
 
 type SymptomSeries = {
   name: string;
   color: string;
-  points: Array<{ visit: string; score: number }>; // visit label + score
-};
-
-type CalendarDay = {
-  day: number;
-  status: "full" | "partial" | "missed" | "no-assign" | "future" | "today";
-  /** 0–1 completion ratio for shading partial */
-  ratio?: number;
-};
-
-type Note = { id: string; text: string; pinned: boolean; date?: string };
-type Task = { id: string; text: string; deadline: string; overdue: boolean };
-
-type ExerciseRow = {
-  id: string;
-  icon: string;
-  name: string;
-  lastMark: "easy" | "medium" | "hard" | null;
-  lastMarkLabel: string; // e.g. "12 кг × 15"
-  commentCount: number;
-  hasUnread: boolean;
-};
-
-type ProgramBlock = { id: string; label: string; exercises: ExerciseRow[] };
-
-type Message = {
-  id: string;
-  senderName: string;
-  text: string;
-  date: string;
-  isPatient: boolean;
-  isUnread: boolean;
+  points: Array<{ visit: string; score: number }>;
 };
 
 // ---------------------------------------------------------------------------
-// MOCK DATA — TODO(backend) replace with real API calls
+// Helpers
 // ---------------------------------------------------------------------------
 
-/** TODO(backend): fetch from program stage / appointment_records */
-const MOCK_CONTROL_DAYS = 9;
-const MOCK_CONTROL_DATE = "21.06";
-const MOCK_CONTROL_STAGE = "конец этапа 2";
+function daysFromNow(isoDate: string): number {
+  const now = new Date();
+  const target = new Date(isoDate);
+  const diffMs = target.getTime() - now.getTime();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
 
-/** TODO(backend): fetch from memberships table */
-const MOCK_MEMBERSHIP_USED = 4;
-const MOCK_MEMBERSHIP_TOTAL = 10;
-const MOCK_MEMBERSHIP_UNTIL = "до 31.07";
+function fmtDateShort(iso: string): string {
+  // ISO → "DD.MM"
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
-/** TODO(backend): fetch from patient signals (from «Сегодня» feed) */
-const MOCK_SIGNALS: Signal[] = [
-  { id: "s1", text: "Не выполняет упражнения 5 дней подряд", link: "программа" },
-  { id: "s2", text: "Тест «Наклон вперёд» ждёт проверки 3 дня", link: "тест" },
-];
+function fmtDateMsgShort(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
-/** TODO(backend): fetch from card complaint/diagnosis model */
-const MOCK_SYMPTOMS: Symptom[] = [
-  { id: "sym1", location: "Бедро / правое / боль ноющая", score: 2, prevScore: 5, since: "05.01", isPrimary: true },
-  { id: "sym2", location: "Поясница (низ) / слева / боль тянущая, мышечная", score: 4, since: "05.01", isPrimary: false },
-];
+/** Build per-complaint dynamics series from clinical visits. */
+function buildSymptomSeries(
+  complaints: ActiveComplaint[],
+  visits: ClinicalApiResponse["visits"],
+): SymptomSeries[] {
+  if (complaints.length === 0 || visits.length === 0) return [];
 
-/** TODO(backend): pull symptom scores from visits history */
-const MOCK_SYMPTOM_SERIES: SymptomSeries[] = [
-  {
-    name: "Поясница · 4/10",
-    color: "#c2812e",
-    points: [
-      { visit: "05.01 · первичный", score: 6 },
-      { visit: "15.01", score: 5 },
-      { visit: "22.01", score: 4 },
-    ],
-  },
-  {
-    name: "⚑ Бедро · 2/10",
-    color: "var(--primary, #3b82f6)",
-    points: [
-      { visit: "05.01 · первичный", score: 5 },
-      { visit: "15.01", score: 3 },
-      { visit: "22.01", score: 2 },
-    ],
-  },
-];
+  // Colors: priority complaint → primary; others → secondary
+  const COLORS = [
+    "var(--primary, #3b82f6)",
+    "#c2812e",
+    "#9b59b6",
+    "#2ecc71",
+    "#e74c3c",
+  ];
 
-/** June 2026 exercise calendar — 30 days, today = 14 */
-const TODAY_DAY = 14;
-const MOCK_JUNE_CALENDAR: CalendarDay[] = [
-  { day: 1, status: "full" },
-  { day: 2, status: "partial", ratio: 0.5 },
-  { day: 3, status: "missed" },
-  { day: 4, status: "full" },
-  { day: 5, status: "partial", ratio: 0.25 },
-  { day: 6, status: "full" },
-  { day: 7, status: "no-assign" },
-  { day: 8, status: "missed" },
-  { day: 9, status: "missed" },
-  { day: 10, status: "missed" },
-  { day: 11, status: "missed" },
-  { day: 12, status: "missed" },
-  { day: 13, status: "no-assign" },
-  { day: 14, status: "today" },
-  ...Array.from({ length: 16 }, (_, i) => ({ day: 15 + i, status: "future" as const })),
-];
+  // Sort visits oldest→newest (visits come newest→oldest from API)
+  const sorted = [...visits].reverse();
 
-/** TODO(backend): notes from entity_comments / notes table */
-const MOCK_NOTES: Note[] = [
-  { id: "n1", text: "Не давать осевую нагрузку до контрольного МРТ (июль)", pinned: true },
-  { id: "n2", text: "Мануальные техники не любит — только мягкие методики", pinned: true },
-  { id: "n3", text: "Просил счёт для работодателя за абонемент", pinned: false, date: "18.05" },
-];
+  return complaints.map((c, idx) => {
+    const points: Array<{ visit: string; score: number }> = [];
 
-/** TODO(backend): tasks from tasks/todos table */
-const MOCK_TASKS: Task[] = [
-  { id: "t1", text: "Проверить технику наклона по видео", deadline: "до 13.06", overdue: true },
-  { id: "t2", text: "Скорректировать программу после контрольного МРТ", deadline: "до 04.07", overdue: false },
-];
+    for (const v of sorted) {
+      if (!v.dynamics) continue;
+      const match = v.dynamics.find((d) => d.label === c.text);
+      if (match) {
+        points.push({ visit: v.date, score: match.to });
+      }
+    }
 
-/** TODO(backend): program stage from treatment_program_instances + stages */
-const MOCK_STAGE = { current: 2, total: 4, name: "Укрепление", activeDays: 12, totalDays: 21 };
-const MOCK_PROGRAM_BLOCKS: ProgramBlock[] = [
-  {
-    id: "b1",
-    label: "Блок 1 · Силовые",
-    exercises: [
-      { id: "e1", icon: "🏋️", name: "Ягодичный мост на двух ногах с резиной", lastMark: "medium", lastMarkLabel: "12 кг × 15", commentCount: 4, hasUnread: true },
-      { id: "e2", icon: "🦵", name: "Подъёмы на носок одной ноги", lastMark: "easy", lastMarkLabel: "× 20", commentCount: 1, hasUnread: false },
-      { id: "e3", icon: "🧎", name: "Обратный нордический наклон, эксцентрика", lastMark: "hard", lastMarkLabel: "× 8", commentCount: 0, hasUnread: false },
-      { id: "e4", icon: "🙇", name: "Разгибания в наклоне", lastMark: "medium", lastMarkLabel: "8 кг × 12", commentCount: 1, hasUnread: false },
-    ],
-  },
-  {
-    id: "b2",
-    label: "Блок 2 · Мобилизация и растяжка",
-    exercises: [
-      { id: "e5", icon: "🧘", name: "Поза ребёнка в динамике", lastMark: null, lastMarkLabel: "", commentCount: 2, hasUnread: true },
-      { id: "e6", icon: "🦿", name: "Вращения бедра на одной ноге", lastMark: "easy", lastMarkLabel: "× 12", commentCount: 0, hasUnread: false },
-    ],
-  },
-];
+    // If we got no dynamics points but have trend data from state — use trend
+    if (points.length === 0 && c.trend.length > 0) {
+      c.trend.forEach((score, i) => {
+        points.push({ visit: `Визит ${i + 1}`, score });
+      });
+    }
 
-/** TODO(backend): messages from conversation thread */
-const MOCK_MESSAGES: Message[] = [
-  { id: "m1", senderName: "Егор", text: "После вчерашнего комплекса утром спина не болела — впервые за месяц", date: "11.06", isPatient: true, isUnread: true },
-  { id: "m2", senderName: "Егор", text: "Можно ли заменить планку на боковую? В классической тянет поясницу", date: "11.06", isPatient: true, isUnread: true },
-  { id: "m3", senderName: "Вы", text: "Пришлите видео наклона — посмотрю технику", date: "09.06", isPatient: false, isUnread: false },
-];
+    const color = c.priority ? COLORS[0] : (COLORS[idx + 1] ?? COLORS[1]);
+    const label = `${c.priority ? "⚑ " : ""}${c.text.length > 20 ? c.text.slice(0, 20) + "…" : c.text} · ${c.currentSeverity}/10`;
+    return { name: label, color, points };
+  });
+}
+
+/** Get current month ISO range. */
+function currentMonthRange(): { from: string; to: string } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    from: `${year}-${pad(month + 1)}-01`,
+    to: `${year}-${pad(month + 1)}-${pad(last.getDate())}`,
+  };
+}
+
+/** Month label in Russian for the current month. */
+function currentMonthLabel(): string {
+  return new Date().toLocaleDateString("ru-RU", { month: "long" });
+}
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** KPI pill — "Контроль" / "Абонемент" */
-function KpiCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+function KpiCard({ label, value, hint, loading }: { label: string; value: string; hint: string; loading?: boolean }) {
   return (
     <div className={cn(doctorStatCardShellClass, "flex flex-col gap-0.5")}>
       <span className={doctorMetricLabelClass}>{label}</span>
-      <span className={cn(doctorMetricValueClass, "text-base")}>{value}</span>
-      <span className="text-xs text-muted-foreground leading-tight">{hint}</span>
+      {loading ? (
+        <span className="text-xs text-muted-foreground animate-pulse py-1">…</span>
+      ) : (
+        <>
+          <span className={cn(doctorMetricValueClass, "text-base")}>{value}</span>
+          <span className="text-xs text-muted-foreground leading-tight">{hint}</span>
+        </>
+      )}
     </div>
   );
 }
 
-/** Symptom score badge */
 function ScoreBadge({ score, size = "base" }: { score: number; size?: "base" | "sm" }) {
   const cls = size === "base"
     ? "text-xs font-bold text-primary bg-primary/10 rounded-[9px] px-2 py-0.5 tabular-nums"
@@ -208,21 +307,9 @@ function ScoreBadge({ score, size = "base" }: { score: number; size?: "base" | "
   return <span className={cls}>{score}/10</span>;
 }
 
-/** Last-mark dumbbell icon for exercise rows */
-function DumbbellMark({ mark }: { mark: ExerciseRow["lastMark"] }) {
-  if (!mark) return null;
-  const color = mark === "easy" ? "#1f9d55" : mark === "medium" ? "var(--primary, #3b82f6)" : "#2b3442";
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" style={{ flex: "none", alignSelf: "center" }}>
-      <path d="M4.4 6 A2.6 2.6 0 0 1 9.6 6" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" />
-      <circle cx="7" cy="9.2" r="3.9" fill={color} />
-    </svg>
-  );
-}
-
-/** Inline SVG symptom dynamics chart */
 function SymptomChart({ series }: { series: SymptomSeries[] }) {
-  if (series.length === 0 || series[0].points.length === 0) return null;
+  const validSeries = series.filter((s) => s.points.length >= 2);
+  if (validSeries.length === 0) return null;
 
   const W = 480;
   const H = 168;
@@ -232,29 +319,25 @@ function SymptomChart({ series }: { series: SymptomSeries[] }) {
   const chartH = 130;
   const chartW = W - padLeft - padRight;
 
-  // Y gridlines at 0,2,4,6,8,10
   const yLabels = [10, 8, 6, 4, 2, 0];
   const yOf = (score: number) => padTop + ((10 - score) / 10) * chartH;
-  const xLabels = series[0].points.map((p) => p.visit);
-  const nPoints = series[0].points.length;
+  const xLabels = validSeries[0].points.map((p) => p.visit);
+  const nPoints = validSeries[0].points.length;
   const xOf = (i: number) => padLeft + (i / Math.max(nPoints - 1, 1)) * chartW;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-      {/* Grid lines */}
       <g stroke="#edf0f5" strokeWidth="1">
         {yLabels.map((v) => (
           <line key={v} x1={padLeft} y1={yOf(v)} x2={W - padRight} y2={yOf(v)} />
         ))}
       </g>
-      {/* Y axis labels */}
       <g fontSize="9" fill="#8b95a3">
         {yLabels.map((v) => (
           <text key={v} x={padLeft - 6} y={yOf(v) + 3} textAnchor="end">{v}</text>
         ))}
       </g>
-      {/* Series */}
-      {series.map((s) => {
+      {validSeries.map((s) => {
         const pts = s.points.map((p, i) => `${xOf(i)},${yOf(p.score)}`).join(" ");
         return (
           <g key={s.name}>
@@ -271,18 +354,24 @@ function SymptomChart({ series }: { series: SymptomSeries[] }) {
           </g>
         );
       })}
-      {/* X axis visit labels */}
       <g fontSize="9.5" fill="#5a6675">
         {xLabels.map((label, i) => (
-          <text key={i} x={xOf(i)} y={H - 12} textAnchor="middle">{label}</text>
+          <text key={i} x={xOf(i)} y={H - 12} textAnchor="middle">{label.length > 12 ? label.slice(0, 12) : label}</text>
         ))}
       </g>
     </svg>
   );
 }
 
-/** Exercise calendar cell */
-function CalendarCell({ day }: { day: CalendarDay }) {
+type CalendarDayStatus = "full" | "partial" | "missed" | "no-assign" | "future" | "today";
+
+interface CalendarCellData {
+  day: number;
+  status: CalendarDayStatus;
+  ratio?: number;
+}
+
+function CalendarCell({ day }: { day: CalendarCellData }) {
   let bg = "";
   let textColor = "";
   let ring = "";
@@ -293,7 +382,6 @@ function CalendarCell({ day }: { day: CalendarDay }) {
       textColor = "text-white font-semibold";
       break;
     case "partial":
-      // shade by ratio: lighter for lower completion
       bg = day.ratio && day.ratio > 0.4 ? "bg-[hsl(215_45%_76%)]" : "bg-[hsl(215_45%_89%)]";
       textColor = day.ratio && day.ratio > 0.4 ? "text-white font-semibold" : "text-muted-foreground";
       break;
@@ -339,21 +427,234 @@ type Props = {
   header?: PatientCardHeader;
 };
 
-export function PatientTabOverview({ userId: _userId, header: _header }: Props) {
+export function PatientTabOverview({ userId }: Props) {
   const [calView, setCalView] = useState<"month" | "week">("month");
   const [programStageOffset, setProgramStageOffset] = useState(0);
+  const [data, setData] = useState<OverviewData | null>(null);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
 
-  // Mock total program new comments
-  const totalProgramUnread = MOCK_PROGRAM_BLOCKS.flatMap((b) => b.exercises).filter((e) => e.hasUnread).length;
-  const totalMessageUnread = MOCK_MESSAGES.filter((m) => m.isUnread).length;
+  useEffect(() => {
+    let active = true;
+    const { from, to } = currentMonthRange();
 
-  // Week view: 7 days around today (days 8-14)
-  const WEEK_DAYS: CalendarDay[] = MOCK_JUNE_CALENDAR.slice(7, 14);
+    // --- All fetches in parallel ---
+    const fetchClinical = fetch(`/api/doctor/patients/${userId}/clinical`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<ClinicalApiResponse>) : null)
+      .catch(() => null);
 
-  const calDays = calView === "month" ? MOCK_JUNE_CALENDAR : WEEK_DAYS;
+    const fetchAppointments = fetch(`/api/doctor/patients/${userId}/appointments`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<AppointmentsApiResponse>) : null)
+      .catch(() => null);
 
-  // June 2026 starts on Monday (day 1 = Mon). June 1 is a Monday.
-  const firstDOW = 0; // 0 offset — June 1 = Monday (first column)
+    const fetchPackages = fetch(
+      `/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`,
+      { credentials: "include" },
+    )
+      .then((r) => r.ok ? (r.json() as Promise<PackagesApiResponse>) : null)
+      .catch(() => null);
+
+    const fetchNotes = fetch(`/api/doctor/clients/${userId}/notes`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<NotesApiResponse>) : null)
+      .catch(() => null);
+
+    const fetchTasks = fetch(`/api/doctor/clients/${userId}/tasks`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<TasksApiResponse>) : null)
+      .catch(() => null);
+
+    const fetchProgram = fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null)
+      .catch(() => null);
+
+    const fetchSignals = fetch(`/api/doctor/patients/${userId}/proactive-insights`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<SignalsApiResponse>) : null)
+      .catch(() => null);
+
+    const fetchCalendar = fetch(
+      `/api/doctor/patients/${userId}/exercise-calendar?from=${from}&to=${to}`,
+      { credentials: "include" },
+    )
+      .then((r) => r.ok ? (r.json() as Promise<ExerciseCalendarApiResponse>) : null)
+      .catch(() => null);
+
+    const fetchMessages = fetch(
+      `/api/doctor/messages/conversations/ensure`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientUserId: userId }),
+      },
+    )
+      .then((r) => r.ok ? (r.json() as Promise<MessagesApiResponse>) : null)
+      .catch(() => null);
+
+    Promise.all([
+      fetchClinical,
+      fetchAppointments,
+      fetchPackages,
+      fetchNotes,
+      fetchTasks,
+      fetchProgram,
+      fetchSignals,
+      fetchCalendar,
+      fetchMessages,
+    ]).then(async ([
+      clinical,
+      appointments,
+      packages,
+      notes,
+      tasks,
+      programList,
+      signals,
+      calendar,
+      messages,
+    ]) => {
+      if (!active) return;
+
+      // --- Clinical ---
+      const complaints = clinical?.state?.complaints ?? [];
+      const clinicalStatus: WidgetStatus = !clinical ? "error" : complaints.length === 0 ? "empty" : "ok";
+      const symptomSeries = clinical
+        ? buildSymptomSeries(complaints, clinical.visits ?? [])
+        : [];
+
+      // --- Appointments → Control KPI ---
+      const upcomingAppts = (appointments?.appointments ?? []).filter(
+        (a) => a.status === "upcoming",
+      );
+      upcomingAppts.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+      const nearestUpcoming = upcomingAppts[0] ?? null;
+      const controlDays = nearestUpcoming ? daysFromNow(nearestUpcoming.dateTime) : null;
+      const controlDate = nearestUpcoming ? fmtDateShort(nearestUpcoming.dateTime) : null;
+      const appointmentsStatus: WidgetStatus = !appointments ? "error" : nearestUpcoming === null ? "empty" : "ok";
+
+      // --- Packages ---
+      const activePackages = (packages?.packages ?? []).filter(
+        (p) => p.status === "active" || p.status === "activated",
+      );
+      const activePackage = activePackages[0] ?? null;
+      const packageStatus: WidgetStatus = !packages ? "error" : activePackage === null ? "empty" : "ok";
+
+      // --- Notes ---
+      const notesList = notes?.notes ?? [];
+      const notesStatus: WidgetStatus = !notes ? "error" : "ok";
+
+      // --- Tasks ---
+      const tasksList = (tasks?.tasks ?? []).filter((t) => !t.completedAt);
+      tasksList.sort((a, b) => {
+        if (!a.dueAt && !b.dueAt) return 0;
+        if (!a.dueAt) return 1;
+        if (!b.dueAt) return -1;
+        return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+      });
+      const tasksStatus: WidgetStatus = !tasks ? "error" : "ok";
+
+      // --- Program — fetch active instance detail if available ---
+      let programStatus: WidgetStatus = "ok";
+      let programTitle: string | null = null;
+      let programStages: TreatmentInstanceStage[] = [];
+      let programCurrentStage: TreatmentInstanceStage | null = null;
+      let programCurrentStageIndex = 0;
+
+      if (!programList) {
+        programStatus = "error";
+      } else {
+        const activeInstance = (programList.items ?? []).find((i) => i.status === "active");
+        if (!activeInstance) {
+          programStatus = "empty";
+        } else {
+          programTitle = activeInstance.title;
+          // Fetch detail for stages+items
+          try {
+            const detailRes = await fetch(
+              `/api/doctor/treatment-program-instances/${activeInstance.id}`,
+              { credentials: "include" },
+            );
+            if (detailRes.ok) {
+              const detail = (await detailRes.json()) as TreatmentInstanceDetailResponse;
+              if (detail.ok && detail.item) {
+                programStages = detail.item.stages ?? [];
+                // Current stage = last in_progress, fallback to last available
+                const inProgress = programStages.find((s) => s.status === "in_progress");
+                const available = programStages.find((s) => s.status === "available");
+                programCurrentStage = inProgress ?? available ?? programStages[0] ?? null;
+                if (programCurrentStage) {
+                  programCurrentStageIndex = programStages.findIndex((s) => s.id === programCurrentStage!.id);
+                  if (programCurrentStageIndex < 0) programCurrentStageIndex = 0;
+                }
+                programStatus = programStages.length === 0 ? "empty" : "ok";
+              }
+            }
+          } catch {
+            // Non-blocking: program section degraded, show title only
+            programStatus = programTitle ? "ok" : "error";
+          }
+        }
+      }
+
+      // --- Signals ---
+      const signalsList = signals?.signals ?? [];
+      const signalsStatus: WidgetStatus = !signals ? "error" : signalsList.length === 0 ? "empty" : "ok";
+
+      // --- Calendar ---
+      const calendarDays = calendar?.days ?? [];
+      const calendarStatus: WidgetStatus = !calendar ? "error" : "ok";
+
+      // --- Messages ---
+      const messagesList = messages?.messages ?? [];
+      const unreadFromUserCount = messages?.unreadFromUserCount ?? 0;
+      const messagesStatus: WidgetStatus = !messages ? "error" : "ok";
+
+      setData({
+        clinicalStatus,
+        complaints,
+        symptomSeries,
+        appointmentsStatus,
+        controlDays,
+        controlDate,
+        packageStatus,
+        activePackage,
+        programStatus,
+        programTitle,
+        programStages,
+        programCurrentStage,
+        programCurrentStageIndex,
+        notesStatus,
+        notes: notesList,
+        tasksStatus,
+        tasks: tasksList,
+        signalsStatus,
+        signals: signalsList,
+        calendarStatus,
+        calendarDays,
+        messagesStatus,
+        messages: messagesList,
+        unreadFromUserCount,
+      });
+      setLoadedUserId(userId);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const isStale = loadedUserId !== userId;
+  const isLoading = isStale || data === null;
+
+  // Compute calendar grid from real data
+  const calendarGrid = buildCalendarGrid(data?.calendarDays ?? []);
+
+  // Program stage to display (offset from current stage)
+  const displayStageIndex = data
+    ? Math.max(0, Math.min(data.programCurrentStageIndex + programStageOffset, data.programStages.length - 1))
+    : 0;
+  const displayStage = data?.programStages[displayStageIndex] ?? null;
+  const maxStageOffset = data ? data.programStages.length - 1 - data.programCurrentStageIndex : 0;
+  const minStageOffset = data ? -data.programCurrentStageIndex : 0;
+
+  // Message unread count
+  const totalMessageUnread = data?.unreadFromUserCount ?? 0;
 
   return (
     <div className="grid gap-2.5" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
@@ -363,44 +664,65 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
 
         {/* KPI row */}
         <div className="grid grid-cols-2 gap-2">
+          {/* Контроль KPI */}
           <KpiCard
             label="Контроль"
-            value={`через ${MOCK_CONTROL_DAYS} дн`}
-            hint={`${MOCK_CONTROL_STAGE} · ${MOCK_CONTROL_DATE}`}
+            loading={isLoading}
+            value={
+              data?.appointmentsStatus === "empty" || data?.controlDays === null
+                ? "—"
+                : data?.controlDays !== undefined && data.controlDays <= 0
+                  ? "сегодня"
+                  : `через ${data?.controlDays} дн`
+            }
+            hint={
+              data?.controlDate
+                ? `следующий визит · ${data.controlDate}`
+                : "нет предстоящих записей"
+            }
           />
+          {/* Абонемент KPI */}
           <KpiCard
             label="Абонемент"
-            value={`${MOCK_MEMBERSHIP_USED} из ${MOCK_MEMBERSHIP_TOTAL}`}
-            hint={`осталось · ${MOCK_MEMBERSHIP_UNTIL}`}
+            loading={isLoading}
+            value={
+              data?.packageStatus === "empty" || !data?.activePackage
+                ? "—"
+                : data.activePackage.remaining !== null && data.activePackage.remaining !== undefined &&
+                  data.activePackage.quantityInitial
+                  ? `${data.activePackage.remaining} из ${data.activePackage.quantityInitial}`
+                  : "активен"
+            }
+            hint={
+              data?.activePackage?.validUntil
+                ? `осталось · до ${fmtDateShort(data.activePackage.validUntil)}`
+                : data?.packageStatus === "empty"
+                  ? "абонемент не активен"
+                  : "осталось занятий"
+            }
           />
         </div>
 
         {/* Сигналы — shown only when present */}
-        {MOCK_SIGNALS.length > 0 && (
+        {!isLoading && data?.signalsStatus === "ok" && (data.signals?.length ?? 0) > 0 && (
           <div className={doctorSectionCardClass}>
             <div className="flex items-center gap-2 mb-1">
               <span className={doctorSectionTitleClass}>Сигналы</span>
               <span className="inline-flex items-center rounded-full bg-destructive/10 px-1.5 py-0 text-[10px] font-semibold text-destructive">
-                {MOCK_SIGNALS.length}
+                {data.signals.length}
               </span>
             </div>
             <div className="flex flex-col gap-1">
-              {MOCK_SIGNALS.map((sig) => (
+              {data.signals.map((sig, idx) => (
                 <div
-                  key={sig.id}
+                  key={sig.patientUserId + sig.kind + idx}
                   className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
                 >
                   <span className="text-base flex-none">⚠</span>
-                  <span className="flex-1 text-xs text-foreground">{sig.text}</span>
-                  <span className="ml-auto text-xs text-muted-foreground cursor-pointer whitespace-nowrap hover:text-primary transition-colors">
-                    к {sig.link} →
-                  </span>
+                  <span className="flex-1 text-xs text-foreground">{sig.summary}</span>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground leading-tight">
-              виден только при наличии сигналов · источник — «Сигналы пациентов» с «Сегодня»
-            </p>
           </div>
         )}
 
@@ -416,61 +738,74 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
             </button>
           </div>
 
-          {MOCK_SYMPTOMS.filter((s) => s.isPrimary).map((s) => (
-            <div
-              key={s.id}
-              className="flex flex-wrap items-center gap-2 border border-[#ecd9d5] bg-[#fbf5f4] rounded-lg px-3 py-2"
-            >
-              <span className="text-base flex-none">⚑</span>
-              <span className="text-sm font-semibold text-foreground flex-1 min-w-0">{s.location}</span>
-              <ScoreBadge score={s.score} size="base" />
-              <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
-                {s.since && `с ${s.since}`}
-                {s.prevScore != null && ` · было ${s.prevScore}/10`}
-              </span>
-            </div>
-          ))}
+          {isLoading && (
+            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка симптомов…</p>
+          )}
+          {!isLoading && data?.clinicalStatus === "error" && (
+            <p className="text-xs text-destructive py-1">Не удалось загрузить симптомы.</p>
+          )}
+          {!isLoading && data?.clinicalStatus === "empty" && (
+            <p className="text-xs text-muted-foreground py-2">Симптомы не зафиксированы.</p>
+          )}
 
-          {MOCK_SYMPTOMS.filter((s) => !s.isPrimary).map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center gap-2 mt-1 px-3 text-xs text-muted-foreground"
-            >
-              <span className="w-3.5 flex-none" />
-              <span className="flex-1 min-w-0">{s.location}</span>
-              <ScoreBadge score={s.score} size="sm" />
-              <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-                {s.since && `с ${s.since}`}
-              </span>
-            </div>
-          ))}
+          {!isLoading && data?.clinicalStatus === "ok" && (
+            <>
+              {data.complaints.filter((c) => c.priority).map((c) => (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap items-center gap-2 border border-[#ecd9d5] bg-[#fbf5f4] rounded-lg px-3 py-2"
+                >
+                  <span className="text-base flex-none">⚑</span>
+                  <span className="text-sm font-semibold text-foreground flex-1 min-w-0">{c.text}</span>
+                  <ScoreBadge score={c.currentSeverity} size="base" />
+                  <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+                    {c.since}
+                    {c.trend.length >= 2 && ` · было ${c.trend[0]}/10`}
+                  </span>
+                </div>
+              ))}
 
-          <p className="text-xs text-muted-foreground leading-tight mt-1">
-            основной симптом (⚑) — крупно, остальные актуальные — мелкими строками
-          </p>
+              {data.complaints.filter((c) => !c.priority).map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center gap-2 mt-1 px-3 text-xs text-muted-foreground"
+                >
+                  <span className="w-3.5 flex-none" />
+                  <span className="flex-1 min-w-0">{c.text}</span>
+                  <ScoreBadge score={c.currentSeverity} size="sm" />
+                  <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+                    {c.since}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         {/* Динамика симптомов */}
         <div className={doctorSectionCardClass}>
           <div className="flex items-center justify-between flex-wrap gap-1.5 mb-1">
             <span className={doctorSectionTitleClass}>Динамика симптомов</span>
-            <span className="flex gap-2.5 items-center">
-              {MOCK_SYMPTOM_SERIES.map((s) => (
-                <span key={s.name} className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <span
-                    className="w-2.5 h-2.5 rounded-sm flex-none"
-                    style={{ background: s.color }}
-                  />
-                  {s.name}
-                </span>
-              ))}
-            </span>
+            {!isLoading && data?.symptomSeries && data.symptomSeries.length > 0 && (
+              <span className="flex gap-2.5 items-center">
+                {data.symptomSeries.map((s) => (
+                  <span key={s.name} className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="w-2.5 h-2.5 rounded-sm flex-none" style={{ background: s.color }} />
+                    {s.name}
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
-          <SymptomChart series={MOCK_SYMPTOM_SERIES} />
-          <p className="text-xs text-muted-foreground leading-tight mt-1">
-            {/* TODO(backend): pull visit symptom scores from visits history */}
-            линия на каждый актуальный симптом · точки — оценки из визитов
-          </p>
+          {isLoading && (
+            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка данных…</p>
+          )}
+          {!isLoading && (data?.clinicalStatus === "empty" || (data?.symptomSeries?.every((s) => s.points.length < 2))) && (
+            <p className="text-xs text-muted-foreground py-2">Недостаточно данных для графика.</p>
+          )}
+          {!isLoading && data?.symptomSeries && data.symptomSeries.some((s) => s.points.length >= 2) && (
+            <SymptomChart series={data.symptomSeries} />
+          )}
         </div>
 
         {/* Выполнение упражнений */}
@@ -478,14 +813,14 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
           <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
             <div>
               <span className={doctorSectionTitleClass}>
-                Выполнение упражнений · {calView === "month" ? "июнь" : "неделя"}
+                Выполнение упражнений · {calView === "month" ? currentMonthLabel() : "неделя"}
               </span>
-              <p className={cn(doctorSectionSubtitleClass, "mt-0.5")}>
-                {/* TODO(backend): program name and start date */}
-                Реабилитация ТБС + поясница · начата 12.02.2026 (4 мес)
-              </p>
+              {data?.programTitle && (
+                <p className={cn(doctorSectionSubtitleClass, "mt-0.5")}>
+                  {data.programTitle}
+                </p>
+              )}
             </div>
-            {/* Month/Week toggle */}
             <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium">
               <button
                 type="button"
@@ -514,59 +849,70 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
             </div>
           </div>
 
-          {/* Day-of-week headers */}
-          <div className="grid grid-cols-7 gap-0.5 mb-0.5">
-            {["пн", "вт", "ср", "чт", "пт", "сб", "вс"].map((d) => (
-              <div
-                key={d}
-                className="h-4 flex items-center justify-center text-[9px] text-muted-foreground/70 uppercase"
-              >
-                {d}
+          {isLoading && (
+            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка календаря…</p>
+          )}
+          {!isLoading && data?.calendarStatus === "error" && (
+            <p className="text-xs text-muted-foreground py-2">Данные о выполнении недоступны.</p>
+          )}
+          {!isLoading && data?.calendarStatus === "ok" && (
+            <>
+              <div className="grid grid-cols-7 gap-0.5 mb-0.5">
+                {["пн", "вт", "ср", "чт", "пт", "сб", "вс"].map((d) => (
+                  <div
+                    key={d}
+                    className="h-4 flex items-center justify-center text-[9px] text-muted-foreground/70 uppercase"
+                  >
+                    {d}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Calendar grid */}
-          {calView === "month" ? (
-            <div className="grid grid-cols-7 gap-0.5">
-              {/* Offset for first day of month (June 2026 starts Monday = 0 offset) */}
-              {Array.from({ length: firstDOW }).map((_, i) => (
-                <div key={`blank-${i}`} />
-              ))}
-              {calDays.map((d) => (
-                <CalendarCell key={d.day} day={d} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-7 gap-0.5">
-              {calDays.map((d) => (
-                <CalendarCell key={d.day} day={d} />
-              ))}
-            </div>
+              {calView === "month" ? (
+                <div className="grid grid-cols-7 gap-0.5">
+                  {Array.from({ length: calendarGrid.firstDOW }).map((_, i) => (
+                    <div key={`blank-${i}`} />
+                  ))}
+                  {calendarGrid.days.map((d) => (
+                    <CalendarCell key={d.day} day={d} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-7 gap-0.5">
+                  {calendarGrid.weekDays.map((d) => (
+                    <CalendarCell key={d.day} day={d} />
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3 mt-1.5 text-[10.5px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-primary" />полностью
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[hsl(215_45%_76%)]" />частично
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-background border border-border" />не выполнено
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-muted/40" />нет назначений
+                </span>
+              </div>
+
+              {(data.calendarDays.length > 0 || !isLoading) && (
+                <p className="text-xs text-foreground mt-2">
+                  За месяц: <strong>{data.calendarDays.length}</strong> дн с выполнением
+                  {data.calendarDays.length === 0 && " · нет данных"}
+                </p>
+              )}
+            </>
           )}
 
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 mt-1.5 text-[10.5px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-primary" />полностью
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[hsl(215_45%_76%)]" />частично
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-background border border-border" />не выполнено
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-muted/40" />нет назначений
-            </span>
-          </div>
-
-          {/* Summary */}
-          <p className="text-xs text-foreground mt-2">
-            {/* TODO(backend): compute from exercise completion log */}
-            За 30 дней: <strong>18 из 26</strong> дней с назначением · средняя выполняемость{" "}
-            <strong>64%</strong>
-          </p>
+          {/* If calendar 500'd (parallel agent building it) */}
+          {!isLoading && !data?.calendarStatus && (
+            <p className="text-xs text-muted-foreground py-2">Данные о выполнении недоступны.</p>
+          )}
         </div>
 
       </div>
@@ -586,47 +932,34 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
               +
             </button>
           </div>
-          <div className="flex flex-col gap-1">
-            {MOCK_NOTES.filter((n) => n.pinned).map((n) => (
-              <div
-                key={n.id}
-                className="flex items-center gap-2 rounded-md border border-[#f0e3c5] bg-[#fffdf5] px-2 py-1.5 text-sm"
-              >
-                <span className="flex-none">📌</span>
-                <span className="flex-1 text-xs text-foreground">{n.text}</span>
-                <button
-                  type="button"
-                  title="Редактировать"
-                  className="text-xs text-muted-foreground hover:text-primary cursor-pointer flex-none"
-                >
-                  ✎
-                </button>
-              </div>
-            ))}
-            {MOCK_NOTES.filter((n) => !n.pinned).map((n) => (
-              <div
-                key={n.id}
-                className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
-              >
-                <span className="w-3 flex-none" />
-                <span className="flex-1 text-xs text-foreground">{n.text}</span>
-                <button
-                  type="button"
-                  title="Редактировать"
-                  className="text-xs text-muted-foreground hover:text-primary cursor-pointer flex-none"
-                >
-                  ✎
-                </button>
-                {n.date && (
-                  <span className="text-[11px] text-muted-foreground flex-none">{n.date}</span>
-                )}
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {/* TODO(backend): notes from entity_comments or dedicated notes table */}
-            📌 важные — закреплены и видны всегда, обычные — по дате
-          </p>
+
+          {isLoading && (
+            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка заметок…</p>
+          )}
+          {!isLoading && data?.notesStatus === "error" && (
+            <p className="text-xs text-destructive py-1">Не удалось загрузить заметки.</p>
+          )}
+          {!isLoading && data?.notesStatus === "ok" && data.notes.length === 0 && (
+            <p className="text-xs text-muted-foreground py-2">Заметок нет.</p>
+          )}
+          {!isLoading && data?.notesStatus === "ok" && data.notes.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {/* Notes don't have a pinned field — sort by updatedAt newest first */}
+              {[...data.notes]
+                .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                .map((n) => (
+                  <div
+                    key={n.id}
+                    className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
+                  >
+                    <span className="flex-1 text-xs text-foreground">{n.text}</span>
+                    <span className="text-[11px] text-muted-foreground flex-none">
+                      {fmtDateMsgShort(n.updatedAt)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
 
         {/* Задачи */}
@@ -641,40 +974,49 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
               +
             </button>
           </div>
-          <div className="flex flex-col gap-1">
-            {MOCK_TASKS.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
-              >
-                <span className="flex-none text-base">☐</span>
-                <span className="flex-1 text-xs text-foreground">{task.text}</span>
-                <span
-                  className={cn(
-                    "text-[11px] font-medium flex-none",
-                    task.overdue ? "text-destructive font-semibold" : "text-muted-foreground",
-                  )}
-                >
-                  {task.deadline}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {/* TODO(backend): tasks table / TODO list */}
-            открытые задачи по пациенту, по дедлайну · видны и в общем списке на «Сегодня»
-          </p>
+
+          {isLoading && (
+            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка задач…</p>
+          )}
+          {!isLoading && data?.tasksStatus === "error" && (
+            <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
+          )}
+          {!isLoading && data?.tasksStatus === "ok" && data.tasks.length === 0 && (
+            <p className="text-xs text-muted-foreground py-2">Задач нет.</p>
+          )}
+          {!isLoading && data?.tasksStatus === "ok" && data.tasks.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {data.tasks.map((task) => {
+                const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
+                return (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
+                  >
+                    <span className="flex-none text-base">☐</span>
+                    {task.isImportant && <span className="flex-none text-destructive text-xs">!</span>}
+                    <span className="flex-1 text-xs text-foreground">{task.title}</span>
+                    {task.dueAt && (
+                      <span
+                        className={cn(
+                          "text-[11px] font-medium flex-none",
+                          isOverdue ? "text-destructive font-semibold" : "text-muted-foreground",
+                        )}
+                      >
+                        до {fmtDateShort(task.dueAt)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Программа и комментарии */}
         <div className={doctorSectionCardClass}>
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={doctorSectionTitleClass}>Программа и комментарии</span>
-            {totalProgramUnread > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0 text-[10px] font-semibold text-destructive">
-                💬 {totalProgramUnread * 2} новых
-              </span>
-            )}
             <button
               type="button"
               className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
@@ -683,87 +1025,84 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
             </button>
           </div>
 
-          {/* Stage pager */}
-          <div className="flex items-center gap-2 border border-border rounded-lg px-2 py-1.5 bg-muted/10 mb-2">
-            <button
-              type="button"
-              title="Предыдущий этап"
-              onClick={() => setProgramStageOffset((o) => Math.max(o - 1, 0))}
-              disabled={programStageOffset <= 0}
-              className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
-            >
-              ◀
-            </button>
-            <div className="flex-1 text-center">
-              <div className="text-[12.5px] font-semibold text-foreground">
-                Этап {MOCK_STAGE.current} из {MOCK_STAGE.total} · {MOCK_STAGE.name}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                активный · {MOCK_STAGE.activeDays} дней из {MOCK_STAGE.totalDays}
-              </div>
-            </div>
-            <button
-              type="button"
-              title="Следующий этап"
-              onClick={() => setProgramStageOffset((o) => o + 1)}
-              disabled={programStageOffset >= MOCK_STAGE.total - 1}
-              className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
-            >
-              ▶
-            </button>
-          </div>
+          {isLoading && (
+            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка программы…</p>
+          )}
+          {!isLoading && data?.programStatus === "error" && (
+            <p className="text-xs text-destructive py-1">Не удалось загрузить программу.</p>
+          )}
+          {!isLoading && data?.programStatus === "empty" && (
+            <p className="text-xs text-muted-foreground py-2">Программа не назначена.</p>
+          )}
 
-          {/* Exercise blocks */}
-          {MOCK_PROGRAM_BLOCKS.map((block) => (
-            <div key={block.id} className="mb-2">
-              <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 px-0.5">
-                {block.label}
-              </div>
-              <div className="flex flex-col gap-1">
-                {block.exercises.map((ex) => (
-                  <div
-                    key={ex.id}
-                    className="flex items-center gap-2 border border-border rounded-[7px] px-2 py-1 bg-card text-[11.5px] text-foreground"
-                  >
-                    {/* Icon */}
-                    <span className="w-[22px] h-[22px] rounded-md bg-muted/50 flex items-center justify-center text-xs flex-none">
-                      {ex.icon}
-                    </span>
-                    {/* Name */}
-                    <span className="flex-1 min-w-0 truncate">{ex.name}</span>
-                    {/* Last mark + params */}
-                    {ex.lastMark && (
-                      <span className="inline-flex items-center gap-1 flex-none">
-                        <DumbbellMark mark={ex.lastMark} />
-                        {ex.lastMarkLabel && (
-                          <span className="text-[10.5px] text-muted-foreground font-semibold whitespace-nowrap">
-                            {ex.lastMarkLabel}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                    {/* Comments */}
-                    {ex.commentCount > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground flex-none">
-                        💬 {ex.commentCount}
-                        {ex.hasUnread && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-destructive flex-none" />
-                        )}
-                      </span>
-                    )}
+          {!isLoading && data?.programStatus === "ok" && (
+            <>
+              {data.programTitle && (
+                <p className="text-[12px] font-semibold text-foreground mb-1.5">{data.programTitle}</p>
+              )}
+
+              {/* Stage pager */}
+              {data.programStages.length > 0 && displayStage && (
+                <>
+                  <div className="flex items-center gap-2 border border-border rounded-lg px-2 py-1.5 bg-muted/10 mb-2">
+                    <button
+                      type="button"
+                      title="Предыдущий этап"
+                      onClick={() => setProgramStageOffset((o) => Math.max(o - 1, minStageOffset))}
+                      disabled={programStageOffset <= minStageOffset}
+                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
+                    >
+                      ◀
+                    </button>
+                    <div className="flex-1 text-center">
+                      <div className="text-[12.5px] font-semibold text-foreground">
+                        Этап {displayStageIndex + 1} из {data.programStages.length} · {displayStage.title}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {displayStage.status === "in_progress"
+                          ? "активный"
+                          : displayStage.status === "completed"
+                            ? "завершён"
+                            : displayStage.status === "available"
+                              ? "доступен"
+                              : displayStage.status}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      title="Следующий этап"
+                      onClick={() => setProgramStageOffset((o) => Math.min(o + 1, maxStageOffset))}
+                      disabled={programStageOffset >= maxStageOffset}
+                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
+                    >
+                      ▶
+                    </button>
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
 
-          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-            {/* TODO(backend): treatment_program_instances + stages + exercise completion */}
-            этапы листаются ◀ ▶. Гиря:{" "}
-            <span className="text-[#1f9d55] font-semibold">зелёная</span> легко ·{" "}
-            <span className="text-primary font-semibold">синяя</span> средне ·{" "}
-            <span className="text-[#2b3442] font-semibold">тёмная</span> сложно. 💬 — комментарии, красная точка — непрочитанные.
-          </p>
+                  {/* Exercise items in stage */}
+                  {displayStage.items.filter((it) => it.itemType === "exercise").map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-2 border border-border rounded-[7px] px-2 py-1 bg-card text-[11.5px] text-foreground mb-1"
+                    >
+                      <span className="w-[22px] h-[22px] rounded-md bg-muted/50 flex items-center justify-center text-xs flex-none">
+                        💪
+                      </span>
+                      <span className="flex-1 min-w-0 truncate">
+                        {item.snapshot?.title ?? "Упражнение"}
+                      </span>
+                      {item.effectiveComment && (
+                        <span className="text-[10.5px] text-muted-foreground flex-none truncate max-w-[100px]">
+                          {item.effectiveComment}
+                        </span>
+                      )}
+                      {/* TODO(backend): per-exercise last-mark / unread comments not exposed via these endpoints */}
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </div>
 
         {/* Сообщения */}
@@ -782,34 +1121,110 @@ export function PatientTabOverview({ userId: _userId, header: _header }: Props) 
               вся переписка →
             </button>
           </div>
-          <div className="flex flex-col gap-1.5">
-            {MOCK_MESSAGES.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex gap-1.5 items-start rounded-lg px-2.5 py-1.5 text-[12.5px]",
-                  msg.isUnread
-                    ? "border border-primary bg-primary/5"
-                    : "border border-border bg-muted/10",
-                  !msg.isPatient && "text-muted-foreground",
-                )}
-              >
-                <span className="flex-1 min-w-0">
-                  <strong>{msg.senderName}:</strong> {msg.text}
-                </span>
-                <span className="text-[11px] text-muted-foreground whitespace-nowrap ml-auto pl-1.5">
-                  {msg.date}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {/* TODO(backend): conversation thread / inbox for patient */}
-            только контекст: последние сообщения, непрочитанные подсвечены. Ответ — через «вся переписка».
-          </p>
+
+          {isLoading && (
+            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка сообщений…</p>
+          )}
+          {!isLoading && data?.messagesStatus === "error" && (
+            <p className="text-xs text-destructive py-1">Не удалось загрузить сообщения.</p>
+          )}
+          {!isLoading && data?.messagesStatus === "ok" && data.messages.length === 0 && (
+            <p className="text-xs text-muted-foreground py-2">Сообщений нет.</p>
+          )}
+          {!isLoading && data?.messagesStatus === "ok" && data.messages.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {[...data.messages]
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .slice(0, 5)
+                .map((msg) => {
+                  const isUnread = !msg.readAt && msg.senderRole !== "admin";
+                  const isPatient = msg.senderRole !== "admin";
+                  return (
+                    <div
+                      key={msg.id}
+                      className={cn(
+                        "flex gap-1.5 items-start rounded-lg px-2.5 py-1.5 text-[12.5px]",
+                        isUnread
+                          ? "border border-primary bg-primary/5"
+                          : "border border-border bg-muted/10",
+                        !isPatient && "text-muted-foreground",
+                      )}
+                    >
+                      <span className="flex-1 min-w-0">
+                        <strong>{isPatient ? "Пациент" : "Вы"}:</strong> {msg.text}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap ml-auto pl-1.5">
+                        {fmtDateMsgShort(msg.createdAt)}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
 
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Calendar grid builder — converts API days to renderable cells
+// ---------------------------------------------------------------------------
+
+interface CalendarGrid {
+  firstDOW: number; // blank cells before day 1 (0 = Mon)
+  days: CalendarCellData[];
+  weekDays: CalendarCellData[];
+}
+
+function buildCalendarGrid(apiDays: CalendarDay[]): CalendarGrid {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const todayDay = now.getDate();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // First day of week offset (Mon = 0): getDay() returns 0=Sun, 1=Mon, …6=Sat
+  const firstOfMonth = new Date(year, month, 1);
+  const jsDay = firstOfMonth.getDay(); // 0=Sun
+  const firstDOW = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon-based
+
+  // Build lookup by day number (1-31)
+  const completedByDay = new Map<number, number>();
+  for (const apiDay of apiDays) {
+    const d = parseInt(apiDay.date.slice(8, 10), 10);
+    completedByDay.set(d, (completedByDay.get(d) ?? 0) + apiDay.completedCount);
+  }
+
+  const days: CalendarCellData[] = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const completedCount = completedByDay.get(d);
+    let status: CalendarCellData["status"];
+
+    if (d > todayDay) {
+      status = "future";
+    } else if (d === todayDay) {
+      status = "today";
+    } else if (completedCount === undefined) {
+      // Past day with no data — we don't know if it had assignments
+      status = "no-assign";
+    } else if (completedCount >= 3) {
+      status = "full";
+    } else if (completedCount >= 1) {
+      status = "partial";
+      // ratio hint: 1 → 0.3, 2 → 0.6
+    } else {
+      status = "missed";
+    }
+
+    days.push({ day: d, status, ratio: completedCount ? Math.min(completedCount / 3, 1) : undefined });
+  }
+
+  // Week view: 7 days around today (today and 3 days each side, clamped)
+  const weekStart = Math.max(1, todayDay - 3);
+  const weekEnd = Math.min(daysInMonth, weekStart + 6);
+  const weekDays = days.slice(weekStart - 1, weekEnd);
+
+  return { firstDOW, days, weekDays };
 }
