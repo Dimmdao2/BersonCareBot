@@ -10,6 +10,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
         profile: {
           patientUserId: "u1",
           onSupport: true,
+          supportStartedAt: null,
           commentsEnabled: null,
           mediaEnabled: false,
           updatedAt: "",
@@ -30,6 +31,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
         profile: {
           patientUserId: "u1",
           onSupport: false,
+          supportStartedAt: null,
           commentsEnabled: null,
           mediaEnabled: null,
           updatedAt: "",
@@ -50,6 +52,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
         profile: {
           patientUserId: "u1",
           onSupport: false,
+          supportStartedAt: null,
           commentsEnabled: true,
           mediaEnabled: true,
           updatedAt: "",

@@ -32,24 +32,29 @@
  * Toggle (◀/▶) always sits LEFT of the «История визитов» heading.
  * «+ Новый визит» button always on the RIGHT of the header row.
  *
- * Data: real from GET /api/doctor/patients/[userId]/clinical (client-side fetch).
- * Comorbidities + Anamnesis remain MOCK (owner deferred).
+ * Data:
+ *   - Clinical state (жалобы/диагнозы/визиты): GET .../clinical (real).
+ *   - Анамнез: GET .../anamnesis (real). POST .../anamnesis to append entries.
+ *   - Сопутствующие заболевания: MOCK (deferred).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
-import type { ActiveComplaint, ActiveDiagnosis, Visit } from "@/modules/patient-clinical/ports";
+import type {
+  ActiveComplaint,
+  ActiveDiagnosis,
+  AnamnesisIllnessEntry,
+  AnamnesisLifestyleEntry,
+  AnamnesisState,
+  AnamnesisTraumaEntry,
+  Visit,
+} from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
 } from "@/shared/ui/doctor/doctorVisual";
-import {
-  MOCK_ANAMNESIS_ILLNESS,
-  MOCK_ANAMNESIS_LIFESTYLE,
-  MOCK_ANAMNESIS_TRAUMA,
-  MOCK_COMORBIDITIES,
-} from "./karta/mockData";
+import { MOCK_COMORBIDITIES } from "./karta/mockData";
 import { NewVisitPanel } from "./karta/NewVisitPanel";
 
 type Props = {
@@ -275,7 +280,7 @@ function HistoryToggleBtn({
 }
 
 // ---------------------------------------------------------------------------
-// API response type (matches GET /api/doctor/patients/{userId}/clinical)
+// API response types
 // ---------------------------------------------------------------------------
 
 interface ClinicalApiResponse {
@@ -287,9 +292,234 @@ interface ClinicalApiResponse {
   visits: Visit[];
 }
 
+interface AnamnesisApiResponse {
+  ok: boolean;
+  anamnesis: AnamnesisState;
+}
+
+// ---------------------------------------------------------------------------
+// Anamnesis add-entry sub-forms
+// ---------------------------------------------------------------------------
+
+function AddTraumaForm({
+  userId,
+  onAdded,
+  onCancel,
+}: {
+  userId: string;
+  onAdded: (entry: AnamnesisTraumaEntry) => void;
+  onCancel: () => void;
+}) {
+  const [year, setYear] = useState("");
+  const [what, setWhat] = useState("");
+  const [type, setType] = useState("Травма");
+  const [immob, setImmob] = useState("—");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const yearRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { yearRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!year.trim() || !what.trim()) { setErr("Заполните Год и Что"); return; }
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: "trauma", year: year.trim(), what: what.trim(), type: type.trim() || "Травма", immobilization: immob.trim() || "—" }),
+      });
+      const data = (await res.json()) as { ok?: boolean; entry?: AnamnesisTraumaEntry };
+      if (!res.ok || !data.ok || !data.entry) throw new Error("save_failed");
+      onAdded(data.entry);
+    } catch {
+      setErr("Ошибка сохранения");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputClass = "h-8 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary/50";
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex flex-col gap-0.5">
+          <label className="text-xs text-muted-foreground">Год</label>
+          <input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="2003 (28 лет)" className={inputClass} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <label className="text-xs text-muted-foreground">Тип</label>
+          <input value={type} onChange={e => setType(e.target.value)} placeholder="Травма / Операция" className={inputClass} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <label className="text-xs text-muted-foreground">Что произошло</label>
+        <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Перелом копчика" className={inputClass} />
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <label className="text-xs text-muted-foreground">Иммобилизация / восстановление</label>
+        <input value={immob} onChange={e => setImmob(e.target.value)} placeholder="4 нед лёжа" className={inputClass} />
+      </div>
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      <div className="flex gap-1.5">
+        <button type="submit" disabled={saving} className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
+          {saving ? "Сохранение…" : "Добавить"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+          Отмена
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddIllnessForm({
+  userId,
+  onAdded,
+  onCancel,
+}: {
+  userId: string;
+  onAdded: (entry: AnamnesisIllnessEntry) => void;
+  onCancel: () => void;
+}) {
+  const [period, setPeriod] = useState("");
+  const [what, setWhat] = useState("");
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const periodRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { periodRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!period.trim() || !what.trim()) { setErr("Заполните Период и Что"); return; }
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: "illness", period: period.trim(), what: what.trim(), comment: comment.trim() }),
+      });
+      const data = (await res.json()) as { ok?: boolean; entry?: AnamnesisIllnessEntry };
+      if (!res.ok || !data.ok || !data.entry) throw new Error("save_failed");
+      onAdded(data.entry);
+    } catch {
+      setErr("Ошибка сохранения");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputClass = "h-8 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary/50";
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex flex-col gap-0.5">
+          <label className="text-xs text-muted-foreground">Период</label>
+          <input ref={periodRef} value={period} onChange={e => setPeriod(e.target.value)} placeholder="1999–2000" className={inputClass} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <label className="text-xs text-muted-foreground">Что</label>
+          <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Стресс · 8 мес" className={inputClass} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <label className="text-xs text-muted-foreground">Комментарий</label>
+        <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Начались панические атаки" className={inputClass} />
+      </div>
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      <div className="flex gap-1.5">
+        <button type="submit" disabled={saving} className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
+          {saving ? "Сохранение…" : "Добавить"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+          Отмена
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddLifestyleForm({
+  userId,
+  onAdded,
+  onCancel,
+}: {
+  userId: string;
+  onAdded: (entry: AnamnesisLifestyleEntry) => void;
+  onCancel: () => void;
+}) {
+  // Default date = today in YYYY-MM-DD
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [recordDate, setRecordDate] = useState(todayIso);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { textRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) { setErr("Введите текст записи"); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)) { setErr("Неверный формат даты"); return; }
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: "lifestyle", recordDate, text: text.trim() }),
+      });
+      const data = (await res.json()) as { ok?: boolean; entry?: AnamnesisLifestyleEntry };
+      if (!res.ok || !data.ok || !data.entry) throw new Error("save_failed");
+      onAdded(data.entry);
+    } catch {
+      setErr("Ошибка сохранения");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputClass = "h-8 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary/50";
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+      <div className="flex flex-col gap-0.5">
+        <label className="text-xs text-muted-foreground">Дата записи</label>
+        <input type="date" value={recordDate} onChange={e => setRecordDate(e.target.value)} className={inputClass} />
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <label className="text-xs text-muted-foreground">Образ жизни / привычки</label>
+        <textarea
+          ref={textRef}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Работа сидячая, 8–10 часов. В выходные прогулки…"
+          className="min-h-[60px] w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+        />
+      </div>
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      <div className="flex gap-1.5">
+        <button type="submit" disabled={saving} className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
+          {saving ? "Сохранение…" : "Добавить"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+          Отмена
+        </button>
+      </div>
+    </form>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
+
+const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
 export function PatientTabKarta({ userId, header: _header }: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
@@ -302,6 +532,13 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+
+  // Anamnesis data — loaded from /api/doctor/patients/[userId]/anamnesis
+  const [anamnesis, setAnamnesis] = useState<AnamnesisState>(EMPTY_ANAMNESIS);
+  const [anamnesisLoadedUserId, setAnamnesisLoadedUserId] = useState<string | null>(null);
+  const [anamnesisError, setAnamnesisError] = useState(false);
+  // Which add-form is open: null | "trauma" | "illness" | "lifestyle"
+  const [anamnesisAddOpen, setAnamnesisAddOpen] = useState<"trauma" | "illness" | "lifestyle" | null>(null);
 
   // fetchClinical is stable per userId — used on mount + after save
   const fetchClinical = useCallback(() => {
@@ -325,15 +562,35 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
       });
   }, [userId]);
 
+  const fetchAnamnesis = useCallback(() => {
+    fetch(`/api/doctor/patients/${userId}/anamnesis`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        return r.json() as Promise<AnamnesisApiResponse>;
+      })
+      .then((data) => {
+        setAnamnesis(data.anamnesis ?? EMPTY_ANAMNESIS);
+        setAnamnesisError(false);
+        setAnamnesisLoadedUserId(userId);
+      })
+      .catch(() => {
+        setAnamnesisError(true);
+        setAnamnesisLoadedUserId(userId);
+      });
+  }, [userId]);
+
   useEffect(() => {
     // Fetch on mount / userId change. Stale flash is prevented by the isStale
     // derivation below (loadedUserId !== userId) — no synchronous reset needed.
     fetchClinical();
-  }, [fetchClinical]);
+    fetchAnamnesis();
+  }, [fetchClinical, fetchAnamnesis]);
 
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;
   const loading = isStale || isLoading;
+  // Anamnesis loading derived (mirrors clinical) — avoids synchronous setState in effect
+  const anamnesisLoading = anamnesisLoadedUserId !== userId;
 
   /**
    * Grid column ratios per state matrix:
@@ -465,69 +722,138 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
           </div>
         </section>
 
-        {/* Анамнез — MOCK (owner deferred) */}
+        {/* Анамнез — real data from /api/doctor/patients/[userId]/anamnesis */}
         <section className={doctorSectionCardClass}>
           <div className="flex items-center justify-between">
             <h3 className={doctorSectionTitleClass}>Анамнез</h3>
-            <span className={doctorSectionSubtitleClass}>клик по строке — правка</span>
+            {anamnesisLoading && (
+              <span className="animate-pulse text-xs text-muted-foreground">Загрузка…</span>
+            )}
+            {!anamnesisLoading && anamnesisError && (
+              <span className="text-xs text-destructive">Ошибка загрузки</span>
+            )}
           </div>
 
+          {/* Травмы и операции */}
           <div className="flex items-center gap-1.5">
             <span className={sectionLabelClass}>Травмы и операции</span>
-            <button type="button" className={plusBtnClass} title="Добавить">
-              +
-            </button>
+            {anamnesisAddOpen !== "trauma" && (
+              <button
+                type="button"
+                className={plusBtnClass}
+                title="Добавить запись"
+                onClick={() => setAnamnesisAddOpen("trauma")}
+              >
+                +
+              </button>
+            )}
           </div>
-          <table className="w-full border-collapse text-sm">
-            <tbody>
-              <tr className="text-left text-xs text-muted-foreground">
-                <th className="border-b border-border py-1 pr-2 font-medium">Год</th>
-                <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
-                <th className="border-b border-border py-1 pr-2 font-medium">Тип</th>
-                <th className="border-b border-border py-1 font-medium">Иммоб.</th>
-              </tr>
-              {MOCK_ANAMNESIS_TRAUMA.map((r) => (
-                <tr key={r.id} className="align-top">
-                  <td className="border-b border-border/50 py-1 pr-2">{r.year}</td>
-                  <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
-                  <td className="border-b border-border/50 py-1 pr-2">{r.type}</td>
-                  <td className="border-b border-border/50 py-1">{r.immobilization}</td>
+          {anamnesisAddOpen === "trauma" && (
+            <AddTraumaForm
+              userId={userId}
+              onAdded={(entry) => {
+                setAnamnesis((prev) => ({ ...prev, trauma: [...prev.trauma, entry] }));
+                setAnamnesisAddOpen(null);
+              }}
+              onCancel={() => setAnamnesisAddOpen(null)}
+            />
+          )}
+          {!anamnesisLoading && anamnesis.trauma.length > 0 && (
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="border-b border-border py-1 pr-2 font-medium">Год</th>
+                  <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
+                  <th className="border-b border-border py-1 pr-2 font-medium">Тип</th>
+                  <th className="border-b border-border py-1 font-medium">Иммоб.</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+                {anamnesis.trauma.map((r) => (
+                  <tr key={r.id} className="align-top">
+                    <td className="border-b border-border/50 py-1 pr-2">{r.year}</td>
+                    <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
+                    <td className="border-b border-border/50 py-1 pr-2">{r.type}</td>
+                    <td className="border-b border-border/50 py-1">{r.immobilization}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!anamnesisLoading && !anamnesisError && anamnesis.trauma.length === 0 && anamnesisAddOpen !== "trauma" && (
+            <p className="text-xs text-muted-foreground">Травм и операций не внесено.</p>
+          )}
 
+          {/* Болезни, стрессы */}
           <div className="flex items-center gap-1.5">
             <span className={sectionLabelClass}>Болезни, стрессы</span>
-            <button type="button" className={plusBtnClass} title="Добавить">
-              +
-            </button>
+            {anamnesisAddOpen !== "illness" && (
+              <button
+                type="button"
+                className={plusBtnClass}
+                title="Добавить запись"
+                onClick={() => setAnamnesisAddOpen("illness")}
+              >
+                +
+              </button>
+            )}
           </div>
-          <table className="w-full border-collapse text-sm">
-            <tbody>
-              <tr className="text-left text-xs text-muted-foreground">
-                <th className="border-b border-border py-1 pr-2 font-medium">Период</th>
-                <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
-                <th className="border-b border-border py-1 font-medium">Комментарий</th>
-              </tr>
-              {MOCK_ANAMNESIS_ILLNESS.map((r) => (
-                <tr key={r.id} className="align-top">
-                  <td className="border-b border-border/50 py-1 pr-2">{r.period}</td>
-                  <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
-                  <td className="border-b border-border/50 py-1">{r.comment}</td>
+          {anamnesisAddOpen === "illness" && (
+            <AddIllnessForm
+              userId={userId}
+              onAdded={(entry) => {
+                setAnamnesis((prev) => ({ ...prev, illness: [...prev.illness, entry] }));
+                setAnamnesisAddOpen(null);
+              }}
+              onCancel={() => setAnamnesisAddOpen(null)}
+            />
+          )}
+          {!anamnesisLoading && anamnesis.illness.length > 0 && (
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="border-b border-border py-1 pr-2 font-medium">Период</th>
+                  <th className="border-b border-border py-1 pr-2 font-medium">Что</th>
+                  <th className="border-b border-border py-1 font-medium">Комментарий</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+                {anamnesis.illness.map((r) => (
+                  <tr key={r.id} className="align-top">
+                    <td className="border-b border-border/50 py-1 pr-2">{r.period}</td>
+                    <td className="border-b border-border/50 py-1 pr-2">{r.what}</td>
+                    <td className="border-b border-border/50 py-1">{r.comment}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!anamnesisLoading && !anamnesisError && anamnesis.illness.length === 0 && anamnesisAddOpen !== "illness" && (
+            <p className="text-xs text-muted-foreground">Болезней и стрессов не внесено.</p>
+          )}
 
+          {/* Образ жизни */}
           <div className="flex items-center gap-1.5">
             <span className={sectionLabelClass}>Образ жизни</span>
-            <button type="button" className={plusBtnClass} title="Добавить запись">
-              +
-            </button>
+            {anamnesisAddOpen !== "lifestyle" && (
+              <button
+                type="button"
+                className={plusBtnClass}
+                title="Добавить запись"
+                onClick={() => setAnamnesisAddOpen("lifestyle")}
+              >
+                +
+              </button>
+            )}
           </div>
+          {anamnesisAddOpen === "lifestyle" && (
+            <AddLifestyleForm
+              userId={userId}
+              onAdded={(entry) => {
+                setAnamnesis((prev) => ({ ...prev, lifestyle: [...prev.lifestyle, entry] }));
+                setAnamnesisAddOpen(null);
+              }}
+              onCancel={() => setAnamnesisAddOpen(null)}
+            />
+          )}
           <div className="flex flex-col gap-1.5">
-            {MOCK_ANAMNESIS_LIFESTYLE.map((e) => (
+            {!anamnesisLoading && anamnesis.lifestyle.map((e) => (
               <div
                 key={e.id}
                 className="rounded-lg border border-border/70 bg-background/40 px-2.5 py-2 text-sm"
@@ -536,6 +862,9 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
                 {e.text}
               </div>
             ))}
+            {!anamnesisLoading && !anamnesisError && anamnesis.lifestyle.length === 0 && anamnesisAddOpen !== "lifestyle" && (
+              <p className="text-xs text-muted-foreground">Записей об образе жизни нет.</p>
+            )}
           </div>
         </section>
       </div>

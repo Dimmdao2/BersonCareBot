@@ -198,6 +198,48 @@ export const beAppointmentReschedules = pgTable(
   ],
 );
 
+export const beAppointmentNoShows = pgTable(
+  "be_appointment_no_shows",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    appointmentId: uuid("appointment_id").notNull(),
+    actorType: text("actor_type").notNull(),
+    actorId: uuid("actor_id"),
+    reason: text(),
+    staffComment: text("staff_comment"),
+    notificationsSent: jsonb("notifications_sent").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    manualOverride: boolean("manual_override").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_be_appt_no_shows_appt").using(
+      "btree",
+      table.appointmentId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+    ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "be_appointment_no_shows_organization_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.appointmentId],
+      foreignColumns: [beAppointments.id],
+      name: "be_appointment_no_shows_appointment_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.actorId],
+      foreignColumns: [platformUsers.id],
+      name: "be_appointment_no_shows_actor_id_fkey",
+    }).onDelete("set null"),
+    check(
+      "be_appt_no_shows_actor_check",
+      sql`actor_type = ANY (ARRAY['specialist'::text, 'admin'::text, 'system'::text])`,
+    ),
+  ],
+);
+
 export const beAppointmentCancellations = pgTable(
   "be_appointment_cancellations",
   {

@@ -1,14 +1,17 @@
 import { and, asc, desc, eq } from "drizzle-orm";
+import { sql as drizzleSql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { assertValidAppointmentStatusTransition } from "@/modules/booking-engine/appointmentStatusFsm";
 import type { BeAppointment } from "@/modules/booking-engine/types";
 import type {
   AppointmentCancellationRecord,
   AppointmentLifecyclePort,
+  AppointmentNoShowRecord,
   AppointmentRescheduleRecord,
 } from "@/modules/booking-appointment-lifecycle/ports";
 import {
   beAppointmentCancellations,
+  beAppointmentNoShows,
   beAppointmentReschedules,
 } from "../../../db/schema/bookingPolicies";
 import {
@@ -84,6 +87,21 @@ function mapCancellation(row: typeof beAppointmentCancellations.$inferSelect): A
     manualOverride: row.manualOverride,
     appliedPolicyId: row.appliedPolicyId ?? null,
     appliedPolicySnapshot: (row.appliedPolicySnapshot ?? {}) as Record<string, unknown>,
+    createdAt: row.createdAt,
+  };
+}
+
+function mapNoShow(row: typeof beAppointmentNoShows.$inferSelect): AppointmentNoShowRecord {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    appointmentId: row.appointmentId,
+    actorType: row.actorType as AppointmentNoShowRecord["actorType"],
+    actorId: row.actorId ?? null,
+    reason: row.reason ?? null,
+    staffComment: row.staffComment ?? null,
+    notificationsSent: (row.notificationsSent ?? {}) as Record<string, unknown>,
+    manualOverride: row.manualOverride,
     createdAt: row.createdAt,
   };
 }
@@ -391,6 +409,134 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         .update(beAppointmentCancellations)
         .set({ notificationsSent })
         .where(eq(beAppointmentCancellations.id, row.id));
+    },
+
+    async applyNoShow(input) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      return db.transaction(async (tx) => {
+        const currentRows = await tx
+          .select()
+          .from(beAppointments)
+          .where(
+            and(eq(beAppointments.id, input.appointmentId), eq(beAppointments.organizationId, input.organizationId)),
+          )
+          .for("update");
+        const current = currentRows[0];
+        if (!current) throw new Error("appointment_not_found");
+
+        const fromStatus = current.status as BeAppointment["status"];
+        // no_show is terminal — idempotent if already there
+        if (fromStatus === "no_show") {
+          const existing = await tx.select().from(beAppointments).where(eq(beAppointments.id, input.appointmentId)).limit(1);
+          return mapAppointment(existing[0]!);
+        }
+        // Guard: FSM allows confirmed → no_show
+        assertValidAppointmentStatusTransition(fromStatus, "no_show");
+
+        // 1. Transition appointment status
+        await tx
+          .update(beAppointments)
+          .set({ status: "no_show", updatedAt: now })
+          .where(eq(beAppointments.id, input.appointmentId));
+
+        // 2. Write history record (mirrors beAppointmentCancellations pattern)
+        await tx.insert(beAppointmentNoShows).values({
+          organizationId: input.organizationId,
+          appointmentId: input.appointmentId,
+          actorType: input.actorType,
+          actorId: input.actorId,
+          reason: input.reason ?? null,
+          staffComment: input.staffComment ?? null,
+          manualOverride: input.manualOverride ?? true,
+          notificationsSent: input.notificationsSent ?? {},
+          createdAt: now,
+        });
+
+        // 3. Appointment-level events (mirrors rescheduled / cancelled pattern)
+        const payload = { fromStatus, toStatus: "no_show", manualOverride: input.manualOverride ?? true };
+        await tx.insert(beAppointmentEvents).values({
+          organizationId: input.organizationId,
+          appointmentId: input.appointmentId,
+          eventType: "no_show",
+          actorId: input.actorId,
+          payload,
+        });
+        await tx.insert(beAppointmentHistoryEvents).values({
+          organizationId: input.organizationId,
+          appointmentId: input.appointmentId,
+          eventType: "no_show",
+          actorId: input.actorId,
+          payload,
+          occurredAt: now,
+        });
+        if (current.platformUserId) {
+          await tx.insert(bePatientTimelineEvents).values({
+            organizationId: input.organizationId,
+            platformUserId: current.platformUserId,
+            domain: "appointment",
+            eventType: "appointment_no_show",
+            linkedObjectType: "appointment",
+            linkedObjectId: input.appointmentId,
+            payload,
+            occurredAt: now,
+          });
+
+          // 4. Per-patient no-show counter: upsert + increment atomically.
+          // INSERT ... ON CONFLICT avoids a separate SELECT + UPDATE race condition.
+          await tx.execute(
+            drizzleSql`
+              INSERT INTO be_patient_booking_profiles
+                (organization_id, platform_user_id, no_show_count, updated_at)
+              VALUES
+                (${input.organizationId}::uuid, ${current.platformUserId}::uuid, 1, ${now}::timestamptz)
+              ON CONFLICT (organization_id, platform_user_id)
+              DO UPDATE SET
+                no_show_count = be_patient_booking_profiles.no_show_count + 1,
+                updated_at    = EXCLUDED.updated_at
+            `,
+          );
+        }
+
+        const updated = await tx.select().from(beAppointments).where(eq(beAppointments.id, input.appointmentId)).limit(1);
+        return mapAppointment(updated[0]!);
+      });
+    },
+
+    async listNoShows(appointmentId, organizationId) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(beAppointmentNoShows)
+        .where(
+          and(
+            eq(beAppointmentNoShows.appointmentId, appointmentId),
+            eq(beAppointmentNoShows.organizationId, organizationId),
+          ),
+        )
+        .orderBy(asc(beAppointmentNoShows.createdAt));
+      return rows.map(mapNoShow);
+    },
+
+    async patchLatestNoShowNotifications(appointmentId, organizationId, notificationsSent) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ id: beAppointmentNoShows.id })
+        .from(beAppointmentNoShows)
+        .where(
+          and(
+            eq(beAppointmentNoShows.appointmentId, appointmentId),
+            eq(beAppointmentNoShows.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(beAppointmentNoShows.createdAt))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return;
+      await db
+        .update(beAppointmentNoShows)
+        .set({ notificationsSent })
+        .where(eq(beAppointmentNoShows.id, row.id));
     },
   };
 }

@@ -869,6 +869,27 @@
       "when": 1786500000000,
       "tag": "0123_platform_users_birth_date",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1786600000000,
+      "tag": "0124_patient_gender_and_support_started",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1786700000000,
+      "tag": "0125_patient_clinical_anamnesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1786800000000,
+      "tag": "0126_be_no_show_handling",
+      "breakpoints": true
     }
   ]
 }

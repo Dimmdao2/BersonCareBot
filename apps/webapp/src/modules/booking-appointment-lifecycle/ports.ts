@@ -6,6 +6,30 @@ import type {
   ReschedulePolicy,
 } from "@/modules/booking-policies/types";
 
+export type AppointmentNoShowRecord = {
+  id: string;
+  organizationId: string;
+  appointmentId: string;
+  actorType: Extract<AppointmentActorType, "specialist" | "admin" | "system">;
+  actorId: string | null;
+  reason: string | null;
+  staffComment: string | null;
+  notificationsSent: Record<string, unknown>;
+  manualOverride: boolean;
+  createdAt: string;
+};
+
+export type MarkNoShowInput = {
+  appointmentId: string;
+  organizationId: string;
+  actorType: Extract<AppointmentActorType, "specialist" | "admin" | "system">;
+  actorId: string | null;
+  reason?: string;
+  staffComment?: string;
+  manualOverride?: boolean;
+  notificationsSent?: Record<string, unknown>;
+};
+
 export type AppointmentRescheduleRecord = {
   id: string;
   organizationId: string;
@@ -111,6 +135,14 @@ export type AppointmentLifecyclePort = {
     notificationsSent: Record<string, unknown>,
   ): Promise<void>;
   patchLatestCancellationNotifications(
+    appointmentId: string,
+    organizationId: string,
+    notificationsSent: Record<string, unknown>,
+  ): Promise<void>;
+  /** Mark appointment as no-show: transition status, write history record, increment per-patient counter. */
+  applyNoShow(input: MarkNoShowInput): Promise<BeAppointment>;
+  listNoShows(appointmentId: string, organizationId: string): Promise<AppointmentNoShowRecord[]>;
+  patchLatestNoShowNotifications(
     appointmentId: string,
     organizationId: string,
     notificationsSent: Record<string, unknown>,

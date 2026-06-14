@@ -9,6 +9,13 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
+  AnamnesisIllnessEntry,
+  AnamnesisLifestyleEntry,
+  AnamnesisState,
+  AnamnesisTraumaEntry,
+  AppendAnamnesisIllnessInput,
+  AppendAnamnesisLifestyleInput,
+  AppendAnamnesisTraumaInput,
   ClinicalState,
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
@@ -25,6 +32,11 @@ import {
   clinicalDiagnosisUpdate,
   clinicalVisit,
 } from "../../../db/schema/patientClinical";
+import {
+  clinicalAnamnesisTrauma,
+  clinicalAnamnesisIllness,
+  clinicalAnamnesisLifestyle,
+} from "../../../db/schema/patientClinicalAnamnesis";
 import { patientFiles } from "../../../db/schema/patientFiles";
 
 const RU_MONTHS = [
@@ -46,6 +58,19 @@ function fmtDayMonth(iso: string): string {
 
 function fmtSince(iso: string): string {
   return `с ${fmtDayMonth(iso)}`;
+}
+
+/**
+ * Format an ISO date (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ) as «ДД.ММ.ГГГГ».
+ * Used for anamnesis lifestyle record_date display.
+ */
+function fmtDisplayDate(isoOrLocal: string): string {
+  // Handles both "2026-01-18" (date-only) and full ISO timestamps.
+  const d = new Date(isoOrLocal.length === 10 ? isoOrLocal + "T00:00:00Z" : isoOrLocal);
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  return `${dd}.${mm}.${yyyy}`;
 }
 
 function fileIconForMime(mime: string): string {
@@ -367,6 +392,108 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
 
         return visitId;
       });
+    },
+
+    // -- Анамнез ------------------------------------------------------------------
+
+    async getAnamnesis(patientUserId: string): Promise<AnamnesisState> {
+      const db = getDrizzle();
+
+      const [traumaRows, illnessRows, lifestyleRows] = await Promise.all([
+        db
+          .select()
+          .from(clinicalAnamnesisTrauma)
+          .where(eq(clinicalAnamnesisTrauma.patientUserId, patientUserId))
+          .orderBy(asc(clinicalAnamnesisTrauma.createdAt)),
+        db
+          .select()
+          .from(clinicalAnamnesisIllness)
+          .where(eq(clinicalAnamnesisIllness.patientUserId, patientUserId))
+          .orderBy(asc(clinicalAnamnesisIllness.createdAt)),
+        db
+          .select()
+          .from(clinicalAnamnesisLifestyle)
+          .where(eq(clinicalAnamnesisLifestyle.patientUserId, patientUserId))
+          .orderBy(asc(clinicalAnamnesisLifestyle.createdAt)),
+      ]);
+
+      return {
+        trauma: traumaRows.map((r) => ({
+          id: r.id,
+          year: r.year,
+          what: r.what,
+          type: r.type,
+          immobilization: r.immobilization,
+        })),
+        illness: illnessRows.map((r) => ({
+          id: r.id,
+          period: r.period,
+          what: r.what,
+          comment: r.comment,
+        })),
+        lifestyle: lifestyleRows.map((r) => ({
+          id: r.id,
+          date: fmtDisplayDate(r.recordDate),
+          text: r.text,
+        })),
+      };
+    },
+
+    async appendAnamnesisTrauma(
+      input: AppendAnamnesisTraumaInput,
+    ): Promise<AnamnesisTraumaEntry> {
+      const db = getDrizzle();
+      const rows = await db
+        .insert(clinicalAnamnesisTrauma)
+        .values({
+          patientUserId: input.patientUserId,
+          year: input.year,
+          what: input.what,
+          type: input.type,
+          immobilization: input.immobilization,
+          createdBy: input.createdBy,
+        })
+        .returning();
+      const row = rows[0];
+      if (!row) throw new Error("clinical_anamnesis_trauma insert failed");
+      return { id: row.id, year: row.year, what: row.what, type: row.type, immobilization: row.immobilization };
+    },
+
+    async appendAnamnesisIllness(
+      input: AppendAnamnesisIllnessInput,
+    ): Promise<AnamnesisIllnessEntry> {
+      const db = getDrizzle();
+      const rows = await db
+        .insert(clinicalAnamnesisIllness)
+        .values({
+          patientUserId: input.patientUserId,
+          period: input.period,
+          what: input.what,
+          comment: input.comment,
+          createdBy: input.createdBy,
+        })
+        .returning();
+      const row = rows[0];
+      if (!row) throw new Error("clinical_anamnesis_illness insert failed");
+      return { id: row.id, period: row.period, what: row.what, comment: row.comment };
+    },
+
+    async appendAnamnesisLifestyle(
+      input: AppendAnamnesisLifestyleInput,
+    ): Promise<AnamnesisLifestyleEntry> {
+      const db = getDrizzle();
+      const rows = await db
+        .insert(clinicalAnamnesisLifestyle)
+        .values({
+          patientUserId: input.patientUserId,
+          recordDate: input.recordDate,
+          text: input.text,
+          createdBy: input.createdBy,
+        })
+        .returning();
+      const row = rows[0];
+      if (!row) throw new Error("clinical_anamnesis_lifestyle insert failed");
+      return { id: row.id, date: fmtDisplayDate(row.recordDate), text: row.text };
     },
   };
 }

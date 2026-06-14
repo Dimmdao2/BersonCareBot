@@ -78,6 +78,73 @@ export type Visit = {
   files?: VisitFile[];
 };
 
+// -- Анамнез ------------------------------------------------------------------
+
+/**
+ * Запись в секции «Травмы и операции».
+ * Append-log: биографическая запись, не привязана к визиту.
+ */
+export type AnamnesisTraumaEntry = {
+  id: string;
+  year: string;
+  what: string;
+  type: string;
+  immobilization: string;
+};
+
+/**
+ * Запись в секции «Болезни, стрессы».
+ */
+export type AnamnesisIllnessEntry = {
+  id: string;
+  period: string;
+  what: string;
+  comment: string;
+};
+
+/**
+ * Запись в секции «Образ жизни».
+ * date — отформатированная дата для отображения (ДД.ММ.ГГГГ).
+ */
+export type AnamnesisLifestyleEntry = {
+  id: string;
+  date: string;
+  text: string;
+};
+
+export type AnamnesisState = {
+  trauma: AnamnesisTraumaEntry[];
+  illness: AnamnesisIllnessEntry[];
+  lifestyle: AnamnesisLifestyleEntry[];
+};
+
+// -- Вход appendAnamnesis* ---------------------------------------------------
+
+export type AppendAnamnesisTraumaInput = {
+  patientUserId: string;
+  year: string;
+  what: string;
+  type: string;
+  immobilization: string;
+  createdBy: string;
+};
+
+export type AppendAnamnesisIllnessInput = {
+  patientUserId: string;
+  period: string;
+  what: string;
+  comment: string;
+  createdBy: string;
+};
+
+export type AppendAnamnesisLifestyleInput = {
+  patientUserId: string;
+  /** ISO date string of the record date, e.g. "2026-01-18". */
+  recordDate: string;
+  text: string;
+  createdBy: string;
+};
+
 // -- Справочник диагнозов -----------------------------------------------------
 
 export type DiagnosisCatalogSuggestion = {
@@ -156,4 +223,15 @@ export interface PatientClinicalPort {
   ): Promise<DiagnosisCatalogSuggestion>;
   /** Создать визит транзакционно (см. CreateVisitInput). Возвращает id визита. */
   createVisit(input: CreateVisitInput): Promise<string>;
+
+  // -- Анамнез (append-log, не per-visit) -----------------------------------
+
+  /** Проекция анамнеза: все три секции, хронологически (старые→новые). */
+  getAnamnesis(patientUserId: string): Promise<AnamnesisState>;
+  /** Добавить запись в секцию «Травмы и операции». */
+  appendAnamnesisTrauma(input: AppendAnamnesisTraumaInput): Promise<AnamnesisTraumaEntry>;
+  /** Добавить запись в секцию «Болезни, стрессы». */
+  appendAnamnesisIllness(input: AppendAnamnesisIllnessInput): Promise<AnamnesisIllnessEntry>;
+  /** Добавить запись в секцию «Образ жизни». */
+  appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry>;
 }

@@ -139,13 +139,21 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
 
   async updateClientSupport(params) {
     const existing = supportProfiles.get(params.patientUserId);
+    const now = new Date().toISOString();
+    const nextOnSupport = params.onSupport ?? existing?.onSupport ?? false;
+    let supportStartedAt = existing?.supportStartedAt ?? null;
+    if (params.onSupport !== undefined) {
+      if (params.onSupport && !supportStartedAt) supportStartedAt = now;
+      else if (!params.onSupport) supportStartedAt = null;
+    }
     const profile: ClientSupportProfile = {
       patientUserId: params.patientUserId,
-      onSupport: params.onSupport ?? existing?.onSupport ?? false,
+      onSupport: nextOnSupport,
+      supportStartedAt,
       commentsEnabled:
         params.commentsEnabled !== undefined ? params.commentsEnabled : (existing?.commentsEnabled ?? null),
       mediaEnabled: params.mediaEnabled !== undefined ? params.mediaEnabled : (existing?.mediaEnabled ?? null),
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
       updatedBy: params.actorId,
     };
     supportProfiles.set(params.patientUserId, profile);
@@ -153,6 +161,17 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
   },
 
   async setPatientBirthDate(_userId: string, _birthDate: string | null): Promise<void> {
+    /* no-op in memory stub */
+  },
+
+  async setPatientGender(_userId: string, _gender: "male" | "female" | null): Promise<void> {
+    /* no-op in memory stub */
+  },
+
+  async setPatientNames(
+    _userId: string,
+    _names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+  ): Promise<void> {
     /* no-op in memory stub */
   },
 };

@@ -212,6 +212,7 @@ import { createPgPatientPaymentsPort } from "@/infra/repos/pgPatientPayments";
 import { inMemoryPatientPaymentsPort } from "@/infra/repos/inMemoryPatientPayments";
 import { createPatientPaymentsService } from "@/modules/patient-payments/service";
 import { noopAcquiringGateway } from "@/infra/repos/noopAcquiringGateway";
+import { createRegistryAcquiringGateway } from "@/infra/payments/registryAcquiringGateway";
 import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
@@ -583,7 +584,7 @@ const patientPaymentsPort = !inMemoryRepos
   ? createPgPatientPaymentsPort()
   : inMemoryPatientPaymentsPort;
 const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPort });
-const acquiringGateway = noopAcquiringGateway;
+// acquiringGateway is initialized below, after systemSettingsService + paymentsConfigReader are set up.
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
@@ -716,6 +717,18 @@ const paymentsService =
         },
       })
     : null;
+
+// Registry-backed acquiring gateway: delegates to the same PaymentProviderPort adapters
+// used by booking payments, sharing system_settings.booking_payment_providers as config.
+// Falls back to noopAcquiringGateway when repos are in-memory (test mode).
+const acquiringGateway = !inMemoryRepos
+  ? createRegistryAcquiringGateway({
+      getConfig: () =>
+        createPaymentsConfigReader((key) =>
+          systemSettingsService.getSetting(key, "admin"),
+        ).getBookingPaymentSettings(),
+    })
+  : noopAcquiringGateway;
 
 const refreshPackageCalendarForAppointment = bookingEngineService
   ? async (appointmentId: string) => {
