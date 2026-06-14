@@ -76,6 +76,15 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
       return aggregateFor(input.targetKind, input.targetId, input.excludedUserIds);
     },
 
+    async listAggregates(input) {
+      const result = new Map<string, MaterialRatingAggregate>();
+      for (const targetId of input.targetIds) {
+        const agg = aggregateFor(input.targetKind, targetId, input.excludedUserIds);
+        if (agg.count > 0) result.set(targetId, agg);
+      }
+      return result;
+    },
+
     async listDoctorSummary(input) {
       const grouped = new Map<string, { row: MaterialRatingDoctorSummaryRow }>();
       for (const r of rows.values()) {

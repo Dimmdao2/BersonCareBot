@@ -26,6 +26,17 @@ export type MaterialRatingPort = {
     excludedUserIds?: string[];
   }): Promise<MaterialRatingAggregate>;
 
+  /**
+   * Батч-агрегаты для списков (карточки контента и т.п.): один запрос с
+   * `target_id = ANY(...)` + GROUP BY, чтобы не плодить N+1 на каждую карточку.
+   * Возвращает Map по `targetId`; цели без оценок в Map отсутствуют.
+   */
+  listAggregates(input: {
+    targetKind: MaterialRatingTargetKind;
+    targetIds: string[];
+    excludedUserIds?: string[];
+  }): Promise<Map<string, MaterialRatingAggregate>>;
+
   listDoctorSummary(input: {
     targetKind?: MaterialRatingTargetKind;
     limit: number;

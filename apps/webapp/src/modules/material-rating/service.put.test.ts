@@ -14,6 +14,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
         count: 1,
         distribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 0 },
       } satisfies MaterialRatingAggregate),
+      listAggregates: vi.fn(),
       listDoctorSummary: vi.fn(),
       getDoctorDetail: vi.fn(),
     };
@@ -51,6 +52,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       upsertRating: vi.fn(),
       getMyRating: vi.fn(),
       getAggregate: vi.fn(),
+      listAggregates: vi.fn(),
       listDoctorSummary: vi.fn(),
       getDoctorDetail: vi.fn(),
     };
