@@ -1353,6 +1353,12 @@ export function ScheduleCalendarTab({
                   setShowCreatePanel(false);
                   onDeepLinkChange("appt", appointment.id);
                 }}
+                // R24: клик по свободному месту календаря сбрасывает выбор записи.
+                dateClick={() => {
+                  setSelected(null);
+                  setShowCreatePanel(false);
+                  onDeepLinkChange("appt", null);
+                }}
                 eventDrop={onDrop}
                 eventResize={onResize}
                 eventContent={(info) => {

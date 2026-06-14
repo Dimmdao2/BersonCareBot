@@ -112,7 +112,8 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Задачи" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Следующая запись" })).toBeInTheDocument();
+    // R19: блок «Следующая запись» убран со страницы «Сегодня».
+    expect(screen.queryByRole("heading", { name: "Следующая запись" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
     // Старые секции должны отсутствовать
     expect(screen.queryByRole("heading", { name: "Требует внимания" })).not.toBeInTheDocument();
@@ -157,10 +158,9 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/clients?scope=all&support=on",
     );
-    // Мини-календарь: нет записей
-    expect(screen.getByText("Записей на сегодня нет")).toBeInTheDocument();
-    // Карточка приёма: нет записей
-    expect(screen.getByText("На сегодня записей нет")).toBeInTheDocument();
+    // Мини-календарь: нет записей (R1: подсказка над таймлайном)
+    expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
+    // R19: блок «Следующая запись» убран — его пустого состояния больше нет.
   });
 
   it("renders on-support clients and truncated footer", () => {
@@ -368,8 +368,7 @@ describe("DoctorTodayDashboard", () => {
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     // Мини-календарь должен показать запись
     expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
-    // Карточка приёма
-    expect(screen.getByRole("heading", { name: /Следующая запись|Сейчас на приёме/ })).toBeInTheDocument();
+    expect(screen.getByText("Клиент Тест")).toBeInTheDocument();
   });
 
   it("shows admin banners when provided", () => {
@@ -390,15 +389,13 @@ describe("DoctorTodayDashboard", () => {
     );
   });
 
-  // §1.1 — Порядок блоков: «Расписание» выше «Следующей записи»
-  it("§1.1 mini-calendar renders before appointment card in DOM order", () => {
+  // §1.1 / R19 — «Расписание на сегодня» присутствует; блок «Следующая запись» убран.
+  it("R19: mini-calendar present, appointment card removed", () => {
     render(<DoctorTodayDashboard {...defaultProps()} />);
-    const headings = screen.getAllByRole("heading");
-    const calendarIdx = headings.findIndex((h) => h.textContent?.includes("Расписание на сегодня"));
-    const nextApptIdx = headings.findIndex((h) => h.textContent?.includes("Следующая запись") || h.textContent?.includes("Сейчас на приёме"));
-    expect(calendarIdx).toBeGreaterThanOrEqual(0);
-    expect(nextApptIdx).toBeGreaterThanOrEqual(0);
-    expect(calendarIdx).toBeLessThan(nextApptIdx);
+    expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /Следующая запись|Сейчас на приёме/ }),
+    ).not.toBeInTheDocument();
   });
 
   // §1.3 — Задачи над «На сопровождении»

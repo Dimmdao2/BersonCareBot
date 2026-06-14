@@ -74,7 +74,14 @@ type LifecycleResponse = {
 };
 
 function formatEventAt(iso: string, timeZone: string): string {
-  return DateTime.fromISO(iso).setZone(timeZone).toFormat("dd.MM.yyyy HH:mm");
+  // R27: originalStartAt приходит из canonical-порта в Postgres timestamptz формате
+  // ("2026-06-13 10:00:00+02", пробел вместо "T") — строгий fromISO даёт Invalid.
+  // Парсим терпимо: ISO → SQL → нативный Date.
+  let dt = DateTime.fromISO(iso, { setZone: true });
+  if (!dt.isValid) dt = DateTime.fromSQL(iso, { setZone: true });
+  if (!dt.isValid) dt = DateTime.fromJSDate(new Date(iso));
+  if (!dt.isValid) return "—";
+  return dt.setZone(timeZone).toFormat("dd.MM.yyyy HH:mm");
 }
 
 function noneValue() {

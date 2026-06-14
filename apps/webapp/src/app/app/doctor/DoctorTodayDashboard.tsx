@@ -12,7 +12,6 @@ import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayLeftKpiRow } from "./DoctorTodayLeftKpiRow";
 import { DoctorTodayRightKpiRow } from "./DoctorTodayRightKpiRow";
 import { DoctorTodaySignalsSection } from "./DoctorTodaySignalsSection";
-import { DoctorCurrentAppointmentCard } from "./DoctorCurrentAppointmentCard";
 import { DoctorTodayMiniCalendar } from "./DoctorTodayMiniCalendar";
 import {
   ON_SUPPORT_LIST_HREF,
@@ -246,12 +245,6 @@ export function DoctorTodayDashboard({
             todayDateLabel={todayDateLabel}
             displayIana={displayIana}
             workingBounds={todayWorkingBounds}
-          />
-
-          {/* Сейчас на приёме / следующая запись */}
-          <DoctorCurrentAppointmentCard
-            appointments={data.todayAppointments}
-            nowMinutes={nowMinutes}
           />
         </div>
       </div>
