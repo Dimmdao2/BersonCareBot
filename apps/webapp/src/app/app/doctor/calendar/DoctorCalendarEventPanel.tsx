@@ -47,6 +47,7 @@ import {
   type CalendarPatientOption,
 } from "./DoctorCalendarPatientSearch";
 import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
+import { DoctorDateTimePicker } from "./DoctorDateTimePicker";
 
 // R21: причины отмены в стиле Rubitime (отправляются как reason в API).
 const CANCEL_REASONS = [
@@ -615,7 +616,12 @@ function CreateForm(props: CreateFormProps) {
         disabled={props.pending}
       />
       <Label>Начало</Label>
-      <Input type="datetime-local" value={props.createStart} onChange={(e) => props.onStartChange(e.target.value)} />
+      {/* R17: готовый react-day-picker вместо нативного datetime-local */}
+      <DoctorDateTimePicker
+        value={props.createStart}
+        onChange={props.onStartChange}
+        disabled={props.pending}
+      />
       <DoctorCalendarCreateFormField
         fieldLabel="Филиал"
         mode={branchMode}
