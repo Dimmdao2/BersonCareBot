@@ -241,6 +241,56 @@ describe('Rubitime record M2M routes', () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
+  // R3: time-only reschedule hits update-record (not create-record), no status field in API call
+  it('R3: time-only reschedule calls update-record with record/datetime_end and no status', async () => {
+    const updateSpy = vi.spyOn(rubitimeClient, 'updateRubitimeRecord').mockResolvedValue({ id: 50 });
+    const createSpy = vi.spyOn(rubitimeClient, 'createRubitimeRecord');
+    const app = await buildApp();
+    const body = JSON.stringify({
+      recordId: '50',
+      patch: {
+        record: '2026-06-02T09:00:00.000Z',
+        datetime_end: '2026-06-02T10:00:00.000Z',
+        // no status — time-only change
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/update-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    // Must call update-record, never create-record
+    expect(updateSpy).toHaveBeenCalledOnce();
+    expect(createSpy).not.toHaveBeenCalled();
+    // The normalized data sent to Rubitime must have record/datetime_end but no status
+    const calledData = updateSpy.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(calledData.record).toBeTruthy();
+    expect(calledData.datetime_end).toBeTruthy();
+    expect(calledData).not.toHaveProperty('status');
+  });
+
+  // X1: staff cancel hits update-record with status=4, never remove-record
+  it('X1: staff cancel calls update-record with {status:4} and does NOT call remove-record', async () => {
+    const updateSpy = vi.spyOn(rubitimeClient, 'updateRubitimeRecord').mockResolvedValue({});
+    const removeSpy = vi.spyOn(rubitimeClient, 'removeRubitimeRecord');
+    const app = await buildApp();
+    const body = JSON.stringify({ recordId: '77', patch: { status: 4 } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/update-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    // Must use update-record (status 4) — not remove-record
+    expect(updateSpy).toHaveBeenCalledOnce();
+    expect(removeSpy).not.toHaveBeenCalled();
+    const calledData = updateSpy.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(calledData.status).toBe(4);
+  });
 });
 
 describe('POST /api/bersoncare/rubitime/booking-event', () => {
