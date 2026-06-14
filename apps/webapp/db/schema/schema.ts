@@ -1,4 +1,4 @@
-import { pgTable, index, text, bigint, jsonb, timestamp, smallint, uniqueIndex, foreignKey, unique, uuid, check, boolean, integer, bigserial, primaryKey } from "drizzle-orm/pg-core"
+import { pgTable, index, text, bigint, jsonb, timestamp, smallint, uniqueIndex, foreignKey, unique, uuid, check, boolean, integer, bigserial, primaryKey, date } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -75,6 +75,8 @@ export const platformUsers = pgTable("platform_users", {
 	calendarTimezone: text("calendar_timezone"),
 	/** When set, reminder push dispatch is suppressed until this instant (user-level mute). */
 	reminderMutedUntil: timestamp("reminder_muted_until", { withTimezone: true, mode: 'string' }),
+	/** Дата рождения пациента (только дата, без времени). Nullable. */
+	birthDate: date("birth_date"),
 }, (table) => [
 	index("idx_platform_users_integrator_uid").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")).where(sql`(integrator_user_id IS NOT NULL)`),
 	index("idx_platform_users_merged_into").using("btree", table.mergedIntoId.asc().nullsLast().op("uuid_ops")).where(sql`(merged_into_id IS NOT NULL)`),

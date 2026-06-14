@@ -4,7 +4,7 @@
  * PatientCardClient — Wave 2: real header + 6-tab client-side navigation.
  * Tabs are rendered once and shown/hidden client-side (no server re-fetch per tab).
  */
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
@@ -60,9 +60,38 @@ async function copyToClipboard(text: string) {
   }
 }
 
+/** Format ISO date yyyy-mm-dd → DD.MM.YYYY */
+function fmtBirthDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const [year, month, day] = iso.split("-");
+  if (!year || !month || !day) return "—";
+  return `${day}.${month}.${year}`;
+}
+
 export function PatientCardClient({ cardHeaderPromise }: Props) {
   const header = use(cardHeaderPromise);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+
+  // Inline birthDate editor state
+  const [birthDateLocal, setBirthDateLocal] = useState<string | null | undefined>(undefined);
+  const [editingBirthDate, setEditingBirthDate] = useState(false);
+  const [bdInput, setBdInput] = useState("");
+  const [bdSaving, setBdSaving] = useState(false);
+  const bdInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync from server header (once resolved)
+  useEffect(() => {
+    if (header && birthDateLocal === undefined) {
+      setBirthDateLocal(header.identity.birthDate);
+    }
+  }, [header, birthDateLocal]);
+
+  // Focus date input when editor opens
+  useEffect(() => {
+    if (editingBirthDate && bdInputRef.current) {
+      bdInputRef.current.focus();
+    }
+  }, [editingBirthDate]);
 
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
   useEffect(() => {
@@ -85,6 +114,37 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   }
 
   const { identity, support, lastVisit, nextAppointment, totalVisits, cancellationsCount, reschedulesCount, firstVisitDate } = header;
+
+  /** Active birthDate: from local edit state or header */
+  const activeBirthDate = birthDateLocal !== undefined ? birthDateLocal : identity.birthDate;
+  /** Active age: recompute from activeBirthDate */
+  const activeAge: number | null = (() => {
+    if (!activeBirthDate) return null;
+    const today = new Date();
+    const bd = new Date(activeBirthDate);
+    let age = today.getFullYear() - bd.getFullYear();
+    const m = today.getMonth() - bd.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+    return age >= 0 ? age : null;
+  })();
+
+  async function saveBirthDate() {
+    const val = bdInput.trim() || null;
+    // basic iso check
+    if (val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) return;
+    setBdSaving(true);
+    try {
+      await fetch(`/api/doctor/patients/${identity.userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ birthDate: val }),
+      });
+      setBirthDateLocal(val);
+    } finally {
+      setBdSaving(false);
+      setEditingBirthDate(false);
+    }
+  }
 
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
@@ -141,11 +201,61 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
               </div>
             )}
 
-            {/* ДР · возраст — null until backend adds birthDate field */}
-            <div className="mt-1.5 text-xs text-muted-foreground">
-              {/* TODO(backend): birthDate/age not yet available — render "—" */}
-              ДР · {identity.birthDate ?? "—"}
-              {identity.age != null ? ` · ${identity.age} лет` : ""}
+            {/* ДР · возраст + inline editor */}
+            <div className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+              {editingBirthDate ? (
+                <>
+                  <input
+                    ref={bdInputRef}
+                    type="date"
+                    value={bdInput}
+                    onChange={(e) => setBdInput(e.target.value)}
+                    disabled={bdSaving}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { void saveBirthDate(); }
+                      if (e.key === "Escape") { setEditingBirthDate(false); }
+                    }}
+                    className="h-6 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveBirthDate()}
+                    disabled={bdSaving}
+                    className="text-xs text-primary hover:underline disabled:opacity-50"
+                  >
+                    {bdSaving ? "…" : "Сохранить"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingBirthDate(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Отмена
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>
+                    ДР:{" "}
+                    {activeBirthDate ? (
+                      <>{fmtBirthDate(activeBirthDate)}{activeAge != null ? ` · ${activeAge} лет` : ""}</>
+                    ) : (
+                      "—"
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    title="Указать дату рождения"
+                    onClick={() => {
+                      setBdInput(activeBirthDate ?? "");
+                      setEditingBirthDate(true);
+                    }}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    ✎
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Phone + channel icons */}
@@ -231,8 +341,9 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                 {lastVisit ? fmtDate(lastVisit.date) : "—"}
               </span>
               <span className="text-[11px] text-muted-foreground">
-                {/* TODO(backend): lastVisit.visitType, lastVisit.city */}
-                {lastVisit ? "—" : "нет данных"}
+                {lastVisit
+                  ? [lastVisit.visitType, lastVisit.city].filter(Boolean).join(" · ") || "—"
+                  : "нет данных"}
               </span>
             </div>
 
@@ -245,8 +356,9 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                   : "—"}
               </span>
               <span className="text-[11px] text-muted-foreground">
-                {/* TODO(backend): nextAppointment.city, nextAppointment.appointmentType */}
-                {nextAppointment ? "—" : "нет записи"}
+                {nextAppointment
+                  ? [nextAppointment.appointmentType, nextAppointment.city].filter(Boolean).join(" · ") || "—"
+                  : "нет записи"}
               </span>
             </div>
 

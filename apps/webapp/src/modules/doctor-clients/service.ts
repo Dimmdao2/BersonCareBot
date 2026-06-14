@@ -142,6 +142,10 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       return deps.clientsPort.getPatientCardHeader(userId);
     },
 
+    async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
+      return deps.clientsPort.setPatientBirthDate(userId, birthDate);
+    },
+
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
     ): Promise<PatientProgramInteractionPolicy> {

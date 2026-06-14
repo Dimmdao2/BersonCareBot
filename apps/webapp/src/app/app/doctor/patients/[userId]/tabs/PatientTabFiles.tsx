@@ -2,19 +2,24 @@
 
 /**
  * PatientTabFiles — two-panel UI (list+filters / preview + actions).
- * Left: file list with category filters + list/cards view toggle.
- * Right: preview panel with Скачать · Открыть · Привязать к визиту actions.
+ * Left: file list with category filters + list/cards view toggle + upload control.
+ * Right: preview panel with Скачать · Открыть · Привязать к визиту (dropdown).
  *
  * Data: fetches from GET /api/doctor/patients/[userId]/files
+ * Upload: POST /api/doctor/patients/[userId]/files → presigned PUT → fetch PUT to S3.
+ * Link: PATCH /api/doctor/patients/[userId]/files/[fileId] { visitId }.
+ * Visits: GET /api/doctor/patients/[userId]/clinical → visits[].
+ *
  * «Единый источник с файлами визита»: files linked via visit_id are shown here too.
  *
  * Graceful fallback: if fetch fails or returns empty, renders empty state without crashing.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import type { PatientFileCategory } from "@/modules/patient-files/ports";
 import { PATIENT_FILE_CATEGORIES } from "@/modules/patient-files/ports";
+import type { Visit } from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
 import {
   doctorSectionTitleClass,
@@ -80,6 +85,11 @@ function fileIcon(mime: string): string {
   if (mime === "application/pdf") return "📄";
   if (mime.startsWith("video/")) return "🎥";
   return "📎";
+}
+
+function visitLabel(v: Visit): string {
+  const typeLabel = v.type === "first" ? "Первичный" : "Повторный";
+  return `${v.date} · ${typeLabel}`;
 }
 
 type FileFilterCategory = "all" | PatientFileCategory;
@@ -169,6 +179,188 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
 }
 
 // ---------------------------------------------------------------------------
+// Upload panel
+// ---------------------------------------------------------------------------
+
+type UploadState =
+  | { phase: "idle" }
+  | { phase: "pending"; fileName: string; progress: number }
+  | { phase: "error"; message: string };
+
+function UploadPanel({
+  userId,
+  onUploaded,
+  onClose,
+}: {
+  userId: string;
+  onUploaded: () => void;
+  onClose: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [category, setCategory] = useState<PatientFileCategory>("прочее");
+  const [uploadState, setUploadState] = useState<UploadState>({ phase: "idle" });
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadState({ phase: "pending", fileName: file.name, progress: 0 });
+
+    // Step 1: POST to create metadata + get presigned PUT url.
+    let uploadUrl: string | null = null;
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/files`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          sizeBytes: file.size,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        file?: FileRecord;
+        uploadUrl?: string | null;
+        error?: string;
+      } | null;
+
+      if (!res.ok || !data?.ok) {
+        setUploadState({ phase: "error", message: data?.error ?? "Ошибка создания метаданных" });
+        return;
+      }
+
+      uploadUrl = data.uploadUrl ?? null;
+    } catch {
+      setUploadState({ phase: "error", message: "Сетевая ошибка при создании записи" });
+      return;
+    }
+
+    // Step 2: PUT the file to the presigned S3 URL (no auth headers — it's a presigned url).
+    if (uploadUrl) {
+      setUploadState({ phase: "pending", fileName: file.name, progress: 10 });
+      try {
+        const s3Res = await fetch(uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+          },
+        });
+        if (!s3Res.ok) {
+          setUploadState({ phase: "error", message: `S3 ошибка: ${s3Res.status}` });
+          return;
+        }
+        setUploadState({ phase: "pending", fileName: file.name, progress: 100 });
+      } catch {
+        setUploadState({ phase: "error", message: "Ошибка загрузки в S3" });
+        return;
+      }
+    } else {
+      // S3 not configured — metadata saved, no binary upload possible.
+      // Treat as success (graceful: the record exists, file body not stored).
+      setUploadState({ phase: "pending", fileName: file.name, progress: 100 });
+    }
+
+    // Refresh list and close panel.
+    onUploaded();
+    onClose();
+  }
+
+  return (
+    <div className="mx-1 mb-1 rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-foreground">Загрузить файл</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          disabled={uploadState.phase === "pending"}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Category select */}
+      <div className="flex items-center gap-2">
+        <label htmlFor="upload-category" className="text-xs text-muted-foreground shrink-0">
+          Категория
+        </label>
+        <select
+          id="upload-category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value as PatientFileCategory)}
+          disabled={uploadState.phase === "pending"}
+          className="flex-1 min-w-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+        >
+          {PATIENT_FILE_CATEGORIES.map((cat) => (
+            <option key={cat} value={cat}>
+              {categoryLabel(cat)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* File picker */}
+      {uploadState.phase === "idle" && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            id="upload-file-input"
+            className="sr-only"
+            onChange={handleFileChange}
+          />
+          <label
+            htmlFor="upload-file-input"
+            className="cursor-pointer inline-flex items-center justify-center rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-xs text-primary hover:bg-primary/10 transition-colors"
+          >
+            Выбрать файл…
+          </label>
+        </>
+      )}
+
+      {/* Upload progress */}
+      {uploadState.phase === "pending" && (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground truncate">
+            {uploadState.fileName}
+          </span>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${uploadState.progress}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {uploadState.progress < 100 ? "Загрузка…" : "Завершено"}
+          </span>
+        </div>
+      )}
+
+      {/* Error state */}
+      {uploadState.phase === "error" && (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs text-destructive">{uploadState.message}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setUploadState({ phase: "idle" });
+              // Reset file input so the same file can be re-picked.
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }}
+            className="self-start text-xs text-primary hover:underline"
+          >
+            Попробовать снова
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // List row
 // ---------------------------------------------------------------------------
 
@@ -253,6 +445,143 @@ function FileCardTile({
 }
 
 // ---------------------------------------------------------------------------
+// Visit selector dropdown (for «Привязать к визиту»)
+// ---------------------------------------------------------------------------
+
+function VisitSelector({
+  userId,
+  currentVisitId,
+  fileId,
+  onLinked,
+}: {
+  userId: string;
+  currentVisitId: string | null;
+  fileId: string;
+  onLinked: (visitId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [loadingVisits, setLoadingVisits] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Fetch visits on first open.
+  useEffect(() => {
+    if (!open || visits.length > 0) return;
+    setLoadingVisits(true);
+    fetch(`/api/doctor/patients/${userId}/clinical`)
+      .then((r) => r.json().catch(() => null) as Promise<{ ok?: boolean; visits?: Visit[] } | null>)
+      .then((data) => {
+        if (data?.ok && Array.isArray(data.visits)) {
+          setVisits(data.visits);
+        }
+      })
+      .catch(() => {
+        // Non-fatal: leave visits empty.
+      })
+      .finally(() => setLoadingVisits(false));
+  }, [open, userId, visits.length]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  async function handlePickVisit(visitId: string) {
+    setLinking(true);
+    setLinkError(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/files/${fileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitId }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (data?.ok) {
+        onLinked(visitId);
+        setOpen(false);
+      } else {
+        setLinkError(data?.error ?? "Ошибка привязки");
+      }
+    } catch {
+      setLinkError("Сетевая ошибка");
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  const currentVisitLabel =
+    currentVisitId
+      ? (visits.find((v) => v.id === currentVisitId) ? visitLabel(visits.find((v) => v.id === currentVisitId)!) : "Привязан к визиту")
+      : null;
+
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        type="button"
+        disabled={linking}
+        onClick={() => setOpen((o) => !o)}
+        className="text-xs text-primary hover:underline transition-colors disabled:opacity-50 flex items-center gap-0.5"
+        title="Привязать к визиту"
+      >
+        {linking
+          ? "Привязка…"
+          : currentVisitLabel
+          ? `Визит: ${currentVisitLabel} ▾`
+          : "Привязать к визиту ▾"}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-background shadow-lg">
+          <div className="border-b border-border px-3 py-2">
+            <span className="text-xs font-semibold text-foreground">Выберите визит</span>
+          </div>
+          {loadingVisits ? (
+            <p className="px-3 py-3 text-xs text-muted-foreground animate-pulse">Загрузка визитов…</p>
+          ) : visits.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-muted-foreground">Визитов пока нет</p>
+          ) : (
+            <ul className="max-h-48 overflow-y-auto py-1">
+              {visits.map((v) => (
+                <li key={v.id}>
+                  <button
+                    type="button"
+                    disabled={linking || v.id === currentVisitId}
+                    onClick={() => void handlePickVisit(v.id)}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-left text-xs transition-colors",
+                      v.id === currentVisitId
+                        ? "bg-primary/10 text-primary font-medium cursor-default"
+                        : "text-foreground hover:bg-muted disabled:opacity-50",
+                    )}
+                  >
+                    {visitLabel(v)}
+                    {v.id === currentVisitId && (
+                      <span className="ml-1 text-[10px] text-primary/70">✓ текущий</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {linkError && (
+            <p className="border-t border-border px-3 py-1.5 text-xs text-destructive">{linkError}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Preview panel
 // ---------------------------------------------------------------------------
 
@@ -265,8 +594,6 @@ function FilePreviewPanel({
   userId: string;
   onLinked?: (visitId: string) => void;
 }) {
-  const [linking, setLinking] = useState(false);
-
   if (!file) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -278,28 +605,6 @@ function FilePreviewPanel({
 
   const isImage = file.mimeType.startsWith("image/");
   const isPdf = file.mimeType === "application/pdf";
-
-  const currentFileId = file.id;
-
-  async function handleLinkToVisit() {
-    // TODO(link-to-visit): show visit picker; for now prompt for visitId
-    const visitId = window.prompt("UUID визита для привязки:");
-    if (!visitId?.match(/^[0-9a-f-]{36}$/i)) return;
-    setLinking(true);
-    try {
-      const res = await fetch(`/api/doctor/patients/${userId}/files/${currentFileId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitId }),
-      });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean } | null;
-      if (data?.ok && onLinked) onLinked(visitId);
-    } catch {
-      // Non-fatal.
-    } finally {
-      setLinking(false);
-    }
-  }
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
@@ -333,15 +638,12 @@ function FilePreviewPanel({
               <span className="text-muted-foreground/40 select-none">·</span>
             </>
           )}
-          <button
-            type="button"
-            disabled={linking}
-            onClick={handleLinkToVisit}
-            className="text-xs text-primary hover:underline transition-colors disabled:opacity-50"
-            title="Привязать к визиту"
-          >
-            {linking ? "Привязка…" : "Привязать к визиту ▾"}
-          </button>
+          <VisitSelector
+            userId={userId}
+            currentVisitId={file.visitId}
+            fileId={file.id}
+            onLinked={(visitId) => onLinked?.(visitId)}
+          />
         </div>
       </div>
 
@@ -407,6 +709,7 @@ export function PatientTabFiles({
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  const [showUpload, setShowUpload] = useState(false);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -455,6 +758,10 @@ export function PatientTabFiles({
     );
   }
 
+  function handleUploaded() {
+    void loadFiles();
+  }
+
   const leftPane = (
     <CatalogLeftPane
       stickySplit={false}
@@ -462,11 +769,16 @@ export function PatientTabFiles({
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 py-1">
             <span className={cn(doctorSectionTitleClass, "flex-1")}>Файлы пациента</span>
-            {/* TODO(upload): wire to presign POST + file picker */}
             <button
               type="button"
               title="Загрузить файл"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              onClick={() => setShowUpload((v) => !v)}
+              className={cn(
+                "inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-sm transition-colors",
+                showUpload
+                  ? "bg-primary/15 border-primary/30 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
             >
               +
             </button>
@@ -480,6 +792,15 @@ export function PatientTabFiles({
         </div>
       }
     >
+      {/* Upload panel — shown when + is toggled */}
+      {showUpload && (
+        <UploadPanel
+          userId={userId}
+          onUploaded={handleUploaded}
+          onClose={() => setShowUpload(false)}
+        />
+      )}
+
       {loading ? (
         <p className="px-2 py-2 text-sm text-muted-foreground animate-pulse">Загрузка файлов…</p>
       ) : error ? (
