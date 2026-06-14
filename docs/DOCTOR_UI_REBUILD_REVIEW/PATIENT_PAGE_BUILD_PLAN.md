@@ -102,6 +102,15 @@ Run: from worktree `pnpm install` (done) → `cd apps/webapp && NODE_ENV=develop
 - Файлы: REAL backend (list/preview/link/upload-url via S3 presign); empty until uploads. Binary upload path = TODO.
 - Учётка: faithful UI, MOST data MOCK; Платежи block (cash+acquiring note) per owner #2.
 
+## SESSION 2 (2026-06-14) — branch claude/affectionate-booth-579d18
+- Owner UI review of Карта applied + verified live (0e4cf10b): tab width = «Обзор» full width; add-visit form widened; form/history STACK in add-mode; collapse-history toggle moved LEFT; blur clinical card ONLY when history open.
+- Карта clinical CORE (0e4cf10b): module patient-clinical + migration 0121 (clinical_visit/complaint/complaint_update/diagnosis/diagnosis_update/diagnosis_catalog + patient_files.visit_id) + endpoints + create-visit (Новый визит only; inline edit deferred). Сопутствующие+Анамнез stay mock.
+- Обзор (459969c9): all widgets wired real (+ new proactive-insights & exercise-calendar endpoints).
+- Учётка + patient-payments (bd2b4124): block/archive/support wired; migration 0122 patient_payment (cash) + acquiring noop stub (provider TBD); merge+audit panels embedded.
+- Файлы + header (34f73fce): in-browser upload + visit-link; migration 0123 platform_users.birth_date; header ДР/возраст + lastVisit тип·город.
+- Записи Абонемент + Обзор Абонемент KPI: wired to be_patient_packages (balance.items). (dev DB has 0 packages → empty state verified; populated path type-correct.)
+- Migrations 0121/0122/0123 APPLIED to dev DB. All verified live on :5300.
+
 ## REMAINING (next session, needs owner input where noted)
 - Карта clinical model: visit/complaint/complaint_update/diagnosis/diagnosis_catalog/file tables + create-visit form wiring (biggest piece, owner-decision-heavy).
 - Обзор widget wiring to real data (signals/symptoms/dynamics/exercise-calendar/notes/tasks/messages).

@@ -151,4 +151,8 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     supportProfiles.set(params.patientUserId, profile);
     return profile;
   },
+
+  async setPatientBirthDate(_userId: string, _birthDate: string | null): Promise<void> {
+    /* no-op in memory stub */
+  },
 };

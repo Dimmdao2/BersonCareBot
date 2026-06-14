@@ -116,10 +116,10 @@ export type PatientCardHeader = {
     bindings: import("@/shared/types/session").ChannelBindings;
     isArchived: boolean;
     isBlocked: boolean;
-    /** TODO: дата рождения — нет таблицы; потребует отдельной схемы/поля. */
-    birthDate: null;
-    /** TODO: возраст — вычисляется из birthDate, отсутствует до появления поля. */
-    age: null;
+    /** Дата рождения из platform_users.birth_date (ISO yyyy-mm-dd), null если не задана. */
+    birthDate: string | null;
+    /** Возраст в полных годах, вычисляется из birthDate; null если birthDate отсутствует. */
+    age: number | null;
   };
   /** Сопровождение врача. */
   support: {
@@ -127,21 +127,21 @@ export type PatientCardHeader = {
     /** Количество месяцев на сопровождении (TODO: нет точного счётчика в БД — вычисляется приблизительно). */
     supportMonthsApprox: number | null;
   };
-  /** Последний визит (прошедший слот из appointment_records). */
+  /** Последний визит (клинический визит из clinical_visit, либо прошедший слот из appointment_records). */
   lastVisit: {
     date: string; // ISO date string
-    /** TODO: тип визита (повторный/первичный) — нет в appointment_records; потребует поля. */
-    visitType: null;
-    /** TODO: город — нет в appointment_records; можно получить через booking engine, не реализовано. */
-    city: null;
+    /** Тип визита: 'Первичный' | 'Повторный' — из clinical_visit.visit_type; null если нет клинического визита. */
+    visitType: string | null;
+    /** Город/локация из clinical_visit.location; null если нет клинического визита. */
+    city: string | null;
   } | null;
   /** Следующая запись (будущий слот из appointment_records). */
   nextAppointment: {
     date: string; // ISO date string
     time: string; // HH:MM
-    /** TODO: город из appointment_records.city (если есть поле). */
+    /** Город/локация — нет поля в appointment_records; null. */
     city: null;
-    /** TODO: тип приёма (очный/онлайн) — нет поля. */
+    /** Тип приёма — нет поля в appointment_records; null. */
     appointmentType: null;
   } | null;
   /** Итого посещений (completed slots, status IN ('created','updated') && record_at < now). */
@@ -232,6 +232,12 @@ export type DoctorClientsPort = {
     mediaEnabled?: boolean | null;
     actorId: string;
   }): Promise<ClientSupportProfile>;
+  /**
+   * Устанавливает дату рождения клиента (platform_users.birth_date).
+   * Принимает ISO yyyy-mm-dd или null (сброс).
+   * Работает только для клиентов (role='client').
+   */
+  setPatientBirthDate(userId: string, birthDate: string | null): Promise<void>;
 };
 
 export type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";

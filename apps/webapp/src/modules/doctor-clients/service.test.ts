@@ -67,6 +67,7 @@ describe("doctor-clients service", () => {
     async listPatientAppointments() {
       return [];
     },
+    async setPatientBirthDate() {},
   };
 
   const service = createDoctorClientsService({
@@ -254,6 +255,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     async listPatientAppointments() {
       return [];
     },
+    async setPatientBirthDate() {},
   };
 
   afterEach(() => {

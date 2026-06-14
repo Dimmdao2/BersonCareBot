@@ -474,11 +474,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         is_blocked: boolean;
         is_archived: boolean;
         role: string;
+        birth_date: string | null;
       }>(
         `SELECT id, display_name, first_name, last_name, phone_normalized, email, email_verified_at,
                 COALESCE(is_blocked, false) AS is_blocked,
                 COALESCE(is_archived, false) AS is_archived,
-                role
+                role,
+                birth_date::text AS birth_date
          FROM platform_users WHERE id = $1::uuid`,
         [canonicalId],
       );
@@ -549,13 +551,34 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const cancellationsCount = parseInt(appt?.cancellations_count ?? "0", 10);
       const reschedulesCount = parseInt(appt?.reschedules_count ?? "0", 10);
 
-      // Last visit
+      // Fetch latest clinical_visit for this patient (for visitType + city)
+      const clinicalVisitRow = await runWebappPgText<{
+        visited_at: string;
+        visit_type: string;
+        location: string | null;
+      }>(
+        `SELECT visited_at, visit_type, location
+         FROM clinical_visit
+         WHERE patient_user_id = $1::uuid
+         ORDER BY visited_at DESC
+         LIMIT 1`,
+        [canonicalId],
+      );
+      const latestClinical = clinicalVisitRow.rows[0] ?? null;
+
+      // Last visit: prefer clinical_visit (has visitType + city); fall back to appointment_records date
       let lastVisit: import("@/modules/doctor-clients/ports").PatientCardHeader["lastVisit"] = null;
-      if (appt?.last_visit_at) {
+      if (latestClinical) {
+        lastVisit = {
+          date: new Date(latestClinical.visited_at).toISOString(),
+          visitType: latestClinical.visit_type === "first" ? "Первичный" : "Повторный",
+          city: latestClinical.location ?? null,
+        };
+      } else if (appt?.last_visit_at) {
         lastVisit = {
           date: new Date(appt.last_visit_at).toISOString(),
-          visitType: null, // TODO: no visitType field in appointment_records
-          city: null, // TODO: no city field in appointment_records
+          visitType: null,
+          city: null,
         };
       }
 
@@ -577,6 +600,20 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const isOnSupport = supportProfile?.onSupport ?? false;
       const supportMonthsApprox: number | null = null; // TODO: calculate from updated_at delta
 
+      // Compute age from birthDate
+      const birthDateIso: string | null = ur.birth_date ?? null;
+      let ageYears: number | null = null;
+      if (birthDateIso) {
+        const today = new Date();
+        const bd = new Date(birthDateIso);
+        let age = today.getUTCFullYear() - bd.getUTCFullYear();
+        const m = today.getUTCMonth() - bd.getUTCMonth();
+        if (m < 0 || (m === 0 && today.getUTCDate() < bd.getUTCDate())) {
+          age--;
+        }
+        ageYears = age >= 0 ? age : null;
+      }
+
       return {
         identity: {
           userId: ur.id,
@@ -588,8 +625,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           bindings,
           isArchived: ur.is_archived,
           isBlocked: ur.is_blocked,
-          birthDate: null, // TODO: no birthDate field in platform_users
-          age: null, // TODO: derived from birthDate
+          birthDate: birthDateIso,
+          age: ageYears,
         },
         support: {
           isOnSupport,
@@ -854,6 +891,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async updateClientSupport(params) {
       const { actorId, ...rest } = params;
       return upsertClientSupportProfile({ ...rest, updatedBy: actorId });
+    },
+
+    async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
+      await runWebappPgText(
+        `UPDATE platform_users SET birth_date = $2::date, updated_at = now()
+         WHERE id = $1::uuid AND role = 'client'`,
+        [userId, birthDate],
+      );
     },
 
     async getClientContactBreakdown(audience?: { excludedUserIds?: string[] }) {
