@@ -23,7 +23,15 @@ import { Shield, ShieldOff } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { CMS_UNASSIGNED_SECTION_SLUG } from "@/modules/content-sections/types";
 import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
+import {
+  readDoctorCatalogViewPreference,
+  writeDoctorCatalogViewPreference,
+} from "@/shared/lib/doctorCatalogViewPreference";
+import type { DoctorCatalogViewMode } from "@/shared/lib/doctorCatalogViewPreference";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
+import { ContentPageTileCard } from "./ContentPageTileCard";
 import { setContentPageRequiresAuth } from "./contentPageAuthActions";
 import { reorderContentPagesInSection } from "./reorderContentPages";
 import { SectionDeleteDialog } from "./sections/SectionDeleteDialog";
@@ -38,6 +46,8 @@ export type ContentPageListRow = {
   requiresAuth: boolean;
   archivedAt: string | null;
   deletedAt: string | null;
+  /** Preview image URL (from ContentPageRow.imageUrl). Used in tile view. */
+  imageUrl?: string | null;
 };
 
 function buildNewPageHref(sectionSlug: string, systemParentCode?: string) {
@@ -122,6 +132,8 @@ function SortablePageRow({
   );
 }
 
+const CONTENT_PAGES_VIEW_STORAGE_KEY = "bersoncare.doctorCatalogView.contentPages";
+
 export function ContentPagesSectionList({
   sectionSlug,
   sectionTitle,
@@ -133,6 +145,9 @@ export function ContentPagesSectionList({
   sectionSettingsHref,
   allowDeleteSection = false,
   pagesInSectionCount,
+  /** Override view mode from parent; when undefined, reads from localStorage. */
+  viewMode: viewModeProp,
+  onViewModeChange,
 }: {
   sectionSlug: string;
   sectionTitle: string;
@@ -143,11 +158,32 @@ export function ContentPagesSectionList({
   sectionSettingsHref?: string;
   allowDeleteSection?: boolean;
   pagesInSectionCount?: number;
+  /** When provided: controlled view mode (tiles / list). */
+  viewMode?: DoctorCatalogViewMode;
+  onViewModeChange?: (mode: DoctorCatalogViewMode) => void;
 }) {
   const [items, setItems] = useState(initialPages);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [authPending, startAuthTransition] = useTransition();
+
+  // View mode: controlled or uncontrolled (localStorage-backed)
+  const [localViewMode, setLocalViewMode] = useState<DoctorCatalogViewMode>(() => {
+    if (viewModeProp) return viewModeProp;
+    return readDoctorCatalogViewPreference(CONTENT_PAGES_VIEW_STORAGE_KEY) ?? "list";
+  });
+
+  const viewMode: DoctorCatalogViewMode = viewModeProp ?? localViewMode;
+
+  const toggleViewMode = useCallback(() => {
+    const next: DoctorCatalogViewMode = viewMode === "list" ? "tiles" : "list";
+    if (onViewModeChange) {
+      onViewModeChange(next);
+    } else {
+      setLocalViewMode(next);
+      writeDoctorCatalogViewPreference(CONTENT_PAGES_VIEW_STORAGE_KEY, next);
+    }
+  }, [viewMode, onViewModeChange]);
 
   useEffect(() => {
     setItems(initialPages);
@@ -195,6 +231,66 @@ export function ContentPagesSectionList({
     });
   }, []);
 
+  // ── Shared header block ────────────────────────────────────────────────────
+  const sectionManageRow =
+    !showSectionHeading && sectionSettingsHref ? (
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <Link
+          href={sectionSettingsHref}
+          className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Редактировать раздел
+        </Link>
+        {allowDeleteSection ? (
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto shrink-0 p-0 text-sm text-destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            Удалить раздел…
+          </Button>
+        ) : null}
+      </div>
+    ) : null;
+
+  const sectionHeadingRow = showSectionHeading ? (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <h3 className={`m-0 ${doctorSectionTitleClass}`}>{sectionTitle}</h3>
+        {sectionSettingsHref ? (
+          <Link
+            href={sectionSettingsHref}
+            className="shrink-0 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Редактировать раздел
+          </Link>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        {showInnerCreatePageLink ? (
+          <Link
+            href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Создать страницу
+          </Link>
+        ) : null}
+        {allowDeleteSection ? (
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto shrink-0 p-0 text-sm text-destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            Удалить раздел…
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  ) : null;
+
+  // ── Empty state ─────────────────────────────────────────────────────────────
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -209,66 +305,14 @@ export function ContentPagesSectionList({
             afterDeleteHref="/app/doctor/content"
           />
         ) : null}
-        {!showSectionHeading && sectionSettingsHref ?
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <Link
-              href={sectionSettingsHref}
-              className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Редактировать раздел
-            </Link>
-            {allowDeleteSection ? (
-              <Button
-                type="button"
-                variant="link"
-                className="h-auto shrink-0 p-0 text-sm text-destructive"
-                onClick={() => setDeleteOpen(true)}
-              >
-                Удалить раздел…
-              </Button>
-            ) : null}
-          </div>
-        : null}
-        {showSectionHeading ? (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <h3 className={`m-0 ${doctorSectionTitleClass}`}>{sectionTitle}</h3>
-              {sectionSettingsHref ?
-                <Link
-                  href={sectionSettingsHref}
-                  className="shrink-0 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                >
-                  Редактировать раздел
-                </Link>
-              : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {showInnerCreatePageLink ? (
-                <Link
-                  href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  Создать страницу
-                </Link>
-              ) : null}
-              {allowDeleteSection ? (
-                <Button
-                  type="button"
-                  variant="link"
-                  className="h-auto shrink-0 p-0 text-sm text-destructive"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  Удалить раздел…
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
+        {sectionManageRow}
+        {sectionHeadingRow}
         <p className="text-sm text-muted-foreground">Нет страниц в этом разделе.</p>
       </div>
     );
   }
 
+  // ── Main render ─────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-2">
       {allowDeleteSection ? (
@@ -282,75 +326,46 @@ export function ContentPagesSectionList({
           afterDeleteHref="/app/doctor/content"
         />
       ) : null}
-      {!showSectionHeading && sectionSettingsHref ?
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <Link
-            href={sectionSettingsHref}
-            className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Редактировать раздел
-          </Link>
-          {allowDeleteSection ? (
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto shrink-0 p-0 text-sm text-destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              Удалить раздел…
-            </Button>
-          ) : null}
-        </div>
-      : null}
-      {showSectionHeading ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <h3 className={`m-0 ${doctorSectionTitleClass}`}>{sectionTitle}</h3>
-            {sectionSettingsHref ?
-              <Link
-                href={sectionSettingsHref}
-                className="shrink-0 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-              >
-                Редактировать раздел
-              </Link>
-            : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {showInnerCreatePageLink ? (
-              <Link
-                href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
-                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Создать страницу
-              </Link>
-            ) : null}
-            {allowDeleteSection ? (
-              <Button
-                type="button"
-                variant="link"
-                className="h-auto shrink-0 p-0 text-sm text-destructive"
-                onClick={() => setDeleteOpen(true)}
-              >
-                Удалить раздел…
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-      <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
-          <ul className="flex flex-col gap-2" aria-busy={pending}>
-            {items.map((p) => (
-              <SortablePageRow
-                key={p.id}
-                page={p}
-                authPending={authPending}
-                onToggleRequiresAuth={onToggleRequiresAuth}
-              />
-            ))}
-          </ul>
-        </SortableContext>
-      </DndContext>
+      {sectionManageRow}
+      {sectionHeadingRow}
+
+      {/* ── List/card toggle header ── */}
+      <DoctorCatalogMasterListHeader
+        summaryLine={`Материалов: ${items.length}`}
+        viewMode={viewMode}
+        onToggleView={toggleViewMode}
+        titleSort={null}
+        onTitleSortChange={() => {/* sort not implemented for content pages */}}
+        listBusy={pending}
+      />
+
+      {/* ── Tiles mode: VirtualizedItemGrid (DnD disabled) ── */}
+      {viewMode === "tiles" ? (
+        <VirtualizedItemGrid
+          items={items}
+          columns={3}
+          estimatedRowHeight={200}
+          keyExtractor={(p) => p.id}
+          renderItem={(p) => <ContentPageTileCard page={p} />}
+          containerClassName="flex-1 min-h-[200px]"
+        />
+      ) : (
+        /* ── List mode: DnD sortable rows ── */
+        <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
+            <ul className="flex flex-col gap-2" aria-busy={pending}>
+              {items.map((p) => (
+                <SortablePageRow
+                  key={p.id}
+                  page={p}
+                  authPending={authPending}
+                  onToggleRequiresAuth={onToggleRequiresAuth}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      )}
     </div>
   );
 }
