@@ -149,6 +149,8 @@ function DoctorCalendarEventPanelInner({
   const [createBranchId, setCreateBranchId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
   const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
+  // R16: комментарий, добавляемый сразу после создания записи (staff-коммент).
+  const [createComment, setCreateComment] = useState("");
   const selectedId = selected?.id ?? null;
 
   useEffect(() => {
@@ -244,12 +246,14 @@ function DoctorCalendarEventPanelInner({
             createBranchId={createBranchId}
             createServiceId={createServiceId}
             createPatient={createPatient}
+            createComment={createComment}
             pending={pending}
             message={message}
             onStartChange={setCreateStart}
             onBranchChange={setCreateBranchId}
             onServiceChange={setCreateServiceId}
             onPatientChange={setCreatePatient}
+            onCommentChange={setCreateComment}
             // §3.6: если открыто через startInCreate — отмена закрывает панель
             onCancel={() => (startInCreate ? onClose() : setMode("view"))}
             onSubmit={() => {
@@ -276,9 +280,23 @@ function DoctorCalendarEventPanelInner({
                     phoneNormalized: createPatient?.phone?.trim() || null,
                   }),
                 });
-                const json = (await res.json()) as { ok?: boolean; error?: string };
+                const json = (await res.json()) as {
+                  ok?: boolean;
+                  error?: string;
+                  appointment?: { id?: string };
+                };
                 setMessage(json.ok ? "Создано" : panelErrorLabel(json.error));
                 if (json.ok) {
+                  // R16: после создания (есть id) добавляем staff-коммент отдельным запросом.
+                  const newId = json.appointment?.id;
+                  if (newId && createComment.trim()) {
+                    await fetch(`${apiBase}/appointments/${encodeURIComponent(newId)}/comments`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ body: createComment.trim() }),
+                    }).catch(() => undefined);
+                  }
+                  setCreateComment("");
                   setMode("view");
                   onChanged();
                 } else if (json.error === "external_slot_taken") {
@@ -570,12 +588,14 @@ type CreateFormProps = {
   createBranchId: string | null;
   createServiceId: string | null;
   createPatient: CalendarPatientOption | null;
+  createComment: string;
   pending: boolean;
   message: string | null;
   onStartChange: (v: string) => void;
   onBranchChange: (v: string | null) => void;
   onServiceChange: (v: string | null) => void;
   onPatientChange: (v: CalendarPatientOption | null) => void;
+  onCommentChange: (v: string) => void;
   onCancel: () => void;
   onSubmit: () => void;
 };
@@ -614,6 +634,15 @@ function CreateForm(props: CreateFormProps) {
       />
       <Label>Длительность</Label>
       <Input readOnly value={durationLabel} aria-label="Длительность" />
+      {/* R16: комментарий добавится как staff-коммент сразу после создания */}
+      <Label>Комментарий</Label>
+      <Textarea
+        rows={2}
+        value={props.createComment}
+        disabled={props.pending}
+        placeholder="Заметка к записи (необязательно)"
+        onChange={(e) => props.onCommentChange(e.target.value)}
+      />
       <div className="flex gap-2 pt-2">
         <Button type="button" size="sm" disabled={props.pending} onClick={props.onSubmit}>
           Сохранить
