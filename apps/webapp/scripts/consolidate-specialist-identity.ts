@@ -150,6 +150,34 @@ async function main() {
 
     const dupList = dupIds.map((d) => `'${d}'::uuid`).join(",");
 
+    // ── be_appointments: пропускаем активные записи дубля, пересекающиеся с активной
+    //    записью primary (exclusion-constraint be_appointments_specialist_no_overlap) — это
+    //    настоящий double-book (последствие per-branch специалистов), решает владелец вручную.
+    const ACTIVE_STATUS = `status NOT IN ('cancelled_by_patient','cancelled_by_specialist','late_cancellation','no_show','completed','visit_confirmed')`;
+    let apptSkipIds: string[] = [];
+    if (dupIds.length > 0) {
+      const r = await db.query<{ id: string; slot: string }>(
+        `SELECT d.id, to_char(d.start_at,'YYYY-MM-DD HH24:MI') slot
+           FROM be_appointments d
+          WHERE d.specialist_id IN (${dupList}) AND d.deleted_at IS NULL AND d.${ACTIVE_STATUS}
+            AND EXISTS (SELECT 1 FROM be_appointments p
+                         WHERE p.specialist_id = '${primaryId}'::uuid AND p.deleted_at IS NULL AND p.${ACTIVE_STATUS}
+                           AND tstzrange(p.start_at,p.end_at,'[)') && tstzrange(d.start_at,d.end_at,'[)'))`,
+      );
+      apptSkipIds = r.rows.map((x) => x.id);
+      stats.be_appointments_skipped_overlap = apptSkipIds.length;
+      audit.skippedOverlapAppointments = r.rows.map((x) => ({ id: x.id, slot: x.slot }));
+      if (apptSkipIds.length > 0) {
+        console.log(
+          `\n⚠ ПРОПУЩЕНЫ (double-book, переносить нельзя) — решает владелец:`,
+          r.rows.map((x) => x.slot).join(", "),
+        );
+      }
+    }
+    const apptSkipClause = apptSkipIds.length
+      ? ` AND id NOT IN (${apptSkipIds.map((i) => `'${i}'::uuid`).join(",")})`
+      : "";
+
     if (COMMIT) await db.query("BEGIN");
 
     // ── repoint FK tables ──────────────────────────────────────────────────────
@@ -158,6 +186,7 @@ async function main() {
         stats[`${table}_repointed`] = 0;
         continue;
       }
+      const extraClause = table === "be_appointments" ? apptSkipClause : "";
       // conflict-safe: удаляем дубль-строки, которые столкнулись бы с primary по остальным
       // колонкам UNIQUE (равенство `=` пропускает NULL — это и есть NULLS DISTINCT семантика).
       if (uniqueOtherCols.length > 0) {
@@ -175,12 +204,14 @@ async function main() {
         if (COMMIT && collideCount > 0) await db.query(delSql);
       }
       const cnt = (
-        await db.query(`SELECT count(*)::int n FROM ${table} WHERE specialist_id IN (${dupList})`)
+        await db.query(
+          `SELECT count(*)::int n FROM ${table} WHERE specialist_id IN (${dupList})${extraClause}`,
+        )
       ).rows[0]!.n as number;
       stats[`${table}_repointed`] = cnt;
       if (COMMIT && cnt > 0) {
         await db.query(
-          `UPDATE ${table} SET specialist_id = '${primaryId}'::uuid WHERE specialist_id IN (${dupList})`,
+          `UPDATE ${table} SET specialist_id = '${primaryId}'::uuid WHERE specialist_id IN (${dupList})${extraClause}`,
         );
       }
     }
