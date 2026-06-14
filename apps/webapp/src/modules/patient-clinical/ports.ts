@@ -210,6 +210,43 @@ export type CreateVisitInput = {
   diagnosisUpdates?: CreateVisitDiagnosisUpdate[];
 };
 
+// -- Инлайн-правка полей (коррекция данных, не клинические статус-изменения) ---
+
+/**
+ * Правка атрибутов жалобы (исправление опечатки / переключение приоритета).
+ * НЕ меняет статус (снятие — только через повторный визит). Поля опциональны:
+ * передаётся только то, что меняем.
+ */
+export type UpdateComplaintFieldsInput = {
+  patientUserId: string;
+  complaintId: string;
+  text?: string;
+  priority?: boolean;
+};
+
+/** Правка атрибутов диагноза. Статус не меняется (уточнение/снятие — через визит). */
+export type UpdateDiagnosisFieldsInput = {
+  patientUserId: string;
+  diagnosisId: string;
+  text?: string;
+  priority?: boolean;
+};
+
+/**
+ * Правка текстовых полей визита (осмотр/манипуляции/пробы/рекомендации/локация/длительность).
+ * Пустая строка очищает поле (→ null). Не трогает жалобы/диагнозы/динамику визита.
+ */
+export type UpdateVisitFieldsInput = {
+  patientUserId: string;
+  visitId: string;
+  location?: string | null;
+  duration?: string | null;
+  exam?: string | null;
+  manipulations?: string | null;
+  trialResults?: string | null;
+  recommendations?: string | null;
+};
+
 export interface PatientClinicalPort {
   /** Проекция «актуальное состояние» — активные жалобы (с severity+тренд) и диагнозы. */
   getClinicalState(patientUserId: string): Promise<ClinicalState>;
@@ -223,6 +260,15 @@ export interface PatientClinicalPort {
   ): Promise<DiagnosisCatalogSuggestion>;
   /** Создать визит транзакционно (см. CreateVisitInput). Возвращает id визита. */
   createVisit(input: CreateVisitInput): Promise<string>;
+
+  // -- Инлайн-правка полей (scoped по patientUserId; false — запись не найдена) --
+
+  /** Поправить text/priority жалобы. */
+  updateComplaintFields(input: UpdateComplaintFieldsInput): Promise<boolean>;
+  /** Поправить text/priority диагноза. */
+  updateDiagnosisFields(input: UpdateDiagnosisFieldsInput): Promise<boolean>;
+  /** Поправить текстовые поля визита. */
+  updateVisitFields(input: UpdateVisitFieldsInput): Promise<boolean>;
 
   // -- Анамнез (append-log, не per-visit) -----------------------------------
 

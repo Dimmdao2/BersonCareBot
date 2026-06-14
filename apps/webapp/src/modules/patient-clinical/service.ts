@@ -16,8 +16,19 @@ import type {
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
   PatientClinicalPort,
+  UpdateComplaintFieldsInput,
+  UpdateDiagnosisFieldsInput,
+  UpdateVisitFieldsInput,
   Visit,
 } from "./ports";
+
+/** Тримминг текстовой секции визита: пустая после трима → null (очистка поля). */
+function normalizeVisitSection(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 export type PatientClinicalServiceDeps = {
   patientClinicalPort: PatientClinicalPort;
@@ -69,6 +80,60 @@ export function createPatientClinicalService({
         }
       }
       return patientClinicalPort.createVisit(input);
+    },
+
+    // -- Инлайн-правка полей -------------------------------------------------
+
+    async updateComplaintFields(input: UpdateComplaintFieldsInput): Promise<boolean> {
+      const patch: UpdateComplaintFieldsInput = {
+        patientUserId: input.patientUserId,
+        complaintId: input.complaintId,
+      };
+      if (input.text !== undefined) {
+        const text = input.text.trim();
+        if (!text) throw new Error("complaint_text_required");
+        patch.text = text;
+      }
+      if (input.priority !== undefined) patch.priority = input.priority;
+      if (patch.text === undefined && patch.priority === undefined) {
+        throw new Error("nothing_to_update");
+      }
+      return patientClinicalPort.updateComplaintFields(patch);
+    },
+
+    async updateDiagnosisFields(input: UpdateDiagnosisFieldsInput): Promise<boolean> {
+      const patch: UpdateDiagnosisFieldsInput = {
+        patientUserId: input.patientUserId,
+        diagnosisId: input.diagnosisId,
+      };
+      if (input.text !== undefined) {
+        const text = input.text.trim();
+        if (!text) throw new Error("diagnosis_text_required");
+        patch.text = text;
+      }
+      if (input.priority !== undefined) patch.priority = input.priority;
+      if (patch.text === undefined && patch.priority === undefined) {
+        throw new Error("nothing_to_update");
+      }
+      return patientClinicalPort.updateDiagnosisFields(patch);
+    },
+
+    async updateVisitFields(input: UpdateVisitFieldsInput): Promise<boolean> {
+      const patch: UpdateVisitFieldsInput = {
+        patientUserId: input.patientUserId,
+        visitId: input.visitId,
+        location: normalizeVisitSection(input.location),
+        duration: normalizeVisitSection(input.duration),
+        exam: normalizeVisitSection(input.exam),
+        manipulations: normalizeVisitSection(input.manipulations),
+        trialResults: normalizeVisitSection(input.trialResults),
+        recommendations: normalizeVisitSection(input.recommendations),
+      };
+      const hasChange = (
+        ["location", "duration", "exam", "manipulations", "trialResults", "recommendations"] as const
+      ).some((k) => patch[k] !== undefined);
+      if (!hasChange) throw new Error("nothing_to_update");
+      return patientClinicalPort.updateVisitFields(patch);
     },
 
     // -- Анамнез -------------------------------------------------------------

@@ -20,6 +20,9 @@ import type {
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
   PatientClinicalPort,
+  UpdateComplaintFieldsInput,
+  UpdateDiagnosisFieldsInput,
+  UpdateVisitFieldsInput,
   Visit,
 } from "@/modules/patient-clinical/ports";
 
@@ -392,6 +395,42 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     }
 
     return visitId;
+  },
+
+  // -- Инлайн-правка полей ------------------------------------------------------
+
+  async updateComplaintFields(input: UpdateComplaintFieldsInput): Promise<boolean> {
+    const row = complaints.find(
+      (c) => c.id === input.complaintId && c.patientUserId === input.patientUserId,
+    );
+    if (!row) return false;
+    if (input.text !== undefined) row.text = input.text;
+    if (input.priority !== undefined) row.priority = input.priority;
+    return true;
+  },
+
+  async updateDiagnosisFields(input: UpdateDiagnosisFieldsInput): Promise<boolean> {
+    const row = diagnoses.find(
+      (d) => d.id === input.diagnosisId && d.patientUserId === input.patientUserId,
+    );
+    if (!row) return false;
+    if (input.text !== undefined) row.text = input.text;
+    if (input.priority !== undefined) row.priority = input.priority;
+    return true;
+  },
+
+  async updateVisitFields(input: UpdateVisitFieldsInput): Promise<boolean> {
+    const row = visits.find(
+      (v) => v.id === input.visitId && v.patientUserId === input.patientUserId,
+    );
+    if (!row) return false;
+    if (input.location !== undefined) row.location = input.location;
+    if (input.duration !== undefined) row.duration = input.duration;
+    if (input.exam !== undefined) row.exam = input.exam;
+    if (input.manipulations !== undefined) row.manipulations = input.manipulations;
+    if (input.trialResults !== undefined) row.trialResults = input.trialResults;
+    if (input.recommendations !== undefined) row.recommendations = input.recommendations;
+    return true;
   },
 
   // -- Анамнез ------------------------------------------------------------------

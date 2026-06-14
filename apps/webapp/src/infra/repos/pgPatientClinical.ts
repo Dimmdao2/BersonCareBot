@@ -21,6 +21,9 @@ import type {
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
   PatientClinicalPort,
+  UpdateComplaintFieldsInput,
+  UpdateDiagnosisFieldsInput,
+  UpdateVisitFieldsInput,
   Visit,
   VisitFile,
 } from "@/modules/patient-clinical/ports";
@@ -392,6 +395,76 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
 
         return visitId;
       });
+    },
+
+    // -- Инлайн-правка полей ------------------------------------------------------
+
+    async updateComplaintFields(input: UpdateComplaintFieldsInput): Promise<boolean> {
+      const set: Partial<{ text: string; priority: boolean }> = {};
+      if (input.text !== undefined) set.text = input.text;
+      if (input.priority !== undefined) set.priority = input.priority;
+      if (Object.keys(set).length === 0) return false;
+      const db = getDrizzle();
+      const updated = await db
+        .update(clinicalComplaint)
+        .set(set)
+        .where(
+          and(
+            eq(clinicalComplaint.id, input.complaintId),
+            eq(clinicalComplaint.patientUserId, input.patientUserId),
+          ),
+        )
+        .returning({ id: clinicalComplaint.id });
+      return updated.length > 0;
+    },
+
+    async updateDiagnosisFields(input: UpdateDiagnosisFieldsInput): Promise<boolean> {
+      const set: Partial<{ text: string; priority: boolean }> = {};
+      if (input.text !== undefined) set.text = input.text;
+      if (input.priority !== undefined) set.priority = input.priority;
+      if (Object.keys(set).length === 0) return false;
+      const db = getDrizzle();
+      const updated = await db
+        .update(clinicalDiagnosis)
+        .set(set)
+        .where(
+          and(
+            eq(clinicalDiagnosis.id, input.diagnosisId),
+            eq(clinicalDiagnosis.patientUserId, input.patientUserId),
+          ),
+        )
+        .returning({ id: clinicalDiagnosis.id });
+      return updated.length > 0;
+    },
+
+    async updateVisitFields(input: UpdateVisitFieldsInput): Promise<boolean> {
+      const set: Partial<{
+        location: string | null;
+        duration: string | null;
+        exam: string | null;
+        manipulations: string | null;
+        trialResults: string | null;
+        recommendations: string | null;
+      }> = {};
+      if (input.location !== undefined) set.location = input.location;
+      if (input.duration !== undefined) set.duration = input.duration;
+      if (input.exam !== undefined) set.exam = input.exam;
+      if (input.manipulations !== undefined) set.manipulations = input.manipulations;
+      if (input.trialResults !== undefined) set.trialResults = input.trialResults;
+      if (input.recommendations !== undefined) set.recommendations = input.recommendations;
+      if (Object.keys(set).length === 0) return false;
+      const db = getDrizzle();
+      const updated = await db
+        .update(clinicalVisit)
+        .set(set)
+        .where(
+          and(
+            eq(clinicalVisit.id, input.visitId),
+            eq(clinicalVisit.patientUserId, input.patientUserId),
+          ),
+        )
+        .returning({ id: clinicalVisit.id });
+      return updated.length > 0;
     },
 
     // -- Анамнез ------------------------------------------------------------------

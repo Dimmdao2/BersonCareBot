@@ -13,6 +13,9 @@ function makePort(overrides: Partial<PatientClinicalPort> = {}): PatientClinical
     searchDiagnosisCatalog: vi.fn().mockResolvedValue([]),
     createDiagnosisCatalogEntry: vi.fn(),
     createVisit: vi.fn().mockResolvedValue("visit-1"),
+    updateComplaintFields: vi.fn().mockResolvedValue(true),
+    updateDiagnosisFields: vi.fn().mockResolvedValue(true),
+    updateVisitFields: vi.fn().mockResolvedValue(true),
     getAnamnesis: vi
       .fn()
       .mockResolvedValue({ trauma: [], illness: [], lifestyle: [] }),
@@ -28,6 +31,99 @@ function makePort(overrides: Partial<PatientClinicalPort> = {}): PatientClinical
     ...overrides,
   };
 }
+
+describe("patient-clinical service — инлайн-правка полей", () => {
+  it("updateComplaintFields trims text and forwards priority", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    const ok = await svc.updateComplaintFields({
+      patientUserId: PATIENT,
+      complaintId: "c1",
+      text: "  Поясница — боль  ",
+      priority: true,
+    });
+    expect(ok).toBe(true);
+    expect(port.updateComplaintFields).toHaveBeenCalledWith({
+      patientUserId: PATIENT,
+      complaintId: "c1",
+      text: "Поясница — боль",
+      priority: true,
+    });
+  });
+
+  it("updateComplaintFields rejects blank text", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    await expect(
+      svc.updateComplaintFields({ patientUserId: PATIENT, complaintId: "c1", text: "   " }),
+    ).rejects.toThrow(/complaint_text_required/);
+    expect(port.updateComplaintFields).not.toHaveBeenCalled();
+  });
+
+  it("updateComplaintFields rejects when nothing is provided", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    await expect(
+      svc.updateComplaintFields({ patientUserId: PATIENT, complaintId: "c1" }),
+    ).rejects.toThrow(/nothing_to_update/);
+  });
+
+  it("updateComplaintFields can change priority only (no text key sent)", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    await svc.updateComplaintFields({ patientUserId: PATIENT, complaintId: "c1", priority: false });
+    const arg = (port.updateComplaintFields as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(arg).toEqual({ patientUserId: PATIENT, complaintId: "c1", priority: false });
+    expect("text" in arg).toBe(false);
+  });
+
+  it("updateDiagnosisFields rejects blank text", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    await expect(
+      svc.updateDiagnosisFields({ patientUserId: PATIENT, diagnosisId: "d1", text: " " }),
+    ).rejects.toThrow(/diagnosis_text_required/);
+  });
+
+  it("updateVisitFields trims sections and clears empties to null", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    await svc.updateVisitFields({
+      patientUserId: PATIENT,
+      visitId: "v1",
+      exam: "  Наклон болезненный  ",
+      recommendations: "   ",
+    });
+    const arg = (port.updateVisitFields as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(arg).toMatchObject({
+      patientUserId: PATIENT,
+      visitId: "v1",
+      exam: "Наклон болезненный",
+      recommendations: null,
+    });
+    // Untouched sections are left undefined (not overwritten).
+    expect(arg.manipulations).toBeUndefined();
+  });
+
+  it("updateVisitFields rejects when no section is provided", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    await expect(
+      svc.updateVisitFields({ patientUserId: PATIENT, visitId: "v1" }),
+    ).rejects.toThrow(/nothing_to_update/);
+  });
+
+  it("propagates port false (not found) for complaint update", async () => {
+    const port = makePort({ updateComplaintFields: vi.fn().mockResolvedValue(false) });
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    const ok = await svc.updateComplaintFields({
+      patientUserId: PATIENT,
+      complaintId: "missing",
+      priority: true,
+    });
+    expect(ok).toBe(false);
+  });
+});
 
 describe("patient-clinical service — анамнез", () => {
   describe("getAnamnesis", () => {

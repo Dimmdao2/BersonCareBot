@@ -130,6 +130,116 @@ describe("inMemoryPatientClinical", () => {
     expect(found[0].label).toBe("Тендинопатия большой ягодичной мышцы");
   });
 
+  describe("инлайн-правка полей", () => {
+    it("updateComplaintFields edits text+priority and is reflected in the projection", async () => {
+      await inMemoryPatientClinicalPort.createVisit({
+        patientUserId: PATIENT,
+        visitType: "first",
+        visitedAt: "2026-01-05T09:00:00.000Z",
+        createdBy: DOCTOR,
+        complaints: [{ text: "Поясница — боль", priority: false, severity: 6 }],
+      });
+      const before = await inMemoryPatientClinicalPort.getClinicalState(PATIENT);
+      const complaintId = before.complaints[0].id;
+
+      const ok = await inMemoryPatientClinicalPort.updateComplaintFields({
+        patientUserId: PATIENT,
+        complaintId,
+        text: "Поясница — острая боль",
+        priority: true,
+      });
+      expect(ok).toBe(true);
+
+      const after = await inMemoryPatientClinicalPort.getClinicalState(PATIENT);
+      expect(after.complaints[0].text).toBe("Поясница — острая боль");
+      expect(after.complaints[0].priority).toBe(true);
+      // severity/trend untouched by a field edit
+      expect(after.complaints[0].currentSeverity).toBe(6);
+    });
+
+    it("updateComplaintFields returns false for another patient's id (scope guard)", async () => {
+      await inMemoryPatientClinicalPort.createVisit({
+        patientUserId: PATIENT,
+        visitType: "first",
+        visitedAt: "2026-01-05T09:00:00.000Z",
+        createdBy: DOCTOR,
+        complaints: [{ text: "Боль", priority: false, severity: 3 }],
+      });
+      const state = await inMemoryPatientClinicalPort.getClinicalState(PATIENT);
+      const complaintId = state.complaints[0].id;
+
+      const ok = await inMemoryPatientClinicalPort.updateComplaintFields({
+        patientUserId: "99999999-9999-9999-9999-999999999999",
+        complaintId,
+        priority: true,
+      });
+      expect(ok).toBe(false);
+      const after = await inMemoryPatientClinicalPort.getClinicalState(PATIENT);
+      expect(after.complaints[0].priority).toBe(false);
+    });
+
+    it("updateDiagnosisFields edits text+priority without touching status", async () => {
+      await inMemoryPatientClinicalPort.createVisit({
+        patientUserId: PATIENT,
+        visitType: "first",
+        visitedAt: "2026-01-05T09:00:00.000Z",
+        createdBy: DOCTOR,
+        diagnoses: [{ text: "Тендинопатия", priority: false }],
+      });
+      const before = await inMemoryPatientClinicalPort.getClinicalState(PATIENT);
+      const diagnosisId = before.diagnoses[0].id;
+
+      const ok = await inMemoryPatientClinicalPort.updateDiagnosisFields({
+        patientUserId: PATIENT,
+        diagnosisId,
+        text: "Тендинопатия БЯМ",
+        priority: true,
+      });
+      expect(ok).toBe(true);
+
+      const after = await inMemoryPatientClinicalPort.getClinicalState(PATIENT);
+      expect(after.diagnoses[0].text).toBe("Тендинопатия БЯМ");
+      expect(after.diagnoses[0].priority).toBe(true);
+      expect(after.diagnoses[0].status).toBe("active");
+    });
+
+    it("updateVisitFields edits a section and clears another to null", async () => {
+      await inMemoryPatientClinicalPort.createVisit({
+        patientUserId: PATIENT,
+        visitType: "first",
+        visitedAt: "2026-01-05T09:00:00.000Z",
+        createdBy: DOCTOR,
+        exam: "Старый осмотр",
+        recommendations: "Старые рекомендации",
+      });
+      const visits = await inMemoryPatientClinicalPort.listVisits(PATIENT);
+      const visitId = visits[0].id;
+
+      const ok = await inMemoryPatientClinicalPort.updateVisitFields({
+        patientUserId: PATIENT,
+        visitId,
+        exam: "Новый осмотр",
+        recommendations: null,
+      });
+      expect(ok).toBe(true);
+
+      const after = await inMemoryPatientClinicalPort.listVisits(PATIENT);
+      const sections = after[0].sections ?? [];
+      expect(sections).toContainEqual({ title: "Осмотр", body: "Новый осмотр" });
+      // recommendations cleared → no «Рекомендации / Назначения» section
+      expect(sections.some((s) => s.title.startsWith("Рекомендации"))).toBe(false);
+    });
+
+    it("updateVisitFields returns false for an unknown visit", async () => {
+      const ok = await inMemoryPatientClinicalPort.updateVisitFields({
+        patientUserId: PATIENT,
+        visitId: "00000000-0000-0000-0000-000000000000",
+        exam: "x",
+      });
+      expect(ok).toBe(false);
+    });
+  });
+
   describe("анамнез", () => {
     const OTHER_PATIENT = "33333333-3333-3333-3333-333333333333";
 
