@@ -116,6 +116,10 @@ export const routePaths = {
   doctorSchedule: "/app/doctor/schedule",
   /** Коммуникации врача (новый URL, объединяет messages + online-intake + broadcasts). */
   doctorCommunications: "/app/doctor/communications",
+  /** Список пациентов врача (новый раздел «Пациенты», Patients list page). */
+  doctorPatients: "/app/doctor/patients",
+  /** Карточка пациента (Patients card page). */
+  doctorPatientCard: (userId: string) => `/app/doctor/patients/${encodeURIComponent(userId)}`,
 } as const;
 
 /**

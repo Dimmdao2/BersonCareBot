@@ -351,7 +351,186 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           (item) => item.activeTreatmentProgram && item.isOnSupport !== true,
         );
       }
+      // New filters for Patients section
+      if (filters.hasEmail === true) {
+        list = list.filter((item) => item.hasEmail === true);
+      }
+      if (filters.hasPhone === true) {
+        list = list.filter((item) => Boolean(item.phone?.trim()));
+      }
+      if (filters.hasMemberships === true) {
+        list = list.filter((item) => item.hasMemberships === true);
+      }
+      if (filters.hasCancellations === true) {
+        list = list.filter((item) => (item.cancellationCount30d ?? 0) > 0);
+      }
+      // TODO: isNew/isFormer/isSubscriberOnly — definitions need owner confirmation (see ports.ts)
+      if (filters.isNew === true) {
+        // «Новые» — есть будущая запись, но ещё не было прошедшего посещения
+        list = list.filter(
+          (item) => (item.activeAppointmentsCount ?? 0) > 0 && item.hasAppointmentHistory !== true,
+        );
+      }
+      if (filters.isFormer === true) {
+        // «Бывшие» — были посещения, но сейчас нет активной будущей записи
+        list = list.filter(
+          (item) => item.hasAppointmentHistory === true && (item.activeAppointmentsCount ?? 0) === 0,
+        );
+      }
+      if (filters.isSubscriberOnly === true) {
+        // «Подписчики» — никогда не было записи на приём
+        list = list.filter(
+          (item) => !item.hasAppointmentHistory && (item.activeAppointmentsCount ?? 0) === 0,
+        );
+      }
       return list;
+    },
+
+    async getPatientCardHeader(userId: string) {
+      // Resolve canonical user id
+      const pool = getPool();
+      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+
+      // Fetch identity
+      const userRow = await runWebappPgText<{
+        id: string;
+        display_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        phone_normalized: string | null;
+        email: string | null;
+        email_verified_at: string | null;
+        is_blocked: boolean;
+        is_archived: boolean;
+        role: string;
+      }>(
+        `SELECT id, display_name, first_name, last_name, phone_normalized, email, email_verified_at,
+                COALESCE(is_blocked, false) AS is_blocked,
+                COALESCE(is_archived, false) AS is_archived,
+                role
+         FROM platform_users WHERE id = $1::uuid`,
+        [canonicalId],
+      );
+      const ur = userRow.rows[0];
+      if (!ur || ur.role !== "client") return null;
+
+      // Fetch channel bindings
+      const bindingsRows = await runWebappPgText<{ channel_code: string; external_id: string; bot_blocked_at: string | null }>(
+        `SELECT channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = $1::uuid`,
+        [canonicalId],
+      );
+      const bindings = rowToBindings(bindingsRows.rows);
+
+      // Fetch support status
+      const supportProfile = await getClientSupportProfile(canonicalId);
+
+      // Fetch appointment stats
+      const apptRows = await runWebappPgText<{
+        total_visits: string;
+        cancellations_count: string;
+        reschedules_count: string;
+        last_visit_at: string | null;
+        next_appt_at: string | null;
+        first_visit_at: string | null;
+      }>(
+        `SELECT
+           COUNT(*) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status IN ('created','updated')
+               AND ar.record_at IS NOT NULL
+               AND ar.record_at < NOW()
+           )::text AS total_visits,
+           COUNT(*) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status = 'canceled'
+               AND ar.last_event NOT IN ('event-remove-record','event-delete-record')
+           )::text AS cancellations_count,
+           COUNT(*) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status = 'updated'
+           )::text AS reschedules_count,
+           MAX(ar.record_at) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status IN ('created','updated')
+               AND ar.record_at IS NOT NULL
+               AND ar.record_at < NOW()
+           ) AS last_visit_at,
+           MIN(ar.record_at) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status IN ('created','updated')
+               AND ar.record_at IS NOT NULL
+               AND ar.record_at >= NOW()
+           ) AS next_appt_at,
+           MIN(ar.record_at) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status IN ('created','updated')
+               AND ar.record_at IS NOT NULL
+               AND ar.record_at < NOW()
+           ) AS first_visit_at
+         FROM platform_users pu
+         LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+         WHERE pu.id = $1::uuid`,
+        [canonicalId],
+      );
+      const appt = apptRows.rows[0];
+
+      const totalVisits = parseInt(appt?.total_visits ?? "0", 10);
+      const cancellationsCount = parseInt(appt?.cancellations_count ?? "0", 10);
+      const reschedulesCount = parseInt(appt?.reschedules_count ?? "0", 10);
+
+      // Last visit
+      let lastVisit: import("@/modules/doctor-clients/ports").PatientCardHeader["lastVisit"] = null;
+      if (appt?.last_visit_at) {
+        lastVisit = {
+          date: new Date(appt.last_visit_at).toISOString(),
+          visitType: null, // TODO: no visitType field in appointment_records
+          city: null, // TODO: no city field in appointment_records
+        };
+      }
+
+      // Next appointment
+      let nextAppointment: import("@/modules/doctor-clients/ports").PatientCardHeader["nextAppointment"] = null;
+      if (appt?.next_appt_at) {
+        const dt = new Date(appt.next_appt_at);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        nextAppointment = {
+          date: dt.toISOString(),
+          time: `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`,
+          city: null, // TODO: no city field in appointment_records
+          appointmentType: null, // TODO: no appointmentType field in appointment_records
+        };
+      }
+
+      // Approximate support months (from support profile, if available)
+      // TODO: no precise counter in doctor_patient_support; approximated by checking if on_support
+      const isOnSupport = supportProfile?.onSupport ?? false;
+      const supportMonthsApprox: number | null = null; // TODO: calculate from updated_at delta
+
+      return {
+        identity: {
+          userId: ur.id,
+          displayName: ur.display_name ?? "",
+          firstName: ur.first_name,
+          lastName: ur.last_name,
+          phone: ur.phone_normalized,
+          email: ur.email,
+          bindings,
+          isArchived: ur.is_archived,
+          isBlocked: ur.is_blocked,
+          birthDate: null, // TODO: no birthDate field in platform_users
+          age: null, // TODO: derived from birthDate
+        },
+        support: {
+          isOnSupport,
+          supportMonthsApprox,
+        },
+        lastVisit,
+        nextAppointment,
+        totalVisits,
+        cancellationsCount,
+        reschedulesCount,
+        firstVisitDate: appt?.first_visit_at ? new Date(appt.first_visit_at).toISOString() : null,
+      };
     },
 
     async getDashboardPatientMetrics(audience?: {

@@ -12,6 +12,10 @@ export type DoctorClientsFilters = {
   hasActiveTreatmentProgram?: boolean;
   hasTelegram?: boolean;
   hasMax?: boolean;
+  /** Только клиенты с email (verified). */
+  hasEmail?: boolean;
+  /** Только клиенты с телефоном (phone_normalized не NULL). */
+  hasPhone?: boolean;
   /** Только пользователи с хотя бы одной неотменённой строкой в `appointment_records` (JOIN по phone). Этап 9. */
   onlyWithAppointmentRecords?: boolean;
   /**
@@ -23,6 +27,25 @@ export type DoctorClientsFilters = {
   archivedOnly?: boolean;
   /** `on` — `doctor_patient_support.on_support`; `programWithoutSupport` — активная doctor-программа без сопровождения. */
   supportStatus?: "on" | "programWithoutSupport";
+  /** Есть активный абонемент (`be_patient_packages.status IN ('active','awaiting_payment')`). */
+  hasMemberships?: boolean;
+  /**
+   * Сегмент «Новые»: есть будущая запись, но ещё не было прошедшего посещения.
+   * TODO: уточнить определение — сейчас: activeAppointmentsCount > 0 && !hasAppointmentHistory
+   */
+  isNew?: boolean;
+  /**
+   * Сегмент «Бывшие»: были посещения, но сейчас нет активной (будущей) записи.
+   * TODO: уточнить определение — сейчас: hasAppointmentHistory && activeAppointmentsCount === 0
+   */
+  isFormer?: boolean;
+  /**
+   * Подписчики: есть запись в platform_users с role=client, но никогда не было записи на приём.
+   * TODO: уточнить определение — сейчас: !hasAppointmentHistory && activeAppointmentsCount === 0
+   */
+  isSubscriberOnly?: boolean;
+  /** Клиенты с хотя бы одной отменой за 30 дней. */
+  hasCancellations?: boolean;
 };
 
 /** Строка клиента в списке. */
@@ -73,6 +96,60 @@ export type ClientIdentity = {
   emailVerifiedAt?: string | null;
 };
 
+/**
+ * Агрегат шапки карточки пациента (раздел «Пациенты», карточка пациента).
+ * Поля без источника данных возвращаются как null с пометкой TODO.
+ */
+export type PatientCardHeader = {
+  /** Идентичность пациента. */
+  identity: {
+    userId: string;
+    displayName: string;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    email: string | null;
+    bindings: import("@/shared/types/session").ChannelBindings;
+    isArchived: boolean;
+    isBlocked: boolean;
+    /** TODO: дата рождения — нет таблицы; потребует отдельной схемы/поля. */
+    birthDate: null;
+    /** TODO: возраст — вычисляется из birthDate, отсутствует до появления поля. */
+    age: null;
+  };
+  /** Сопровождение врача. */
+  support: {
+    isOnSupport: boolean;
+    /** Количество месяцев на сопровождении (TODO: нет точного счётчика в БД — вычисляется приблизительно). */
+    supportMonthsApprox: number | null;
+  };
+  /** Последний визит (прошедший слот из appointment_records). */
+  lastVisit: {
+    date: string; // ISO date string
+    /** TODO: тип визита (повторный/первичный) — нет в appointment_records; потребует поля. */
+    visitType: null;
+    /** TODO: город — нет в appointment_records; можно получить через booking engine, не реализовано. */
+    city: null;
+  } | null;
+  /** Следующая запись (будущий слот из appointment_records). */
+  nextAppointment: {
+    date: string; // ISO date string
+    time: string; // HH:MM
+    /** TODO: город из appointment_records.city (если есть поле). */
+    city: null;
+    /** TODO: тип приёма (очный/онлайн) — нет поля. */
+    appointmentType: null;
+  } | null;
+  /** Итого посещений (completed slots, status IN ('created','updated') && record_at < now). */
+  totalVisits: number;
+  /** Отмен за всё время (status='canceled' AND last_event NOT IN remove/delete). */
+  cancellationsCount: number;
+  /** Переносов за всё время (status='updated'). */
+  reschedulesCount: number;
+  /** Дата первого визита (самый ранний record_at < now). */
+  firstVisitDate: string | null;
+};
+
 /** Метрики пациентов для дашборда врача (этап 9). */
 export type DoctorDashboardPatientMetrics = {
   /** `COUNT(*)` WHERE `role = 'client'`. */
@@ -88,6 +165,11 @@ export type DoctorClientsPort = {
     filters: DoctorClientsFilters,
     audience?: { excludedUserIds?: string[] },
   ): Promise<ClientListItem[]>;
+  /**
+   * Агрегат шапки карточки пациента (для нового раздела «Пациенты»).
+   * Возвращает null, если пользователь не найден или не является клиентом.
+   */
+  getPatientCardHeader(userId: string): Promise<PatientCardHeader | null>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
   getClientContactBreakdown(audience?: { excludedUserIds?: string[] }): Promise<ClientContactBreakdown>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;

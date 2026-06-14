@@ -118,6 +118,11 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     /* no-op in memory stub */
   },
 
+  async getPatientCardHeader(_userId: string) {
+    // In-memory stub — returns null (no data in test environment)
+    return null;
+  },
+
   async getClientSupport(patientUserId: string) {
     return supportProfiles.get(patientUserId) ?? null;
   },
