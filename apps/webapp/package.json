@@ -41,6 +41,7 @@
     "backfill-rubitime-records-and-clients": "tsx scripts/backfill-rubitime-records-and-clients.ts",
     "backfill-canonical-from-legacy-appointments": "tsx scripts/backfill-canonical-from-legacy-appointments.ts",
     "sanitize-reschedule-count": "tsx scripts/sanitize-reschedule-count.ts",
+    "consolidate-specialist-identity": "tsx scripts/consolidate-specialist-identity.ts",
     "realign-webapp-integrator-user": "tsx scripts/realign-webapp-integrator-user-projection.ts",
     "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts",
     "media-preview:tick": "tsx scripts/media-preview-process-tick.ts",
