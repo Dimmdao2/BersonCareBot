@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="a">
+<html lang="ru" data-theme="d">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -56,6 +56,21 @@
   --side-bg:#0f1320; --side-border:#1d2334; --side-text:#9aa3b8; --side-active-bg:#1c2336; --side-active-text:#ffffff;
   --density:.96;
 }
+[data-theme="d"]{               /* D — Эталон+ : палитра эталона + глубина */
+  --font:'Inter', system-ui, sans-serif;
+  --bg-app:#f4f7fb; --surface:#ffffff; --surface-2:#fafbfc; --surface-3:#eef1f6;
+  --border:#e3e7ee; --border-strong:#cfd6e1;
+  --text:#16202e; --text-muted:#5a6675; --text-faint:#8b95a3;
+  --accent:hsl(215 35% 40%); --accent-strong:hsl(215 40% 31%); --accent-soft:hsl(215 45% 95%); --accent-on:hsl(215 45% 34%);
+  --success:#2f8a62; --success-soft:#e7f3ec;
+  --warning:#c2812e; --warning-soft:#fbf2df;
+  --danger:#c2402f;  --danger-soft:#fdf0ee;
+  --radius:10px; --radius-lg:14px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(22,32,46,.06), 0 1px 3px rgba(22,32,46,.08);
+  --shadow-pop:0 8px 24px rgba(22,32,46,.14);
+  --side-bg:#172230; --side-border:#26323f; --side-text:#9aa6b6; --side-active-bg:#23344c; --side-active-text:#ffffff; --side-hover:#1f2d3e;
+  --density:1;
+}
 
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -104,9 +119,9 @@ body{
 }
 .brand .logo svg{width:19px;height:19px;}
 .brand .nm{font-size:14.5px;font-weight:600;line-height:1.2;color:var(--side-text);}
-[data-theme="c"] .brand .nm{color:#fff;}
+[data-theme="c"] .brand .nm,[data-theme="d"] .brand .nm{color:#fff;}
 .brand .role{font-size:11.5px;color:var(--text-faint);}
-[data-theme="c"] .brand .role{color:#717c92;}
+[data-theme="c"] .brand .role,[data-theme="d"] .brand .role{color:#7d8a9c;}
 
 .nav-cap{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-faint);padding:14px 10px 6px;font-weight:600;}
 .nav{
@@ -117,10 +132,11 @@ body{
 }
 .nav:hover{background:var(--surface-3);}
 [data-theme="c"] .nav:hover{background:#161c2c;}
+[data-theme="d"] .nav:hover{background:#1f2d3e;}
 .nav svg{width:18px;height:18px;opacity:.85;flex:none;}
 .nav.active{background:var(--side-active-bg);color:var(--side-active-text);font-weight:600;}
 .nav .count{margin-left:auto;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-on);padding:1px 8px;border-radius:999px;}
-[data-theme="c"] .nav.active .count{background:var(--accent);color:#fff;}
+[data-theme="c"] .nav.active .count,[data-theme="d"] .nav.active .count{background:var(--accent);color:#fff;}
 .nav-sub{padding-left:38px;font-size:13px;color:var(--text-faint);padding-top:6px;padding-bottom:6px;}
 .nav-sub:hover{color:var(--side-text);}
 
@@ -227,10 +243,11 @@ body{
 
 <div class="switcher">
   <span class="lbl">НАПРАВЛЕНИЕ</span>
-  <button data-set="a" class="on">A · Чистый clinical</button>
+  <button data-set="d" class="on">D · Эталон+</button>
+  <button data-set="a">A · Чистый clinical</button>
   <button data-set="b">B · Тёплый</button>
   <button data-set="c">C · Премиум-контраст</button>
-  <span class="name" id="dirname">A — спокойный, светлый, нейтрально-синий акцент</span>
+  <span class="name" id="dirname">D — палитра эталона (стально-синий + кирпич + золото) с тёмным навигейви-сайдбаром и глубиной</span>
 </div>
 
 <div class="app">
@@ -337,6 +354,7 @@ body{
 
 <script>
 const names={
+  d:'D — палитра эталона (стально-синий + кирпич + золото) с тёмным навигейви-сайдбаром и глубиной',
   a:'A — спокойный, светлый, нейтрально-синий акцент',
   b:'B — тёплые песочные поверхности, бирюзовый акцент, мягче и человечнее',
   c:'C — тёмный сайдбар, чёткая глубина, фиолетовый акцент, плотнее'

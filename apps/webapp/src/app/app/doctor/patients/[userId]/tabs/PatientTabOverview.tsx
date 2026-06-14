@@ -19,6 +19,7 @@ import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import type { DoctorPatientProgramActivity } from "@/app/app/doctor/patients/loadDoctorPatientProgramActivity";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -122,6 +123,11 @@ interface SignalsApiResponse {
   signals: ProactiveInsightRow[];
 }
 
+interface ProgramActivityApiResponse {
+  ok: boolean;
+  activity: DoctorPatientProgramActivity;
+}
+
 interface CalendarDay {
   date: string; // YYYY-MM-DD
   completedCount: number;
@@ -166,6 +172,8 @@ interface OverviewData {
   programStages: TreatmentInstanceStage[];
   programCurrentStage: TreatmentInstanceStage | null;
   programCurrentStageIndex: number; // 0-based index into programStages
+  /** Активность по программе: последняя отметка пациента + число непрочитанных. */
+  programActivity: DoctorPatientProgramActivity | null;
 
   // Notes
   notesStatus: WidgetStatus;
@@ -470,6 +478,10 @@ export function PatientTabOverview({ userId }: Props) {
       .then((r) => r.ok ? (r.json() as Promise<SignalsApiResponse>) : null)
       .catch(() => null);
 
+    const fetchProgramActivity = fetch(`/api/doctor/patients/${userId}/program-activity`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<ProgramActivityApiResponse>) : null)
+      .catch(() => null);
+
     const fetchCalendar = fetch(
       `/api/doctor/patients/${userId}/exercise-calendar?from=${from}&to=${to}`,
       { credentials: "include" },
@@ -497,6 +509,7 @@ export function PatientTabOverview({ userId }: Props) {
       fetchTasks,
       fetchProgram,
       fetchSignals,
+      fetchProgramActivity,
       fetchCalendar,
       fetchMessages,
     ]).then(async ([
@@ -507,6 +520,7 @@ export function PatientTabOverview({ userId }: Props) {
       tasks,
       programList,
       signals,
+      programActivityRes,
       calendar,
       messages,
     ]) => {
@@ -609,6 +623,9 @@ export function PatientTabOverview({ userId }: Props) {
       const signalsList = signals?.signals ?? [];
       const signalsStatus: WidgetStatus = !signals ? "error" : signalsList.length === 0 ? "empty" : "ok";
 
+      // --- Program activity (last mark / unread) ---
+      const programActivity = programActivityRes?.activity ?? null;
+
       // --- Calendar ---
       const calendarDays = calendar?.days ?? [];
       const calendarStatus: WidgetStatus = !calendar ? "error" : "ok";
@@ -632,6 +649,7 @@ export function PatientTabOverview({ userId }: Props) {
         programStages,
         programCurrentStage,
         programCurrentStageIndex,
+        programActivity,
         notesStatus,
         notes: notesList,
         tasksStatus,
@@ -1030,6 +1048,11 @@ export function PatientTabOverview({ userId }: Props) {
         <div className={doctorSectionCardClass}>
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={doctorSectionTitleClass}>Программа и комментарии</span>
+            {(data?.programActivity?.unreadCount ?? 0) > 0 && (
+              <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0 text-[10px] font-semibold text-destructive">
+                {data!.programActivity!.unreadCount} непрочит.
+              </span>
+            )}
             <button
               type="button"
               className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
@@ -1037,6 +1060,15 @@ export function PatientTabOverview({ userId }: Props) {
               открыть программу →
             </button>
           </div>
+
+          {!isLoading && data?.programActivity?.lastMark && (
+            <p className="text-[11px] text-muted-foreground mb-1.5">
+              Последняя отметка: {data.programActivity.lastMark.atLabel}
+              <span className="text-muted-foreground/70">
+                {" "}· {data.programActivity.lastMark.stageItemTitle}
+              </span>
+            </p>
+          )}
 
           {isLoading && (
             <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка программы…</p>
@@ -1109,7 +1141,6 @@ export function PatientTabOverview({ userId }: Props) {
                           {item.effectiveComment}
                         </span>
                       )}
-                      {/* TODO(backend): per-exercise last-mark / unread comments not exposed via these endpoints */}
                     </div>
                   ))}
                 </>
