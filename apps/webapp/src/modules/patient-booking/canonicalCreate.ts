@@ -277,6 +277,11 @@ export async function createBookingOnCanonicalEngine(
     }
     const ctx = await deps.bookingScheduling.resolveInPersonContext(createInput.branchServiceId);
     if (!ctx) throw new Error("branch_service_not_found");
+    // In-person bookings MUST resolve a concrete specialist: a NULL specialist_id
+    // bypasses the be_appointments_specialist_no_overlap exclusion constraint
+    // (it only covers non-null rows), allowing an overlapping booking. Only ONLINE
+    // consults legitimately keep canonicalSpecialistId = null. (F2 guard.)
+    if (!ctx.specialistId) throw new Error("specialist_required");
     canonicalBranchId = ctx.branchId;
     canonicalSpecialistId = ctx.specialistId;
     canonicalServiceId = ctx.serviceId;

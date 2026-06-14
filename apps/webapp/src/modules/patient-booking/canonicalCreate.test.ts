@@ -847,6 +847,98 @@ describe("createBookingOnCanonicalEngine", () => {
     expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-1");
   });
 
+  it("F2 regression: online create keeps null specialist and still succeeds", async () => {
+    const result = await createBookingOnCanonicalEngine(deps(false), {
+      userId: "user-1",
+      type: "online",
+      category: "general",
+      slotStart: "2026-06-01T10:00:00.000Z",
+      slotEnd: "2026-06-01T11:00:00.000Z",
+      contactName: "Иван",
+      contactPhone: "+79001234567",
+    });
+    expect(bookingEngine.createAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: null }),
+    );
+    expect(result.status).toBe("confirmed");
+  });
+
+  it("F2: in-person create rejected when resolved context has no specialist (not inserted)", async () => {
+    bookingCatalog.resolveBranchService.mockResolvedValue({
+      branchService: {
+        id: "bs-1",
+        branchId: "br-1",
+        serviceId: "sv-1",
+        specialistId: "sp-1",
+        rubitimeServiceId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      branch: {
+        id: "br-1",
+        cityId: "c-1",
+        title: "Филиал",
+        address: null,
+        rubitimeBranchId: "1",
+        timezone: "Europe/Moscow",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      service: {
+        id: "sv-1",
+        title: "Приём",
+        description: null,
+        durationMinutes: 60,
+        priceMinor: 0,
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      specialist: {
+        id: "sp-1",
+        branchId: "br-1",
+        fullName: "Доктор",
+        description: null,
+        rubitimeCooperatorId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      city: { id: "c-1", code: "msk", title: "Москва", isActive: true, sortOrder: 0, createdAt: "", updatedAt: "" },
+    });
+    // Context resolves with a null specialist — the F2 guard must reject before insert.
+    bookingScheduling.resolveInPersonContext.mockResolvedValue({
+      organizationId: "org-1",
+      branchId: "br-1",
+      specialistId: null,
+      serviceId: "sv-1",
+      roomId: null,
+      branchServiceId: "bs-1",
+      durationMinutes: 60,
+      branchTimezone: "Europe/Moscow",
+    });
+
+    await expect(
+      createBookingOnCanonicalEngine(deps(false), {
+        userId: "user-1",
+        type: "in_person",
+        branchServiceId: "bs-1",
+        cityCode: "msk",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      }),
+    ).rejects.toThrow("specialist_required");
+    expect(bookingEngine.createAppointment).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid form answers", async () => {
     bookingForm.validateAnswers.mockResolvedValue({ ok: false, error: "required_field_missing" });
 
