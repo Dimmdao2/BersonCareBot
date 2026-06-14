@@ -81,18 +81,48 @@ export type AcquiringChargeResult =
 /**
  * AcquiringGatewayPort — seam для подключения эквайрингового провайдера.
  *
- * Сейчас единственная реализация — NoopAcquiringGateway (infra/repos/noopAcquiringGateway.ts),
- * которая возвращает { ok:false, reason:'not_implemented' }.
+ * Реализации живут в infra/payments/ (registry-backed adapter).
+ * buildAppDeps заменяет noopAcquiringGateway на registryAcquiringGateway при наличии
+ * реальных credentials в system_settings.booking_payment_providers.
  *
- * Когда придёт время подключить ЮКасса/ЮМани:
- *   1. Создать YooKassaAcquiringGateway (или YooMoneyAcquiringGateway) в infra/integrations/.
- *   2. Зарегистрировать в buildAppDeps вместо noopAcquiringGateway.
- *   3. Маршрут POST .../payments можно расширить полем kind='acquiring'.
+ * Унификация (2026-06): AcquiringGatewayPort расширен до полного provider contract —
+ * теперь включает refund + verifyWebhook, что позволяет использовать один набор
+ * адаптеров (PaymentProviderPort) для обоих потребителей:
+ *   - modules/payments (booking prepayments)
+ *   - modules/patient-payments (doctor «Учётка» acquiring)
  */
 export interface AcquiringGatewayPort {
   /**
    * Инициировать платёж через шлюз.
-   * Noop-реализация всегда возвращает { ok:false, reason:'not_implemented' }.
+   * Returns ok=true with providerPaymentId + redirectUrl on success,
+   * or ok=false with reason on failure.
    */
   createCharge(input: AcquiringChargeInput): Promise<AcquiringChargeResult>;
+
+  /**
+   * Вернуть платёж (refund).
+   * providerPaymentId — ref returned by createCharge.
+   */
+  refund(input: {
+    providerPaymentId: string;
+    amountMinor: number;
+    currency: string;
+    idempotencyKey: string;
+  }): Promise<{ ok: true; providerRefundRef: string } | { ok: false; reason: string }>;
+
+  /**
+   * Верифицировать входящий webhook от провайдера и извлечь событие.
+   * Throws 'invalid_webhook_signature' if verification fails.
+   */
+  verifyWebhook(input: {
+    headers: Headers;
+    bodyText: string;
+    webhookSecret: string;
+  }): {
+    idempotencyKey: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+    intentRef?: string;
+    amountMinor?: number;
+  };
 }

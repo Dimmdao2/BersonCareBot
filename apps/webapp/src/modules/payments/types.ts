@@ -26,8 +26,18 @@ export type PaymentProviderConfig = {
   label: string;
   enabled: boolean;
   webhookSecret?: string;
+  /** YooKassa: Secret Key; CloudPayments: API Secret; Alfa-Bank: password; Tinkoff: terminal password */
   apiKey?: string;
+  /** YooKassa: Shop ID; Tinkoff: TerminalKey; Alfa-Bank: login (merchant username) */
   shopId?: string;
+  /** Tinkoff: TerminalKey (alias for shopId when shopId is ambiguous) */
+  terminalKey?: string;
+  /** CloudPayments: Public ID */
+  publicId?: string;
+  /** Alfa-Bank: merchant login */
+  merchantLogin?: string;
+  /** Acquiring gateway base URL override (Alfa-Bank test vs prod). */
+  gatewayUrl?: string;
 };
 
 export type BookingPaymentSettings = {

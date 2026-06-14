@@ -98,7 +98,16 @@ export const ALLOWED_KEYS = [
   "booking_slots_read_source",
   /** Вкл/выкл платёжный слой записи (предоплата, intents). */
   "booking_payment_enabled",
-  /** Провайдеры оплаты записи: `{ value: { enabled, defaultProviderId, providers[] } }`; секреты merge при PATCH. */
+  /**
+   * Провайдеры оплаты записи: `{ value: { enabled, defaultProviderId, providers[] } }`.
+   * Секреты (apiKey, webhookSecret) merge при PATCH — не сбрасываются при [REDACTED].
+   * providers[].id: "mock" | "yookassa" | "tinkoff" | "cloudpayments" | "alfabank".
+   * Per-provider fields:
+   *   yookassa:       shopId (Shop ID), apiKey (Secret Key), webhookSecret
+   *   tinkoff:        terminalKey (= shopId), apiKey (Password), webhookSecret
+   *   cloudpayments:  publicId (= shopId), apiKey (API Secret), webhookSecret
+   *   alfabank:       merchantLogin (= shopId), apiKey (Password), webhookSecret, gatewayUrl (override for test env)
+   */
   "booking_payment_providers",
   "booking_lifecycle_notifications",
   /** Разрешить отвязывать прошедшие записи от абонемента (двойное подтверждение в UI). */
