@@ -51,6 +51,34 @@ function generateEmailCode(): string {
   return String(100000 + Math.floor(Math.random() * 900000));
 }
 
+export type PendingEmailChallenge = { email: string; expiresAt: string } | null;
+
+/**
+ * Returns the latest unexpired pending email challenge for a user (for display in admin UI).
+ * Returns null if none exists.
+ */
+export async function getPendingEmailChallenge(userId: string): Promise<PendingEmailChallenge> {
+  if (!env.DATABASE_URL) {
+    const now = Math.floor(Date.now() / 1000);
+    let best: { email: string; expiresAt: number } | null = null;
+    for (const row of memEmailChallenges.values()) {
+      if (row.userId !== userId) continue;
+      if (row.expiresAt <= now) continue;
+      if (!best || row.expiresAt > best.expiresAt) {
+        best = { email: row.email, expiresAt: row.expiresAt };
+      }
+    }
+    if (!best) return null;
+    return { email: best.email, expiresAt: new Date(best.expiresAt * 1000).toISOString() };
+  }
+
+  const db = requireEmailAuthDb();
+  const now = Math.floor(Date.now() / 1000);
+  const row = await db.findLatestPendingEmailChallengeForUser(userId, now);
+  if (!row) return null;
+  return { email: row.email, expiresAt: new Date(Number(row.expires_at) * 1000).toISOString() };
+}
+
 export type EmailStartResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
   | { ok: false; code: "invalid_email" | "rate_limited" | "too_many_attempts" | "email_send_failed"; retryAfterSeconds?: number };
@@ -259,6 +287,94 @@ export async function consumeEmailChallengeCode(
     code,
     row,
     onSuccess: async () => {
+      await db.deleteEmailChallengesForUser(userId);
+      return { ok: true };
+    },
+  });
+}
+
+/**
+ * Patient-facing confirm for admin-initiated email change:
+ * verifies the latest unexpired challenge code and, on success, calls verifyUserEmail
+ * to actually switch the email on the account (same semantics as confirmEmailChallenge
+ * but without requiring the challengeId — the patient only knows the code).
+ */
+export async function confirmLatestEmailChallengeCodeForUser(
+  userId: string,
+  codeRaw: string,
+): Promise<EmailConfirmResult> {
+  const code = codeRaw.trim();
+  if (!code) {
+    return { ok: false, code: "invalid_code" };
+  }
+
+  if (!env.DATABASE_URL) {
+    const now = Math.floor(Date.now() / 1000);
+    let bestId: string | null = null;
+    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number } | null = null;
+    for (const [cid, row] of memEmailChallenges) {
+      if (row.userId !== userId) continue;
+      if (row.expiresAt <= now) {
+        memEmailChallenges.delete(cid);
+        continue;
+      }
+      if (!best || row.expiresAt > best.expiresAt) {
+        best = row;
+        bestId = cid;
+      }
+    }
+    if (!bestId || !best) {
+      return { ok: false, code: "expired_code" };
+    }
+    if (best.code !== code) {
+      best.attempts += 1;
+      if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
+        memEmailChallenges.delete(bestId);
+        return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+      }
+      return { ok: false, code: "invalid_code" };
+    }
+    const normalized = normalizeEmail(best.email);
+    const owner = memEmailOwnerByNormalized.get(normalized);
+    if (owner && owner !== userId) {
+      memEmailChallenges.delete(bestId);
+      return { ok: false, code: "email_conflict" };
+    }
+    for (const [emailNorm, uid] of memEmailOwnerByNormalized) {
+      if (uid === userId) memEmailOwnerByNormalized.delete(emailNorm);
+    }
+    memEmailOwnerByNormalized.set(normalized, userId);
+    memEmailChallenges.delete(bestId);
+    return { ok: true };
+  }
+
+  const db = requireEmailAuthDb();
+  const now = Math.floor(Date.now() / 1000);
+  const row = await db.findLatestPendingEmailChallengeForUser(userId, now);
+  if (!row) {
+    return { ok: false, code: "expired_code" };
+  }
+
+  return verifyChallengeCodeRow({
+    userId,
+    challengeId: row.id,
+    code,
+    row,
+    onSuccess: async () => {
+      if (await db.findEmailOwnerConflict(userId, row.email)) {
+        await db.deleteEmailChallengesForUser(userId);
+        return { ok: false, code: "email_conflict" };
+      }
+      try {
+        await db.verifyUserEmail(userId, row.email);
+      } catch (err: unknown) {
+        const pgCode = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
+        if (pgCode === "23505") {
+          await db.deleteEmailChallengesForUser(userId);
+          return { ok: false, code: "email_conflict" };
+        }
+        throw err;
+      }
       await db.deleteEmailChallengesForUser(userId);
       return { ok: true };
     },
