@@ -13,6 +13,10 @@ import {
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 import { DoctorCalendarEventPanel } from "../../calendar/DoctorCalendarEventPanel";
+import {
+  DoctorCalendarRescheduleDialog,
+  type PendingReschedule,
+} from "../../calendar/DoctorCalendarRescheduleDialog";
 import { DoctorCalendarToolbarFilter } from "../../calendar/DoctorCalendarToolbarFilter";
 import { resolveCalendarCreateFieldValue } from "@/modules/booking-calendar/calendarCreateFieldMode";
 import {
@@ -44,6 +48,17 @@ const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 
 const DEFAULT_SLOT_MIN = "06:00:00";
 const DEFAULT_SLOT_MAX = "23:00:00";
+
+// R34: понятные подписи ошибок переноса для диалога подтверждения.
+function rescheduleErrorLabel(error: string | undefined): string {
+  if (!error) return "Не удалось перенести запись.";
+  if (error === "external_slot_taken") return "Время уже занято во внешней записи (Rubitime).";
+  if (error === "slot_overlap") return "Слот уже занят другой записью этого специалиста.";
+  if (error === "not_found") return "Запись не найдена.";
+  if (error === "rubitime_sync_failed") return "Сбой синхронизации с Rubitime.";
+  if (error.startsWith("load_failed")) return "Не удалось сохранить перенос. Попробуйте ещё раз.";
+  return error;
+}
 
 // View types for the v26 calendar tab switcher (3days / weekgrid / month / day(drill-down))
 // "feed" removed in batch-1
@@ -647,6 +662,18 @@ export function ScheduleCalendarTab({
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  // R34: подтверждение переноса (drag/resize) перед применением.
+  const [pendingReschedule, setPendingReschedule] = useState<PendingReschedule | null>(null);
+  const pendingRescheduleRef = useRef<{
+    appointment: CalendarAppointmentEvent;
+    arg: { revert: () => void };
+    newStartAt: string;
+    newEndAt: string;
+  } | null>(null);
+  const [rescheduleComment, setRescheduleComment] = useState("");
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [rescheduleBusy, setRescheduleBusy] = useState(false);
+
   // ─── Sync state → deep-link ────────────────────────────────────────────────
 
   const setView = useCallback(
@@ -937,7 +964,8 @@ export function ScheduleCalendarTab({
       appointment: CalendarAppointmentEvent,
       startAt: string,
       endAt: string,
-    ): Promise<boolean> => {
+      staffComment?: string,
+    ): Promise<{ ok: boolean; error?: string }> => {
       const durationMinutes = Math.max(
         1,
         Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000),
@@ -947,50 +975,81 @@ export function ScheduleCalendarTab({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ newStartAt: startAt, newEndAt: endAt, durationMinutes }),
+          body: JSON.stringify({
+            newStartAt: startAt,
+            newEndAt: endAt,
+            durationMinutes,
+            ...(staffComment && staffComment.trim() ? { staffComment: staffComment.trim() } : {}),
+          }),
         },
       );
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        load();
-        return false;
+        return { ok: false, error: json.error ?? `load_failed_${res.status}` };
       }
       await loadFeed();
       loadKpis(view, anchorDate);
-      return true;
+      return { ok: true };
     },
-    [load, loadFeed, loadKpis, view, anchorDate],
+    [loadFeed, loadKpis, view, anchorDate],
   );
 
-  const onDrop = useCallback(
-    async (arg: any) => {
-      const appointment = arg.event.extendedProps?.appointment as
-        | CalendarAppointmentEvent
-        | undefined;
-      if (!appointment) return arg.revert();
-      const nextStart = arg.event.start?.toISOString();
-      const nextEnd = arg.event.end?.toISOString();
-      if (!nextStart || !nextEnd) return arg.revert();
-      const ok = await performReschedule(appointment, nextStart, nextEnd);
-      if (!ok) arg.revert();
-    },
-    [performReschedule],
-  );
+  // R34: drag/resize не применяются сразу — открываем диалог подтверждения.
+  const openRescheduleConfirm = useCallback((arg: any) => {
+    const appointment = arg.event.extendedProps?.appointment as
+      | CalendarAppointmentEvent
+      | undefined;
+    if (!appointment) return arg.revert();
+    const nextStart = arg.event.start?.toISOString();
+    const nextEnd = arg.event.end?.toISOString();
+    if (!nextStart || !nextEnd) return arg.revert();
+    pendingRescheduleRef.current = { appointment, arg, newStartAt: nextStart, newEndAt: nextEnd };
+    setRescheduleComment("");
+    setRescheduleError(null);
+    setRescheduleBusy(false);
+    setPendingReschedule({
+      patientName: appointment.patientName ?? null,
+      oldStartAt: appointment.startAt,
+      oldEndAt: appointment.endAt,
+      newStartAt: nextStart,
+      newEndAt: nextEnd,
+    });
+  }, []);
 
-  const onResize = useCallback(
-    async (arg: any) => {
-      const appointment = arg.event.extendedProps?.appointment as
-        | CalendarAppointmentEvent
-        | undefined;
-      if (!appointment) return arg.revert();
-      const nextStart = arg.event.start?.toISOString();
-      const nextEnd = arg.event.end?.toISOString();
-      if (!nextStart || !nextEnd) return arg.revert();
-      const ok = await performReschedule(appointment, nextStart, nextEnd);
-      if (!ok) arg.revert();
-    },
-    [performReschedule],
-  );
+  const cancelRescheduleConfirm = useCallback(() => {
+    pendingRescheduleRef.current?.arg.revert();
+    pendingRescheduleRef.current = null;
+    setPendingReschedule(null);
+    setRescheduleError(null);
+    setRescheduleBusy(false);
+  }, []);
+
+  const confirmRescheduleConfirm = useCallback(async () => {
+    const ctx = pendingRescheduleRef.current;
+    if (!ctx) return;
+    setRescheduleBusy(true);
+    setRescheduleError(null);
+    const result = await performReschedule(
+      ctx.appointment,
+      ctx.newStartAt,
+      ctx.newEndAt,
+      rescheduleComment,
+    );
+    if (result.ok) {
+      pendingRescheduleRef.current = null;
+      setPendingReschedule(null);
+      setRescheduleBusy(false);
+      // Перерисовать календарь из источника (применённое время уже на сетке).
+      load();
+      return;
+    }
+    // Ошибка — показываем в диалоге, запись пока остаётся на новом месте до решения врача.
+    setRescheduleBusy(false);
+    setRescheduleError(rescheduleErrorLabel(result.error));
+  }, [performReschedule, rescheduleComment, load]);
+
+  const onDrop = useCallback((arg: any) => openRescheduleConfirm(arg), [openRescheduleConfirm]);
+  const onResize = useCallback((arg: any) => openRescheduleConfirm(arg), [openRescheduleConfirm]);
 
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
 
@@ -1425,6 +1484,17 @@ export function ScheduleCalendarTab({
           )}
         </aside>
       </div>
+
+      <DoctorCalendarRescheduleDialog
+        pending={pendingReschedule}
+        timeZone={currentTimeZone}
+        comment={rescheduleComment}
+        busy={rescheduleBusy}
+        error={rescheduleError}
+        onCommentChange={setRescheduleComment}
+        onConfirm={confirmRescheduleConfirm}
+        onCancel={cancelRescheduleConfirm}
+      />
     </div>
   );
 }
