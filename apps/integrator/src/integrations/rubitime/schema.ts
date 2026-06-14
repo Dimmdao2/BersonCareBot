@@ -148,6 +148,8 @@ const BookingLifecyclePayloadSchema = z.object({
   cityCodeSnapshot: z.string().nullable().optional(),
   serviceTitleSnapshot: z.string().nullable().optional(),
   canonicalAppointmentId: z.string().uuid().optional(),
+  /** R21: врач снял «Уведомлять пациента» — не слать пациентские каналы/web-push (врач/GCal — как обычно). */
+  suppressPatientNotification: z.boolean().optional(),
 });
 
 export const BookingLifecycleEventSchema = z.object({

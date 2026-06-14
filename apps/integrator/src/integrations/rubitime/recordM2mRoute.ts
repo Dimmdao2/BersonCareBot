@@ -463,22 +463,26 @@ async function handleBookingLifecycleEvent(
 
   if (eventType === 'booking.cancelled') {
     await cancelPendingBookingReminders(bookingId);
-    const patientText = patientCancelledText(payload, timeZone);
-    await sendLinkedChannelMessage({
-      dispatchPort,
-      phoneNormalized: contactPhone,
-      text: patientText,
-      eventId: `booking-cancelled:${bookingId}`,
-    });
+    // R21: врач снял «Уведомлять пациента» — пациентский канал/web-push не шлём;
+    // врач/GCal/отмена напоминаний — как обычно.
+    if (payload.suppressPatientNotification !== true) {
+      const patientText = patientCancelledText(payload, timeZone);
+      await sendLinkedChannelMessage({
+        dispatchPort,
+        phoneNormalized: contactPhone,
+        text: patientText,
+        eventId: `booking-cancelled:${bookingId}`,
+      });
+      await sendBookingWebPush({
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+        phoneNormalized: contactPhone,
+        intentType: 'appointment_lifecycle',
+        variant: 'cancelled',
+        slotStartIso: payload.slotStart,
+        stableKey: `booking-cancelled:${bookingId}`,
+      });
+    }
     await sendDoctorMessage(dispatchPort, doctorCancelledText(payload, timeZone), `booking-cancelled:${bookingId}`);
-    await sendBookingWebPush({
-      ...(webappEventsPort ? { webappEventsPort } : {}),
-      phoneNormalized: contactPhone,
-      intentType: 'appointment_lifecycle',
-      variant: 'cancelled',
-      slotStartIso: payload.slotStart,
-      stableKey: `booking-cancelled:${bookingId}`,
-    });
     await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
     rememberBookingEventKey(dedupKey);
     return;
