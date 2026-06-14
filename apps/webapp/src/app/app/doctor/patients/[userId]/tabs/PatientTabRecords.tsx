@@ -180,9 +180,11 @@ export function PatientTabRecords({ userId, header }: Props) {
       });
   }, [userId]);
 
-  // While loading or on error, use fallback mock
-  const displayList: DisplayAppointment[] =
-    allAppointments !== null && !fetchError ? allAppointments : MOCK_HISTORY_FALLBACK;
+  // Loading → empty (spinner shown); error → mock fallback; loaded → real data
+  const isLoading = allAppointments === null && !fetchError;
+  const displayList: DisplayAppointment[] = fetchError
+    ? MOCK_HISTORY_FALLBACK
+    : (allAppointments ?? []);
 
   const upcomingList = displayList.filter((a) => a.status === "upcoming");
   const historyList = displayList.filter((a) => a.status !== "upcoming");
@@ -304,11 +306,14 @@ export function PatientTabRecords({ userId, header }: Props) {
           </div>
 
           <div className="flex flex-col gap-1.5 max-h-[420px] overflow-y-auto pr-0.5">
-            {allAppointments === null && !fetchError && (
+            {isLoading && (
               <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка записей…</p>
             )}
             {fetchError && (
               <p className="text-xs text-destructive py-1">Не удалось загрузить записи. Показаны примеры.</p>
+            )}
+            {!isLoading && !fetchError && historyList.length === 0 && (
+              <p className="text-xs text-muted-foreground py-2">Записей пока нет.</p>
             )}
             {historyList.map((appt) => (
               <div
