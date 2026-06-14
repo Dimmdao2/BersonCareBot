@@ -7,6 +7,14 @@ import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 
+// Мини-календарь «Сегодня» теперь на FullCalendar (R35) — мокаем его, чтобы
+// дашборд-тесты не тащили реальный FC и next/navigation.
+vi.mock("@fullcalendar/react", () => ({ default: () => <div data-testid="fullcalendar" /> }));
+vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
+vi.mock("@fullcalendar/interaction", () => ({ default: {} }));
+vi.mock("@fullcalendar/core/locales/ru", () => ({ default: {} }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 vi.mock("next/link", () => ({
   default: ({
     children,
