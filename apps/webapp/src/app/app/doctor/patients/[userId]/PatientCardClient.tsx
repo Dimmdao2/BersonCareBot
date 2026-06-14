@@ -79,12 +79,23 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   const [bdSaving, setBdSaving] = useState(false);
   const bdInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline gender editor state
+  const [genderLocal, setGenderLocal] = useState<"male" | "female" | null | undefined>(undefined);
+  const [editingGender, setEditingGender] = useState(false);
+  const [gSaving, setGSaving] = useState(false);
+
   // Sync from server header (once resolved)
   useEffect(() => {
     if (header && birthDateLocal === undefined) {
       setBirthDateLocal(header.identity.birthDate);
     }
   }, [header, birthDateLocal]);
+
+  useEffect(() => {
+    if (header && genderLocal === undefined) {
+      setGenderLocal(header.identity.gender);
+    }
+  }, [header, genderLocal]);
 
   // Focus date input when editor opens
   useEffect(() => {
@@ -143,6 +154,24 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
     } finally {
       setBdSaving(false);
       setEditingBirthDate(false);
+    }
+  }
+
+  /** Active gender: from local edit state or header */
+  const activeGender = genderLocal !== undefined ? genderLocal : identity.gender;
+
+  async function saveGender(val: "male" | "female" | null) {
+    setGSaving(true);
+    try {
+      await fetch(`/api/doctor/patients/${identity.userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gender: val }),
+      });
+      setGenderLocal(val);
+    } finally {
+      setGSaving(false);
+      setEditingGender(false);
     }
   }
 
@@ -250,6 +279,70 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                       setBdInput(activeBirthDate ?? "");
                       setEditingBirthDate(true);
                     }}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    ✎
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Пол + inline editor */}
+            <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+              {editingGender ? (
+                <>
+                  <span>Пол:</span>
+                  <button
+                    type="button"
+                    onClick={() => void saveGender("male")}
+                    disabled={gSaving}
+                    className={cn(
+                      "rounded border px-2 py-0.5 text-xs transition-colors disabled:opacity-50",
+                      activeGender === "male"
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-foreground hover:bg-muted",
+                    )}
+                  >
+                    М
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveGender("female")}
+                    disabled={gSaving}
+                    className={cn(
+                      "rounded border px-2 py-0.5 text-xs transition-colors disabled:opacity-50",
+                      activeGender === "female"
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-foreground hover:bg-muted",
+                    )}
+                  >
+                    Ж
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveGender(null)}
+                    disabled={gSaving}
+                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    Сбросить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingGender(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Отмена
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>
+                    Пол: {activeGender === "male" ? "М" : activeGender === "female" ? "Ж" : "—"}
+                  </span>
+                  <button
+                    type="button"
+                    title="Указать пол"
+                    onClick={() => setEditingGender(true)}
                     className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
                   >
                     ✎

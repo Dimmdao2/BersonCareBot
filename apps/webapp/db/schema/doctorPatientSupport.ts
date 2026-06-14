@@ -10,6 +10,8 @@ export const doctorPatientSupport = pgTable(
       .notNull()
       .references(() => platformUsers.id, { onDelete: "cascade" }),
     onSupport: boolean("on_support").default(false).notNull(),
+    /** Момент начала сопровождения (set when on_support flips to true; null когда не на сопровождении). */
+    supportStartedAt: timestamp("support_started_at", { withTimezone: true, mode: "string" }),
     /** null = use doctor default for patients without support */
     commentsEnabled: boolean("comments_enabled"),
     /** null = use doctor default for patients without support */

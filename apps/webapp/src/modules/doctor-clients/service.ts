@@ -146,6 +146,10 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       return deps.clientsPort.setPatientBirthDate(userId, birthDate);
     },
 
+    async setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void> {
+      return deps.clientsPort.setPatientGender(userId, gender);
+    },
+
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
     ): Promise<PatientProgramInteractionPolicy> {

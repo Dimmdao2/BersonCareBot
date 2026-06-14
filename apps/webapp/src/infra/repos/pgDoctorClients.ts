@@ -475,12 +475,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         is_archived: boolean;
         role: string;
         birth_date: string | null;
+        gender: string | null;
       }>(
         `SELECT id, display_name, first_name, last_name, phone_normalized, email, email_verified_at,
                 COALESCE(is_blocked, false) AS is_blocked,
                 COALESCE(is_archived, false) AS is_archived,
                 role,
-                birth_date::text AS birth_date
+                birth_date::text AS birth_date,
+                gender
          FROM platform_users WHERE id = $1::uuid`,
         [canonicalId],
       );
@@ -595,10 +597,20 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         };
       }
 
-      // Approximate support months (from support profile, if available)
-      // TODO: no precise counter in doctor_patient_support; approximated by checking if on_support
+      // Support: precise start date + months on support (doctor_patient_support.support_started_at)
       const isOnSupport = supportProfile?.onSupport ?? false;
-      const supportMonthsApprox: number | null = null; // TODO: calculate from updated_at delta
+      const supportStartedAt: string | null =
+        isOnSupport ? supportProfile?.supportStartedAt ?? null : null;
+      let supportMonthsApprox: number | null = null;
+      if (supportStartedAt) {
+        const start = new Date(supportStartedAt);
+        const now = new Date();
+        let months =
+          (now.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+          (now.getUTCMonth() - start.getUTCMonth());
+        if (now.getUTCDate() < start.getUTCDate()) months--;
+        supportMonthsApprox = months >= 0 ? months : 0;
+      }
 
       // Compute age from birthDate
       const birthDateIso: string | null = ur.birth_date ?? null;
@@ -627,9 +639,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           isBlocked: ur.is_blocked,
           birthDate: birthDateIso,
           age: ageYears,
+          gender:
+            ur.gender === "male" || ur.gender === "female" ? ur.gender : null,
         },
         support: {
           isOnSupport,
+          startedAt: supportStartedAt,
           supportMonthsApprox,
         },
         lastVisit,
@@ -898,6 +913,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         `UPDATE platform_users SET birth_date = $2::date, updated_at = now()
          WHERE id = $1::uuid AND role = 'client'`,
         [userId, birthDate],
+      );
+    },
+
+    async setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void> {
+      await runWebappPgText(
+        `UPDATE platform_users SET gender = $2, updated_at = now()
+         WHERE id = $1::uuid AND role = 'client'`,
+        [userId, gender],
       );
     },
 

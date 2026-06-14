@@ -2,6 +2,8 @@
 export type ClientSupportProfile = {
   patientUserId: string;
   onSupport: boolean;
+  /** Момент начала сопровождения (ISO); null если не на сопровождении. */
+  supportStartedAt: string | null;
   commentsEnabled: boolean | null;
   mediaEnabled: boolean | null;
   updatedAt: string;

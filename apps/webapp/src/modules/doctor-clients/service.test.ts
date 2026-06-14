@@ -58,6 +58,7 @@ describe("doctor-clients service", () => {
       return {
         patientUserId: params.patientUserId,
         onSupport: params.onSupport ?? false,
+        supportStartedAt: null,
         commentsEnabled: params.commentsEnabled ?? null,
         mediaEnabled: params.mediaEnabled ?? null,
         updatedAt: new Date().toISOString(),
@@ -68,6 +69,7 @@ describe("doctor-clients service", () => {
       return [];
     },
     async setPatientBirthDate() {},
+    async setPatientGender() {},
   };
 
   const service = createDoctorClientsService({
@@ -121,6 +123,7 @@ describe("doctor-clients service", () => {
         return {
           patientUserId: "user-1",
           onSupport: false,
+          supportStartedAt: null,
           commentsEnabled: true,
           mediaEnabled: null,
           updatedAt: "2026-01-01T00:00:00.000Z",
@@ -246,6 +249,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       return {
         patientUserId: params.patientUserId,
         onSupport: params.onSupport ?? false,
+        supportStartedAt: null,
         commentsEnabled: params.commentsEnabled ?? null,
         mediaEnabled: params.mediaEnabled ?? null,
         updatedAt: new Date().toISOString(),
@@ -256,6 +260,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       return [];
     },
     async setPatientBirthDate() {},
+    async setPatientGender() {},
   };
 
   afterEach(() => {

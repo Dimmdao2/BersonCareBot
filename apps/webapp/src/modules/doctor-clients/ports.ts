@@ -120,11 +120,15 @@ export type PatientCardHeader = {
     birthDate: string | null;
     /** Возраст в полных годах, вычисляется из birthDate; null если birthDate отсутствует. */
     age: number | null;
+    /** Пол пациента из platform_users.gender; null если не указан. */
+    gender: "male" | "female" | null;
   };
   /** Сопровождение врача. */
   support: {
     isOnSupport: boolean;
-    /** Количество месяцев на сопровождении (TODO: нет точного счётчика в БД — вычисляется приблизительно). */
+    /** Дата начала сопровождения (doctor_patient_support.support_started_at, ISO), null если не на сопровождении. */
+    startedAt: string | null;
+    /** Полных месяцев на сопровождении, вычислено из startedAt; null если startedAt отсутствует. */
     supportMonthsApprox: number | null;
   };
   /** Последний визит (клинический визит из clinical_visit, либо прошедший слот из appointment_records). */
@@ -238,6 +242,11 @@ export type DoctorClientsPort = {
    * Работает только для клиентов (role='client').
    */
   setPatientBirthDate(userId: string, birthDate: string | null): Promise<void>;
+  /**
+   * Устанавливает пол клиента (platform_users.gender): 'male' | 'female' | null (сброс).
+   * Работает только для клиентов (role='client').
+   */
+  setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void>;
 };
 
 export type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";

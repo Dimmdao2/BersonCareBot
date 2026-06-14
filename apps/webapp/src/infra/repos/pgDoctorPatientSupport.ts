@@ -7,6 +7,7 @@ function mapRow(row: typeof doctorPatientSupport.$inferSelect): ClientSupportPro
   return {
     patientUserId: row.patientUserId,
     onSupport: row.onSupport,
+    supportStartedAt: row.supportStartedAt,
     commentsEnabled: row.commentsEnabled,
     mediaEnabled: row.mediaEnabled,
     updatedAt: row.updatedAt,
@@ -36,11 +37,14 @@ export async function upsertClientSupportProfile(params: {
   const existing = await getClientSupportProfile(params.patientUserId);
 
   if (!existing) {
+    const startingOnSupport = params.onSupport ?? false;
     const inserted = await db
       .insert(doctorPatientSupport)
       .values({
         patientUserId: params.patientUserId,
-        onSupport: params.onSupport ?? false,
+        onSupport: startingOnSupport,
+        // Дата начала сопровождения фиксируется при первом включении on_support.
+        supportStartedAt: startingOnSupport ? now : null,
         commentsEnabled: params.commentsEnabled ?? null,
         mediaEnabled: params.mediaEnabled ?? null,
         updatedAt: now,
@@ -56,7 +60,16 @@ export async function upsertClientSupportProfile(params: {
     updatedAt: now,
     updatedBy: params.updatedBy,
   };
-  if (params.onSupport !== undefined) patch.onSupport = params.onSupport;
+  if (params.onSupport !== undefined) {
+    patch.onSupport = params.onSupport;
+    // Включаем сопровождение → проставляем дату начала, если её ещё нет.
+    // Выключаем → сбрасываем дату начала.
+    if (params.onSupport && !existing.supportStartedAt) {
+      patch.supportStartedAt = now;
+    } else if (!params.onSupport) {
+      patch.supportStartedAt = null;
+    }
+  }
   if (params.commentsEnabled !== undefined) patch.commentsEnabled = params.commentsEnabled;
   if (params.mediaEnabled !== undefined) patch.mediaEnabled = params.mediaEnabled;
 

@@ -3,6 +3,7 @@
  * PATCH /api/doctor/patients/[userId] — частичное обновление данных пациента.
  *   Поддерживаемые поля:
  *     { birthDate: string | null }  — ISO yyyy-mm-dd или null (сброс)
+ *     { gender: 'male' | 'female' | null }  — пол или null (сброс)
  *
  * Response: { ok: true } | { ok: false, error: string }
  */
@@ -17,6 +18,7 @@ const patchPatientSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "ISO date yyyy-mm-dd expected")
     .nullable()
     .optional(),
+  gender: z.enum(["male", "female"]).nullable().optional(),
 });
 
 export async function GET(
@@ -72,6 +74,10 @@ export async function PATCH(
 
   if ("birthDate" in parsed.data) {
     await deps.doctorClients.setPatientBirthDate(userId, parsed.data.birthDate ?? null);
+  }
+
+  if ("gender" in parsed.data) {
+    await deps.doctorClients.setPatientGender(userId, parsed.data.gender ?? null);
   }
 
   return NextResponse.json({ ok: true });
