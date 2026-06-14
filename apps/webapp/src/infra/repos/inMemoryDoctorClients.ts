@@ -94,8 +94,8 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       blockedReason: null,
       isArchived: false,
       channelBindingDates: {},
-      firstName: null,
-      lastName: null,
+      firstName: found.firstName ?? null,
+      lastName: found.lastName ?? null,
       email: null,
       emailVerifiedAt: null,
     };

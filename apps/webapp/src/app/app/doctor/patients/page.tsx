@@ -5,7 +5,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { PatientsPageClient } from "./PatientsPageClient";
 
 type PageProps = {
@@ -32,7 +31,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
       search: q || undefined,
       archivedOnly,
       viewerUserId: session.user.userId,
-      // Segment filters — expanded by Wave 2 UI
+      // Segment filters
       supportStatus: segment === "on_support" ? "on" : undefined,
       hasActiveTreatmentProgram: segment === "with_program" ? true : undefined,
       visitedThisCalendarMonth: segment === "visited_month" ? true : undefined,
@@ -49,14 +48,15 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
     },
   );
 
+  const metricsPromise = deps.doctorClientsPort.getDashboardPatientMetrics();
+
   return (
     <DoctorAppShell title="Пациенты" user={session.user}>
-      <section className={doctorPageStackClass}>
-        <PatientsPageClient
-          listPromise={listPromise}
-          initialFilters={{ q, segment, channel, archivedOnly }}
-        />
-      </section>
+      <PatientsPageClient
+        listPromise={listPromise}
+        metricsPromise={metricsPromise}
+        initialFilters={{ q, segment, channel, archivedOnly }}
+      />
     </DoctorAppShell>
   );
 }

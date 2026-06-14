@@ -1,32 +1,68 @@
 "use client";
 
 /**
- * PatientCardClient — Wave 1 placeholder.
- * Shows card header fields and static tab labels.
- * Wave 2 builds the real shell (header + 6-tab client nav + layout).
+ * PatientCardClient — Wave 2: real header + 6-tab client-side navigation.
+ * Tabs are rendered once and shown/hidden client-side (no server re-fetch per tab).
  */
-import { use } from "react";
+import { use, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
+  doctorSectionSubtitleClass,
+  doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
+import { cn } from "@/lib/utils";
+import { PatientTabOverview } from "./tabs/PatientTabOverview";
+import { PatientTabKarta } from "./tabs/PatientTabKarta";
+import { PatientTabProgram } from "./tabs/PatientTabProgram";
+import { PatientTabRecords } from "./tabs/PatientTabRecords";
+import { PatientTabFiles } from "./tabs/PatientTabFiles";
+import { PatientTabAccount } from "./tabs/PatientTabAccount";
 
 type Props = {
   cardHeaderPromise: Promise<PatientCardHeader | null>;
 };
 
-const PATIENT_TABS = [
+type TabId = "overview" | "karta" | "program" | "records" | "files" | "account";
+
+const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "overview", label: "Обзор" },
   { id: "karta", label: "Карта" },
   { id: "program", label: "Программа" },
   { id: "records", label: "Записи" },
   { id: "files", label: "Файлы" },
   { id: "account", label: "Учётка" },
-] as const;
+];
+
+/** Format ISO date → DD.MM.YYYY */
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** Format ISO date → DD.MM (short, for next appointment date column) */
+function fmtDateShort(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+}
+
+/** Copy text to clipboard */
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // fallback: silent
+  }
+}
 
 export function PatientCardClient({ cardHeaderPromise }: Props) {
   const header = use(cardHeaderPromise);
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   if (!header) {
     return (
@@ -36,91 +72,244 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
     );
   }
 
-  const { identity, support, lastVisit, nextAppointment, totalVisits, cancellationsCount, reschedulesCount } = header;
+  const { identity, support, lastVisit, nextAppointment, totalVisits, cancellationsCount, reschedulesCount, firstVisitDate } = header;
 
-  const formatDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : null;
+  const hasTelegram = Boolean(identity.bindings.telegramId);
+  const hasMax = Boolean(identity.bindings.maxId);
+  const hasEmail = Boolean(identity.email);
+  // Chat is available if any messaging channel is bound
+  const hasChat = hasTelegram || hasMax;
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Header card */}
-      <div className={doctorSectionCardClass}>
-        <div className="flex flex-wrap gap-3 items-start justify-between">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className={doctorSectionTitleClass}>
-                {[identity.lastName, identity.firstName].filter(Boolean).join(" ") || identity.displayName}
-              </p>
+      {/* ================================================================
+          IDENTITY HEADER CARD
+          Faithful to wireframe lines 217–267:
+          - displayName large + support chip
+          - hidden real name (firstName + lastName) smaller below
+          - ДР · возраст row (null → "—")
+          - phone monospace + copy button + channel icons
+          - right mini-summary (Прошлый визит / Следующая запись / Визитов)
+      ================================================================ */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {/* Main header body */}
+        <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
+
+          {/* LEFT: identity */}
+          <div className="flex-1 min-w-[280px] flex flex-col gap-0">
+            {/* Display name + support chip */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-base font-bold text-foreground leading-tight">
+                {identity.displayName}
+              </span>
               {support.isOnSupport && (
-                <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                  На сопровождении
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  ★ На сопровождении
+                  {support.supportMonthsApprox != null && (
+                    <> · {support.supportMonthsApprox} мес</>
+                  )}
+                </span>
+              )}
+              {identity.isArchived && (
+                <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  Архив
+                </span>
+              )}
+              {identity.isBlocked && (
+                <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                  Заблокирован
                 </span>
               )}
             </div>
-            {identity.displayName && identity.firstName && (
-              <p className="text-xs text-muted-foreground">отображаемое: {identity.displayName}</p>
+
+            {/* Hidden real name (owner answer #3): shown in smaller text under displayName */}
+            {(identity.firstName || identity.lastName) && (
+              <div className={cn(doctorSectionSubtitleClass, "mt-0.5 text-xs")}>
+                {[identity.firstName, identity.lastName].filter(Boolean).join(" ")}
+              </div>
             )}
-            {/* TODO (Wave 2): birthDate, age — not available yet */}
-            <div className="flex flex-wrap gap-3 mt-1 text-sm text-muted-foreground">
-              {identity.phone && <span className="font-mono">{identity.phone}</span>}
-              {identity.email && <span>{identity.email}</span>}
-              {identity.bindings.telegramId && (
-                <span className="text-xs">TG: {identity.bindings.telegramId}</span>
+
+            {/* ДР · возраст — null until backend adds birthDate field */}
+            <div className="mt-1.5 text-xs text-muted-foreground">
+              {/* TODO(backend): birthDate/age not yet available — render "—" */}
+              ДР · {identity.birthDate ?? "—"}
+              {identity.age != null ? ` · ${identity.age} лет` : ""}
+            </div>
+
+            {/* Phone + channel icons */}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {identity.phone ? (
+                <button
+                  type="button"
+                  title="Скопировать телефон"
+                  onClick={() => copyToClipboard(identity.phone!)}
+                  className="font-mono text-xs text-foreground hover:text-primary transition-colors cursor-pointer select-text"
+                >
+                  {identity.phone} ⧉
+                </button>
+              ) : (
+                <span className="text-xs text-muted-foreground font-mono">—</span>
               )}
-              {identity.bindings.maxId && (
-                <span className="text-xs">MAX: {identity.bindings.maxId}</span>
-              )}
+
+              {/* Channel icon buttons — active when binding present */}
+              <span className="flex gap-1">
+                <button
+                  type="button"
+                  title="Открыть чат"
+                  disabled={!hasChat}
+                  className={cn(
+                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    hasChat
+                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                  )}
+                >
+                  💬
+                </button>
+                <button
+                  type="button"
+                  title="Telegram"
+                  disabled={!hasTelegram}
+                  className={cn(
+                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    hasTelegram
+                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                  )}
+                >
+                  ✈️
+                </button>
+                <button
+                  type="button"
+                  title="MAX"
+                  disabled={!hasMax}
+                  className={cn(
+                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    hasMax
+                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                  )}
+                >
+                  Ⓜ️
+                </button>
+                <button
+                  type="button"
+                  title="Написать email"
+                  disabled={!hasEmail}
+                  onClick={() => hasEmail && (window.location.href = `mailto:${identity.email}`)}
+                  className={cn(
+                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    hasEmail
+                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                  )}
+                >
+                  ✉️
+                </button>
+              </span>
             </div>
           </div>
 
-          {/* Stats row */}
-          <div className="flex gap-4 text-sm shrink-0">
-            <div className="flex flex-col items-start">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">Прошлый визит</span>
-              <span className="font-semibold">{formatDate(lastVisit?.date ?? null) ?? "—"}</span>
-              {/* TODO (Wave 2): lastVisit.visitType, lastVisit.city */}
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">Следующая запись</span>
-              <span className="font-semibold">
-                {nextAppointment ? `${formatDate(nextAppointment.date)} · ${nextAppointment.time}` : "—"}
+          {/* RIGHT: mini-summary stats */}
+          <div className="flex gap-4 items-start pt-0.5 shrink-0">
+            {/* Прошлый визит */}
+            <div className="flex flex-col gap-0.5">
+              <span className={cn(doctorMetricLabelClass, "text-[10px]")}>Прошлый визит</span>
+              <span className="text-sm font-semibold text-foreground">
+                {lastVisit ? fmtDate(lastVisit.date) : "—"}
               </span>
-              {/* TODO (Wave 2): nextAppointment.city, nextAppointment.appointmentType */}
+              <span className="text-[11px] text-muted-foreground">
+                {/* TODO(backend): lastVisit.visitType, lastVisit.city */}
+                {lastVisit ? "—" : "нет данных"}
+              </span>
             </div>
-            <div className="flex flex-col items-start">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">Визитов</span>
-              <span className="font-semibold">{totalVisits}</span>
-              <span className="text-xs text-muted-foreground">
-                отм: {cancellationsCount} · перен: {reschedulesCount}
+
+            {/* Следующая запись */}
+            <div className="flex flex-col gap-0.5">
+              <span className={cn(doctorMetricLabelClass, "text-[10px]")}>Следующая запись</span>
+              <span className="text-sm font-semibold text-foreground">
+                {nextAppointment
+                  ? `${fmtDateShort(nextAppointment.date)} · ${nextAppointment.time}`
+                  : "—"}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {/* TODO(backend): nextAppointment.city, nextAppointment.appointmentType */}
+                {nextAppointment ? "—" : "нет записи"}
+              </span>
+            </div>
+
+            {/* Визитов */}
+            <div className="flex flex-col gap-0.5 cursor-pointer" title="Детали: отмены, переносы">
+              <span className={cn(doctorMetricLabelClass, "text-[10px]")}>Визитов</span>
+              <span className="text-sm font-semibold text-foreground">{totalVisits}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {firstVisitDate ? `с ${fmtDateShort(firstVisitDate)}` : ""}
+                {" · "}
+                <span className="text-primary">детали ▾</span>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Tab strip */}
-        <div className="mt-3 pt-2 border-t border-border/60 flex gap-1 flex-wrap">
-          {PATIENT_TABS.map((tab, i) => (
-            <span
-              key={tab.id}
-              className={[
-                "rounded-md px-3 py-1 text-sm cursor-pointer select-none",
-                i === 0
-                  ? "bg-primary/15 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-muted/60",
-              ].join(" ")}
-            >
-              {tab.label}
-            </span>
-          ))}
+        {/* ================================================================
+            TAB STRIP (.ptabs equivalent)
+            6 tabs: Обзор · Карта · Программа · Записи · Файлы · Учётка
+            Client-side switching via useState (no server re-fetch)
+        ================================================================ */}
+        <div className="px-4 py-2 border-t border-border/60 bg-muted/20">
+          <div className="flex gap-0.5 flex-wrap">
+            {PATIENT_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition-colors select-none cursor-pointer",
+                  activeTab === tab.id
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                )}
+              >
+                {tab.label}
+                {tab.badge != null && (
+                  <span
+                    className={cn(
+                      "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums",
+                      activeTab === tab.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Tab content placeholder */}
-      <div className={doctorSectionCardClass}>
-        <p className="text-sm text-muted-foreground">
-          {/* TODO (Wave 2): render tab content for Обзор, Карта, Программа, Записи, Файлы, Учётка */}
-          Wave 2 — содержимое вкладок пациента
-        </p>
+      {/* ================================================================
+          TAB PANELS — rendered once, hidden when not active.
+          Wave 3 agents fill in real content per-tab file.
+      ================================================================ */}
+      <div className={cn(activeTab !== "overview" && "hidden")}>
+        <PatientTabOverview userId={identity.userId} header={header} />
+      </div>
+      <div className={cn(activeTab !== "karta" && "hidden")}>
+        <PatientTabKarta userId={identity.userId} header={header} />
+      </div>
+      <div className={cn(activeTab !== "program" && "hidden")}>
+        <PatientTabProgram userId={identity.userId} header={header} />
+      </div>
+      <div className={cn(activeTab !== "records" && "hidden")}>
+        <PatientTabRecords userId={identity.userId} header={header} />
+      </div>
+      <div className={cn(activeTab !== "files" && "hidden")}>
+        <PatientTabFiles userId={identity.userId} header={header} />
+      </div>
+      <div className={cn(activeTab !== "account" && "hidden")}>
+        <PatientTabAccount userId={identity.userId} header={header} />
       </div>
     </div>
   );
