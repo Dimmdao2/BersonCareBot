@@ -264,7 +264,6 @@ async function updateMappedRubitimeProjection(
   const status = built.snapshot.status;
   const legacy = buildLegacyAppointmentPayload(params.startAt, params.payloadJson);
   const now = new Date().toISOString();
-  const timeChanged = existing.startAt !== params.startAt;
   const eventPayload = {
     externalId: params.externalId,
     legacyStatus: params.legacyStatus,
@@ -286,7 +285,10 @@ async function updateMappedRubitimeProjection(
         status,
         phoneNormalized: params.phoneNormalized,
         originalStartAt: existing.originalStartAt ?? existing.startAt,
-        rescheduleCount: timeChanged ? existing.rescheduleCount + 1 : existing.rescheduleCount,
+        // rescheduleCount НЕ трогаем здесь: источник истины — be_appointment_reschedules,
+        // которую ведёт только настоящий путь переноса (pgBookingAppointmentLifecycle).
+        // Прежний инкремент по timeChanged инфлировал счётчик при каждом прогоне проекции/бэкфилле
+        // (расхождение времени проекции ≠ реальный перенос). См. R28 / BOOKING_REWORK.
         attributionJson: withSyncAttributionStamp(existing.attributionJson, "rubitime", now),
         updatedAt: now,
       })

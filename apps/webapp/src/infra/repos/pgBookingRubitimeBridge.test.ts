@@ -187,6 +187,51 @@ describe("createPgBookingRubitimeBridgePort projection idempotency", () => {
     expect(txInsert.mock.calls.filter(([table]) => table === beAppointments)).toHaveLength(0);
   });
 
+  it("does NOT inflate rescheduleCount on projection update when time changed (R28)", async () => {
+    // Источник истины переносов — be_appointment_reschedules; мост не должен трогать
+    // rescheduleCount при churn проекции (раньше инкрементил по timeChanged → инфляция).
+    const capturedSet = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+    txUpdate.mockReturnValue({ set: capturedSet });
+    mappingSelectLimit.mockResolvedValue([{ canonicalId: "already-mapped" }]);
+    appointmentSelectLimit.mockResolvedValue([
+      {
+        id: "already-mapped",
+        source: "rubitime_projection",
+        startAt: "2026-04-10T08:00:00.000Z",
+        originalStartAt: "2026-04-10T08:00:00.000Z",
+        rescheduleCount: 3,
+        platformUserId: null,
+        branchId: null,
+        specialistId: null,
+        serviceId: null,
+        attributionJson: {},
+      },
+    ]);
+    executeMock.mockImplementation(async (query) => {
+      const sqlText = String(query);
+      if (sqlText.includes("system_settings")) {
+        return { rows: [{ value_json: { value: true } }] };
+      }
+      return { rows: [] };
+    });
+    const port = createPgBookingRubitimeBridgePort();
+    // recordAt отличается от existing.startAt → timeChanged был бы true в старой логике
+    const result = await port.upsertCanonicalFromRubitimeRecord({
+      organizationId: ORG,
+      externalId: "rubitime-already-mapped",
+      platformUserId: null,
+      phoneNormalized: "+79055157922",
+      recordAt: "2026-04-10T10:00:00.000Z",
+      legacyStatus: "updated",
+      lastEvent: "event-update-record",
+      payloadJson: { datetime_end: "2026-04-10T11:00:00.000Z", service_id: "67591" },
+    });
+    expect(result.action).toBe("updated");
+    expect(capturedSet).toHaveBeenCalledTimes(1);
+    const setArg = capturedSet.mock.calls[0]![0] as Record<string, unknown>;
+    expect(setArg).not.toHaveProperty("rescheduleCount");
+  });
+
   it("updates admin_manual mapped appointment (bidirectional inbound)", async () => {
     mappingSelectLimit.mockResolvedValue([{ canonicalId: "native-mapped" }]);
     appointmentSelectLimit.mockResolvedValue([
