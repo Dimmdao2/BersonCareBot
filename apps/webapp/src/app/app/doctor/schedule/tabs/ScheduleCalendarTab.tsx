@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { DateTime } from "luxon";
 import { Calendar, List } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import {
   doctorMetricValueClass,
   doctorMetricLabelClass,
@@ -457,6 +460,21 @@ type ListDayCardProps = {
   onSelect: (appt: CalendarAppointmentEvent) => void;
 };
 
+// R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
+// прошедшие приглушаются, отменённые — destructive + line-through.
+function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string {
+  if (isCancelledAppointmentStatus(appt.status))
+    return "border-destructive/25 bg-destructive/10 text-destructive/80 hover:bg-destructive/15";
+  const isPast = parseFeedInstant(appt.startAt, timeZone) < DateTime.now();
+  const base =
+    appt.status === "awaiting_payment" || appt.prepaymentPending
+      ? "border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15"
+      : appt.packageUsageRef || appt.packageTitle
+        ? "border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/15"
+        : "border-primary/30 bg-primary/10 hover:bg-primary/15";
+  return cn(base, isPast && "opacity-60");
+}
+
 function ListDayCard({ dateKey, label, appointments, timeZone, onSelect }: ListDayCardProps) {
   return (
     <div
@@ -468,24 +486,31 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect }: ListD
         {appointments.map((appt) => {
           const start = parseFeedInstant(appt.startAt, timeZone).toFormat("HH:mm");
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat("HH:mm");
+          const cancelled = isCancelledAppointmentStatus(appt.status);
           return (
             <button
               key={appt.id}
               type="button"
               onClick={() => onSelect(appt)}
-              className="flex w-full items-start gap-3 rounded-md border border-border bg-background px-3 py-2 text-left text-sm hover:bg-muted"
+              className={cn(
+                "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm",
+                listRowClass(appt, timeZone),
+              )}
               data-testid={`list-appt-${appt.id}`}
             >
-              <span className="shrink-0 font-semibold tabular-nums text-foreground">
+              <span className="shrink-0 font-semibold tabular-nums">
                 {start}–{end}
               </span>
-              <span className="min-w-0 truncate text-foreground">
+              <span className={cn("min-w-0 truncate", cancelled && "line-through")}>
                 {appt.patientName ?? "Запись"}
               </span>
-              {appt.branchTitle ? (
-                <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                  {appt.branchTitle}
+              {cancelled ? (
+                <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-destructive">
+                  Отмена
                 </span>
+              ) : null}
+              {appt.branchTitle ? (
+                <span className="ml-auto shrink-0 text-xs opacity-70">{appt.branchTitle}</span>
               ) : null}
             </button>
           );
@@ -525,11 +550,16 @@ function ListView({
       .filter(
         (e): e is CalendarAppointmentEvent =>
           e.kind === "appointment" &&
-          // R15: список = актуальные записи; отменённые скрываем (в календаре остаются).
-          !isCancelledAppointmentStatus(e.status) &&
+          // R29: показываем и отменённые (визуально отдельно + «Отмена»); раньше (R15) их прятали.
           parseFeedInstant(e.startAt, timeZone).toISODate() === dayKey,
       )
-      .sort((a, b) => (a.startAt < b.startAt ? -1 : 1));
+      // активные выше, отменённые — в конце дня; внутри группы — по времени
+      .sort((a, b) => {
+        const ac = isCancelledAppointmentStatus(a.status) ? 1 : 0;
+        const bc = isCancelledAppointmentStatus(b.status) ? 1 : 0;
+        if (ac !== bc) return ac - bc;
+        return a.startAt < b.startAt ? -1 : 1;
+      });
     if (appointments.length > 0) {
       dayGroups.push({
         dateKey: dayKey,
@@ -1121,9 +1151,14 @@ export function ScheduleCalendarTab({
         <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} />
       ) : null}
 
-      {/* Toolbar (D1) — full width */}
+      {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
+          (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <div
-        className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}
+        className={cn(
+          DOCTOR_CATALOG_STICKY_BAR_CLASS,
+          DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+          "flex flex-wrap items-center gap-2",
+        )}
         data-testid="cal-toolbar"
       >
         {/* View switcher: 3 дня · Неделя · Месяц (без «Лента» и без «День») */}
