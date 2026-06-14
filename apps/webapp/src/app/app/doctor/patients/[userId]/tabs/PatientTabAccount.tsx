@@ -430,6 +430,147 @@ function SecondaryPhones({ userId }: { userId: string }) {
   );
 }
 
+/**
+ * Смена email пациента. Врач НЕ может менять email (owner-правило) — эндпоинт admin-only.
+ * Компонент сам определяет роль: GET /email-change возвращает 403 для врача (тогда ничего
+ * не показываем) и 200 для админа. Админ ставит «pending email» → пациент подтверждает
+ * кодом (на стороне пациента) → email переключается. Здесь — инициировать + показать pending.
+ */
+function EmailChange({ userId }: { userId: string }) {
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [pending, setPending] = useState<{ email: string; expiresAt: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const base = `/api/doctor/patients/${userId}/email-change`;
+
+  useEffect(() => {
+    let alive = true;
+    fetch(base, { credentials: "include" })
+      .then(async (r) => {
+        if (!alive) return;
+        if (r.status === 403) {
+          setIsAdmin(false);
+          return;
+        }
+        if (!r.ok) {
+          setIsAdmin(true);
+          return;
+        }
+        const d = (await r.json()) as { pending: { email: string; expiresAt: string } | null };
+        setIsAdmin(true);
+        setPending(d.pending ?? null);
+      })
+      .catch(() => {
+        if (alive) setIsAdmin(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [base]);
+
+  if (isAdmin !== true) return null;
+
+  const submit = async () => {
+    const email = input.trim();
+    if (!email) {
+      setError("Введите email");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(base, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const body = (await res.json().catch(() => null)) as
+        | { pending?: { email: string; expiresAt: string }; error?: string; message?: string }
+        | null;
+      if (!res.ok) {
+        setError(body?.message ?? (body?.error === "invalid_body" ? "Некорректный email" : "Не удалось"));
+        return;
+      }
+      setPending(body?.pending ?? { email, expiresAt: "" });
+      setInput("");
+      setEditing(false);
+    } catch {
+      setError("Не удалось");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5">
+      <div className="flex items-center gap-2">
+        <span className="w-5 flex-none text-center text-sm">🔑</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-foreground leading-tight">Смена email (админ)</div>
+          {pending ? (
+            <div className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+              ожидает подтверждения пациентом: <span className="font-mono">{pending.email}</span>
+            </div>
+          ) : (
+            <div className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+              применится после подтверждения кодом пациентом
+            </div>
+          )}
+        </div>
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="flex-none text-[11px] text-primary hover:underline cursor-pointer"
+          >
+            {pending ? "сменить другой" : "сменить email"}
+          </button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="flex items-center gap-1.5">
+          <input
+            autoFocus
+            type="email"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              } else if (e.key === "Escape") setEditing(false);
+            }}
+            placeholder="новый email пациента"
+            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+          />
+          <button
+            type="button"
+            onClick={submit}
+            disabled={saving}
+            className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {saving ? "…" : "Отправить код"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            disabled={saving}
+            className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            Отмена
+          </button>
+        </div>
+      )}
+      {error && <span className="text-[11px] text-destructive">{error}</span>}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -854,6 +995,9 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
                 actionIcon="＋"
               />
             )}
+
+            {/* Смена email — только админ, применяется после подтверждения кодом пациентом */}
+            <EmailChange userId={userId} />
 
             {/* PWA / App — TODO(backend) */}
             <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5">
