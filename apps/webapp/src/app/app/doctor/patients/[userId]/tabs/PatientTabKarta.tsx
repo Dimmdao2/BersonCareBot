@@ -535,7 +535,7 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
 
   // Anamnesis data — loaded from /api/doctor/patients/[userId]/anamnesis
   const [anamnesis, setAnamnesis] = useState<AnamnesisState>(EMPTY_ANAMNESIS);
-  const [anamnesisLoading, setAnamnesisLoading] = useState(true);
+  const [anamnesisLoadedUserId, setAnamnesisLoadedUserId] = useState<string | null>(null);
   const [anamnesisError, setAnamnesisError] = useState(false);
   // Which add-form is open: null | "trauma" | "illness" | "lifestyle"
   const [anamnesisAddOpen, setAnamnesisAddOpen] = useState<"trauma" | "illness" | "lifestyle" | null>(null);
@@ -563,7 +563,6 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
   }, [userId]);
 
   const fetchAnamnesis = useCallback(() => {
-    setAnamnesisLoading(true);
     fetch(`/api/doctor/patients/${userId}/anamnesis`)
       .then((r) => {
         if (!r.ok) throw new Error(`status ${r.status}`);
@@ -572,11 +571,11 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
       .then((data) => {
         setAnamnesis(data.anamnesis ?? EMPTY_ANAMNESIS);
         setAnamnesisError(false);
-        setAnamnesisLoading(false);
+        setAnamnesisLoadedUserId(userId);
       })
       .catch(() => {
         setAnamnesisError(true);
-        setAnamnesisLoading(false);
+        setAnamnesisLoadedUserId(userId);
       });
   }, [userId]);
 
@@ -590,6 +589,8 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;
   const loading = isStale || isLoading;
+  // Anamnesis loading derived (mirrors clinical) — avoids synchronous setState in effect
+  const anamnesisLoading = anamnesisLoadedUserId !== userId;
 
   /**
    * Grid column ratios per state matrix:
