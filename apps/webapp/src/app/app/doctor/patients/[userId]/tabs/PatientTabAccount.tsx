@@ -265,6 +265,171 @@ function ToggleRow({
   );
 }
 
+/**
+ * Доп. телефоны пациента (платформенные доп. контакты, contact_type='phone').
+ * Основной телефон не редактируется ни врачом, ни админом — здесь только ДОБАВЛЕНИЕ
+ * вторичных номеров (owner-правило). Бэкенд: /api/doctor/clients/:id/supplementary-contacts.
+ */
+type SupplementaryContact = { id: string; contactType: string; value: string; source: string };
+
+function SecondaryPhones({ userId }: { userId: string }) {
+  const [phones, setPhones] = useState<SupplementaryContact[] | null>(null);
+  const [error, setError] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`, {
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<{ contacts: SupplementaryContact[] }>) : null))
+      .then((d) => {
+        if (!d) {
+          setError(true);
+          setPhones([]);
+          return;
+        }
+        setError(false);
+        setPhones((d.contacts ?? []).filter((c) => c.contactType === "phone"));
+      })
+      .catch(() => {
+        setError(true);
+        setPhones([]);
+      });
+  }, [userId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const add = async () => {
+    const value = input.trim();
+    if (!value) {
+      setAddError("Введите номер");
+      return;
+    }
+    setSaving(true);
+    setAddError(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactType: "phone", value }),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setAddError(
+          body?.error === "matches_identity"
+            ? "Совпадает с основным телефоном"
+            : body?.error === "invalid_value"
+              ? "Некорректный номер"
+              : "Не удалось добавить",
+        );
+        return;
+      }
+      setInput("");
+      setAdding(false);
+      load();
+    } catch {
+      setAddError("Не удалось добавить");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    const prev = phones;
+    setPhones((list) => (list ? list.filter((p) => p.id !== id) : list));
+    try {
+      const res = await fetch(
+        `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts/${encodeURIComponent(id)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      if (!res.ok) setPhones(prev ?? null);
+    } catch {
+      setPhones(prev ?? null);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      {phones?.map((p) => (
+        <div
+          key={p.id}
+          className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5 text-xs"
+        >
+          <span className="w-5 flex-none text-center text-sm">📱</span>
+          <span className="flex-1 min-w-0 truncate font-mono">{p.value}</span>
+          <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>доп. телефон</span>
+          <button
+            type="button"
+            title="Удалить"
+            onClick={() => remove(p.id)}
+            className="inline-flex h-5 w-5 items-center justify-center rounded border border-border bg-muted/30 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+
+      {error && phones?.length === 0 && (
+        <span className="text-[11px] text-destructive">Не удалось загрузить доп. телефоны.</span>
+      )}
+
+      {adding ? (
+        <div className="flex items-center gap-1.5">
+          <input
+            autoFocus
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              } else if (e.key === "Escape") {
+                setAdding(false);
+              }
+            }}
+            placeholder="+7 999 000-00-00"
+            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+          />
+          <button
+            type="button"
+            onClick={add}
+            disabled={saving}
+            className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {saving ? "…" : "Добавить"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdding(false)}
+            disabled={saving}
+            className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            Отмена
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="self-start text-[11px] text-primary hover:underline cursor-pointer"
+        >
+          + доп. телефон
+        </button>
+      )}
+      {addError && <span className="text-[11px] text-destructive">{addError}</span>}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -635,11 +800,14 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
               icon="📞"
               label="Телефон"
               value={identity?.phone ?? "—"}
-              hint="основной телефон"
+              hint="основной телефон · не редактируется"
               status={identity?.phone ? "active" : "none"}
               actionIcon="⧉"
               onAction={() => copyText(identity?.phone ?? "")}
             />
+
+            {/* Доп. телефоны (основной не меняется; только добавление вторичных) */}
+            <SecondaryPhones userId={userId} />
 
             {/* Telegram */}
             <ChannelRow
