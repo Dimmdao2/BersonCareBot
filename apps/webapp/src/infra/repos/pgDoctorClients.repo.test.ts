@@ -73,7 +73,8 @@ describe("pgDoctorClients repo", () => {
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] }); // no_show_count query
 
     const port = createPgDoctorClientsPort();
     const list = await port.listClients({ hasUpcomingAppointment: true });
@@ -114,7 +115,8 @@ describe("pgDoctorClients repo", () => {
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] }); // no_show_count query
 
     const port = createPgDoctorClientsPort();
     const list = await port.listClients({});
@@ -139,7 +141,8 @@ describe("pgDoctorClients repo", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] }); // no_show_count query
 
     const port = createPgDoctorClientsPort();
     const list = await port.listClients({ supportStatus: "on" });
