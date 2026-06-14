@@ -430,8 +430,7 @@ export function PatientTabRecords({ userId, header }: Props) {
           </div>
 
           {/* Абонемент */}
-          {/* TODO(backend): real membership data */}
-          <MembershipPanel />
+          <MembershipPanel userId={userId} />
         </div>
       </div>
     </div>
@@ -439,72 +438,128 @@ export function PatientTabRecords({ userId, header }: Props) {
 }
 
 // ---------------------------------------------------------------------------
-// Membership panel (stub with mock data)
+// Membership panel — real data from be_patient_packages
 // ---------------------------------------------------------------------------
 
-function MembershipPanel() {
+type ApiPackageItemBalance = { quantityInitial: number; remaining: number; serviceTitle?: string | null };
+type ApiPackage = {
+  id: string;
+  title: string;
+  status: string;
+  validUntil: string | null;
+  balance?: { items: ApiPackageItemBalance[] } | null;
+};
+
+/** Sum sessions across a package's service items. */
+function summarizePackage(pkg: ApiPackage) {
+  const items = pkg.balance?.items ?? [];
+  const total = items.reduce((s, it) => s + (it.quantityInitial ?? 0), 0);
+  const remaining = items.reduce((s, it) => s + (it.remaining ?? 0), 0);
+  const services = Array.from(
+    new Set(items.map((it) => it.serviceTitle).filter((s): s is string => Boolean(s))),
+  );
+  return { total, remaining, services };
+}
+
+const isActivePackageStatus = (s: string) => s === "active" || s === "activated";
+
+function MembershipPanel({ userId }: { userId: string }) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [packages, setPackages] = useState<ApiPackage[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setPackages(null);
+    setError(false);
+    fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, { credentials: "include" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        return r.json() as Promise<{ ok: boolean; packages: ApiPackage[] }>;
+      })
+      .then((d) => {
+        if (!active) return;
+        setPackages(d.packages ?? []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const activePackages = (packages ?? []).filter((p) => isActivePackageStatus(p.status));
+  const pastPackages = (packages ?? []).filter((p) => !isActivePackageStatus(p.status));
+  const active = activePackages[0] ?? null;
+  const activeSummary = active ? summarizePackage(active) : null;
 
   return (
     <div className={doctorSectionCardClass}>
       <div className="flex items-center gap-2">
         <p className={doctorSectionTitleClass}>Абонемент</p>
-        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-[#e7f4ec] text-[#1f7a45]">
-          активен
-        </span>
+        {active ? (
+          <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-[#e7f4ec] text-[#1f7a45]">
+            активен
+          </span>
+        ) : null}
       </div>
 
-      {/* Active membership card */}
-      {/* TODO(backend): real package data from be_patient_packages */}
-      <div className="rounded-xl border border-border bg-muted/10 p-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-extrabold text-foreground">4 из 10</span>
-          <span className={cn(doctorSectionSubtitleClass, "text-xs")}>занятий осталось</span>
+      {packages === null && !error ? (
+        <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Загрузка…</p>
+      ) : error ? (
+        <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Не удалось загрузить абонементы.</p>
+      ) : active && activeSummary ? (
+        <div className="rounded-xl border border-border bg-muted/10 p-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-extrabold text-foreground">
+              {activeSummary.remaining} из {activeSummary.total}
+            </span>
+            <span className={cn(doctorSectionSubtitleClass, "text-xs")}>занятий осталось</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            «{active.title}»
+            {active.validUntil ? ` · до ${fmtDate(active.validUntil.slice(0, 10))}` : ""}
+            {activeSummary.services.length ? ` · применяется к: ${activeSummary.services.join(", ")}` : ""}
+          </p>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          «Абонемент 10 занятий» · до 31.07.2026 · применяется к: Тренировка ЛФК
-        </p>
-        <div className="flex gap-1.5 mt-3 flex-wrap">
-          {["Продлить", "Оформить новый"].map((label) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => console.log("[PatientTabRecords] membership action:", label)}
-              className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Past memberships toggle */}
-      <button
-        type="button"
-        onClick={() => setHistoryOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/60 transition-colors cursor-pointer text-left w-full"
-      >
-        <span className="flex-1">Прошлые абонементы</span>
-        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-          2
-        </span>
-        <span className="text-muted-foreground/60">{historyOpen ? "▾" : "▸"}</span>
-      </button>
-
-      {historyOpen && (
-        <div className="flex flex-col gap-1 mt-0.5">
-          {/* TODO(backend): real historical packages */}
-          {[
-            { label: "«Абонемент 10 занятий»", period: "01.10.2025 – 31.12.2025", used: "10/10" },
-            { label: "«Абонемент 5 занятий»", period: "01.07.2025 – 30.09.2025", used: "5/5" },
-          ].map((pkg, i) => (
-            <div key={i} className={cn(doctorSectionItemClass, "text-xs bg-muted/5")}>
-              <span className="font-medium text-foreground">{pkg.label}</span>
-              <span className="ml-2 text-muted-foreground">{pkg.period} · {pkg.used}</span>
-            </div>
-          ))}
-        </div>
+      ) : (
+        <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Активного абонемента нет.</p>
       )}
+
+      {pastPackages.length > 0 ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/60 transition-colors cursor-pointer text-left w-full"
+          >
+            <span className="flex-1">Прошлые абонементы</span>
+            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              {pastPackages.length}
+            </span>
+            <span className="text-muted-foreground/60">{historyOpen ? "▾" : "▸"}</span>
+          </button>
+
+          {historyOpen ? (
+            <div className="flex flex-col gap-1 mt-0.5">
+              {pastPackages.map((pkg) => {
+                const s = summarizePackage(pkg);
+                return (
+                  <div key={pkg.id} className={cn(doctorSectionItemClass, "text-xs bg-muted/5")}>
+                    <span className="font-medium text-foreground">«{pkg.title}»</span>
+                    <span className="ml-2 text-muted-foreground">
+                      {pkg.validUntil ? `до ${fmtDate(pkg.validUntil.slice(0, 10))} · ` : ""}
+                      {s.total - s.remaining}/{s.total}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </>
+      ) : null}
 
       <p className={cn(doctorSectionSubtitleClass, "text-[11px] leading-relaxed")}>
         Работа с абонементом — здесь. Карточка «Абонемент» на Обзоре ведёт сюда по клику.

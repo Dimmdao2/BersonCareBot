@@ -65,6 +65,7 @@ interface PackageItem {
   remaining?: number | null;
   validUntil?: string | null;
   status?: string | null;
+  balance?: { items: Array<{ quantityInitial?: number | null; remaining?: number | null }> } | null;
 }
 
 interface PackagesApiResponse {
@@ -532,7 +533,19 @@ export function PatientTabOverview({ userId }: Props) {
       const activePackages = (packages?.packages ?? []).filter(
         (p) => p.status === "active" || p.status === "activated",
       );
-      const activePackage = activePackages[0] ?? null;
+      const activePackageRaw = activePackages[0] ?? null;
+      const sumBalance = (key: "quantityInitial" | "remaining", pkg: PackageItem): number | null => {
+        const items = pkg.balance?.items;
+        if (items && items.length > 0) return items.reduce((acc, it) => acc + (it[key] ?? 0), 0);
+        return pkg[key] ?? null;
+      };
+      const activePackage: PackageItem | null = activePackageRaw
+        ? {
+            ...activePackageRaw,
+            quantityInitial: sumBalance("quantityInitial", activePackageRaw),
+            remaining: sumBalance("remaining", activePackageRaw),
+          }
+        : null;
       const packageStatus: WidgetStatus = !packages ? "error" : activePackage === null ? "empty" : "ok";
 
       // --- Notes ---
