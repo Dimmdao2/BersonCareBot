@@ -202,6 +202,9 @@ import { createPgDoctorNotesPort } from "@/infra/repos/pgDoctorNotes";
 import { createPgSpecialistTasksPort } from "@/infra/repos/pgSpecialistTasks";
 import { inMemorySpecialistTasksPort } from "@/infra/repos/inMemorySpecialistTasks";
 import { createSpecialistTasksService } from "@/modules/specialist-tasks/service";
+import { createPgPatientFilesPort } from "@/infra/repos/pgPatientFiles";
+import { inMemoryPatientFilesPort } from "@/infra/repos/inMemoryPatientFiles";
+import { createPatientFilesService } from "@/modules/patient-files/service";
 import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
@@ -562,6 +565,8 @@ const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoc
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 const specialistTasksPort = !inMemoryRepos ? createPgSpecialistTasksPort() : inMemorySpecialistTasksPort;
 const specialistTasksService = createSpecialistTasksService(specialistTasksPort);
+const patientFilesPort = !inMemoryRepos ? createPgPatientFilesPort() : inMemoryPatientFilesPort;
+const patientFilesService = createPatientFilesService({ patientFilesPort });
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
@@ -1271,6 +1276,7 @@ function _buildAppDeps() {
     doctorClientsPort,
     doctorNotes: doctorNotesService,
     specialistTasks: specialistTasksService,
+    patientFiles: patientFilesService,
     doctorMessaging: createDoctorMessagingService({
       getClientIdentity: async (userId) => {
         const p = await doctorClients.getClientProfile(userId);

@@ -41,7 +41,7 @@ describe("doctor-clients service", () => {
       return userId === "user-1" ? stubIdentity : null;
     },
     async getDashboardPatientMetrics() {
-      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0 };
+      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
     },
     async getClientContactBreakdown() {
       return emptyClientContactBreakdown();
@@ -63,6 +63,9 @@ describe("doctor-clients service", () => {
         updatedAt: new Date().toISOString(),
         updatedBy: params.actorId,
       };
+    },
+    async listPatientAppointments() {
+      return [];
     },
   };
 
@@ -225,7 +228,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       return userId === "user-1" ? stubIdentity : null;
     },
     async getDashboardPatientMetrics() {
-      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0 };
+      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
     },
     async getClientContactBreakdown() {
       return emptyClientContactBreakdown();
@@ -247,6 +250,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
         updatedAt: new Date().toISOString(),
         updatedBy: params.actorId,
       };
+    },
+    async listPatientAppointments() {
+      return [];
     },
   };
 

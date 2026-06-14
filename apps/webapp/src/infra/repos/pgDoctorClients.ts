@@ -12,6 +12,7 @@ import type {
   DoctorClientsFilters,
   DoctorClientsPort,
   DoctorDashboardPatientMetrics,
+  PatientAppointmentItem,
 } from "@/modules/doctor-clients/ports";
 import {
   accumulateClientContactBreakdown,
@@ -390,6 +391,72 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return list;
     },
 
+    async listPatientAppointments(userId: string): Promise<PatientAppointmentItem[]> {
+      const pool = getPool();
+      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+
+      // Fetch appointment_records attributed to this user via the canonical join
+      const rows = await runWebappPgText<{
+        id: string;
+        record_at: Date | null;
+        status: string;
+        last_event: string | null;
+        payload_json: { service_title?: string; duration_minutes?: number } | null;
+        branch_name: string | null;
+      }>(
+        `SELECT
+           ar.integrator_record_id AS id,
+           ar.record_at,
+           ar.status,
+           ar.last_event,
+           ar.payload_json,
+           b.name AS branch_name
+         FROM platform_users pu
+         LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+         LEFT JOIN branches b ON ar.branch_id = b.id
+         WHERE pu.id = $1::uuid
+           AND ar.id IS NOT NULL
+           AND ar.deleted_at IS NULL
+           AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+         ORDER BY ar.record_at DESC NULLS LAST`,
+        [canonicalId],
+      );
+
+      const now = Date.now();
+
+      return rows.rows.map((row): PatientAppointmentItem => {
+        const recordAtMs = row.record_at ? new Date(row.record_at).getTime() : null;
+        const isPast = recordAtMs !== null && recordAtMs < now;
+        const payload = row.payload_json ?? {};
+
+        let status: PatientAppointmentItem["status"];
+        if (row.status === "canceled") {
+          status = "canceled";
+        } else if (row.status === "updated") {
+          // «updated» = перенесённая запись — показываем актуальный слот
+          status = isPast ? "completed" : "upcoming";
+        } else {
+          // «created»
+          status = isPast ? "completed" : "upcoming";
+        }
+
+        const durationRaw = (payload as { duration_minutes?: unknown }).duration_minutes;
+        const durationMin =
+          typeof durationRaw === "number" && Number.isFinite(durationRaw)
+            ? Math.round(durationRaw)
+            : null;
+
+        return {
+          id: row.id,
+          dateTime: row.record_at ? new Date(row.record_at).toISOString() : "",
+          status,
+          serviceName: (payload.service_title && payload.service_title.trim()) || null,
+          location: row.branch_name ?? null,
+          durationMin,
+        };
+      });
+    },
+
     async getPatientCardHeader(userId: string) {
       // Resolve canonical user id
       const pool = getPool();
@@ -541,8 +608,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       excludedUserIds?: string[];
     }): Promise<DoctorDashboardPatientMetrics> {
       const excluded = audience?.excludedUserIds ?? [];
+
       const totalBase = `SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND COALESCE(pu.is_archived, false) = false`;
       const totalQ = appendSqlExcludeUserIds(totalBase, "pu.id", excluded, []);
+
       const supportBase = `SELECT COUNT(*)::text AS c
            FROM doctor_patient_support dps
            INNER JOIN platform_users pu ON pu.id = dps.patient_user_id
@@ -551,6 +620,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false`;
       const supportQ = appendSqlExcludeUserIds(supportBase, "pu.id", excluded, []);
+
       const visitedBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
            INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
@@ -564,15 +634,96 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ar.status IN ('created', 'updated')
              AND ar.deleted_at IS NULL`;
       const visitedQ = appendSqlExcludeUserIds(visitedBase, "pu.id", excluded, []);
-      const [totalR, supportR, visitedR] = await Promise.all([
+
+      // «С программой»: хотя бы одна активная treatment_program_instances (doctor-assigned)
+      const withProgramBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
+           FROM platform_users pu
+           INNER JOIN treatment_program_instances tpi ON tpi.patient_user_id = pu.id
+           WHERE pu.role = 'client'
+             AND pu.merged_into_id IS NULL
+             AND COALESCE(pu.is_archived, false) = false
+             AND tpi.status = 'active'
+             AND tpi.assignment_source = 'doctor'`;
+      const withProgramQ = appendSqlExcludeUserIds(withProgramBase, "pu.id", excluded, []);
+
+      // «С абонементами»: активный или ожидающий оплаты пакет
+      const membershipsBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
+           FROM platform_users pu
+           INNER JOIN be_patient_packages pp ON pp.platform_user_id = pu.id
+           WHERE pu.role = 'client'
+             AND pu.merged_into_id IS NULL
+             AND COALESCE(pu.is_archived, false) = false
+             AND pp.status IN ('active', 'awaiting_payment')`;
+      const membershipsQ = appendSqlExcludeUserIds(membershipsBase, "pu.id", excluded, []);
+
+      // Подсчёт агрегатов истории записей одним запросом для «Новые» / «Бывшие» / «Подписчики» / «С отменами»
+      // Один агрегирующий запрос на платформных клиентов
+      const aggBase = `SELECT
+           pu.id,
+           COUNT(ar.id) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status IN ('created', 'updated')
+               AND ar.record_at IS NOT NULL
+               AND ar.record_at < NOW()
+           )::int AS past_count,
+           COUNT(ar.id) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status IN ('created', 'updated')
+               AND ar.record_at IS NOT NULL
+               AND ar.record_at >= NOW()
+           )::int AS future_count,
+           COUNT(ar.id) FILTER (
+             WHERE ar.deleted_at IS NULL
+               AND ar.status = 'canceled'
+               AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+               AND ar.updated_at >= NOW() - INTERVAL '30 days'
+           )::int AS cancellations_30d
+         FROM platform_users pu
+         LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+         WHERE pu.role = 'client'
+           AND pu.merged_into_id IS NULL
+           AND COALESCE(pu.is_archived, false) = false`;
+      const aggQ = appendSqlExcludeUserIds(aggBase, "pu.id", excluded, []);
+
+      const [totalR, supportR, visitedR, withProgramR, membershipsR, aggR] = await Promise.all([
         runWebappPgText<{ c: string }>(totalQ.sql, totalQ.params),
         runWebappPgText<{ c: string }>(supportQ.sql, supportQ.params),
         runWebappPgText<{ c: string }>(visitedQ.sql, visitedQ.params),
+        runWebappPgText<{ c: string }>(withProgramQ.sql, withProgramQ.params),
+        runWebappPgText<{ c: string }>(membershipsQ.sql, membershipsQ.params),
+        runWebappPgText<{ id: string; past_count: number; future_count: number; cancellations_30d: number }>(
+          `${aggQ.sql} GROUP BY pu.id`,
+          aggQ.params,
+        ),
       ]);
+
+      let newCount = 0;
+      let formerCount = 0;
+      let subscriberCount = 0;
+      let cancellationsCount = 0;
+      for (const row of aggR.rows) {
+        const past = Number(row.past_count ?? 0);
+        const future = Number(row.future_count ?? 0);
+        const cancels = Number(row.cancellations_30d ?? 0);
+        // «Новые»: есть будущая запись, но ещё не было прошедшего посещения
+        if (future > 0 && past === 0) newCount++;
+        // «Бывшие»: были посещения, нет будущей записи
+        else if (past > 0 && future === 0) formerCount++;
+        // «Подписчики»: никогда не было ни одной записи
+        else if (past === 0 && future === 0) subscriberCount++;
+        if (cancels > 0) cancellationsCount++;
+      }
+
       return {
         totalClients: parseInt(totalR.rows[0]?.c ?? "0", 10),
         onSupportCount: parseInt(supportR.rows[0]?.c ?? "0", 10),
         visitedThisCalendarMonthCount: parseInt(visitedR.rows[0]?.c ?? "0", 10),
+        withProgramCount: parseInt(withProgramR.rows[0]?.c ?? "0", 10),
+        membershipsCount: parseInt(membershipsR.rows[0]?.c ?? "0", 10),
+        newCount,
+        formerCount,
+        subscriberCount,
+        cancellationsCount,
       };
     },
 

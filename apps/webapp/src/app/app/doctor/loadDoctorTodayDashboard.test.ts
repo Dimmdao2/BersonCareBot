@@ -195,7 +195,7 @@ describe("loadDoctorTodayDashboard audience", () => {
       doctorClients: {
         getDashboardPatientMetrics: async (aud?: { excludedUserIds?: string[] }) => {
           expect(aud).toEqual(audience);
-          return { onSupportCount: 0, totalClients: 0, visitedThisCalendarMonthCount: 0 };
+          return { onSupportCount: 0, totalClients: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
         },
         listClients: async (_filters: unknown, aud?: { excludedUserIds?: string[] }) => {
           expect(aud).toEqual(audience);
@@ -231,6 +231,12 @@ describe("loadDoctorTodayDashboard proactive", () => {
           onSupportCount: 0,
           totalClients: 0,
           visitedThisCalendarMonthCount: 0,
+          withProgramCount: 0,
+          membershipsCount: 0,
+          subscriberCount: 0,
+          newCount: 0,
+          formerCount: 0,
+          cancellationsCount: 0,
         }),
         listClients: async () => [],
       },

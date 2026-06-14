@@ -70,7 +70,17 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       totalClients: 0,
       onSupportCount: 0,
       visitedThisCalendarMonthCount: 0,
+      withProgramCount: 0,
+      membershipsCount: 0,
+      subscriberCount: 0,
+      newCount: 0,
+      formerCount: 0,
+      cancellationsCount: 0,
     };
+  },
+
+  async listPatientAppointments(_userId: string) {
+    return [];
   },
 
   async getClientContactBreakdown() {

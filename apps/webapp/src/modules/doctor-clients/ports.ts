@@ -162,6 +162,37 @@ export type DoctorDashboardPatientMetrics = {
   onSupportCount: number;
   /** Уникальные клиенты с прошедшим слотом created/updated в текущем UTC-месяце (`record_at < now()`). */
   visitedThisCalendarMonthCount: number;
+  /** Клиенты с хотя бы одной активной программой лечения (`treatment_program_instances.status = 'active'`). */
+  withProgramCount: number;
+  /** Клиенты с активным/ожидающим оплаты абонементом (`be_patient_packages.status IN ('active','awaiting_payment')`). */
+  membershipsCount: number;
+  /** «Подписчики»: role=client, нет ни одной неотменённой записи. */
+  subscriberCount: number;
+  /** «Новые»: есть будущая запись, но ещё не было прошедшего посещения. */
+  newCount: number;
+  /** «Бывшие»: было прошедшее посещение, но нет будущей активной записи. */
+  formerCount: number;
+  /** Клиенты с хотя бы одной отменой за 30 дней. */
+  cancellationsCount: number;
+};
+
+/** Строка в списке записей пациента (Записи таб). */
+export type PatientAppointmentItem = {
+  id: string;
+  /** ISO timestamp момента записи. */
+  dateTime: string;
+  /**
+   * Статус: состоялась / перенос / отмена / предстоит.
+   * Маппинг: created/updated + past → 'completed'; updated + future → 'upcoming';
+   * status='updated' (reschedule flag) → 'rescheduled'; status='canceled' → 'canceled'.
+   */
+  status: "completed" | "rescheduled" | "canceled" | "upcoming";
+  /** Тип/услуга из payload_json.service_title. */
+  serviceName: string | null;
+  /** Локация/филиал из branches.name. */
+  location: string | null;
+  /** Продолжительность (мин) из payload_json.duration_minutes или null. */
+  durationMin: number | null;
 };
 
 export type DoctorClientsPort = {
@@ -169,6 +200,8 @@ export type DoctorClientsPort = {
     filters: DoctorClientsFilters,
     audience?: { excludedUserIds?: string[] },
   ): Promise<ClientListItem[]>;
+  /** История записей пациента по userId (прошедшие + предстоящие), новые сверху. */
+  listPatientAppointments(userId: string): Promise<PatientAppointmentItem[]>;
   /**
    * Агрегат шапки карточки пациента (для нового раздела «Пациенты»).
    * Возвращает null, если пользователь не найден или не является клиентом.

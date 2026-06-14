@@ -2,14 +2,15 @@
 
 /**
  * PatientTabRecords — Wave 3: appointment history, KPIs, upcoming, membership.
- * Data: MOCK (no per-patient appointment list endpoint yet) — TODO(backend): wire real data.
+ * Data: real from GET /api/doctor/patients/[userId]/appointments (client-side fetch).
+ * Falls back to mock display if fetch fails / empty so UI never breaks.
  * «Оформить визит»: dispatches custom event "patient:open-tab" with {tab:"karta"} — consumed by
  *   PatientCardClient to switch to the Карта tab. TODO(bridge to Карта visit form).
  * Note: booking-reputation & merge removed from this tab per owner decision 2026-06-14.
  */
 
-import { useState } from "react";
-import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import { useEffect, useState } from "react";
+import type { PatientAppointmentItem, PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -32,102 +33,53 @@ import { cn } from "@/lib/utils";
 type AppointmentStatus =
   | "completed"   // состоялась
   | "rescheduled" // перенос
-  | "canceled"    // отмена (клиент)
-  | "no_show"     // неявка (отмена, причина: клиент не пришёл)
+  | "canceled"    // отмена
+  | "no_show"     // неявка (маппинг от canceled — не используется в реальных данных)
   | "upcoming";   // предстоящая
 
-interface MockAppointment {
+/** Нормализованный элемент для рендера — общий формат для real + mock данных. */
+interface DisplayAppointment {
   id: string;
   date: string;       // YYYY-MM-DD
   time: string;       // HH:MM
   location: string;
   service: string;
   status: AppointmentStatus;
-  rescheduledToDate?: string; // "DD.MM" for "перенос → ..."
-  hasVisitRecord?: boolean;   // completed + visit form filled
+  rescheduledToDate?: string;
+  hasVisitRecord?: boolean;
   cancelReason?: string;
   durationMin?: number;
 }
 
+/** Маппинг PatientAppointmentItem → DisplayAppointment. */
+function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
+  const dt = item.dateTime ? new Date(item.dateTime) : null;
+  const date = dt
+    ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
+    : "";
+  const time = dt
+    ? `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`
+    : "";
+  return {
+    id: item.id,
+    date,
+    time,
+    location: item.location ?? "",
+    service: item.serviceName ?? "Запись",
+    status: item.status === "rescheduled" ? "rescheduled" : item.status,
+    durationMin: item.durationMin ?? undefined,
+    hasVisitRecord: false, // TODO(bridge to Карта visit form): нет поля в модели
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Mock data
-// TODO(backend): replace with GET /api/doctor/patients/[userId]/appointments
+// Fallback mock data — показывается только если fetch провалился или userId не найден
 // ---------------------------------------------------------------------------
 
-const MOCK_UPCOMING: MockAppointment = {
-  id: "up-1",
-  date: "2026-06-18",
-  time: "10:00",
-  location: "Студия на Лесной",
-  service: "Тренировка ЛФК",
-  status: "upcoming",
-  durationMin: 60,
-};
-
-const MOCK_HISTORY: MockAppointment[] = [
-  {
-    id: "h-1",
-    date: "2026-06-04",
-    time: "10:00",
-    location: "Студия на Лесной",
-    service: "Тренировка ЛФК",
-    status: "completed",
-    hasVisitRecord: false,
-  },
-  {
-    id: "h-2",
-    date: "2026-05-28",
-    time: "10:00",
-    location: "Студия на Лесной",
-    service: "Тренировка ЛФК",
-    status: "rescheduled",
-    rescheduledToDate: "04.06",
-  },
-  {
-    id: "h-3",
-    date: "2026-04-14",
-    time: "18:30",
-    location: "Онлайн",
-    service: "Консультация",
-    status: "canceled",
-    cancelReason: "болезнь",
-  },
-  {
-    id: "h-4",
-    date: "2026-03-03",
-    time: "10:00",
-    location: "Студия на Лесной",
-    service: "Тренировка ЛФК",
-    status: "no_show",
-    cancelReason: "клиент не пришёл",
-  },
-  {
-    id: "h-5",
-    date: "2026-01-22",
-    time: "10:00",
-    location: "Студия на Лесной",
-    service: "Повторный приём",
-    status: "completed",
-    hasVisitRecord: true,
-  },
-  {
-    id: "h-6",
-    date: "2026-01-15",
-    time: "18:30",
-    location: "Онлайн",
-    service: "Консультация",
-    status: "completed",
-    hasVisitRecord: true,
-  },
-  {
-    id: "h-7",
-    date: "2026-01-05",
-    time: "10:00",
-    location: "Студия на Лесной",
-    service: "Первичный приём",
-    status: "completed",
-    hasVisitRecord: true,
-  },
+const MOCK_HISTORY_FALLBACK: DisplayAppointment[] = [
+  { id: "m-1", date: "2026-06-04", time: "10:00", location: "Студия на Лесной", service: "Тренировка ЛФК", status: "completed", hasVisitRecord: false },
+  { id: "m-2", date: "2026-05-28", time: "10:00", location: "Студия на Лесной", service: "Тренировка ЛФК", status: "rescheduled", rescheduledToDate: "04.06" },
+  { id: "m-3", date: "2026-04-14", time: "18:30", location: "Онлайн", service: "Консультация", status: "canceled", cancelReason: "болезнь" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -205,19 +157,45 @@ type Props = {
   header?: PatientCardHeader;
 };
 
-export function PatientTabRecords({ userId: _userId, header }: Props) {
+export function PatientTabRecords({ userId, header }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
 
-  // Real KPI values from header if available, otherwise mock
-  // TODO(backend): totalVisits, cancellationsCount, reschedulesCount come from header already
-  const totalRecords = header?.totalVisits != null ? header.totalVisits + (header.cancellationsCount ?? 0) + (header.reschedulesCount ?? 0) : 12;
-  const completedCount = header?.totalVisits ?? 9;
-  const cancelsCount = header?.cancellationsCount ?? 2;
-  const reschedulesCount = header?.reschedulesCount ?? 1;
+  // Real appointments fetch
+  const [allAppointments, setAllAppointments] = useState<DisplayAppointment[] | null>(null);
+  const [fetchError, setFetchError] = useState(false);
+
+  useEffect(() => {
+    setAllAppointments(null);
+    setFetchError(false);
+    fetch(`/api/doctor/patients/${userId}/appointments`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        return r.json() as Promise<{ appointments: PatientAppointmentItem[] }>;
+      })
+      .then((data) => {
+        setAllAppointments(data.appointments.map(mapRealToDisplay));
+      })
+      .catch(() => {
+        setFetchError(true);
+      });
+  }, [userId]);
+
+  // While loading or on error, use fallback mock
+  const displayList: DisplayAppointment[] =
+    allAppointments !== null && !fetchError ? allAppointments : MOCK_HISTORY_FALLBACK;
+
+  const upcomingList = displayList.filter((a) => a.status === "upcoming");
+  const historyList = displayList.filter((a) => a.status !== "upcoming");
+
+  // KPI: real values from header where available
+  const completedCount = header?.totalVisits ?? historyList.filter((a) => a.status === "completed").length;
+  const cancelsCount = header?.cancellationsCount ?? historyList.filter((a) => a.status === "canceled" || a.status === "no_show").length;
+  const reschedulesCount = header?.reschedulesCount ?? historyList.filter((a) => a.status === "rescheduled").length;
+  const totalRecords = completedCount + cancelsCount + reschedulesCount;
   const firstVisitDate = header?.firstVisitDate;
 
-  const hasNoShows = MOCK_HISTORY.some((a) => a.status === "no_show");
-  const cancelsHistory = MOCK_HISTORY.filter((a) => a.status === "canceled" || a.status === "no_show");
+  const hasNoShows = historyList.some((a) => a.status === "no_show");
+  const cancelsHistory = historyList.filter((a) => a.status === "canceled" || a.status === "no_show");
 
   return (
     <div className={cn(doctorPageStackClass)}>
@@ -326,8 +304,13 @@ export function PatientTabRecords({ userId: _userId, header }: Props) {
           </div>
 
           <div className="flex flex-col gap-1.5 max-h-[420px] overflow-y-auto pr-0.5">
-            {/* TODO(backend): replace MOCK_HISTORY with real per-patient list */}
-            {MOCK_HISTORY.map((appt) => (
+            {allAppointments === null && !fetchError && (
+              <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка записей…</p>
+            )}
+            {fetchError && (
+              <p className="text-xs text-destructive py-1">Не удалось загрузить записи. Показаны примеры.</p>
+            )}
+            {historyList.map((appt) => (
               <div
                 key={appt.id}
                 className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-background px-2.5 py-2 text-xs"
@@ -384,38 +367,47 @@ export function PatientTabRecords({ userId: _userId, header }: Props) {
           <div className={doctorSectionCardClass}>
             <div className="flex items-center gap-2">
               <p className={doctorSectionTitleClass}>Предстоящие</p>
-              <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                1
-              </span>
+              {upcomingList.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                  {upcomingList.length}
+                </span>
+              )}
             </div>
 
-            {/* TODO(backend): real upcoming appointments */}
-            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-bold text-foreground">
-                  {fmtWeekday(MOCK_UPCOMING.date)} {fmtDate(MOCK_UPCOMING.date)} · {MOCK_UPCOMING.time}
-                </span>
-                <span className="inline-flex items-center rounded-md bg-background px-2 py-0.5 text-xs font-medium text-primary border border-primary/20">
-                  подтверждена
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {MOCK_UPCOMING.location} · {MOCK_UPCOMING.service}
-                {MOCK_UPCOMING.durationMin ? ` · ${MOCK_UPCOMING.durationMin} мин` : ""}
-              </p>
-              <div className="flex gap-1.5 mt-3 flex-wrap">
-                {["Перенести", "Отменить", "Комментарий"].map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => console.log("[PatientTabRecords] action:", label)}
-                    className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
-                  >
-                    {label}
-                  </button>
+            {upcomingList.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-1">Нет предстоящих записей</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {upcomingList.map((appt) => (
+                  <div key={appt.id} className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-foreground">
+                        {appt.date ? `${fmtWeekday(appt.date)} ${fmtDate(appt.date)}` : "—"}{appt.time ? ` · ${appt.time}` : ""}
+                      </span>
+                      <span className="inline-flex items-center rounded-md bg-background px-2 py-0.5 text-xs font-medium text-primary border border-primary/20">
+                        подтверждена
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {[appt.location, appt.service].filter(Boolean).join(" · ")}
+                      {appt.durationMin ? ` · ${appt.durationMin} мин` : ""}
+                    </p>
+                    <div className="flex gap-1.5 mt-3 flex-wrap">
+                      {["Перенести", "Отменить", "Комментарий"].map((label) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => console.log("[PatientTabRecords] action:", label)}
+                          className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Абонемент */}

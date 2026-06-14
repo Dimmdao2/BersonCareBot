@@ -139,7 +139,12 @@ function getSegmentCount(
     case "all": return allCount;
     case "on_support": return metrics.onSupportCount;
     case "visited_month": return metrics.visitedThisCalendarMonthCount;
-    // TODO(backend): with_program / memberships / subscriber / new / former / cancellations counts not in DoctorDashboardPatientMetrics
+    case "with_program": return metrics.withProgramCount;
+    case "memberships": return metrics.membershipsCount;
+    case "subscriber": return metrics.subscriberCount;
+    case "new": return metrics.newCount;
+    case "former": return metrics.formerCount;
+    case "cancellations": return metrics.cancellationsCount;
     default: return null;
   }
 }

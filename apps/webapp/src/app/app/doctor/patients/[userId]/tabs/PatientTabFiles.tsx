@@ -1,19 +1,20 @@
 "use client";
 
 /**
- * PatientTabFiles — Wave 3: two-panel UI (list+filters / preview + actions).
+ * PatientTabFiles — two-panel UI (list+filters / preview + actions).
  * Left: file list with category filters + list/cards view toggle.
  * Right: preview panel with Скачать · Открыть · Привязать к визиту actions.
- * NOTE: «единый источник с файлами визита» — files uploaded in visit cards appear here too.
  *
- * TODO(backend): files model + upload/preview/link-to-visit API (Wave 4)
- * TODO(backend): replace MOCK_FILES with real fetch by userId
- * TODO(backend): upload button wires to real S3 upload endpoint
- * TODO(backend): "Привязать к визиту" wires to real visit-link mutation
+ * Data: fetches from GET /api/doctor/patients/[userId]/files
+ * «Единый источник с файлами визита»: files linked via visit_id are shown here too.
+ *
+ * Graceful fallback: if fetch fails or returns empty, renders empty state without crashing.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { PatientFileCategory } from "@/modules/patient-files/ports";
+import { PATIENT_FILE_CATEGORIES } from "@/modules/patient-files/ports";
 import { cn } from "@/lib/utils";
 import {
   doctorSectionTitleClass,
@@ -26,117 +27,120 @@ import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — match API response
 // ---------------------------------------------------------------------------
 
-type FileCategory = "all" | "выписка" | "снимок" | "анализ" | "фото_теста" | "прочее";
-
-type MockFile = {
+type FileRecord = {
   id: string;
-  name: string;
-  category: Exclude<FileCategory, "all">;
-  date: string; // DD.MM.YYYY
-  /** Optional visit date this file is linked to */
-  linkedVisitDate?: string; // DD.MM.YYYY
-  sizeLabel: string;
-  icon: string;
-  /** Source: "patient" = uploaded standalone; "visit" = came from a visit card */
-  source: "patient" | "visit";
+  patientUserId: string;
+  category: PatientFileCategory;
+  fileName: string;
+  s3Key: string;
+  s3Bucket: string;
+  mimeType: string;
+  sizeBytes: number;
+  visitId: string | null;
+  uploadedByUserId: string;
+  createdAt: string; // ISO
+  previewUrl: string | null; // presigned GET from API
 };
 
 // ---------------------------------------------------------------------------
-// Mock data — realistic Russian patient file entries
-// TODO(backend): replace with real files model + fetch
+// Helpers
 // ---------------------------------------------------------------------------
 
-const MOCK_FILES: MockFile[] = [
-  {
-    id: "f1",
-    name: "МРТ_поясница_окт2025.pdf",
-    category: "снимок",
-    date: "14.10.2025",
-    linkedVisitDate: "05.01.2026",
-    sizeLabel: "18 МБ",
-    icon: "🩻",
-    source: "visit",
-  },
-  {
-    id: "f2",
-    name: "Выписка_невролог_дек2025.pdf",
-    category: "выписка",
-    date: "28.12.2025",
-    sizeLabel: "2.4 МБ",
-    icon: "📄",
-    source: "patient",
-  },
-  {
-    id: "f3",
-    name: "тест_наклона_22-01.jpg",
-    category: "фото_теста",
-    date: "22.01.2026",
-    linkedVisitDate: "22.01.2026",
-    sizeLabel: "1.1 МБ",
-    icon: "📷",
-    source: "visit",
-  },
-  {
-    id: "f4",
-    name: "ОАК_янв2026.pdf",
-    category: "анализ",
-    date: "11.01.2026",
-    sizeLabel: "340 КБ",
-    icon: "🧪",
-    source: "patient",
-  },
-  {
-    id: "f5",
-    name: "Выписка_кардиолог_фев2026.pdf",
-    category: "выписка",
-    date: "03.02.2026",
-    linkedVisitDate: "10.02.2026",
-    sizeLabel: "1.8 МБ",
-    icon: "📄",
-    source: "visit",
-  },
-  {
-    id: "f6",
-    name: "рентген_шея_мар2026.jpg",
-    category: "снимок",
-    date: "17.03.2026",
-    sizeLabel: "5.2 МБ",
-    icon: "🩻",
-    source: "patient",
-  },
-];
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
 
-// ---------------------------------------------------------------------------
-// Category filter config
-// ---------------------------------------------------------------------------
+function formatDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return iso;
+  }
+}
 
-type CategoryOption = { value: FileCategory; label: string };
-
-const CATEGORY_OPTIONS: CategoryOption[] = [
-  { value: "all", label: `Все · ${MOCK_FILES.length}` },
-  { value: "выписка", label: "Выписки" },
-  { value: "снимок", label: "Снимки" },
-  { value: "анализ", label: "Анализы" },
-  { value: "фото_теста", label: "Фото тестов" },
-  { value: "прочее", label: "Прочее" },
-];
-
-function categoryLabel(cat: Exclude<FileCategory, "all">): string {
-  const map: Record<Exclude<FileCategory, "all">, string> = {
+function categoryLabel(cat: PatientFileCategory): string {
+  const map: Record<PatientFileCategory, string> = {
     выписка: "Выписка",
     снимок: "Снимок",
     анализ: "Анализ",
     фото_теста: "Фото теста",
     прочее: "Прочее",
   };
-  return map[cat];
+  return map[cat] ?? cat;
+}
+
+function fileIcon(mime: string): string {
+  if (mime.startsWith("image/")) return "📷";
+  if (mime === "application/pdf") return "📄";
+  if (mime.startsWith("video/")) return "🎥";
+  return "📎";
+}
+
+type FileFilterCategory = "all" | PatientFileCategory;
+
+// ---------------------------------------------------------------------------
+// Category filter pills
+// ---------------------------------------------------------------------------
+
+function CategoryFilters({
+  active,
+  files,
+  onChange,
+}: {
+  active: FileFilterCategory;
+  files: FileRecord[];
+  onChange: (c: FileFilterCategory) => void;
+}) {
+  const total = files.length;
+  const counts = Object.fromEntries(
+    PATIENT_FILE_CATEGORIES.map((cat) => [cat, files.filter((f) => f.category === cat).length]),
+  ) as Record<PatientFileCategory, number>;
+
+  return (
+    <div className="flex flex-wrap gap-1 px-1 py-1">
+      <button
+        type="button"
+        onClick={() => onChange("all")}
+        className={cn(
+          "rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none",
+          active === "all"
+            ? "bg-primary/15 text-primary"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        {`Все · ${total}`}
+      </button>
+      {PATIENT_FILE_CATEGORIES.map((cat) => {
+        const count = counts[cat];
+        if (count === 0) return null;
+        return (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => onChange(cat)}
+            className={cn(
+              "rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none",
+              active === cat
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {`${categoryLabel(cat)} · ${count}`}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// View toggle
 // ---------------------------------------------------------------------------
 
 type ViewMode = "list" | "cards";
@@ -164,55 +168,16 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
   );
 }
 
-function CategoryFilters({
-  active,
-  files,
-  onChange,
-}: {
-  active: FileCategory;
-  files: MockFile[];
-  onChange: (c: FileCategory) => void;
-}) {
-  const counts: Record<FileCategory, number> = {
-    all: files.length,
-    выписка: files.filter((f) => f.category === "выписка").length,
-    снимок: files.filter((f) => f.category === "снимок").length,
-    анализ: files.filter((f) => f.category === "анализ").length,
-    фото_теста: files.filter((f) => f.category === "фото_теста").length,
-    прочее: files.filter((f) => f.category === "прочее").length,
-  };
-
-  return (
-    <div className="flex flex-wrap gap-1 px-1 py-1">
-      {CATEGORY_OPTIONS.map(({ value, label }) => {
-        const count = value === "all" ? counts.all : counts[value];
-        if (value !== "all" && count === 0) return null;
-        return (
-          <button
-            key={value}
-            type="button"
-            onClick={() => onChange(value)}
-            className={cn(
-              "rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none",
-              active === value
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            {value === "all" ? `Все · ${count}` : `${label} · ${count}`}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// List row
+// ---------------------------------------------------------------------------
 
 function FileListRow({
   file,
   isActive,
   onClick,
 }: {
-  file: MockFile;
+  file: FileRecord;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -226,25 +191,39 @@ function FileListRow({
         isActive && doctorCatalogRowActiveClass,
       )}
     >
-      <span className="text-base leading-tight shrink-0 mt-0.5">{file.icon}</span>
+      <span className="text-base leading-tight shrink-0 mt-0.5">{fileIcon(file.mimeType)}</span>
       <div className="flex-1 min-w-0">
-        <div className="truncate text-sm font-medium text-foreground">{file.name}</div>
+        <div className="truncate text-sm font-medium text-foreground">{file.fileName}</div>
         <div className={cn(doctorSectionSubtitleClass, "text-xs mt-0.5")}>
-          {categoryLabel(file.category)} · {file.date}
-          {file.linkedVisitDate ? ` · визит ${file.linkedVisitDate}` : " · без привязки"}
-          {file.source === "visit" && (
+          {categoryLabel(file.category)} · {formatDate(file.createdAt)}
+          {file.visitId ? " · привязан к визиту" : " · без привязки"}
+          {file.visitId && (
             <span className="ml-1.5 inline-flex items-center rounded bg-primary/8 px-1 py-px text-[10px] text-primary/70">
               из визита
             </span>
           )}
         </div>
       </div>
-      <span className="text-xs text-muted-foreground shrink-0 mt-0.5">{file.sizeLabel}</span>
+      <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
+        {formatBytes(file.sizeBytes)}
+      </span>
     </button>
   );
 }
 
-function FileCardTile({ file, isActive, onClick }: { file: MockFile; isActive: boolean; onClick: () => void }) {
+// ---------------------------------------------------------------------------
+// Card tile
+// ---------------------------------------------------------------------------
+
+function FileCardTile({
+  file,
+  isActive,
+  onClick,
+}: {
+  file: FileRecord;
+  isActive: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -256,15 +235,15 @@ function FileCardTile({ file, isActive, onClick }: { file: MockFile; isActive: b
           : "border-border bg-background/60 hover:bg-muted/40",
       )}
     >
-      <span className="text-2xl leading-none">{file.icon}</span>
+      <span className="text-2xl leading-none">{fileIcon(file.mimeType)}</span>
       <div className="min-w-0">
-        <div className="truncate text-xs font-medium text-foreground leading-snug">{file.name}</div>
+        <div className="truncate text-xs font-medium text-foreground leading-snug">{file.fileName}</div>
         <div className="text-[10px] text-muted-foreground mt-0.5">
-          {categoryLabel(file.category)} · {file.date}
+          {categoryLabel(file.category)} · {formatDate(file.createdAt)}
         </div>
-        <div className="text-[10px] text-muted-foreground">{file.sizeLabel}</div>
+        <div className="text-[10px] text-muted-foreground">{formatBytes(file.sizeBytes)}</div>
       </div>
-      {file.source === "visit" && (
+      {file.visitId && (
         <span className="self-start inline-flex items-center rounded bg-primary/8 px-1 py-px text-[10px] text-primary/70">
           из визита
         </span>
@@ -273,7 +252,21 @@ function FileCardTile({ file, isActive, onClick }: { file: MockFile; isActive: b
   );
 }
 
-function FilePreviewPanel({ file }: { file: MockFile | null }) {
+// ---------------------------------------------------------------------------
+// Preview panel
+// ---------------------------------------------------------------------------
+
+function FilePreviewPanel({
+  file,
+  userId,
+  onLinked,
+}: {
+  file: FileRecord | null;
+  userId: string;
+  onLinked?: (visitId: string) => void;
+}) {
+  const [linking, setLinking] = useState(false);
+
   if (!file) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -283,61 +276,110 @@ function FilePreviewPanel({ file }: { file: MockFile | null }) {
     );
   }
 
+  const isImage = file.mimeType.startsWith("image/");
+  const isPdf = file.mimeType === "application/pdf";
+
+  const currentFileId = file.id;
+
+  async function handleLinkToVisit() {
+    // TODO(link-to-visit): show visit picker; for now prompt for visitId
+    const visitId = window.prompt("UUID визита для привязки:");
+    if (!visitId?.match(/^[0-9a-f-]{36}$/i)) return;
+    setLinking(true);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/files/${currentFileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitId }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean } | null;
+      if (data?.ok && onLinked) onLinked(visitId);
+    } catch {
+      // Non-fatal.
+    } finally {
+      setLinking(false);
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col min-h-0">
-      {/* Header with file name + actions */}
+      {/* Header */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border bg-muted/20 px-4 py-2.5">
-        <span className="text-base leading-none shrink-0">{file.icon}</span>
+        <span className="text-base leading-none shrink-0">{fileIcon(file.mimeType)}</span>
         <span className="flex-1 min-w-0 truncate text-sm font-semibold text-foreground">
-          {file.name}
+          {file.fileName}
         </span>
-        {/* TODO(backend): wire Скачать / Открыть / Привязать к визиту to real file URLs & mutations */}
         <div className="flex shrink-0 items-center gap-2">
+          {file.previewUrl && (
+            <>
+              <a
+                href={file.previewUrl}
+                download={file.fileName}
+                className="text-xs text-primary hover:underline transition-colors"
+                title="Скачать файл"
+              >
+                Скачать
+              </a>
+              <span className="text-muted-foreground/40 select-none">·</span>
+              <a
+                href={file.previewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline transition-colors"
+                title="Открыть в новой вкладке"
+              >
+                Открыть
+              </a>
+              <span className="text-muted-foreground/40 select-none">·</span>
+            </>
+          )}
           <button
             type="button"
-            className="text-xs text-primary hover:underline transition-colors"
-            title="Скачать файл"
-          >
-            Скачать
-          </button>
-          <span className="text-muted-foreground/40 select-none">·</span>
-          <button
-            type="button"
-            className="text-xs text-primary hover:underline transition-colors"
-            title="Открыть в новой вкладке"
-          >
-            Открыть
-          </button>
-          <span className="text-muted-foreground/40 select-none">·</span>
-          <button
-            type="button"
-            className="text-xs text-primary hover:underline transition-colors"
+            disabled={linking}
+            onClick={handleLinkToVisit}
+            className="text-xs text-primary hover:underline transition-colors disabled:opacity-50"
             title="Привязать к визиту"
           >
-            Привязать к визиту ▾
+            {linking ? "Привязка…" : "Привязать к визиту ▾"}
           </button>
         </div>
       </div>
 
-      {/* Preview area — mock placeholder (real: iframe/img based on mime) */}
-      {/* TODO(backend): real preview: <img> for images, <iframe> for PDFs, doc viewer otherwise */}
-      <div className="flex flex-1 items-center justify-center bg-[repeating-linear-gradient(45deg,hsl(var(--muted)/0.4),hsl(var(--muted)/0.4)_12px,hsl(var(--muted)/0.7)_12px,hsl(var(--muted)/0.7)_24px)] min-h-48">
-        <div className="flex flex-col items-center gap-2 rounded-lg bg-background/80 px-6 py-4 text-center shadow-sm">
-          <span className="text-4xl">{file.icon}</span>
-          <span className="text-xs text-muted-foreground">Предпросмотр: изображение / PDF / документ</span>
-          <span className="text-[10px] text-muted-foreground/60">(доступен после подключения бэкенда)</span>
-        </div>
+      {/* Preview area */}
+      <div className="flex flex-1 items-center justify-center bg-[repeating-linear-gradient(45deg,hsl(var(--muted)/0.4),hsl(var(--muted)/0.4)_12px,hsl(var(--muted)/0.7)_12px,hsl(var(--muted)/0.7)_24px)] min-h-48 overflow-auto">
+        {file.previewUrl && isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={file.previewUrl}
+            alt={file.fileName}
+            className="max-w-full max-h-full object-contain"
+          />
+        ) : file.previewUrl && isPdf ? (
+          <iframe
+            src={file.previewUrl}
+            title={file.fileName}
+            className="w-full h-full min-h-[400px] border-0"
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2 rounded-lg bg-background/80 px-6 py-4 text-center shadow-sm">
+            <span className="text-4xl">{fileIcon(file.mimeType)}</span>
+            <span className="text-xs text-muted-foreground">
+              {file.previewUrl
+                ? "Предпросмотр недоступен для этого типа файла"
+                : "Предпросмотр доступен после загрузки файла в S3"}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Footer with meta */}
+      {/* Footer meta */}
       <div className="shrink-0 border-t border-border bg-muted/20 px-4 py-2">
         <p className="text-xs text-muted-foreground">
-          {categoryLabel(file.category)} · загружен {file.date}
-          {file.linkedVisitDate ? ` · привязан к визиту ${file.linkedVisitDate}` : " · без привязки к визиту"}
+          {categoryLabel(file.category)} · загружен {formatDate(file.createdAt)}
+          {file.visitId ? " · привязан к визиту" : " · без привязки к визиту"}
           {" · "}
-          {file.sizeLabel}
+          {formatBytes(file.sizeBytes)}
         </p>
-        {/* единый источник с файлами визита badge */}
         <p className="mt-1 text-[10px] text-muted-foreground/70">
           Файлы из визитов отображаются здесь — единый источник с вкладкой «Карта».
         </p>
@@ -351,28 +393,66 @@ function FilePreviewPanel({ file }: { file: MockFile | null }) {
 // ---------------------------------------------------------------------------
 
 export function PatientTabFiles({
-  userId: _userId,
+  userId,
   header: _header,
 }: {
   userId: string;
   header?: PatientCardHeader;
 }) {
-  const [activeCategory, setActiveCategory] = useState<FileCategory>("all");
+  const [files, setFiles] = useState<FileRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [activeCategory, setActiveCategory] = useState<FileFilterCategory>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(MOCK_FILES[0]?.id ?? null);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
-  // TODO(backend): replace with real files fetch for _userId
-  const allFiles = MOCK_FILES;
+  const loadFiles = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/files`);
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        files?: FileRecord[];
+        error?: string;
+      } | null;
+      if (res.ok && data?.ok && Array.isArray(data.files)) {
+        setFiles(data.files);
+        // Auto-select first file if none selected.
+        setSelectedFileId((prev) => prev ?? data.files?.[0]?.id ?? null);
+      } else {
+        setError(data?.error ?? "fetch_failed");
+      }
+    } catch {
+      setError("network_error");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void loadFiles();
+  }, [loadFiles]);
 
   const filteredFiles =
-    activeCategory === "all" ? allFiles : allFiles.filter((f) => f.category === activeCategory);
+    activeCategory === "all"
+      ? files
+      : files.filter((f) => f.category === activeCategory);
 
-  const selectedFile = allFiles.find((f) => f.id === selectedFileId) ?? null;
+  const selectedFile = files.find((f) => f.id === selectedFileId) ?? null;
 
-  function handleSelectFile(file: MockFile) {
+  function handleSelectFile(file: FileRecord) {
     setSelectedFileId(file.id);
     setMobileView("detail");
+  }
+
+  function handleLinked(visitId: string) {
+    // Optimistically update the selected file's visitId in state.
+    setFiles((prev) =>
+      prev.map((f) => (f.id === selectedFileId ? { ...f, visitId } : f)),
+    );
   }
 
   const leftPane = (
@@ -380,10 +460,9 @@ export function PatientTabFiles({
       stickySplit={false}
       headerSlot={
         <div className="flex flex-col gap-1">
-          {/* Header row: title + upload CTA + view toggle */}
           <div className="flex items-center gap-2 py-1">
             <span className={cn(doctorSectionTitleClass, "flex-1")}>Файлы пациента</span>
-            {/* TODO(backend): wire to real upload endpoint */}
+            {/* TODO(upload): wire to presign POST + file picker */}
             <button
               type="button"
               title="Загрузить файл"
@@ -393,18 +472,30 @@ export function PatientTabFiles({
             </button>
             <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
-          {/* Category filter pills */}
           <CategoryFilters
             active={activeCategory}
-            files={allFiles}
+            files={files}
             onChange={setActiveCategory}
           />
         </div>
       }
     >
-      {filteredFiles.length === 0 ? (
+      {loading ? (
+        <p className="px-2 py-2 text-sm text-muted-foreground animate-pulse">Загрузка файлов…</p>
+      ) : error ? (
         <p className="px-2 py-2 text-sm text-muted-foreground">
-          Нет файлов в этой категории.
+          Не удалось загрузить файлы.{" "}
+          <button
+            type="button"
+            className="text-primary hover:underline"
+            onClick={() => void loadFiles()}
+          >
+            Повторить
+          </button>
+        </p>
+      ) : filteredFiles.length === 0 ? (
+        <p className="px-2 py-2 text-sm text-muted-foreground">
+          {activeCategory === "all" ? "Файлов пока нет." : "Нет файлов в этой категории."}
         </p>
       ) : viewMode === "list" ? (
         <div className="flex flex-col gap-0.5 py-0.5">
@@ -434,7 +525,11 @@ export function PatientTabFiles({
 
   const rightPane = (
     <CatalogRightPane contentClassName="px-0 py-0">
-      <FilePreviewPanel file={selectedFile} />
+      <FilePreviewPanel
+        file={selectedFile}
+        userId={userId}
+        onLinked={handleLinked}
+      />
     </CatalogRightPane>
   );
 
