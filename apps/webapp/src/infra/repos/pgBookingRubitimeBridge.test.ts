@@ -195,7 +195,9 @@ describe("createPgBookingRubitimeBridgePort projection idempotency", () => {
   });
 
   it("solo-specialist fallback: unmapped cooperator + single active specialist → binds to it", async () => {
-    const capturedSet = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+    const capturedSet = vi.fn((_setArg: Record<string, unknown>) => ({
+      where: vi.fn(async () => undefined),
+    }));
     txUpdate.mockReturnValue({ set: capturedSet });
     mappingSelectLimit.mockResolvedValue([{ canonicalId: "appt-null-spec" }]);
     appointmentSelectLimit.mockResolvedValue([
@@ -238,7 +240,9 @@ describe("createPgBookingRubitimeBridgePort projection idempotency", () => {
   it("does NOT inflate rescheduleCount on projection update when time changed (R28)", async () => {
     // Источник истины переносов — be_appointment_reschedules; мост не должен трогать
     // rescheduleCount при churn проекции (раньше инкрементил по timeChanged → инфляция).
-    const capturedSet = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+    const capturedSet = vi.fn((_setArg: Record<string, unknown>) => ({
+      where: vi.fn(async () => undefined),
+    }));
     txUpdate.mockReturnValue({ set: capturedSet });
     mappingSelectLimit.mockResolvedValue([{ canonicalId: "already-mapped" }]);
     appointmentSelectLimit.mockResolvedValue([
