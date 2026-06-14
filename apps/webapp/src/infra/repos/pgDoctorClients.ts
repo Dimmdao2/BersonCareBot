@@ -924,6 +924,32 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
     },
 
+    async setPatientNames(
+      userId: string,
+      names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+    ): Promise<void> {
+      const sets: string[] = [];
+      const params: unknown[] = [userId];
+      if (names.displayName !== undefined) {
+        params.push(names.displayName);
+        sets.push(`display_name = $${params.length}`);
+      }
+      if (names.firstName !== undefined) {
+        params.push(names.firstName);
+        sets.push(`first_name = $${params.length}`);
+      }
+      if (names.lastName !== undefined) {
+        params.push(names.lastName);
+        sets.push(`last_name = $${params.length}`);
+      }
+      if (sets.length === 0) return;
+      await runWebappPgText(
+        `UPDATE platform_users SET ${sets.join(", ")}, updated_at = now()
+         WHERE id = $1::uuid AND role = 'client'`,
+        params,
+      );
+    },
+
     async getClientContactBreakdown(audience?: { excludedUserIds?: string[] }) {
       const excluded = audience?.excludedUserIds ?? [];
       const base = `SELECT

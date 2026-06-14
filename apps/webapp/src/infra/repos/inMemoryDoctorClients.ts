@@ -167,4 +167,11 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
   async setPatientGender(_userId: string, _gender: "male" | "female" | null): Promise<void> {
     /* no-op in memory stub */
   },
+
+  async setPatientNames(
+    _userId: string,
+    _names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+  ): Promise<void> {
+    /* no-op in memory stub */
+  },
 };

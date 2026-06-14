@@ -84,6 +84,16 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   const [editingGender, setEditingGender] = useState(false);
   const [gSaving, setGSaving] = useState(false);
 
+  // Inline name editor state (displayName / firstName / lastName)
+  const [namesLocal, setNamesLocal] = useState<
+    { displayName: string; firstName: string | null; lastName: string | null } | undefined
+  >(undefined);
+  const [editingNames, setEditingNames] = useState(false);
+  const [nDisplay, setNDisplay] = useState("");
+  const [nFirst, setNFirst] = useState("");
+  const [nLast, setNLast] = useState("");
+  const [nSaving, setNSaving] = useState(false);
+
   // Sync from server header (once resolved)
   useEffect(() => {
     if (header && birthDateLocal === undefined) {
@@ -160,6 +170,39 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   /** Active gender: from local edit state or header */
   const activeGender = genderLocal !== undefined ? genderLocal : identity.gender;
 
+  /** Active names: from local edit state or header */
+  const activeNames = namesLocal ?? {
+    displayName: identity.displayName,
+    firstName: identity.firstName,
+    lastName: identity.lastName,
+  };
+
+  function openNameEditor() {
+    setNDisplay(activeNames.displayName ?? "");
+    setNFirst(activeNames.firstName ?? "");
+    setNLast(activeNames.lastName ?? "");
+    setEditingNames(true);
+  }
+
+  async function saveNames() {
+    const displayName = nDisplay.trim();
+    if (!displayName) return; // displayName обязателен
+    const firstName = nFirst.trim() || null;
+    const lastName = nLast.trim() || null;
+    setNSaving(true);
+    try {
+      await fetch(`/api/doctor/patients/${identity.userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName, firstName, lastName }),
+      });
+      setNamesLocal({ displayName, firstName, lastName });
+    } finally {
+      setNSaving(false);
+      setEditingNames(false);
+    }
+  }
+
   async function saveGender(val: "male" | "female" | null) {
     setGSaving(true);
     try {
@@ -200,9 +243,33 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
           <div className="flex-1 min-w-[280px] flex flex-col gap-0">
             {/* Display name + support chip */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="text-base font-bold text-foreground leading-tight">
-                {identity.displayName}
-              </span>
+              {editingNames ? (
+                <input
+                  value={nDisplay}
+                  onChange={(e) => setNDisplay(e.target.value)}
+                  disabled={nSaving}
+                  placeholder="Отображаемое имя"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { void saveNames(); }
+                    if (e.key === "Escape") { setEditingNames(false); }
+                  }}
+                  className="h-7 rounded border border-border bg-background px-2 text-base font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-base font-bold text-foreground leading-tight">
+                    {activeNames.displayName}
+                  </span>
+                  <button
+                    type="button"
+                    title="Редактировать имя"
+                    onClick={openNameEditor}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    ✎
+                  </button>
+                </span>
+              )}
               {support.isOnSupport && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   ★ На сопровождении
@@ -224,10 +291,44 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
             </div>
 
             {/* Hidden real name (owner answer #3): shown in smaller text under displayName */}
-            {(identity.firstName || identity.lastName) && (
-              <div className={cn(doctorSectionSubtitleClass, "mt-0.5 text-xs")}>
-                {[identity.firstName, identity.lastName].filter(Boolean).join(" ")}
+            {editingNames ? (
+              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                <input
+                  value={nFirst}
+                  onChange={(e) => setNFirst(e.target.value)}
+                  disabled={nSaving}
+                  placeholder="Имя"
+                  className="h-6 w-28 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <input
+                  value={nLast}
+                  onChange={(e) => setNLast(e.target.value)}
+                  disabled={nSaving}
+                  placeholder="Фамилия"
+                  className="h-6 w-32 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveNames()}
+                  disabled={nSaving || !nDisplay.trim()}
+                  className="text-xs text-primary hover:underline disabled:opacity-50"
+                >
+                  {nSaving ? "…" : "Сохранить"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingNames(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Отмена
+                </button>
               </div>
+            ) : (
+              (activeNames.firstName || activeNames.lastName) && (
+                <div className={cn(doctorSectionSubtitleClass, "mt-0.5 text-xs")}>
+                  {[activeNames.firstName, activeNames.lastName].filter(Boolean).join(" ")}
+                </div>
+              )
             )}
 
             {/* ДР · возраст + inline editor */}

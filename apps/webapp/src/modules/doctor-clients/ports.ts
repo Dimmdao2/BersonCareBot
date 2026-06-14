@@ -247,6 +247,15 @@ export type DoctorClientsPort = {
    * Работает только для клиентов (role='client').
    */
   setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void>;
+  /**
+   * Обновляет имя клиента (platform_users.display_name / first_name / last_name).
+   * Обновляются только переданные поля. displayName — непустая строка; first/last допускают null (сброс).
+   * Работает только для клиентов (role='client').
+   */
+  setPatientNames(
+    userId: string,
+    names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+  ): Promise<void>;
 };
 
 export type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";

@@ -70,6 +70,7 @@ describe("doctor-clients service", () => {
     },
     async setPatientBirthDate() {},
     async setPatientGender() {},
+    async setPatientNames() {},
   };
 
   const service = createDoctorClientsService({
@@ -261,6 +262,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     },
     async setPatientBirthDate() {},
     async setPatientGender() {},
+    async setPatientNames() {},
   };
 
   afterEach(() => {

@@ -150,6 +150,13 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       return deps.clientsPort.setPatientGender(userId, gender);
     },
 
+    async setPatientNames(
+      userId: string,
+      names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+    ): Promise<void> {
+      return deps.clientsPort.setPatientNames(userId, names);
+    },
+
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
     ): Promise<PatientProgramInteractionPolicy> {
