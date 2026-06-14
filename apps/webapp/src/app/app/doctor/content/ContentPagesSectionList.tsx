@@ -167,11 +167,18 @@ export function ContentPagesSectionList({
   const [pending, startTransition] = useTransition();
   const [authPending, startAuthTransition] = useTransition();
 
-  // View mode: controlled or uncontrolled (localStorage-backed)
-  const [localViewMode, setLocalViewMode] = useState<DoctorCatalogViewMode>(() => {
-    if (viewModeProp) return viewModeProp;
-    return readDoctorCatalogViewPreference(CONTENT_PAGES_VIEW_STORAGE_KEY) ?? "list";
-  });
+  // View mode: controlled or uncontrolled (localStorage-backed).
+  // Init to an SSR-safe default ("list") and apply the stored preference AFTER mount
+  // in an effect — reading localStorage in the initializer would diverge from SSR and
+  // cause a hydration mismatch (same pattern as ExercisesPageClient).
+  const [localViewMode, setLocalViewMode] = useState<DoctorCatalogViewMode>(viewModeProp ?? "list");
+
+  useEffect(() => {
+    if (viewModeProp) return;
+    const saved = readDoctorCatalogViewPreference(CONTENT_PAGES_VIEW_STORAGE_KEY);
+    if (saved) setLocalViewMode(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewModeProp]);
 
   const viewMode: DoctorCatalogViewMode = viewModeProp ?? localViewMode;
 
