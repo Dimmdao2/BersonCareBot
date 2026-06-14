@@ -34,12 +34,15 @@
 
 ---
 
-## Scope decisions (defaults chosen autonomously; owner confirms in AM)
-1. **Карта (clinical core)** — biggest piece. Tonight: faithful read-only UI from wireframe + minimal data model (visit/complaint/diagnosis read) + list of visits; «+ Новый визит» create form is a **stretch** goal, stub if needed. Full clinical forms = multi-day (backlog confirms).
-2. **Платежи (Учётка)** — source undecided → render as a disabled/placeholder block.
-3. **Терминология** — use «Пациент» in new UI. Show displayName; expose real name where available. Hidden-name concept deferred.
-4. **Файлы tab** — no clear files table → faithful two-panel UI with stub/empty + wire to entity_comments media only if trivial.
-5. **Записи** — real appointment history; drop reputation/merge (moved to Учётка); «Оформить визит» = link/stub to Карта.
+## Scope decisions (OWNER-CONFIRMED 2026-06-14)
+**Global ordering rule (owner):** UI FIRST everywhere. Build each tab/page UI to match the wireframe etalon, verify it matches, THEN do backend functionality to the max. Don't block UI on backend.
+
+1. **Карта (clinical core)** — UI first (faithful to wireframe incl. visit history + «+ Новый визит» panel). After UI verified, build backend to the max: minimal data model (visit/complaint/complaint_update/diagnosis/diagnosis_catalog/file) + read + create-visit. Push backend as far as time allows.
+2. **Платежи (Учётка)** — REAL feature. Money via integrations (bank acquiring / payment systems like ЮMoney/ЮKassa) + manual cash entry. UI first (block with integration-sourced payments + manual cash add). Backend: model payments + manual cash; integration wiring is later (leave a clean port/stub for the acquiring side).
+3. **Скрытое ФИО** — under the displayName show, in SMALLER text, the hidden real fields (firstName + lastName). Scope: ONLY inside the Пациенты area (the list rows/preview + the whole patient card). Not system-wide yet.
+4. **Файлы tab** — BUILD THE BACKEND for real (files table/model + upload/list/preview + link-to-visit; single source shared with visit files). UI first (two-panel: list+filters / preview with Скачать·Открыть·Привязать к визиту), then real backend.
+5. **Сегменты/фильтры** на Пациенты — keep wireframe terminology exactly (Все · На сопровождении · С программой · Приём в этом мес. · С абонементами · Подписчики · Новые · Бывшие · С отменами; каналы: Telegram/MAX/Email/Телефон/Архив).
+6. **Записи** — real appointment history; drop reputation/merge (moved to Учётка); «Оформить визит» = bridge to Карта visit form.
 
 ---
 
@@ -49,5 +52,36 @@
 - **Wave 3 (parallel, after shell):** Обзор+Записи (real); Учётка+Файлы; Карта (faithful UI); Программа (port existing).
 - **Wave 4:** audit each, fix, run app + screenshots.
 
+## CONTRACTS (Wave 1 delivered — Wave 2+ consume these)
+**Deps:** worktree needs its own `node_modules` — already `pnpm install`ed. Typecheck: `cd apps/webapp && npx tsc --noEmit`.
+
+**Routes (paths.ts):** `routePaths.doctorPatients` = `/app/doctor/patients`; `routePaths.doctorPatientCard(userId)` = `/app/doctor/patients/:userId`. Nav link "Пациенты" added in `doctorNavLinks.ts`.
+
+**List endpoint:** `GET /api/doctor/patients?q=&segment=&channel=&archived=` → `{ clients: ClientListItem[] }`.
+- `segment` ∈ on_support | with_program | visited_month | memberships | new | former | subscriber | cancellations
+- `channel` ∈ telegram | max | email | phone ; `archived=true` for archive.
+- `ClientListItem` (modules/doctor-clients/ports.ts) fields: userId, displayName, phone, bindings(ChannelBindings), hasEmail, hasApp, nextAppointmentLabel, hasAppointmentHistory, activeAppointmentsCount, activeTreatmentProgram, activeTreatmentProgramInstanceId, cancellationCount30d, rescheduleCount30d, visitedThisCalendarMonth, hasConversation, unreadMessagesCount, unreadExerciseCommentsCount, isOnSupport, hasMemberships. (firstName/lastName NOT yet on list item — see TODO.)
+
+**Card-header endpoint:** `GET /api/doctor/patients/:userId` → `{ ok, header: PatientCardHeader }`.
+- `PatientCardHeader`: identity{userId,displayName,firstName,lastName,phone,email,bindings,isArchived,isBlocked,birthDate:null,age:null}, support{isOnSupport,supportMonthsApprox}, lastVisit{date,visitType:null,city:null}|null, nextAppointment{date,time,city:null,appointmentType:null}|null, totalVisits, cancellationsCount, reschedulesCount, firstVisitDate.
+- TODO (no data source yet): birthDate/age, visitType, city, appointmentType. supportMonthsApprox is approximate.
+
+**Server pages (placeholders to replace):** `app/app/doctor/patients/page.tsx` + `PatientsPageClient.tsx`; `app/app/doctor/patients/[userId]/page.tsx` + `PatientCardClient.tsx`. Follow exercises/page.tsx (promises + `use()`).
+
+**Wave-1 TODO for later backend depth:** add firstName/lastName to ClientListItem (needed for hidden-name display in list rows/preview — owner answer #3); real birthDate field; visit type/city.
+
+## ORCHESTRATION RULES for subagents
+- Subagents DO NOT git commit/push (avoid index races when parallel). The orchestrator commits after each wave.
+- Stay on branch claude/admiring-hodgkin-c8fa92. Never touch schedule/«Сегодня»/FullCalendar files.
+- UI-first: match wireframe; use mock/stub data where backend absent; mark `// TODO(backend)`.
+
+## Revised waves (UI-FIRST per owner)
+- **W1 ✅** foundation (routes, list filters/search, header aggregate). Committed 08181ce0.
+- **W2 (parallel):** A=Patients LIST full UI (search/segments/channels/preview w/ hidden name/CTA, real list endpoint). B=Patient CARD shell (real header + 6-tab client nav + per-tab content slots as placeholders).
+- **W3 (parallel, after W2-B):** per-tab UI faithful to wireframe (mock data ok): Обзор, Карта, Записи, Файлы, Учётка(+Платежи block), Программа(port existing as-is).
+- **W4:** backend depth — Карта clinical model+create-visit, Файлы backend (real), Платежи model (manual cash + acquiring port stub), add firstName/lastName to list item, wire real data.
+- **W5:** audit + run app + headless screenshots + fixes.
+
 ## Status log (agents append here)
 - (init) plan created.
+- W1 done & committed (08181ce0). Deps installed in worktree. Typecheck clean for patient files.
