@@ -83,32 +83,8 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   {
     id: "analytics",
     label: "Аналитика",
-    items: [
-      {
-        id: "analytics-clients",
-        label: "По клиентам",
-        href: "/app/doctor/analytics/clients",
-        requiresAdminMode: true,
-      },
-      {
-        id: "material-ratings",
-        label: "По контенту",
-        href: "/app/doctor/material-ratings",
-        requiresAdminMode: true,
-      },
-      {
-        id: "analytics-notifications",
-        label: "По уведомлениям",
-        href: "/app/doctor/analytics/notifications",
-        requiresAdminMode: true,
-      },
-      {
-        id: "usage",
-        label: "Использование",
-        href: "/app/doctor/usage",
-        requiresAdminMode: true,
-      },
-    ],
+    href: "/app/doctor/analytics",
+    requiresAdminMode: true,
   },
   {
     id: "settings",

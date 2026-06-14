@@ -76,7 +76,7 @@ describe("doctor menu structure", () => {
     const ids = items.map((i) => i.id);
     expect(ids).not.toContain("settings");
     expect(ids).not.toContain("system");
-    // analytics sub-items are all admin-only → filtered → empty → analytics hidden
+    // analytics is a single admin-only link → hidden for the doctor role
     expect(ids).not.toContain("analytics");
   });
 
@@ -163,13 +163,22 @@ describe("doctor menu structure", () => {
 
   it("isDoctorMenuClusterId returns true for expandable items only", () => {
     expect(isDoctorMenuClusterId("library")).toBe(true);
-    expect(isDoctorMenuClusterId("analytics")).toBe(true);
     expect(isDoctorMenuClusterId("settings")).toBe(true);
     expect(isDoctorMenuClusterId("system")).toBe(true);
+    // analytics collapsed to a single page-shell link → no longer a cluster
+    expect(isDoctorMenuClusterId("analytics")).toBe(false);
     expect(isDoctorMenuClusterId("today")).toBe(false);
     expect(isDoctorMenuClusterId("clients")).toBe(false);
     expect(isDoctorMenuClusterId("schedule")).toBe(false);
     expect(isDoctorMenuClusterId("unknown")).toBe(false);
+  });
+
+  it("Аналитика is a single admin-only top-level link to /app/doctor/analytics", () => {
+    const items = getDoctorMenuItems(adminAccess);
+    const analytics = items.find((i) => i.id === "analytics");
+    expect(analytics?.href).toBe("/app/doctor/analytics");
+    expect(analytics?.items).toBeUndefined();
+    expect(analytics?.requiresAdminMode).toBe(true);
   });
 
   it("DOCTOR_MENU_DEFAULT_CLUSTER_ID is library and is a cluster", () => {
