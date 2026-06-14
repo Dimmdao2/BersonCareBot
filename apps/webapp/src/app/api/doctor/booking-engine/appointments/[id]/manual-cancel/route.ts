@@ -16,6 +16,7 @@ const bodySchema = z.object({
   ]),
   reason: z.string().trim().max(400).optional(),
   staffComment: z.string().trim().max(1000).optional(),
+  notifyPatient: z.boolean().optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -54,6 +55,7 @@ export async function POST(request: Request, context: RouteContext) {
     actorType,
     decisionType: parsed.data.decisionType,
     reason: parsed.data.reason,
+    notifyPatient: parsed.data.notifyPatient,
     getRubitimeAppointmentId: gate.ctx.service?.getRubitimeAppointmentId,
     appointment: result.appointment,
     cancelPolicy: result.cancelPolicy,

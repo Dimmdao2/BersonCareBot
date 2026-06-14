@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
@@ -31,6 +33,7 @@ import type {
 } from "@/modules/booking-appointment-lifecycle/ports";
 import {
   appointmentStatusLabel,
+  isCancelledAppointmentStatus,
   isStaffDeletableCancelledStatus,
 } from "@/modules/booking-calendar/appointmentStatusLabels";
 import {
@@ -45,14 +48,25 @@ import {
 } from "./DoctorCalendarPatientSearch";
 import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
 
-const CANCEL_TYPES = [
+// R21: причины отмены в стиле Rubitime (отправляются как reason в API).
+const CANCEL_REASONS = [
+  { value: "Пациент перенёс", label: "Пациент перенёс" },
+  { value: "Пациент отменил", label: "Пациент отменил" },
+  { value: "Не пришёл", label: "Не пришёл" },
+  { value: "По состоянию здоровья", label: "По состоянию здоровья" },
+  { value: "Другая", label: "Другая" },
+] as const;
+
+// R21: бесплатная/штрафная → decisionType API.
+const CANCEL_CHARGE = [
   { value: "free", label: "Бесплатная" },
   { value: "penalized", label: "Штрафная" },
-  { value: "package_charged", label: "Со списанием" },
-  { value: "no_package_charge", label: "Без списания" },
-  { value: "retain_prepayment", label: "Удержание предоплаты" },
-  { value: "refund_prepayment", label: "Возврат предоплаты" },
-  { value: "custom", label: "Индивидуально" },
+] as const;
+
+// R20: классификация уже отменённой записи (бесплатная/платная) — пока нефункц. плейсхолдер.
+const POST_CANCEL_CLASS = [
+  { value: "free", label: "Бесплатная" },
+  { value: "paid", label: "Платная" },
 ] as const;
 
 type Props = {
@@ -114,8 +128,16 @@ function DoctorCalendarEventPanelInner({
   createInitialStart = null,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
-  const [mode, setMode] = useState<"view" | "create" | "reschedule">(startInCreate ? "create" : "view");
-  const [cancelType, setCancelType] = useState("free");
+  const [mode, setMode] = useState<"view" | "create" | "reschedule" | "cancel">(
+    startInCreate ? "create" : "view",
+  );
+  // R20: классификация уже отменённой записи (бесплатная/платная) — нефункц. плейсхолдер
+  const [postCancelClass, setPostCancelClass] = useState("free");
+  // R21: поля формы отмены
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelComment, setCancelComment] = useState("");
+  const [cancelCharge, setCancelCharge] = useState("free");
+  const [cancelNotify, setCancelNotify] = useState(true);
   const [newStartLocal, setNewStartLocal] = useState("");
   const [newEndLocal, setNewEndLocal] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -362,100 +384,177 @@ function DoctorCalendarEventPanelInner({
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {mode !== "reschedule" ? (
-          <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("reschedule")}>
-            Перенести
-          </Button>
+      {/* R21: форма отмены разворачивается ВНИЗУ карточки */}
+      {mode === "cancel" ? (
+        <div className="mt-3 space-y-2 border-t border-border pt-3">
+          <Label>Причина отмены</Label>
+          <Select value={cancelReason} onValueChange={(v) => setCancelReason(v ?? "")}>
+            <SelectTrigger
+              displayLabel={
+                CANCEL_REASONS.find((r) => r.value === cancelReason)?.label ?? "Выберите причину"
+              }
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCEL_REASONS.map((r) => (
+                <SelectItem key={r.value} value={r.value} label={r.label}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Label>Комментарий</Label>
+          <Textarea
+            rows={2}
+            value={cancelComment}
+            onChange={(e) => setCancelComment(e.target.value)}
+            placeholder="Комментарий для истории записи"
+          />
+          <Label>Начисление</Label>
+          <Select value={cancelCharge} onValueChange={(v) => setCancelCharge(v ?? "free")}>
+            <SelectTrigger displayLabel={CANCEL_CHARGE.find((c) => c.value === cancelCharge)?.label}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCEL_CHARGE.map((c) => (
+                <SelectItem key={c.value} value={c.value} label={c.label}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <label className="flex items-center justify-between gap-2 pt-1">
+            <span className="text-sm">Уведомлять пациента</span>
+            <Switch checked={cancelNotify} onCheckedChange={setCancelNotify} />
+          </label>
+        </div>
+      ) : null}
+
+      {/* R20: один ряд кнопок, зависит от статуса записи */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {isCancelledAppointmentStatus(selected.status) ? (
+          <>
+            <Select value={postCancelClass} onValueChange={(v) => setPostCancelClass(v ?? "free")}>
+              <SelectTrigger
+                className="w-[8.5rem]"
+                displayLabel={POST_CANCEL_CLASS.find((c) => c.value === postCancelClass)?.label}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {POST_CANCEL_CLASS.map((c) => (
+                  <SelectItem key={c.value} value={c.value} label={c.label}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isStaffDeletableCancelledStatus(selected.status) ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="ml-auto text-destructive"
+                disabled={pending}
+                onClick={() => {
+                  // R22: удаление уже отменённой записи — пациенту не уведомляем (purge без side-effects).
+                  if (!window.confirm("Удалить запись из календаря и кабинета пациента?")) return;
+                  startTransition(async () => {
+                    const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({}),
+                    });
+                    const json = (await res.json()) as { ok?: boolean; error?: string };
+                    setMessage(json.ok ? "Удалено" : panelErrorLabel(json.error));
+                    if (json.ok) onChanged();
+                  });
+                }}
+              >
+                Удалить
+              </Button>
+            ) : null}
+          </>
+        ) : mode === "reschedule" ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending || !newStartLocal || !newEndLocal}
+              onClick={() => {
+                const newStartAt = new Date(newStartLocal).toISOString();
+                const newEndAt = new Date(newEndLocal).toISOString();
+                const durationMinutes = Math.max(
+                  1,
+                  Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
+                );
+                startTransition(async () => {
+                  const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ newStartAt, newEndAt, durationMinutes }),
+                  });
+                  const json = (await res.json()) as { ok?: boolean; error?: string };
+                  setMessage(json.ok ? "Перенесено" : panelErrorLabel(json.error));
+                  if (json.ok) {
+                    onChanged();
+                  } else if (json.error === "external_slot_taken") {
+                    onChanged();
+                  } else {
+                    setMode("view");
+                  }
+                });
+              }}
+            >
+              Сохранить
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("view")}>
+              Отмена
+            </Button>
+          </>
+        ) : mode === "cancel" ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="text-destructive"
+              disabled={pending}
+              onClick={() => {
+                startTransition(async () => {
+                  const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-cancel`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      decisionType: cancelCharge,
+                      ...(cancelReason ? { reason: cancelReason } : {}),
+                      ...(cancelComment.trim() ? { staffComment: cancelComment.trim() } : {}),
+                      notifyPatient: cancelNotify,
+                    }),
+                  });
+                  const json = (await res.json()) as { ok?: boolean; error?: string };
+                  setMessage(json.ok ? "Отменено" : panelErrorLabel(json.error));
+                  if (json.ok) onChanged();
+                });
+              }}
+            >
+              Подтвердить отмену
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("view")}>
+              Отмена
+            </Button>
+          </>
         ) : (
-          <Button
-            type="button"
-            size="sm"
-            disabled={pending || !newStartLocal || !newEndLocal}
-            onClick={() => {
-              const newStartAt = new Date(newStartLocal).toISOString();
-              const newEndAt = new Date(newEndLocal).toISOString();
-              const durationMinutes = Math.max(
-                1,
-                Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
-              );
-              startTransition(async () => {
-                const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ newStartAt, newEndAt, durationMinutes }),
-                });
-                const json = (await res.json()) as { ok?: boolean; error?: string };
-                setMessage(json.ok ? "Перенесено" : panelErrorLabel(json.error));
-                if (json.ok) {
-                  onChanged();
-                } else if (json.error === "external_slot_taken") {
-                  onChanged();
-                } else {
-                  setMode("view");
-                }
-              });
-            }}
-          >
-            Сохранить
-          </Button>
+          <>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("reschedule")}>
+              Перенести
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("cancel")}>
+              Отменить
+            </Button>
+          </>
         )}
-        <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? "free")}>
-          <SelectTrigger className="w-[9rem]" displayLabel={CANCEL_TYPES.find((t) => t.value === cancelType)?.label}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CANCEL_TYPES.map((t) => (
-              <SelectItem key={t.value} value={t.value} label={t.label}>
-                {t.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={pending}
-          onClick={() => {
-            startTransition(async () => {
-              const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-cancel`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ decisionType: cancelType }),
-              });
-              const json = (await res.json()) as { ok?: boolean; error?: string };
-              setMessage(json.ok ? "Отменено" : panelErrorLabel(json.error));
-              if (json.ok) onChanged();
-            });
-          }}
-        >
-          Отменить
-        </Button>
-        {isStaffDeletableCancelledStatus(selected.status) ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="text-destructive"
-            disabled={pending}
-            onClick={() => {
-              if (!window.confirm("Удалить запись из календаря и кабинета пациента?")) return;
-              startTransition(async () => {
-                const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({}),
-                });
-                const json = (await res.json()) as { ok?: boolean; error?: string };
-                setMessage(json.ok ? "Удалено" : panelErrorLabel(json.error));
-                if (json.ok) onChanged();
-              });
-            }}
-          >
-            Удалить
-          </Button>
-        ) : null}
       </div>
       {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
     </div>

@@ -62,6 +62,8 @@ export async function applyStaffCancelSideEffects(opts: {
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
   branches?: LegacyBranchProjectionPort | null;
+  /** R21: врач снял галочку «Уведомлять пациента» — подавить уведомление пациенту. */
+  suppressPatientNotification?: boolean;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentCancelled(
@@ -76,11 +78,14 @@ export async function applyStaffCancelSideEffects(opts: {
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
   });
-  const cancelNotify = resolveBookingNotifyTargets(
+  const resolvedCancelNotify = resolveBookingNotifyTargets(
     "booking.cancelled",
     opts.cancelPolicy,
     opts.lifecycleNotificationSettings ?? null,
   );
+  const cancelNotify = opts.suppressPatientNotification
+    ? { ...resolvedCancelNotify, notifyPatient: false }
+    : resolvedCancelNotify;
   await opts.lifecycle.patchLatestCancellationNotifications(
     opts.appointment.id,
     opts.organizationId,
