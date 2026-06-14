@@ -75,11 +75,11 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
         label: "Промо-программа",
         href: "/app/doctor/treatment-program-promo",
       },
-      { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
       { id: "references", label: "Справочники", href: "/app/doctor/references" },
     ],
   },
   { id: "content", label: "Контент", href: "/app/doctor/content" },
+  { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
   {
     id: "analytics",
     label: "Аналитика",

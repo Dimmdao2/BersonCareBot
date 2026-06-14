@@ -53,9 +53,9 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("getDoctorMenuItems returns 10 items in correct order for admin", () => {
+  it("getDoctorMenuItems returns 11 items in correct order for admin", () => {
     const items = getDoctorMenuItems(adminAccess);
-    expect(items).toHaveLength(10);
+    expect(items).toHaveLength(11);
     expect(items.map((i) => i.id)).toEqual([
       "today",
       "patients",
@@ -64,6 +64,7 @@ describe("doctor menu structure", () => {
       "communications",
       "library",
       "content",
+      "courses",
       "analytics",
       "settings",
       "system",
@@ -79,15 +80,26 @@ describe("doctor menu structure", () => {
     expect(ids).not.toContain("analytics");
   });
 
-  it("library has 9 sub-items", () => {
+  it("library has 8 sub-items (Курсы moved to top level)", () => {
     const items = getDoctorMenuItems(adminAccess);
     const library = items.find((i) => i.id === "library");
-    expect(library?.items).toHaveLength(9);
+    expect(library?.items).toHaveLength(8);
     const labels = library!.items!.map((i) => i.label);
     expect(labels).toContain("Упражнения");
     expect(labels).toContain("Комплексы ЛФК");
-    expect(labels).toContain("Курсы");
+    expect(labels).not.toContain("Курсы");
     expect(labels).toContain("Справочники");
+  });
+
+  it("Курсы is a top-level direct link visible to doctors", () => {
+    for (const access of [doctorAccess, adminAccess]) {
+      const items = getDoctorMenuItems(access);
+      const courses = items.find((i) => i.id === "courses");
+      expect(courses).toBeDefined();
+      expect(courses?.href).toBe("/app/doctor/courses");
+      expect(courses?.items).toBeUndefined();
+    }
+    expect(isDoctorMenuClusterId("courses")).toBe(false);
   });
 
   it("settings has 4 sub-items (without booking-merge)", () => {
