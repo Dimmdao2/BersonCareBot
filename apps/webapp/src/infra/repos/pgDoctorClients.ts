@@ -135,6 +135,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         onSupportIds,
         unreadExerciseCommentRows,
         membershipRows,
+        noShowRows,
       ] = await Promise.all([
         runWebappPgText<{
             user_id: string;
@@ -260,6 +261,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              GROUP BY pp.platform_user_id`,
             [userIds],
           ),
+          // no_show_count from booking profile
+          runWebappPgText<{ user_id: string; no_show_count: number }>(
+            `SELECT
+               platform_user_id::text AS user_id,
+               COALESCE(no_show_count, 0)::int AS no_show_count
+             FROM be_patient_booking_profiles
+             WHERE platform_user_id = ANY($1::uuid[])`,
+            [userIds],
+          ),
         ]);
 
       const appointmentAggByUserId = new Map(
@@ -292,6 +302,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const membershipsByPatientId = new Map<string, number>(
         membershipRows.rows.map((row) => [row.user_id, Number(row.memberships_count ?? 0)]),
       );
+      const noShowByPatientId = new Map<string, number>(
+        noShowRows.rows.map((row) => [row.user_id, Number(row.no_show_count ?? 0)]),
+      );
 
       let list: ClientListItem[] = clientRows.rows.map((r) => {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
@@ -317,6 +330,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             activeTreatmentProgramInstanceId: activeInstanceId,
             cancellationCount30d: appointmentAgg?.cancellationCount30d ?? 0,
             rescheduleCount30d: appointmentAgg?.rescheduleCount30d ?? 0,
+            noShowCount: noShowByPatientId.get(r.id) ?? 0,
             visitedThisCalendarMonth: appointmentAgg?.visitedThisCalendarMonth ?? false,
             hasConversation: supportConversation?.hasConversation ?? false,
             unreadMessagesCount: supportConversation?.unreadCount ?? 0,
@@ -499,6 +513,16 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       // Fetch support status
       const supportProfile = await getClientSupportProfile(canonicalId);
 
+      // Lifetime no-show counter from booking profile
+      const noShowRows = await runWebappPgText<{ no_show_count: string }>(
+        `SELECT COALESCE(no_show_count, 0)::text AS no_show_count
+         FROM be_patient_booking_profiles
+         WHERE platform_user_id = $1::uuid
+         LIMIT 1`,
+        [canonicalId],
+      );
+      const noShowCount = parseInt(noShowRows.rows[0]?.no_show_count ?? "0", 10);
+
       // Fetch appointment stats
       const apptRows = await runWebappPgText<{
         total_visits: string;
@@ -652,6 +676,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         totalVisits,
         cancellationsCount,
         reschedulesCount,
+        noShowCount,
         firstVisitDate: appt?.first_visit_at ? new Date(appt.first_visit_at).toISOString() : null,
       };
     },

@@ -70,6 +70,8 @@ export type ClientListItem = {
   activeTreatmentProgramInstanceId: string | null;
   cancellationCount30d: number;
   rescheduleCount30d?: number;
+  /** Lifetime no-show counter from be_patient_booking_profiles.no_show_count. */
+  noShowCount?: number;
   visitedThisCalendarMonth?: boolean;
   hasConversation?: boolean;
   unreadMessagesCount?: number;
@@ -154,6 +156,8 @@ export type PatientCardHeader = {
   cancellationsCount: number;
   /** Переносов за всё время (status='updated'). */
   reschedulesCount: number;
+  /** Lifetime no-show counter from be_patient_booking_profiles.no_show_count. */
+  noShowCount?: number;
   /** Дата первого визита (самый ранний record_at < now). */
   firstVisitDate: string | null;
 };
