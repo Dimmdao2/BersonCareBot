@@ -4,6 +4,13 @@
  */
 
 import type {
+  AnamnesisIllnessEntry,
+  AnamnesisLifestyleEntry,
+  AnamnesisState,
+  AnamnesisTraumaEntry,
+  AppendAnamnesisIllnessInput,
+  AppendAnamnesisLifestyleInput,
+  AppendAnamnesisTraumaInput,
   ClinicalState,
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
@@ -62,6 +69,55 @@ export function createPatientClinicalService({
         }
       }
       return patientClinicalPort.createVisit(input);
+    },
+
+    // -- Анамнез -------------------------------------------------------------
+
+    async getAnamnesis(patientUserId: string): Promise<AnamnesisState> {
+      return patientClinicalPort.getAnamnesis(patientUserId);
+    },
+
+    async appendAnamnesisTrauma(
+      input: AppendAnamnesisTraumaInput,
+    ): Promise<AnamnesisTraumaEntry> {
+      const year = input.year.trim();
+      const what = input.what.trim();
+      const type = input.type.trim();
+      if (!year) throw new Error("anamnesis_trauma_year_required");
+      if (!what) throw new Error("anamnesis_trauma_what_required");
+      if (!type) throw new Error("anamnesis_trauma_type_required");
+      return patientClinicalPort.appendAnamnesisTrauma({
+        ...input,
+        year,
+        what,
+        type,
+        immobilization: input.immobilization.trim() || "—",
+      });
+    },
+
+    async appendAnamnesisIllness(
+      input: AppendAnamnesisIllnessInput,
+    ): Promise<AnamnesisIllnessEntry> {
+      const period = input.period.trim();
+      const what = input.what.trim();
+      if (!period) throw new Error("anamnesis_illness_period_required");
+      if (!what) throw new Error("anamnesis_illness_what_required");
+      return patientClinicalPort.appendAnamnesisIllness({
+        ...input,
+        period,
+        what,
+        comment: input.comment.trim(),
+      });
+    },
+
+    async appendAnamnesisLifestyle(
+      input: AppendAnamnesisLifestyleInput,
+    ): Promise<AnamnesisLifestyleEntry> {
+      const text = input.text.trim();
+      const recordDate = input.recordDate.trim();
+      if (!text) throw new Error("anamnesis_lifestyle_text_required");
+      if (!recordDate) throw new Error("anamnesis_lifestyle_record_date_required");
+      return patientClinicalPort.appendAnamnesisLifestyle({ ...input, text, recordDate });
     },
   };
 }

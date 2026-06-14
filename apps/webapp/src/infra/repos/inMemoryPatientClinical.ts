@@ -8,6 +8,13 @@ import { randomUUID } from "node:crypto";
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
+  AnamnesisIllnessEntry,
+  AnamnesisLifestyleEntry,
+  AnamnesisState,
+  AnamnesisTraumaEntry,
+  AppendAnamnesisIllnessInput,
+  AppendAnamnesisLifestyleInput,
+  AppendAnamnesisTraumaInput,
   ClinicalState,
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
@@ -86,12 +93,45 @@ type CatalogRow = {
   createdAt: string;
 };
 
+type AnamnesisTraumaRow = {
+  id: string;
+  patientUserId: string;
+  year: string;
+  what: string;
+  type: string;
+  immobilization: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+type AnamnesisIllnessRow = {
+  id: string;
+  patientUserId: string;
+  period: string;
+  what: string;
+  comment: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+type AnamnesisLifestyleRow = {
+  id: string;
+  patientUserId: string;
+  recordDate: string;
+  text: string;
+  createdBy: string;
+  createdAt: string;
+};
+
 const visits: VisitRow[] = [];
 const complaints: ComplaintRow[] = [];
 const complaintUpdates: ComplaintUpdateRow[] = [];
 const diagnoses: DiagnosisRow[] = [];
 const diagnosisUpdates: DiagnosisUpdateRow[] = [];
 const catalog: CatalogRow[] = [];
+const anamnesisTrauma: AnamnesisTraumaRow[] = [];
+const anamnesisIllness: AnamnesisIllnessRow[] = [];
+const anamnesisLifestyle: AnamnesisLifestyleRow[] = [];
 let seqCounter = 0;
 
 /** @internal Vitest: reset between tests. */
@@ -102,7 +142,18 @@ export function __resetInMemoryPatientClinicalForTest() {
   diagnoses.length = 0;
   diagnosisUpdates.length = 0;
   catalog.length = 0;
+  anamnesisTrauma.length = 0;
+  anamnesisIllness.length = 0;
+  anamnesisLifestyle.length = 0;
   seqCounter = 0;
+}
+
+function fmtDisplayDateInMemory(isoOrLocal: string): string {
+  const d = new Date(isoOrLocal.length === 10 ? isoOrLocal + "T00:00:00Z" : isoOrLocal);
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  return `${dd}.${mm}.${yyyy}`;
 }
 
 function fmtSince(iso: string): string {
@@ -341,5 +392,66 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     }
 
     return visitId;
+  },
+
+  // -- Анамнез ------------------------------------------------------------------
+
+  async getAnamnesis(patientUserId: string): Promise<AnamnesisState> {
+    return {
+      trauma: anamnesisTrauma
+        .filter((r) => r.patientUserId === patientUserId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((r) => ({ id: r.id, year: r.year, what: r.what, type: r.type, immobilization: r.immobilization })),
+      illness: anamnesisIllness
+        .filter((r) => r.patientUserId === patientUserId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((r) => ({ id: r.id, period: r.period, what: r.what, comment: r.comment })),
+      lifestyle: anamnesisLifestyle
+        .filter((r) => r.patientUserId === patientUserId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((r) => ({ id: r.id, date: fmtDisplayDateInMemory(r.recordDate), text: r.text })),
+    };
+  },
+
+  async appendAnamnesisTrauma(input: AppendAnamnesisTraumaInput): Promise<AnamnesisTraumaEntry> {
+    const row: AnamnesisTraumaRow = {
+      id: randomUUID(),
+      patientUserId: input.patientUserId,
+      year: input.year,
+      what: input.what,
+      type: input.type,
+      immobilization: input.immobilization,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+    };
+    anamnesisTrauma.push(row);
+    return { id: row.id, year: row.year, what: row.what, type: row.type, immobilization: row.immobilization };
+  },
+
+  async appendAnamnesisIllness(input: AppendAnamnesisIllnessInput): Promise<AnamnesisIllnessEntry> {
+    const row: AnamnesisIllnessRow = {
+      id: randomUUID(),
+      patientUserId: input.patientUserId,
+      period: input.period,
+      what: input.what,
+      comment: input.comment,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+    };
+    anamnesisIllness.push(row);
+    return { id: row.id, period: row.period, what: row.what, comment: row.comment };
+  },
+
+  async appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry> {
+    const row: AnamnesisLifestyleRow = {
+      id: randomUUID(),
+      patientUserId: input.patientUserId,
+      recordDate: input.recordDate,
+      text: input.text,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+    };
+    anamnesisLifestyle.push(row);
+    return { id: row.id, date: fmtDisplayDateInMemory(row.recordDate), text: row.text };
   },
 };
