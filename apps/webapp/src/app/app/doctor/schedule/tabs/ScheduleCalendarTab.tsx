@@ -660,6 +660,8 @@ export function ScheduleCalendarTab({
   const [kpis, setKpis] = useState<ScheduleKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  // R32: время старта, подставляемое в форму создания при выделении области.
+  const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // R34: подтверждение переноса (drag/resize) перед применением.
@@ -1051,6 +1053,23 @@ export function ScheduleCalendarTab({
   const onDrop = useCallback((arg: any) => openRescheduleConfirm(arg), [openRescheduleConfirm]);
   const onResize = useCallback((arg: any) => openRescheduleConfirm(arg), [openRescheduleConfirm]);
 
+  // R32: выделение области по сетке → форма создания с подставленным временем.
+  const onSelect = useCallback(
+    (arg: any) => {
+      const start: Date | null = arg.start ?? null;
+      if (!start) return;
+      // FC (без tz-плагина) хранит настенное время в UTC-полях даты — читаем их
+      // напрямую, без конверсии зоны, иначе datetime-local уезжает на смещение.
+      const startLocal =
+        DateTime.fromJSDate(start, { zone: "utc" }).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+      setSelected(null);
+      setCreateInitialStart(startLocal);
+      setShowCreatePanel(true);
+      onDeepLinkChange("appt", null);
+    },
+    [onDeepLinkChange],
+  );
+
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
 
   const fcView =
@@ -1359,6 +1378,12 @@ export function ScheduleCalendarTab({
                 editable={view !== "month"}
                 eventDurationEditable={view !== "month"}
                 eventStartEditable={view !== "month"}
+                // R32: выделение области создаёт запись; клик (без движения) не выделяет,
+                // чтобы остаться сбросом выбора (R24). selectMinDistance разводит клик и drag.
+                selectable={view !== "month"}
+                selectMirror
+                selectMinDistance={5}
+                select={onSelect}
                 nowIndicator
                 dayMaxEvents
                 allDaySlot={false}
@@ -1462,14 +1487,18 @@ export function ScheduleCalendarTab({
               activeFilters={activeFilters}
               // §3.6: при открытии через «+ Создать запись» — сразу в форму создания
               startInCreate={showCreatePanel && !selected}
+              // R32: подставленное время старта при выделении области
+              createInitialStart={createInitialStart}
               onClose={() => {
                 setSelected(null);
                 setShowCreatePanel(false);
+                setCreateInitialStart(null);
                 onDeepLinkChange("appt", null);
               }}
               onChanged={() => {
                 setSelected(null);
                 setShowCreatePanel(false);
+                setCreateInitialStart(null);
                 onDeepLinkChange("appt", null);
                 load();
               }}

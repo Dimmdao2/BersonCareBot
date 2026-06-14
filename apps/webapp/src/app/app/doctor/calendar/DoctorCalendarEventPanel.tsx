@@ -65,6 +65,8 @@ type Props = {
   onChanged: () => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
   startInCreate?: boolean;
+  /** R32: подставить время старта (datetime-local) при выделении области в календаре */
+  createInitialStart?: string | null;
 };
 
 type LifecycleResponse = {
@@ -109,6 +111,7 @@ function DoctorCalendarEventPanelInner({
   onClose,
   onChanged,
   startInCreate = false,
+  createInitialStart = null,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
   const [mode, setMode] = useState<"view" | "create" | "reschedule">(startInCreate ? "create" : "view");
@@ -156,8 +159,10 @@ function DoctorCalendarEventPanelInner({
     setCreateServiceId(
       resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null),
     );
+    // R32: подставить выделенное время старта (если открыто через select по сетке)
+    if (createInitialStart) setCreateStart(createInitialStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startInCreate]);
+  }, [startInCreate, createInitialStart]);
 
   const createDurationMinutes = useMemo(() => {
     if (!createServiceId) return null;
