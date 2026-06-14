@@ -208,6 +208,9 @@ import { createPatientFilesService } from "@/modules/patient-files/service";
 import { createPgPatientClinicalPort } from "@/infra/repos/pgPatientClinical";
 import { inMemoryPatientClinicalPort } from "@/infra/repos/inMemoryPatientClinical";
 import { createPatientClinicalService } from "@/modules/patient-clinical/service";
+import { createPgPatientComorbiditiesPort } from "@/infra/repos/pgPatientComorbidities";
+import { inMemoryPatientComorbiditiesPort } from "@/infra/repos/inMemoryPatientComorbidities";
+import { createPatientComorbiditiesService } from "@/modules/patient-comorbidities/service";
 import { createPgPatientPaymentsPort } from "@/infra/repos/pgPatientPayments";
 import { inMemoryPatientPaymentsPort } from "@/infra/repos/inMemoryPatientPayments";
 import { createPatientPaymentsService } from "@/modules/patient-payments/service";
@@ -579,6 +582,11 @@ const patientClinicalPort = !inMemoryRepos
   ? createPgPatientClinicalPort()
   : inMemoryPatientClinicalPort;
 const patientClinicalService = createPatientClinicalService({ patientClinicalPort });
+
+const patientComorbiditiesPort = !inMemoryRepos
+  ? createPgPatientComorbiditiesPort()
+  : inMemoryPatientComorbiditiesPort;
+const patientComorbiditiesService = createPatientComorbiditiesService({ patientComorbiditiesPort });
 
 const patientPaymentsPort = !inMemoryRepos
   ? createPgPatientPaymentsPort()
@@ -1308,6 +1316,7 @@ function _buildAppDeps() {
     specialistTasks: specialistTasksService,
     patientFiles: patientFilesService,
     patientClinical: patientClinicalService,
+    patientComorbidities: patientComorbiditiesService,
     patientPayments: patientPaymentsService,
     acquiringGateway,
     doctorMessaging: createDoctorMessagingService({
