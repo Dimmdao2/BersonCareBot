@@ -44,13 +44,13 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
 3. **#2 Контент** — system sections vs «Статьи и страницы», card/list grid, material
    editor wiring, 👁 visibility pattern extended from Разминки. Full step breakdown in
    `CONTENT_REWORK_PLAN.md`.
-   - **Steps 1–2 DONE in code** (commit `feat(doctor-content): client panel-switcher
-     nav + material card/list view`): client-side `ContentNav` panel switcher
-     (`?section=` URL-sync) + `ContentHubShell`; `ContentPageTileCard` +
-     list/card toggle (`VirtualizedItemGrid`, DnD list-only). tsc clean.
-     **⚠ NOT yet verified live** — worktree dev server was OOM-killed compiling the
-     content route (box at 14/15 GB, no swap; a parallel chat's dev server runs on
-     :5250). **Live screenshot verification is the next action once memory frees.**
+   - **Steps 1–2 DONE + verified live**: client-side `ContentNav` panel switcher
+     (`?section=` URL-sync) + `ContentHubShell`; `ContentPageTileCard` + list/card
+     toggle (`VirtualizedItemGrid`, DnD list-only). tsc clean. Verified via headless
+     screenshots (dev:admin): left nav groups render, system-folder + article panes
+     render, list↔tiles toggle works. **A hydration mismatch was found and fixed**
+     (view-mode preference was read in the `useState` initializer → diverged from SSR;
+     now applied in a post-mount effect like `ExercisesPageClient`).
    - Steps 3–6 pending (3 = rating aggregates port method + pg query, unit-testable
      without a dev server; 4 = master-detail inline editor; 5 = embed media/patient-
      home; 6 = visibility-toggle polish).
