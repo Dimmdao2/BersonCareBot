@@ -75,40 +75,16 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
         label: "Промо-программа",
         href: "/app/doctor/treatment-program-promo",
       },
-      { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
       { id: "references", label: "Справочники", href: "/app/doctor/references" },
     ],
   },
   { id: "content", label: "Контент", href: "/app/doctor/content" },
+  { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
   {
     id: "analytics",
     label: "Аналитика",
-    items: [
-      {
-        id: "analytics-clients",
-        label: "По клиентам",
-        href: "/app/doctor/analytics/clients",
-        requiresAdminMode: true,
-      },
-      {
-        id: "material-ratings",
-        label: "По контенту",
-        href: "/app/doctor/material-ratings",
-        requiresAdminMode: true,
-      },
-      {
-        id: "analytics-notifications",
-        label: "По уведомлениям",
-        href: "/app/doctor/analytics/notifications",
-        requiresAdminMode: true,
-      },
-      {
-        id: "usage",
-        label: "Использование",
-        href: "/app/doctor/usage",
-        requiresAdminMode: true,
-      },
-    ],
+    href: "/app/doctor/analytics",
+    requiresAdminMode: true,
   },
   {
     id: "settings",

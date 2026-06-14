@@ -53,9 +53,9 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("getDoctorMenuItems returns 10 items in correct order for admin", () => {
+  it("getDoctorMenuItems returns 11 items in correct order for admin", () => {
     const items = getDoctorMenuItems(adminAccess);
-    expect(items).toHaveLength(10);
+    expect(items).toHaveLength(11);
     expect(items.map((i) => i.id)).toEqual([
       "today",
       "patients",
@@ -64,6 +64,7 @@ describe("doctor menu structure", () => {
       "communications",
       "library",
       "content",
+      "courses",
       "analytics",
       "settings",
       "system",
@@ -75,19 +76,30 @@ describe("doctor menu structure", () => {
     const ids = items.map((i) => i.id);
     expect(ids).not.toContain("settings");
     expect(ids).not.toContain("system");
-    // analytics sub-items are all admin-only → filtered → empty → analytics hidden
+    // analytics is a single admin-only link → hidden for the doctor role
     expect(ids).not.toContain("analytics");
   });
 
-  it("library has 9 sub-items", () => {
+  it("library has 8 sub-items (Курсы moved to top level)", () => {
     const items = getDoctorMenuItems(adminAccess);
     const library = items.find((i) => i.id === "library");
-    expect(library?.items).toHaveLength(9);
+    expect(library?.items).toHaveLength(8);
     const labels = library!.items!.map((i) => i.label);
     expect(labels).toContain("Упражнения");
     expect(labels).toContain("Комплексы ЛФК");
-    expect(labels).toContain("Курсы");
+    expect(labels).not.toContain("Курсы");
     expect(labels).toContain("Справочники");
+  });
+
+  it("Курсы is a top-level direct link visible to doctors", () => {
+    for (const access of [doctorAccess, adminAccess]) {
+      const items = getDoctorMenuItems(access);
+      const courses = items.find((i) => i.id === "courses");
+      expect(courses).toBeDefined();
+      expect(courses?.href).toBe("/app/doctor/courses");
+      expect(courses?.items).toBeUndefined();
+    }
+    expect(isDoctorMenuClusterId("courses")).toBe(false);
   });
 
   it("settings has 4 sub-items (without booking-merge)", () => {
@@ -151,13 +163,22 @@ describe("doctor menu structure", () => {
 
   it("isDoctorMenuClusterId returns true for expandable items only", () => {
     expect(isDoctorMenuClusterId("library")).toBe(true);
-    expect(isDoctorMenuClusterId("analytics")).toBe(true);
     expect(isDoctorMenuClusterId("settings")).toBe(true);
     expect(isDoctorMenuClusterId("system")).toBe(true);
+    // analytics collapsed to a single page-shell link → no longer a cluster
+    expect(isDoctorMenuClusterId("analytics")).toBe(false);
     expect(isDoctorMenuClusterId("today")).toBe(false);
     expect(isDoctorMenuClusterId("clients")).toBe(false);
     expect(isDoctorMenuClusterId("schedule")).toBe(false);
     expect(isDoctorMenuClusterId("unknown")).toBe(false);
+  });
+
+  it("Аналитика is a single admin-only top-level link to /app/doctor/analytics", () => {
+    const items = getDoctorMenuItems(adminAccess);
+    const analytics = items.find((i) => i.id === "analytics");
+    expect(analytics?.href).toBe("/app/doctor/analytics");
+    expect(analytics?.items).toBeUndefined();
+    expect(analytics?.requiresAdminMode).toBe(true);
   });
 
   it("DOCTOR_MENU_DEFAULT_CLUSTER_ID is library and is a cluster", () => {

@@ -11,6 +11,7 @@ export function getDoctorScreenTitle(pathname: string): string {
   const exact: Record<string, string> = {
     [routePaths.doctorInstall]: "Установить приложение",
     "/app/settings": "Настройки специалиста",
+    "/app/doctor/analytics": "Аналитика",
     "/app/doctor/analytics/clients": "По клиентам",
     "/app/doctor/analytics/notifications": "По уведомлениям",
     "/app/doctor/system-health": "Здоровье системы",

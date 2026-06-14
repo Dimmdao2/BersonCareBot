@@ -44,6 +44,11 @@ export function doctorRouteRedirectResponse(
     "/app/doctor/calendar": "/app/doctor/schedule?tab=cal",
     "/app/doctor/appointments": "/app/doctor/schedule?tab=cal",
     "/app/doctor/admin/booking": "/app/doctor/schedule?tab=setup",
+    // Analytics legacy subpages → aggregate page-shell. Tabs align with analyticsTabFromQuery.
+    // (material-ratings остаётся отдельным маршрутом — подробная таблица оценок, ссылка из вкладки «Контент».)
+    "/app/doctor/analytics/clients": "/app/doctor/analytics?tab=clients",
+    "/app/doctor/usage": "/app/doctor/analytics?tab=app",
+    "/app/doctor/analytics/notifications": "/app/doctor/analytics?tab=notifications",
   };
 
   const redirectTarget = legacyRedirects[pathname];
