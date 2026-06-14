@@ -1,0 +1,83 @@
+# Doctor cabinet — pages rebuild (phase after patient-card)
+
+Working branch: `claude/doctor-pages-rebuild` (worktree `.claude/worktrees/doctor-pages`,
+based on `feat/doctor-ui-rebuild`). Source of truth = owner backlog (Notion «Кабинет
+доктора — пересборка страниц 2026-06-13/14») + in-repo wireframe
+`docs/design/doctor-cabinet-wireframe.html` (its **inner content only** — the outer
+shell/chrome in the wireframe is stale; canonical shell comes from the live
+Сегодня/Расписание pages).
+
+## Ground rules for this phase
+- Build **inside the page container**; do not rebuild the shell. Reuse
+  `DoctorAppShell`, `DoctorPageHeader` (title/subtitle/tabs/toolbar slots),
+  `DoctorWorkspaceShell`/`DoctorAdminSidebar`.
+- Reuse the exercises-page catalog primitives (`catalog/*`,
+  `DoctorCatalogMasterListHeader` list/card toggle, etc.). No hand-rolled UI.
+- Clean architecture: DB only via ports, no raw SQL in app/UI layers.
+- Do **not** fabricate metrics that the backend does not track — surface a clear
+  "данные пока не собираются" state instead.
+- Another chat works in parallel on payments / booking-lifecycle / system-settings.
+  Avoid those files; defer Настройки/Система (overlap risk).
+
+## Sequencing
+1. **#3 Курсы → top-level nav** — DONE (commit `feat(doctor-nav): promote Курсы…`).
+   Route already existed; pure `doctorNavLinks.ts` reorg + test.
+2. **#1 Аналитика → one page, 4 tabs** (Клиенты · Контент · Приложение · Уведомления)
+   — IN PROGRESS. Fold the 4 existing subpages into a single tabbed page (tab
+   pattern from `DoctorScheduleShell` + `DoctorPageHeader` tabs slot), shared period
+   toolbar, redirects from old subpage URLs, nav cluster → single item.
+3. **#2 Контент** — system sections vs «Статьи и страницы», card/list grid, material
+   editor wiring, 👁 visibility pattern extended from Разминки.
+4. **#4 Главная пациента** — editor already exists at `/app/doctor/patient-home`
+   (👁 visibility, 🔒 locked blocks, ⚙ item picker, home-param panels). Mostly
+   surface it under Контент per IA; confirm 🔒 on «Мой план» + «Запись на приём».
+5. **Deferred:** #5 Настройки, #6 Система (parallel-chat overlap), #7 Layout
+   (touches shared shell).
+
+## Current implementation map (verified 2026-06-14)
+### Analytics (4 subpages today)
+- `…/app/doctor/analytics/clients/page.tsx` (+ `DoctorAnalyticsClientsPageClient`):
+  `loadDoctorAnalyticsAudience`, `doctorClientsPort.getClientContactBreakdown`,
+  `GET /api/doctor/analytics-metric-accounts`,
+  `GET /api/admin/doctor-analytics-appointments`. Components:
+  `AnalyticsPeriodToolbar`, `AdminPlatformSubscriberStatsClient`,
+  `AdminPlatformRegistrationStatsClient`, `DoctorAnalyticsAppointmentsSection`,
+  `ClientContactPieChart`, `DoctorStatCard`, `MetricAccountsDialog`.
+- `…/app/doctor/material-ratings/page.tsx` (+ `MaterialContentStatsClient`):
+  `GET /api/doctor/material-ratings/{summary,aggregate}`. Detail at
+  `material-ratings/[kind]/[id]`. → **Контент** tab.
+- `…/app/doctor/analytics/notifications/page.tsx` (+ `NotificationsAnalyticsClient`):
+  `GET /api/doctor/content-stats`. Components in `analytics/shared/`:
+  `PeopleWithNotificationsCard`, `PushOpensAnalyticsCard`,
+  `ReminderSendsHourlyClockChart`. → **Уведомления** tab.
+- `…/app/doctor/usage/page.tsx` (+ `ProductAnalyticsSection`):
+  `GET /api/admin/product-analytics`. → **Приложение** tab.
+- Shared: `DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS`
+  (`analytics/shared/analyticsWindowHourPresets.ts`).
+
+### Content
+- `…/app/doctor/content/page.tsx` — already sidebar + right panel
+  (`ContentPagesSidebar`, switches on `?section=`/`?systemParentCode=`).
+- Material = "content page"; editor `…/content/edit/[id]` (`ContentForm`,
+  `MarkdownEditor`, `ContentLifecycleDropdown`).
+- 👁/visibility pattern: `PatientHomeBlockSettingsCard`
+  (`togglePatientHomeBlockVisibility`); page-level `requiresAuth` toggle in
+  `ContentPagesSectionList`.
+
+### Patient-home
+- `…/app/doctor/patient-home/page.tsx`; `patient_home_blocks` via
+  `patientHomeBlocks` port / `pgPatientHomeBlocks` repo. 11 block codes incl.
+  `plan`, `booking` (candidates for 🔒). Params in `system_settings`.
+
+### Routing / redirects
+- `routePaths` at `app-layer/routes/paths.ts`. Redirects via `src/proxy.ts` →
+  `middleware/doctorRouteRedirects.ts` (`legacyRedirects` 308s). No Next middleware.
+
+## Backend data gaps (analytics) — confirmed MISSING, do not fabricate
+`product_analytics` events tracked: `app_open | page_view | push_open | heartbeat |
+push_sent`. NOT tracked: slot-view, slot-select, "left without booking", "no slots
+available" (booking funnel); broadcast read-receipts (`broadcast_audit` has
+sent/error counts, no `opened_count`; `broadcast_audit_recipients` has no `read_at`).
+"client vs potential" segmentation only partial (contact-channel + appGuests; no
+"viewed booking, never booked" concept). → Funnel + read-receipt blocks render as
+"данные пока не собираются"; client/potential definition is an open product item.
