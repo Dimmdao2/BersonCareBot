@@ -16,7 +16,7 @@
 > 3. **Вовк Ирина Ср 17.06 16:00** — переехала на Вт 18:00 (CSV-коммент); реальный Ср 16:00 = Аня Коган. Устаревшие Ср-16:00 дубли `8448355/57/63/71/75/95` → `--drop-legacy`/collapse.
 > Итог на dev: **unmapped 0 / dups 0 / conflicts 0**, dev полностью согласован.
 >
-> ### Прод-ранбук (только скриптом, без ad-hoc SQL)
+> ### Прод-ранбук (только скриптом, без ad-hoc SQL) — ПОЛНАЯ версия: [`../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md`](../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md) (вкл. ручной разбор конфликтов)
 > 1. `set -a && source /opt/env/bersoncarebot/webapp.prod && set +a` (см. SERVER CONVENTIONS).
 > 2. **Диагностика (read-only):** `pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments` → сверить unmapped/dups/conflicts.
 > 3. Сверить «осадочные» конфликты с CSV; стале-ext-id собрать в список (Груздева-тип ошибочные canonical-записи удаляет владелец через кабинет/UI, НЕ скриптом — на проде уже сделано).
