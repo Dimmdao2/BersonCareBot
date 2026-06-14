@@ -85,3 +85,28 @@
 ## Status log (agents append here)
 - (init) plan created.
 - W1 done & committed (08181ce0). Deps installed in worktree. Typecheck clean for patient files.
+- W2 done (a357b6b4): list page UI + card shell (header + 6-tab nav + tab scaffolds). Typecheck clean.
+- W3 done (1f110283): all 6 tab UIs. Программа embeds existing PatientTreatmentProgramsPanel. VERIFIED by running app on :5300 + headless screenshots — all tabs render, no console errors.
+- W4 done (b8887410): real per-patient appointments (Записи), all 9 segment counts real on list, Файлы backend (patient_files migration 0120 + module + S3 presign endpoints + wired UI). VERIFIED via app + screenshots.
+- Polish: Записи clean loading state (no mock flash). VERIFIED.
+- PUSHED to dimmdao/claude/admiring-hodgkin-c8fa92.
+
+## VERIFIED STATE (2026-06-14 ~05:00) — ready for owner test
+Run: from worktree `pnpm install` (done) → `cd apps/webapp && NODE_ENV=development npx next dev --webpack -H 127.0.0.1 -p 5300` → auth `/api/auth/dev-bypass?token=dev:doctor` → `/app/doctor/patients`. (Don't use webapp:dev — it kills :5200.)
+- Пациенты list: search, 9 real segment counts, channel filters, preview with hidden real name + CTA. REAL data.
+- Card header: REAL (displayName + hidden name, phone copy, channels, last/next/total). birthDate/age = «—» (no field yet).
+- Обзор: faithful UI, MOCK data (widgets) — TODO(backend) wiring.
+- Карта: faithful UI incl. «+ Новый визит» panel, MOCK data — clinical model is the big NEXT piece.
+- Программа: REAL (embeds existing treatment-program panel) + «Полный вид →».
+- Записи: REAL appointments (history + upcoming + abonement).
+- Файлы: REAL backend (list/preview/link/upload-url via S3 presign); empty until uploads. Binary upload path = TODO.
+- Учётка: faithful UI, MOST data MOCK; Платежи block (cash+acquiring note) per owner #2.
+
+## REMAINING (next session, needs owner input where noted)
+- Карта clinical model: visit/complaint/complaint_update/diagnosis/diagnosis_catalog/file tables + create-visit form wiring (biggest piece, owner-decision-heavy).
+- Обзор widget wiring to real data (signals/symptoms/dynamics/exercise-calendar/notes/tasks/messages).
+- Учётка: wire support/block/archive to existing endpoints; Платежи real model (manual cash + acquiring integration ЮKassa/ЮMoney); merge link; audit set.
+- Файлы: in-browser binary upload via presigned PUT; visit-selector for «Привязать к визиту».
+- Header: birthDate field (+ age), visit type/city.
+- MINOR: Записи «Предстоящие» upcoming now shows; verify abonement is real not mock (currently mock panel).
+- MERGE: when parallel «Сегодня»/schedule work settles, merge this branch into feat/doctor-ui-rebuild (watch for migration-number collision on patient_files 0120).
