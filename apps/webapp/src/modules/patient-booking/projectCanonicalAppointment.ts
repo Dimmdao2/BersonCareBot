@@ -89,3 +89,22 @@ export async function projectCanonicalAppointmentCancelled(
     payloadJson: basePayloadJson(appt, input),
   });
 }
+
+export async function projectCanonicalAppointmentNoShow(
+  projection: AppointmentProjectionPort,
+  appt: BeAppointment,
+  input: ProjectionContactFields,
+): Promise<void> {
+  // No-show is treated as a cancelled status in the projection layer.
+  // lastEvent distinguishes it for downstream consumers (e.g. analytics).
+  await projection.upsertRecordFromProjection({
+    integratorRecordId: resolveDoctorProjectionIntegratorRecordId(appt.id, input.rubitimeRecordId),
+    phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
+    recordAt: appt.startAt,
+    status: "canceled",
+    lastEvent: "native.no_show",
+    updatedAt: new Date().toISOString(),
+    branchId: input.legacyBranchId ?? null,
+    payloadJson: basePayloadJson(appt, input),
+  });
+}
