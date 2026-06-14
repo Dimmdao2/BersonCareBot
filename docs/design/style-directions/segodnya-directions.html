@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="d">
+<html lang="ru" data-theme="e">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -71,6 +71,24 @@
   --side-bg:#172230; --side-border:#26323f; --side-text:#9aa6b6; --side-active-bg:#23344c; --side-active-text:#ffffff; --side-hover:#1f2d3e;
   --density:1;
 }
+[data-theme="e"],[data-theme="e2"]{   /* E — современный «парящий» SaaS, тёпло-греж */
+  --font:'Inter', system-ui, sans-serif;
+  --bg-app:#e3e1dc; --surface:#ffffff; --surface-2:#f3f1ed; --surface-3:#eae8e2;
+  --border:#e9e6df; --border-strong:#ddd9d0;
+  --text:#1c1d22; --text-muted:#62656e; --text-faint:#9a9b9f;
+  --accent:hsl(215 36% 41%); --accent-strong:hsl(215 42% 32%); --accent-soft:hsl(215 40% 94%); --accent-on:hsl(215 45% 34%);
+  --success:#2f8a62; --success-soft:#e6f3ec;
+  --warning:#c2812e; --warning-soft:#fbf2df;
+  --danger:#c2402f; --danger-soft:#fdf0ee;
+  --radius:8px; --radius-lg:12px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(28,24,18,.05), 0 3px 8px rgba(28,24,18,.06);
+  --shadow-pop:0 10px 28px rgba(28,24,18,.12);
+  --side-bg:#ffffff; --side-border:#e9e6df; --side-text:#5a6675; --side-active-bg:#eef0f2; --side-active-text:#1a1d24;
+  --density:1;
+}
+[data-theme="e2"]{                     /* E с тёмным сайдбаром */
+  --side-bg:#1b2533; --side-border:#28323f; --side-text:#9aa6b6; --side-active-bg:#27384f; --side-active-text:#ffffff; --side-hover:#222f3f;
+}
 
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -92,8 +110,8 @@ body{
 }
 .switcher .lbl{font-size:12.5px;color:var(--text-faint);font-weight:500;letter-spacing:.02em;}
 .switcher button{
-  font-family:var(--font);font-size:13px;font-weight:500;
-  padding:7px 14px;border-radius:999px;cursor:pointer;
+  font-family:var(--font);font-size:12px;font-weight:500;
+  padding:5px 11px;border-radius:999px;cursor:pointer;
   border:1px solid var(--border-strong);background:#fff;color:#334;
   transition:all .15s;
 }
@@ -119,9 +137,9 @@ body{
 }
 .brand .logo svg{width:19px;height:19px;}
 .brand .nm{font-size:14.5px;font-weight:600;line-height:1.2;color:var(--side-text);}
-[data-theme="c"] .brand .nm,[data-theme="d"] .brand .nm{color:#fff;}
+[data-theme="c"] .brand .nm,[data-theme="d"] .brand .nm,[data-theme="e2"] .brand .nm{color:#fff;}
 .brand .role{font-size:11.5px;color:var(--text-faint);}
-[data-theme="c"] .brand .role,[data-theme="d"] .brand .role{color:#7d8a9c;}
+[data-theme="c"] .brand .role,[data-theme="d"] .brand .role,[data-theme="e2"] .brand .role{color:#7d8a9c;}
 
 .nav-cap{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-faint);padding:14px 10px 6px;font-weight:600;}
 .nav{
@@ -133,10 +151,11 @@ body{
 .nav:hover{background:var(--surface-3);}
 [data-theme="c"] .nav:hover{background:#161c2c;}
 [data-theme="d"] .nav:hover{background:#1f2d3e;}
+[data-theme="e2"] .nav:hover{background:#222f3f;}
 .nav svg{width:18px;height:18px;opacity:.85;flex:none;}
 .nav.active{background:var(--side-active-bg);color:var(--side-active-text);font-weight:600;}
 .nav .count{margin-left:auto;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-on);padding:1px 8px;border-radius:999px;}
-[data-theme="c"] .nav.active .count,[data-theme="d"] .nav.active .count{background:var(--accent);color:#fff;}
+[data-theme="c"] .nav.active .count,[data-theme="d"] .nav.active .count,[data-theme="e2"] .nav.active .count{background:var(--accent);color:#fff;}
 .nav-sub{padding-left:38px;font-size:13px;color:var(--text-faint);padding-top:6px;padding-bottom:6px;}
 .nav-sub:hover{color:var(--side-text);}
 
@@ -237,17 +256,41 @@ body{
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:34px 10px;color:var(--text-faint);text-align:center;}
 .empty svg{width:30px;height:30px;opacity:.6;}
 .empty .et{font-size:13.5px;font-weight:500;color:var(--text-muted);}
+
+/* ============================================================
+   E — «парящий» современный шелл (floating panel + shadow cards)
+   ============================================================ */
+[data-theme="e"] .app,[data-theme="e2"] .app{
+  margin:16px;border-radius:18px;background:var(--surface-2);
+  box-shadow:0 6px 24px rgba(28,24,18,.14);overflow:hidden;
+  min-height:calc(100vh - 72px);
+}
+/* sidebar отделён от фона: своя поверхность + граница */
+[data-theme="e"] .sidebar,[data-theme="e2"] .sidebar{padding-top:18px;background:var(--side-bg);border-right:1px solid var(--side-border);}
+[data-theme="e"] .main,[data-theme="e2"] .main{background:var(--surface-2);padding:22px 24px 48px;}
+/* карточки белые на греж-фоне, разделены мягкой невысокой тенью */
+[data-theme="e"] .card,[data-theme="e2"] .card{border:none;box-shadow:var(--shadow-card);border-radius:12px;margin-bottom:14px;}
+[data-theme="e"] .cols,[data-theme="e2"] .cols{gap:14px;}
+[data-theme="e"] .card-foot,[data-theme="e2"] .card-foot{border-top:1px solid var(--border);}
+[data-theme="e"] .prow,[data-theme="e2"] .prow{border-bottom:1px solid var(--border);}
+[data-theme="e"] .task,[data-theme="e2"] .task{background:var(--surface-2);border:1px solid var(--border);}
+[data-theme="e"] .btn,[data-theme="e2"] .btn{border-radius:8px;}
+/* KPI-строка: мельче, без иконок, плотнее */
+[data-theme="e"] .stats,[data-theme="e2"] .stats{gap:10px;margin-bottom:16px;}
+[data-theme="e"] .stat,[data-theme="e2"] .stat{border:none;box-shadow:var(--shadow-card);border-radius:10px;padding:11px 13px;}
+[data-theme="e"] .stat .ico,[data-theme="e2"] .stat .ico{display:none;}
+[data-theme="e"] .stat .k,[data-theme="e2"] .stat .k{font-size:11px;margin-bottom:2px;}
+[data-theme="e"] .stat .v,[data-theme="e2"] .stat .v{font-size:21px;}
+[data-theme="e"] .switcher,[data-theme="e2"] .switcher{background:rgba(227,225,220,.88);}
 </style>
 </head>
 <body>
 
 <div class="switcher">
-  <span class="lbl">НАПРАВЛЕНИЕ</span>
-  <button data-set="d" class="on">D · Эталон+</button>
-  <button data-set="a">A · Чистый clinical</button>
-  <button data-set="b">B · Тёплый</button>
-  <button data-set="c">C · Премиум-контраст</button>
-  <span class="name" id="dirname">D — палитра эталона (стально-синий + кирпич + золото) с тёмным навигейви-сайдбаром и глубиной</span>
+  <span class="lbl">САЙДБАР</span>
+  <button data-set="e" class="on">Светлый</button>
+  <button data-set="e2">Тёмный</button>
+  <span class="name" id="dirname">E — тёпло-греж фон, плотнее, углы острее, KPI мельче без иконок, светлый сайдбар выделен от фона</span>
 </div>
 
 <div class="app">
@@ -354,10 +397,8 @@ body{
 
 <script>
 const names={
-  d:'D — палитра эталона (стально-синий + кирпич + золото) с тёмным навигейви-сайдбаром и глубиной',
-  a:'A — спокойный, светлый, нейтрально-синий акцент',
-  b:'B — тёплые песочные поверхности, бирюзовый акцент, мягче и человечнее',
-  c:'C — тёмный сайдбар, чёткая глубина, фиолетовый акцент, плотнее'
+  e:'E — тёпло-греж фон, плотнее, углы острее, KPI мельче без иконок, светлый сайдбар выделен от фона',
+  e2:'E — то же, но тёмный навигейви-сайдбар (как в контрастном варианте)'
 };
 const init=new URLSearchParams(location.search).get('theme');
 if(init&&names[init]){
