@@ -129,4 +129,108 @@ describe("inMemoryPatientClinical", () => {
     expect(found).toHaveLength(1);
     expect(found[0].label).toBe("Тендинопатия большой ягодичной мышцы");
   });
+
+  describe("анамнез", () => {
+    const OTHER_PATIENT = "33333333-3333-3333-3333-333333333333";
+
+    it("getAnamnesis returns empty sections for a patient with no records", async () => {
+      const a = await inMemoryPatientClinicalPort.getAnamnesis(PATIENT);
+      expect(a).toEqual({ trauma: [], illness: [], lifestyle: [] });
+    });
+
+    it("appendAnamnesisTrauma returns the entry and surfaces it in getAnamnesis", async () => {
+      const entry = await inMemoryPatientClinicalPort.appendAnamnesisTrauma({
+        patientUserId: PATIENT,
+        year: "2019",
+        what: "Перелом лодыжки",
+        type: "закрытый",
+        immobilization: "гипс 6 недель",
+        createdBy: DOCTOR,
+      });
+      expect(entry).toMatchObject({
+        year: "2019",
+        what: "Перелом лодыжки",
+        type: "закрытый",
+        immobilization: "гипс 6 недель",
+      });
+      expect(entry.id).toBeTruthy();
+
+      const a = await inMemoryPatientClinicalPort.getAnamnesis(PATIENT);
+      expect(a.trauma).toHaveLength(1);
+      expect(a.trauma[0]).toEqual(entry);
+    });
+
+    it("appendAnamnesisIllness surfaces the entry in getAnamnesis", async () => {
+      const entry = await inMemoryPatientClinicalPort.appendAnamnesisIllness({
+        patientUserId: PATIENT,
+        period: "2020",
+        what: "Пневмония",
+        comment: "стационар 2 недели",
+        createdBy: DOCTOR,
+      });
+      const a = await inMemoryPatientClinicalPort.getAnamnesis(PATIENT);
+      expect(a.illness).toEqual([entry]);
+    });
+
+    it("appendAnamnesisLifestyle formats the record date as ДД.ММ.ГГГГ", async () => {
+      const entry = await inMemoryPatientClinicalPort.appendAnamnesisLifestyle({
+        patientUserId: PATIENT,
+        recordDate: "2026-01-18",
+        text: "Бросил курить",
+        createdBy: DOCTOR,
+      });
+      expect(entry).toMatchObject({ date: "18.01.2026", text: "Бросил курить" });
+
+      const a = await inMemoryPatientClinicalPort.getAnamnesis(PATIENT);
+      expect(a.lifestyle).toEqual([entry]);
+    });
+
+    it("getAnamnesis lists records chronologically (oldest→newest) per section", async () => {
+      await inMemoryPatientClinicalPort.appendAnamnesisTrauma({
+        patientUserId: PATIENT,
+        year: "2010",
+        what: "Первая травма",
+        type: "закрытый",
+        immobilization: "—",
+        createdBy: DOCTOR,
+      });
+      await inMemoryPatientClinicalPort.appendAnamnesisTrauma({
+        patientUserId: PATIENT,
+        year: "2015",
+        what: "Вторая травма",
+        type: "открытый",
+        immobilization: "—",
+        createdBy: DOCTOR,
+      });
+
+      const a = await inMemoryPatientClinicalPort.getAnamnesis(PATIENT);
+      expect(a.trauma.map((t) => t.what)).toEqual(["Первая травма", "Вторая травма"]);
+    });
+
+    it("getAnamnesis is scoped per patient", async () => {
+      await inMemoryPatientClinicalPort.appendAnamnesisTrauma({
+        patientUserId: PATIENT,
+        year: "2019",
+        what: "Травма пациента А",
+        type: "закрытый",
+        immobilization: "—",
+        createdBy: DOCTOR,
+      });
+      await inMemoryPatientClinicalPort.appendAnamnesisIllness({
+        patientUserId: OTHER_PATIENT,
+        period: "2020",
+        what: "Болезнь пациента Б",
+        comment: "",
+        createdBy: DOCTOR,
+      });
+
+      const a = await inMemoryPatientClinicalPort.getAnamnesis(PATIENT);
+      expect(a.trauma).toHaveLength(1);
+      expect(a.illness).toHaveLength(0);
+
+      const b = await inMemoryPatientClinicalPort.getAnamnesis(OTHER_PATIENT);
+      expect(b.trauma).toHaveLength(0);
+      expect(b.illness).toHaveLength(1);
+    });
+  });
 });

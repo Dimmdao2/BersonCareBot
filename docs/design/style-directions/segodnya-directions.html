@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="a">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Berson Care — направления дизайна (Сегодня)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   THEME TOKENS — три направления, переключаются data-theme
+   ============================================================ */
+[data-theme="a"]{               /* Чистый clinical-SaaS */
+  --font: 'Inter', system-ui, sans-serif;
+  --bg-app:#f5f7fb; --surface:#ffffff; --surface-2:#fafbfd; --surface-3:#f3f5f9;
+  --border:#e7ebf2; --border-strong:#d6dde8;
+  --text:#19222f; --text-muted:#5a6678; --text-faint:#8a95a6;
+  --accent:#2f6bf6; --accent-strong:#1d4ed8; --accent-soft:#eaf1ff; --accent-on:#1d4ed8;
+  --success:#0f9d6b; --success-soft:#e6f6ef;
+  --warning:#cc7a14; --warning-soft:#fdf2e2;
+  --danger:#dc2f3a;  --danger-soft:#fdecec;
+  --radius:10px; --radius-lg:14px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.05);
+  --shadow-pop:0 4px 12px rgba(16,24,40,.08);
+  --side-bg:#ffffff; --side-border:#e7ebf2; --side-text:#5a6678; --side-active-bg:#eaf1ff; --side-active-text:#1d4ed8;
+  --density:1;
+}
+[data-theme="b"]{               /* Тёплый и человечный */
+  --font:'Inter', system-ui, sans-serif;
+  --bg-app:#f6f4ef; --surface:#fffefb; --surface-2:#faf8f2; --surface-3:#f1eee6;
+  --border:#ece6da; --border-strong:#ddd4c4;
+  --text:#2a2620; --text-muted:#6c6358; --text-faint:#9a9080;
+  --accent:#0e9384; --accent-strong:#0c7367; --accent-soft:#d8f1ec; --accent-on:#0c5f56;
+  --success:#0e9384; --success-soft:#dcf2ec;
+  --warning:#c2740a; --warning-soft:#f8edd9;
+  --danger:#c4452f;  --danger-soft:#f8e8e3;
+  --radius:14px; --radius-lg:20px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(60,45,25,.05), 0 2px 6px rgba(60,45,25,.04);
+  --shadow-pop:0 6px 16px rgba(60,45,25,.09);
+  --side-bg:#fbf9f4; --side-border:#ece6da; --side-text:#6c6358; --side-active-bg:#e3f2ee; --side-active-text:#0c5f56;
+  --density:1.08;
+}
+[data-theme="c"]{               /* Премиум-контраст (тёмный сайдбар) */
+  --font:'Inter', system-ui, sans-serif;
+  --bg-app:#f3f4f7; --surface:#ffffff; --surface-2:#f9fafc; --surface-3:#eef0f4;
+  --border:#e3e6ec; --border-strong:#cbd1dc;
+  --text:#0c1018; --text-muted:#586172; --text-faint:#878f9f;
+  --accent:#5b5bd6; --accent-strong:#4640c4; --accent-soft:#ecebfb; --accent-on:#4338ca;
+  --success:#0f9d6b; --success-soft:#e7f6ef;
+  --warning:#d4860c; --warning-soft:#fbf0db;
+  --danger:#e0394a;  --danger-soft:#fdebed;
+  --radius:8px; --radius-lg:12px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(13,18,28,.06), 0 1px 3px rgba(13,18,28,.10);
+  --shadow-pop:0 8px 24px rgba(13,18,28,.16);
+  --side-bg:#0f1320; --side-border:#1d2334; --side-text:#9aa3b8; --side-active-bg:#1c2336; --side-active-text:#ffffff;
+  --density:.96;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:var(--font);
+  background:var(--bg-app);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv11","ss01";
+}
+
+/* ---------- Switcher ---------- */
+.switcher{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:14px;
+  padding:10px 20px;
+  background:rgba(255,255,255,.85);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--border);
+}
+.switcher .lbl{font-size:12.5px;color:var(--text-faint);font-weight:500;letter-spacing:.02em;}
+.switcher button{
+  font-family:var(--font);font-size:13px;font-weight:500;
+  padding:7px 14px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--border-strong);background:#fff;color:#334;
+  transition:all .15s;
+}
+.switcher button:hover{border-color:#9fb3d6;}
+.switcher button.on{background:#19222f;color:#fff;border-color:#19222f;}
+.switcher .name{margin-left:auto;font-size:12.5px;color:var(--text-muted);}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+.app{display:flex;min-height:calc(100vh - 44px);}
+.sidebar{
+  width:248px;flex:none;
+  background:var(--side-bg);
+  border-right:1px solid var(--side-border);
+  padding:18px 12px;
+  display:flex;flex-direction:column;gap:2px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px;}
+.brand .logo{
+  width:34px;height:34px;border-radius:10px;flex:none;
+  background:var(--accent);color:#fff;display:grid;place-items:center;
+}
+.brand .logo svg{width:19px;height:19px;}
+.brand .nm{font-size:14.5px;font-weight:600;line-height:1.2;color:var(--side-text);}
+[data-theme="c"] .brand .nm{color:#fff;}
+.brand .role{font-size:11.5px;color:var(--text-faint);}
+[data-theme="c"] .brand .role{color:#717c92;}
+
+.nav-cap{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-faint);padding:14px 10px 6px;font-weight:600;}
+.nav{
+  display:flex;align-items:center;gap:11px;
+  padding:8px 11px;border-radius:var(--radius);
+  font-size:13.5px;color:var(--side-text);cursor:pointer;
+  text-decoration:none;font-weight:450;transition:background .12s;
+}
+.nav:hover{background:var(--surface-3);}
+[data-theme="c"] .nav:hover{background:#161c2c;}
+.nav svg{width:18px;height:18px;opacity:.85;flex:none;}
+.nav.active{background:var(--side-active-bg);color:var(--side-active-text);font-weight:600;}
+.nav .count{margin-left:auto;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-on);padding:1px 8px;border-radius:999px;}
+[data-theme="c"] .nav.active .count{background:var(--accent);color:#fff;}
+.nav-sub{padding-left:38px;font-size:13px;color:var(--text-faint);padding-top:6px;padding-bottom:6px;}
+.nav-sub:hover{color:var(--side-text);}
+
+/* ---------- main ---------- */
+.main{flex:1;min-width:0;padding:26px 30px 60px;}
+.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.page-title{font-size:22px;font-weight:600;letter-spacing:-.01em;margin:0;}
+.alert-pill{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:12.5px;font-weight:500;
+  background:var(--danger-soft);color:var(--danger);
+  padding:7px 13px;border-radius:var(--radius-pill);
+  border:1px solid color-mix(in srgb,var(--danger) 22%, transparent);
+}
+.alert-pill svg{width:15px;height:15px;}
+
+/* ---------- stat tiles ---------- */
+.stats{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:22px;}
+.stat{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:14px 15px;box-shadow:var(--shadow-card);position:relative;overflow:hidden;
+}
+.stat .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;margin-bottom:11px;background:var(--surface-3);color:var(--text-muted);}
+.stat .ico svg{width:17px;height:17px;}
+.stat .k{font-size:11.5px;color:var(--text-muted);font-weight:500;margin-bottom:3px;}
+.stat .v{font-size:25px;font-weight:600;line-height:1;letter-spacing:-.02em;}
+.stat.hot .ico{background:var(--danger-soft);color:var(--danger);}
+.stat.hot .v{color:var(--danger);}
+.stat.accent .ico{background:var(--accent-soft);color:var(--accent-on);}
+
+/* ---------- columns ---------- */
+.cols{display:grid;grid-template-columns:1.05fr 1fr;gap:20px;}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-card);margin-bottom:20px;overflow:hidden;
+}
+.card-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;}
+.card-h h3{margin:0;font-size:15.5px;font-weight:600;letter-spacing:-.01em;}
+.card-h .meta{font-size:12.5px;color:var(--text-faint);}
+.card-b{padding:4px 18px 18px;}
+
+/* task */
+.task{
+  border:1px solid var(--border);border-left:3px solid var(--danger);
+  border-radius:var(--radius);padding:14px 15px;background:var(--surface-2);
+}
+.task-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.task-top .ttl{font-weight:600;font-size:14px;}
+.badge{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;letter-spacing:.01em;}
+.badge.danger{background:var(--danger-soft);color:var(--danger);}
+.badge.ghost{background:var(--surface-3);color:var(--text-muted);}
+.task .row{font-size:12.5px;color:var(--text-muted);line-height:1.7;}
+.task-act{display:flex;gap:9px;margin-top:13px;}
+.btn{
+  font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;
+  padding:8px 15px;border-radius:var(--radius);transition:all .14s;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);
+}
+.btn:hover{background:var(--surface-3);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:var(--shadow-card);}
+.btn.primary:hover{background:var(--accent-strong);}
+.link{color:var(--accent-on);font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;}
+.link:hover{text-decoration:underline;}
+.card-foot{padding:12px 18px;border-top:1px solid var(--border);}
+
+/* patient rows */
+.subhead{font-size:12.5px;color:var(--text-faint);margin:0 0 10px;}
+.prow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);}
+.prow:last-child{border-bottom:none;}
+.ava{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12.5px;font-weight:600;background:var(--accent-soft);color:var(--accent-on);}
+.prow .pn{font-weight:500;font-size:13.5px;color:var(--accent-on);text-decoration:none;}
+.prow .pn:hover{text-decoration:underline;}
+.metrics{margin-left:auto;display:flex;align-items:center;gap:13px;color:var(--text-faint);font-size:12px;}
+.metrics span{display:inline-flex;align-items:center;gap:4px;}
+.metrics svg{width:14px;height:14px;}
+.metrics .big{color:var(--accent-on);font-weight:600;}
+
+/* signals */
+.signal{display:flex;gap:12px;align-items:flex-start;background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--warning) 25%,transparent);border-radius:var(--radius);padding:13px 14px;}
+.signal .si{width:30px;height:30px;border-radius:8px;background:#fff;display:grid;place-items:center;color:var(--warning);flex:none;}
+.signal .si svg{width:17px;height:17px;}
+.signal .st{font-size:13px;font-weight:600;margin-bottom:2px;}
+.signal .sd{font-size:12.5px;color:var(--text-muted);}
+
+/* schedule */
+.sched-day{text-align:center;font-size:13px;font-weight:600;padding:9px;background:var(--surface-3);border-radius:var(--radius);margin-bottom:12px;}
+.tl{position:relative;}
+.tl-row{display:grid;grid-template-columns:42px 1fr;gap:10px;align-items:start;min-height:46px;}
+.tl-row .hr{font-size:11.5px;color:var(--text-faint);padding-top:2px;}
+.tl-row .slot{border-top:1px solid var(--border);min-height:46px;padding-top:6px;}
+.appt{
+  border-radius:8px;padding:8px 11px;margin-bottom:5px;font-size:12.5px;
+  border-left:3px solid var(--accent);background:var(--accent-soft);
+}
+.appt .an{font-weight:600;color:var(--accent-on);}
+.appt .as{color:var(--text-muted);font-size:11.5px;}
+.appt.ok{border-left-color:var(--success);background:var(--success-soft);}
+.appt.ok .an{color:var(--success);}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:34px 10px;color:var(--text-faint);text-align:center;}
+.empty svg{width:30px;height:30px;opacity:.6;}
+.empty .et{font-size:13.5px;font-weight:500;color:var(--text-muted);}
+</style>
+</head>
+<body>
+
+<div class="switcher">
+  <span class="lbl">НАПРАВЛЕНИЕ</span>
+  <button data-set="a" class="on">A · Чистый clinical</button>
+  <button data-set="b">B · Тёплый</button>
+  <button data-set="c">C · Премиум-контраст</button>
+  <span class="name" id="dirname">A — спокойный, светлый, нейтрально-синий акцент</span>
+</div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></div>
+      <div><div class="nm">Berson Care</div><div class="role">Doctor</div></div>
+    </div>
+    <div class="nav-cap">Разделы</div>
+    <a class="nav active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Сегодня<span class="count">2</span></a>
+    <a class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>Пациенты</a>
+    <a class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Расписание</a>
+    <a class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Коммуникации</a>
+    <a class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Библиотека</a>
+    <a class="nav nav-sub">Упражнения</a>
+    <a class="nav nav-sub">Комплексы ЛФК</a>
+    <a class="nav nav-sub">Клинические тесты</a>
+    <a class="nav nav-sub">Рекомендации</a>
+    <a class="nav nav-sub">Шаблоны программ</a>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="page-head">
+      <h1 class="page-title">Сегодня</h1>
+      <span class="alert-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Требуется внимание к здоровью системы</span>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div class="k">Сообщения</div><div class="v">0</div></div>
+      <div class="stat hot"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="k">Комментарии</div><div class="v">13</div></div>
+      <div class="stat"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><div class="k">Заявки</div><div class="v">0</div></div>
+      <div class="stat"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="k">Тесты</div><div class="v">0</div></div>
+      <div class="stat accent"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div><div class="k">Сегодня</div><div class="v">4</div></div>
+      <div class="stat"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="k">Неделя</div><div class="v">38</div></div>
+      <div class="stat"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="k">Месяц</div><div class="v">38</div></div>
+    </div>
+
+    <!-- COLUMNS -->
+    <div class="cols">
+      <!-- LEFT -->
+      <div>
+        <div class="card">
+          <div class="card-h"><h3>Задачи</h3><span class="meta">сегодня 1 / всего 3</span></div>
+          <div class="card-b">
+            <div class="task">
+              <div class="task-top"><span class="ttl">прпрпрп</span><span class="badge danger">Просрочено</span><span class="badge ghost">Открыта</span></div>
+              <div class="row">Поставлена: 13.06.2026, 21:13</div>
+              <div class="row">Срок: 13.06.2026, 22:13</div>
+              <div class="row" style="margin-top:4px;">имтормо</div>
+              <div class="task-act"><button class="btn">Изменить</button><button class="btn primary">Выполнить</button></div>
+            </div>
+          </div>
+          <div class="card-foot"><a class="link">Все задачи (3) →</a></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>На сопровождении</h3><span class="meta">Клиентов: 4</span></div>
+          <div class="card-b">
+            <div class="prow"><div class="ava">Д</div><a class="pn">Дмитрий</a><div class="metrics"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span><span class="big">11</span></div></div>
+            <div class="prow"><div class="ava">ЕК</div><a class="pn">Екатерина Косихина</a><div class="metrics"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="big">1</span></div></div>
+            <div class="prow"><div class="ava">НШ</div><a class="pn">Наташа Шалина</a><div class="metrics"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="big">1</span></div></div>
+            <div class="prow"><div class="ava">OZ</div><a class="pn">Oxana Zhukova</a><div class="metrics"><span>—</span></div></div>
+          </div>
+          <div class="card-foot"><a class="link">Программа без сопровождения →</a></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Сигналы пациентов</h3><span class="badge danger">2</span></div>
+          <div class="card-b">
+            <div class="signal">
+              <div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+              <div><div class="st">Oxana Zhukova</div><div class="sd">Нет отметок по программе 5+ дней</div></div>
+            </div>
+            <div style="margin-top:12px;"><a class="link">Ещё 1 сигнал →</a></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div>
+        <div class="card">
+          <div class="card-h"><h3>Расписание на сегодня</h3><span class="meta">вс, 14 июня</span></div>
+          <div class="card-b">
+            <div class="sched-day">воскресенье</div>
+            <div class="tl">
+              <div class="tl-row"><div class="hr">11:00</div><div class="slot"><div class="appt"><div class="an">Светлана Кудашова</div><div class="as">Сеанс 90 мин · подтверждена</div></div></div></div>
+              <div class="tl-row"><div class="hr">12:00</div><div class="slot"></div></div>
+              <div class="tl-row"><div class="hr">13:00</div><div class="slot"><div class="appt ok"><div class="an">Менялкина Анна</div><div class="as">Сеанс 90 мин · подтверждена</div></div></div></div>
+              <div class="tl-row"><div class="hr">14:00</div><div class="slot"></div></div>
+              <div class="tl-row"><div class="hr">15:00</div><div class="slot"></div></div>
+              <div class="tl-row"><div class="hr">16:00</div><div class="slot"><div class="appt"><div class="an">Екатерина Косихина</div><div class="as">Сеанс 60 мин · подтверждена</div></div></div></div>
+              <div class="tl-row"><div class="hr">17:00</div><div class="slot"></div></div>
+            </div>
+          </div>
+          <div class="card-foot"><a class="link">Открыть расписание →</a></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const names={
+  a:'A — спокойный, светлый, нейтрально-синий акцент',
+  b:'B — тёплые песочные поверхности, бирюзовый акцент, мягче и человечнее',
+  c:'C — тёмный сайдбар, чёткая глубина, фиолетовый акцент, плотнее'
+};
+const init=new URLSearchParams(location.search).get('theme');
+if(init&&names[init]){
+  document.documentElement.dataset.theme=init;
+  document.getElementById('dirname').textContent=names[init];
+  document.querySelectorAll('.switcher button').forEach(x=>x.classList.toggle('on',x.dataset.set===init));
+}
+document.querySelectorAll('.switcher button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.switcher button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    const t=b.dataset.set;
+    document.documentElement.dataset.theme=t;
+    document.getElementById('dirname').textContent=names[t];
+  });
+});
+</script>
+</body>
+</html>
