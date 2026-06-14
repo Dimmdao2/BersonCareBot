@@ -30,8 +30,25 @@ import {
   beAppointmentHistoryEvents,
   beAppointments,
   beExternalEntityMappings,
+  beSpecialists,
 } from "../../../db/schema/bookingEngine";
 import { appointmentRecords, rubitimeRecords } from "../../../db/schema/schema";
+
+/**
+ * Solo-specialist fallback: если кооператор Rubitime не смаплен на канонического специалиста
+ * (resolveCanonicalRefs дал бы NULL) и в организации ровно ОДИН активный специалist —
+ * привязываем запись к нему. Продуктовая модель booking-rework — один специалист на все
+ * филиалы (см. docs/OPERATIONS/SPECIALIST_IDENTITY_CONSOLIDATION.md). При неоднозначности (0 или >1 активных)
+ * возвращаем null и не угадываем. Кэш на время одного projection-прогона не нужен — вызов редкий.
+ */
+async function resolveSoloSpecialistId(organizationId: string): Promise<string | null> {
+  const db = getDrizzle();
+  const rows = await db
+    .select({ id: beSpecialists.id })
+    .from(beSpecialists)
+    .where(and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.isActive, true)));
+  return rows.length === 1 ? rows[0]!.id : null;
+}
 
 async function readSettingBoolean(key: string, defaultValue: boolean): Promise<boolean> {
   const db = getDrizzle();
@@ -261,15 +278,18 @@ async function updateMappedRubitimeProjection(
     },
   });
   const refs = built.mergedRefs;
+  // Solo-specialist fallback: смапленный/существующий специалист в приоритете, иначе единственный активный.
+  const resolvedSpecialistId =
+    refs.specialistId ?? (await resolveSoloSpecialistId(params.organizationId));
   const status = built.snapshot.status;
   const legacy = buildLegacyAppointmentPayload(params.startAt, params.payloadJson);
   const now = new Date().toISOString();
-  const timeChanged = existing.startAt !== params.startAt;
   const eventPayload = {
     externalId: params.externalId,
     legacyStatus: params.legacyStatus,
     lastEvent: params.lastEvent,
     ...refs,
+    specialistId: resolvedSpecialistId,
   };
 
   await db.transaction(async (tx) => {
@@ -277,7 +297,7 @@ async function updateMappedRubitimeProjection(
       .update(beAppointments)
       .set({
         branchId: refs.branchId,
-        specialistId: refs.specialistId,
+        specialistId: resolvedSpecialistId,
         serviceId: refs.serviceId,
         platformUserId: params.platformUserId ?? existing.platformUserId,
         startAt: params.startAt,
@@ -286,7 +306,10 @@ async function updateMappedRubitimeProjection(
         status,
         phoneNormalized: params.phoneNormalized,
         originalStartAt: existing.originalStartAt ?? existing.startAt,
-        rescheduleCount: timeChanged ? existing.rescheduleCount + 1 : existing.rescheduleCount,
+        // rescheduleCount НЕ трогаем здесь: источник истины — be_appointment_reschedules,
+        // которую ведёт только настоящий путь переноса (pgBookingAppointmentLifecycle).
+        // Прежний инкремент по timeChanged инфлировал счётчик при каждом прогоне проекции/бэкфилле
+        // (расхождение времени проекции ≠ реальный перенос). См. R28 / BOOKING_REWORK.
         attributionJson: withSyncAttributionStamp(existing.attributionJson, "rubitime", now),
         updatedAt: now,
       })
@@ -332,6 +355,10 @@ async function insertRubitimeProjection(
     lookup,
   });
   const refs = built.mergedRefs;
+  // Solo-specialist fallback (см. resolveSoloSpecialistId): смапленный специалист в приоритете,
+  // иначе единственный активный — чтобы не плодить rubitime_projection с NULL specialist_id.
+  const resolvedSpecialistId =
+    refs.specialistId ?? (await resolveSoloSpecialistId(params.organizationId));
   const status = built.snapshot.status;
   const legacy = buildLegacyAppointmentPayload(params.startAt, params.payloadJson);
   const now = new Date().toISOString();
@@ -340,6 +367,7 @@ async function insertRubitimeProjection(
     legacyStatus: params.legacyStatus,
     lastEvent: params.lastEvent,
     ...refs,
+    specialistId: resolvedSpecialistId,
   };
 
   const recoverableId = await findRecoverableRubitimeProjectionId(db, {
@@ -369,7 +397,7 @@ async function insertRubitimeProjection(
       .values({
         organizationId: params.organizationId,
         branchId: refs.branchId,
-        specialistId: refs.specialistId,
+        specialistId: resolvedSpecialistId,
         serviceId: refs.serviceId,
         platformUserId: params.platformUserId,
         startAt: params.startAt,

@@ -457,6 +457,40 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     );
   });
 
+  it('R21: booking.cancelled with suppressPatientNotification skips patient channel + web push, keeps GCal', async () => {
+    const notifyPatientWebPush = vi.fn().mockResolvedValue(undefined);
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone.mockClear();
+    getTargetsByPhone.mockResolvedValue({ channelBindings: { telegramId: 'tg-patient', maxId: null } });
+    const app = await buildApp(dispatchOutgoing, { notifyPatientWebPush });
+    const raw = JSON.stringify({
+      eventType: 'booking.cancelled' as const,
+      idempotencyKey: `cancel-suppress-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        bookingId: 'af14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        rubitimeId: 'rt-cancel-suppress',
+        canonicalAppointmentId: 'ef14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        suppressPatientNotification: true,
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    // Пациентские каналы подавлены: ни канал-резолв пациента, ни web-push.
+    expect(getTargetsByPhone).not.toHaveBeenCalled();
+    expect(notifyPatientWebPush).not.toHaveBeenCalled();
+    // GCal-синк (cancel marker) выполняется как обычно.
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'updated', titleMarker: 'cancelled' }),
+      expect.any(Object),
+    );
+  });
+
   it('booking.rescheduled uses rubitime map key for GCal when rubitimeId is set', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = await buildApp(dispatchOutgoing);

@@ -77,6 +77,7 @@ export async function applyStaffCancelSideEffects(opts: {
     eventType: "booking.cancelled",
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
+    suppressPatientNotification: opts.suppressPatientNotification === true,
   });
   const resolvedCancelNotify = resolveBookingNotifyTargets(
     "booking.cancelled",

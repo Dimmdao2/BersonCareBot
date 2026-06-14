@@ -35,6 +35,8 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   eventType: StaffBookingEventType;
   appointment: BeAppointment;
   bookingRow?: PatientBookingRecord | null;
+  /** R21: пробросить подавление пациентского уведомления в интегратор (cancel-путь). */
+  suppressPatientNotification?: boolean;
 }): Promise<"sent" | "skipped"> {
   if (!opts.syncPort) return "skipped";
   const bookingRow = opts.bookingRow ?? null;
@@ -62,6 +64,7 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
         serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(opts.appointment, bookingRow),
         canonicalAppointmentId: opts.appointment.id,
+        ...(opts.suppressPatientNotification ? { suppressPatientNotification: true } : {}),
       },
     });
     return "sent";
