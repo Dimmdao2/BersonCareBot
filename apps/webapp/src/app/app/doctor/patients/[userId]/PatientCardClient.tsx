@@ -4,7 +4,7 @@
  * PatientCardClient — Wave 2: real header + 6-tab client-side navigation.
  * Tabs are rendered once and shown/hidden client-side (no server re-fetch per tab).
  */
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
@@ -63,6 +63,18 @@ async function copyToClipboard(text: string) {
 export function PatientCardClient({ cardHeaderPromise }: Props) {
   const header = use(cardHeaderPromise);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+
+  // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
+  useEffect(() => {
+    function handleOpenTab(e: Event) {
+      const tab = (e as CustomEvent<{ tab: string }>).detail?.tab as TabId | undefined;
+      if (tab && PATIENT_TABS.some((t) => t.id === tab)) {
+        setActiveTab(tab);
+      }
+    }
+    window.addEventListener("patient:open-tab", handleOpenTab);
+    return () => window.removeEventListener("patient:open-tab", handleOpenTab);
+  }, []);
 
   if (!header) {
     return (
