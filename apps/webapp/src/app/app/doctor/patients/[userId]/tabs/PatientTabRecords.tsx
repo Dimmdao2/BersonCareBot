@@ -470,8 +470,6 @@ function MembershipPanel({ userId }: { userId: string }) {
 
   useEffect(() => {
     let active = true;
-    setPackages(null);
-    setError(false);
     fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw new Error(`status ${r.status}`);

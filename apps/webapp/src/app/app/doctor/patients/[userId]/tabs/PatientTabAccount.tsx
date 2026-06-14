@@ -964,8 +964,7 @@ export function PatientTabAccount({ userId, header }: Props) {
               <span className="flex-1">
                 Отметка «склонен к переносам» — {reschedulesCount} переноса
               </span>
-              {/* TODO(backend): manual override endpoint not available */}
-              <span className="text-[11px] text-muted-foreground">// TODO(backend)</span>
+              {/* TODO(backend): manual override (снять отметку) endpoint not available yet */}
             </div>
           )}
           {cancellationsCount >= 2 && (
@@ -974,8 +973,7 @@ export function PatientTabAccount({ userId, header }: Props) {
               <span className="flex-1">
                 Отметка «склонен к отменам» — {cancellationsCount} отмены
               </span>
-              {/* TODO(backend): manual override endpoint not available */}
-              <span className="text-[11px] text-muted-foreground">// TODO(backend)</span>
+              {/* TODO(backend): manual override (снять отметку) endpoint not available yet */}
             </div>
           )}
 

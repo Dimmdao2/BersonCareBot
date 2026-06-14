@@ -399,8 +399,7 @@ export function NewVisitPanel({
     const visitedAt = `${selectedDate}T12:00:00.000Z`;
 
     // Build body — patientUserId + createdBy are injected server-side
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       visitType,
       date: visitedAt,      // API field name from task spec
       location: location || null,

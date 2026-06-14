@@ -305,7 +305,6 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
 
   // fetchClinical is stable per userId — used on mount + after save
   const fetchClinical = useCallback(() => {
-    setFetchError(false);
     fetch(`/api/doctor/patients/${userId}/clinical`)
       .then((r) => {
         if (!r.ok) throw new Error(`status ${r.status}`);
@@ -327,12 +326,8 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
   }, [userId]);
 
   useEffect(() => {
-    // When userId changes, reset to loading (no stale flash)
-    setIsLoading(true);
-    setComplaints([]);
-    setDiagnoses([]);
-    setVisits([]);
-    setLoadedUserId(null);
+    // Fetch on mount / userId change. Stale flash is prevented by the isStale
+    // derivation below (loadedUserId !== userId) — no synchronous reset needed.
     fetchClinical();
   }, [fetchClinical]);
 
