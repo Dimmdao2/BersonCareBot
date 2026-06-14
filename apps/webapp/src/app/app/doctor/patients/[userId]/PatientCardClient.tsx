@@ -433,7 +433,7 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
         <PatientTabFiles userId={identity.userId} header={header} />
       </div>
       <div className={cn(activeTab !== "account" && "hidden")}>
-        <PatientTabAccount userId={identity.userId} header={header} />
+        <PatientTabAccount userId={identity.userId} header={header} active={activeTab === "account"} />
       </div>
     </div>
   );
