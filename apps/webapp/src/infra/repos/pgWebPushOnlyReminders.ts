@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getWebappSqlDb, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
+import { drizzleSqlUuidInList } from "@/modules/analytics/analyticsAudience";
 import type {
   WebPushOnlyDueOccurrenceRow,
   WebPushOnlyReminderRuleRow,
@@ -192,7 +193,7 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
         if (ids.length > 0) {
           await runWebappSql(
             tx,
-            sql`UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id = ANY(${ids}::uuid[])`,
+            sql`UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id IN (${drizzleSqlUuidInList(ids)})`,
           );
         }
         return sel.rows.map(
