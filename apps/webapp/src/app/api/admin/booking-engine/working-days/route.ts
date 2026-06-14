@@ -60,9 +60,13 @@ export async function GET(request: Request) {
   const parsed = getQuery.safeParse({
     dateFrom: url.searchParams.get("dateFrom"),
     dateTo: url.searchParams.get("dateTo"),
-    // Pre-resolve __none__ sentinel before Zod uuid validation
-    specialistId: rawSpecialistId === "__none__" ? null : rawSpecialistId,
-    branchId: rawBranchId === "__none__" ? null : rawBranchId,
+    // Pre-resolve __none__ sentinel before Zod uuid validation.
+    // R26: отсутствующий параметр = undefined (без фильтра); null оставляем
+    // только для явного "__none__" (строки без специалиста/филиала). Раньше
+    // отсутствующий branchId приходил как null → listWorkingDays накладывал
+    // isNull(branch_id) и прятал все дни с заполненным филиалом.
+    specialistId: rawSpecialistId === "__none__" ? null : (rawSpecialistId ?? undefined),
+    branchId: rawBranchId === "__none__" ? null : (rawBranchId ?? undefined),
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
