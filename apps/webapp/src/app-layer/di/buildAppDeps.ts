@@ -208,6 +208,10 @@ import { createPatientFilesService } from "@/modules/patient-files/service";
 import { createPgPatientClinicalPort } from "@/infra/repos/pgPatientClinical";
 import { inMemoryPatientClinicalPort } from "@/infra/repos/inMemoryPatientClinical";
 import { createPatientClinicalService } from "@/modules/patient-clinical/service";
+import { createPgPatientPaymentsPort } from "@/infra/repos/pgPatientPayments";
+import { inMemoryPatientPaymentsPort } from "@/infra/repos/inMemoryPatientPayments";
+import { createPatientPaymentsService } from "@/modules/patient-payments/service";
+import { noopAcquiringGateway } from "@/infra/repos/noopAcquiringGateway";
 import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
@@ -574,6 +578,12 @@ const patientClinicalPort = !inMemoryRepos
   ? createPgPatientClinicalPort()
   : inMemoryPatientClinicalPort;
 const patientClinicalService = createPatientClinicalService({ patientClinicalPort });
+
+const patientPaymentsPort = !inMemoryRepos
+  ? createPgPatientPaymentsPort()
+  : inMemoryPatientPaymentsPort;
+const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPort });
+const acquiringGateway = noopAcquiringGateway;
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
@@ -1285,6 +1295,8 @@ function _buildAppDeps() {
     specialistTasks: specialistTasksService,
     patientFiles: patientFilesService,
     patientClinical: patientClinicalService,
+    patientPayments: patientPaymentsService,
+    acquiringGateway,
     doctorMessaging: createDoctorMessagingService({
       getClientIdentity: async (userId) => {
         const p = await doctorClients.getClientProfile(userId);

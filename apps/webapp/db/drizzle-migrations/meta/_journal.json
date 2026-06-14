@@ -855,6 +855,13 @@
       "when": 1786300100000,
       "tag": "0121_patient_clinical_core",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1786400000000,
+      "tag": "0122_patient_payments",
+      "breakpoints": true
     }
   ]
 }

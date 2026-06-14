@@ -36,4 +36,5 @@ export * from "./programItemDiscussion";
 export * from "./specialistTasks";
 export * from "./patientFiles";
 export * from "./patientClinical";
+export * from "./patientPayments";
 export * from "./relations";

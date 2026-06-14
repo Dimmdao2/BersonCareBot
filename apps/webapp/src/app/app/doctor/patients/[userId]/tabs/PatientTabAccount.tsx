@@ -1,21 +1,26 @@
 "use client";
 
 /**
- * PatientTabAccount — Wave 3 full UI.
+ * PatientTabAccount — Wave 4 fully-wired version.
  *
- * Blocks (per wireframe #pp-account + backlog §6):
- *   LEFT column: Личные данные · Контакты и каналы · Сопровождение и статус · Платежи и расчёты
- *  RIGHT column: Репутация записи · Блокировки и доступ · Администрирование
+ * Blocks wired to real endpoints:
+ *  1. Блокировки и доступ — POST /api/doctor/clients/{userId}/block  { blocked, reason? }
+ *  2. Архив             — PATCH /api/doctor/clients/{userId}/archive { archived }
+ *  3. Сопровождение     — GET/PATCH /api/doctor/clients/{userId}/support-settings
+ *                         { onSupport, commentsEnabled?, mediaEnabled? }
+ *  4. Репутация записи  — READ ONLY from header (totalVisits/cancellationsCount/reschedulesCount)
+ *  5. Платежи           — GET/POST /api/doctor/patients/{userId}/payments (guard 404/500)
+ *  6. Администрирование — <AdminMergeAccountsPanel> + <AdminClientAuditHistorySection>
+ *                         (same props as DoctorClientCardAdminSection)
  *
- * Owner rules:
- *  #2 — Платежи: real-looking UI (summary KPIs + payment list + «+ Внести наличные»);
- *       acquiring/ЮKassa/ЮMoney integration pending → clearly marked TODO(backend).
- *  #3 — Hidden name: displayName bold + smaller firstName+lastName below (same pattern as header).
- *
- * Mock data used where no endpoint exists → marked // TODO(backend).
+ * KEEP MOCK / TODO(backend) (not in scope):
+ *   - birthDate/gender — no schema field
+ *   - support start date — not in PatientCardHeader
+ *   - rubitime_id / identity.createdAt — not in PatientCardHeader
+ *   - noShow count — not in PatientCardHeader
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
@@ -29,6 +34,8 @@ import {
   doctorSectionItemClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
+import { AdminMergeAccountsPanel } from "@/app/app/doctor/clients/AdminMergeAccountsPanel";
+import { AdminClientAuditHistorySection } from "@/app/app/doctor/clients/AdminClientAuditHistorySection";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,39 +46,42 @@ type Props = {
   header?: PatientCardHeader;
 };
 
-// TODO(backend): payment model — real data would come from a payments port
-type MockPayment = {
-  id: string;
-  label: string;
-  amount: number;
-  date: string;
-  kind: "membership" | "session" | "cash";
+/** Shape returned by GET /api/doctor/clients/{userId}/support-settings */
+type SupportSettingsResponse = {
+  ok: true;
+  profile: {
+    patientUserId: string;
+    onSupport: boolean;
+    commentsEnabled: boolean | null;
+    mediaEnabled: boolean | null;
+    updatedAt: string | null;
+    updatedBy: string | null;
+  };
+  effectivePolicy: {
+    onSupport: boolean;
+    commentsAllowed: boolean;
+    mediaAllowed: boolean;
+  };
 };
 
-// ---------------------------------------------------------------------------
-// Mock data (realistic Russian content)
-// TODO(backend): replace with real payments port once model is built
-// ---------------------------------------------------------------------------
+/** Shape of a payment item from GET /api/doctor/patients/{userId}/payments */
+type PaymentItem = {
+  id: string;
+  amountMinor: number;
+  currency?: string;
+  kind: "cash" | "acquiring";
+  status: string;
+  comment?: string | null;
+  service?: string | null;
+  visitId?: string | null;
+  createdAt: string;
+};
 
-const MOCK_PAYMENTS: MockPayment[] = [
-  { id: "p1", label: "Абонемент · 10 приёмов", amount: 36000, kind: "membership", date: "14.05.2026" },
-  { id: "p2", label: "Отдельный приём · 60 мин", amount: 4000, kind: "session", date: "22.01.2026" },
-  { id: "p3", label: "Абонемент · 10 приёмов", amount: 36000, kind: "membership", date: "12.02.2025" },
-];
-
-const MOCK_TOTAL = MOCK_PAYMENTS.reduce((s, p) => s + p.amount, 0); // 76 000
-const MOCK_MEMBERSHIPS_TOTAL = MOCK_PAYMENTS.filter((p) => p.kind === "membership").reduce((s, p) => s + p.amount, 0);
-const MOCK_SESSIONS_TOTAL = MOCK_PAYMENTS.filter((p) => p.kind === "session" || p.kind === "cash").reduce(
-  (s, p) => s + p.amount,
-  0,
-);
-
-// TODO(backend): audit log entries
-const MOCK_AUDIT = [
-  { id: "a1", text: "Объединён с «Антонов Е.» (дубль из MAX)", date: "02.06" },
-  { id: "a2", text: "Статус → «На сопровождении»", date: "12.02" },
-  { id: "a3", text: "Создан из Telegram-бота", date: "18.09.25" },
-];
+type PaymentsResponse = {
+  ok: true;
+  payments: PaymentItem[];
+  totalPaidMinor: number;
+};
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -84,8 +94,8 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function fmtRub(n: number): string {
-  return n.toLocaleString("ru-RU") + " ₽";
+function fmtRub(minorAmount: number): string {
+  return (minorAmount / 100).toLocaleString("ru-RU") + " ₽";
 }
 
 async function copyText(text: string) {
@@ -209,14 +219,49 @@ function StatCard({
   );
 }
 
+/** Inline toggle row for support booleans */
+function ToggleRow({
+  label,
+  value,
+  onChange,
+  pending,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  pending?: boolean;
+}) {
+  return (
+    <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
+      <span className="flex-1">{label}</span>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => onChange(!value)}
+        className={cn(
+          "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none",
+          value ? "bg-primary" : "bg-muted",
+          pending && "opacity-60 cursor-not-allowed",
+        )}
+        role="switch"
+        aria-checked={value}
+      >
+        <span
+          className={cn(
+            "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+            value ? "translate-x-4" : "translate-x-0",
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function PatientTabAccount({ userId, header }: Props) {
-  const [showCashModal, setShowCashModal] = useState(false);
-  const [archiveConfirm, setArchiveConfirm] = useState(false);
-
   const identity = header?.identity;
   const support = header?.support;
   const cancellationsCount = header?.cancellationsCount ?? 0;
@@ -229,8 +274,266 @@ export function PatientTabAccount({ userId, header }: Props) {
   const hasEmail = Boolean(identity?.email);
   const telegramId = identity?.bindings?.telegramId ?? null;
   const maxId = identity?.bindings?.maxId ?? null;
-  // TODO(backend): channelBindingDates not in PatientCardHeader — would need ClientIdentity
-  // TODO(backend): PWA/push status not in PatientCardHeader
+
+  // ---------------------------------------------------------------------------
+  // Block state (optimistic from header; confirmed by POST)
+  // ---------------------------------------------------------------------------
+  const [isBlocked, setIsBlocked] = useState(identity?.isBlocked ?? false);
+  const [blockPending, setBlockPending] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
+
+  // Sync when header arrives
+  useEffect(() => {
+    if (identity?.isBlocked !== undefined) setIsBlocked(identity.isBlocked);
+  }, [identity?.isBlocked]);
+
+  async function handleBlockToggle() {
+    const nextBlocked = !isBlocked;
+    setBlockPending(true);
+    setBlockError(null);
+    // Optimistic
+    setIsBlocked(nextBlocked);
+    try {
+      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/block`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blocked: nextBlocked }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        // Rollback
+        setIsBlocked(!nextBlocked);
+        setBlockError(data.error ?? `Ошибка ${res.status}`);
+      }
+    } catch {
+      setIsBlocked(!nextBlocked);
+      setBlockError("network");
+    } finally {
+      setBlockPending(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Archive state (optimistic from header; confirmed by PATCH)
+  // ---------------------------------------------------------------------------
+  const [isArchived, setIsArchived] = useState(identity?.isArchived ?? false);
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [archivePending, setArchivePending] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (identity?.isArchived !== undefined) setIsArchived(identity.isArchived);
+  }, [identity?.isArchived]);
+
+  async function handleArchiveToggle() {
+    const nextArchived = !isArchived;
+    setArchivePending(true);
+    setArchiveError(null);
+    setArchiveConfirm(false);
+    setIsArchived(nextArchived); // optimistic
+    try {
+      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/archive`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: nextArchived }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setIsArchived(!nextArchived); // rollback
+        setArchiveError(data.error ?? `Ошибка ${res.status}`);
+      }
+    } catch {
+      setIsArchived(!nextArchived);
+      setArchiveError("network");
+    } finally {
+      setArchivePending(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Support settings (GET on mount; PATCH on toggle)
+  // ---------------------------------------------------------------------------
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportError, setSupportError] = useState<string | null>(null);
+  const [onSupport, setOnSupport] = useState(support?.isOnSupport ?? false);
+  const [commentsEnabled, setCommentsEnabled] = useState<boolean | null>(null);
+  const [mediaEnabled, setMediaEnabled] = useState<boolean | null>(null);
+  /** effectivePolicy — what the patient actually sees */
+  const [effectiveCommentsAllowed, setEffectiveCommentsAllowed] = useState(true);
+  const [effectiveMediaAllowed, setEffectiveMediaAllowed] = useState(true);
+  const [supportPatchPending, setSupportPatchPending] = useState(false);
+  const supportFetchedRef = useRef(false);
+
+  const loadSupportSettings = useCallback(async () => {
+    setSupportLoading(true);
+    setSupportError(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/clients/${encodeURIComponent(userId)}/support-settings`,
+        { credentials: "include" },
+      );
+      const data = (await res.json().catch(() => null)) as SupportSettingsResponse | null;
+      if (!res.ok || !data?.ok) {
+        setSupportError((data as { error?: string } | null)?.error ?? `Ошибка ${res.status}`);
+        return;
+      }
+      setOnSupport(data.profile.onSupport);
+      setCommentsEnabled(data.profile.commentsEnabled);
+      setMediaEnabled(data.profile.mediaEnabled);
+      setEffectiveCommentsAllowed(data.effectivePolicy.commentsAllowed);
+      setEffectiveMediaAllowed(data.effectivePolicy.mediaAllowed);
+    } catch {
+      setSupportError("network");
+    } finally {
+      setSupportLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!supportFetchedRef.current) {
+      supportFetchedRef.current = true;
+      void loadSupportSettings();
+    }
+  }, [loadSupportSettings]);
+
+  async function patchSupport(patch: {
+    onSupport?: boolean;
+    commentsEnabled?: boolean | null;
+    mediaEnabled?: boolean | null;
+  }) {
+    setSupportPatchPending(true);
+    setSupportError(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/clients/${encodeURIComponent(userId)}/support-settings`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as SupportSettingsResponse | null;
+      if (!res.ok || !data?.ok) {
+        setSupportError((data as { error?: string } | null)?.error ?? `Ошибка ${res.status}`);
+        return;
+      }
+      setOnSupport(data.profile.onSupport);
+      setCommentsEnabled(data.profile.commentsEnabled);
+      setMediaEnabled(data.profile.mediaEnabled);
+      setEffectiveCommentsAllowed(data.effectivePolicy.commentsAllowed);
+      setEffectiveMediaAllowed(data.effectivePolicy.mediaAllowed);
+    } catch {
+      setSupportError("network");
+    } finally {
+      setSupportPatchPending(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Payments (GET; POST for manual cash)
+  // ---------------------------------------------------------------------------
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsUnavailable, setPaymentsUnavailable] = useState(false);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+  const [payments, setPayments] = useState<PaymentItem[] | null>(null);
+  const [totalPaidMinor, setTotalPaidMinor] = useState(0);
+  const paymentsFetchedRef = useRef(false);
+
+  const loadPayments = useCallback(async () => {
+    setPaymentsLoading(true);
+    setPaymentsError(null);
+    setPaymentsUnavailable(false);
+    try {
+      const res = await fetch(
+        `/api/doctor/patients/${encodeURIComponent(userId)}/payments`,
+        { credentials: "include" },
+      );
+      if (res.status === 404 || res.status === 501) {
+        setPaymentsUnavailable(true);
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as PaymentsResponse | null;
+      if (!res.ok || !data?.ok) {
+        // Could be 500 while endpoint is being built
+        setPaymentsUnavailable(true);
+        return;
+      }
+      setPayments(data.payments);
+      setTotalPaidMinor(data.totalPaidMinor);
+    } catch {
+      setPaymentsUnavailable(true);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!paymentsFetchedRef.current) {
+      paymentsFetchedRef.current = true;
+      void loadPayments();
+    }
+  }, [loadPayments]);
+
+  // Cash payment form state
+  const [showCashForm, setShowCashForm] = useState(false);
+  const [cashAmountRub, setCashAmountRub] = useState("");
+  const [cashComment, setCashComment] = useState("");
+  const [cashService, setCashService] = useState("");
+  const [cashPending, setCashPending] = useState(false);
+  const [cashError, setCashError] = useState<string | null>(null);
+
+  async function handleSubmitCash() {
+    const rubles = parseFloat(cashAmountRub.replace(",", "."));
+    if (!rubles || rubles <= 0) {
+      setCashError("Введите сумму > 0");
+      return;
+    }
+    const amountMinor = Math.round(rubles * 100);
+    setCashPending(true);
+    setCashError(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/patients/${encodeURIComponent(userId)}/payments`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amountMinor,
+            comment: cashComment.trim() || undefined,
+            service: cashService.trim() || undefined,
+          }),
+        },
+      );
+      if (res.status === 404 || res.status === 501) {
+        setCashError("Эндпоинт платежей ещё не готов — попробуйте позже.");
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !data?.ok) {
+        setCashError(data?.error ?? `Ошибка ${res.status}`);
+        return;
+      }
+      // Reload payments list
+      setCashAmountRub("");
+      setCashComment("");
+      setCashService("");
+      setShowCashForm(false);
+      paymentsFetchedRef.current = false;
+      void loadPayments();
+    } catch {
+      setCashError("network");
+    } finally {
+      setCashPending(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
@@ -253,11 +556,11 @@ export function PatientTabAccount({ userId, header }: Props) {
         >
           <table className="w-full border-separate border-spacing-0">
             <tbody>
-              {/* displayName — owner #3: bold primary name */}
+              {/* displayName — bold primary name */}
               <KVRow label="Отображаемое имя">
                 <span className="font-semibold">{identity?.displayName ?? "—"}</span>
               </KVRow>
-              {/* Hidden real name — owner #3: smaller under displayName */}
+              {/* Hidden real name */}
               {(identity?.firstName || identity?.lastName) ? (
                 <KVRow label="ФИО (скрытое)">
                   <span className="text-muted-foreground text-[11px]">
@@ -334,11 +637,7 @@ export function PatientTabAccount({ userId, header }: Props) {
             <ChannelRow
               icon="✈️"
               label="Telegram"
-              value={
-                hasTelegram
-                  ? `id ${telegramId}`
-                  : "не привязан"
-              }
+              value={hasTelegram ? `id ${telegramId}` : "не привязан"}
               hint="Telegram"
               status={hasTelegram ? "active" : "none"}
               actionIcon={hasTelegram ? "💬" : "＋"}
@@ -399,52 +698,60 @@ export function PatientTabAccount({ userId, header }: Props) {
           </p>
         </SectionCard>
 
-        {/* ── 3. Сопровождение и статус ────────────────────────────── */}
+        {/* ── 3. Сопровождение (административный) ─────────────────── */}
+        {/* Lifecycle + support flags; program/abonement detail lives on Обзор */}
         <SectionCard
           title="Сопровождение и статус"
           titleRight={
-            support?.isOnSupport ? (
+            onSupport ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
                 ★ На сопровождении
               </span>
             ) : undefined
           }
         >
-          <table className="w-full border-separate border-spacing-0">
+          {supportLoading && (
+            <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>Загрузка…</p>
+          )}
+          {supportError && !supportLoading && (
+            <p className="text-[11px] text-destructive">{supportError}</p>
+          )}
+          {!supportLoading && (
+            <div className="flex flex-col gap-1">
+              <ToggleRow
+                label="На сопровождении"
+                value={onSupport}
+                pending={supportPatchPending}
+                onChange={(v) => {
+                  setOnSupport(v);
+                  void patchSupport({ onSupport: v });
+                }}
+              />
+              <ToggleRow
+                label={`Комментарии к упражнениям (факт: ${effectiveCommentsAllowed ? "разрешены" : "заблокированы"})`}
+                value={commentsEnabled ?? effectiveCommentsAllowed}
+                pending={supportPatchPending}
+                onChange={(v) => {
+                  setCommentsEnabled(v);
+                  void patchSupport({ commentsEnabled: v });
+                }}
+              />
+              <ToggleRow
+                label={`Медиафайлы (факт: ${effectiveMediaAllowed ? "разрешены" : "заблокированы"})`}
+                value={mediaEnabled ?? effectiveMediaAllowed}
+                pending={supportPatchPending}
+                onChange={(v) => {
+                  setMediaEnabled(v);
+                  void patchSupport({ mediaEnabled: v });
+                }}
+              />
+            </div>
+          )}
+
+          {/* Read-only lifecycle summary */}
+          <table className="w-full border-separate border-spacing-0 mt-1">
             <tbody>
-              <KVRow label="Lifecycle">
-                {/* TODO(backend): lifecycle derived from segments; only isOnSupport available now */}
-                {support?.isOnSupport ? (
-                  <span>
-                    <b>На сопровождении</b>
-                    {support.supportMonthsApprox != null && (
-                      <> · {support.supportMonthsApprox} мес</>
-                    )}{" "}
-                    <span className="text-muted-foreground text-[10px]">
-                      (подписчик → новый → <b>на сопровождении</b> → бывший)
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">
-                    {/* TODO(backend): derive from segment flags */}
-                    не на сопровождении
-                  </span>
-                )}
-              </KVRow>
-              <KVRow label="Сопровождение с">
-                {/* TODO(backend): support start date not in PatientCardHeader */}
-                <span className="text-muted-foreground">—</span>
-              </KVRow>
-              <KVRow label="Программа">
-                {/* TODO(backend): activeTreatmentProgram name/stage not in PatientCardHeader */}
-                <span className="text-muted-foreground">—</span>
-              </KVRow>
-              <KVRow label="Абонемент">
-                {/* TODO(backend): membership details not in PatientCardHeader */}
-                <span className="text-muted-foreground">—</span>
-              </KVRow>
               <KVRow label="Источник">
-                {/* TODO(backend): registration source not in schema */}
                 <span className="text-muted-foreground">
                   {identity?.bindings?.telegramId
                     ? "Telegram-бот"
@@ -453,118 +760,178 @@ export function PatientTabAccount({ userId, header }: Props) {
                       : "—"}
                 </span>
               </KVRow>
+              <KVRow label="Сопровождение с">
+                {/* TODO(backend): support start date not in PatientCardHeader */}
+                <span className="text-muted-foreground">—</span>
+              </KVRow>
+              <KVRow label="Программа / Абонемент">
+                {/* TODO(backend): activeTreatmentProgram/membership not in PatientCardHeader; shown on Обзор */}
+                <span className="text-muted-foreground text-[11px]">
+                  см. вкладку «Обзор»
+                </span>
+              </KVRow>
             </tbody>
           </table>
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            lifecycle — расчётный статус из сегментов «Пациентов». Смена сопровождения и абонемента — отсюда.
+            Административные флаги: включение сопровождения и доступ к комментариям/медиа.
+            Детали программы и абонемента — на вкладке «Обзор».
           </p>
         </SectionCard>
 
         {/* ── 4. Платежи и расчёты ─────────────────────────────────── */}
-        {/* Owner #2: real-looking payments block. Backend model pending. */}
         <SectionCard
           title="Платежи и расчёты"
           titleRight={
-            <button type="button" className="text-xs text-muted-foreground hover:text-primary cursor-pointer">
-              вся история →
-            </button>
+            !paymentsUnavailable && payments && (
+              <button
+                type="button"
+                onClick={() => {
+                  paymentsFetchedRef.current = false;
+                  void loadPayments();
+                }}
+                className="text-xs text-muted-foreground hover:text-primary cursor-pointer"
+              >
+                обновить
+              </button>
+            )
           }
         >
-          {/* KPI summary */}
-          {/* TODO(backend): replace MOCK totals with real payment aggregates from payments port */}
-          <div className="grid grid-cols-3 gap-2">
-            <StatCard label="Всего принесено" value={fmtRub(MOCK_TOTAL)} />
-            <StatCard label="Абонементы" value={fmtRub(MOCK_MEMBERSHIPS_TOTAL)} />
-            <StatCard label="Отдельные приёмы" value={fmtRub(MOCK_SESSIONS_TOTAL)} />
-          </div>
+          {paymentsLoading && (
+            <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>Загрузка платежей…</p>
+          )}
 
-          {/* Recent payments list */}
-          {/* TODO(backend): replace MOCK_PAYMENTS with real list from payments port */}
-          <div className="flex flex-col gap-1">
-            {MOCK_PAYMENTS.map((p) => (
-              <div
-                key={p.id}
-                className={cn(
-                  doctorHistoryRowClass,
-                  "flex items-center gap-2 text-xs",
-                )}
-              >
-                <span className="flex-none">
-                  {p.kind === "membership" ? "💳" : p.kind === "cash" ? "💵" : "💳"}
-                </span>
-                <span className="flex-1 truncate">{p.label}</span>
-                <span className="font-semibold tabular-nums whitespace-nowrap">{fmtRub(p.amount)}</span>
-                <span className={cn(doctorSectionSubtitleClass, "whitespace-nowrap pl-2")}>{p.date}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Manual cash entry CTA */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowCashModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
-            >
-              💵 Внести наличные
-            </button>
-            {/* TODO(backend): acquiring integration (ЮKassa / ЮMoney) pending */}
-            <span className="text-[11px] text-muted-foreground">
-              Эквайринг (ЮKassa/ЮMoney) — интеграция планируется
-            </span>
-          </div>
-
-          {/* Manual cash mini-modal (inline) */}
-          {showCashModal && (
-            <div className="rounded-lg border border-border bg-background p-3 flex flex-col gap-2 shadow-sm">
-              <p className={cn(doctorSectionTitleClass, "text-xs")}>Внести наличные</p>
-              <div className="flex gap-2 items-end flex-wrap">
-                <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
-                  <label className="text-[11px] text-muted-foreground">Сумма, ₽</label>
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="4 000"
-                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                </div>
-                <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
-                  <label className="text-[11px] text-muted-foreground">Назначение</label>
-                  <input
-                    type="text"
-                    placeholder="Отдельный приём · 60 мин"
-                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowCashModal(false)}
-                  className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted cursor-pointer"
-                >
-                  Отмена
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    // TODO(backend): POST /api/doctor/patients/:userId/payments { kind:'cash', amount, label }
-                    setShowCashModal(false);
-                  }}
-                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer"
-                >
-                  Сохранить
-                </button>
-              </div>
-              <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-                {/* TODO(backend): payments model + manual cash endpoint */}
-                Сохранение пока недоступно — модель платежей в разработке.
-              </p>
+          {paymentsUnavailable && !paymentsLoading && (
+            <div className="rounded-lg border border-border bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+              Платежи недоступны — эндпоинт строится параллельным агентом.
+              Данные появятся после деплоя миграции.
             </div>
           )}
 
+          {paymentsError && !paymentsUnavailable && !paymentsLoading && (
+            <p className="text-[11px] text-destructive">{paymentsError}</p>
+          )}
+
+          {!paymentsUnavailable && !paymentsLoading && payments !== null && (
+            <>
+              {/* Total */}
+              <div className={cn(doctorStatCardShellClass)}>
+                <div className={cn(doctorMetricLabelClass, "mb-0.5")}>Итого оплачено</div>
+                <div className={cn(doctorMetricValueClass, "text-base")}>{fmtRub(totalPaidMinor)}</div>
+              </div>
+
+              {/* Payment list */}
+              {payments.length === 0 ? (
+                <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>Нет записей об оплате.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {payments.map((p) => (
+                    <div
+                      key={p.id}
+                      className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}
+                    >
+                      <span className="flex-none">
+                        {p.kind === "cash" ? "💵" : "💳"}
+                      </span>
+                      <span className="flex-1 truncate">
+                        {p.service ?? p.comment ?? (p.kind === "cash" ? "Наличные" : "Эквайринг")}
+                        {p.comment && p.service && (
+                          <span className="text-muted-foreground ml-1">· {p.comment}</span>
+                        )}
+                      </span>
+                      <span className="font-semibold tabular-nums whitespace-nowrap">
+                        {fmtRub(p.amountMinor)}
+                      </span>
+                      <span className={cn(doctorSectionSubtitleClass, "whitespace-nowrap pl-2")}>
+                        {fmtDate(p.createdAt)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Manual cash form */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCashForm((v) => !v);
+                    setCashError(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+                >
+                  💵 Внести наличные
+                </button>
+                {/* Acquiring: provider not chosen yet */}
+                <span className="text-[11px] text-muted-foreground">
+                  Эквайринг — скоро
+                </span>
+              </div>
+
+              {showCashForm && (
+                <div className="rounded-lg border border-border bg-background p-3 flex flex-col gap-2 shadow-sm">
+                  <p className={cn(doctorSectionTitleClass, "text-xs")}>Внести наличные</p>
+                  <div className="flex gap-2 items-end flex-wrap">
+                    <div className="flex flex-col gap-0.5 flex-1 min-w-[100px]">
+                      <label className="text-[11px] text-muted-foreground">Сумма, ₽</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        placeholder="4000"
+                        value={cashAmountRub}
+                        onChange={(e) => setCashAmountRub(e.target.value)}
+                        className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
+                      <label className="text-[11px] text-muted-foreground">Услуга</label>
+                      <input
+                        type="text"
+                        placeholder="Приём · 60 мин"
+                        value={cashService}
+                        onChange={(e) => setCashService(e.target.value)}
+                        className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
+                      <label className="text-[11px] text-muted-foreground">Комментарий</label>
+                      <input
+                        type="text"
+                        placeholder="доп. инфо…"
+                        value={cashComment}
+                        onChange={(e) => setCashComment(e.target.value)}
+                        className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    </div>
+                  </div>
+                  {cashError && (
+                    <p className="text-[11px] text-destructive">{cashError}</p>
+                  )}
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      type="button"
+                      disabled={cashPending}
+                      onClick={() => { setShowCashForm(false); setCashError(null); }}
+                      className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted cursor-pointer"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      disabled={cashPending}
+                      onClick={() => void handleSubmitCash()}
+                      className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-60"
+                    >
+                      {cashPending ? "…" : "Сохранить"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            Учёт оплат: абонементы + отдельные приёмы. Эквайринг (интеграция банка / ЮKassa) — следующий этап.
+            Учёт наличных платежей. Эквайринг (провайдер не выбран) — следующий этап.
           </p>
         </SectionCard>
       </div>
@@ -574,11 +941,11 @@ export function PatientTabAccount({ userId, header }: Props) {
       ==================================================================== */}
       <div className="flex flex-col gap-3">
 
-        {/* ── 5. Репутация записи ──────────────────────────────────── */}
+        {/* ── 5. Репутация записи (READ ONLY) ──────────────────────── */}
         <SectionCard
           title="Репутация записи"
           titleRight={
-            <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>переехало из «Записей»</span>
+            <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>из header</span>
           }
         >
           {/* KPI grid */}
@@ -590,19 +957,15 @@ export function PatientTabAccount({ userId, header }: Props) {
             <StatCard label="Переносов" value={reschedulesCount} alert={reschedulesCount >= 3} />
           </div>
 
-          {/* Reputation flag */}
+          {/* Reputation flags */}
           {reschedulesCount >= 3 && (
             <div className={cn(doctorSectionItemClass, "flex items-center gap-2 text-xs")}>
               <span className="text-destructive flex-none">⚑</span>
               <span className="flex-1">
-                Отметка «склонен к переносам» — {reschedulesCount} переноса за 3 мес
+                Отметка «склонен к переносам» — {reschedulesCount} переноса
               </span>
-              <button
-                type="button"
-                className="text-[11px] text-primary hover:underline cursor-pointer"
-              >
-                ✎ снять
-              </button>
+              {/* TODO(backend): manual override endpoint not available */}
+              <span className="text-[11px] text-muted-foreground">// TODO(backend)</span>
             </div>
           )}
           {cancellationsCount >= 2 && (
@@ -611,17 +974,13 @@ export function PatientTabAccount({ userId, header }: Props) {
               <span className="flex-1">
                 Отметка «склонен к отменам» — {cancellationsCount} отмены
               </span>
-              <button
-                type="button"
-                className="text-[11px] text-primary hover:underline cursor-pointer"
-              >
-                ✎ снять
-              </button>
+              {/* TODO(backend): manual override endpoint not available */}
+              <span className="text-[11px] text-muted-foreground">// TODO(backend)</span>
             </div>
           )}
 
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            Неявки/отмены/переносы — по факту из записей. Метки репутации ставятся вручную или по порогу.
+            Счётчики из header: визиты, отмены, переносы. Неявки и ручная отметка — TODO(backend).
           </p>
         </SectionCard>
 
@@ -634,7 +993,7 @@ export function PatientTabAccount({ userId, header }: Props) {
               <span className="flex-1">Telegram-бот</span>
               {hasTelegram ? (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                  активен
+                  привязан
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
@@ -643,16 +1002,13 @@ export function PatientTabAccount({ userId, header }: Props) {
               )}
             </div>
 
-            {/* MAX bot — TODO(backend): blocked-by-user flag not in header */}
+            {/* MAX bot */}
             <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
               <span className="flex-none">Ⓜ️</span>
-              <span className="flex-1">
-                {hasMax ? "MAX-бот" : "MAX-бот не привязан"}
-                {/* TODO(backend): hasMax=true but blocked-by-user flag not tracked */}
-              </span>
+              <span className="flex-1">{hasMax ? "MAX-бот" : "MAX-бот не привязан"}</span>
               {hasMax ? (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                  активен
+                  привязан
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
@@ -661,62 +1017,53 @@ export function PatientTabAccount({ userId, header }: Props) {
               )}
             </div>
 
-            {/* Exercise comments — TODO(backend): commentsEnabled from ClientSupportProfile */}
-            <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
-              <span className="flex-none">💬</span>
-              <span className="flex-1">Комментарии к упражнениям</span>
-              {/* TODO(backend): commentsEnabled — from getClientSupport; not in PatientCardHeader */}
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
-                разрешены
-              </span>
-            </div>
-
-            {/* Content access */}
-            <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
-              <span className="flex-none">🛡️</span>
-              <span className="flex-1">Контент «только для залогиненных»</span>
-              <span className={cn(doctorSectionSubtitleClass, "text-[10px]")}>доступ открыт</span>
-            </div>
+            {/* Block status indicator */}
+            {isBlocked && (
+              <div className={cn(doctorSectionItemClass, "flex items-center gap-2 text-xs border-destructive/30 bg-destructive/5")}>
+                <span className="text-destructive flex-none">⛔</span>
+                <span className="flex-1 text-destructive font-medium">Пациент заблокирован</span>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}
           <div className="flex gap-2 flex-wrap">
-            {/* TODO(backend): POST /api/doctor/patients/:userId/block */}
+            {/* Block / Unblock — POST /api/doctor/clients/{userId}/block {blocked, reason?} */}
             <button
               type="button"
+              disabled={blockPending}
+              onClick={() => void handleBlockToggle()}
               className={cn(
-                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors",
-                identity?.isBlocked
+                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors disabled:opacity-60",
+                isBlocked
                   ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
                   : "border-border bg-muted/30 text-foreground hover:bg-muted",
               )}
             >
-              {identity?.isBlocked ? "⛔ Снять блокировку" : "Ограничить доступ"}
+              {blockPending ? "…" : isBlocked ? "⛔ Снять блокировку" : "Ограничить доступ"}
             </button>
 
-            {/* TODO(backend): POST /api/doctor/patients/:userId/archive */}
+            {/* Archive / Unarchive — PATCH /api/doctor/clients/{userId}/archive {archived} */}
             {!archiveConfirm ? (
               <button
                 type="button"
+                disabled={archivePending}
                 onClick={() => setArchiveConfirm(true)}
                 className={cn(
-                  "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors",
-                  identity?.isArchived
+                  "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors disabled:opacity-60",
+                  isArchived
                     ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
                     : "border-border bg-muted/30 text-foreground hover:bg-muted",
                 )}
               >
-                {identity?.isArchived ? "Вернуть из архива" : "В архив"}
+                {archivePending ? "…" : isArchived ? "Вернуть из архива" : "В архив"}
               </button>
             ) : (
               <span className="flex items-center gap-1.5 text-xs text-destructive">
                 Подтвердить?{" "}
                 <button
                   type="button"
-                  onClick={() => {
-                    // TODO(backend): call setUserArchived(userId, true)
-                    setArchiveConfirm(false);
-                  }}
+                  onClick={() => void handleArchiveToggle()}
                   className="underline cursor-pointer"
                 >
                   Да
@@ -732,8 +1079,15 @@ export function PatientTabAccount({ userId, header }: Props) {
             )}
           </div>
 
+          {blockError && (
+            <p className="text-[11px] text-destructive">Блокировка: {blockError}</p>
+          )}
+          {archiveError && (
+            <p className="text-[11px] text-destructive">Архив: {archiveError}</p>
+          )}
+
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            Блокировки бота — со стороны пациента (только индикатор). Архив и ограничение — действия специалиста.
+            «Ограничить доступ» → POST /block · «В архив» → PATCH /archive. Оптимистичное обновление с rollback.
           </p>
         </SectionCard>
 
@@ -759,7 +1113,7 @@ export function PatientTabAccount({ userId, header }: Props) {
                 </span>
               </KVRow>
               <KVRow label="Rubitime ID">
-                {/* TODO(backend): rubitime_id not in PatientCardHeader; would come from ClientIdentity / rubitime sync */}
+                {/* TODO(backend): rubitime_id not in PatientCardHeader; would come from ClientIdentity */}
                 <span className="font-mono text-[11px] text-muted-foreground">—</span>
               </KVRow>
               {telegramId && (
@@ -774,44 +1128,29 @@ export function PatientTabAccount({ userId, header }: Props) {
             </tbody>
           </table>
 
-          {/* Merge */}
+          {/* Merge — existing AdminMergeAccountsPanel (same usage as DoctorClientCardAdminSection) */}
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Объединение (merge)
           </p>
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 px-2.5 py-2 mb-1">
-            <span className="flex-none">🔗</span>
-            <span className="flex-1 text-[11px] text-muted-foreground">
-              Найти и объединить дубль этого пациента (записи, чаты, файлы перейдут сюда)
-            </span>
-            {/* TODO(backend): link to existing merge-patients flow */}
-            <button
-              type="button"
-              className="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground hover:bg-muted cursor-pointer whitespace-nowrap"
-            >
-              Объединить
-            </button>
-          </div>
+          <AdminMergeAccountsPanel
+            anchorUserId={userId}
+            enabled
+            suspendHeavyFetch={false}
+          />
 
-          {/* Audit log */}
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {/* Audit log — AdminClientAuditHistorySection (handles 403 gracefully) */}
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-2">
             История изменений (audit)
           </p>
-          {/* TODO(backend): real audit log from entity_comments or audit_log table */}
-          <div className="flex flex-col gap-1">
-            {MOCK_AUDIT.map((entry) => (
-              <div
-                key={entry.id}
-                className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}
-              >
-                <span className="flex-none text-muted-foreground">•</span>
-                <span className="flex-1 text-muted-foreground">{entry.text}</span>
-                <span className="text-[11px] text-muted-foreground whitespace-nowrap">{entry.date}</span>
-              </div>
-            ))}
-          </div>
+          <AdminClientAuditHistorySection
+            platformUserId={userId}
+            enabled
+            suspendLoad={false}
+          />
 
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            Merge и audit — текущая логика «Мердж пациентов» и журнала, перенесённая в карточку.
+            Merge требует роль admin; компонент обрабатывает 403 сам.
+            Audit выдаёт «нет роли» при 403 без краша.
           </p>
         </SectionCard>
       </div>
