@@ -43,6 +43,7 @@ export default defineConfig({
     "./db/schema/programItemDiscussion.ts",
     "./db/schema/doctorPatientSupport.ts",
     "./db/schema/patientFiles.ts",
+    "./db/schema/patientClinical.ts",
   ],
   out: "./db/drizzle-migrations",
   dbCredentials: {

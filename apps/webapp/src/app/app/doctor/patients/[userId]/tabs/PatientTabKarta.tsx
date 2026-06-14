@@ -6,15 +6,38 @@
  *
  * Left column: Жалобы · Актуальный диагноз · Сопутствующие заболевания · Анамнез.
  * Right column: История визитов feed (collapsible cards) + «+ Новый визит».
- * «+ Новый визит» opens a slide-in panel (NewVisitPanel): the card blurs, the
- * visit list narrows, and the form overlays the right side. Toggle ◀/▶ hides
- * the history so the card is fully visible next to the form.
+ * «+ Новый визит» opens the NewVisitPanel form.
  *
- * UI-FIRST: all data is MOCK (see ./karta/mockData). Submit is a no-op.
- * TODO(backend): clinical model (visit/complaint/diagnosis/file) + reads + create-visit.
+ * State matrix (panelOpen = add-visit form open; historyVisible = history shown):
+ *
+ * DEFAULT (!panelOpen):
+ *   grid lg:grid-cols-[1.1fr_1fr] — full width, two balanced columns.
+ *   LEFT = clinical card, no blur.
+ *   RIGHT = header row [◀/▶ toggle | «История визитов» count] [«+ Новый визит»],
+ *           then history feed (when visible) or hint (when hidden).
+ *
+ * ADD + history HIDDEN:
+ *   grid lg:grid-cols-[1fr_1.3fr] — form column wider.
+ *   LEFT = clinical card shown CLEARLY (no blur).
+ *   RIGHT = NewVisitPanel (wide, comfortable).
+ *   Toggle ▶ near history heading area to bring history back.
+ *
+ * ADD + history VISIBLE:
+ *   grid lg:grid-cols-[0.75fr_1.25fr] — right region dominant.
+ *   LEFT = clinical card BLURRED (opacity-50 blur-[1.5px]).
+ *   RIGHT stacks vertically:
+ *     - NewVisitPanel (full right-region width) ON TOP
+ *     - «История визитов» heading (with ◀ toggle on its LEFT) + feed BELOW.
+ *
+ * Toggle (◀/▶) always sits LEFT of the «История визитов» heading.
+ * «+ Новый визит» button always on the RIGHT of the header row.
+ *
+ * Data: real from GET /api/doctor/patients/[userId]/clinical (client-side fetch).
+ * Comorbidities + Anamnesis remain MOCK (owner deferred).
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { ActiveComplaint, ActiveDiagnosis, Visit } from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
 import {
   doctorSectionCardClass,
@@ -26,12 +49,6 @@ import {
   MOCK_ANAMNESIS_LIFESTYLE,
   MOCK_ANAMNESIS_TRAUMA,
   MOCK_COMORBIDITIES,
-  MOCK_COMPLAINTS,
-  MOCK_DIAGNOSES,
-  MOCK_VISITS,
-  type Complaint,
-  type Diagnosis,
-  type Visit,
 } from "./karta/mockData";
 import { NewVisitPanel } from "./karta/NewVisitPanel";
 
@@ -39,6 +56,10 @@ type Props = {
   userId: string;
   header?: PatientCardHeader;
 };
+
+// ---------------------------------------------------------------------------
+// Styles (unchanged from original)
+// ---------------------------------------------------------------------------
 
 const severityBadgeClass =
   "flex-none self-center rounded-md bg-primary/15 px-1.5 py-px text-xs font-bold text-primary";
@@ -49,6 +70,10 @@ const sectionLabelClass = "text-xs font-semibold text-foreground";
 const plusBtnClass =
   "grid h-[18px] w-[18px] place-items-center rounded-md border border-primary/40 text-xs text-primary hover:bg-primary/10";
 const miniTabRowClass = "flex gap-1";
+
+// ---------------------------------------------------------------------------
+// Small UI atoms (unchanged from original)
+// ---------------------------------------------------------------------------
 
 function MiniTab({ active, children }: { active?: boolean; children: React.ReactNode }) {
   return (
@@ -84,7 +109,20 @@ function Sparkline({ points }: { points: number[] }) {
   );
 }
 
-function ComplaintRow({ c }: { c: Complaint }) {
+// ---------------------------------------------------------------------------
+// Row components — wired to backend types
+// ---------------------------------------------------------------------------
+
+/**
+ * ComplaintRow maps ActiveComplaint → UI row.
+ * Field mapping:
+ *   ActiveComplaint.currentSeverity → severity badge (N/10)
+ *   ActiveComplaint.trend           → sparkline
+ *   ActiveComplaint.since           → date meta
+ *   ActiveComplaint.priority        → flag
+ *   ActiveComplaint.text            → label
+ */
+function ComplaintRow({ c }: { c: ActiveComplaint }) {
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/40 px-2.5 py-2 text-sm">
       {c.priority ? (
@@ -95,7 +133,7 @@ function ComplaintRow({ c }: { c: Complaint }) {
         <span className="w-3 flex-none" />
       )}
       <span className="flex-1">{c.text}</span>
-      <span className={severityBadgeClass}>{c.severity}/10</span>
+      <span className={severityBadgeClass}>{c.currentSeverity}/10</span>
       <Sparkline points={c.trend} />
       <span className={editIconClass} title="Редактировать">
         ✎
@@ -105,12 +143,24 @@ function ComplaintRow({ c }: { c: Complaint }) {
   );
 }
 
-function DiagnosisRow({ d }: { d: Diagnosis }) {
+/**
+ * DiagnosisRow maps ActiveDiagnosis → UI row.
+ * Field mapping:
+ *   ActiveDiagnosis.status → tone: "active"|"refined" → calm styling for "refined"
+ *   ActiveDiagnosis.meta   → date meta string
+ *   ActiveDiagnosis.priority → flag
+ *   ActiveDiagnosis.text    → label
+ *
+ * Note: original Diagnosis.tone was "active"|"calm" — we map "refined"→"calm" visually.
+ */
+function DiagnosisRow({ d }: { d: ActiveDiagnosis }) {
+  // "refined" status gets the muted/calm visual style; "active" gets the highlighted style
+  const isCalm = d.status === "refined";
   return (
     <div
       className={cn(
         "flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm",
-        d.tone === "calm" ? "border-border bg-muted/15" : "border-border/70 bg-background/40",
+        isCalm ? "border-border bg-muted/15" : "border-border/70 bg-background/40",
       )}
     >
       {d.priority ? (
@@ -204,20 +254,124 @@ function VisitCard({ visit, defaultExpanded }: { visit: Visit; defaultExpanded?:
   );
 }
 
-export function PatientTabKarta({ userId: _userId, header: _header }: Props) {
+/** Toggle button for history expand/collapse — always sits LEFT of the heading */
+function HistoryToggleBtn({
+  visible,
+  onToggle,
+}: {
+  visible: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={visible ? "Скрыть историю — увидеть карту" : "Показать историю визитов"}
+      className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+    >
+      {visible ? "◀" : "▶"}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// API response type (matches GET /api/doctor/patients/{userId}/clinical)
+// ---------------------------------------------------------------------------
+
+interface ClinicalApiResponse {
+  ok: boolean;
+  state: {
+    complaints: ActiveComplaint[];
+    diagnoses: ActiveDiagnosis[];
+  };
+  visits: Visit[];
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
+export function PatientTabKarta({ userId, header: _header }: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
 
-  // TODO(backend): replace MOCK_* with real reads keyed by userId.
-  const complaints = MOCK_COMPLAINTS;
-  const diagnoses = MOCK_DIAGNOSES;
-  const comorbidities = MOCK_COMORBIDITIES;
-  const visits = MOCK_VISITS;
+  // Clinical data — loaded from /api/doctor/patients/[userId]/clinical
+  const [complaints, setComplaints] = useState<ActiveComplaint[]>([]);
+  const [diagnoses, setDiagnoses] = useState<ActiveDiagnosis[]>([]);
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+
+  // fetchClinical is stable per userId — used on mount + after save
+  const fetchClinical = useCallback(() => {
+    setFetchError(false);
+    fetch(`/api/doctor/patients/${userId}/clinical`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        return r.json() as Promise<ClinicalApiResponse>;
+      })
+      .then((data) => {
+        setComplaints(data.state.complaints);
+        setDiagnoses(data.state.diagnoses);
+        setVisits(data.visits);
+        setFetchError(false);
+        setLoadedUserId(userId);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setFetchError(true);
+        setLoadedUserId(userId);
+        setIsLoading(false);
+      });
+  }, [userId]);
+
+  useEffect(() => {
+    // When userId changes, reset to loading (no stale flash)
+    setIsLoading(true);
+    setComplaints([]);
+    setDiagnoses([]);
+    setVisits([]);
+    setLoadedUserId(null);
+    fetchClinical();
+  }, [fetchClinical]);
+
+  // Treat as loading while userId doesn't match loaded data
+  const isStale = loadedUserId !== userId;
+  const loading = isStale || isLoading;
+
+  /**
+   * Grid column ratios per state matrix:
+   *   DEFAULT:             1.1fr / 1fr   — balanced, card slightly wider
+   *   ADD + history HIDDEN: 1fr / 1.3fr  — form column wider, card clear
+   *   ADD + history VISIBLE: 0.75fr / 1.25fr — right dominant, card blurred
+   */
+  const gridCols = !panelOpen
+    ? "lg:grid-cols-[1.1fr_1fr]"
+    : historyVisible
+      ? "lg:grid-cols-[0.75fr_1.25fr]"
+      : "lg:grid-cols-[1fr_1.3fr]";
+
+  /**
+   * Blur the LEFT clinical card ONLY when panel is open AND history is visible.
+   */
+  const leftBlur = panelOpen && historyVisible;
+
+  // Callback for NewVisitPanel after successful save — refetch + close panel
+  const handleVisitSaved = useCallback(() => {
+    setPanelOpen(false);
+    fetchClinical();
+  }, [fetchClinical]);
 
   return (
-    <div className="grid items-start gap-2.5 lg:grid-cols-[1.15fr_1fr]">
-      {/* LEFT: clinical state (Карта) */}
-      <div className={cn("flex flex-col gap-2.5 transition-all", panelOpen && "opacity-60 blur-[1px]")}>
+    <div className={cn("grid items-start gap-2.5", gridCols)}>
+      {/* ── LEFT: clinical state (Карта) ─────────────────────────────────── */}
+      <div
+        className={cn(
+          "flex flex-col gap-2.5 transition-all duration-200",
+          leftBlur && "opacity-50 blur-[1.5px]",
+        )}
+      >
         {/* Жалобы */}
         <section className={doctorSectionCardClass}>
           <div className="flex items-center justify-between">
@@ -233,7 +387,16 @@ export function PatientTabKarta({ userId: _userId, header: _header }: Props) {
             </span>
           </div>
           <div className="flex flex-col gap-1.5">
-            {complaints.map((c) => (
+            {loading && (
+              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
+            )}
+            {!loading && fetchError && (
+              <p className="py-1 text-xs text-destructive">Не удалось загрузить жалобы.</p>
+            )}
+            {!loading && !fetchError && complaints.length === 0 && (
+              <p className="py-2 text-xs text-muted-foreground">Жалоб пока нет.</p>
+            )}
+            {!loading && complaints.map((c) => (
               <ComplaintRow key={c.id} c={c} />
             ))}
           </div>
@@ -258,7 +421,16 @@ export function PatientTabKarta({ userId: _userId, header: _header }: Props) {
             </span>
           </div>
           <div className="flex flex-col gap-1.5">
-            {diagnoses.map((d) => (
+            {loading && (
+              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
+            )}
+            {!loading && fetchError && (
+              <p className="py-1 text-xs text-destructive">Не удалось загрузить диагнозы.</p>
+            )}
+            {!loading && !fetchError && diagnoses.length === 0 && (
+              <p className="py-2 text-xs text-muted-foreground">Диагнозов пока нет.</p>
+            )}
+            {!loading && diagnoses.map((d) => (
               <DiagnosisRow key={d.id} d={d} />
             ))}
           </div>
@@ -267,7 +439,7 @@ export function PatientTabKarta({ userId: _userId, header: _header }: Props) {
           </p>
         </section>
 
-        {/* Сопутствующие заболевания */}
+        {/* Сопутствующие заболевания — MOCK (owner deferred) */}
         <section className={doctorSectionCardClass}>
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5">
@@ -282,7 +454,7 @@ export function PatientTabKarta({ userId: _userId, header: _header }: Props) {
             </span>
           </div>
           <div className="flex flex-col gap-1.5">
-            {comorbidities.map((co) => (
+            {MOCK_COMORBIDITIES.map((co) => (
               <div
                 key={co.id}
                 className="flex items-center gap-1.5 rounded-lg border border-amber-300/60 bg-amber-50/40 px-2.5 py-2 text-sm dark:border-amber-700/40 dark:bg-amber-950/20"
@@ -298,7 +470,7 @@ export function PatientTabKarta({ userId: _userId, header: _header }: Props) {
           </div>
         </section>
 
-        {/* Анамнез */}
+        {/* Анамнез — MOCK (owner deferred) */}
         <section className={doctorSectionCardClass}>
           <div className="flex items-center justify-between">
             <h3 className={doctorSectionTitleClass}>Анамнез</h3>
@@ -373,56 +545,125 @@ export function PatientTabKarta({ userId: _userId, header: _header }: Props) {
         </section>
       </div>
 
-      {/* RIGHT: visits feed / new-visit panel */}
+      {/* ── RIGHT: visits feed / new-visit panel ─────────────────────────── */}
       <div className="flex flex-col gap-2.5">
-        <div className="flex items-center gap-2">
-          <h2 className={doctorSectionTitleClass}>История визитов</h2>
-          <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
-          <button
-            type="button"
-            onClick={() => setPanelOpen(true)}
-            className="ml-auto rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
-          >
-            + Новый визит
-          </button>
-          <button
-            type="button"
-            onClick={() => setHistoryVisible((v) => !v)}
-            title={historyVisible ? "Скрыть историю — увидеть карту" : "Показать историю визитов"}
-            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            {historyVisible ? "◀" : "▶"}
-          </button>
-        </div>
 
-        {panelOpen ? (
-          <div className={historyVisible ? "grid gap-2.5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" : ""}>
+        {/* ── DEFAULT mode (!panelOpen) ─────────────────────────────────── */}
+        {!panelOpen && (
+          <>
+            {/* Header row: [◀/▶ toggle | «История визитов» count] [«+ Новый визит»] */}
+            <div className="flex items-center gap-2">
+              <HistoryToggleBtn
+                visible={historyVisible}
+                onToggle={() => setHistoryVisible((v) => !v)}
+              />
+              <h2 className={doctorSectionTitleClass}>История визитов</h2>
+              {!loading && (
+                <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setPanelOpen(true)}
+                className="ml-auto rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+              >
+                + Новый визит
+              </button>
+            </div>
+
             {historyVisible ? (
-              <div className="flex max-h-[70vh] flex-col gap-2.5 overflow-y-auto opacity-70">
-                {visits.map((v, i) => (
+              <div className="flex flex-col gap-2.5">
+                {loading && (
+                  <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка истории визитов…</p>
+                )}
+                {!loading && fetchError && (
+                  <p className="py-1 text-xs text-destructive">Не удалось загрузить историю визитов.</p>
+                )}
+                {!loading && !fetchError && visits.length === 0 && (
+                  <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
+                )}
+                {!loading && visits.map((v, i) => (
                   <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} />
                 ))}
+                <p className={doctorSectionSubtitleClass}>
+                  История визитов — справа. «+ Новый визит» переключает экран в режим добавления.
+                  Стрелка ◀ скрывает историю — карта снова видна чётко рядом с формой.
+                </p>
               </div>
-            ) : null}
-            <div className="max-h-[78vh]">
-              <NewVisitPanel activeComplaints={complaints} onClose={() => setPanelOpen(false)} />
-            </div>
-          </div>
-        ) : historyVisible ? (
-          <div className="flex flex-col gap-2.5">
-            {visits.map((v, i) => (
-              <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} />
-            ))}
-            <p className={doctorSectionSubtitleClass}>
-              История визитов — справа. «+ Новый визит» переключает экран в режим добавления: карта
-              блюрится, справа выезжает панель визита. Стрелка ◀ скрывает историю — карта снова видна
-              чётко рядом с формой.
-            </p>
-          </div>
-        ) : (
-          <p className={doctorSectionSubtitleClass}>
-            История скрыта — карта видна слева. Нажмите ▶, чтобы вернуть историю визитов.
-          </p>
+            ) : (
+              <p className={doctorSectionSubtitleClass}>
+                История скрыта — карта видна слева без блюра. Нажмите ▶, чтобы вернуть историю
+                визитов.
+              </p>
+            )}
+          </>
+        )}
+
+        {/* ── ADD mode (panelOpen) ─────────────────────────────────────── */}
+        {panelOpen && (
+          <>
+            {/* ADD + history VISIBLE: form ON TOP, history feed BELOW */}
+            {historyVisible ? (
+              <>
+                {/* NewVisitPanel — full right-region width */}
+                <div className="max-h-[78vh]">
+                  <NewVisitPanel
+                    userId={userId}
+                    activeComplaints={complaints}
+                    activeDiagnoses={diagnoses}
+                    onClose={() => setPanelOpen(false)}
+                    onSaved={handleVisitSaved}
+                  />
+                </div>
+
+                {/* История визитов heading: [◀ toggle | heading | count] */}
+                <div className="flex items-center gap-2 pt-1">
+                  <HistoryToggleBtn
+                    visible={historyVisible}
+                    onToggle={() => setHistoryVisible((v) => !v)}
+                  />
+                  <h2 className={doctorSectionTitleClass}>История визитов</h2>
+                  {!loading && (
+                    <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
+                  )}
+                </div>
+
+                {/* History feed — independently scrollable */}
+                <div className="flex max-h-[60vh] flex-col gap-2.5 overflow-y-auto opacity-80">
+                  {loading && (
+                    <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
+                  )}
+                  {!loading && visits.map((v, i) => (
+                    <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              /* ADD + history HIDDEN: form fills right column, card is clear */
+              <>
+                {/* Thin header with ▶ toggle to restore history */}
+                <div className="flex items-center gap-2">
+                  <HistoryToggleBtn
+                    visible={historyVisible}
+                    onToggle={() => setHistoryVisible((v) => !v)}
+                  />
+                  <span className={doctorSectionSubtitleClass}>
+                    История скрыта — ▶ показать
+                  </span>
+                </div>
+
+                {/* NewVisitPanel — wide, comfortable */}
+                <div className="max-h-[85vh]">
+                  <NewVisitPanel
+                    userId={userId}
+                    activeComplaints={complaints}
+                    activeDiagnoses={diagnoses}
+                    onClose={() => setPanelOpen(false)}
+                    onSaved={handleVisitSaved}
+                  />
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

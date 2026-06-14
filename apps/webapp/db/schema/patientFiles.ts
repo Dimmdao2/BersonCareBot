@@ -10,11 +10,12 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
+import { clinicalVisit } from "./patientClinical";
 
 /**
  * Файлы пациента — единый источник (standalone + из визита).
  * category: выписка | снимок | анализ | фото_теста | прочее
- * visit_id: nullable UUID — ссылка на визит (FK добавить когда появится таблица визитов)
+ * visit_id: nullable FK → clinical_visit (привязка файла к визиту)
  */
 export const patientFiles = pgTable(
   "patient_files",
@@ -48,6 +49,11 @@ export const patientFiles = pgTable(
       foreignColumns: [platformUsers.id],
       name: "patient_files_uploaded_by_user_id_fkey",
     }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.visitId],
+      foreignColumns: [clinicalVisit.id],
+      name: "patient_files_visit_id_fkey",
+    }).onDelete("set null"),
     check(
       "patient_files_category_check",
       sql`category = ANY (ARRAY['выписка'::text, 'снимок'::text, 'анализ'::text, 'фото_теста'::text, 'прочее'::text])`,

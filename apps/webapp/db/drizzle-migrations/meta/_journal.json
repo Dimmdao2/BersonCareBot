@@ -848,6 +848,13 @@
       "when": 1786300000000,
       "tag": "0120_patient_files_table",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1786300100000,
+      "tag": "0121_patient_clinical_core",
+      "breakpoints": true
     }
   ]
 }
