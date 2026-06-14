@@ -44,6 +44,14 @@ import { AdminClientAuditHistorySection } from "@/app/app/doctor/clients/AdminCl
 type Props = {
   userId: string;
   header?: PatientCardHeader;
+  /**
+   * Whether the «Учётка» tab is the active tab. Tabs mount once on card load
+   * (load-once + client-side switching), so admin-only fetches here (merge
+   * candidates, audit log) must stay suspended until the tab is actually
+   * opened — otherwise every patient-card view fires wasteful 403s for
+   * non-admin doctor sessions.
+   */
+  active?: boolean;
 };
 
 /** Shape returned by GET /api/doctor/clients/{userId}/support-settings */
@@ -261,7 +269,7 @@ function ToggleRow({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function PatientTabAccount({ userId, header }: Props) {
+export function PatientTabAccount({ userId, header, active = false }: Props) {
   const identity = header?.identity;
   const support = header?.support;
   const cancellationsCount = header?.cancellationsCount ?? 0;
@@ -1133,7 +1141,7 @@ export function PatientTabAccount({ userId, header }: Props) {
           <AdminMergeAccountsPanel
             anchorUserId={userId}
             enabled
-            suspendHeavyFetch={false}
+            suspendHeavyFetch={!active}
           />
 
           {/* Audit log — AdminClientAuditHistorySection (handles 403 gracefully) */}
@@ -1143,7 +1151,7 @@ export function PatientTabAccount({ userId, header }: Props) {
           <AdminClientAuditHistorySection
             platformUserId={userId}
             enabled
-            suspendLoad={false}
+            suspendLoad={!active}
           />
 
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
