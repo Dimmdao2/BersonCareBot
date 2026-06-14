@@ -160,31 +160,45 @@ type Props = {
 export function PatientTabRecords({ userId, header }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
 
-  // Real appointments fetch
+  // Real appointments fetch. Track the userId the loaded state belongs to so we
+  // can derive «loading» when the prop changes — instead of resetting state
+  // synchronously inside the effect (which triggers cascading renders).
   const [allAppointments, setAllAppointments] = useState<DisplayAppointment[] | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    setAllAppointments(null);
-    setFetchError(false);
+    let active = true;
     fetch(`/api/doctor/patients/${userId}/appointments`)
       .then((r) => {
         if (!r.ok) throw new Error(`status ${r.status}`);
         return r.json() as Promise<{ appointments: PatientAppointmentItem[] }>;
       })
       .then((data) => {
+        if (!active) return;
         setAllAppointments(data.appointments.map(mapRealToDisplay));
+        setFetchError(false);
+        setLoadedUserId(userId);
       })
       .catch(() => {
+        if (!active) return;
         setFetchError(true);
+        setLoadedUserId(userId);
       });
+    return () => {
+      active = false;
+    };
   }, [userId]);
 
+  // Stale = loaded state belongs to a previous userId → treat as loading.
+  const isStale = loadedUserId !== userId;
   // Loading → empty (spinner shown); error → mock fallback; loaded → real data
-  const isLoading = allAppointments === null && !fetchError;
-  const displayList: DisplayAppointment[] = fetchError
-    ? MOCK_HISTORY_FALLBACK
-    : (allAppointments ?? []);
+  const isLoading = isStale || (allAppointments === null && !fetchError);
+  const displayList: DisplayAppointment[] = isStale
+    ? []
+    : fetchError
+      ? MOCK_HISTORY_FALLBACK
+      : (allAppointments ?? []);
 
   const upcomingList = displayList.filter((a) => a.status === "upcoming");
   const historyList = displayList.filter((a) => a.status !== "upcoming");

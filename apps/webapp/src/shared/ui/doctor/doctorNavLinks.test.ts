@@ -53,11 +53,12 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("getDoctorMenuItems returns 9 items in correct order for admin", () => {
+  it("getDoctorMenuItems returns 10 items in correct order for admin", () => {
     const items = getDoctorMenuItems(adminAccess);
-    expect(items).toHaveLength(9);
+    expect(items).toHaveLength(10);
     expect(items.map((i) => i.id)).toEqual([
       "today",
+      "patients",
       "clients",
       "schedule",
       "communications",

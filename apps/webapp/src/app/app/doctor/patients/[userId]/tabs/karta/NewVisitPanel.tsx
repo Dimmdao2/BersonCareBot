@@ -85,7 +85,6 @@ export function NewVisitPanel({
 
   const handleSave = () => {
     // TODO(backend): submit visit { visitType, date, location, service, duration, complaints, diagnoses, ... }
-    // eslint-disable-next-line no-console
     console.log("[NewVisitPanel] save (no-op)", { visitType, date, location, service, duration });
     onClose();
   };

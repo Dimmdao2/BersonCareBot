@@ -148,17 +148,25 @@ describe("pgDoctorClients repo", () => {
     expect(list[0]?.userId).toBe("u2");
   });
 
-  it("getDashboardPatientMetrics runs three count queries in parallel", async () => {
+  it("getDashboardPatientMetrics runs six count queries in parallel", async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [{ c: "3" }] });
     const port = createPgDoctorClientsPort();
     const metrics = await port.getDashboardPatientMetrics();
 
+    // The five scalar COUNT(*) queries resolve to 3; the aggregate query gets the
+    // same mocked row (no past/future/cancel fields) → one «subscriber» bucket.
     expect(metrics).toEqual({
       totalClients: 3,
       onSupportCount: 3,
       visitedThisCalendarMonthCount: 3,
+      withProgramCount: 3,
+      membershipsCount: 3,
+      newCount: 0,
+      formerCount: 0,
+      subscriberCount: 1,
+      cancellationsCount: 0,
     });
-    expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(6);
   });
 
   it("getClientIdentity resolves canonical id and maps bindings", async () => {
