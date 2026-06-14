@@ -127,7 +127,69 @@ function Sparkline({ points }: { points: number[] }) {
  *   ActiveComplaint.priority        → flag
  *   ActiveComplaint.text            → label
  */
-function ComplaintRow({ c }: { c: ActiveComplaint }) {
+function ComplaintRow({
+  c,
+  userId,
+  onSaved,
+}: {
+  c: ActiveComplaint;
+  userId: string;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(c.text);
+  const [priority, setPriority] = useState(c.priority);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  const open = () => {
+    setText(c.text);
+    setPriority(c.priority);
+    setError(false);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setError(true);
+      return;
+    }
+    setSaving(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/complaints/${c.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: trimmed, priority }),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      setEditing(false);
+      onSaved();
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <InlineFieldEditor
+        priority={priority}
+        onTogglePriority={() => setPriority((p) => !p)}
+        value={text}
+        onChange={setText}
+        onSave={save}
+        onCancel={() => setEditing(false)}
+        saving={saving}
+        error={error}
+        placeholder="Текст жалобы"
+      />
+    );
+  }
+
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/40 px-2.5 py-2 text-sm">
       {c.priority ? (
@@ -140,10 +202,87 @@ function ComplaintRow({ c }: { c: ActiveComplaint }) {
       <span className="flex-1">{c.text}</span>
       <span className={severityBadgeClass}>{c.currentSeverity}/10</span>
       <Sparkline points={c.trend} />
-      <span className={editIconClass} title="Редактировать">
+      <button type="button" className={editIconClass} title="Редактировать" onClick={open}>
         ✎
-      </span>
+      </button>
       <span className={dateMetaClass}>{c.since}</span>
+    </div>
+  );
+}
+
+/**
+ * Общий инлайн-редактор «текст + приоритет» для жалоб и диагнозов.
+ * Enter — сохранить, Esc — отмена.
+ */
+function InlineFieldEditor({
+  priority,
+  onTogglePriority,
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  error,
+  placeholder,
+}: {
+  priority: boolean;
+  onTogglePriority: () => void;
+  value: string;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: boolean;
+  placeholder: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-primary/40 bg-background px-2.5 py-2 text-sm">
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          title={priority ? "Снять приоритет" : "Сделать приоритетным"}
+          onClick={onTogglePriority}
+          className={cn(
+            "flex-none self-center text-base",
+            priority ? "text-primary" : "text-muted-foreground/50 hover:text-muted-foreground",
+          )}
+        >
+          ⚑
+        </button>
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onSave();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onCancel();
+            }
+          }}
+          placeholder={placeholder}
+          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+        />
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="flex-none rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving ? "…" : "Сохранить"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="flex-none rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          Отмена
+        </button>
+      </div>
+      {error && <span className="text-xs text-destructive">Не удалось сохранить. Текст обязателен.</span>}
     </div>
   );
 }
@@ -158,9 +297,71 @@ function ComplaintRow({ c }: { c: ActiveComplaint }) {
  *
  * Note: original Diagnosis.tone was "active"|"calm" — we map "refined"→"calm" visually.
  */
-function DiagnosisRow({ d }: { d: ActiveDiagnosis }) {
+function DiagnosisRow({
+  d,
+  userId,
+  onSaved,
+}: {
+  d: ActiveDiagnosis;
+  userId: string;
+  onSaved: () => void;
+}) {
   // "refined" status gets the muted/calm visual style; "active" gets the highlighted style
   const isCalm = d.status === "refined";
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(d.text);
+  const [priority, setPriority] = useState(d.priority);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  const open = () => {
+    setText(d.text);
+    setPriority(d.priority);
+    setError(false);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setError(true);
+      return;
+    }
+    setSaving(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/diagnoses/${d.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: trimmed, priority }),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      setEditing(false);
+      onSaved();
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <InlineFieldEditor
+        priority={priority}
+        onTogglePriority={() => setPriority((p) => !p)}
+        value={text}
+        onChange={setText}
+        onSave={save}
+        onCancel={() => setEditing(false)}
+        saving={saving}
+        error={error}
+        placeholder="Текст диагноза"
+      />
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -176,16 +377,84 @@ function DiagnosisRow({ d }: { d: ActiveDiagnosis }) {
         <span className="w-3 flex-none" />
       )}
       <span className="flex-1">{d.text}</span>
-      <span className={editIconClass} title="Редактировать">
+      <button type="button" className={editIconClass} title="Редактировать" onClick={open}>
         ✎
-      </span>
+      </button>
       <span className={dateMetaClass}>{d.meta}</span>
     </div>
   );
 }
 
-function VisitCard({ visit, defaultExpanded }: { visit: Visit; defaultExpanded?: boolean }) {
+/**
+ * Текстовые поля визита, доступные для правки, в порядке отображения.
+ * `title` совпадает с заголовком секции из проекции listVisits (для маппинга обратно).
+ */
+const VISIT_SECTION_FIELDS = [
+  { key: "exam", title: "Осмотр" },
+  { key: "manipulations", title: "Проведённые манипуляции" },
+  { key: "trialResults", title: "Результаты проб" },
+  { key: "recommendations", title: "Рекомендации / Назначения" },
+] as const;
+
+type VisitSectionFieldKey = (typeof VISIT_SECTION_FIELDS)[number]["key"];
+
+function VisitCard({
+  visit,
+  defaultExpanded,
+  userId,
+  onSaved,
+}: {
+  visit: Visit;
+  defaultExpanded?: boolean;
+  userId: string;
+  onSaved: () => void;
+}) {
   const [expanded, setExpanded] = useState(Boolean(defaultExpanded));
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  // Initialize edit fields from the projection (sections by title + header location/duration).
+  const initialFields = useCallback((): Record<VisitSectionFieldKey, string> => {
+    const byTitle = new Map((visit.sections ?? []).map((s) => [s.title, s.body]));
+    return {
+      exam: byTitle.get("Осмотр") ?? "",
+      manipulations: byTitle.get("Проведённые манипуляции") ?? "",
+      trialResults: byTitle.get("Результаты проб") ?? "",
+      recommendations: byTitle.get("Рекомендации / Назначения") ?? "",
+    };
+  }, [visit.sections]);
+
+  const [fields, setFields] = useState<Record<VisitSectionFieldKey, string>>(initialFields);
+  const [location, setLocation] = useState(visit.location ?? "");
+
+  const openEdit = () => {
+    setFields(initialFields());
+    setLocation(visit.location ?? "");
+    setError(false);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/visits/${visit.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...fields, location }),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      setEditing(false);
+      onSaved();
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-border bg-card">
       <button
@@ -233,26 +502,80 @@ function VisitCard({ visit, defaultExpanded }: { visit: Visit; defaultExpanded?:
               </div>
             </div>
           ) : null}
-          {visit.sections?.map((s) => (
-            <div key={s.title} className="flex flex-col gap-0.5">
-              <div className="text-xs font-semibold text-foreground">{s.title}</div>
-              <div className="text-sm text-foreground">{s.body}</div>
-            </div>
-          ))}
-          {visit.files && visit.files.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {visit.files.map((f) => (
-                <span
-                  key={f.id}
-                  className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
-                >
-                  <span>{f.icon}</span>
-                  <span>{f.name}</span>
-                </span>
+
+          {editing ? (
+            <div className="flex flex-col gap-2">
+              <label className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-foreground">Локация</span>
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Например: Кабинет 3"
+                  className="rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              {VISIT_SECTION_FIELDS.map((f) => (
+                <label key={f.key} className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-foreground">{f.title}</span>
+                  <textarea
+                    value={fields[f.key]}
+                    onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    rows={2}
+                    className="resize-y rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                  />
+                </label>
               ))}
-              <span className={doctorSectionSubtitleClass}>— файлы, прикреплённые к визиту</span>
+              {error && <span className="text-xs text-destructive">Не удалось сохранить.</span>}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={saving}
+                  className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {saving ? "Сохранение…" : "Сохранить"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  disabled={saving}
+                  className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                >
+                  Отмена
+                </button>
+              </div>
             </div>
-          ) : null}
+          ) : (
+            <>
+              {visit.sections?.map((s) => (
+                <div key={s.title} className="flex flex-col gap-0.5">
+                  <div className="text-xs font-semibold text-foreground">{s.title}</div>
+                  <div className="text-sm text-foreground">{s.body}</div>
+                </div>
+              ))}
+              {visit.files && visit.files.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {visit.files.map((f) => (
+                    <span
+                      key={f.id}
+                      className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+                    >
+                      <span>{f.icon}</span>
+                      <span>{f.name}</span>
+                    </span>
+                  ))}
+                  <span className={doctorSectionSubtitleClass}>— файлы, прикреплённые к визиту</span>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={openEdit}
+                className="self-start text-xs text-muted-foreground hover:text-primary"
+              >
+                ✎ править записи визита
+              </button>
+            </>
+          )}
         </div>
       ) : null}
     </div>
@@ -649,7 +972,7 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
               <p className="py-2 text-xs text-muted-foreground">Жалоб пока нет.</p>
             )}
             {!loading && complaints.map((c) => (
-              <ComplaintRow key={c.id} c={c} />
+              <ComplaintRow key={c.id} c={c} userId={userId} onSaved={fetchClinical} />
             ))}
           </div>
           <p className={doctorSectionSubtitleClass}>
@@ -683,7 +1006,7 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
               <p className="py-2 text-xs text-muted-foreground">Диагнозов пока нет.</p>
             )}
             {!loading && diagnoses.map((d) => (
-              <DiagnosisRow key={d.id} d={d} />
+              <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
             ))}
           </div>
           <p className={doctorSectionSubtitleClass}>
@@ -906,7 +1229,7 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
                   <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
                 )}
                 {!loading && visits.map((v, i) => (
-                  <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} />
+                  <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} userId={userId} onSaved={fetchClinical} />
                 ))}
                 <p className={doctorSectionSubtitleClass}>
                   История визитов — справа. «+ Новый визит» переключает экран в режим добавления.
@@ -957,7 +1280,7 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
                     <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
                   )}
                   {!loading && visits.map((v, i) => (
-                    <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} />
+                    <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} userId={userId} onSaved={fetchClinical} />
                   ))}
                 </div>
               </>
