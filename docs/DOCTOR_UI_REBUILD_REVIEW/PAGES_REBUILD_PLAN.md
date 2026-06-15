@@ -127,3 +127,27 @@ sent/error counts, no `opened_count`; `broadcast_audit_recipients` has no `read_
 "client vs potential" segmentation only partial (contact-channel + appGuests; no
 "viewed booking, never booked" concept). → Funnel + read-receipt blocks render as
 "данные пока не собираются"; client/potential definition is an open product item.
+
+## TODO — housekeeping: prune backup branches
+Several throwaway `claude/*` orchestration/backup branches accumulated over the
+rebuild. Once their content is confirmed merged into `feat/doctor-ui-rebuild` (or
+deliberately discarded), delete them locally + on `origin` to keep the branch list clean.
+**Verify-before-delete:** never delete a branch until you've confirmed its unique
+commits are on `feat`/`main` (`git log <branch> --not feat/doctor-ui-rebuild`), or that
+the owner has signed off on discarding them.
+
+Candidates (as of 2026-06-15):
+- `claude/patients-rework` (local + origin) — Пациенты rework backup. ⚠️ Its full impl
+  was SUPERSEDED by the main-tree version; only the `1.4fr/1fr` tweak was carried over.
+  Holds UNIQUE unmerged bits (instant-render preview from `ClientListItem`, `hasApp`
+  wiring, cleaner `clients→patients` icon case). KEEP until owner confirms no cherry-pick
+  needed, then delete.
+- `claude/admiring-jennings-93cf22` (local + origin) — Контент work; merged into feat
+  2026-06-15 (`fc075106..35674729`). Safe to delete after a final `--not feat` check.
+- `origin/claude/doctor-pages-rebuild` — early pages-rebuild phase branch; superseded.
+- `origin/claude/modest-banzai-a41d33` — dev/verify worktree branch; throwaway.
+- `origin/claude/blissful-lichterman-0705eb` — verify which work it holds before deleting.
+
+Also prune stale git worktrees under `.claude/worktrees/` (e.g. `agent-*` temp trees,
+`patients-rework`, `admiring-jennings-93cf22`) with `git worktree remove` once their
+branches are handled.
