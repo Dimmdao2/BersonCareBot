@@ -102,7 +102,13 @@ interface TreatmentInstanceStage {
     id: string;
     itemType: string;
     sortOrder: number;
-    snapshot?: { title?: string | null; loadType?: string | null; difficulty?: number | null } | null;
+    groupId?: string | null;
+    snapshot?: {
+      title?: string | null;
+      loadType?: string | null;
+      difficulty?: number | null;
+      media?: Array<{ mediaUrl: string; mediaType: string; sortOrder: number }> | null;
+    } | null;
     effectiveComment?: string | null;
     settings?: Record<string, unknown> | null;
   }>;
@@ -287,6 +293,19 @@ function currentMonthRange(): { from: string; to: string } {
 /** Month label in Russian for the current month. */
 function currentMonthLabel(): string {
   return new Date().toLocaleDateString("ru-RU", { month: "long" });
+}
+
+/** Safely extract the first thumbnail URL from an exercise snapshot's media array. */
+function getItemThumbnailUrl(
+  snapshot: { media?: Array<{ mediaUrl: string; mediaType: string; sortOrder: number }> | null } | null | undefined,
+): string | null {
+  if (!snapshot) return null;
+  const media = snapshot.media;
+  if (!Array.isArray(media) || media.length === 0) return null;
+  const first = media[0];
+  const url = typeof first?.mediaUrl === "string" ? first.mediaUrl : null;
+  if (!url) return null;
+  return url;
 }
 
 // ---------------------------------------------------------------------------
@@ -611,7 +630,8 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
             if (detailRes.ok) {
               const detail = (await detailRes.json()) as TreatmentInstanceDetailResponse;
               if (detail.ok && detail.item) {
-                programStages = detail.item.stages ?? [];
+                // Filter out system stage-0 ("Этап 0 / Общие рекомендации") from display
+                programStages = (detail.item.stages ?? []).filter((s) => s.sortOrder > 0);
                 // Current stage = last in_progress, fallback to last available
                 const inProgress = programStages.find((s) => s.status === "in_progress");
                 const available = programStages.find((s) => s.status === "available");
@@ -1259,25 +1279,54 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
                     </button>
                   </div>
 
-                  {/* Exercise items in stage */}
-                  {displayStage.items.filter((it) => it.itemType === "exercise").map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-2 border border-border rounded-[7px] px-2 py-1 bg-card text-[11.5px] text-foreground mb-1"
-                    >
-                      <span className="w-[22px] h-[22px] rounded-md bg-muted/50 flex items-center justify-center text-xs flex-none">
-                        💪
-                      </span>
-                      <span className="flex-1 min-w-0 truncate">
-                        {item.snapshot?.title ?? "Упражнение"}
-                      </span>
-                      {item.effectiveComment && (
-                        <span className="text-[10.5px] text-muted-foreground flex-none truncate max-w-[100px]">
-                          {item.effectiveComment}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                  {/* Exercise items in stage — exclude system-kind groups */}
+                  {(() => {
+                    const systemGroupIds = new Set(
+                      (displayStage.groups ?? [])
+                        .filter((g) => g.systemKind != null)
+                        .map((g) => g.id),
+                    );
+                    const visibleItems = displayStage.items.filter(
+                      (it) => it.itemType === "exercise" && !systemGroupIds.has(it.groupId ?? ""),
+                    );
+                    return visibleItems.map((item) => {
+                      const thumb = getItemThumbnailUrl(item.snapshot);
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-2 border border-border rounded-[7px] px-2 py-1 bg-card text-[11.5px] text-foreground mb-1"
+                        >
+                          {thumb ? (
+                            <img
+                              src={thumb}
+                              alt={item.snapshot?.title ?? ""}
+                              className="w-[22px] h-[22px] rounded-md object-cover flex-none"
+                              onError={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                img.style.display = "none";
+                                const fallback = img.nextElementSibling as HTMLElement | null;
+                                if (fallback) fallback.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <span
+                            className="w-[22px] h-[22px] rounded-md bg-muted/50 flex items-center justify-center text-xs flex-none"
+                            style={{ display: thumb ? "none" : "flex" }}
+                          >
+                            💪
+                          </span>
+                          <span className="flex-1 min-w-0 truncate">
+                            {item.snapshot?.title ?? "Упражнение"}
+                          </span>
+                          {item.effectiveComment && (
+                            <span className="text-[10.5px] text-muted-foreground flex-none truncate max-w-[100px]">
+                              {item.effectiveComment}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </>
               )}
             </>
