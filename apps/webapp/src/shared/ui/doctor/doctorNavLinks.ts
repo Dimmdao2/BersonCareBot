@@ -1,4 +1,4 @@
-/** Навигация кабинета врача: плоский список из 9 верхнеуровневых пунктов (desktop sidebar и mobile Sheet). */
+/** Навигация кабинета врача: верхнеуровневые пункты (desktop sidebar и mobile Sheet). */
 
 import { routePaths } from "@/app-layer/routes/paths";
 import type { UserRole } from "@/shared/types/session";
@@ -57,7 +57,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   },
   {
     id: "library",
-    label: "Библиотека",
+    label: "Каталог ЛФК",
     items: [
       { id: "exercises", label: "Упражнения", href: "/app/doctor/exercises" },
       { id: "lfk-templates", label: "Комплексы ЛФК", href: "/app/doctor/lfk-templates" },
@@ -78,6 +78,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     ],
   },
   { id: "content", label: "Контент", href: "/app/doctor/content" },
+  { id: "files-and-media", label: "Файлы и медиа", href: "/app/doctor/content/library" },
   { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
   {
     id: "analytics",
@@ -119,14 +120,22 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
 ];
 
 /**
- * Плоский список из 9 верхнеуровневых пунктов с применённой фильтрацией по `requiresAdminMode`.
+ * Плоский список верхнеуровневых пунктов с применённой фильтрацией по `requiresAdminMode`.
  * Подпункты у раскрывающихся пунктов тоже фильтруются; если все подпункты отфильтровались и `href` нет —
  * пункт не попадает в результат.
+ *
+ * @param access — роль и режим администратора.
+ * @param patientLabel — если `"клиент"`, пункт «Пациенты» отображается как «Клиенты».
  */
-export function getDoctorMenuItems(access: DoctorMenuAccess): DoctorMenuLinkItem[] {
+export function getDoctorMenuItems(access: DoctorMenuAccess, patientLabel?: string): DoctorMenuLinkItem[] {
   return RAW_DOCTOR_MENU_ITEMS.filter((item) => isDoctorMenuLinkVisible(item, access))
     .map((item) => {
-      if (!item.items) return item;
+      if (!item.items) {
+        if (item.id === "patients" && patientLabel === "клиент") {
+          return { ...item, label: "Клиенты" };
+        }
+        return item;
+      }
       const filtered = item.items.filter((sub) => isDoctorMenuLinkVisible(sub, access));
       return { ...item, items: filtered };
     })
