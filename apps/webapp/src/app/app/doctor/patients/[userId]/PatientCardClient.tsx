@@ -22,12 +22,13 @@ import { PatientTabProgram } from "./tabs/PatientTabProgram";
 import { PatientTabRecords } from "./tabs/PatientTabRecords";
 import { PatientTabFiles } from "./tabs/PatientTabFiles";
 import { PatientTabAccount } from "./tabs/PatientTabAccount";
+import { PatientTabComms } from "./tabs/PatientTabComms";
 
 type Props = {
   cardHeaderPromise: Promise<PatientCardHeader | null>;
 };
 
-type TabId = "overview" | "karta" | "program" | "records" | "files" | "account";
+type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms";
 
 const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "overview", label: "Обзор" },
@@ -35,6 +36,7 @@ const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "program", label: "Программа" },
   { id: "records", label: "Визиты" },
   { id: "files", label: "Файлы" },
+  { id: "comms", label: "Коммуникации" },
   { id: "account", label: "Учётка" },
 ];
 
@@ -364,6 +366,9 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
       </div>
       <div className={cn(activeTab !== "account" && "hidden")}>
         <PatientTabAccount userId={identity.userId} header={header} active={activeTab === "account"} />
+      </div>
+      <div className={cn(activeTab !== "comms" && "hidden")}>
+        <PatientTabComms userId={identity.userId} />
       </div>
     </div>
   );
