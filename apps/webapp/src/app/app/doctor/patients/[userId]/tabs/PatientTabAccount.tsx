@@ -4,17 +4,17 @@
  * PatientTabAccount — Wave 4 fully-wired version.
  *
  * Blocks wired to real endpoints:
- *  1. Блокировки и доступ — POST /api/doctor/clients/{userId}/block  { blocked, reason? }
- *  2. Архив             — PATCH /api/doctor/clients/{userId}/archive { archived }
- *  3. Сопровождение     — GET/PATCH /api/doctor/clients/{userId}/support-settings
+ *  1. Личные данные     — PATCH /api/doctor/patients/{userId} { displayName, firstName, lastName,
+ *                         birthDate, gender } (all fields editable here)
+ *  2. Блокировки и доступ — POST /api/doctor/clients/{userId}/block  { blocked, reason? }
+ *  3. Архив             — PATCH /api/doctor/clients/{userId}/archive { archived }
+ *  4. Сопровождение     — GET/PATCH /api/doctor/clients/{userId}/support-settings
  *                         { onSupport, commentsEnabled?, mediaEnabled? }
- *  4. Репутация записи  — READ ONLY from header (totalVisits/cancellationsCount/reschedulesCount)
- *  5. Платежи           — GET/POST /api/doctor/patients/{userId}/payments (guard 404/500)
- *  6. Администрирование — <AdminMergeAccountsPanel> + <AdminClientAuditHistorySection>
- *                         (same props as DoctorClientCardAdminSection)
+ *  5. Репутация записи  — READ ONLY from header (totalVisits/cancellationsCount/reschedulesCount)
+ *  6. Платежи           — GET/POST /api/doctor/patients/{userId}/payments (guard 404/500)
+ *  7. Администрирование — <AdminMergeAccountsPanel> + <AdminClientAuditHistorySection>
  *
- * KEEP MOCK / TODO(backend) (not in scope):
- *   - birthDate/gender — no schema field
+ * KEEP TODO(backend) (not in scope):
  *   - support start date — not in PatientCardHeader
  *   - rubitime_id / identity.createdAt — not in PatientCardHeader
  *   - noShow count — not in PatientCardHeader
@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import { Phone, Send, Smartphone, Mail, Key, Monitor } from "lucide-react";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -158,16 +159,16 @@ function ChannelRow({
   value,
   hint,
   status,
-  actionIcon,
+  actionLabel,
   onAction,
   warning,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
   status: "active" | "problem" | "none";
-  actionIcon?: string;
+  actionLabel?: string;
   onAction?: () => void;
   warning?: boolean;
 }) {
@@ -188,7 +189,12 @@ function ChannelRow({
           : "border-border bg-background",
       )}
     >
-      <span className="w-5 flex-none text-center text-sm">{icon}</span>
+      <span className={cn(
+        "w-5 flex-none flex items-center justify-center",
+        status === "active" ? "text-primary" : "text-muted-foreground",
+      )}>
+        {icon}
+      </span>
       <div className="flex-1 min-w-0">
         <div className="text-xs font-mono leading-tight text-foreground truncate">{value}</div>
         <div className={cn(doctorSectionSubtitleClass, "text-[11px]")}>{hint ?? label}</div>
@@ -196,13 +202,13 @@ function ChannelRow({
       <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium", chipStyles)}>
         {chipText}
       </span>
-      {actionIcon && (
+      {actionLabel && (
         <button
           type="button"
           onClick={onAction}
-          className="inline-flex h-5 w-5 items-center justify-center rounded border border-border bg-muted/30 text-[11px] text-muted-foreground hover:bg-muted cursor-pointer"
+          className="inline-flex h-5 items-center justify-center rounded border border-border bg-muted/30 px-1.5 text-[10px] text-muted-foreground hover:bg-muted cursor-pointer"
         >
-          {actionIcon}
+          {actionLabel}
         </button>
       )}
     </div>
@@ -364,7 +370,9 @@ function SecondaryPhones({ userId }: { userId: string }) {
           key={p.id}
           className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5 text-xs"
         >
-          <span className="w-5 flex-none text-center text-sm">📱</span>
+          <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
+            <Phone className="h-3.5 w-3.5" />
+          </span>
           <span className="flex-1 min-w-0 truncate font-mono">{p.value}</span>
           <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>доп. телефон</span>
           <button
@@ -508,7 +516,9 @@ function EmailChange({ userId }: { userId: string }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5">
       <div className="flex items-center gap-2">
-        <span className="w-5 flex-none text-center text-sm">🔑</span>
+        <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
+          <Key className="h-3.5 w-3.5" />
+        </span>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-foreground leading-tight">Смена email (админ)</div>
           {pending ? (
@@ -588,6 +598,90 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
   const hasEmail = Boolean(identity?.email);
   const telegramId = identity?.bindings?.telegramId ?? null;
   const maxId = identity?.bindings?.maxId ?? null;
+
+  // ---------------------------------------------------------------------------
+  // Identity edit state (name / gender / birthDate)
+  // ---------------------------------------------------------------------------
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [iDisplayName, setIDisplayName] = useState("");
+  const [iFirstName, setIFirstName] = useState("");
+  const [iLastName, setILastName] = useState("");
+  const [iBirthDate, setIBirthDate] = useState("");
+  const [iGender, setIGender] = useState<"male" | "female" | "">("");
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+
+  // Local display copies (optimistic after save)
+  const [localDisplayName, setLocalDisplayName] = useState<string | null>(null);
+  const [localFirstName, setLocalFirstName] = useState<string | null | undefined>(undefined);
+  const [localLastName, setLocalLastName] = useState<string | null | undefined>(undefined);
+  const [localBirthDate, setLocalBirthDate] = useState<string | null | undefined>(undefined);
+  const [localGender, setLocalGender] = useState<"male" | "female" | null | undefined>(undefined);
+
+  const displayName = localDisplayName ?? identity?.displayName ?? "";
+  const firstName = localFirstName !== undefined ? localFirstName : (identity?.firstName ?? null);
+  const lastName = localLastName !== undefined ? localLastName : (identity?.lastName ?? null);
+  const birthDate = localBirthDate !== undefined ? localBirthDate : (identity?.birthDate ?? null);
+  const gender = localGender !== undefined ? localGender : (identity?.gender ?? null);
+
+  function openIdentityEditor() {
+    setIDisplayName(displayName);
+    setIFirstName(firstName ?? "");
+    setILastName(lastName ?? "");
+    setIBirthDate(birthDate ?? "");
+    setIGender(gender ?? "");
+    setIdentityError(null);
+    setEditingIdentity(true);
+  }
+
+  async function saveIdentity() {
+    const dn = iDisplayName.trim();
+    if (!dn) { setIdentityError("Отображаемое имя обязательно"); return; }
+    const bd = iBirthDate.trim() || null;
+    if (bd && !/^\d{4}-\d{2}-\d{2}$/.test(bd)) {
+      setIdentityError("Дата рождения: формат ГГГГ-ММ-ДД");
+      return;
+    }
+    setIdentitySaving(true);
+    setIdentityError(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${encodeURIComponent(userId)}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayName: dn,
+          firstName: iFirstName.trim() || null,
+          lastName: iLastName.trim() || null,
+          birthDate: bd,
+          gender: iGender || null,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !data?.ok) {
+        setIdentityError(data?.error ?? `Ошибка ${res.status}`);
+        return;
+      }
+      // Optimistic update
+      setLocalDisplayName(dn);
+      setLocalFirstName(iFirstName.trim() || null);
+      setLocalLastName(iLastName.trim() || null);
+      setLocalBirthDate(bd);
+      setLocalGender((iGender as "male" | "female") || null);
+      setEditingIdentity(false);
+    } catch {
+      setIdentityError("network");
+    } finally {
+      setIdentitySaving(false);
+    }
+  }
+
+  function fmtBirthDateDisplay(iso: string | null | undefined): string {
+    if (!iso) return "—";
+    const [year, month, day] = iso.split("-");
+    if (!year || !month || !day) return "—";
+    return `${day}.${month}.${year}`;
+  }
 
   // ---------------------------------------------------------------------------
   // Block state (optimistic from header; confirmed by POST)
@@ -860,70 +954,154 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
         <SectionCard
           title="Личные данные"
           titleRight={
-            <button
-              type="button"
-              className="text-xs text-primary hover:underline cursor-pointer"
-            >
-              ✎ изменить
-            </button>
+            !editingIdentity ? (
+              <button
+                type="button"
+                onClick={openIdentityEditor}
+                className="text-xs text-primary hover:underline cursor-pointer"
+              >
+                ✎ изменить
+              </button>
+            ) : undefined
           }
         >
-          <table className="w-full border-separate border-spacing-0">
-            <tbody>
-              {/* displayName — bold primary name */}
-              <KVRow label="Отображаемое имя">
-                <span className="font-semibold">{identity?.displayName ?? "—"}</span>
-              </KVRow>
-              {/* Hidden real name */}
-              {(identity?.firstName || identity?.lastName) ? (
-                <KVRow label="ФИО (скрытое)">
-                  <span className="text-muted-foreground text-[11px]">
-                    {[identity?.lastName, identity?.firstName].filter(Boolean).join(" ")}
-                  </span>
-                </KVRow>
-              ) : (
-                <KVRow label="ФИО (скрытое)">
-                  <span className="text-muted-foreground text-[11px]">не указано</span>
-                </KVRow>
-              )}
-              {/* Phone */}
-              <KVRow label="Телефон">
-                {identity?.phone ? (
-                  <button
-                    type="button"
-                    title="Скопировать"
-                    onClick={() => copyText(identity.phone!)}
-                    className="font-mono text-[11px] hover:text-primary cursor-pointer"
+          {editingIdentity ? (
+            /* ---- EDIT MODE ---- */
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[11px] text-muted-foreground">Отображаемое имя *</label>
+                <input
+                  autoFocus
+                  value={iDisplayName}
+                  onChange={(e) => setIDisplayName(e.target.value)}
+                  placeholder="Иван И."
+                  className="h-7 rounded border border-border bg-background px-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[11px] text-muted-foreground">Имя</label>
+                  <input
+                    value={iFirstName}
+                    onChange={(e) => setIFirstName(e.target.value)}
+                    placeholder="Иван"
+                    className="h-7 rounded border border-border bg-background px-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[11px] text-muted-foreground">Фамилия</label>
+                  <input
+                    value={iLastName}
+                    onChange={(e) => setILastName(e.target.value)}
+                    placeholder="Иванов"
+                    className="h-7 rounded border border-border bg-background px-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[11px] text-muted-foreground">Дата рождения</label>
+                  <input
+                    type="date"
+                    value={iBirthDate}
+                    onChange={(e) => setIBirthDate(e.target.value)}
+                    className="h-7 rounded border border-border bg-background px-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[11px] text-muted-foreground">Пол</label>
+                  <select
+                    value={iGender}
+                    onChange={(e) => setIGender(e.target.value as "male" | "female" | "")}
+                    className="h-7 rounded border border-border bg-background px-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
                   >
-                    {identity.phone} ⧉
-                  </button>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </KVRow>
-              {/* Email */}
-              <KVRow label="Email">
-                {identity?.email ? (
-                  <span className="font-mono text-[11px]">{identity.email}</span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </KVRow>
-              {/* Birth date — TODO(backend) */}
-              <KVRow label="Дата рождения">
-                {/* TODO(backend): birthDate not yet in PatientCardHeader; no schema field */}
-                <span className="text-muted-foreground">—</span>
-              </KVRow>
-              {/* Gender — TODO(backend) */}
-              <KVRow label="Пол">
-                {/* TODO(backend): gender field not in schema */}
-                <span className="text-muted-foreground">—</span>
-              </KVRow>
-            </tbody>
-          </table>
-          <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            ФИО видит только специалист, пациенту показывается отображаемое имя.
-          </p>
+                    <option value="">не указан</option>
+                    <option value="male">Мужской</option>
+                    <option value="female">Женский</option>
+                  </select>
+                </div>
+              </div>
+              {identityError && (
+                <p className="text-[11px] text-destructive">{identityError}</p>
+              )}
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  disabled={identitySaving}
+                  onClick={() => setEditingIdentity(false)}
+                  className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted cursor-pointer disabled:opacity-50"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  disabled={identitySaving}
+                  onClick={() => void saveIdentity()}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-60"
+                >
+                  {identitySaving ? "…" : "Сохранить"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ---- READ MODE ---- */
+            <>
+              <table className="w-full border-separate border-spacing-0">
+                <tbody>
+                  {/* displayName — bold primary name */}
+                  <KVRow label="Отображаемое имя">
+                    <span className="font-semibold">{displayName || "—"}</span>
+                  </KVRow>
+                  {/* Hidden real name */}
+                  <KVRow label="ФИО (скрытое)">
+                    {(firstName || lastName) ? (
+                      <span className="text-muted-foreground text-[11px]">
+                        {[lastName, firstName].filter(Boolean).join(" ")}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-[11px]">не указано</span>
+                    )}
+                  </KVRow>
+                  {/* Phone */}
+                  <KVRow label="Телефон">
+                    {identity?.phone ? (
+                      <button
+                        type="button"
+                        title="Скопировать"
+                        onClick={() => copyText(identity.phone!)}
+                        className="font-mono text-[11px] hover:text-primary cursor-pointer"
+                      >
+                        {identity.phone} ⧉
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </KVRow>
+                  {/* Email */}
+                  <KVRow label="Email">
+                    {identity?.email ? (
+                      <span className="font-mono text-[11px]">{identity.email}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </KVRow>
+                  {/* Birth date */}
+                  <KVRow label="Дата рождения">
+                    <span>{fmtBirthDateDisplay(birthDate)}</span>
+                  </KVRow>
+                  {/* Gender */}
+                  <KVRow label="Пол">
+                    <span>
+                      {gender === "male" ? "Мужской" : gender === "female" ? "Женский" : "—"}
+                    </span>
+                  </KVRow>
+                </tbody>
+              </table>
+              <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+                ФИО видит только специалист, пациенту показывается отображаемое имя.
+              </p>
+            </>
+          )}
         </SectionCard>
 
         {/* ── 2. Контакты и каналы ─────────────────────────────────── */}
@@ -938,12 +1116,12 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
           <div className="flex flex-col gap-1.5">
             {/* Phone */}
             <ChannelRow
-              icon="📞"
+              icon={<Phone className="h-3.5 w-3.5" />}
               label="Телефон"
               value={identity?.phone ?? "—"}
               hint="основной телефон · не редактируется"
               status={identity?.phone ? "active" : "none"}
-              actionIcon="⧉"
+              actionLabel="⧉"
               onAction={() => copyText(identity?.phone ?? "")}
             />
 
@@ -952,47 +1130,41 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
 
             {/* Telegram */}
             <ChannelRow
-              icon="✈️"
+              icon={<Send className="h-3.5 w-3.5" />}
               label="Telegram"
               value={hasTelegram ? `id ${telegramId}` : "не привязан"}
               hint="Telegram"
               status={hasTelegram ? "active" : "none"}
-              actionIcon={hasTelegram ? "💬" : "＋"}
             />
 
             {/* MAX */}
             <ChannelRow
-              icon="Ⓜ️"
+              icon={<Smartphone className="h-3.5 w-3.5" />}
               label="MAX"
               value={hasMax ? `id ${maxId}` : "не привязан"}
               hint="MAX"
               status={hasMax ? "active" : "none"}
-              actionIcon={hasMax ? "💬" : "＋"}
             />
 
             {/* Email */}
             {hasEmail ? (
               <ChannelRow
-                icon="✉️"
+                icon={<Mail className="h-3.5 w-3.5" />}
                 label="Email"
                 value={identity?.email ?? "—"}
-                hint={
-                  // TODO(backend): emailVerifiedAt not in PatientCardHeader; assume unverified display
-                  "Email · статус неизвестен"
-                }
+                hint="Email · статус неизвестен"
                 status="problem"
                 warning
-                actionIcon="✉️"
+                actionLabel="→"
                 onAction={() => window.open(`mailto:${identity?.email}`, "_blank")}
               />
             ) : (
               <ChannelRow
-                icon="✉️"
+                icon={<Mail className="h-3.5 w-3.5" />}
                 label="Email"
                 value="не указан"
                 hint="Email"
                 status="none"
-                actionIcon="＋"
               />
             )}
 
@@ -1001,7 +1173,9 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
 
             {/* PWA / App — TODO(backend) */}
             <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5">
-              <span className="w-5 flex-none text-center text-sm">📲</span>
+              <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
+                <Monitor className="h-3.5 w-3.5" />
+              </span>
               <div className="flex-1 min-w-0">
                 {/* TODO(backend): PWA install / push status not tracked in current schema */}
                 <div className="text-xs text-muted-foreground leading-tight">данные недоступны</div>
@@ -1149,8 +1323,8 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
                       key={p.id}
                       className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}
                     >
-                      <span className="flex-none">
-                        {p.kind === "cash" ? "💵" : "💳"}
+                      <span className="flex-none text-muted-foreground text-[11px] font-medium">
+                        {p.kind === "cash" ? "нал" : "экв"}
                       </span>
                       <span className="flex-1 truncate">
                         {p.service ?? p.comment ?? (p.kind === "cash" ? "Наличные" : "Эквайринг")}
@@ -1179,7 +1353,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
                   }}
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
                 >
-                  💵 Внести наличные
+                  Внести наличные
                 </button>
                 {/* Acquiring: provider not chosen yet */}
                 <span className="text-[11px] text-muted-foreground">
@@ -1307,7 +1481,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
           <div className="flex flex-col gap-1.5">
             {/* Telegram bot status */}
             <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
-              <span className="flex-none">✈️</span>
+              <Send className={cn("h-3.5 w-3.5 flex-none", hasTelegram ? "text-primary" : "text-muted-foreground")} />
               <span className="flex-1">Telegram-бот</span>
               {hasTelegram ? (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
@@ -1322,7 +1496,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
 
             {/* MAX bot */}
             <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
-              <span className="flex-none">Ⓜ️</span>
+              <Smartphone className={cn("h-3.5 w-3.5 flex-none", hasMax ? "text-primary" : "text-muted-foreground")} />
               <span className="flex-1">{hasMax ? "MAX-бот" : "MAX-бот не привязан"}</span>
               {hasMax ? (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
@@ -1338,7 +1512,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
             {/* Block status indicator */}
             {isBlocked && (
               <div className={cn(doctorSectionItemClass, "flex items-center gap-2 text-xs border-destructive/30 bg-destructive/5")}>
-                <span className="text-destructive flex-none">⛔</span>
+                <span className="text-destructive flex-none font-bold">✕</span>
                 <span className="flex-1 text-destructive font-medium">Пациент заблокирован</span>
               </div>
             )}
@@ -1358,7 +1532,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
                   : "border-border bg-muted/30 text-foreground hover:bg-muted",
               )}
             >
-              {blockPending ? "…" : isBlocked ? "⛔ Снять блокировку" : "Ограничить доступ"}
+              {blockPending ? "…" : isBlocked ? "Снять блокировку" : "Ограничить доступ"}
             </button>
 
             {/* Archive / Unarchive — PATCH /api/doctor/clients/{userId}/archive {archived} */}

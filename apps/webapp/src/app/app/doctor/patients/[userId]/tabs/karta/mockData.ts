@@ -1,8 +1,8 @@
-// Опции формы «Новый визит» (NewVisitPanel). Клиническая часть карты (жалобы /
-// диагнозы / сопутствующие / анамнез / визиты) переведена на реальный бэкенд —
-// все прежние MOCK_* удалены. Остались только справочные списки полей формы.
+// Справочные списки полей формы «Новый визит» (NewVisitPanel).
+// Локация, услуга и длительность теперь вводятся свободным текстом —
+// эти константы оставлены пустыми и не импортируются в NewVisitPanel.
 // TODO(backend): подтягивать из booking / каталогов.
 
-export const VISIT_LOCATION_OPTIONS = ["СПб · Скандинавия", "Москва · Точка здоровья"];
-export const VISIT_SERVICE_OPTIONS = ["Очный приём", "Онлайн-консультация"];
-export const VISIT_DURATION_OPTIONS = ["90 мин", "60 мин", "45 мин"];
+export const VISIT_LOCATION_OPTIONS: string[] = [];
+export const VISIT_SERVICE_OPTIONS: string[] = [];
+export const VISIT_DURATION_OPTIONS: string[] = [];
