@@ -32,6 +32,7 @@ import {
 import type { DoctorCatalogViewMode } from "@/shared/lib/doctorCatalogViewPreference";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
 import { ContentPageTileCard } from "./ContentPageTileCard";
+import { ContentRatingChip, type ContentRatingSummary } from "./ContentRatingChip";
 import { setContentPageRequiresAuth } from "./contentPageAuthActions";
 import { reorderContentPagesInSection } from "./reorderContentPages";
 import { SectionDeleteDialog } from "./sections/SectionDeleteDialog";
@@ -81,10 +82,12 @@ function DragHandle({ listeners, attributes }: { listeners: Record<string, unkno
 
 function SortablePageRow({
   page,
+  rating,
   authPending,
   onToggleRequiresAuth,
 }: {
   page: ContentPageListRow;
+  rating?: ContentRatingSummary | null;
   authPending: boolean;
   onToggleRequiresAuth: (id: string, next: boolean) => void;
 }) {
@@ -111,6 +114,7 @@ function SortablePageRow({
         </Link>
         <p className="truncate font-mono text-xs text-muted-foreground">{page.slug}</p>
       </div>
+      <ContentRatingChip rating={rating} className="hidden shrink-0 sm:inline-flex" />
       <Button
         type="button"
         variant="ghost"
@@ -138,6 +142,7 @@ export function ContentPagesSectionList({
   sectionSlug,
   sectionTitle,
   initialPages,
+  ratingsById,
   showSectionHeading = true,
   /** Для подразделов внутри системной папки — иначе `/content/new` отфильтрует только `article` и список будет пустым. */
   newPageSystemParentCode,
@@ -152,6 +157,8 @@ export function ContentPagesSectionList({
   sectionSlug: string;
   sectionTitle: string;
   initialPages: ContentPageListRow[];
+  /** Per-page ★ rating aggregates keyed by page id (#2 Контент Шаг 3). */
+  ratingsById?: Record<string, ContentRatingSummary>;
   /** Если false — заголовок раздела не дублируется (родитель уже показал h2). */
   showSectionHeading?: boolean;
   newPageSystemParentCode?: string;
@@ -353,7 +360,7 @@ export function ContentPagesSectionList({
           columns={3}
           estimatedRowHeight={200}
           keyExtractor={(p) => p.id}
-          renderItem={(p) => <ContentPageTileCard page={p} />}
+          renderItem={(p) => <ContentPageTileCard page={p} rating={ratingsById?.[p.id]} />}
           containerClassName="flex-1 min-h-[200px]"
         />
       ) : (
@@ -365,6 +372,7 @@ export function ContentPagesSectionList({
                 <SortablePageRow
                   key={p.id}
                   page={p}
+                  rating={ratingsById?.[p.id]}
                   authPending={authPending}
                   onToggleRequiresAuth={onToggleRequiresAuth}
                 />

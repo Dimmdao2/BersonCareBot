@@ -5,6 +5,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import type { ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentHubShell, type ContentHubSection } from "./ContentHubShell";
+import type { ContentRatingSummary } from "./ContentRatingChip";
 
 export default async function DoctorContentPage() {
   const session = await requireDoctorAccess();
@@ -12,11 +13,20 @@ export default async function DoctorContentPage() {
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
+  let ratingsById: Record<string, ContentRatingSummary> = {};
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
 
   try {
     pages = await deps.contentPages.listAll();
     sections = await deps.contentSections.listAll();
+    // Batch-load ★ ratings for the material cards/rows (one grouped query, no N+1).
+    const ratingMap = await deps.materialRating.listDoctorAggregates({
+      targetKind: "content_page",
+      targetIds: pages.map((p) => p.id),
+    });
+    ratingsById = Object.fromEntries(
+      [...ratingMap.entries()].map(([id, agg]) => [id, { avg: agg.avg, count: agg.count }]),
+    );
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content", err);
   }
@@ -62,6 +72,7 @@ export default async function DoctorContentPage() {
         <ContentHubShell
           sections={hubSections}
           pagesBySectionSlug={pagesBySectionSlug}
+          ratingsById={ratingsById}
           loadError={
             loadError
               ? { digest: loadError.digest, name: loadError.name, message: loadError.message }

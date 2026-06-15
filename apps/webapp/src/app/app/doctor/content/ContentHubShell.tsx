@@ -16,6 +16,7 @@ import {
   ContentPagesSectionList,
   type ContentPageListRow,
 } from "./ContentPagesSectionList";
+import type { ContentRatingSummary } from "./ContentRatingChip";
 import { AttachExistingSectionsModal } from "./AttachExistingSectionsModal";
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,8 @@ export type ContentHubSection = {
 export type ContentHubShellProps = {
   sections: ContentHubSection[];
   pagesBySectionSlug: Record<string, ContentPageListRow[]>;
+  /** Per-page ★ rating aggregates, keyed by page id (#2 Контент Шаг 3). */
+  ratingsById?: Record<string, ContentRatingSummary>;
   loadError?: { digest: string; name: string; message: string } | null;
   isDev?: boolean;
 };
@@ -53,10 +56,12 @@ function SystemFolderPane({
   folderCode,
   sections,
   pagesBySectionSlug,
+  ratingsById,
 }: {
   folderCode: SystemParentCode;
   sections: ContentHubSection[];
   pagesBySectionSlug: Record<string, ContentPageListRow[]>;
+  ratingsById?: Record<string, ContentRatingSummary>;
 }) {
   const label = SYSTEM_FOLDER_LABELS[folderCode] ?? folderCode;
   const childSections = useMemo(
@@ -110,6 +115,7 @@ function SystemFolderPane({
                 sectionSlug={sec.slug}
                 sectionTitle={sec.title}
                 initialPages={rows}
+                ratingsById={ratingsById}
                 newPageSystemParentCode={folderCode}
                 sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
                 allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
@@ -132,11 +138,13 @@ function ArticleSectionPane({
   sectionTitle,
   sections,
   pagesBySectionSlug,
+  ratingsById,
 }: {
   sectionSlug: string;
   sectionTitle: string;
   sections: ContentHubSection[];
   pagesBySectionSlug: Record<string, ContentPageListRow[]>;
+  ratingsById?: Record<string, ContentRatingSummary>;
 }) {
   const sec = sections.find((s) => s.slug === sectionSlug);
   const pages = pagesBySectionSlug[sectionSlug] ?? [];
@@ -158,6 +166,7 @@ function ArticleSectionPane({
         sectionSlug={sectionSlug}
         sectionTitle={sectionTitle}
         initialPages={pages}
+        ratingsById={ratingsById}
         showSectionHeading={false}
         newPageSystemParentCode={newPageSystemParentCode}
         sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sectionSlug)}`}
@@ -180,6 +189,7 @@ function ArticleSectionPane({
 export function ContentHubShell({
   sections,
   pagesBySectionSlug,
+  ratingsById,
   loadError,
   isDev,
 }: ContentHubShellProps) {
@@ -214,6 +224,7 @@ export function ContentHubShell({
           folderCode={activePaneKey}
           sections={sections}
           pagesBySectionSlug={pagesBySectionSlug}
+          ratingsById={ratingsById}
         />
       );
     }
@@ -230,6 +241,7 @@ export function ContentHubShell({
           sectionTitle={sec.title}
           sections={sections}
           pagesBySectionSlug={pagesBySectionSlug}
+          ratingsById={ratingsById}
         />
       );
     }
