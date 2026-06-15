@@ -349,7 +349,7 @@ function HeaderIconButton({ label, title, state, onClick, children }: HeaderIcon
 
 function PatientListSkeleton() {
   return (
-    <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
+    <div className="grid min-h-0 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* List skeleton — left */}
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border/60 px-5 py-2">
@@ -645,7 +645,7 @@ function PatientsContent({
   const selectedItem = selectedUserId ? filtered.find((c) => c.userId === selectedUserId) ?? null : null;
 
   return (
-    <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
+    <div className="grid min-h-0 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* ===== LEFT: patient list ===== */}
       <section
         className={cn(
