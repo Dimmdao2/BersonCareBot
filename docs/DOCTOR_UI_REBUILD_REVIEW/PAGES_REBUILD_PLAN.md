@@ -51,8 +51,17 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
      render, list↔tiles toggle works. **A hydration mismatch was found and fixed**
      (view-mode preference was read in the `useState` initializer → diverged from SSR;
      now applied in a post-mount effect like `ExercisesPageClient`).
-   - Steps 3–6 pending (3 = rating aggregates port method + pg query, unit-testable
-     without a dev server; 4 = master-detail inline editor; 5 = embed media/patient-
+   - **Step 3 DONE (live-verify pending)**: batch `MaterialRatingPort.listAggregates`
+     ({targetKind, targetIds, excludedUserIds?}) → `Map<targetId, aggregate>` in one
+     grouped query (pg + in-memory), exposed via service as `listDoctorAggregates`;
+     unit-tested against in-memory port (avg/count/distribution, kind isolation,
+     excludedUserIds, empty input). UI: new `ContentRatingChip` (green `★ avg · count`
+     / muted «Без оценок»), `ratingsById` Record threaded page → ContentHubShell →
+     panes → ContentPagesSectionList → tile card + list rows. tsc + material-rating
+     suite green. Commits `feat(material-rating): batch listAggregates…` +
+     `feat(doctor-content): ★-rating chip…`. **Still TODO**: headless live-verify on
+     a dev server (chip renders with real data, list/tiles both).
+   - Steps 4–6 pending (4 = master-detail inline editor; 5 = embed media/patient-
      home; 6 = visibility-toggle polish).
 4. **#4 Главная пациента** — editor already exists at `/app/doctor/patient-home`
    (👁 visibility, 🔒 locked blocks, ⚙ item picker, home-param panels). Mostly
