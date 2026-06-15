@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { Separator } from "@/shared/ui/doctor/primitives/separator";
-import { Plus } from "lucide-react";
+import { Eye, EyeOff, Plus } from "lucide-react";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
   isHelpSectionSlug,
   SYSTEM_PARENT_CODES,
 } from "@/modules/content-sections/types";
+import { setSectionVisibility } from "./sections/sectionVisibilityActions";
 
 // ---------------------------------------------------------------------------
 // Pane key types
@@ -78,14 +79,93 @@ function NavItem({
 // ContentNav
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// SectionVisibilityToggle — eye icon button for a single user section
+// ---------------------------------------------------------------------------
+
+function SectionVisibilityToggle({
+  slug,
+  isVisible,
+  onToggle,
+  disabled,
+}: {
+  slug: string;
+  isVisible: boolean;
+  onToggle: (slug: string, next: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={isVisible ? "Скрыть раздел" : "Показать раздел"}
+      title={isVisible ? "Скрыть раздел" : "Показать раздел"}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(slug, !isVisible);
+      }}
+      className={cn(
+        "inline-flex size-7 shrink-0 items-center justify-center rounded border border-transparent",
+        "hover:bg-muted hover:border-border",
+        "disabled:pointer-events-none disabled:opacity-40",
+        "transition-colors",
+      )}
+    >
+      {isVisible ? (
+        <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
+      ) : (
+        <EyeOff className="size-4 text-muted-foreground" aria-hidden />
+      )}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Local visibility state entry
+// ---------------------------------------------------------------------------
+
+type SectionVisState = { slug: string; title: string; isVisible: boolean };
+
 /**
  * Left-navigation panel for the Контент hub.
  * Client-side panel switcher — no full-page navigations.
  * Active pane key is kept in parent state + synced to ?section= URL param.
  */
 export function ContentNav({ articleSections, activePaneKey, onPaneChange }: ContentNavProps) {
-  const userSections = articleSections.filter(
-    (s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug),
+  const initialUserSections: SectionVisState[] = articleSections
+    .filter((s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug))
+    .map((s) => ({ slug: s.slug, title: s.title, isVisible: s.isVisible }));
+
+  const [userSections, setUserSections] = useState<SectionVisState[]>(initialUserSections);
+  const [isPending, startTransition] = useTransition();
+
+  // Keep in sync if prop identity changes (e.g. after server revalidation)
+  useEffect(() => {
+    setUserSections(
+      articleSections
+        .filter((s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug))
+        .map((s) => ({ slug: s.slug, title: s.title, isVisible: s.isVisible })),
+    );
+  }, [articleSections]);
+
+  const handleVisibilityToggle = useCallback(
+    (slug: string, nextIsVisible: boolean) => {
+      // Optimistic update
+      setUserSections((prev) =>
+        prev.map((s) => (s.slug === slug ? { ...s, isVisible: nextIsVisible } : s)),
+      );
+
+      startTransition(async () => {
+        const result = await setSectionVisibility(slug, nextIsVisible);
+        if (!result.ok) {
+          // Revert on failure
+          setUserSections((prev) =>
+            prev.map((s) => (s.slug === slug ? { ...s, isVisible: !nextIsVisible } : s)),
+          );
+        }
+      });
+    },
+    [],
   );
 
   return (
@@ -136,12 +216,19 @@ export function ContentNav({ articleSections, activePaneKey, onPaneChange }: Con
         <p className="px-1 text-xs text-muted-foreground">Нет пользовательских разделов.</p>
       ) : (
         userSections.map((s) => (
-          <NavItem
-            key={s.slug}
-            label={s.title}
-            active={activePaneKey === `section:${s.slug}`}
-            onClick={() => onPaneChange(`section:${s.slug}`)}
-          />
+          <div key={s.slug} className="flex items-center gap-1">
+            <NavItem
+              label={s.title}
+              active={activePaneKey === `section:${s.slug}`}
+              onClick={() => onPaneChange(`section:${s.slug}`)}
+            />
+            <SectionVisibilityToggle
+              slug={s.slug}
+              isVisible={s.isVisible}
+              onToggle={handleVisibilityToggle}
+              disabled={isPending}
+            />
+          </div>
         ))
       )}
 
