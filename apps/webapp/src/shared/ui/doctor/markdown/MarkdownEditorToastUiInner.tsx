@@ -85,6 +85,14 @@ export default function MarkdownEditorToastUiInner({
       <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставка из медиабиблиотеки или с устройства">
         <MediaLibraryInsertDialog onInsert={insertFromMedia} />
       </div>
+      {/*
+        Hide the native Toast UI "image" toolbar button (.toastui-editor-toolbar-icons.image).
+        It opens Toast UI's own file dialog which inserts unvalidated paths → broken markdown.
+        We use the "Библиотека или загрузка" MediaLibraryInsertDialog above instead.
+        Other toolbar buttons (heading/bold/italic/list/table/link/code/codeblock) are untouched.
+        Selector confirmed from @toast-ui/editor@3.2.2 dist/toastui-editor.css line 914.
+      */}
+      <style>{`.toastui-editor-host .toastui-editor-toolbar-icons.image { display: none !important; }`}</style>
       <div className="toastui-editor-host overflow-hidden rounded-xl border border-border [&_.toastui-editor-defaultUI]:rounded-b-xl [&_.toastui-editor-defaultUI-toolbar]:rounded-t-xl">
         <Editor
           ref={editorRef}
