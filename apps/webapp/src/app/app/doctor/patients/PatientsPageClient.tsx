@@ -684,8 +684,8 @@ function PatientsContent({
           "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-y-auto",
         )}
       >
-        {/* Segment stat cards — 5 per row, compact */}
-        <DoctorMetricList className="grid-cols-5">
+        {/* Segment stat cards — 5 per row, compact (override DoctorMetricList's xl:grid-cols-4) */}
+        <DoctorMetricList className="grid-cols-5 xl:grid-cols-5">
           {SEGMENTS.map((seg) => (
             <DoctorStatCard
               key={seg.key}
