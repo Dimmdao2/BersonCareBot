@@ -216,27 +216,53 @@ const DEFAULT_LEGACY_FILTERS: LegacyFiltersState = {
 };
 
 // ---------------------------------------------------------------------------
-// Segment count helper (maps server metrics → each segment)
+// Client-side segment predicate
+// ---------------------------------------------------------------------------
+
+function clientSegmentPredicate(item: ClientListItem, key: SegmentKey): boolean {
+  switch (key) {
+    case "all":
+      return true;
+    case "appointments":
+      return (item.activeAppointmentsCount ?? 0) > 0 || (item.hasAppointmentHistory ?? false);
+    case "on_support":
+      return item.isOnSupport === true;
+    case "with_program":
+      return item.activeTreatmentProgram === true;
+    case "without_appointments":
+      return !(item.hasAppointmentHistory ?? false) && (item.activeAppointmentsCount ?? 0) === 0;
+    case "new":
+      return (item.activeAppointmentsCount ?? 0) > 0 && !(item.hasAppointmentHistory ?? false);
+    case "former":
+      return (item.hasAppointmentHistory ?? false) && (item.activeAppointmentsCount ?? 0) === 0;
+    case "cancellations":
+      return item.cancellationCount30d > 0;
+    case "memberships":
+      return item.hasMemberships === true;
+    case "visited_month":
+      return item.visitedThisCalendarMonth === true;
+    default:
+      return true;
+  }
+}
+
+function applySegmentFilter(list: ClientListItem[], activeSegment: string | null): ClientListItem[] {
+  if (!activeSegment || activeSegment === "all") return list;
+  const key = activeSegment as SegmentKey;
+  return list.filter((item) => clientSegmentPredicate(item, key));
+}
+
+// ---------------------------------------------------------------------------
+// Segment count helper (computed from allClients using clientSegmentPredicate)
 // ---------------------------------------------------------------------------
 
 function getSegmentCount(
   key: SegmentKey,
-  metrics: DoctorDashboardPatientMetrics,
+  _metrics: DoctorDashboardPatientMetrics,
   clients: ClientListItem[],
 ): number | null {
-  switch (key) {
-    case "all":                  return clients.length;
-    case "appointments":         return clients.filter((c) => (c.activeAppointmentsCount ?? 0) > 0).length;
-    case "on_support":           return metrics.onSupportCount;
-    case "with_program":         return metrics.withProgramCount;
-    case "without_appointments": return metrics.subscriberCount;
-    case "new":                  return metrics.newCount;
-    case "former":               return metrics.formerCount;
-    case "cancellations":        return metrics.cancellationsCount;
-    case "memberships":          return metrics.membershipsCount;
-    case "visited_month":        return metrics.visitedThisCalendarMonthCount;
-    default:                     return null;
-  }
+  if (key === "all") return clients.length;
+  return clients.filter((item) => clientSegmentPredicate(item, key)).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,13 +271,12 @@ function getSegmentCount(
 
 function buildUrl(filters: {
   q?: string;
-  segment?: string | null;
   channel?: string | null;
   archivedOnly?: boolean;
 }): string {
   const sp = new URLSearchParams();
   if (filters.q?.trim()) sp.set("q", filters.q.trim());
-  if (filters.segment) sp.set("segment", filters.segment);
+  // segment is intentionally omitted — filtering is done client-side
   if (filters.channel) sp.set("channel", filters.channel);
   if (filters.archivedOnly) sp.set("archived", "true");
   const qs = sp.toString();
@@ -629,15 +654,32 @@ function PatientsContent({
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
 
-  // Apply client-side icon filters on top of server-filtered list
-  const filtered = applyIconFilters(allClients, iconFilters);
+  // Apply client-side segment filter, then icon filters, then legacy filters
+  let filtered = applySegmentFilter(allClients, activeSegment);
+  filtered = applyIconFilters(filtered, iconFilters);
+  // Legacy filters (AND-logic)
+  if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationCount30d > 0);
+  if (legacyFilters.visitedMonth) filtered = filtered.filter((c) => c.visitedThisCalendarMonth === true);
+  if (legacyFilters.withoutAppointments) filtered = filtered.filter(
+    (c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0,
+  );
+  if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasMemberships === true);
+
+  // Determine if any filter is active (for "найдено N" header)
+  const isAnyFilterActive =
+    (activeSegment !== null && activeSegment !== "all") ||
+    Object.values(iconFilters).some((v) => v !== "off") ||
+    legacyFilters.cancellations ||
+    legacyFilters.visitedMonth ||
+    legacyFilters.withoutAppointments ||
+    legacyFilters.memberships;
 
   // Segment tone: highlight active segment card
   function segmentTone(key: SegmentKey): "neutral" | "warning" {
     const seg = SEGMENTS.find((s) => s.key === key);
     if (!seg) return "neutral";
     const isActive =
-      (key === "all" && activeSegment === null && !archivedOnly) ||
+      (key === "all" && (activeSegment === null || activeSegment === "all") && !archivedOnly) ||
       (seg.urlValue !== null && seg.urlValue === activeSegment);
     return isActive ? "warning" : "neutral";
   }
@@ -689,7 +731,9 @@ function PatientsContent({
         {/* Sticky header: count + icon filter rail */}
         <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
-            Пациентов: {filtered.length}
+            {isAnyFilterActive
+              ? <>найдено {filtered.length}</>
+              : <>Пациентов: {allClients.length}</>}
             {isListPending && <span className="ml-1 animate-pulse">…</span>}
           </p>
           <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
@@ -1057,16 +1101,14 @@ export function PatientsPageClient({
 
   const router = useRouter();
 
-  /** Navigate to update server-side filters (segment, channel, archive). */
+  /** Navigate to update server-side filters (channel, archive). Segment is client-side only. */
   const navigateToFilters = useCallback(
     (overrides: {
-      segment?: string | null;
       channel?: string | null;
       archivedOnly?: boolean;
     }) => {
       const url = buildUrl({
         q: searchInput,
-        segment: overrides.segment !== undefined ? overrides.segment : activeSegment,
         channel: overrides.channel !== undefined ? overrides.channel : activeChannel,
         archivedOnly: overrides.archivedOnly !== undefined ? overrides.archivedOnly : archivedOnly,
       });
@@ -1074,15 +1116,15 @@ export function PatientsPageClient({
         router.push(url, { scroll: false });
       });
     },
-    [router, searchInput, activeSegment, activeChannel, archivedOnly],
+    [router, searchInput, activeChannel, archivedOnly],
   );
 
-  /** Fetch client list from API (for search debounce — avoids full navigation). */
+  /** Fetch client list from API (for search debounce — avoids full navigation). Segment is not passed — client-side only. */
   const fetchList = useCallback(
     (q: string) => {
       const sp = new URLSearchParams();
       if (q.trim()) sp.set("q", q.trim());
-      if (activeSegment) sp.set("segment", activeSegment);
+      // segment intentionally omitted — filtering is done client-side
       if (activeChannel) sp.set("channel", activeChannel);
       if (archivedOnly) sp.set("archived", "true");
       const newPromise = fetch(`/api/doctor/patients?${sp.toString()}`)
@@ -1095,15 +1137,15 @@ export function PatientsPageClient({
         setListPromise(newPromise);
       });
     },
-    [activeSegment, activeChannel, archivedOnly],
+    [activeChannel, archivedOnly],
   );
 
   const handleSegmentChange = useCallback(
     (value: string | null) => {
+      // Segment is client-side only — no server round-trip
       setActiveSegment(value);
-      navigateToFilters({ segment: value });
     },
-    [navigateToFilters],
+    [],
   );
 
   const handleChannelChange = useCallback(
@@ -1112,7 +1154,7 @@ export function PatientsPageClient({
       setArchivedOnly(archived);
       navigateToFilters({ channel, archivedOnly: archived });
     },
-    [navigateToFilters],
+    [navigateToFilters],  // navigateToFilters is memoized and handles channel/archived
   );
 
   const handleSearchInput = useCallback(
