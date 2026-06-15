@@ -79,6 +79,8 @@ export const platformUsers = pgTable("platform_users", {
 	birthDate: date("birth_date"),
 	/** Пол пациента: 'male' | 'female'. Nullable (не указан). */
 	gender: text("gender"),
+	/** Отчество пациента (patronymic). Nullable. */
+	patronymic: text("patronymic"),
 }, (table) => [
 	index("idx_platform_users_integrator_uid").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")).where(sql`(integrator_user_id IS NOT NULL)`),
 	index("idx_platform_users_merged_into").using("btree", table.mergedIntoId.asc().nullsLast().op("uuid_ops")).where(sql`(merged_into_id IS NOT NULL)`),

@@ -4,7 +4,7 @@
  * PatientCardClient — Wave 2: real header + 6-tab client-side navigation.
  * Tabs are rendered once and shown/hidden client-side (no server re-fetch per tab).
  *
- * Header: READ-ONLY display of patient identity. All editing lives in the «Учётка» tab.
+ * Header: FIO display with inline edit. All other editing lives in the «Учётка» tab.
  */
 import { use, useState, useEffect } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
@@ -15,7 +15,8 @@ import {
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Send, Smartphone, Mail } from "lucide-react";
+import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from "lucide-react";
+import { formatFioForDoctor } from "@/lib/parseFullName";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
 import { PatientTabKarta } from "./tabs/PatientTabKarta";
 import { PatientTabProgram } from "./tabs/PatientTabProgram";
@@ -78,6 +79,21 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
 
+  // FIO inline edit state
+  const [fioEditing, setFioEditing] = useState(false);
+  const [fioSaving, setFioSaving] = useState(false);
+  const [fioError, setFioError] = useState<string | null>(null);
+  // Local overrides applied after a successful save (avoids full page reload)
+  const [fioOverride, setFioOverride] = useState<{
+    firstName: string | null;
+    lastName: string | null;
+    patronymic: string | null;
+  } | null>(null);
+  // Draft input values
+  const [fioLastName, setFioLastName] = useState("");
+  const [fioFirstName, setFioFirstName] = useState("");
+  const [fioPatronymic, setFioPatronymic] = useState("");
+
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
   useEffect(() => {
     function handleOpenTab(e: Event) {
@@ -99,6 +115,58 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   }
 
   const { identity, support, lastVisit, nextAppointment, totalVisits, cancellationsCount, reschedulesCount, firstVisitDate } = header;
+
+  // Resolved FIO: local override wins over server data
+  const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
+  const resolvedLastName = fioOverride ? fioOverride.lastName : identity.lastName;
+  const resolvedPatronymic = fioOverride ? fioOverride.patronymic : identity.patronymic;
+  const fioDisplay = formatFioForDoctor(resolvedLastName, resolvedFirstName, resolvedPatronymic);
+  const hasFio = Boolean(resolvedFirstName || resolvedLastName || resolvedPatronymic);
+
+  function openFioEdit() {
+    setFioLastName(resolvedLastName ?? "");
+    setFioFirstName(resolvedFirstName ?? "");
+    setFioPatronymic(resolvedPatronymic ?? "");
+    setFioError(null);
+    setFioEditing(true);
+  }
+
+  function cancelFioEdit() {
+    setFioEditing(false);
+    setFioError(null);
+  }
+
+  async function saveFio() {
+    setFioSaving(true);
+    setFioError(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${identity.userId}/fio`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lastName: fioLastName.trim() || null,
+          firstName: fioFirstName.trim() || null,
+          patronymic: fioPatronymic.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setFioError((json as { error?: string })?.error ?? "Ошибка сохранения");
+        return;
+      }
+      // Apply local override to avoid page reload
+      setFioOverride({
+        lastName: fioLastName.trim() || null,
+        firstName: fioFirstName.trim() || null,
+        patronymic: fioPatronymic.trim() || null,
+      });
+      setFioEditing(false);
+    } catch {
+      setFioError("Ошибка сети");
+    } finally {
+      setFioSaving(false);
+    }
+  }
 
   /** Active age: from header birthDate */
   const activeAge: number | null = (() => {
@@ -129,35 +197,112 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
 
           {/* LEFT: identity */}
           <div className="flex-1 min-w-[280px] flex flex-col gap-0">
-            {/* Display name + support chip */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="text-base font-bold text-foreground leading-tight">
-                {identity.displayName}
-              </span>
-              {support.isOnSupport && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                  ★ На сопровождении
-                  {support.supportMonthsApprox != null && (
-                    <> · {support.supportMonthsApprox} мес</>
-                  )}
-                </span>
-              )}
-              {identity.isArchived && (
-                <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  Архив
-                </span>
-              )}
-              {identity.isBlocked && (
-                <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                  Заблокирован
-                </span>
-              )}
+            {/* FIO (primary) + edit button + support chip */}
+            <div className="flex items-start gap-2 flex-wrap">
+              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                {/* FIO row */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-base font-bold text-foreground leading-tight">
+                    {hasFio ? fioDisplay : (identity.displayName || "—")}
+                  </span>
+                  <button
+                    type="button"
+                    title="Редактировать ФИО"
+                    onClick={openFioEdit}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
+
+                {/* displayName as secondary label (отображаемое имя) */}
+                {hasFio && identity.displayName && (
+                  <div className={cn(doctorSectionSubtitleClass, "mt-0 text-xs text-muted-foreground/70")}>
+                    отобр.: {identity.displayName}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                {support.isOnSupport && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    ★ На сопровождении
+                    {support.supportMonthsApprox != null && (
+                      <> · {support.supportMonthsApprox} мес</>
+                    )}
+                  </span>
+                )}
+                {identity.isArchived && (
+                  <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    Архив
+                  </span>
+                )}
+                {identity.isBlocked && (
+                  <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                    Заблокирован
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Hidden real name: shown in smaller text under displayName */}
-            {(identity.firstName || identity.lastName) && (
-              <div className={cn(doctorSectionSubtitleClass, "mt-0.5 text-xs")}>
-                {[identity.firstName, identity.lastName].filter(Boolean).join(" ")}
+            {/* Inline FIO edit form */}
+            {fioEditing && (
+              <div className="mt-2 flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Фамилия</label>
+                    <input
+                      type="text"
+                      value={fioLastName}
+                      onChange={(e) => setFioLastName(e.target.value)}
+                      placeholder="Иванов"
+                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Имя</label>
+                    <input
+                      type="text"
+                      value={fioFirstName}
+                      onChange={(e) => setFioFirstName(e.target.value)}
+                      placeholder="Иван"
+                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Отчество</label>
+                    <input
+                      type="text"
+                      value={fioPatronymic}
+                      onChange={(e) => setFioPatronymic(e.target.value)}
+                      placeholder="Иванович"
+                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+                {fioError && (
+                  <p className="text-xs text-destructive">{fioError}</p>
+                )}
+                <div className="flex gap-2 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={saveFio}
+                    disabled={fioSaving}
+                    className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 cursor-pointer transition-colors"
+                  >
+                    <Check className="h-3 w-3" />
+                    {fioSaving ? "Сохранение…" : "Сохранить"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelFioEdit}
+                    disabled={fioSaving}
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60 cursor-pointer transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    Отмена
+                  </button>
+                </div>
               </div>
             )}
 

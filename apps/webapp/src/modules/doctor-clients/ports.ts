@@ -113,6 +113,8 @@ export type PatientCardHeader = {
     displayName: string;
     firstName: string | null;
     lastName: string | null;
+    /** Отчество пациента из platform_users.patronymic; null если не указано. */
+    patronymic: string | null;
     phone: string | null;
     email: string | null;
     bindings: import("@/shared/types/session").ChannelBindings;
@@ -258,7 +260,7 @@ export type DoctorClientsPort = {
    */
   setPatientNames(
     userId: string,
-    names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+    names: { displayName?: string; firstName?: string | null; lastName?: string | null; patronymic?: string | null },
   ): Promise<void>;
 };
 

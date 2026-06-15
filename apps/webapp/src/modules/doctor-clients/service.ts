@@ -152,7 +152,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
 
     async setPatientNames(
       userId: string,
-      names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+      names: { displayName?: string; firstName?: string | null; lastName?: string | null; patronymic?: string | null },
     ): Promise<void> {
       return deps.clientsPort.setPatientNames(userId, names);
     },
