@@ -8,9 +8,6 @@ import type { SystemParentCode } from "@/modules/content-sections/types";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import {
   ContentNav,
@@ -134,65 +131,50 @@ function SystemFolderPane({
     );
   }
 
-  const leftContent = (
-    <CatalogLeftPane stickySplit={false} className="min-h-[300px]">
-      <div className="flex flex-col gap-8 overflow-y-auto p-2">
-        {childSections.map((sec) => {
-          const rows = pagesBySectionSlug[sec.slug] ?? [];
-          return (
-            <ContentPagesSectionList
-              key={sec.slug}
-              sectionSlug={sec.slug}
-              sectionTitle={sec.title}
-              initialPages={rows}
-              ratingsById={ratingsById}
-              newPageSystemParentCode={folderCode}
-              sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
-              allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
-              pagesInSectionCount={rows.length}
-              selectedPageId={editor.selectedPageId}
-              onSelectPage={editor.select}
-            />
-          );
-        })}
-      </div>
-    </CatalogLeftPane>
-  );
-
-  const rightContent = (
-    <CatalogRightPane className="min-h-[300px]" contentClassName="px-4 py-4">
-      <ContentEditorRightPane
-        selectedPageId={editor.selectedPageId}
-        loadedPage={editor.loadedPage}
-        loading={editor.loading}
-        clear={editor.clear}
-        sections={fullSections}
-        publishedCourses={publishedCourses}
-      />
-    </CatalogRightPane>
-  );
-
   return (
     <div className="flex flex-col gap-4">
       {folderHeader}
-      <CatalogSplitLayout
-        left={leftContent}
-        right={rightContent}
-        mobileView={editor.selectedPageId != null ? "detail" : "list"}
-        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
-        mobileBackSlot={
-          editor.selectedPageId != null ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={editor.clear}
-            >
-              ← к списку
-            </Button>
-          ) : null
-        }
-      />
+      {editor.selectedPageId != null ? (
+        <>
+          <Button
+            variant="ghost"
+            type="button"
+            className="mb-2 h-9 w-fit px-2"
+            onClick={editor.clear}
+          >
+            ← к списку
+          </Button>
+          <ContentEditorRightPane
+            selectedPageId={editor.selectedPageId}
+            loadedPage={editor.loadedPage}
+            loading={editor.loading}
+            clear={editor.clear}
+            sections={fullSections}
+            publishedCourses={publishedCourses}
+          />
+        </>
+      ) : (
+        <div className="flex flex-col gap-8">
+          {childSections.map((sec) => {
+            const rows = pagesBySectionSlug[sec.slug] ?? [];
+            return (
+              <ContentPagesSectionList
+                key={sec.slug}
+                sectionSlug={sec.slug}
+                sectionTitle={sec.title}
+                initialPages={rows}
+                ratingsById={ratingsById}
+                newPageSystemParentCode={folderCode}
+                sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
+                allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
+                pagesInSectionCount={rows.length}
+                selectedPageId={editor.selectedPageId}
+                onSelectPage={editor.select}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -225,9 +207,38 @@ function ArticleSectionPane({
 
   const editor = useInlineContentEditor();
 
-  const leftContent = (
-    <CatalogLeftPane stickySplit={false} className="min-h-[300px]">
-      <div className="overflow-y-auto p-2">
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="m-0 text-base font-semibold">{sectionTitle}</h2>
+        {editor.selectedPageId == null ? (
+          <Link
+            href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}${newPageSystemParentCode ? `&systemParentCode=${encodeURIComponent(newPageSystemParentCode)}` : ""}`}
+            className={buttonVariants({ variant: "default", size: "sm" })}
+          >
+            Создать страницу
+          </Link>
+        ) : (
+          <Button
+            variant="ghost"
+            type="button"
+            className="h-9 px-2"
+            onClick={editor.clear}
+          >
+            ← к списку
+          </Button>
+        )}
+      </div>
+      {editor.selectedPageId != null ? (
+        <ContentEditorRightPane
+          selectedPageId={editor.selectedPageId}
+          loadedPage={editor.loadedPage}
+          loading={editor.loading}
+          clear={editor.clear}
+          sections={fullSections}
+          publishedCourses={publishedCourses}
+        />
+      ) : (
         <ContentPagesSectionList
           sectionSlug={sectionSlug}
           sectionTitle={sectionTitle}
@@ -241,52 +252,7 @@ function ArticleSectionPane({
           selectedPageId={editor.selectedPageId}
           onSelectPage={editor.select}
         />
-      </div>
-    </CatalogLeftPane>
-  );
-
-  const rightContent = (
-    <CatalogRightPane className="min-h-[300px]" contentClassName="px-4 py-4">
-      <ContentEditorRightPane
-        selectedPageId={editor.selectedPageId}
-        loadedPage={editor.loadedPage}
-        loading={editor.loading}
-        clear={editor.clear}
-        sections={fullSections}
-        publishedCourses={publishedCourses}
-      />
-    </CatalogRightPane>
-  );
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="m-0 text-base font-semibold">{sectionTitle}</h2>
-        <Link
-          href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}${newPageSystemParentCode ? `&systemParentCode=${encodeURIComponent(newPageSystemParentCode)}` : ""}`}
-          className={buttonVariants({ variant: "default", size: "sm" })}
-        >
-          Создать страницу
-        </Link>
-      </div>
-      <CatalogSplitLayout
-        left={leftContent}
-        right={rightContent}
-        mobileView={editor.selectedPageId != null ? "detail" : "list"}
-        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
-        mobileBackSlot={
-          editor.selectedPageId != null ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={editor.clear}
-            >
-              ← к списку
-            </Button>
-          ) : null
-        }
-      />
+      )}
     </div>
   );
 }
@@ -365,6 +331,43 @@ export function ContentHubShell({
     if (activePaneKey === "patient-home" || activePaneKey === "media") {
       // These are handled as Link navigations in ContentNav; won't reach here
       return null;
+    }
+
+    // Stub: lessons moved to Courses
+    if (activePaneKey === "lessons") {
+      return (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
+          <p className="text-sm text-muted-foreground">
+            Уроки перенесены в раздел <strong>Курсы</strong>.
+          </p>
+          <Link href="/app/doctor/courses" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            → Перейти в Курсы
+          </Link>
+        </div>
+      );
+    }
+
+    // Stub: news moved to Broadcasts
+    if ((activePaneKey as string) === "news" || (activePaneKey as string) === "novosti") {
+      return (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
+          <p className="text-sm text-muted-foreground">
+            Новости перенесены в раздел <strong>Рассылки</strong>.
+          </p>
+          <Link href="/app/doctor/broadcasts" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            → Перейти в Рассылки
+          </Link>
+        </div>
+      );
+    }
+
+    // Stub: motivations removed
+    if ((activePaneKey as string) === "motivations") {
+      return (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
+          <p className="text-sm text-muted-foreground">Раздел «Мотивации» удалён.</p>
+        </div>
+      );
     }
 
     if (isSystemParentCode(activePaneKey)) {
