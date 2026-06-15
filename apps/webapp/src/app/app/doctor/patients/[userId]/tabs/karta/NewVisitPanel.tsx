@@ -34,11 +34,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActiveComplaint, ActiveDiagnosis, DiagnosisCatalogSuggestion } from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
-import {
-  VISIT_DURATION_OPTIONS,
-  VISIT_LOCATION_OPTIONS,
-  VISIT_SERVICE_OPTIONS,
-} from "./mockData";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -320,9 +315,9 @@ export function NewVisitPanel({
   // Date options: ISO strings (today is index 0)
   const dateOptions = generateDateOptions(0, 7);
   const [selectedDate, setSelectedDate] = useState(dateOptions[0]);
-  const [location, setLocation] = useState(VISIT_LOCATION_OPTIONS[0]);
-  const [service, setService] = useState(VISIT_SERVICE_OPTIONS[0]);
-  const [duration, setDuration] = useState(VISIT_DURATION_OPTIONS[0]);
+  const [location, setLocation] = useState("");
+  const [service, setService] = useState("");
+  const [duration, setDuration] = useState("");
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
@@ -528,33 +523,27 @@ export function NewVisitPanel({
               </option>
             ))}
           </select>
-          <select
+          <input
+            type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            className={chipSelectClass}
-          >
-            {VISIT_LOCATION_OPTIONS.map((o) => (
-              <option key={o}>{o}</option>
-            ))}
-          </select>
-          <select
+            placeholder="Место приёма"
+            className={cn(chipSelectClass, "w-32 placeholder:text-muted-foreground/60")}
+          />
+          <input
+            type="text"
             value={service}
             onChange={(e) => setService(e.target.value)}
-            className={chipSelectClass}
-          >
-            {VISIT_SERVICE_OPTIONS.map((o) => (
-              <option key={o}>{o}</option>
-            ))}
-          </select>
-          <select
+            placeholder="Услуга"
+            className={cn(chipSelectClass, "w-28 placeholder:text-muted-foreground/60")}
+          />
+          <input
+            type="text"
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className={chipSelectClass}
-          >
-            {VISIT_DURATION_OPTIONS.map((o) => (
-              <option key={o}>{o}</option>
-            ))}
-          </select>
+            placeholder="Длительность"
+            className={cn(chipSelectClass, "w-24 placeholder:text-muted-foreground/60")}
+          />
         </span>
       </div>
       <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
@@ -768,7 +757,7 @@ export function NewVisitPanel({
 
             <FormTextarea
               label="Осмотр"
-              placeholder="Наклон вперёд болезненный на 30 град (на 2 балла)..."
+              placeholder="Данные объективного осмотра…"
               minH="min-h-[54px]"
               value={examRepeat}
               onChange={setExamRepeat}
@@ -849,7 +838,7 @@ export function NewVisitPanel({
           type="button"
           className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
         >
-          📎 Прикрепить файлы
+          Прикрепить файлы
         </button>
         {saveError && (
           <span className="text-xs text-destructive">{saveError}</span>
