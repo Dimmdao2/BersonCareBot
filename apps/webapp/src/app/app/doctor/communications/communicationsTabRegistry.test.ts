@@ -8,7 +8,7 @@ import { COMMUNICATIONS_TABS } from "./doctorCommunicationsTabs";
  * onDeepLinkChange("<key>", …), но реестр его не объявляет — на reload/back значение
  * НЕ восстановится (молчаливая поломка deep-link). typecheck это не ловит (ключ — строка).
  *
- * Эти тесты фиксируют известные ключи на момент TODO#3:
+ * Зафиксированные deep-link ключи:
  *   intake → "id", broadcasts → "archive", chats/comments → нет.
  * При добавлении нового deep-link обёртке — обновить и реестр, и этот тест.
  */
