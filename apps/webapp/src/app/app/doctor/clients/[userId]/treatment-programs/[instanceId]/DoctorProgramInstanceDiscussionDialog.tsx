@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
@@ -228,12 +228,13 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   const showItemLabels = filterStageItemId === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Обсуждения по программе</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
+    <DoctorModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Обсуждения по программе"
+      size="lg"
+    >
+      <div className="flex flex-col gap-3">
           <div className="grid gap-2">
             <Label htmlFor="doctor-instance-discussion-item-filter">Пункт программы</Label>
             <div data-testid="doctor-instance-discussion-item-filter">
@@ -320,7 +321,6 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
             }}
           />
         </div>
-      </DialogContent>
-    </Dialog>
+    </DoctorModal>
   );
 }

@@ -2,13 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
@@ -46,7 +40,7 @@ type FormFieldsProps = {
   onClose: () => void;
 };
 
-function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: FormFieldsProps) {
+function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }: FormFieldsProps) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
   const [dueAt, setDueAt] = useState(() => toLocalInput(editing?.dueAt ?? null));
@@ -114,56 +108,51 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
   }
 
   return (
-    <DialogContent className="max-w-md">
-      <DialogHeader>
-        <DialogTitle>{editing ? "Изменить задачу" : "Новая задача"}</DialogTitle>
-      </DialogHeader>
-      <div className="flex flex-col gap-3">
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Кратко"
-          maxLength={500}
-        />
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Подробнее"
-          rows={3}
-        />
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Срок</span>
-          <DoctorDateTimePicker value={dueAt} onChange={setDueAt} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Напомнить</span>
-          <DoctorDateTimePicker value={remindAt} onChange={setRemindAt} />
-        </label>
-        <LabeledSwitch
-          label="Важное"
-          checked={isImportant}
-          onCheckedChange={setIsImportant}
+    <div className="flex flex-col gap-3">
+      <Input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Кратко"
+        maxLength={500}
+      />
+      <Textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Подробнее"
+        rows={3}
+      />
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Срок</span>
+        <DoctorDateTimePicker value={dueAt} onChange={setDueAt} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Напомнить</span>
+        <DoctorDateTimePicker value={remindAt} onChange={setRemindAt} />
+      </label>
+      <LabeledSwitch
+        label="Важное"
+        checked={isImportant}
+        onCheckedChange={setIsImportant}
+        disabled={isPending}
+      />
+      {/* Patient picker: shown only for global tasks (patientUserId === "") */}
+      {isGlobal ? (
+        <DoctorCalendarPatientSearch
+          value={linkedPatient}
+          onChange={setLinkedPatient}
           disabled={isPending}
         />
-        {/* Patient picker: shown only for global tasks (patientUserId === "") */}
-        {isGlobal ? (
-          <DoctorCalendarPatientSearch
-            value={linkedPatient}
-            onChange={setLinkedPatient}
-            disabled={isPending}
-          />
-        ) : null}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      </div>
-      <DialogFooter>
+      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
           Отмена
         </Button>
         <Button type="button" onClick={handleSubmit} disabled={isPending || !title.trim()}>
           {isPending ? "Сохранение…" : "Сохранить"}
         </Button>
-      </DialogFooter>
-    </DialogContent>
+      </div>
+    </div>
   );
 }
 
@@ -183,9 +172,14 @@ export function SpecialistTaskFormDialog({
   onSaved,
 }: Props) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <DoctorModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={editing ? "Изменить задачу" : "Новая задача"}
+      size="sm"
+    >
       {open ? (
-        <SpecialistTaskFormFields
+        <SpecialistTaskFormContent
           key={editing?.id ?? "new"}
           patientUserId={patientUserId}
           editing={editing}
@@ -193,6 +187,6 @@ export function SpecialistTaskFormDialog({
           onClose={() => onOpenChange(false)}
         />
       ) : null}
-    </Dialog>
+    </DoctorModal>
   );
 }
