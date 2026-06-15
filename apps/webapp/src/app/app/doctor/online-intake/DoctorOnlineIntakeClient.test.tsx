@@ -95,17 +95,16 @@ describe("DoctorOnlineIntakeClient — список", () => {
   it("показывает empty-state «Заявок нет» при пустом списке и без фильтров", async () => {
     vi.stubGlobal("fetch", makeFetch({ list: { items: [], total: 0 } }));
     render(<DoctorOnlineIntakeClient />);
-    // дефолт — фильтр «Новые»; снимаем его, чтобы остаться без фильтров
-    await userEvent.click(await screen.findByRole("button", { name: /Новые/i }));
+    // дефолт — все заявки (пустой выбор); пустой список → empty-state сразу
     await waitFor(() => {
       expect(screen.getByText(/заявок нет/i)).toBeInTheDocument();
     });
   });
 
-  it("по умолчанию активен фильтр «Новые»", async () => {
+  it("по умолчанию фильтр «Новые» не активен — показываются все заявки", async () => {
     render(<DoctorOnlineIntakeClient />);
     const newBtn = await screen.findByRole("button", { name: /Новые/i });
-    expect(newBtn).toHaveAttribute("aria-pressed", "true");
+    expect(newBtn).toHaveAttribute("aria-pressed", "false");
   });
 
   it("нет кнопки «Все» — фильтр убран", async () => {
@@ -114,11 +113,9 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(screen.queryByRole("button", { name: /^Все$/i })).not.toBeInTheDocument();
   });
 
-  it("снятие дефолтного фильтра «Новые» = пустой выбор = показать все заявки", async () => {
+  it("дефолт — пустой выбор — все заявки видны без клика", async () => {
     render(<DoctorOnlineIntakeClient />);
-    await screen.findByText("Список Имя");
-    // дефолт «Новые» → снимаем → пустой выбор → все заявки видны
-    await userEvent.click(screen.getByRole("button", { name: /Новые/i }));
+    // дефолт пустой выбор → все заявки сразу видны
     expect(await screen.findByText("Список Имя")).toBeInTheDocument();
   });
 
@@ -126,8 +123,7 @@ describe("DoctorOnlineIntakeClient — список", () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
 
-    // снимаем дефолтный «Новые», чтобы видеть все заявки
-    await userEvent.click(screen.getByRole("button", { name: /Новые/i }));
+    // дефолт — пустой выбор, все заявки видны
     expect(await screen.findByText("Список Имя")).toBeInTheDocument();
 
     // Включаем фильтр «В работе» — заявка со статусом new исчезает
@@ -152,7 +148,8 @@ describe("DoctorOnlineIntakeClient — список", () => {
     const newBtn = screen.getByRole("button", { name: /Новые/i });
     const inReviewBtn = screen.getByRole("button", { name: /В работе/i });
 
-    // «Новые» включён по умолчанию; добавляем «В работе»
+    // оба выключены по умолчанию; включаем «Новые» и «В работе»
+    await userEvent.click(newBtn);
     await userEvent.click(inReviewBtn);
 
     expect(newBtn).toHaveAttribute("aria-pressed", "true");
@@ -184,7 +181,7 @@ describe("DoctorOnlineIntakeClient — детальная панель", () => {
       "href",
       `/app/doctor/clients/${PATIENT_ID}?scope=appointments`,
     );
-    expect(screen.getByRole("link", { name: "Чат" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Открыть чат" })).toHaveAttribute(
       "href",
       `/app/doctor/clients/${PATIENT_ID}?scope=appointments&chat=1`,
     );

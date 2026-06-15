@@ -52,6 +52,13 @@ type IntakeDetail = {
     sizeBytes: number;
   }>;
   answers?: Array<{ questionId: string; questionText: string; value: string; ordinal: number }>;
+  statusHistory?: Array<{
+    fromStatus: string | null;
+    toStatus: string;
+    changedBy: string;
+    note: string | null;
+    changedAt: string;
+  }>;
 };
 
 type IntakeStats = {
@@ -281,9 +288,9 @@ export function DoctorOnlineIntakeClient({
    * Мультитоггл статусов: клик вкл/выкл конкретный статус.
    * Пустое множество = показать все заявки.
    */
-  // Дефолт — только «Новые» (активные заявки врача). Клик по чипу снимает фильтр → все.
+  // Дефолт — все заявки (пустое множество = все). Клик по чипу включает/выключает фильтр.
   const [selectedStatuses, setSelectedStatuses] = useState<Set<IntakeStatus>>(
-    () => new Set<IntakeStatus>(["new"]),
+    () => new Set<IntakeStatus>(),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<IntakeDetail | null>(null);
@@ -301,6 +308,9 @@ export function DoctorOnlineIntakeClient({
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [replySuccessId, setReplySuccessId] = useState<string | null>(null);
+
+  // Note for status change
+  const [statusNote, setStatusNote] = useState("");
 
   // Актуальный selectedId для эффектов/гонок без перезапуска эффектов на каждое изменение.
   const selectedIdRef = useRef<string | null>(null);
@@ -404,15 +414,16 @@ export function DoctorOnlineIntakeClient({
     void loadDetail(id);
   }
 
-  async function changeStatus(id: string, status: IntakeStatus) {
+  async function changeStatus(id: string, status: IntakeStatus, note?: string) {
     setUpdatingId(id);
     try {
       const res = await fetch(`/api/doctor/online-intake/${encodeURIComponent(id)}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...(note?.trim() ? { note: note.trim() } : {}) }),
       });
       if (res.ok) {
+        setStatusNote("");
         await loadList();
         if (selectedIdRef.current === id) await loadDetail(id);
         void loadStats(statsDays);
@@ -520,12 +531,18 @@ export function DoctorOnlineIntakeClient({
               type="button"
               onClick={() => void openDetail(item.id)}
               className={cn(
-                "flex w-full flex-col gap-0.5 border-b border-border px-3 py-2.5 text-left transition-colors",
+                "flex min-w-0 w-full flex-col gap-0.5 border-b border-border px-3 py-2.5 text-left transition-colors overflow-hidden",
                 selectedId === item.id ? "bg-primary/15" : "hover:bg-muted/40",
               )}
             >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-sm font-semibold">{item.patientName}</span>
+              <div className="flex min-w-0 items-baseline justify-between gap-2">
+                <Link
+                  href={doctorClientProfileHref(item.patientUserId)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="min-w-0 truncate text-sm font-semibold hover:underline"
+                >
+                  {item.patientName}
+                </Link>
                 <span
                   className={cn(
                     "shrink-0 text-xs font-semibold",
@@ -535,11 +552,11 @@ export function DoctorOnlineIntakeClient({
                   {item.status === "new" ? "Новая" : formatIntakeDate(item.createdAt)}
                 </span>
               </div>
-              <div className="text-xs text-muted-foreground truncate">
+              <div className="min-w-0 truncate text-xs text-muted-foreground">
                 {item.patientPhone} · {STATUS_LABELS[item.status]}
               </div>
               {item.summary && (
-                <div className="truncate text-xs text-foreground/80">{item.summary}</div>
+                <div className="min-w-0 truncate text-xs text-foreground/80">{item.summary}</div>
               )}
             </button>
           ))
@@ -583,7 +600,12 @@ export function DoctorOnlineIntakeClient({
             <div className="shrink-0 border-b border-border bg-primary/10 px-4 py-2.5">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-sm font-bold">{detail.patientName}</div>
+                  <Link
+                    href={doctorClientProfileHref(detail.patientUserId)}
+                    className="text-sm font-bold hover:underline"
+                  >
+                    {detail.patientName}
+                  </Link>
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     Заявка · {formatIntakeDate(detail.createdAt)}
                   </div>
@@ -625,6 +647,31 @@ export function DoctorOnlineIntakeClient({
                 </div>
               </div>
 
+              {/* Status history */}
+              {detail.statusHistory && detail.statusHistory.length > 0 && (
+                <div className="border-t border-border px-4 py-3">
+                  <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    История статусов
+                  </p>
+                  <ul className="space-y-1.5">
+                    {detail.statusHistory.map((h, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs">
+                        <span className="shrink-0 text-muted-foreground tabular-nums">
+                          {formatIntakeDate(h.changedAt)}
+                        </span>
+                        <span className="shrink-0 text-muted-foreground">→</span>
+                        <span className="font-medium">
+                          {STATUS_LABELS[h.toStatus as IntakeStatus] ?? h.toStatus}
+                        </span>
+                        {h.note && (
+                          <span className="text-muted-foreground">· {h.note}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* Reply form */}
               {detail.status !== "closed" && (
                 <div className="border-t border-border bg-muted/10 px-4 py-3">
@@ -661,51 +708,64 @@ export function DoctorOnlineIntakeClient({
             </div>
 
             {/* Action bar */}
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-4 py-2.5">
-              {detail.status !== "closed" && replySuccessId !== detail.id && (
-                <Button
-                  size="sm"
-                  disabled={replySending || !replyText.trim()}
-                  onClick={() => void handleReply()}
-                >
-                  {replySending ? "Отправка…" : "Ответить"}
-                </Button>
-              )}
+            <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2.5">
               {(detail.status === "new" ||
                 detail.status === "in_review" ||
                 detail.status === "contacted") && (
-                <Button
-                  size="sm"
-                  variant="outline"
+                <Textarea
+                  placeholder="Заметка к смене статуса (необязательно)"
+                  value={statusNote}
+                  onChange={(e) => setStatusNote(e.target.value)}
+                  rows={2}
                   disabled={!!updatingId}
-                  onClick={() => void changeStatus(detail.id, "booked")}
-                >
-                  Записать →
-                </Button>
+                  className="resize-none text-sm"
+                  aria-label="Заметка к смене статуса"
+                />
               )}
-              {(detail.status === "new" ||
-                detail.status === "in_review" ||
-                detail.status === "contacted") && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!!updatingId}
-                  onClick={() => void changeStatus(detail.id, "rejected")}
-                >
-                  В отказ
-                </Button>
-              )}
-              {detail.status !== "closed" && (
-                <Link
-                  href={doctorClientProfileHref(detail.patientUserId, {
-                    profileListScope: "appointments",
-                  })}
-                  className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
-                >
-                  Карточка клиента
-                </Link>
-              )}
-              {detail.status !== "closed" && (
+              <div className="flex flex-wrap items-center gap-2">
+                {detail.status !== "closed" && replySuccessId !== detail.id && (
+                  <Button
+                    size="sm"
+                    disabled={replySending || !replyText.trim()}
+                    onClick={() => void handleReply()}
+                  >
+                    {replySending ? "Отправка…" : "Ответить"}
+                  </Button>
+                )}
+                {(detail.status === "new" ||
+                  detail.status === "in_review" ||
+                  detail.status === "contacted") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!!updatingId}
+                    onClick={() => void changeStatus(detail.id, "booked", statusNote)}
+                  >
+                    Записать →
+                  </Button>
+                )}
+                {(detail.status === "new" ||
+                  detail.status === "in_review" ||
+                  detail.status === "contacted") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!!updatingId}
+                    onClick={() => void changeStatus(detail.id, "rejected", statusNote)}
+                  >
+                    В отказ
+                  </Button>
+                )}
+                {detail.status !== "closed" && (
+                  <Link
+                    href={doctorClientProfileHref(detail.patientUserId, {
+                      profileListScope: "appointments",
+                    })}
+                    className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+                  >
+                    Карточка клиента
+                  </Link>
+                )}
                 <Link
                   href={doctorClientProfileHref(detail.patientUserId, {
                     profileListScope: "appointments",
@@ -713,9 +773,9 @@ export function DoctorOnlineIntakeClient({
                   })}
                   className={cn(buttonVariants({ size: "sm" }))}
                 >
-                  Чат
+                  Открыть чат
                 </Link>
-              )}
+              </div>
             </div>
           </>
         )}
