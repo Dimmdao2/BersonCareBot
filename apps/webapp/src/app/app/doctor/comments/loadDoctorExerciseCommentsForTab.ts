@@ -12,7 +12,7 @@
  *   (включая promo). Это расхождение зафиксировано как допустимое: promo-комментарии видны
  *   на «Сегодня», но не на вкладке «Комментарии».
  *
- * См. TODO#3 Block 2 в communications.md и .cursor/plans/doctor_communications_client_shell.plan.md.
+ * Намеренное расхождение с «Сегодня» зафиксировано как допустимое.
  */
 import type { DoctorClientsFilters } from "@/modules/doctor-clients/ports";
 import type {

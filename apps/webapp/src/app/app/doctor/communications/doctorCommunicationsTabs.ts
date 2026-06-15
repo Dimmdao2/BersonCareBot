@@ -2,7 +2,7 @@
  * Канонические вкладки экрана «Коммуникации».
  *
  * `/app/doctor/communications` — настоящая страница-шелл (`page.tsx` → `DoctorCommunicationsShell`).
- * Internal-rewrite убран (Block 5 TODO#3). Активная вкладка определяется по `?tab=` параметру.
+ * Internal-rewrite убран. Активная вкладка определяется по `?tab=` параметру.
  * Старые прямые URL (`/messages`, `/online-intake` и др.) → 308 на агрегатный URL
  * через `doctorRouteRedirects.ts`. Schedule-rewrite и его REWRITE_MARKER_HEADER не затронуты.
  */
