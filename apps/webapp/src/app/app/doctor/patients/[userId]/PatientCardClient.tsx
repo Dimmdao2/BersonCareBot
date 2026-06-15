@@ -33,7 +33,7 @@ const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "overview", label: "Обзор" },
   { id: "karta", label: "Карточка" },
   { id: "program", label: "Программа" },
-  { id: "records", label: "Записи" },
+  { id: "records", label: "Визиты" },
   { id: "files", label: "Файлы" },
   { id: "account", label: "Учётка" },
 ];
@@ -74,6 +74,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
 export function PatientCardClient({ cardHeaderPromise }: Props) {
   const header = use(cardHeaderPromise);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
 
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
   useEffect(() => {
@@ -336,7 +337,11 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
           TAB PANELS — rendered once, hidden when not active.
       ================================================================ */}
       <div className={cn(activeTab !== "overview" && "hidden")}>
-        <PatientTabOverview userId={identity.userId} header={header} />
+        <PatientTabOverview
+          userId={identity.userId}
+          header={header}
+          onTabSwitch={(tab) => setActiveTab(tab as TabId)}
+        />
       </div>
       <div className={cn(activeTab !== "karta" && "hidden")}>
         <PatientTabKarta userId={identity.userId} header={header} />
@@ -345,7 +350,14 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
         <PatientTabProgram userId={identity.userId} header={header} />
       </div>
       <div className={cn(activeTab !== "records" && "hidden")}>
-        <PatientTabRecords userId={identity.userId} header={header} />
+        <PatientTabRecords
+          userId={identity.userId}
+          header={header}
+          onCreateVisitFromAppointment={(apptId) => {
+            setPendingAppointmentId(apptId);
+            setActiveTab("karta");
+          }}
+        />
       </div>
       <div className={cn(activeTab !== "files" && "hidden")}>
         <PatientTabFiles userId={identity.userId} header={header} />

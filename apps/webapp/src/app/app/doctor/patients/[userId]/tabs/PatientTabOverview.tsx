@@ -434,13 +434,24 @@ function CalendarCell({ day }: { day: CalendarCellData }) {
 type Props = {
   userId: string;
   header?: PatientCardHeader;
+  onTabSwitch?: (tab: string) => void;
 };
 
-export function PatientTabOverview({ userId }: Props) {
+export function PatientTabOverview({ userId, onTabSwitch }: Props) {
   const [calView, setCalView] = useState<"month" | "week">("month");
   const [programStageOffset, setProgramStageOffset] = useState(0);
   const [data, setData] = useState<OverviewData | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+
+  // Note inline form
+  const [addingNote, setAddingNote] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  // Task inline form
+  const [addingTask, setAddingTask] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskSaving, setTaskSaving] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -673,6 +684,54 @@ export function PatientTabOverview({ userId }: Props) {
   const isStale = loadedUserId !== userId;
   const isLoading = isStale || data === null;
 
+  async function handleNoteSubmit() {
+    if (!noteText.trim()) return;
+    setNoteSaving(true);
+    try {
+      const res = await fetch(`/api/doctor/clients/${userId}/notes`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: noteText }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { note?: DoctorNoteRow };
+        const newNote = json.note;
+        if (newNote) {
+          setData((prev) => prev ? { ...prev, notes: [newNote, ...prev.notes] } : prev);
+        }
+        setNoteText("");
+        setAddingNote(false);
+      }
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
+  async function handleTaskSubmit() {
+    if (!taskTitle.trim()) return;
+    setTaskSaving(true);
+    try {
+      const res = await fetch(`/api/doctor/clients/${userId}/tasks`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: taskTitle, patientUserId: userId }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { task?: SpecialistTaskRow };
+        const newTask = json.task;
+        if (newTask) {
+          setData((prev) => prev ? { ...prev, tasks: [newTask, ...prev.tasks] } : prev);
+        }
+        setTaskTitle("");
+        setAddingTask(false);
+      }
+    } finally {
+      setTaskSaving(false);
+    }
+  }
+
   // Compute calendar grid from real data
   const calendarGrid = buildCalendarGrid(data?.calendarDays ?? []);
 
@@ -692,6 +751,17 @@ export function PatientTabOverview({ userId }: Props) {
 
       {/* ===== LEFT COLUMN ===== */}
       <div className="flex flex-col gap-2.5">
+
+        {/* «+ Создать визит» entry point */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => onTabSwitch?.("karta")}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            + Создать визит
+          </button>
+        </div>
 
         {/* KPI row */}
         <div className="grid grid-cols-2 gap-2">
@@ -763,6 +833,7 @@ export function PatientTabOverview({ userId }: Props) {
             <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
             <button
               type="button"
+              onClick={() => onTabSwitch?.("karta")}
               className="text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
             >
               открыть Карту →
@@ -958,11 +1029,42 @@ export function PatientTabOverview({ userId }: Props) {
             <button
               type="button"
               title="Добавить заметку"
+              onClick={() => { setAddingNote(true); setNoteText(""); }}
               className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
             >
               +
             </button>
           </div>
+
+          {addingNote && (
+            <div className="flex flex-col gap-1.5 mb-2">
+              <textarea
+                autoFocus
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                rows={3}
+                placeholder="Текст заметки…"
+                className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleNoteSubmit}
+                  disabled={noteSaving || !noteText.trim()}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors"
+                >
+                  {noteSaving ? "Сохранение…" : "Добавить"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAddingNote(false); setNoteText(""); }}
+                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
 
           {isLoading && (
             <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка заметок…</p>
@@ -970,7 +1072,7 @@ export function PatientTabOverview({ userId }: Props) {
           {!isLoading && data?.notesStatus === "error" && (
             <p className="text-xs text-destructive py-1">Не удалось загрузить заметки.</p>
           )}
-          {!isLoading && data?.notesStatus === "ok" && data.notes.length === 0 && (
+          {!isLoading && data?.notesStatus === "ok" && data.notes.length === 0 && !addingNote && (
             <p className="text-xs text-muted-foreground py-2">Заметок нет.</p>
           )}
           {!isLoading && data?.notesStatus === "ok" && data.notes.length > 0 && (
@@ -1000,11 +1102,43 @@ export function PatientTabOverview({ userId }: Props) {
             <button
               type="button"
               title="Добавить задачу"
+              onClick={() => { setAddingTask(true); setTaskTitle(""); }}
               className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
             >
               +
             </button>
           </div>
+
+          {addingTask && (
+            <div className="flex flex-col gap-1.5 mb-2">
+              <input
+                autoFocus
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { void handleTaskSubmit(); } }}
+                placeholder="Название задачи…"
+                className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void handleTaskSubmit()}
+                  disabled={taskSaving || !taskTitle.trim()}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors"
+                >
+                  {taskSaving ? "Сохранение…" : "Добавить"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAddingTask(false); setTaskTitle(""); }}
+                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
 
           {isLoading && (
             <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка задач…</p>
@@ -1012,7 +1146,7 @@ export function PatientTabOverview({ userId }: Props) {
           {!isLoading && data?.tasksStatus === "error" && (
             <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
           )}
-          {!isLoading && data?.tasksStatus === "ok" && data.tasks.length === 0 && (
+          {!isLoading && data?.tasksStatus === "ok" && data.tasks.length === 0 && !addingTask && (
             <p className="text-xs text-muted-foreground py-2">Задач нет.</p>
           )}
           {!isLoading && data?.tasksStatus === "ok" && data.tasks.length > 0 && (
@@ -1055,6 +1189,7 @@ export function PatientTabOverview({ userId }: Props) {
             )}
             <button
               type="button"
+              onClick={() => onTabSwitch?.("program")}
               className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
             >
               открыть программу →

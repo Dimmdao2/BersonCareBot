@@ -31,10 +31,8 @@ import {
   mapProactiveInsightsForToday,
   type TodayProactiveInsightItem,
 } from "./mapProactiveInsightsForToday";
-import {
-  DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
-  doctorClientProfileHref,
-} from "./clients/doctorClientProfileHref";
+import { doctorClientProfileHref } from "./clients/doctorClientProfileHref";
+import { patientCardHref } from "./patients/patientCardHref";
 import { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
 import {
   loadDoctorExerciseCommentAttention,
@@ -237,10 +235,7 @@ export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSuppo
   return {
     userId: uid,
     displayName: row.displayName.trim() || "—",
-    href: doctorClientProfileHref(uid, {
-      profileListScope: "appointments",
-      hash: DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
-    }),
+    href: patientCardHref(uid),
     unreadMessagesCount: 0,
     exerciseDoneTodayCount: 0,
     newExerciseCommentsCount: 0,
