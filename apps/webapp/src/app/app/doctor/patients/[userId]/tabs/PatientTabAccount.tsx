@@ -174,7 +174,7 @@ function ChannelRow({
 }) {
   const chipStyles =
     status === "active"
-      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+      ? "bg-primary/10 text-primary border border-primary/30"
       : status === "problem"
         ? "bg-destructive/10 text-destructive border border-destructive/20"
         : "bg-muted text-muted-foreground border border-border";
@@ -1187,7 +1187,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
             </div>
           </div>
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            <span className="text-emerald-600 font-medium">подключён</span> → иконка активна и кликабельна ·{" "}
+            <span className="text-primary font-medium">подключён</span> → иконка активна и кликабельна ·{" "}
             <span className="text-destructive font-medium">проблема</span> — подсвечена.
           </p>
         </SectionCard>
@@ -1484,7 +1484,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
               <Send className={cn("h-3.5 w-3.5 flex-none", hasTelegram ? "text-primary" : "text-muted-foreground")} />
               <span className="flex-1">Telegram-бот</span>
               {hasTelegram ? (
-                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/30">
                   привязан
                 </span>
               ) : (
@@ -1499,7 +1499,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
               <Smartphone className={cn("h-3.5 w-3.5 flex-none", hasMax ? "text-primary" : "text-muted-foreground")} />
               <span className="flex-1">{hasMax ? "MAX-бот" : "MAX-бот не привязан"}</span>
               {hasMax ? (
-                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/30">
                   привязан
                 </span>
               ) : (

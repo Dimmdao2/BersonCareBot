@@ -810,7 +810,7 @@ export function NewVisitPanel({
 
             <FormTextarea
               label="Проведённые манипуляции"
-              placeholder="Сухая игла на область сух прав БЯМ..."
+              placeholder="Опишите проведённые манипуляции"
               value={manipulationsRepeat}
               onChange={setManipulationsRepeat}
             />
