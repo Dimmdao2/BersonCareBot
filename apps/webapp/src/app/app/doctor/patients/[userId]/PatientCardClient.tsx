@@ -3,8 +3,10 @@
 /**
  * PatientCardClient — Wave 2: real header + 6-tab client-side navigation.
  * Tabs are rendered once and shown/hidden client-side (no server re-fetch per tab).
+ *
+ * Header: READ-ONLY display of patient identity. All editing lives in the «Учётка» tab.
  */
-import { use, useState, useEffect, useRef } from "react";
+import { use, useState, useEffect } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
@@ -13,6 +15,7 @@ import {
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
+import { MessageSquare, Send, Smartphone, Mail } from "lucide-react";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
 import { PatientTabKarta } from "./tabs/PatientTabKarta";
 import { PatientTabProgram } from "./tabs/PatientTabProgram";
@@ -72,48 +75,6 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   const header = use(cardHeaderPromise);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
-  // Inline birthDate editor state
-  const [birthDateLocal, setBirthDateLocal] = useState<string | null | undefined>(undefined);
-  const [editingBirthDate, setEditingBirthDate] = useState(false);
-  const [bdInput, setBdInput] = useState("");
-  const [bdSaving, setBdSaving] = useState(false);
-  const bdInputRef = useRef<HTMLInputElement>(null);
-
-  // Inline gender editor state
-  const [genderLocal, setGenderLocal] = useState<"male" | "female" | null | undefined>(undefined);
-  const [editingGender, setEditingGender] = useState(false);
-  const [gSaving, setGSaving] = useState(false);
-
-  // Inline name editor state (displayName / firstName / lastName)
-  const [namesLocal, setNamesLocal] = useState<
-    { displayName: string; firstName: string | null; lastName: string | null } | undefined
-  >(undefined);
-  const [editingNames, setEditingNames] = useState(false);
-  const [nDisplay, setNDisplay] = useState("");
-  const [nFirst, setNFirst] = useState("");
-  const [nLast, setNLast] = useState("");
-  const [nSaving, setNSaving] = useState(false);
-
-  // Sync from server header (once resolved)
-  useEffect(() => {
-    if (header && birthDateLocal === undefined) {
-      setBirthDateLocal(header.identity.birthDate);
-    }
-  }, [header, birthDateLocal]);
-
-  useEffect(() => {
-    if (header && genderLocal === undefined) {
-      setGenderLocal(header.identity.gender);
-    }
-  }, [header, genderLocal]);
-
-  // Focus date input when editor opens
-  useEffect(() => {
-    if (editingBirthDate && bdInputRef.current) {
-      bdInputRef.current.focus();
-    }
-  }, [editingBirthDate]);
-
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
   useEffect(() => {
     function handleOpenTab(e: Event) {
@@ -136,87 +97,16 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
 
   const { identity, support, lastVisit, nextAppointment, totalVisits, cancellationsCount, reschedulesCount, firstVisitDate } = header;
 
-  /** Active birthDate: from local edit state or header */
-  const activeBirthDate = birthDateLocal !== undefined ? birthDateLocal : identity.birthDate;
-  /** Active age: recompute from activeBirthDate */
+  /** Active age: from header birthDate */
   const activeAge: number | null = (() => {
-    if (!activeBirthDate) return null;
+    if (!identity.birthDate) return null;
     const today = new Date();
-    const bd = new Date(activeBirthDate);
+    const bd = new Date(identity.birthDate);
     let age = today.getFullYear() - bd.getFullYear();
     const m = today.getMonth() - bd.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
     return age >= 0 ? age : null;
   })();
-
-  async function saveBirthDate() {
-    const val = bdInput.trim() || null;
-    // basic iso check
-    if (val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) return;
-    setBdSaving(true);
-    try {
-      await fetch(`/api/doctor/patients/${identity.userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ birthDate: val }),
-      });
-      setBirthDateLocal(val);
-    } finally {
-      setBdSaving(false);
-      setEditingBirthDate(false);
-    }
-  }
-
-  /** Active gender: from local edit state or header */
-  const activeGender = genderLocal !== undefined ? genderLocal : identity.gender;
-
-  /** Active names: from local edit state or header */
-  const activeNames = namesLocal ?? {
-    displayName: identity.displayName,
-    firstName: identity.firstName,
-    lastName: identity.lastName,
-  };
-
-  function openNameEditor() {
-    setNDisplay(activeNames.displayName ?? "");
-    setNFirst(activeNames.firstName ?? "");
-    setNLast(activeNames.lastName ?? "");
-    setEditingNames(true);
-  }
-
-  async function saveNames() {
-    const displayName = nDisplay.trim();
-    if (!displayName) return; // displayName обязателен
-    const firstName = nFirst.trim() || null;
-    const lastName = nLast.trim() || null;
-    setNSaving(true);
-    try {
-      await fetch(`/api/doctor/patients/${identity.userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName, firstName, lastName }),
-      });
-      setNamesLocal({ displayName, firstName, lastName });
-    } finally {
-      setNSaving(false);
-      setEditingNames(false);
-    }
-  }
-
-  async function saveGender(val: "male" | "female" | null) {
-    setGSaving(true);
-    try {
-      await fetch(`/api/doctor/patients/${identity.userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gender: val }),
-      });
-      setGenderLocal(val);
-    } finally {
-      setGSaving(false);
-      setEditingGender(false);
-    }
-  }
 
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
@@ -227,13 +117,8 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   return (
     <div className="flex flex-col gap-3">
       {/* ================================================================
-          IDENTITY HEADER CARD
-          Faithful to wireframe lines 217–267:
-          - displayName large + support chip
-          - hidden real name (firstName + lastName) smaller below
-          - ДР · возраст row (null → "—")
-          - phone monospace + copy button + channel icons
-          - right mini-summary (Прошлый визит / Следующая запись / Визитов)
+          IDENTITY HEADER CARD — READ ONLY
+          Displaying patient identity; all edits live in «Учётка» tab.
       ================================================================ */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Main header body */}
@@ -243,33 +128,9 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
           <div className="flex-1 min-w-[280px] flex flex-col gap-0">
             {/* Display name + support chip */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              {editingNames ? (
-                <input
-                  value={nDisplay}
-                  onChange={(e) => setNDisplay(e.target.value)}
-                  disabled={nSaving}
-                  placeholder="Отображаемое имя"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { void saveNames(); }
-                    if (e.key === "Escape") { setEditingNames(false); }
-                  }}
-                  className="h-7 rounded border border-border bg-background px-2 text-base font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              ) : (
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-base font-bold text-foreground leading-tight">
-                    {activeNames.displayName}
-                  </span>
-                  <button
-                    type="button"
-                    title="Редактировать имя"
-                    onClick={openNameEditor}
-                    className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    ✎
-                  </button>
-                </span>
-              )}
+              <span className="text-base font-bold text-foreground leading-tight">
+                {identity.displayName}
+              </span>
               {support.isOnSupport && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   ★ На сопровождении
@@ -290,166 +151,30 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
               )}
             </div>
 
-            {/* Hidden real name (owner answer #3): shown in smaller text under displayName */}
-            {editingNames ? (
-              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                <input
-                  value={nFirst}
-                  onChange={(e) => setNFirst(e.target.value)}
-                  disabled={nSaving}
-                  placeholder="Имя"
-                  className="h-6 w-28 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  value={nLast}
-                  onChange={(e) => setNLast(e.target.value)}
-                  disabled={nSaving}
-                  placeholder="Фамилия"
-                  className="h-6 w-32 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <button
-                  type="button"
-                  onClick={() => void saveNames()}
-                  disabled={nSaving || !nDisplay.trim()}
-                  className="text-xs text-primary hover:underline disabled:opacity-50"
-                >
-                  {nSaving ? "…" : "Сохранить"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingNames(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Отмена
-                </button>
+            {/* Hidden real name: shown in smaller text under displayName */}
+            {(identity.firstName || identity.lastName) && (
+              <div className={cn(doctorSectionSubtitleClass, "mt-0.5 text-xs")}>
+                {[identity.firstName, identity.lastName].filter(Boolean).join(" ")}
               </div>
-            ) : (
-              (activeNames.firstName || activeNames.lastName) && (
-                <div className={cn(doctorSectionSubtitleClass, "mt-0.5 text-xs")}>
-                  {[activeNames.firstName, activeNames.lastName].filter(Boolean).join(" ")}
-                </div>
-              )
             )}
 
-            {/* ДР · возраст + inline editor */}
+            {/* ДР · возраст — read-only; edit in «Учётка» */}
             <div className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              {editingBirthDate ? (
-                <>
-                  <input
-                    ref={bdInputRef}
-                    type="date"
-                    value={bdInput}
-                    onChange={(e) => setBdInput(e.target.value)}
-                    disabled={bdSaving}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { void saveBirthDate(); }
-                      if (e.key === "Escape") { setEditingBirthDate(false); }
-                    }}
-                    className="h-6 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void saveBirthDate()}
-                    disabled={bdSaving}
-                    className="text-xs text-primary hover:underline disabled:opacity-50"
-                  >
-                    {bdSaving ? "…" : "Сохранить"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingBirthDate(false)}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Отмена
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span>
-                    ДР:{" "}
-                    {activeBirthDate ? (
-                      <>{fmtBirthDate(activeBirthDate)}{activeAge != null ? ` · ${activeAge} лет` : ""}</>
-                    ) : (
-                      "—"
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    title="Указать дату рождения"
-                    onClick={() => {
-                      setBdInput(activeBirthDate ?? "");
-                      setEditingBirthDate(true);
-                    }}
-                    className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    ✎
-                  </button>
-                </>
-              )}
+              <span>
+                ДР:{" "}
+                {identity.birthDate ? (
+                  <>{fmtBirthDate(identity.birthDate)}{activeAge != null ? ` · ${activeAge} лет` : ""}</>
+                ) : (
+                  "—"
+                )}
+              </span>
             </div>
 
-            {/* Пол + inline editor */}
+            {/* Пол — read-only; edit in «Учётка» */}
             <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              {editingGender ? (
-                <>
-                  <span>Пол:</span>
-                  <button
-                    type="button"
-                    onClick={() => void saveGender("male")}
-                    disabled={gSaving}
-                    className={cn(
-                      "rounded border px-2 py-0.5 text-xs transition-colors disabled:opacity-50",
-                      activeGender === "male"
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-foreground hover:bg-muted",
-                    )}
-                  >
-                    М
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void saveGender("female")}
-                    disabled={gSaving}
-                    className={cn(
-                      "rounded border px-2 py-0.5 text-xs transition-colors disabled:opacity-50",
-                      activeGender === "female"
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-foreground hover:bg-muted",
-                    )}
-                  >
-                    Ж
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void saveGender(null)}
-                    disabled={gSaving}
-                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-                  >
-                    Сбросить
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingGender(false)}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Отмена
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span>
-                    Пол: {activeGender === "male" ? "М" : activeGender === "female" ? "Ж" : "—"}
-                  </span>
-                  <button
-                    type="button"
-                    title="Указать пол"
-                    onClick={() => setEditingGender(true)}
-                    className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    ✎
-                  </button>
-                </>
-              )}
+              <span>
+                Пол: {identity.gender === "male" ? "М" : identity.gender === "female" ? "Ж" : "—"}
+              </span>
             </div>
 
             {/* Phone + channel icons */}
@@ -467,7 +192,7 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                 <span className="text-xs text-muted-foreground font-mono">—</span>
               )}
 
-              {/* Channel icon buttons — active when binding present */}
+              {/* Channel icon buttons — lucide-react icons; active = colored, inactive = muted */}
               <span className="flex gap-1">
                 <button
                   type="button"
@@ -476,11 +201,11 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                   className={cn(
                     "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
                     hasChat
-                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
                       : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
                   )}
                 >
-                  💬
+                  <MessageSquare className="h-3.5 w-3.5" />
                 </button>
                 <button
                   type="button"
@@ -489,11 +214,11 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                   className={cn(
                     "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
                     hasTelegram
-                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
                       : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
                   )}
                 >
-                  ✈️
+                  <Send className="h-3.5 w-3.5" />
                 </button>
                 <button
                   type="button"
@@ -502,11 +227,11 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                   className={cn(
                     "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
                     hasMax
-                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
                       : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
                   )}
                 >
-                  Ⓜ️
+                  <Smartphone className="h-3.5 w-3.5" />
                 </button>
                 <button
                   type="button"
@@ -516,11 +241,11 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
                   className={cn(
                     "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
                     hasEmail
-                      ? "border-border bg-background hover:bg-muted cursor-pointer"
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
                       : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
                   )}
                 >
-                  ✉️
+                  <Mail className="h-3.5 w-3.5" />
                 </button>
               </span>
             </div>
@@ -609,7 +334,6 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
 
       {/* ================================================================
           TAB PANELS — rendered once, hidden when not active.
-          Wave 3 agents fill in real content per-tab file.
       ================================================================ */}
       <div className={cn(activeTab !== "overview" && "hidden")}>
         <PatientTabOverview userId={identity.userId} header={header} />
