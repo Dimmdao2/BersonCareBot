@@ -22,6 +22,12 @@ import { PATIENT_FILE_CATEGORIES } from "@/modules/patient-files/ports";
 import type { Visit } from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/shared/ui/doctor/primitives/select";
+import {
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
   doctorCatalogRowClass,
@@ -198,13 +204,14 @@ function UploadPanel({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<PatientFileCategory>("прочее");
+  const [displayName, setDisplayName] = useState<string>("");
+  const [isDragOver, setIsDragOver] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>({ phase: "idle" });
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function uploadSingleFile(file: File): Promise<void> {
+    const fileName = displayName.trim() || file.name;
 
-    setUploadState({ phase: "pending", fileName: file.name, progress: 0 });
+    setUploadState({ phase: "pending", fileName, progress: 0 });
 
     // Step 1: POST to create metadata + get presigned PUT url.
     let uploadUrl: string | null = null;
@@ -214,7 +221,7 @@ function UploadPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category,
-          fileName: file.name,
+          fileName,
           mimeType: file.type || "application/octet-stream",
           sizeBytes: file.size,
         }),
@@ -239,7 +246,7 @@ function UploadPanel({
 
     // Step 2: PUT the file to the presigned S3 URL (no auth headers — it's a presigned url).
     if (uploadUrl) {
-      setUploadState({ phase: "pending", fileName: file.name, progress: 10 });
+      setUploadState({ phase: "pending", fileName, progress: 10 });
       try {
         const s3Res = await fetch(uploadUrl, {
           method: "PUT",
@@ -252,7 +259,7 @@ function UploadPanel({
           setUploadState({ phase: "error", message: `S3 ошибка: ${s3Res.status}` });
           return;
         }
-        setUploadState({ phase: "pending", fileName: file.name, progress: 100 });
+        setUploadState({ phase: "pending", fileName, progress: 100 });
       } catch {
         setUploadState({ phase: "error", message: "Ошибка загрузки в S3" });
         return;
@@ -260,8 +267,25 @@ function UploadPanel({
     } else {
       // S3 not configured — metadata saved, no binary upload possible.
       // Treat as success (graceful: the record exists, file body not stored).
-      setUploadState({ phase: "pending", fileName: file.name, progress: 100 });
+      setUploadState({ phase: "pending", fileName, progress: 100 });
     }
+  }
+
+  async function handleDroppedFiles(fileList: FileList) {
+    for (const file of Array.from(fileList)) {
+      await uploadSingleFile(file);
+    }
+    onUploaded();
+    onClose();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!displayName.trim()) setDisplayName(file.name);
+
+    await uploadSingleFile(file);
 
     // Refresh list and close panel.
     onUploaded();
@@ -274,7 +298,7 @@ function UploadPanel({
         <span className="text-xs font-semibold text-foreground">Загрузить файл</span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => { setDisplayName(""); onClose(); }}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           disabled={uploadState.phase === "pending"}
         >
@@ -287,36 +311,74 @@ function UploadPanel({
         <label htmlFor="upload-category" className="text-xs text-muted-foreground shrink-0">
           Категория
         </label>
-        <select
-          id="upload-category"
+        <Select
           value={category}
-          onChange={(e) => setCategory(e.target.value as PatientFileCategory)}
+          onValueChange={(v) => setCategory(v as PatientFileCategory)}
           disabled={uploadState.phase === "pending"}
-          className="flex-1 min-w-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
         >
-          {PATIENT_FILE_CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>
-              {categoryLabel(cat)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            className="flex-1 min-w-0 text-xs h-7"
+            displayLabel={categoryLabel(category)}
+          />
+          <SelectContent>
+            {PATIENT_FILE_CATEGORIES.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {categoryLabel(cat)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* File picker */}
+      {/* Filename input */}
+      <div className="flex items-center gap-2">
+        <label htmlFor="upload-display-name" className="text-xs text-muted-foreground shrink-0">
+          Название
+        </label>
+        <input
+          id="upload-display-name"
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Имя файла"
+          disabled={uploadState.phase === "pending"}
+          className="flex-1 min-w-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+        />
+      </div>
+
+      {/* File picker + drag-drop zone */}
       {uploadState.phase === "idle" && (
         <>
           <input
             ref={fileInputRef}
             type="file"
             id="upload-file-input"
+            multiple
             className="sr-only"
             onChange={handleFileChange}
           />
           <label
             htmlFor="upload-file-input"
-            className="cursor-pointer inline-flex items-center justify-center rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-xs text-primary hover:bg-primary/10 transition-colors"
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              const files = e.dataTransfer.files;
+              if (files.length > 0) {
+                void handleDroppedFiles(files);
+              }
+            }}
+            className={cn(
+              "cursor-pointer flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3 py-3 text-xs transition-colors",
+              isDragOver
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10",
+            )}
           >
-            Выбрать файл…
+            <span>{isDragOver ? "Отпустите файл…" : "Перетащите файл или нажмите для выбора"}</span>
+            <span className="text-muted-foreground text-[10px]">Выбрать файл…</span>
           </label>
         </>
       )}
@@ -347,6 +409,7 @@ function UploadPanel({
             type="button"
             onClick={() => {
               setUploadState({ phase: "idle" });
+              setDisplayName("");
               // Reset file input so the same file can be re-picked.
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
@@ -421,13 +484,13 @@ function FileCardTile({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors cursor-pointer",
+        "flex flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors cursor-pointer overflow-hidden",
         isActive
           ? "border-primary/30 bg-primary/10"
           : "border-border bg-background/60 hover:bg-muted/40",
       )}
     >
-      <span className="text-2xl leading-none">{fileIcon(file.mimeType)}</span>
+      <span className="text-2xl leading-none shrink-0">{fileIcon(file.mimeType)}</span>
       <div className="min-w-0">
         <div className="truncate text-xs font-medium text-foreground leading-snug">{file.fileName}</div>
         <div className="text-[10px] text-muted-foreground mt-0.5">
