@@ -39,10 +39,18 @@ const AppTab = dynamic(
     })),
   { ssr: false },
 );
-const NotificationsTab = dynamic(
+// Уведомления (push-статистика) перенесены в таб «Приложение» — рендерятся под ProductAnalyticsSection.
+const NotificationsInAppTab = dynamic(
   () =>
     import("./notifications/NotificationsAnalyticsClient").then((m) => ({
       default: m.NotificationsAnalyticsClient,
+    })),
+  { ssr: false },
+);
+const SoprovozhdeniePage = dynamic(
+  () =>
+    import("./soprovozhdenie/SoprovozhdeniePage").then((m) => ({
+      default: m.SoprovozhdeniePage,
     })),
   { ssr: false },
 );
@@ -111,12 +119,16 @@ export type DoctorAnalyticsShellProps = {
 };
 
 /**
- * Клиентский контейнер-шелл «Аналитика» — одна страница, четыре вкладки.
+ * Клиентский контейнер-шелл «Аналитика» — одна страница, четыре вкладки:
+ * Клиенты · Приложение (+ push) · Контент · Сопровождение.
  *
  * Паттерн keepMounted (как в `DoctorScheduleShell`): таб монтируется при первом
  * открытии и скрывается (`hidden`) при переходе на другой, без размонтирования.
  * Переключение мгновенное. Смена таба отражается в `?tab=` через
  * `history.replaceState` (без полной навигации); back/forward — через popstate.
+ *
+ * S4.2: вкладка «Уведомления» упразднена — push-статистика включена в «Приложение».
+ * Добавлена вкладка «Сопровождение» (placeholder, метрики будут расширены).
  */
 export function DoctorAnalyticsShell({ initialTab, clientsData }: DoctorAnalyticsShellProps) {
   const resolvedInit: AnalyticsTabId = (() => {
@@ -169,19 +181,23 @@ export function DoctorAnalyticsShell({ initialTab, clientsData }: DoctorAnalytic
           />
         </div>
       ) : null}
+      {mountedTabs.has("app") ? (
+        <div hidden={activeTab !== "app"} data-testid="tab-panel-app">
+          <div className="flex flex-col gap-6">
+            <AppTab />
+            {/* Push-статистика и уведомления — перенесены из упразднённой вкладки «Уведомления» */}
+            <NotificationsInAppTab />
+          </div>
+        </div>
+      ) : null}
       {mountedTabs.has("content") ? (
         <div hidden={activeTab !== "content"} data-testid="tab-panel-content">
           <ContentTab />
         </div>
       ) : null}
-      {mountedTabs.has("app") ? (
-        <div hidden={activeTab !== "app"} data-testid="tab-panel-app">
-          <AppTab />
-        </div>
-      ) : null}
-      {mountedTabs.has("notifications") ? (
-        <div hidden={activeTab !== "notifications"} data-testid="tab-panel-notifications">
-          <NotificationsTab />
+      {mountedTabs.has("soprovozhdenie") ? (
+        <div hidden={activeTab !== "soprovozhdenie"} data-testid="tab-panel-soprovozhdenie">
+          <SoprovozhdeniePage />
         </div>
       ) : null}
     </DoctorAppShell>
