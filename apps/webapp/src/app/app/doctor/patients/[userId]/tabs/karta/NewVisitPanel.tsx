@@ -627,7 +627,7 @@ export function NewVisitPanel({
 
             <FormTextarea
               label="Осмотр"
-              placeholder="РДН ~1 см пр>лев, тест Адамса отрицательный..."
+              placeholder="Данные объективного осмотра…"
               minH="min-h-[54px]"
               value={examFirst}
               onChange={setExamFirst}
@@ -676,19 +676,19 @@ export function NewVisitPanel({
 
             <FormTextarea
               label="Проведённые манипуляции"
-              placeholder="ФМ на область поясницы, трохантера, ягодицы"
+              placeholder="Проведённые манипуляции…"
               value={manipulationsFirst}
               onChange={setManipulationsFirst}
             />
             <FormTextarea
               label="Результаты пробного лечения"
-              placeholder="Уменьшение боли в наклоне"
+              placeholder="Динамика / результат…"
               value={trialResultsFirst}
               onChange={setTrialResultsFirst}
             />
             <FormTextarea
               label="Рекомендации / Назначения"
-              placeholder="ЛФК, курс 3 сеанса фасциальных манипуляций"
+              placeholder="Рекомендации / назначения…"
               value={recommendationsFirst}
               onChange={setRecommendationsFirst}
             />
@@ -723,7 +723,7 @@ export function NewVisitPanel({
                       </div>
                       <textarea
                         className={cn(textareaClass, "mt-1.5 min-h-[40px]")}
-                        placeholder="Боли реже и меньше — после 2 часов ходьбы..."
+                        placeholder="Динамика жалобы…"
                         value={upd.note}
                         onChange={(e) => setUpd({ note: e.target.value })}
                       />
@@ -810,13 +810,13 @@ export function NewVisitPanel({
 
             <FormTextarea
               label="Проведённые манипуляции"
-              placeholder="Сухая игла на область сух прав БЯМ..."
+              placeholder="Проведённые манипуляции…"
               value={manipulationsRepeat}
               onChange={setManipulationsRepeat}
             />
             <FormTextarea
               label="Рекомендации / Назначения — коррекция"
-              placeholder="Продолжаем программу ЛФК для ТБС, акцент на ягодичный мост..."
+              placeholder="Рекомендации / назначения…"
               value={recommendationsRepeat}
               onChange={setRecommendationsRepeat}
             />
