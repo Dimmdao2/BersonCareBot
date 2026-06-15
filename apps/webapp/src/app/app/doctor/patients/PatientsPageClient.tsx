@@ -29,6 +29,19 @@ import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorCli
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Категория клиента — грубая классификация по вовлечённости.
+ *
+ *  - `client`          — есть записи/визиты, активное сопровождение или программа
+ *  - `subscriber_only` — зарегистрирован, но ничего из вышеперечисленного
+ *  - `all`             — все пациенты (нет фильтра по категории)
+ *
+ * Категория «потенциальный» (есть чат, нет записей) не может быть определена
+ * только по флагам списка, поэтому используем «подписчик» как самую широкую
+ * незадействованную категорию.
+ */
+export type ClientCategory = "all" | "client" | "subscriber_only";
+
 type InitialFilters = {
   q: string;
   segment: string | null;
@@ -251,6 +264,31 @@ function applySegmentFilter(list: ClientListItem[], activeSegment: string | null
   const key = activeSegment as SegmentKey;
   return list.filter((item) => clientSegmentPredicate(item, key));
 }
+
+// ---------------------------------------------------------------------------
+// ClientCategory filter (S4.2)
+// ---------------------------------------------------------------------------
+
+/** Определяет категорию клиента по флагам из ClientListItem. */
+function getClientCategory(item: ClientListItem): Exclude<ClientCategory, "all"> {
+  const isClient =
+    item.isOnSupport === true ||
+    item.activeTreatmentProgram === true ||
+    (item.hasAppointmentHistory ?? false) ||
+    (item.activeAppointmentsCount ?? 0) > 0;
+  return isClient ? "client" : "subscriber_only";
+}
+
+function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): ClientListItem[] {
+  if (category === "all") return list;
+  return list.filter((item) => getClientCategory(item) === category);
+}
+
+const CATEGORY_LABELS: Record<ClientCategory, string> = {
+  all: "Все",
+  client: "Клиенты",
+  subscriber_only: "Подписчики",
+};
 
 // ---------------------------------------------------------------------------
 // Segment count helper (computed from allClients using clientSegmentPredicate)
@@ -620,6 +658,7 @@ type PatientsContentProps = {
   iconFilters: IconFiltersState;
   isListPending: boolean;
   selectedUserId: string | null;
+  activeCategory: ClientCategory;
   onSegmentChange: (value: string | null) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onToggleLegacyFilter: (key: keyof LegacyFiltersState) => void;
@@ -628,6 +667,7 @@ type PatientsContentProps = {
   onClearSearch: () => void;
   onSearchInput: (value: string) => void;
   onSelectPatient: (userId: string | null) => void;
+  onCategoryChange: (category: ClientCategory) => void;
 };
 
 function PatientsContent({
@@ -642,6 +682,7 @@ function PatientsContent({
   iconFilters,
   isListPending,
   selectedUserId,
+  activeCategory,
   onSegmentChange,
   onChannelChange,
   onToggleLegacyFilter,
@@ -650,12 +691,14 @@ function PatientsContent({
   onClearSearch,
   onSearchInput,
   onSelectPatient,
+  onCategoryChange,
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
 
-  // Apply client-side segment filter, then icon filters, then legacy filters
-  let filtered = applySegmentFilter(allClients, activeSegment);
+  // Apply category filter first, then segment, then icon filters, then legacy filters
+  let filtered = applyCategoryFilter(allClients, activeCategory);
+  filtered = applySegmentFilter(filtered, activeSegment);
   filtered = applyIconFilters(filtered, iconFilters);
   // Legacy filters (AND-logic)
   if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationCount30d > 0);
@@ -667,6 +710,7 @@ function PatientsContent({
 
   // Determine if any filter is active (for "найдено N" header)
   const isAnyFilterActive =
+    activeCategory !== "all" ||
     (activeSegment !== null && activeSegment !== "all") ||
     Object.values(iconFilters).some((v) => v !== "off") ||
     legacyFilters.cancellations ||
@@ -928,6 +972,33 @@ function PatientsContent({
             "rounded-lg border border-border bg-card p-3",
           )}
         >
+          {/* Category filter row — Все / Клиенты / Подписчики */}
+          <div className="mb-3 flex gap-1" role="group" aria-label="Категория клиентов">
+            {(["all", "client", "subscriber_only"] as ClientCategory[]).map((cat) => {
+              const count =
+                cat === "all"
+                  ? allClients.length
+                  : allClients.filter((item) => getClientCategory(item) === cat).length;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  aria-pressed={activeCategory === cat}
+                  onClick={() => onCategoryChange(cat)}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
+                    activeCategory === cat
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {CATEGORY_LABELS[cat]}
+                  <span className="tabular-nums opacity-70">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Segment stat cards — 3 per row on mobile, 5 on lg+ */}
           <DoctorMetricList className="grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-1.5">
             {SEGMENTS.map((seg) => (
@@ -1096,6 +1167,9 @@ export function PatientsPageClient({
   // Legacy per-button filter state (client-side only)
   const [legacyFilters, setLegacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
 
+  // Category filter state (client-side only, S4.2)
+  const [activeCategory, setActiveCategory] = useState<ClientCategory>("all");
+
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
@@ -1214,6 +1288,10 @@ export function PatientsPageClient({
     setSelectedUserId(userId);
   }, []);
 
+  const handleCategoryChange = useCallback((category: ClientCategory) => {
+    setActiveCategory(category);
+  }, []);
+
   return (
     <Suspense fallback={<PatientListSkeleton />}>
       <PatientsContent
@@ -1228,6 +1306,7 @@ export function PatientsPageClient({
         iconFilters={iconFilters}
         isListPending={isListPending}
         selectedUserId={selectedUserId}
+        activeCategory={activeCategory}
         onSegmentChange={handleSegmentChange}
         onChannelChange={handleChannelChange}
         onToggleLegacyFilter={handleToggleLegacyFilter}
@@ -1236,6 +1315,7 @@ export function PatientsPageClient({
         onClearSearch={clearSearch}
         onSearchInput={handleSearchInput}
         onSelectPatient={handleSelectPatient}
+        onCategoryChange={handleCategoryChange}
       />
     </Suspense>
   );
