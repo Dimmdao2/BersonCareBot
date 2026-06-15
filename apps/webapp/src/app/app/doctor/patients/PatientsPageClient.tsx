@@ -4,14 +4,9 @@
  * PatientsPageClient — unified patients list.
  *
  * Layout (desktop, 2-column):
- *   LEFT  – filter panel: search (full-width, top of block) + segment stat cards + channel row + additional filters
- *   RIGHT – patient list with icon-filter rail header + patient preview
- *
- * The filter panel markup reproduces the old DoctorClientsPanel right-section
- * pixel-for-pixel (grid-cols-2 xl:grid-cols-2 stat cards, «Дополнительные фильтры»
- * button row, same spacing/borders), with the only permitted change being the
- * panel's outer height (now full-height, not clipped).
- * Search is placed at the very top of the left block, above the stat cards.
+ *   LEFT  – patient list with search on top + icon-filter rail header
+ *   RIGHT – filter panel (segment stat cards + channel row + additional filters)
+ *           + PatientPreviewPane when a row is selected
  *
  * Search logic: debounced API call (/api/doctor/patients?q=…), min 3 chars.
  */
@@ -19,15 +14,15 @@
 import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, X, Ban, CalendarDays, Dumbbell, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
+import { Search, X, Ban, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
-import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
+import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { doctorListItemOuterClass } from "@/shared/ui/doctor/doctorVisual";
+import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 
 // ---------------------------------------------------------------------------
@@ -112,8 +107,6 @@ const SEGMENTS: SegmentDef[] = [
   { key: "memberships",          title: "С абонементами",       urlValue: "memberships" },
   { key: "visited_month",        title: "Приём в этом мес.",    urlValue: "visited_month" },
 ];
-
-type ChannelKey = "telegram" | "max" | "email" | "phone";
 
 const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(10,1.75rem)] gap-1";
 
@@ -351,17 +344,13 @@ function HeaderIconButton({ label, title, state, onClick, children }: HeaderIcon
 }
 
 // ---------------------------------------------------------------------------
-// List skeleton
+// List skeleton (swapped: list left, compact filter right)
 // ---------------------------------------------------------------------------
 
 function PatientListSkeleton() {
   return (
     <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
-      <div className="rounded-lg border border-border bg-card p-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="mb-2 h-8 animate-pulse rounded bg-muted/50" />
-        ))}
-      </div>
+      {/* List skeleton — left */}
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border/60 px-5 py-2">
           <div className="h-6 w-full animate-pulse rounded bg-muted/50" />
@@ -369,6 +358,222 @@ function PatientListSkeleton() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="mx-2 mb-1.5 mt-1.5 h-10 animate-pulse rounded-md bg-muted/40" />
         ))}
+      </div>
+      {/* Filter skeleton — right */}
+      <div className="rounded-lg border border-border bg-card p-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="mb-2 h-8 animate-pulse rounded bg-muted/50" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PatientPreviewPane — inline summary shown when a list row is selected
+// ---------------------------------------------------------------------------
+
+/** Format ISO date string → DD.MM.YYYY */
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** Format ISO date+time → DD.MM.YYYY HH:MM */
+function fmtDateTime(date: string | null | undefined, time?: string | null): string {
+  if (!date) return "—";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "—";
+  const dateStr = d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return time ? `${dateStr} ${time}` : dateStr;
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // silent
+  }
+}
+
+type PatientPreviewPaneProps = {
+  userId: string;
+  item: ClientListItem;
+  onClose: () => void;
+};
+
+function PatientPreviewPane({ userId, item, onClose }: PatientPreviewPaneProps) {
+  const [header, setHeader] = useState<PatientCardHeader | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset fetch state when userId changes
+    setLoading(true);
+    setError(false);
+    setHeader(null);
+    fetch(`/api/doctor/patients/${encodeURIComponent(userId)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<{ ok: boolean; header?: PatientCardHeader }>;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          if (data.ok && data.header) {
+            setHeader(data.header);
+          } else {
+            setError(true);
+          }
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(true);
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const hasTelegram = Boolean(item.bindings.telegramId?.trim()) && !item.bindings.telegramBotBlocked;
+  const hasMax = Boolean(item.bindings.maxId?.trim()) && !item.bindings.maxBotBlocked;
+  const hasEmail = item.hasEmail === true;
+
+  return (
+    <div className={cn(doctorSectionCardClass, "flex flex-col gap-2 p-3")}>
+      {/* Header row: name + close button */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-bold text-foreground">{item.displayName}</span>
+          {(item.firstName ?? item.lastName) ? (
+            <span className="block truncate text-xs text-muted-foreground">
+              {[item.firstName, item.lastName].filter(Boolean).join(" ")}
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Закрыть"
+          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      {/* Phone + channel icons */}
+      <div className="flex flex-wrap items-center gap-2">
+        {item.phone ? (
+          <button
+            type="button"
+            title="Скопировать телефон"
+            onClick={() => void copyToClipboard(item.phone!)}
+            className="font-mono text-xs text-foreground hover:text-primary transition-colors cursor-pointer"
+          >
+            {item.phone} ⧉
+          </button>
+        ) : (
+          <span className="text-xs text-muted-foreground font-mono">—</span>
+        )}
+        <span className="flex gap-1">
+          <span
+            title="Telegram"
+            className={cn(
+              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
+              hasTelegram
+                ? "border-primary/30 bg-primary/5 text-primary"
+                : "border-transparent bg-muted/30 text-muted-foreground/40",
+            )}
+          >
+            <Send className="h-3.5 w-3.5" />
+          </span>
+          <span
+            title="MAX (приложение)"
+            className={cn(
+              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
+              hasMax
+                ? "border-primary/30 bg-primary/5 text-primary"
+                : "border-transparent bg-muted/30 text-muted-foreground/40",
+            )}
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+          </span>
+          <span
+            title="Email"
+            className={cn(
+              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
+              hasEmail
+                ? "border-primary/30 bg-primary/5 text-primary"
+                : "border-transparent bg-muted/30 text-muted-foreground/40",
+            )}
+          >
+            <Mail className="h-3.5 w-3.5" />
+          </span>
+        </span>
+      </div>
+
+      {/* Quick chips */}
+      <div className="flex flex-wrap gap-1">
+        {item.isOnSupport ? (
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            ★ На сопровождении
+          </span>
+        ) : null}
+        {item.activeTreatmentProgram ? (
+          <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            С программой
+          </span>
+        ) : null}
+        {item.hasMemberships ? (
+          <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            Абонемент
+          </span>
+        ) : null}
+        {(item.unreadMessagesCount ?? 0) > 0 ? (
+          <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+            Непрочитанных: {item.unreadMessagesCount}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Stats row — lazy loaded */}
+      {loading ? (
+        <div className="flex flex-col gap-1.5">
+          <div className="h-4 w-3/4 animate-pulse rounded bg-muted/50" />
+          <div className="h-4 w-1/2 animate-pulse rounded bg-muted/50" />
+          <div className="h-4 w-2/3 animate-pulse rounded bg-muted/50" />
+        </div>
+      ) : error ? (
+        <p className="text-xs text-muted-foreground">Не удалось загрузить детали.</p>
+      ) : header ? (
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <div className="flex gap-1">
+            <span className="font-medium text-foreground">Прошлый визит:</span>
+            <span>{fmtDate(header.lastVisit?.date)}</span>
+          </div>
+          <div className="flex gap-1">
+            <span className="font-medium text-foreground">Следующая запись:</span>
+            <span>{fmtDateTime(header.nextAppointment?.date, header.nextAppointment?.time)}</span>
+          </div>
+          <div className="flex gap-1">
+            <span className="font-medium text-foreground">Визитов:</span>
+            <span>{header.totalVisits}</span>
+          </div>
+        </div>
+      ) : null}
+
+      {/* CTA */}
+      <div className="mt-1 border-t border-border/40 pt-2">
+        <Link
+          href={routePaths.doctorPatientCard(userId)}
+          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+        >
+          Открыть карту <ExternalLink className="size-3" />
+        </Link>
       </div>
     </div>
   );
@@ -389,6 +594,7 @@ type PatientsContentProps = {
   legacyFilters: LegacyFiltersState;
   iconFilters: IconFiltersState;
   isListPending: boolean;
+  selectedUserId: string | null;
   onSegmentChange: (value: string | null) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onToggleLegacyFilter: (key: keyof LegacyFiltersState) => void;
@@ -396,6 +602,7 @@ type PatientsContentProps = {
   onCycleTriIconFilter: (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
   onClearSearch: () => void;
   onSearchInput: (value: string) => void;
+  onSelectPatient: (userId: string | null) => void;
 };
 
 function PatientsContent({
@@ -409,6 +616,7 @@ function PatientsContent({
   legacyFilters,
   iconFilters,
   isListPending,
+  selectedUserId,
   onSegmentChange,
   onChannelChange,
   onToggleLegacyFilter,
@@ -416,6 +624,7 @@ function PatientsContent({
   onCycleTriIconFilter,
   onClearSearch,
   onSearchInput,
+  onSelectPatient,
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -433,19 +642,19 @@ function PatientsContent({
     return isActive ? "warning" : "neutral";
   }
 
+  const selectedItem = selectedUserId ? filtered.find((c) => c.userId === selectedUserId) ?? null : null;
+
   return (
     <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
-      {/* ===== LEFT: filter/selection panel ===== */}
-      {/* Outer card exactly mirrors old DoctorClientsPanel right-section: rounded-lg border bg-card p-3 */}
-      {/* Height: full viewport height (old page was clipped at bottom — fixed here) */}
+      {/* ===== LEFT: patient list ===== */}
       <section
         className={cn(
-          "rounded-lg border border-border bg-card p-3",
-          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-y-auto",
+          "flex min-h-0 flex-col rounded-lg border border-border bg-card",
+          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-hidden",
         )}
       >
-        {/* Search — full width of this left block, above the stat cards */}
-        <div className="mb-3">
+        {/* Search — above sticky header, non-sticky */}
+        <div className="shrink-0 px-2 pt-2">
           <div className="relative flex items-center">
             <Search
               className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
@@ -477,135 +686,6 @@ function PatientsContent({
           ) : null}
         </div>
 
-        {/* Segment stat cards — grid-cols-2 xl:grid-cols-2, identical to old DoctorClientsPanel right-section */}
-        <DoctorMetricList className="grid-cols-2 xl:grid-cols-2">
-          {SEGMENTS.map((seg) => (
-            <DoctorStatCard
-              key={seg.key}
-              id={`doctor-patients-segment-${seg.key}`}
-              title={seg.title}
-              value={getSegmentCount(seg.key, metrics, allClients) ?? "—"}
-              tone={segmentTone(seg.key)}
-              onClick={() => onSegmentChange(seg.urlValue)}
-            />
-          ))}
-        </DoctorMetricList>
-
-        {/* Additional filters — exact markup from old DoctorClientsPanel §"Дополнительные фильтры" */}
-        <div className="mt-3 border-t border-border/60 pt-3">
-          <p className="mb-2 text-xs text-muted-foreground">Дополнительные фильтры</p>
-          <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
-            <Button
-              type="button"
-              size="sm"
-              variant={activeChannel === "telegram" ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onChannelChange(activeChannel === "telegram" ? null : "telegram", false)}
-              aria-pressed={activeChannel === "telegram"}
-            >
-              Telegram
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={activeChannel === "max" ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onChannelChange(activeChannel === "max" ? null : "max", false)}
-              aria-pressed={activeChannel === "max"}
-            >
-              MAX
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={activeChannel === "email" ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onChannelChange(activeChannel === "email" ? null : "email", false)}
-              aria-pressed={activeChannel === "email"}
-            >
-              Email
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={activeChannel === "phone" ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onChannelChange(activeChannel === "phone" ? null : "phone", false)}
-              aria-pressed={activeChannel === "phone"}
-            >
-              Телефон
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={legacyFilters.visitedMonth ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onToggleLegacyFilter("visitedMonth")}
-              aria-pressed={legacyFilters.visitedMonth}
-            >
-              Приём в этом месяце
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={legacyFilters.cancellations ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onToggleLegacyFilter("cancellations")}
-              aria-pressed={legacyFilters.cancellations}
-            >
-              Есть отмены
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={legacyFilters.reschedules ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onToggleLegacyFilter("reschedules")}
-              aria-pressed={legacyFilters.reschedules}
-            >
-              Есть переносы
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={legacyFilters.withoutAppointments ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onToggleLegacyFilter("withoutAppointments")}
-              aria-pressed={legacyFilters.withoutAppointments}
-            >
-              Без записей
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={legacyFilters.memberships ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onToggleLegacyFilter("memberships")}
-              aria-pressed={legacyFilters.memberships}
-            >
-              С абонементами
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={archivedOnly ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
-              onClick={() => onChannelChange(null, !archivedOnly)}
-              aria-pressed={archivedOnly}
-            >
-              Архив
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== RIGHT: patient list (exact old left-section markup) ===== */}
-      <section
-        className={cn(
-          "flex min-h-0 flex-col rounded-lg border border-border bg-card",
-          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-hidden",
-        )}
-      >
         {/* Sticky header: count + icon filter rail */}
         <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
@@ -709,12 +789,18 @@ function PatientsContent({
               const unreadMessagesCount = c.unreadMessagesCount ?? 0;
               const unreadExerciseCommentsCount = c.unreadExerciseCommentsCount ?? 0;
               const hasApptHistory = (c.hasAppointmentHistory ?? false) || appointmentCount > 0;
+              const isSelected = c.userId === selectedUserId;
               return (
                 <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
-                  <Link
+                  <button
+                    type="button"
                     id={`doctor-patients-card-${c.userId}`}
-                    href={routePaths.doctorPatientCard(c.userId)}
-                    className={`${doctorClientListRowLinkClass} items-center`}
+                    onClick={() => onSelectPatient(isSelected ? null : c.userId)}
+                    className={cn(
+                      doctorClientListRowLinkClass,
+                      "items-center w-full text-left",
+                      isSelected && "bg-primary/15 hover:bg-primary/15",
+                    )}
                   >
                     <div className="min-w-0">
                       <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
@@ -782,13 +868,153 @@ function PatientsContent({
                         <Smartphone className="size-3.5" aria-hidden />
                       </IconSlot>
                     </div>
-                  </Link>
+                  </button>
                 </li>
               );
             })}
           </ul>
         )}
       </section>
+
+      {/* ===== RIGHT: filter panel + preview pane ===== */}
+      <div className="flex flex-col gap-3 min-h-0">
+        {/* Filter panel */}
+        <section
+          className={cn(
+            "rounded-lg border border-border bg-card p-3",
+          )}
+        >
+          {/* Segment stat cards — 3 per row on mobile, 5 on lg+ */}
+          <DoctorMetricList className="grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-1.5">
+            {SEGMENTS.map((seg) => (
+              <DoctorStatCard
+                key={seg.key}
+                id={`doctor-patients-segment-${seg.key}`}
+                title={seg.title}
+                value={getSegmentCount(seg.key, metrics, allClients) ?? "—"}
+                tone={segmentTone(seg.key)}
+                onClick={() => onSegmentChange(seg.urlValue)}
+              />
+            ))}
+          </DoctorMetricList>
+
+          {/* Additional filters */}
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <p className="mb-2 text-xs text-muted-foreground">Дополнительные фильтры</p>
+            <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={activeChannel === "telegram" ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onChannelChange(activeChannel === "telegram" ? null : "telegram", false)}
+                aria-pressed={activeChannel === "telegram"}
+              >
+                Telegram
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeChannel === "max" ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onChannelChange(activeChannel === "max" ? null : "max", false)}
+                aria-pressed={activeChannel === "max"}
+              >
+                MAX
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeChannel === "email" ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onChannelChange(activeChannel === "email" ? null : "email", false)}
+                aria-pressed={activeChannel === "email"}
+              >
+                Email
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeChannel === "phone" ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onChannelChange(activeChannel === "phone" ? null : "phone", false)}
+                aria-pressed={activeChannel === "phone"}
+              >
+                Телефон
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={legacyFilters.visitedMonth ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onToggleLegacyFilter("visitedMonth")}
+                aria-pressed={legacyFilters.visitedMonth}
+              >
+                Приём в этом месяце
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={legacyFilters.cancellations ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onToggleLegacyFilter("cancellations")}
+                aria-pressed={legacyFilters.cancellations}
+              >
+                Есть отмены
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={legacyFilters.reschedules ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onToggleLegacyFilter("reschedules")}
+                aria-pressed={legacyFilters.reschedules}
+              >
+                Есть переносы
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={legacyFilters.withoutAppointments ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onToggleLegacyFilter("withoutAppointments")}
+                aria-pressed={legacyFilters.withoutAppointments}
+              >
+                Без записей
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={legacyFilters.memberships ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onToggleLegacyFilter("memberships")}
+                aria-pressed={legacyFilters.memberships}
+              >
+                С абонементами
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={archivedOnly ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onChannelChange(null, !archivedOnly)}
+                aria-pressed={archivedOnly}
+              >
+                Архив
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Preview pane — shown when a row is selected */}
+        {selectedUserId && selectedItem ? (
+          <PatientPreviewPane
+            userId={selectedUserId}
+            item={selectedItem}
+            onClose={() => onSelectPatient(null)}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -825,6 +1051,9 @@ export function PatientsPageClient({
 
   // Legacy per-button filter state (client-side only)
   const [legacyFilters, setLegacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
+
+  // Selected patient for preview
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -939,6 +1168,10 @@ export function PatientsPageClient({
     [],
   );
 
+  const handleSelectPatient = useCallback((userId: string | null) => {
+    setSelectedUserId(userId);
+  }, []);
+
   return (
     <Suspense fallback={<PatientListSkeleton />}>
       <PatientsContent
@@ -952,6 +1185,7 @@ export function PatientsPageClient({
         legacyFilters={legacyFilters}
         iconFilters={iconFilters}
         isListPending={isListPending}
+        selectedUserId={selectedUserId}
         onSegmentChange={handleSegmentChange}
         onChannelChange={handleChannelChange}
         onToggleLegacyFilter={handleToggleLegacyFilter}
@@ -959,6 +1193,7 @@ export function PatientsPageClient({
         onCycleTriIconFilter={handleCycleTriIconFilter}
         onClearSearch={clearSearch}
         onSearchInput={handleSearchInput}
+        onSelectPatient={handleSelectPatient}
       />
     </Suspense>
   );
