@@ -207,42 +207,44 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
 
   const leftPane = (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-      {/* Header: search + filter chips */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-3 py-2">
+      {/* Header: search bar, then filter chips below */}
+      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
         <Input
           type="search"
           placeholder="Поиск по имени пациента"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="h-8 min-w-[120px] flex-1"
+          className="h-8 w-full"
           aria-label="Поиск по имени пациента"
         />
-        <button
-          type="button"
-          onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
-          className={cn(
-            "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-            filter === "unread"
-              ? "bg-primary/15 text-primary"
-              : "border border-border text-muted-foreground hover:bg-muted/40",
-          )}
-          aria-pressed={filter === "unread"}
-        >
-          Непрочитанные · {unreadCount}
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
-          className={cn(
-            "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-            filter === "onSupport"
-              ? "bg-primary/15 text-primary"
-              : "border border-border text-muted-foreground hover:bg-muted/40",
-          )}
-          aria-pressed={filter === "onSupport"}
-        >
-          ★ На сопровождении · {onSupportCount}
-        </button>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              filter === "unread"
+                ? "bg-primary/15 text-primary"
+                : "border border-border text-muted-foreground hover:bg-muted/40",
+            )}
+            aria-pressed={filter === "unread"}
+          >
+            Непрочитанные · {unreadCount}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              filter === "onSupport"
+                ? "bg-primary/15 text-primary"
+                : "border border-border text-muted-foreground hover:bg-muted/40",
+            )}
+            aria-pressed={filter === "onSupport"}
+          >
+            ★ На сопровождении · {onSupportCount}
+          </button>
+        </div>
       </div>
 
       {error && (
