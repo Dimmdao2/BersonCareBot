@@ -970,6 +970,8 @@ export async function handleIntegratorEvent(
     const updatedAt = typeof p.updatedAt === "string" ? p.updatedAt : new Date().toISOString();
     const patientFirstName = coerceToString(p.patientFirstName) ?? null;
     const patientLastName = coerceToString(p.patientLastName) ?? null;
+    // Rubitime may provide patronymic as patientPatronymic or patronymic (fallback from payload.name parse)
+    const patientPatronymic = coerceToString(p.patientPatronymic) ?? coerceToString(p.patronymic) ?? null;
     const patientEmail = coerceToString(p.patientEmail) ?? null;
     const integratorBranchId = coerceToString(p.integratorBranchId) ?? null;
     const branchName = coerceToString(p.branchName) ?? null;

@@ -482,6 +482,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         display_name: string | null;
         first_name: string | null;
         last_name: string | null;
+        patronymic: string | null;
         phone_normalized: string | null;
         email: string | null;
         email_verified_at: string | null;
@@ -491,7 +492,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         birth_date: string | null;
         gender: string | null;
       }>(
-        `SELECT id, display_name, first_name, last_name, phone_normalized, email, email_verified_at,
+        `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, email, email_verified_at,
                 COALESCE(is_blocked, false) AS is_blocked,
                 COALESCE(is_archived, false) AS is_archived,
                 role,
@@ -656,6 +657,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           displayName: ur.display_name ?? "",
           firstName: ur.first_name,
           lastName: ur.last_name,
+          patronymic: ur.patronymic ?? null,
           phone: ur.phone_normalized,
           email: ur.email,
           bindings,
@@ -951,7 +953,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
     async setPatientNames(
       userId: string,
-      names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+      names: { displayName?: string; firstName?: string | null; lastName?: string | null; patronymic?: string | null },
     ): Promise<void> {
       const sets: string[] = [];
       const params: unknown[] = [userId];
@@ -966,6 +968,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (names.lastName !== undefined) {
         params.push(names.lastName);
         sets.push(`last_name = $${params.length}`);
+      }
+      if (names.patronymic !== undefined) {
+        params.push(names.patronymic);
+        sets.push(`patronymic = $${params.length}`);
       }
       if (sets.length === 0) return;
       await runWebappPgText(
