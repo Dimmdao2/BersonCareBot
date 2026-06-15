@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BersonCare Doctor UI — Design Lab E</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f4f0;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+    header {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 2rem 2.5rem;
+    }
+    header h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    header p {
+      margin: 0;
+      opacity: 0.7;
+      font-size: 0.9rem;
+    }
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
+    }
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #666;
+      margin: 0 0 1rem;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e0ddd6;
+      border-radius: 10px;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.09);
+      border-color: #b0a898;
+    }
+    .card-header {
+      background: #eae8e2;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: #1e3a5f;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+    .card-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .card-body {
+      padding: 0.75rem 1rem;
+      flex: 1;
+    }
+    .card-route {
+      font-size: 0.75rem;
+      color: #888;
+      font-family: "SF Mono", "Fira Mono", monospace;
+      margin-bottom: 0.4rem;
+    }
+    .card-desc {
+      font-size: 0.82rem;
+      color: #555;
+      line-height: 1.4;
+    }
+    .card-footer {
+      padding: 0.6rem 1rem;
+      border-top: 1px solid #eee;
+      font-size: 0.75rem;
+      color: #1e3a5f;
+      font-weight: 500;
+    }
+
+    .theme-box {
+      background: #fff;
+      border: 1px solid #e0ddd6;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .theme-box h3 {
+      margin: 0 0 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .file-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .file-list li {
+      font-family: "SF Mono", "Fira Mono", monospace;
+      font-size: 0.78rem;
+      color: #444;
+      padding: 0.25rem 0.5rem;
+      background: #f5f4f0;
+      border-radius: 4px;
+    }
+    .file-list li span {
+      color: #888;
+      margin-left: 0.5rem;
+    }
+
+    .note {
+      background: #fffbeb;
+      border: 1px solid #e8d97a;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+      color: #6b5800;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>BersonCare Doctor UI — Design Lab E</h1>
+    <p>Static snapshots of 5 doctor page archetypes, wired to the shared theme-e.css override layer.</p>
+  </header>
+
+  <main>
+    <p class="section-title">Archetype Snapshots</p>
+
+    <div class="card-grid">
+
+      <a class="card" href="dashboard.html">
+        <div class="card-header">
+          <div class="card-icon">D</div>
+          <span class="card-name">Dashboard / Сегодня</span>
+        </div>
+        <div class="card-body">
+          <div class="card-route">/app/doctor</div>
+          <div class="card-desc">Doctor home: today's appointments, patient list, quick stats.</div>
+        </div>
+        <div class="card-footer">Open snapshot →</div>
+      </a>
+
+      <a class="card" href="catalog-exercises.html">
+        <div class="card-header">
+          <div class="card-icon">E</div>
+          <span class="card-name">Exercise Catalog</span>
+        </div>
+        <div class="card-body">
+          <div class="card-route">/app/doctor/exercises</div>
+          <div class="card-desc">Etalon catalog page: tabs, search, media cards, filter chips. Reference for list/card patterns.</div>
+        </div>
+        <div class="card-footer">Open snapshot →</div>
+      </a>
+
+      <a class="card" href="comms.html">
+        <div class="card-header">
+          <div class="card-icon">C</div>
+          <span class="card-name">Communications</span>
+        </div>
+        <div class="card-body">
+          <div class="card-route">/app/doctor/communications</div>
+          <div class="card-desc">Broadcasts, messaging threads, patient communications hub.</div>
+        </div>
+        <div class="card-footer">Open snapshot →</div>
+      </a>
+
+      <a class="card" href="schedule.html">
+        <div class="card-header">
+          <div class="card-icon">S</div>
+          <span class="card-name">Schedule / Calendar</span>
+        </div>
+        <div class="card-body">
+          <div class="card-route">/app/doctor/schedule?tab=calendar</div>
+          <div class="card-desc">Calendar view with appointment slots; day-picker, time grid, booking overlay.</div>
+        </div>
+        <div class="card-footer">Open snapshot →</div>
+      </a>
+
+      <a class="card" href="patients.html">
+        <div class="card-header">
+          <div class="card-icon">P</div>
+          <span class="card-name">Patients</span>
+        </div>
+        <div class="card-body">
+          <div class="card-route">/app/doctor/patients</div>
+          <div class="card-desc">Patient roster: two-column list (search/filters left, detail right), patient card tabs.</div>
+        </div>
+        <div class="card-footer">Open snapshot →</div>
+      </a>
+
+    </div>
+
+    <p class="section-title">Theme Scaffold</p>
+
+    <div class="theme-box">
+      <h3>theme-e.css — entry point (imports partials in cascade order)</h3>
+      <ul class="file-list">
+        <li>e-tokens.css <span>— CSS custom properties: palette, spacing, radii, shadows</span></li>
+        <li>e-lists.css <span>— patient roster rows, appointment list items</span></li>
+        <li>e-calendar.css <span>— schedule grid, day-picker, slot chips</span></li>
+        <li>e-tables-forms.css <span>— data tables, inputs, selects</span></li>
+        <li>e-catalog-media.css <span>— exercise / content catalog cards, media thumbnails</span></li>
+      </ul>
+    </div>
+
+    <div class="note">
+      <strong>How to use:</strong> Open any snapshot in a browser (served from 127.0.0.1:5317). Edit the
+      <code>e-*.css</code> files to apply theme overrides — changes reload live if your editor or browser
+      auto-refreshes. All snapshots share the same <code>theme-e.css</code> layer injected as the last stylesheet,
+      so it wins specificity over the inlined Next.js CSS.
+    </div>
+  </main>
+</body>
+</html>
