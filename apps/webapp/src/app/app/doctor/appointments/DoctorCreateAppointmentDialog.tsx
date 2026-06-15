@@ -2,12 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
@@ -111,11 +106,7 @@ export function DoctorCreateAppointmentDialog() {
       <Button type="button" size="sm" onClick={() => setOpen(true)}>
         Создать запись
       </Button>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Создать запись</DialogTitle>
-        </DialogHeader>
+      <DoctorModal open={open} onClose={() => handleOpenChange(false)} title="Создать запись" size="md">
         <form onSubmit={onSubmit} className="space-y-4">
           <BookingPatientSearchPicker value={patient} onChange={setPatient} />
 
@@ -181,8 +172,7 @@ export function DoctorCreateAppointmentDialog() {
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DoctorModal>
     </>
   );
 }
