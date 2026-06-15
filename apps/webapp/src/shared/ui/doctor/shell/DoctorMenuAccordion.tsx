@@ -60,7 +60,7 @@ function navBadgeClassName(badgeKey: DoctorMenuBadgeKey): string {
 function getIconForMenuId(id: string): ElementType | null {
   switch (id) {
     case "today": return LayoutDashboard;
-    case "clients": return Users;
+    case "patients": return Users;
     case "schedule": return Calendar;
     case "communications": return MessageCircle;
     case "library": return BookOpen;

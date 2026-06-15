@@ -3,21 +3,20 @@
 /**
  * PatientsPageClient — unified patients list.
  *
- * Layout (desktop, 2-column):
- *   LEFT  – filter panel: search (full-width, top of block) + segment stat cards + channel row + additional filters
- *   RIGHT – patient list with icon-filter rail header + patient preview
+ * Layout (desktop, 2-column, lg:grid-cols-[1.4fr_1fr]):
+ *   LEFT  (wider, 1.4fr) — search input (full-width, top of block) +
+ *                          patient list with sticky icon-filter rail header
+ *   RIGHT (narrower, 1fr) — segment stat cards (5-per-row, compact) +
+ *                           channel/archive filter buttons +
+ *                           patient preview pane (appears on row click)
  *
- * The filter panel markup reproduces the old DoctorClientsPanel right-section
- * pixel-for-pixel (grid-cols-2 xl:grid-cols-2 stat cards, «Дополнительные фильтры»
- * button row, same spacing/borders), with the only permitted change being the
- * panel's outer height (now full-height, not clipped).
- * Search is placed at the very top of the left block, above the stat cards.
+ * Row click → selects patient + shows preview pane. Does NOT navigate.
+ * «Открыть карточку» button in the pane is the only way to open the full card.
  *
  * Search logic: debounced API call (/api/doctor/patients?q=…), min 3 chars.
  */
 
 import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, X, Ban, CalendarDays, Dumbbell, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +28,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { doctorListItemOuterClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
+import { PatientPreviewPane } from "./PatientPreviewPane";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,8 +112,6 @@ const SEGMENTS: SegmentDef[] = [
   { key: "memberships",          title: "С абонементами",       urlValue: "memberships" },
   { key: "visited_month",        title: "Приём в этом мес.",    urlValue: "visited_month" },
 ];
-
-type ChannelKey = "telegram" | "max" | "email" | "phone";
 
 const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(10,1.75rem)] gap-1";
 
@@ -356,18 +354,20 @@ function HeaderIconButton({ label, title, state, onClick, children }: HeaderIcon
 
 function PatientListSkeleton() {
   return (
-    <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
-      <div className="rounded-lg border border-border bg-card p-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="mb-2 h-8 animate-pulse rounded bg-muted/50" />
-        ))}
-      </div>
-      <div className="rounded-lg border border-border bg-card">
+    <div className="grid min-h-0 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+      {/* Left: list skeleton */}
+      <div className="flex min-h-0 flex-col rounded-lg border border-border bg-card">
         <div className="border-b border-border/60 px-5 py-2">
           <div className="h-6 w-full animate-pulse rounded bg-muted/50" />
         </div>
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="mx-2 mb-1.5 mt-1.5 h-10 animate-pulse rounded-md bg-muted/40" />
+        ))}
+      </div>
+      {/* Right: filters skeleton */}
+      <div className="rounded-lg border border-border bg-card p-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="mb-2 h-8 animate-pulse rounded bg-muted/50" />
         ))}
       </div>
     </div>
@@ -389,6 +389,8 @@ type PatientsContentProps = {
   legacyFilters: LegacyFiltersState;
   iconFilters: IconFiltersState;
   isListPending: boolean;
+  selectedPatient: ClientListItem | null;
+  onPatientSelect: (patient: ClientListItem) => void;
   onSegmentChange: (value: string | null) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onToggleLegacyFilter: (key: keyof LegacyFiltersState) => void;
@@ -409,6 +411,8 @@ function PatientsContent({
   legacyFilters,
   iconFilters,
   isListPending,
+  selectedPatient,
+  onPatientSelect,
   onSegmentChange,
   onChannelChange,
   onToggleLegacyFilter,
@@ -434,18 +438,15 @@ function PatientsContent({
   }
 
   return (
-    <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
-      {/* ===== LEFT: filter/selection panel ===== */}
-      {/* Outer card exactly mirrors old DoctorClientsPanel right-section: rounded-lg border bg-card p-3 */}
-      {/* Height: full viewport height (old page was clipped at bottom — fixed here) */}
+    <div className="grid min-h-0 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+      {/* ===== LEFT: search + patient list ===== */}
       <section
         className={cn(
-          "rounded-lg border border-border bg-card p-3",
-          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-y-auto",
+          "flex min-h-0 flex-col gap-2",
         )}
       >
-        {/* Search — full width of this left block, above the stat cards */}
-        <div className="mb-3">
+        {/* Search — full width, top of the list column */}
+        <div>
           <div className="relative flex items-center">
             <Search
               className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
@@ -477,8 +478,214 @@ function PatientsContent({
           ) : null}
         </div>
 
-        {/* Segment stat cards — grid-cols-2 xl:grid-cols-2, identical to old DoctorClientsPanel right-section */}
-        <DoctorMetricList className="grid-cols-2 xl:grid-cols-2">
+        {/* Patient list card */}
+        <div
+          className={cn(
+            "flex min-h-0 flex-col rounded-lg border border-border bg-card",
+            "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_8.5rem)] lg:overflow-hidden",
+          )}
+        >
+          {/* Sticky header: count + icon filter rail */}
+          <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
+            <p className="min-w-0 truncate text-xs text-muted-foreground">
+              Пациентов: {filtered.length}
+              {isListPending && <span className="ml-1 animate-pulse">…</span>}
+            </p>
+            <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
+              <HeaderIconButton
+                label="Фильтр записей"
+                title="Записи: все состояния -> с записями -> с активными -> без записей"
+                state={iconFilters.appointments}
+                onClick={() => onCycleRichIconFilter("appointments")}
+              >
+                <CalendarDays className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр переписки"
+                title="Переписка: все состояния -> с перепиской -> с непрочитанными -> без переписки"
+                state={iconFilters.messages}
+                onClick={() => onCycleRichIconFilter("messages")}
+              >
+                <MessageSquare className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр комментариев"
+                title="Комментарии по упражнениям: все -> есть -> новые -> нет"
+                state={iconFilters.comments}
+                onClick={() => onCycleRichIconFilter("comments")}
+              >
+                <Dumbbell className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр сопровождения"
+                title="Сопровождение: все -> на сопровождении -> не на сопровождении"
+                state={iconFilters.support}
+                onClick={() => onCycleTriIconFilter("support")}
+              >
+                <Handshake className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр абонементов"
+                title="Абонементы: все -> с абонементами -> без абонементов"
+                state={iconFilters.memberships}
+                onClick={() => onCycleTriIconFilter("memberships")}
+              >
+                <Ticket className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр телефона"
+                title="Телефон: все -> есть телефон -> нет телефона"
+                state={iconFilters.phone}
+                onClick={() => onCycleTriIconFilter("phone")}
+              >
+                <Phone className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр Telegram"
+                title="Telegram: все -> подключен -> не подключен"
+                state={iconFilters.telegram}
+                onClick={() => onCycleTriIconFilter("telegram")}
+              >
+                <Send className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр MAX"
+                title="MAX: все -> подключен -> не подключен"
+                state={iconFilters.max}
+                onClick={() => onCycleTriIconFilter("max")}
+              >
+                <span className="text-[10px] font-semibold leading-none">М</span>
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр email"
+                title="Email: все -> указан -> не указан"
+                state={iconFilters.email}
+                onClick={() => onCycleTriIconFilter("email")}
+              >
+                <Mail className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр приложения"
+                title="Приложение: все -> есть приложение -> нет приложения"
+                state={iconFilters.app}
+                onClick={() => onCycleTriIconFilter("app")}
+              >
+                <Smartphone className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="px-3 py-4 text-sm text-muted-foreground">
+              {searchQuery.trim()
+                ? "Нет пациентов по запросу."
+                : "Нет пациентов по заданным фильтрам."}
+            </p>
+          ) : (
+            <ul id="doctor-patients-list" className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-2">
+              {filtered.map((c) => {
+                const appointmentCount = c.activeAppointmentsCount ?? (c.nextAppointmentLabel ? 1 : 0);
+                const unreadMessagesCount = c.unreadMessagesCount ?? 0;
+                const unreadExerciseCommentsCount = c.unreadExerciseCommentsCount ?? 0;
+                const hasApptHistory = (c.hasAppointmentHistory ?? false) || appointmentCount > 0;
+                const isSelected = selectedPatient?.userId === c.userId;
+                return (
+                  <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
+                    <button
+                      id={`doctor-patients-card-${c.userId}`}
+                      type="button"
+                      onClick={() => onPatientSelect(c)}
+                      aria-pressed={isSelected}
+                      className={cn(
+                        doctorClientListRowLinkClass,
+                        "items-center w-full",
+                        isSelected && "ring-2 ring-primary/60 bg-primary/5",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
+                      </div>
+                      <div className={CLIENT_ICON_RAIL_CLASS}>
+                        <IconSlot
+                          visible={hasApptHistory}
+                          label={`История записей${appointmentCount > 0 ? `, активных: ${appointmentCount}` : ""}`}
+                          title="История записей"
+                          badge={appointmentCount > 0 ? appointmentCount : undefined}
+                        >
+                          <CalendarDays className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={(c.hasConversation ?? false) || unreadMessagesCount > 0}
+                          label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
+                          title="Переписка"
+                          badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
+                        >
+                          <MessageSquare className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={c.activeTreatmentProgram}
+                          label={`Программа тренировок${unreadExerciseCommentsCount > 0 ? `, новых комментариев: ${unreadExerciseCommentsCount}` : ""}`}
+                          title="Назначенная программа тренировок"
+                          badge={unreadExerciseCommentsCount > 0 ? unreadExerciseCommentsCount : undefined}
+                        >
+                          <Dumbbell className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={c.isOnSupport === true}
+                          label="Клиент на сопровождении"
+                          title="На сопровождении"
+                        >
+                          <Handshake className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={c.hasMemberships === true}
+                          label="Есть абонемент"
+                          title="Есть абонемент"
+                        >
+                          <Ticket className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан">
+                          <Phone className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={Boolean(c.bindings.telegramId?.trim())}
+                          label="Подключён Telegram"
+                          title="Подключён Telegram"
+                        >
+                          <Send className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={Boolean(c.bindings.maxId?.trim())}
+                          label="Подключён MAX"
+                          title="Подключён MAX"
+                        >
+                          <span className="text-[10px] font-semibold leading-none">М</span>
+                        </IconSlot>
+                        <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email">
+                          <Mail className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение">
+                          <Smartphone className="size-3.5" aria-hidden />
+                        </IconSlot>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* ===== RIGHT: segment cards + channel filters + preview pane ===== */}
+      <section
+        className={cn(
+          "flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-card p-3",
+          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-y-auto",
+        )}
+      >
+        {/* Segment stat cards — 5 per row, compact */}
+        <DoctorMetricList className="grid-cols-5">
           {SEGMENTS.map((seg) => (
             <DoctorStatCard
               key={seg.key}
@@ -491,9 +698,9 @@ function PatientsContent({
           ))}
         </DoctorMetricList>
 
-        {/* Additional filters — exact markup from old DoctorClientsPanel §"Дополнительные фильтры" */}
-        <div className="mt-3 border-t border-border/60 pt-3">
-          <p className="mb-2 text-xs text-muted-foreground">Дополнительные фильтры</p>
+        {/* Channel + archive filter buttons */}
+        <div className="border-t border-border/60 pt-2">
+          <p className="mb-1.5 text-xs text-muted-foreground">Дополнительные фильтры</p>
           <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
             <Button
               type="button"
@@ -597,197 +804,9 @@ function PatientsContent({
             </Button>
           </div>
         </div>
-      </section>
 
-      {/* ===== RIGHT: patient list (exact old left-section markup) ===== */}
-      <section
-        className={cn(
-          "flex min-h-0 flex-col rounded-lg border border-border bg-card",
-          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-hidden",
-        )}
-      >
-        {/* Sticky header: count + icon filter rail */}
-        <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
-          <p className="min-w-0 truncate text-xs text-muted-foreground">
-            Пациентов: {filtered.length}
-            {isListPending && <span className="ml-1 animate-pulse">…</span>}
-          </p>
-          <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
-            <HeaderIconButton
-              label="Фильтр записей"
-              title="Записи: все состояния -> с записями -> с активными -> без записей"
-              state={iconFilters.appointments}
-              onClick={() => onCycleRichIconFilter("appointments")}
-            >
-              <CalendarDays className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр переписки"
-              title="Переписка: все состояния -> с перепиской -> с непрочитанными -> без переписки"
-              state={iconFilters.messages}
-              onClick={() => onCycleRichIconFilter("messages")}
-            >
-              <MessageSquare className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр комментариев"
-              title="Комментарии по упражнениям: все -> есть -> новые -> нет"
-              state={iconFilters.comments}
-              onClick={() => onCycleRichIconFilter("comments")}
-            >
-              <Dumbbell className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр сопровождения"
-              title="Сопровождение: все -> на сопровождении -> не на сопровождении"
-              state={iconFilters.support}
-              onClick={() => onCycleTriIconFilter("support")}
-            >
-              <Handshake className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр абонементов"
-              title="Абонементы: все -> с абонементами -> без абонементов"
-              state={iconFilters.memberships}
-              onClick={() => onCycleTriIconFilter("memberships")}
-            >
-              <Ticket className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр телефона"
-              title="Телефон: все -> есть телефон -> нет телефона"
-              state={iconFilters.phone}
-              onClick={() => onCycleTriIconFilter("phone")}
-            >
-              <Phone className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр Telegram"
-              title="Telegram: все -> подключен -> не подключен"
-              state={iconFilters.telegram}
-              onClick={() => onCycleTriIconFilter("telegram")}
-            >
-              <Send className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр MAX"
-              title="MAX: все -> подключен -> не подключен"
-              state={iconFilters.max}
-              onClick={() => onCycleTriIconFilter("max")}
-            >
-              <span className="text-[10px] font-semibold leading-none">М</span>
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр email"
-              title="Email: все -> указан -> не указан"
-              state={iconFilters.email}
-              onClick={() => onCycleTriIconFilter("email")}
-            >
-              <Mail className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр приложения"
-              title="Приложение: все -> есть приложение -> нет приложения"
-              state={iconFilters.app}
-              onClick={() => onCycleTriIconFilter("app")}
-            >
-              <Smartphone className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-          </div>
-        </div>
-
-        {filtered.length === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">
-            {searchQuery.trim()
-              ? "Нет пациентов по запросу."
-              : "Нет пациентов по заданным фильтрам."}
-          </p>
-        ) : (
-          <ul id="doctor-patients-list" className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-2">
-            {filtered.map((c) => {
-              const appointmentCount = c.activeAppointmentsCount ?? (c.nextAppointmentLabel ? 1 : 0);
-              const unreadMessagesCount = c.unreadMessagesCount ?? 0;
-              const unreadExerciseCommentsCount = c.unreadExerciseCommentsCount ?? 0;
-              const hasApptHistory = (c.hasAppointmentHistory ?? false) || appointmentCount > 0;
-              return (
-                <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
-                  <Link
-                    id={`doctor-patients-card-${c.userId}`}
-                    href={routePaths.doctorPatientCard(c.userId)}
-                    className={`${doctorClientListRowLinkClass} items-center`}
-                  >
-                    <div className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
-                    </div>
-                    <div className={CLIENT_ICON_RAIL_CLASS}>
-                      <IconSlot
-                        visible={hasApptHistory}
-                        label={`История записей${appointmentCount > 0 ? `, активных: ${appointmentCount}` : ""}`}
-                        title="История записей"
-                        badge={appointmentCount > 0 ? appointmentCount : undefined}
-                      >
-                        <CalendarDays className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={(c.hasConversation ?? false) || unreadMessagesCount > 0}
-                        label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
-                        title="Переписка"
-                        badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
-                      >
-                        <MessageSquare className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={c.activeTreatmentProgram}
-                        label={`Программа тренировок${unreadExerciseCommentsCount > 0 ? `, новых комментариев: ${unreadExerciseCommentsCount}` : ""}`}
-                        title="Назначенная программа тренировок"
-                        badge={unreadExerciseCommentsCount > 0 ? unreadExerciseCommentsCount : undefined}
-                      >
-                        <Dumbbell className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={c.isOnSupport === true}
-                        label="Клиент на сопровождении"
-                        title="На сопровождении"
-                      >
-                        <Handshake className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={c.hasMemberships === true}
-                        label="Есть абонемент"
-                        title="Есть абонемент"
-                      >
-                        <Ticket className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан">
-                        <Phone className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={Boolean(c.bindings.telegramId?.trim())}
-                        label="Подключён Telegram"
-                        title="Подключён Telegram"
-                      >
-                        <Send className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={Boolean(c.bindings.maxId?.trim())}
-                        label="Подключён MAX"
-                        title="Подключён MAX"
-                      >
-                        <span className="text-[10px] font-semibold leading-none">М</span>
-                      </IconSlot>
-                      <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email">
-                        <Mail className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение">
-                        <Smartphone className="size-3.5" aria-hidden />
-                      </IconSlot>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {/* Patient preview pane — below filters */}
+        <PatientPreviewPane patient={selectedPatient} />
       </section>
     </div>
   );
@@ -825,6 +844,9 @@ export function PatientsPageClient({
 
   // Legacy per-button filter state (client-side only)
   const [legacyFilters, setLegacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
+
+  // Selected patient for preview pane
+  const [selectedPatient, setSelectedPatient] = useState<ClientListItem | null>(null);
 
   const router = useRouter();
 
@@ -915,6 +937,10 @@ export function PatientsPageClient({
     [],
   );
 
+  const handlePatientSelect = useCallback((patient: ClientListItem) => {
+    setSelectedPatient((prev) => (prev?.userId === patient.userId ? null : patient));
+  }, []);
+
   // Keep state in sync when server-side navigation occurs (Next.js router)
   useEffect(() => {
     setListPromise(initialListPromise);
@@ -952,6 +978,8 @@ export function PatientsPageClient({
         legacyFilters={legacyFilters}
         iconFilters={iconFilters}
         isListPending={isListPending}
+        selectedPatient={selectedPatient}
+        onPatientSelect={handlePatientSelect}
         onSegmentChange={handleSegmentChange}
         onChannelChange={handleChannelChange}
         onToggleLegacyFilter={handleToggleLegacyFilter}
