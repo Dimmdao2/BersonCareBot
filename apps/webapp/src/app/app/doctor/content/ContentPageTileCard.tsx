@@ -4,10 +4,13 @@ import Link from "next/link";
 import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
 import { cn } from "@/lib/utils";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
+import { ContentRatingChip, type ContentRatingSummary } from "./ContentRatingChip";
 import type { ContentPageListRow } from "./ContentPagesSectionList";
 
 type Props = {
   page: ContentPageListRow;
+  /** Per-page ★ rating aggregate (#2 Контент Шаг 3). */
+  rating?: ContentRatingSummary | null;
   /** When provided, card acts as a selector (master-detail layout). */
   onSelect?: (id: string) => void;
   isActive?: boolean;
@@ -19,7 +22,7 @@ type Props = {
  * No viewsCount (no DB column). Rating placeholder reserved for Step 3.
  * DnD is disabled in tile mode — card is a pure link / selector.
  */
-export function ContentPageTileCard({ page, onSelect, isActive }: Props) {
+export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props) {
   const inner = (
     <Card
       size="sm"
@@ -59,8 +62,10 @@ export function ContentPageTileCard({ page, onSelect, isActive }: Props) {
           {page.slug}
         </p>
 
-        {/* Rating placeholder (Step 3 will fill this in) */}
-        {/* <RatingChip avg={page.ratingAvg} /> */}
+        {/* Rating chip (#2 Контент Шаг 3) */}
+        <div className="flex items-center justify-center">
+          <ContentRatingChip rating={rating} />
+        </div>
 
         {/* Actions */}
         <div
