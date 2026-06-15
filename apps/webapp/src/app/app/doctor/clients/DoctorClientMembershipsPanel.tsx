@@ -5,6 +5,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
+import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 
 type AppointmentOption = { id: string; label: string };
 
@@ -252,12 +253,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
             onChange={(e) => setCatalogNotes(e.target.value)}
           />
           <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
-          <Input
-            id="pkg-catalog-sold"
-            type="date"
-            value={catalogSoldDate}
-            onChange={(e) => setCatalogSoldDate(e.target.value)}
-          />
+          <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} />
           <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
           <Input
             id="pkg-catalog-paid"
@@ -282,7 +278,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
           <Label htmlFor="pkg-price">Цена, ₽</Label>
           <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <Label htmlFor="pkg-sold">Дата продажи</Label>
-          <Input id="pkg-sold" type="date" value={soldDate} onChange={(e) => setSoldDate(e.target.value)} />
+          <DoctorDatePicker value={soldDate} onChange={setSoldDate} />
           <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
           <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
           <div className="flex flex-wrap items-end gap-2">

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
@@ -12,6 +11,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { isStaffDeletableCancelledStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 
 const API_BASE = "/api/doctor/booking-engine";
 
@@ -214,9 +214,9 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
       {rescheduleOpen ? (
         <div className="space-y-2 rounded-lg border border-border p-2">
           <Label>Начало</Label>
-          <Input type="datetime-local" value={newStartLocal} onChange={(e) => setNewStartLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newStartLocal} onChange={setNewStartLocal} />
           <Label>Окончание</Label>
-          <Input type="datetime-local" value={newEndLocal} onChange={(e) => setNewEndLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newEndLocal} onChange={setNewEndLocal} />
           <Button type="button" size="sm" disabled={pending !== null} onClick={onRescheduleSubmit}>
             Сохранить перенос
           </Button>

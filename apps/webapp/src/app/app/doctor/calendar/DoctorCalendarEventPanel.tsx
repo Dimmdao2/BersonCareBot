@@ -47,7 +47,7 @@ import {
   type CalendarPatientOption,
 } from "./DoctorCalendarPatientSearch";
 import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
-import { DoctorDateTimePicker } from "./DoctorDateTimePicker";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 
 // R21: причины отмены в стиле Rubitime (отправляются как reason в API).
 const CANCEL_REASONS = [
@@ -397,9 +397,9 @@ function DoctorCalendarEventPanelInner({
       {mode === "reschedule" ? (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
           <Label>Начало</Label>
-          <Input type="datetime-local" value={newStartLocal} onChange={(e) => setNewStartLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newStartLocal} onChange={setNewStartLocal} />
           <Label>Окончание</Label>
-          <Input type="datetime-local" value={newEndLocal} onChange={(e) => setNewEndLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newEndLocal} onChange={setNewEndLocal} />
         </div>
       ) : null}
 
