@@ -14,6 +14,10 @@ import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
+import {
+  DoctorCalendarPatientSearch,
+  type CalendarPatientOption,
+} from "@/app/app/doctor/calendar/DoctorCalendarPatientSearch";
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -32,6 +36,10 @@ function fromLocalInput(value: string): string | null {
 }
 
 type FormFieldsProps = {
+  /**
+   * If non-empty, the task is pinned to this patient (e.g. from patient card).
+   * If empty string, a patient picker is shown so the doctor can optionally link the task to a patient.
+   */
   patientUserId: string;
   editing: SpecialistTaskRow | null;
   onSaved: () => void;
@@ -47,8 +55,28 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  /**
+   * Selected patient for global tasks (patientUserId prop is "").
+   * Pre-populate from editing.patientUserId if available.
+   */
+  const [linkedPatient, setLinkedPatient] = useState<CalendarPatientOption | null>(() => {
+    if (patientUserId.trim()) return null; // fixed patient — picker not shown
+    if (editing?.patientUserId) {
+      // We only have the id; display name won't be available here without an API call.
+      // Render with a placeholder label — the picker will let doctor re-select if needed.
+      return { id: editing.patientUserId, displayName: "Загрузка…", phone: null };
+    }
+    return null;
+  });
+
+  const isGlobal = !patientUserId.trim();
+
   function handleSubmit() {
     setError(null);
+    const effectivePatientUserId = isGlobal
+      ? (linkedPatient?.id ?? null)
+      : patientUserId;
+
     const body = {
       title,
       description: description.trim() || null,
@@ -56,19 +84,21 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
       remindAt: fromLocalInput(remindAt),
       isImportant,
     };
+
     startTransition(async () => {
       try {
-        const isGlobal = !patientUserId.trim();
         const url = editing
           ? `/api/doctor/tasks/${encodeURIComponent(editing.id)}`
-          : isGlobal
-            ? "/api/doctor/tasks"
-            : `/api/doctor/clients/${encodeURIComponent(patientUserId)}/tasks`;
+          : effectivePatientUserId
+            ? `/api/doctor/clients/${encodeURIComponent(effectivePatientUserId)}/tasks`
+            : "/api/doctor/tasks";
         const res = await fetch(url, {
           method: editing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            isGlobal && !editing ? { ...body, patientUserId: null } : body,
+            isGlobal && !editing
+              ? { ...body, patientUserId: effectivePatientUserId }
+              : body,
           ),
         });
         if (!res.ok) {
@@ -115,6 +145,14 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
           onCheckedChange={setIsImportant}
           disabled={isPending}
         />
+        {/* Patient picker: shown only for global tasks (patientUserId === "") */}
+        {isGlobal ? (
+          <DoctorCalendarPatientSearch
+            value={linkedPatient}
+            onChange={setLinkedPatient}
+            disabled={isPending}
+          />
+        ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
       <DialogFooter>

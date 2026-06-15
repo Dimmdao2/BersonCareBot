@@ -231,11 +231,12 @@ export function DoctorTodayDashboard({
 
         {/* ───── Правое полотно: приём и время ───── */}
         <div id="doctor-today-right-pane" className="flex flex-col gap-3">
-          {/* 3 KPI: Сегодня, Неделя, Месяц */}
+          {/* 3 KPI: Записи сегодня, Записи неделя, Записи месяц */}
           <DoctorTodayRightKpiRow
             appointmentsTodayCount={appointmentsTodayCount}
             weekAppointmentsCount={kpiStats.appointments.total}
             monthAppointmentCount={monthAppointmentCount}
+            todayAppointments={data.todayAppointments}
           />
 
           {/* §1.1: Мини-календарь — расписание на сегодня (выше «Следующей записи») */}

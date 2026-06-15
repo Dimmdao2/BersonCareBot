@@ -5,6 +5,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { doctorSectionSubtitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import { cn } from "@/lib/utils";
 import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
@@ -37,6 +38,13 @@ function filterTodayTasks(tasks: SpecialistTaskRow[], todayIso: string): Special
   return tasks.filter((t) => t.dueAt != null && t.dueAt.slice(0, 10) <= todayIso);
 }
 
+function formatWhenShort(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+}
+
 export function DoctorGlobalTasksSection({
   initialTasks,
   initialTasksTotal,
@@ -61,6 +69,7 @@ export function DoctorGlobalTasksSection({
   const [editing, setEditing] = useState<SpecialistTaskRow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
 
   const reload = useCallback(() => {
     startTransition(async () => {
@@ -102,11 +111,20 @@ export function DoctorGlobalTasksSection({
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>Задачи</DoctorSectionTitle>
         <div className="flex items-center gap-2">
-          {/* Метрика сегодня/всего §1.3 */}
+          {/* Метрика сегодня/всего §1.3 — click opens KpiPreviewModal (S2.8) */}
           {totalCount > 0 ? (
-            <span className={doctorSectionSubtitleClass} id="doctor-today-tasks-metric">
+            <button
+              type="button"
+              className={cn(
+                doctorSectionSubtitleClass,
+                "underline-offset-2 hover:underline cursor-pointer",
+              )}
+              id="doctor-today-tasks-metric"
+              onClick={() => setTaskModalOpen(true)}
+              title="Просмотреть все задачи"
+            >
               {todayCount > 0 ? `сегодня ${todayCount} / всего ${totalCount}` : `всего ${totalCount}`}
-            </span>
+            </button>
           ) : null}
           <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
             Новая
@@ -161,6 +179,50 @@ export function DoctorGlobalTasksSection({
           ) : null}
         </>
       )}
+
+      {/* KpiPreviewModal: Задачи (S2.8) */}
+      <KpiPreviewModal<SpecialistTaskRow>
+        open={taskModalOpen}
+        onClose={() => setTaskModalOpen(false)}
+        title="Задачи"
+        count={totalCount}
+        items={tasks}
+        renderItem={(task) => (
+          <TaskRow
+            task={task}
+            busy={isPending}
+            onComplete={(id) => {
+              handleComplete(id);
+              setTaskModalOpen(false);
+            }}
+            onEdit={(t) => {
+              setEditing(t);
+              setEditOpen(true);
+              setTaskModalOpen(false);
+            }}
+          />
+        )}
+        searchPlaceholder="Поиск по задаче…"
+        searchPredicate={(task, q) =>
+          task.title.toLowerCase().includes(q.toLowerCase()) ||
+          (task.description?.toLowerCase().includes(q.toLowerCase()) ?? false)
+        }
+        quickFilters={[
+          {
+            label: "Сегодня",
+            predicate: (task) =>
+              task.dueAt != null && task.dueAt.slice(0, 10) <= todayIso,
+          },
+          {
+            label: "Важные",
+            predicate: (task) => task.isImportant,
+          },
+        ]}
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">Нет открытых задач</p>
+        }
+      />
+
       <SpecialistTaskFormDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
