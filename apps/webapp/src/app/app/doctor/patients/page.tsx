@@ -38,8 +38,9 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
       hasMemberships: segment === "memberships" ? true : undefined,
       isNew: segment === "new" ? true : undefined,
       isFormer: segment === "former" ? true : undefined,
-      isSubscriberOnly: segment === "subscriber" ? true : undefined,
+      isSubscriberOnly: segment === "subscriber" || segment === "without_appointments" ? true : undefined,
       hasCancellations: segment === "cancellations" ? true : undefined,
+      hasUpcomingAppointment: segment === "appointments" ? true : undefined,
       // Channel filters
       hasTelegram: channel === "telegram" ? true : undefined,
       hasMax: channel === "max" ? true : undefined,

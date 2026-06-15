@@ -1,35 +1,31 @@
 "use client";
 
 /**
- * PatientsPageClient — Wave 2: full UI.
- * Design etalon: docs/design/doctor-cabinet-wireframe.html #p-patients
- * Pattern: mirrors exercises/ExercisesPageClient.tsx (use(), CatalogSplitLayout, DoctorCatalogFiltersToolbar)
+ * PatientsPageClient — unified patients list.
+ *
+ * Layout (desktop, 2-column):
+ *   LEFT  – filter panel: search (full-width) + segment stat cards + channel row + additional filters
+ *   RIGHT – patient list with icon-filter rail header + patient preview
+ *
+ * The filter panel markup is kept pixel-for-pixel identical to the old DoctorClientsPanel
+ * right-section (§ "Дополнительные фильтры" + DoctorStatCard segments).
+ * Only the height clip is fixed: the panel now fills the full viewport height.
+ *
+ * Search logic reused from Wave-2 PatientsPageClient (debounced API call, min 3 chars).
  */
 
-import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Search, X } from "lucide-react";
+import { Search, X, Ban, CalendarDays, Dumbbell, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
-import {
-  doctorCatalogRowClass,
-  doctorCatalogRowActiveClass,
-  doctorCatalogListEmptyClass,
-  doctorSectionTitleClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import {
-  DoctorCatalogFiltersToolbar,
-  DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
+import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
+import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { doctorListItemOuterClass } from "@/shared/ui/doctor/doctorVisual";
+import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,56 +44,196 @@ export type PatientsPageClientProps = {
   initialFilters: InitialFilters;
 };
 
+type TriFilterState = "off" | "positive" | "negative";
+type RichFilterState = "off" | "positive" | "new" | "negative";
+
+type IconFiltersState = {
+  appointments: RichFilterState;
+  messages: RichFilterState;
+  comments: RichFilterState;
+  memberships: TriFilterState;
+  support: TriFilterState;
+  telegram: TriFilterState;
+  max: TriFilterState;
+  email: TriFilterState;
+  phone: TriFilterState;
+  app: TriFilterState;
+};
+
 // ---------------------------------------------------------------------------
-// Segment definitions (owner answer #5, wireframe terminology)
+// Segment definitions (merged: old 4-card model + new extended segments)
 // ---------------------------------------------------------------------------
 
 type SegmentKey =
   | "all"
+  | "appointments"
   | "on_support"
   | "with_program"
-  | "visited_month"
-  | "memberships"
-  | "subscriber"
+  | "without_appointments"
   | "new"
   | "former"
-  | "cancellations";
+  | "cancellations"
+  | "memberships"
+  | "visited_month";
 
 type SegmentDef = {
   key: SegmentKey;
-  label: string;
-  /** Segment value sent as URL param (null = Все/reset) */
-  value: string | null;
+  title: string;
+  /** URL param value (null = no filter / "Все") */
+  urlValue: string | null;
 };
 
 const SEGMENTS: SegmentDef[] = [
-  { key: "all", label: "Все · сброс", value: null },
-  { key: "on_support", label: "На сопровождении", value: "on_support" },
-  { key: "with_program", label: "С программой", value: "with_program" },
-  { key: "visited_month", label: "Приём в этом мес.", value: "visited_month" },
-  { key: "memberships", label: "С абонементами", value: "memberships" },
-  { key: "subscriber", label: "Подписчики", value: "subscriber" },
-  { key: "new", label: "Новые", value: "new" },
-  { key: "former", label: "Бывшие", value: "former" },
-  { key: "cancellations", label: "С отменами", value: "cancellations" },
+  { key: "all",                 title: "Все",                  urlValue: null },
+  { key: "appointments",        title: "С записями",           urlValue: "appointments" },
+  { key: "on_support",          title: "На сопровождении",     urlValue: "on_support" },
+  { key: "with_program",        title: "С программой",         urlValue: "with_program" },
+  { key: "without_appointments",title: "Без приёмов",          urlValue: "without_appointments" },
+  { key: "new",                 title: "Новые",                urlValue: "new" },
+  { key: "former",              title: "Бывшие",               urlValue: "former" },
+  { key: "cancellations",       title: "С отменами",           urlValue: "cancellations" },
+  { key: "memberships",         title: "С абонементами",       urlValue: "memberships" },
+  { key: "visited_month",       title: "Приём в этом мес.",    urlValue: "visited_month" },
 ];
+
+// Row split: top row (5 items), bottom row (5 items)
+const SEGMENTS_ROW1 = SEGMENTS.slice(0, 5);
+const SEGMENTS_ROW2 = SEGMENTS.slice(5);
 
 type ChannelKey = "telegram" | "max" | "email" | "phone" | "archive";
 type ChannelDef = { key: ChannelKey; label: string };
 
 const CHANNELS: ChannelDef[] = [
   { key: "telegram", label: "Telegram" },
-  { key: "max", label: "MAX" },
-  { key: "email", label: "Email" },
-  { key: "phone", label: "Телефон" },
-  { key: "archive", label: "Архив" },
+  { key: "max",      label: "MAX" },
+  { key: "email",    label: "Email" },
+  { key: "phone",    label: "Телефон" },
+  { key: "archive",  label: "Архив" },
 ];
 
+const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(10,1.75rem)] gap-1";
+
 // ---------------------------------------------------------------------------
-// Helpers
+// Icon filter helpers (icon-rail on list header)
 // ---------------------------------------------------------------------------
 
-function buildPatientListUrl(filters: {
+function cycleTriFilterState(state: TriFilterState): TriFilterState {
+  if (state === "off") return "positive";
+  if (state === "positive") return "negative";
+  return "off";
+}
+
+function cycleRichFilterState(state: RichFilterState): RichFilterState {
+  if (state === "off") return "positive";
+  if (state === "positive") return "new";
+  if (state === "new") return "negative";
+  return "off";
+}
+
+function applyTriFilter(
+  list: ClientListItem[],
+  state: TriFilterState,
+  predicate: (item: ClientListItem) => boolean,
+): ClientListItem[] {
+  if (state === "off") return list;
+  if (state === "positive") return list.filter(predicate);
+  return list.filter((item) => !predicate(item));
+}
+
+function applyRichFilter(
+  list: ClientListItem[],
+  state: RichFilterState,
+  hasPredicate: (item: ClientListItem) => boolean,
+  newPredicate: (item: ClientListItem) => boolean,
+): ClientListItem[] {
+  if (state === "off") return list;
+  if (state === "positive") return list.filter(hasPredicate);
+  if (state === "new") return list.filter(newPredicate);
+  return list.filter((item) => !hasPredicate(item));
+}
+
+function applyIconFilters(
+  list: ClientListItem[],
+  iconFilters: IconFiltersState,
+): ClientListItem[] {
+  list = applyRichFilter(
+    list,
+    iconFilters.appointments,
+    (c) => (c.hasAppointmentHistory ?? false) || (c.activeAppointmentsCount ?? 0) > 0,
+    (c) => (c.activeAppointmentsCount ?? 0) > 0,
+  );
+  list = applyRichFilter(
+    list,
+    iconFilters.messages,
+    (c) => (c.hasConversation ?? false) || (c.unreadMessagesCount ?? 0) > 0,
+    (c) => (c.unreadMessagesCount ?? 0) > 0,
+  );
+  list = applyRichFilter(
+    list,
+    iconFilters.comments,
+    (c) => c.activeTreatmentProgram,
+    (c) => (c.unreadExerciseCommentsCount ?? 0) > 0,
+  );
+  list = applyTriFilter(list, iconFilters.memberships, (c) => c.hasMemberships === true);
+  list = applyTriFilter(list, iconFilters.support, (c) => c.isOnSupport === true);
+  list = applyTriFilter(
+    list,
+    iconFilters.telegram,
+    (c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked,
+  );
+  list = applyTriFilter(
+    list,
+    iconFilters.max,
+    (c) => Boolean(c.bindings.maxId?.trim()) && !c.bindings.maxBotBlocked,
+  );
+  list = applyTriFilter(list, iconFilters.email, (c) => c.hasEmail === true);
+  list = applyTriFilter(list, iconFilters.phone, (c) => Boolean(c.phone?.trim()));
+  list = applyTriFilter(list, iconFilters.app, (c) => c.hasApp === true);
+  return list;
+}
+
+const DEFAULT_ICON_FILTERS: IconFiltersState = {
+  appointments: "off",
+  messages: "off",
+  comments: "off",
+  memberships: "off",
+  support: "off",
+  telegram: "off",
+  max: "off",
+  email: "off",
+  phone: "off",
+  app: "off",
+};
+
+// ---------------------------------------------------------------------------
+// Segment count helper (maps server metrics → each segment)
+// ---------------------------------------------------------------------------
+
+function getSegmentCount(
+  key: SegmentKey,
+  metrics: DoctorDashboardPatientMetrics,
+  clients: ClientListItem[],
+): number | null {
+  switch (key) {
+    case "all":                  return clients.length;
+    case "appointments":         return clients.filter((c) => (c.activeAppointmentsCount ?? 0) > 0).length;
+    case "on_support":           return metrics.onSupportCount;
+    case "with_program":         return metrics.withProgramCount;
+    case "without_appointments": return metrics.subscriberCount;
+    case "new":                  return metrics.newCount;
+    case "former":               return metrics.formerCount;
+    case "cancellations":        return metrics.cancellationsCount;
+    case "memberships":          return metrics.membershipsCount;
+    case "visited_month":        return metrics.visitedThisCalendarMonthCount;
+    default:                     return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// URL builder
+// ---------------------------------------------------------------------------
+
+function buildUrl(filters: {
   q?: string;
   segment?: string | null;
   channel?: string | null;
@@ -112,303 +248,88 @@ function buildPatientListUrl(filters: {
   return qs ? `${routePaths.doctorPatients}?${qs}` : routePaths.doctorPatients;
 }
 
-function hiddenName(client: ClientListItem): string | null {
-  const parts = [client.firstName, client.lastName].filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : null;
+// ---------------------------------------------------------------------------
+// IconSlot (patient list row)
+// ---------------------------------------------------------------------------
+
+function iconBadge(value: number | null): ReactNode {
+  if (!value || value <= 0) return null;
+  return (
+    <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none text-primary-foreground">
+      {value}
+    </span>
+  );
 }
 
-function formatPhone(phone: string | null): string | null {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8"))) {
-    return `+7 ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9)}`;
-  }
-  return phone;
-}
-
-// ---------------------------------------------------------------------------
-// Segment count mapping from metrics
-// ---------------------------------------------------------------------------
-
-function getSegmentCount(
-  seg: SegmentKey,
-  metrics: DoctorDashboardPatientMetrics,
-  allCount: number,
-): number | null {
-  switch (seg) {
-    case "all": return allCount;
-    case "on_support": return metrics.onSupportCount;
-    case "visited_month": return metrics.visitedThisCalendarMonthCount;
-    case "with_program": return metrics.withProgramCount;
-    case "memberships": return metrics.membershipsCount;
-    case "subscriber": return metrics.subscriberCount;
-    case "new": return metrics.newCount;
-    case "former": return metrics.formerCount;
-    case "cancellations": return metrics.cancellationsCount;
-    default: return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Segment cards
-// ---------------------------------------------------------------------------
-
-type SegmentCardsProps = {
-  metrics: DoctorDashboardPatientMetrics;
-  allCount: number;
-  activeSegment: string | null;
-  onSegmentChange: (value: string | null) => void;
+type IconSlotProps = {
+  visible: boolean;
+  label: string;
+  title: string;
+  badge?: number;
+  children: ReactNode;
 };
 
-function SegmentCards({ metrics, allCount, activeSegment, onSegmentChange }: SegmentCardsProps) {
-  // Row 1: 4 cards (Все, На сопровождении, С программой, Приём в этом мес.)
-  const row1 = SEGMENTS.slice(0, 4);
-  // Row 2: 5 cards (С абонементами, Подписчики, Новые, Бывшие, С отменами)
-  const row2 = SEGMENTS.slice(4);
-
-  function renderCard(seg: SegmentDef) {
-    const count = getSegmentCount(seg.key, metrics, allCount);
-    const isActive = seg.value === activeSegment || (seg.key === "all" && activeSegment === null);
-    return (
-      <button
-        key={seg.key}
-        type="button"
-        onClick={() => onSegmentChange(seg.value)}
-        className={cn(
-          "flex flex-col gap-0.5 rounded-lg border px-2 py-1.5 text-left transition-colors",
-          isActive
-            ? "border-primary bg-primary/10 text-primary"
-            : "border-border bg-background hover:border-primary/30 hover:bg-primary/5",
-        )}
+function IconSlot({ visible, label, title, badge, children }: IconSlotProps) {
+  if (!visible) {
+    return <span className="inline-flex size-7 shrink-0" aria-hidden />;
+  }
+  return (
+    <span className="inline-flex size-7 shrink-0 items-center justify-center">
+      <span
+        className="relative inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-muted-foreground"
+        aria-label={label}
+        title={title}
       >
-        <span
-          className={cn(
-            "text-[9.5px] font-medium uppercase tracking-wide leading-snug line-clamp-2",
-            isActive ? "text-primary" : "text-muted-foreground",
-          )}
-        >
-          {seg.label}
-        </span>
-        {count !== null ? (
-          <span className={cn("text-sm font-bold tabular-nums leading-tight", isActive ? "text-primary" : "text-foreground")}>
-            {count}
-          </span>
-        ) : (
-          <span className="text-sm font-bold text-muted-foreground/40">—</span>
-        )}
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-4 gap-1">{row1.map(renderCard)}</div>
-      <div className="grid grid-cols-5 gap-1">{row2.map(renderCard)}</div>
-    </div>
+        {children}
+        {iconBadge(badge ?? 0)}
+      </span>
+    </span>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Channel row
+// HeaderIconButton (icon filter rail)
 // ---------------------------------------------------------------------------
 
-type ChannelRowProps = {
-  activeChannel: string | null;
-  archivedOnly: boolean;
-  onChannelChange: (channel: string | null, archived: boolean) => void;
+type HeaderIconButtonProps = {
+  label: string;
+  title: string;
+  state: TriFilterState | RichFilterState;
+  onClick: () => void;
+  children: ReactNode;
 };
 
-function ChannelRow({ activeChannel, archivedOnly, onChannelChange }: ChannelRowProps) {
-  return (
-    <div className="mt-2 border-t border-dashed border-border pt-2">
-      <p className="mb-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
-        Канал связи · архив
-      </p>
-      <div className="flex flex-wrap gap-1">
-        {CHANNELS.map((ch) => {
-          const isArchive = ch.key === "archive";
-          const isActive = isArchive ? archivedOnly : activeChannel === ch.key;
-          return (
-            <button
-              key={ch.key}
-              type="button"
-              onClick={() => {
-                if (isArchive) {
-                  onChannelChange(null, !archivedOnly);
-                } else {
-                  onChannelChange(isActive ? null : ch.key, false);
-                }
-              }}
-              className={cn(
-                "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-                isActive
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background text-foreground hover:border-primary/30 hover:bg-primary/5",
-              )}
-            >
-              {ch.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Patient row
-// ---------------------------------------------------------------------------
-
-type PatientRowProps = {
-  client: ClientListItem;
-  isActive: boolean;
-  onSelect: (userId: string) => void;
-};
-
-function PatientRow({ client, isActive, onSelect }: PatientRowProps) {
-  const hidden = hiddenName(client);
+function HeaderIconButton({ label, title, state, onClick, children }: HeaderIconButtonProps) {
+  const isPositive = state === "positive" || state === "new";
+  const isNegative = state === "negative";
   return (
     <button
       type="button"
-      onClick={() => onSelect(client.userId)}
-      className={cn(
-        doctorCatalogRowClass,
-        "flex-col items-start gap-0.5 py-2",
-        isActive && doctorCatalogRowActiveClass,
-      )}
+      aria-label={label}
+      title={title}
+      onClick={onClick}
+      className={[
+        "relative inline-flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+        isPositive
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : isNegative
+            ? "border-slate-500/60 bg-slate-600/20 text-slate-700 dark:text-slate-300"
+            : "border-border/60 bg-muted/40 text-muted-foreground",
+      ].join(" ")}
     >
-      <span className="text-sm font-medium leading-tight truncate w-full">{client.displayName}</span>
-      {hidden && (
-        <span className={cn("text-xs leading-tight truncate w-full", isActive ? "text-primary/70" : "text-muted-foreground")}>
-          {hidden}
+      {children}
+      {state === "new" ? (
+        <span
+          className="absolute -right-1 -top-1 inline-flex size-2.5 rounded-full bg-destructive"
+          aria-hidden
+        />
+      ) : null}
+      {isNegative ? (
+        <span className="absolute -right-1 -top-1 inline-flex size-3.5 items-center justify-center rounded-full bg-background">
+          <Ban className="size-3 text-destructive" aria-hidden />
         </span>
-      )}
+      ) : null}
     </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Patient preview (right panel)
-// ---------------------------------------------------------------------------
-
-type PatientPreviewProps = {
-  client: ClientListItem | null;
-};
-
-function PatientPreview({ client }: PatientPreviewProps) {
-  if (!client) {
-    return (
-      <div className="flex h-full items-center justify-center px-4 text-center">
-        <p className="text-sm text-muted-foreground">Выберите пациента для просмотра</p>
-      </div>
-    );
-  }
-
-  const hidden = hiddenName(client);
-  const phone = formatPhone(client.phone);
-
-  const copyPhone = () => {
-    if (client.phone) {
-      navigator.clipboard.writeText(client.phone).catch(() => undefined);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-3 px-1 py-1">
-      {/* Name */}
-      <div>
-        <p className="text-base font-semibold leading-tight text-foreground">{client.displayName}</p>
-        {hidden && (
-          <p className="mt-0.5 text-xs text-muted-foreground">{hidden}</p>
-        )}
-      </div>
-
-      {/* Contacts */}
-      <div className="flex flex-col gap-1">
-        {phone && (
-          <button
-            type="button"
-            onClick={copyPhone}
-            title="Скопировать телефон"
-            className="flex items-center gap-1.5 text-sm text-left group"
-          >
-            <span className="text-muted-foreground">📞</span>
-            <span className="group-hover:underline underline-offset-2">{phone}</span>
-          </button>
-        )}
-        {client.hasEmail && (
-          <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">✉</span>
-            <span className="text-foreground">Email</span>
-          </div>
-        )}
-        {client.bindings.telegramId && (
-          <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">TG</span>
-            <span className="text-foreground">{client.bindings.telegramId}</span>
-          </div>
-        )}
-        {client.bindings.maxId && (
-          <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">MAX</span>
-            <span className="text-foreground">{client.bindings.maxId}</span>
-          </div>
-        )}
-        {!phone && !client.hasEmail && !client.bindings.telegramId && !client.bindings.maxId && (
-          <p className="text-xs text-muted-foreground">Контакты не указаны</p>
-        )}
-      </div>
-
-      {/* Program */}
-      {client.activeTreatmentProgram && (
-        <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5">
-          <p className="text-xs text-muted-foreground">Программа</p>
-          <p className="text-sm font-medium text-foreground">Активная программа</p>
-        </div>
-      )}
-
-      {/* Counters */}
-      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        {(client.activeAppointmentsCount ?? 0) > 0 && (
-          <span>Записей: <strong className="text-foreground">{client.activeAppointmentsCount}</strong></span>
-        )}
-        {(client.cancellationCount30d ?? 0) > 0 && (
-          <span>Отмен (30 дн): <strong className="text-foreground">{client.cancellationCount30d}</strong></span>
-        )}
-        {client.visitedThisCalendarMonth && (
-          <span className="text-primary font-medium">Приём в этом мес.</span>
-        )}
-      </div>
-
-      {/* Tags */}
-      <div className="flex flex-wrap gap-1.5">
-        {client.isOnSupport && (
-          <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            На сопровождении
-          </span>
-        )}
-        {client.hasMemberships && (
-          <span className="rounded-md border border-border bg-muted/30 px-2 py-0.5 text-xs text-foreground">
-            Абонемент
-          </span>
-        )}
-        {(client.unreadMessagesCount ?? 0) > 0 && (
-          <span className="rounded-md border border-amber-400/30 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-            {client.unreadMessagesCount} непрочитанных
-          </span>
-        )}
-      </div>
-
-      {/* CTA */}
-      <div className="pt-1">
-        <Link
-          href={routePaths.doctorPatientCard(client.userId)}
-          className="inline-flex h-8 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          Открыть карточку
-        </Link>
-      </div>
-    </div>
   );
 }
 
@@ -418,25 +339,18 @@ function PatientPreview({ client }: PatientPreviewProps) {
 
 function PatientListSkeleton() {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="hidden gap-3 lg:grid lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="mb-2 h-4 w-24 animate-pulse rounded bg-muted/50" />
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="mb-1.5 h-10 animate-pulse rounded-md bg-muted/40" />
-          ))}
-        </div>
-        <div className="rounded-xl bg-card px-6 py-6">
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-5 animate-pulse rounded bg-muted/50" />
-            ))}
-          </div>
-        </div>
+    <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
+      <div className="rounded-lg border border-border bg-card p-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="mb-2 h-8 animate-pulse rounded bg-muted/50" />
+        ))}
       </div>
-      <div className="rounded-lg border border-border bg-card p-3 lg:hidden">
+      <div className="rounded-lg border border-border bg-card">
+        <div className="border-b border-border/60 px-5 py-2">
+          <div className="h-6 w-full animate-pulse rounded bg-muted/50" />
+        </div>
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="mb-1.5 h-10 animate-pulse rounded-md bg-muted/40" />
+          <div key={i} className="mx-2 mb-1.5 mt-1.5 h-10 animate-pulse rounded-md bg-muted/40" />
         ))}
       </div>
     </div>
@@ -444,7 +358,7 @@ function PatientListSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Main content component (uses Suspense data)
+// Main content (Suspense boundary — uses `use()`)
 // ---------------------------------------------------------------------------
 
 type PatientsContentProps = {
@@ -454,13 +368,12 @@ type PatientsContentProps = {
   activeChannel: string | null;
   archivedOnly: boolean;
   searchQuery: string;
-  selectedUserId: string | null;
+  iconFilters: IconFiltersState;
   isListPending: boolean;
   onSegmentChange: (value: string | null) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
-  onSelectClient: (userId: string) => void;
-  onMobileBack: () => void;
-  mobileView: "list" | "detail";
+  onCycleRichIconFilter: (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
+  onCycleTriIconFilter: (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
 };
 
 function PatientsContent({
@@ -470,119 +383,287 @@ function PatientsContent({
   activeChannel,
   archivedOnly,
   searchQuery,
-  selectedUserId,
+  iconFilters,
   isListPending,
   onSegmentChange,
   onChannelChange,
-  onSelectClient,
-  onMobileBack,
-  mobileView,
+  onCycleRichIconFilter,
+  onCycleTriIconFilter,
 }: PatientsContentProps) {
-  const clients = use(listPromise);
+  const allClients = use(listPromise);
   const metrics = use(metricsPromise);
 
-  const selectedClient = clients.find((c) => c.userId === selectedUserId) ?? null;
+  // Apply client-side icon filters on top of server-filtered list
+  const filtered = applyIconFilters(allClients, iconFilters);
 
-  const rightPanel = (
-    <CatalogRightPane
-      className="h-full"
-      contentClassName="px-4 py-4"
-    >
-      {/* Right: segments + channels + preview stacked vertically */}
-      <div className="flex flex-col gap-3 overflow-y-auto">
-        {/* Segment cards */}
-        <div>
-          <p className={cn(doctorSectionTitleClass, "mb-1.5")}>Сегменты</p>
-          <SegmentCards
-            metrics={metrics}
-            allCount={clients.length}
-            activeSegment={activeSegment}
-            onSegmentChange={onSegmentChange}
-          />
-          <ChannelRow
-            activeChannel={activeChannel}
-            archivedOnly={archivedOnly}
-            onChannelChange={onChannelChange}
-          />
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-border/60" />
-
-        {/* Patient preview */}
-        <div>
-          <p className={cn(doctorSectionTitleClass, "mb-2")}>Превью пациента</p>
-          <PatientPreview client={selectedClient} />
-        </div>
-      </div>
-    </CatalogRightPane>
-  );
+  // Segment tone: highlight active segment card
+  function segmentTone(key: SegmentKey): "neutral" | "warning" {
+    const seg = SEGMENTS.find((s) => s.key === key);
+    if (!seg) return "neutral";
+    const isActive =
+      (key === "all" && activeSegment === null && !archivedOnly) ||
+      (seg.urlValue !== null && seg.urlValue === activeSegment);
+    return isActive ? "warning" : "neutral";
+  }
 
   return (
-    <CatalogSplitLayout
-      className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
-      left={
-        <CatalogLeftPane
-          stickySplit={false}
-          stickyToolbarRows={1}
-          className="h-full"
-          headerSlot={
-            <div className="flex items-center justify-between gap-2">
-              <p className={cn(doctorSectionTitleClass, "text-xs text-muted-foreground")}>
-                {clients.length === 0
-                  ? "Нет пациентов"
-                  : `Пациентов: ${clients.length}`}
-              </p>
-              {isListPending && (
-                <span className="text-xs text-muted-foreground animate-pulse">обновление…</span>
-              )}
-            </div>
-          }
-        >
-          <div
-            className={cn(
-              "min-h-0 flex-1 overflow-hidden transition-opacity",
-              isListPending && "opacity-70",
-            )}
-            aria-busy={isListPending}
-          >
-            {clients.length === 0 ? (
-              <p className={doctorCatalogListEmptyClass}>
-                {searchQuery.trim()
-                  ? "Нет пациентов по запросу."
-                  : "Нет пациентов по заданным фильтрам."}
-              </p>
-            ) : (
-              <ul className="flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto">
-                {clients.map((client) => (
-                  <li key={client.userId}>
-                    <PatientRow
-                      client={client}
-                      isActive={client.userId === selectedUserId}
-                      onSelect={onSelectClient}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
+    <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
+      {/* ===== LEFT: filter panel ===== */}
+      {/* rounded-lg border bg-card p3 keeps the exact old right-section look */}
+      <section className="rounded-lg border border-border bg-card p-3">
+        {/* Segment stat cards — exact DoctorMetricList / DoctorStatCard markup from old page */}
+        <DoctorMetricList className="grid-cols-5 xl:grid-cols-5 mb-1">
+          {SEGMENTS_ROW1.map((seg) => (
+            <DoctorStatCard
+              key={seg.key}
+              id={`doctor-patients-segment-${seg.key}`}
+              title={seg.title}
+              value={getSegmentCount(seg.key, metrics, allClients) ?? "—"}
+              tone={segmentTone(seg.key)}
+              onClick={() => onSegmentChange(seg.urlValue)}
+            />
+          ))}
+        </DoctorMetricList>
+        <DoctorMetricList className="grid-cols-5 xl:grid-cols-5">
+          {SEGMENTS_ROW2.map((seg) => (
+            <DoctorStatCard
+              key={seg.key}
+              id={`doctor-patients-segment-${seg.key}`}
+              title={seg.title}
+              value={getSegmentCount(seg.key, metrics, allClients) ?? "—"}
+              tone={segmentTone(seg.key)}
+              onClick={() => onSegmentChange(seg.urlValue)}
+            />
+          ))}
+        </DoctorMetricList>
+
+        {/* Channel / archive row */}
+        <div className="mt-3 border-t border-border/60 pt-3">
+          <p className="mb-2 text-xs text-muted-foreground">Канал связи · архив</p>
+          <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
+            {CHANNELS.map((ch) => {
+              const isArchive = ch.key === "archive";
+              const isActive = isArchive ? archivedOnly : activeChannel === ch.key;
+              return (
+                <Button
+                  key={ch.key}
+                  type="button"
+                  size="sm"
+                  variant={isActive ? "default" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    if (isArchive) {
+                      onChannelChange(null, !archivedOnly);
+                    } else {
+                      onChannelChange(isActive ? null : ch.key, false);
+                    }
+                  }}
+                  aria-pressed={isActive}
+                >
+                  {ch.label}
+                </Button>
+              );
+            })}
           </div>
-        </CatalogLeftPane>
-      }
-      right={rightPanel}
-      mobileView={mobileView}
-      mobileBackSlot={
-        mobileView === "detail" ? (
-          <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={onMobileBack}>
-            ← Назад
-          </Button>
-        ) : null
-      }
-    />
+        </div>
+      </section>
+
+      {/* ===== RIGHT: patient list (exact old left-section markup) ===== */}
+      <section
+        className={cn(
+          "flex min-h-0 flex-col rounded-lg border border-border bg-card",
+          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-hidden",
+        )}
+      >
+        {/* Sticky header: count + icon filter rail */}
+        <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
+          <p className="min-w-0 truncate text-xs text-muted-foreground">
+            Пациентов: {filtered.length}
+            {isListPending && <span className="ml-1 animate-pulse">…</span>}
+          </p>
+          <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
+            <HeaderIconButton
+              label="Фильтр записей"
+              title="Записи: все -> с записями -> с активными -> без записей"
+              state={iconFilters.appointments}
+              onClick={() => onCycleRichIconFilter("appointments")}
+            >
+              <CalendarDays className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр переписки"
+              title="Переписка: все -> с перепиской -> с непрочитанными -> без переписки"
+              state={iconFilters.messages}
+              onClick={() => onCycleRichIconFilter("messages")}
+            >
+              <MessageSquare className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр комментариев"
+              title="Комментарии по упражнениям: все -> есть -> новые -> нет"
+              state={iconFilters.comments}
+              onClick={() => onCycleRichIconFilter("comments")}
+            >
+              <Dumbbell className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр сопровождения"
+              title="Сопровождение: все -> на сопровождении -> не на сопровождении"
+              state={iconFilters.support}
+              onClick={() => onCycleTriIconFilter("support")}
+            >
+              <Handshake className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр абонементов"
+              title="Абонементы: все -> с абонементами -> без абонементов"
+              state={iconFilters.memberships}
+              onClick={() => onCycleTriIconFilter("memberships")}
+            >
+              <Ticket className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр телефона"
+              title="Телефон: все -> есть телефон -> нет телефона"
+              state={iconFilters.phone}
+              onClick={() => onCycleTriIconFilter("phone")}
+            >
+              <Phone className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр Telegram"
+              title="Telegram: все -> подключен -> не подключен"
+              state={iconFilters.telegram}
+              onClick={() => onCycleTriIconFilter("telegram")}
+            >
+              <Send className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр MAX"
+              title="MAX: все -> подключен -> не подключен"
+              state={iconFilters.max}
+              onClick={() => onCycleTriIconFilter("max")}
+            >
+              <span className="text-[10px] font-semibold leading-none">М</span>
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр email"
+              title="Email: все -> указан -> не указан"
+              state={iconFilters.email}
+              onClick={() => onCycleTriIconFilter("email")}
+            >
+              <Mail className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Фильтр приложения"
+              title="Приложение: все -> есть приложение -> нет приложения"
+              state={iconFilters.app}
+              onClick={() => onCycleTriIconFilter("app")}
+            >
+              <Smartphone className="size-3.5" aria-hidden />
+            </HeaderIconButton>
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <p className="px-3 py-4 text-sm text-muted-foreground">
+            {searchQuery.trim()
+              ? "Нет пациентов по запросу."
+              : "Нет пациентов по заданным фильтрам."}
+          </p>
+        ) : (
+          <ul id="doctor-patients-list" className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-2">
+            {filtered.map((c) => {
+              const appointmentCount = c.activeAppointmentsCount ?? (c.nextAppointmentLabel ? 1 : 0);
+              const unreadMessagesCount = c.unreadMessagesCount ?? 0;
+              const unreadExerciseCommentsCount = c.unreadExerciseCommentsCount ?? 0;
+              const hasApptHistory = (c.hasAppointmentHistory ?? false) || appointmentCount > 0;
+              return (
+                <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
+                  <Link
+                    id={`doctor-patients-card-${c.userId}`}
+                    href={routePaths.doctorPatientCard(c.userId)}
+                    className={`${doctorClientListRowLinkClass} items-center`}
+                  >
+                    <div className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
+                    </div>
+                    <div className={CLIENT_ICON_RAIL_CLASS}>
+                      <IconSlot
+                        visible={hasApptHistory}
+                        label={`История записей${appointmentCount > 0 ? `, активных: ${appointmentCount}` : ""}`}
+                        title="История записей"
+                        badge={appointmentCount > 0 ? appointmentCount : undefined}
+                      >
+                        <CalendarDays className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot
+                        visible={(c.hasConversation ?? false) || unreadMessagesCount > 0}
+                        label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
+                        title="Переписка"
+                        badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
+                      >
+                        <MessageSquare className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot
+                        visible={c.activeTreatmentProgram}
+                        label={`Программа тренировок${unreadExerciseCommentsCount > 0 ? `, новых комментариев: ${unreadExerciseCommentsCount}` : ""}`}
+                        title="Назначенная программа тренировок"
+                        badge={unreadExerciseCommentsCount > 0 ? unreadExerciseCommentsCount : undefined}
+                      >
+                        <Dumbbell className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot
+                        visible={c.isOnSupport === true}
+                        label="Клиент на сопровождении"
+                        title="На сопровождении"
+                      >
+                        <Handshake className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot
+                        visible={c.hasMemberships === true}
+                        label="Есть абонемент"
+                        title="Есть абонемент"
+                      >
+                        <Ticket className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан">
+                        <Phone className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot
+                        visible={Boolean(c.bindings.telegramId?.trim())}
+                        label="Подключён Telegram"
+                        title="Подключён Telegram"
+                      >
+                        <Send className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot
+                        visible={Boolean(c.bindings.maxId?.trim())}
+                        label="Подключён MAX"
+                        title="Подключён MAX"
+                      >
+                        <span className="text-[10px] font-semibold leading-none">М</span>
+                      </IconSlot>
+                      <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email">
+                        <Mail className="size-3.5" aria-hidden />
+                      </IconSlot>
+                      <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение">
+                        <Smartphone className="size-3.5" aria-hidden />
+                      </IconSlot>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Root: PatientsPageClient (manages client state + debounced search)
+// Root component — manages state + debounced search
 // ---------------------------------------------------------------------------
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -593,7 +674,6 @@ export function PatientsPageClient({
   metricsPromise,
   initialFilters,
 }: PatientsPageClientProps) {
-  const router = useRouter();
   const [isListPending, startListTransition] = useTransition();
 
   // Search state (local, debounced)
@@ -602,18 +682,16 @@ export function PatientsPageClient({
   const [listPromise, setListPromise] = useState<Promise<ClientListItem[]>>(initialListPromise);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Segment / channel / archive local state (sync to URL on change)
+  // Segment / channel / archive state (sync to URL on change)
   const [activeSegment, setActiveSegment] = useState<string | null>(initialFilters.segment);
   const [activeChannel, setActiveChannel] = useState<string | null>(
     initialFilters.archivedOnly ? null : initialFilters.channel,
   );
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
 
-  // Selection state
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  // Icon filter state (client-side only, not reflected in URL)
+  const [iconFilters, setIconFilters] = useState<IconFiltersState>(DEFAULT_ICON_FILTERS);
 
-  // When filters change (segment/channel/archived), navigate to update server filters
   const navigateWithFilters = useCallback(
     (overrides: {
       q?: string;
@@ -621,172 +699,184 @@ export function PatientsPageClient({
       channel?: string | null;
       archivedOnly?: boolean;
     }) => {
-      const url = buildPatientListUrl({
+      const url = buildUrl({
         q: overrides.q ?? searchInput,
         segment: overrides.segment !== undefined ? overrides.segment : activeSegment,
         channel: overrides.channel !== undefined ? overrides.channel : activeChannel,
         archivedOnly: overrides.archivedOnly !== undefined ? overrides.archivedOnly : archivedOnly,
       });
       startListTransition(() => {
-        router.push(url, { scroll: false });
+        // Use replaceState-equivalent: don't add to history for filter changes
+        window.history.replaceState(null, "", url);
+        // Trigger a server re-fetch by reloading the list promise via API
+        const sp = new URLSearchParams();
+        const q = overrides.q ?? searchInput;
+        const seg = overrides.segment !== undefined ? overrides.segment : activeSegment;
+        const ch = overrides.channel !== undefined ? overrides.channel : activeChannel;
+        const arch = overrides.archivedOnly !== undefined ? overrides.archivedOnly : archivedOnly;
+        if (q?.trim()) sp.set("q", q.trim());
+        if (seg) sp.set("segment", seg);
+        if (ch) sp.set("channel", ch);
+        if (arch) sp.set("archived", "true");
+        const newPromise = fetch(`/api/doctor/patients?${sp.toString()}`)
+          .then((r) => {
+            if (!r.ok) throw new Error(`Patients fetch failed: ${r.status}`);
+            return r.json() as Promise<{ clients: ClientListItem[] }>;
+          })
+          .then((data) => data.clients);
+        setListPromise(newPromise);
       });
     },
-    [router, searchInput, activeSegment, activeChannel, archivedOnly],
+    [searchInput, activeSegment, activeChannel, archivedOnly],
   );
 
-  // Segment change
   const handleSegmentChange = useCallback(
     (value: string | null) => {
       setActiveSegment(value);
-      setSelectedUserId(null);
       navigateWithFilters({ segment: value });
     },
     [navigateWithFilters],
   );
 
-  // Channel/archive change
   const handleChannelChange = useCallback(
     (channel: string | null, archived: boolean) => {
       setActiveChannel(channel);
       setArchivedOnly(archived);
-      setSelectedUserId(null);
       navigateWithFilters({ channel, archivedOnly: archived });
     },
     [navigateWithFilters],
   );
 
-  // Search input: debounce then refetch via the API endpoint (client-side fetch for correctness)
   const handleSearchInput = useCallback(
     (value: string) => {
       setSearchInput(value);
       if (debounceRef.current) clearTimeout(debounceRef.current);
-
       const trimmed = value.trim();
       if (trimmed.length === 0 || trimmed.length >= SEARCH_MIN_CHARS) {
         debounceRef.current = setTimeout(() => {
           setSearchQuery(trimmed);
-          setSelectedUserId(null);
-          // Refetch from API endpoint for accurate backend search
-          const sp = new URLSearchParams();
-          if (trimmed) sp.set("q", trimmed);
-          if (activeSegment) sp.set("segment", activeSegment);
-          if (activeChannel) sp.set("channel", activeChannel);
-          if (archivedOnly) sp.set("archived", "true");
-          const url = `/api/doctor/patients?${sp.toString()}`;
-          const newPromise = fetch(url)
-            .then((r) => {
-              if (!r.ok) throw new Error(`Patients fetch failed: ${r.status}`);
-              return r.json() as Promise<{ clients: ClientListItem[] }>;
-            })
-            .then((data) => data.clients);
-          startListTransition(() => {
-            setListPromise(newPromise);
-          });
+          navigateWithFilters({ q: value });
         }, SEARCH_DEBOUNCE_MS);
       }
     },
-    [activeSegment, activeChannel, archivedOnly],
+    [navigateWithFilters],
   );
 
-  // Keep listPromise in sync with server-side navigation (initial load)
+  const clearSearch = useCallback(() => {
+    setSearchInput("");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSearchQuery("");
+    navigateWithFilters({ q: "" });
+  }, [navigateWithFilters]);
+
+  // Keep state in sync when server-side navigation occurs (Next.js router)
   useEffect(() => {
     setListPromise(initialListPromise);
     setSearchInput(initialFilters.q);
     setActiveSegment(initialFilters.segment);
     setActiveChannel(initialFilters.archivedOnly ? null : initialFilters.channel);
     setArchivedOnly(initialFilters.archivedOnly);
-    setSelectedUserId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialListPromise]);
 
-  const handleSelectClient = useCallback((userId: string) => {
-    setSelectedUserId(userId);
-    setMobileView("detail");
-  }, []);
+  const handleCycleRichIconFilter = useCallback(
+    (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => {
+      setIconFilters((prev) => ({ ...prev, [key]: cycleRichFilterState(prev[key]) }));
+    },
+    [],
+  );
 
-  const handleMobileBack = useCallback(() => {
-    setMobileView("list");
-    setSelectedUserId(null);
-  }, []);
-
-  const clearSearch = () => {
-    setSearchInput("");
-    handleSearchInput("");
-  };
+  const handleCycleTriIconFilter = useCallback(
+    (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => {
+      setIconFilters((prev) => ({ ...prev, [key]: cycleTriFilterState(prev[key]) }));
+    },
+    [],
+  );
 
   return (
-    <DoctorCatalogPageLayout
-      toolbar={
-        <DoctorCatalogFiltersToolbar
-          filters={
-            <DoctorCatalogToolbarFiltersSlot>
-              {/* Search input */}
-              <div className="relative flex min-w-0 max-w-xs flex-1 items-center">
-                <Search className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" aria-hidden />
-                <Input
-                  type="search"
-                  placeholder="Поиск (от 3 символов)"
-                  value={searchInput}
-                  onChange={(e) => handleSearchInput(e.target.value)}
-                  className="pl-8 pr-8 text-sm"
-                  aria-label="Поиск пациентов"
-                />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={clearSearch}
-                    className="absolute right-2 text-muted-foreground hover:text-foreground"
-                    aria-label="Сбросить поиск"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-              {/* Active filter badges */}
-              {activeSegment && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                  {SEGMENTS.find((s) => s.value === activeSegment)?.label ?? activeSegment}
-                  <button
-                    type="button"
-                    onClick={() => handleSegmentChange(null)}
-                    className="hover:text-primary/70"
-                    aria-label="Снять фильтр сегмента"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </span>
-              )}
-              {activeChannel && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground">
-                  {CHANNELS.find((c) => c.key === activeChannel)?.label ?? activeChannel}
-                  <button
-                    type="button"
-                    onClick={() => handleChannelChange(null, false)}
-                    className="hover:text-muted-foreground"
-                    aria-label="Снять фильтр канала"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </span>
-              )}
-              {archivedOnly && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground">
-                  Архив
-                  <button
-                    type="button"
-                    onClick={() => handleChannelChange(null, false)}
-                    className="hover:text-muted-foreground"
-                    aria-label="Выйти из архива"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </span>
-              )}
-            </DoctorCatalogToolbarFiltersSlot>
-          }
-        />
-      }
-    >
+    <div className="flex flex-col gap-3">
+      {/* Search — full width of the left block (placed above the 2-col grid) */}
+      <form
+        id="doctor-patients-search-form"
+        onSubmit={(e) => e.preventDefault()}
+        className="flex flex-col gap-2"
+      >
+        <div className="relative flex items-center">
+          <Search
+            className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            placeholder="Поиск (от 3 символов)…"
+            value={searchInput}
+            onChange={(e) => handleSearchInput(e.target.value)}
+            className="pl-8 pr-8 text-sm"
+            aria-label="Поиск пациентов"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="absolute right-2.5 text-muted-foreground hover:text-foreground"
+              aria-label="Сбросить поиск"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+        {searchInput.length > 0 && searchInput.trim().length < 3 ? (
+          <p className="text-muted-foreground text-xs">
+            Введите ещё {3 - searchInput.trim().length} симв.
+          </p>
+        ) : null}
+        {/* Active filter badge row */}
+        {(activeSegment || activeChannel || archivedOnly) && (
+          <div className="flex flex-wrap gap-1">
+            {activeSegment && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {SEGMENTS.find((s) => s.urlValue === activeSegment)?.title ?? activeSegment}
+                <button
+                  type="button"
+                  onClick={() => handleSegmentChange(null)}
+                  className="hover:text-primary/70"
+                  aria-label="Снять фильтр сегмента"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {activeChannel && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground">
+                {CHANNELS.find((c) => c.key === activeChannel)?.label ?? activeChannel}
+                <button
+                  type="button"
+                  onClick={() => handleChannelChange(null, false)}
+                  className="hover:text-muted-foreground"
+                  aria-label="Снять фильтр канала"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {archivedOnly && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground">
+                Архив
+                <button
+                  type="button"
+                  onClick={() => handleChannelChange(null, false)}
+                  className="hover:text-muted-foreground"
+                  aria-label="Выйти из архива"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+      </form>
+
+      {/* 2-column grid: filter panel (left) + patient list (right) */}
       <Suspense fallback={<PatientListSkeleton />}>
         <PatientsContent
           listPromise={listPromise}
@@ -795,15 +885,14 @@ export function PatientsPageClient({
           activeChannel={activeChannel}
           archivedOnly={archivedOnly}
           searchQuery={searchInput}
-          selectedUserId={selectedUserId}
+          iconFilters={iconFilters}
           isListPending={isListPending}
           onSegmentChange={handleSegmentChange}
           onChannelChange={handleChannelChange}
-          onSelectClient={handleSelectClient}
-          onMobileBack={handleMobileBack}
-          mobileView={mobileView}
+          onCycleRichIconFilter={handleCycleRichIconFilter}
+          onCycleTriIconFilter={handleCycleTriIconFilter}
         />
       </Suspense>
-    </DoctorCatalogPageLayout>
+    </div>
   );
 }

@@ -53,13 +53,12 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("getDoctorMenuItems returns 11 items in correct order for admin", () => {
+  it("getDoctorMenuItems returns 10 items in correct order for admin", () => {
     const items = getDoctorMenuItems(adminAccess);
-    expect(items).toHaveLength(11);
+    expect(items).toHaveLength(10);
     expect(items.map((i) => i.id)).toEqual([
       "today",
       "patients",
-      "clients",
       "schedule",
       "communications",
       "library",
@@ -168,7 +167,7 @@ describe("doctor menu structure", () => {
     // analytics collapsed to a single page-shell link → no longer a cluster
     expect(isDoctorMenuClusterId("analytics")).toBe(false);
     expect(isDoctorMenuClusterId("today")).toBe(false);
-    expect(isDoctorMenuClusterId("clients")).toBe(false);
+    expect(isDoctorMenuClusterId("patients")).toBe(false);
     expect(isDoctorMenuClusterId("schedule")).toBe(false);
     expect(isDoctorMenuClusterId("unknown")).toBe(false);
   });
