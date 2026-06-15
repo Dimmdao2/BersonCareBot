@@ -779,18 +779,20 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           COALESCE(pu.display_name, '') AS display_name,
           pu.phone_normalized,
           sc.channel_external_id,
-          lm.text AS last_message_text,
-          lm.sender_role AS last_sender_role,
+          last_personal.last_msg_text AS last_message_text,
+          last_personal.last_sender_role AS last_sender_role,
           COALESCE(unread.unread_from_user_count, 0)::int AS unread_from_user_count
          FROM support_conversations sc
          LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
          LEFT JOIN LATERAL (
-           SELECT m.text, m.sender_role
+           SELECT m.text AS last_msg_text, m.sender_role AS last_sender_role, m.created_at AS personal_msg_at
            FROM support_conversation_messages m
            WHERE m.conversation_id = sc.id
+             AND m.integrator_message_id NOT LIKE 'broadcast:%'
+             AND m.integrator_message_id NOT LIKE 'booking-%'
            ORDER BY m.created_at DESC
            LIMIT 1
-         ) lm ON true
+         ) last_personal ON true
          LEFT JOIN LATERAL (
            SELECT COUNT(*)::int AS unread_from_user_count
            FROM support_conversation_messages m
@@ -802,7 +804,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            AND sc.closed_at IS NULL
            AND ($1::text IS NULL OR sc.source = $1)
            AND ($3::boolean = false OR COALESCE(unread.unread_from_user_count, 0) > 0)
-         ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC, sc.last_message_at DESC
+         ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC,
+                  COALESCE(last_personal.personal_msg_at, sc.created_at) DESC
          LIMIT $2`,
         [source, limit, params.unreadOnly === true]
       );
