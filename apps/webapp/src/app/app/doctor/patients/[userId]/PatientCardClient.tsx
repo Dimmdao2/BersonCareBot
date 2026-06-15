@@ -31,7 +31,7 @@ type TabId = "overview" | "karta" | "program" | "records" | "files" | "account";
 
 const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "overview", label: "Обзор" },
-  { id: "karta", label: "Карта" },
+  { id: "karta", label: "Карточка" },
   { id: "program", label: "Программа" },
   { id: "records", label: "Записи" },
   { id: "files", label: "Файлы" },

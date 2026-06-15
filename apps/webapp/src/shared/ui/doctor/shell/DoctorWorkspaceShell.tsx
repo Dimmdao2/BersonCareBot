@@ -16,6 +16,8 @@ type DoctorWorkspaceShellProps = {
   /** Роль из сессии: левое меню на md+ для всех с доступом к кабинету врача, не только в admin mode. */
   userRole: UserRole;
   userDisplayName?: string;
+  /** Если `"клиент"`, пункт «Пациенты» в сайдбаре отображается как «Клиенты». */
+  patientLabel?: string;
   children: ReactNode;
 };
 
@@ -32,6 +34,7 @@ export function DoctorWorkspaceShell({
   adminMode,
   userRole,
   userDisplayName,
+  patientLabel,
   children,
 }: DoctorWorkspaceShellProps) {
   const showDoctorDesktopNav = canAccessDoctor(userRole);
@@ -55,6 +58,7 @@ export function DoctorWorkspaceShell({
             <DoctorAdminSidebar
               userDisplayName={userDisplayName}
               menuAccess={{ role: userRole, adminMode }}
+              patientLabel={patientLabel}
             />
           ) : null}
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>

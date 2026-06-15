@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen } from "lucide-react";
 import type { ElementType } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
@@ -66,6 +66,7 @@ function getIconForMenuId(id: string): ElementType | null {
     case "communications": return MessageCircle;
     case "library": return BookOpen;
     case "content": return FileText;
+    case "files-and-media": return FolderOpen;
     case "analytics": return BarChart3;
     case "settings": return Settings;
     case "system": return Server;
@@ -123,11 +124,13 @@ export type DoctorMenuAccordionProps = {
   variant: "sidebar" | "sheet";
   pathname: string;
   menuAccess: DoctorMenuAccess;
+  /** Если `"клиент"`, пункт «Пациенты» отображается как «Клиенты». */
+  patientLabel?: string;
   /** Вызывается после навигации по пункту меню (например закрытие Sheet на mobile). */
   onNavigate?: () => void;
 };
 
-export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate }: DoctorMenuAccordionProps) {
+export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabel, onNavigate }: DoctorMenuAccordionProps) {
   const linkClass = variant === "sidebar" ? SIDEBAR_LINK_CLASS : SHEET_LINK_CLASS;
   const iconSize = variant === "sidebar" ? 16 : 18;
 
@@ -180,7 +183,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
   // menuAccess — plain-объект, пересоздаётся в родителе при каждом ре-рендере;
   // используем примитивные поля как зависимости, чтобы избежать лишних пересчётов.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => getDoctorMenuItems(menuAccess), [menuAccess.role, menuAccess.adminMode]);
+  const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess.role, menuAccess.adminMode, patientLabel]);
 
   const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu", icon?: ElementType) => {
     const href = item.href;

@@ -53,9 +53,9 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("getDoctorMenuItems returns 10 items in correct order for admin", () => {
+  it("getDoctorMenuItems returns 11 items in correct order for admin", () => {
     const items = getDoctorMenuItems(adminAccess);
-    expect(items).toHaveLength(10);
+    expect(items).toHaveLength(11);
     expect(items.map((i) => i.id)).toEqual([
       "today",
       "patients",
@@ -63,6 +63,7 @@ describe("doctor menu structure", () => {
       "communications",
       "library",
       "content",
+      "files-and-media",
       "courses",
       "analytics",
       "settings",
@@ -204,6 +205,44 @@ describe("doctor menu structure", () => {
   it("exposes localStorage keys for accordion persistence", () => {
     expect(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY).toBe("doctorMenu.openCluster.v1");
     expect(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY).toBe("doctorMenu.openClusters.v1");
+  });
+
+  it("library label is Каталог ЛФК", () => {
+    const items = getDoctorMenuItems(adminAccess);
+    const library = items.find((i) => i.id === "library");
+    expect(library?.label).toBe("Каталог ЛФК");
+  });
+
+  it("files-and-media is a top-level direct link below content", () => {
+    for (const access of [doctorAccess, adminAccess]) {
+      const items = getDoctorMenuItems(access);
+      const filesAndMedia = items.find((i) => i.id === "files-and-media");
+      expect(filesAndMedia).toBeDefined();
+      expect(filesAndMedia?.label).toBe("Файлы и медиа");
+      expect(filesAndMedia?.href).toBe("/app/doctor/content/library");
+      expect(filesAndMedia?.items).toBeUndefined();
+      const contentIdx = items.findIndex((i) => i.id === "content");
+      const filesIdx = items.findIndex((i) => i.id === "files-and-media");
+      expect(filesIdx).toBe(contentIdx + 1);
+    }
+  });
+
+  it("getDoctorMenuItems with patientLabel клиент returns Клиенты for patients item", () => {
+    const items = getDoctorMenuItems(doctorAccess, "клиент");
+    const patients = items.find((i) => i.id === "patients");
+    expect(patients?.label).toBe("Клиенты");
+  });
+
+  it("getDoctorMenuItems without patientLabel returns Пациенты for patients item", () => {
+    const items = getDoctorMenuItems(doctorAccess);
+    const patients = items.find((i) => i.id === "patients");
+    expect(patients?.label).toBe("Пациенты");
+  });
+
+  it("getDoctorMenuItems with patientLabel пациент returns Пациенты for patients item", () => {
+    const items = getDoctorMenuItems(doctorAccess, "пациент");
+    const patients = items.find((i) => i.id === "patients");
+    expect(patients?.label).toBe("Пациенты");
   });
 
   it("isDoctorMenuLinkVisible hides admin-only items from doctor role", () => {

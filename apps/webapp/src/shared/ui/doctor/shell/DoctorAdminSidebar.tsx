@@ -22,13 +22,15 @@ const SIDEBAR_LINK_CLASS = cn(
 type DoctorAdminSidebarProps = {
   userDisplayName?: string;
   menuAccess: DoctorMenuAccess;
+  /** Если `"клиент"`, пункт «Пациенты» отображается как «Клиенты». */
+  patientLabel?: string;
 };
 
 /**
  * Левое меню разделов кабинета на md+ (бренд-блок сверху + разделы); глобальной шапки на desktop нет,
  * сайдбар липнет к верху вьюпорта. На мобильных скрыто (разделы — в Sheet мобильной `DoctorHeader`).
  */
-export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminSidebarProps) {
+export function DoctorAdminSidebar({ userDisplayName, menuAccess, patientLabel }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
 
   return (
@@ -67,7 +69,7 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminS
       </Link>
       <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Разделы кабинета">
-        <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} />
+        <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} patientLabel={patientLabel} />
         <Link
           href={routePaths.doctorInstall}
           className={cn(
