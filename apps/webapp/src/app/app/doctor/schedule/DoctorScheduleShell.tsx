@@ -216,7 +216,7 @@ export function DoctorScheduleShell({
   );
 
   return (
-    <DoctorAppShell title="Расписание">
+    <DoctorAppShell title="Расписание" layout="full-height">
       <DoctorPageHeader
         id="doctor-schedule-header"
         title="Расписание"
@@ -227,7 +227,7 @@ export function DoctorScheduleShell({
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
         return (
-          <div key={tabId} hidden={tabId !== activeTab} data-testid={`tab-panel-${tabId}`}>
+          <div key={tabId} hidden={tabId !== activeTab} className="flex min-h-0 flex-1 flex-col" data-testid={`tab-panel-${tabId}`}>
             <TabComponent
               deepLinkParams={deepLinks[tabId] ?? {}}
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}

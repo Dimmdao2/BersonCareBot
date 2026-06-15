@@ -645,12 +645,12 @@ function PatientsContent({
   const selectedItem = selectedUserId ? filtered.find((c) => c.userId === selectedUserId) ?? null : null;
 
   return (
-    <div className="grid min-h-0 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+    <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* ===== LEFT: patient list ===== */}
       <section
         className={cn(
           "flex min-h-0 flex-col rounded-lg border border-border bg-card",
-          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-hidden",
+          "lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)] lg:overflow-hidden",
         )}
       >
         {/* Search — above sticky header, non-sticky */}
