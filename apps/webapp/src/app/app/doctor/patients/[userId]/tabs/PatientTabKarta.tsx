@@ -47,6 +47,8 @@ import type {
   AnamnesisLifestyleEntry,
   AnamnesisState,
   AnamnesisTraumaEntry,
+  DiagnosisClinicalStatus,
+  DiagnosisStatusHistoryEntry,
   Visit,
 } from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
@@ -287,15 +289,61 @@ function InlineFieldEditor({
   );
 }
 
+// -- Клинический статус диагноза: badge + actions ----------------------------
+
+const CLINICAL_STATUS_BADGE: Record<
+  DiagnosisClinicalStatus,
+  { label: string; className: string }
+> = {
+  предварительный: {
+    label: "предв.",
+    className:
+      "rounded px-1.5 py-px text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
+  },
+  подтверждённый: {
+    label: "подтв.",
+    className:
+      "rounded px-1.5 py-px text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
+  },
+  закрытый: {
+    label: "закрыт",
+    className:
+      "rounded px-1.5 py-px text-[10px] font-semibold bg-muted text-muted-foreground",
+  },
+};
+
+function DiagnosisStatusHistoryList({ entries }: { entries: DiagnosisStatusHistoryEntry[] }) {
+  if (entries.length === 0)
+    return (
+      <p className="py-1 text-[11px] text-muted-foreground">История изменений пуста.</p>
+    );
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {entries.map((e) => (
+        <li key={e.id} className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">{e.newStatus}</span>
+          {e.oldStatus ? ` (из: ${e.oldStatus})` : " (начальный)"}
+          {" · "}
+          {new Date(e.changedAt).toLocaleDateString("ru-RU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })}
+          {e.note ? ` — ${e.note}` : ""}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * DiagnosisRow maps ActiveDiagnosis → UI row.
  * Field mapping:
  *   ActiveDiagnosis.status → tone: "active"|"refined" → calm styling for "refined"
+ *   ActiveDiagnosis.clinicalStatus → status badge + action buttons
  *   ActiveDiagnosis.meta   → date meta string
  *   ActiveDiagnosis.priority → flag
  *   ActiveDiagnosis.text    → label
- *
- * Note: original Diagnosis.tone was "active"|"calm" — we map "refined"→"calm" visually.
  */
 function DiagnosisRow({
   d,
@@ -313,6 +361,16 @@ function DiagnosisRow({
   const [priority, setPriority] = useState(d.priority);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
+
+  // Clinical status state
+  const [clinicalStatus, setClinicalStatus] = useState<DiagnosisClinicalStatus>(
+    d.clinicalStatus,
+  );
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<DiagnosisStatusHistoryEntry[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const open = () => {
     setText(d.text);
@@ -346,6 +404,58 @@ function DiagnosisRow({
     }
   };
 
+  const changeStatus = async (newStatus: DiagnosisClinicalStatus) => {
+    if (newStatus === clinicalStatus) return;
+    setStatusSaving(true);
+    setStatusError(false);
+    try {
+      const res = await fetch(
+        `/api/doctor/patients/${userId}/diagnoses/${d.id}/status`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      setClinicalStatus(newStatus);
+      // Refresh history if it's open
+      if (showHistory) {
+        setHistory(null);
+        void loadHistory();
+      }
+    } catch {
+      setStatusError(true);
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(
+        `/api/doctor/patients/${userId}/diagnoses/${d.id}/status`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { history?: DiagnosisStatusHistoryEntry[] };
+      setHistory(data.history ?? []);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const toggleHistory = () => {
+    if (!showHistory && history === null) {
+      void loadHistory();
+    }
+    setShowHistory((v) => !v);
+  };
+
   if (editing) {
     return (
       <InlineFieldEditor
@@ -362,25 +472,93 @@ function DiagnosisRow({
     );
   }
 
+  const badge = CLINICAL_STATUS_BADGE[clinicalStatus];
+
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm",
+        "flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-sm",
         isCalm ? "border-border bg-muted/15" : "border-border/70 bg-background/40",
       )}
     >
-      {d.priority ? (
-        <span className="flex-none self-center text-primary" title="Приоритет">
-          ⚑
+      {/* Main row */}
+      <div className="flex items-center gap-1.5">
+        {d.priority ? (
+          <span className="flex-none self-center text-primary" title="Приоритет">
+            ⚑
+          </span>
+        ) : (
+          <span className="w-3 flex-none" />
+        )}
+        <span className="flex-1">{d.text}</span>
+        {/* Clinical status badge */}
+        <span className={cn("flex-none", badge.className)} title={`Клинический статус: ${clinicalStatus}`}>
+          {badge.label}
         </span>
-      ) : (
-        <span className="w-3 flex-none" />
+        <button type="button" className={editIconClass} title="Редактировать" onClick={open}>
+          ✎
+        </button>
+        <span className={dateMetaClass}>{d.meta}</span>
+      </div>
+
+      {/* Status action buttons */}
+      <div className="flex items-center gap-1.5 pl-4">
+        {clinicalStatus !== "подтверждённый" && (
+          <button
+            type="button"
+            disabled={statusSaving}
+            onClick={() => changeStatus("подтверждённый")}
+            className="rounded border border-emerald-400/60 px-1.5 py-px text-[10px] text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+          >
+            Подтвердить
+          </button>
+        )}
+        {clinicalStatus !== "закрытый" && (
+          <button
+            type="button"
+            disabled={statusSaving}
+            onClick={() => changeStatus("закрытый")}
+            className="rounded border border-border px-1.5 py-px text-[10px] text-muted-foreground hover:bg-muted/30 disabled:opacity-50"
+          >
+            Закрыть
+          </button>
+        )}
+        {clinicalStatus === "закрытый" && (
+          <button
+            type="button"
+            disabled={statusSaving}
+            onClick={() => changeStatus("предварительный")}
+            className="rounded border border-amber-400/60 px-1.5 py-px text-[10px] text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700/50 dark:text-amber-400"
+          >
+            Переоткрыть
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={toggleHistory}
+          className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          {showHistory ? "скрыть историю ▴" : "история ▾"}
+        </button>
+        {statusSaving && (
+          <span className="text-[10px] text-muted-foreground">сохранение…</span>
+        )}
+        {statusError && (
+          <span className="text-[10px] text-destructive">Ошибка — попробуйте снова</span>
+        )}
+      </div>
+
+      {/* Status history (inline, collapsible) */}
+      {showHistory && (
+        <div className="ml-4 rounded bg-muted/20 px-2.5 py-1.5">
+          {historyLoading && (
+            <p className="animate-pulse text-[11px] text-muted-foreground">Загрузка…</p>
+          )}
+          {!historyLoading && history !== null && (
+            <DiagnosisStatusHistoryList entries={history} />
+          )}
+        </div>
       )}
-      <span className="flex-1">{d.text}</span>
-      <button type="button" className={editIconClass} title="Редактировать" onClick={open}>
-        ✎
-      </button>
-      <span className={dateMetaClass}>{d.meta}</span>
     </div>
   );
 }

@@ -15,12 +15,15 @@ import type {
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
+  DiagnosisStatusHistoryEntry,
   PatientClinicalPort,
+  SetDiagnosisClinicalStatusInput,
   UpdateComplaintFieldsInput,
   UpdateDiagnosisFieldsInput,
   UpdateVisitFieldsInput,
   Visit,
 } from "./ports";
+import { DIAGNOSIS_CLINICAL_STATUS_VALUES } from "./ports";
 
 /** Тримминг текстовой секции визита: пустая после трима → null (очистка поля). */
 function normalizeVisitSection(value: string | null | undefined): string | null | undefined {
@@ -134,6 +137,21 @@ export function createPatientClinicalService({
       ).some((k) => patch[k] !== undefined);
       if (!hasChange) throw new Error("nothing_to_update");
       return patientClinicalPort.updateVisitFields(patch);
+    },
+
+    // -- Клинический статус диагноза -----------------------------------------
+
+    async setDiagnosisClinicalStatus(
+      input: SetDiagnosisClinicalStatusInput,
+    ): Promise<boolean> {
+      if (!DIAGNOSIS_CLINICAL_STATUS_VALUES.includes(input.newStatus)) {
+        throw new Error("invalid_diagnosis_clinical_status");
+      }
+      return patientClinicalPort.setDiagnosisClinicalStatus(input);
+    },
+
+    async getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
+      return patientClinicalPort.getDiagnosisStatusHistory(diagnosisId);
     },
 
     // -- Анамнез -------------------------------------------------------------

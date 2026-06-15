@@ -762,7 +762,6 @@ export function NewVisitPanel({
                   </div>
                 ))}
                 {/* Autocomplete input */}
-                {/* TODO: diagnosis status model (preliminary/confirmed/closed + history) — OWNER-GATED, needs ALTER TABLE patient_diagnoses migration */}
                 <DiagnosisAutocomplete userId={userId} onSelect={addFirstDiagnosis} />
               </div>
               <p className={hintClass}>
