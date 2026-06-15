@@ -54,6 +54,14 @@ export const DOCTOR_HEADER_INNER_CLASS =
 export const DOCTOR_PAGE_CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-3 pt-3 pb-6";
 
 /**
+ * Альтернативный контейнер для full-height страниц (Пациенты, Коммуникации, Заявки, Расписание-список).
+ * Вместо фиксированного padding растягивается на всю доступную высоту, чтобы внутренние
+ * скролл-контейнеры были ограничены и не вызывали прокрутку всего документа.
+ * Только на lg+ добавляет `overflow-hidden`; на мобильном документ скроллится нормально.
+ */
+export const DOCTOR_FULL_HEIGHT_PAGE_CLASS = "flex min-h-0 flex-1 flex-col";
+
+/**
  * Липкий блок поиска/фильтров над каталогом: компенсирует pt-3 контейнера (`-mt-3 -mx-3`),
  * комбинируется с {@link DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS}.
  */

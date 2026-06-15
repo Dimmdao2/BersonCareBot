@@ -52,7 +52,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   const metricsPromise = deps.doctorClientsPort.getDashboardPatientMetrics();
 
   return (
-    <DoctorAppShell title="Пациенты" user={session.user}>
+    <DoctorAppShell title="Пациенты" user={session.user} layout="full-height">
       <PatientsPageClient
         listPromise={listPromise}
         metricsPromise={metricsPromise}

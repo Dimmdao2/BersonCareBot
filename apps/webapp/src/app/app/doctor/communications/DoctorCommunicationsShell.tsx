@@ -158,7 +158,7 @@ export function DoctorCommunicationsShell({
   );
 
   return (
-    <DoctorAppShell title="Коммуникации">
+    <DoctorAppShell title="Коммуникации" layout="full-height">
       <DoctorCommunicationsTabsNav
         activeTab={activeTab}
         badges={badges}
@@ -169,7 +169,7 @@ export function DoctorCommunicationsShell({
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
         return (
-          <div key={tabId} hidden={tabId !== activeTab} className="flex-1 min-h-0">
+          <div key={tabId} hidden={tabId !== activeTab} className="flex min-h-0 flex-1 flex-col">
             <TabComponent
               deepLinkParams={deepLinks[tabId] ?? {}}
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}

@@ -724,7 +724,7 @@ export function DoctorOnlineIntakeClient({
   );
 
   return (
-    <div id="doctor-communications-intake">
+    <div id="doctor-communications-intake" className="flex min-h-0 flex-1 flex-col">
       <CatalogSplitLayout
         className={cn(
           DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
