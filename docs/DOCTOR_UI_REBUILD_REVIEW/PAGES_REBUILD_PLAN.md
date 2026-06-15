@@ -62,8 +62,18 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
      `feat(doctor-content): ★-rating chip…`. Live-verified (dev:admin, port 5311):
      green `★ 5.0 · N` chips render on «Разминки» materials in BOTH list and tiles,
      no hydration errors.
-   - Steps 4–6 pending (4 = master-detail inline editor; 5 = embed media/patient-
-     home; 6 = visibility-toggle polish).
+   - **Steps 4–6 DONE + verified live** (2026-06-15):
+     - Step 4 (master-detail inline editor) — quality rebuild of `ContentForm` into a
+       two-column editor (4.1) + inline master-detail via `CatalogSplitLayout` with a
+       race-guarded load-on-select hook (4.2). Toast UI native image button neutralized;
+       sticky save; dirty-guard; deep-link `/content/edit/[id]` kept as fallback. Verified
+       on Разминки: select→edit inline, switch resets form, chips intact, no console errors.
+       Plan + status in `CONTENT_STEP4_EDITOR_PLAN.md`. Commits `ed831c7e`, `5039bbaf`.
+       Optional Phase 4.3 (Save/Publish split, persistent preview) NOT done.
+     - Step 5 (embed media / patient-home) — already satisfied via `<Link>` nav entries
+       in `ContentNav` (recommended Option 1); inline-embed variant intentionally deferred.
+     - Step 6 — 6B (inline publish 👁) already existed in `ContentLifecycleDropdown`
+       (card+row); 6A (per-section visibility 👁 in nav) added, commit `914456d0`.
 4. **#4 Главная пациента** — editor already exists at `/app/doctor/patient-home`
    (👁 visibility, 🔒 locked blocks, ⚙ item picker, home-param panels). Mostly
    surface it under Контент per IA; confirm 🔒 on «Мой план» + «Запись на приём».
