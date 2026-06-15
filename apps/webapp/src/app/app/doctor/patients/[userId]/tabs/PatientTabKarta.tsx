@@ -1458,122 +1458,75 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
       {/* ── RIGHT: visits feed / new-visit panel ─────────────────────────── */}
       <div className="flex flex-col gap-2.5">
 
-        {/* ── DEFAULT mode (!panelOpen) ─────────────────────────────────── */}
-        {!panelOpen && (
-          <>
-            {/* Header row: [◀/▶ toggle | «История визитов» count] [«+ Новый визит»] */}
-            <div className="flex items-center gap-2">
-              <HistoryToggleBtn
-                visible={historyVisible}
-                onToggle={() => setHistoryVisible((v) => !v)}
-              />
-              <h2 className={doctorSectionTitleClass}>История визитов</h2>
-              {!loading && (
-                <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
-              )}
-              <button
-                type="button"
-                onClick={() => setPanelOpen(true)}
-                className="ml-auto rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
-              >
-                + Новый визит
-              </button>
-            </div>
+        {/* ── History header row — ALWAYS at the top of the right column.
+             This ensures the toggle arrow (◀/▶) never jumps when panelOpen
+             or visitType changes. The «+ Новый визит» button is hidden while
+             the form is open to avoid double-open. ────────────────────────── */}
+        <div className="flex items-center gap-2">
+          <HistoryToggleBtn
+            visible={historyVisible}
+            onToggle={() => setHistoryVisible((v) => !v)}
+          />
+          <h2 className={doctorSectionTitleClass}>История визитов</h2>
+          {!loading && (
+            <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
+          )}
+          {!panelOpen && (
+            <button
+              type="button"
+              onClick={() => setPanelOpen(true)}
+              className="ml-auto rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+            >
+              + Новый визит
+            </button>
+          )}
+        </div>
 
-            {historyVisible ? (
-              <div className="flex flex-col gap-2.5">
-                {loading && (
-                  <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка истории визитов…</p>
-                )}
-                {!loading && fetchError && (
-                  <p className="py-1 text-xs text-destructive">Не удалось загрузить историю визитов.</p>
-                )}
-                {!loading && !fetchError && visits.length === 0 && (
-                  <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
-                )}
-                {!loading && visits.map((v, i) => (
-                  <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} userId={userId} onSaved={fetchClinical} />
-                ))}
-                <p className={doctorSectionSubtitleClass}>
-                  История визитов — справа. «+ Новый визит» переключает экран в режим добавления.
-                  Стрелка ◀ скрывает историю — карта снова видна чётко рядом с формой.
-                </p>
-              </div>
-            ) : (
-              <p className={doctorSectionSubtitleClass}>
-                История скрыта — карта видна слева без блюра. Нажмите ▶, чтобы вернуть историю
-                визитов.
-              </p>
-            )}
-          </>
+        {/* ── New visit form (shown when panelOpen) ────────────────────────── */}
+        {panelOpen && (
+          <div className={cn(historyVisible ? "max-h-[78vh]" : "max-h-[85vh]")}>
+            <NewVisitPanel
+              userId={userId}
+              activeComplaints={complaints}
+              activeDiagnoses={diagnoses}
+              onClose={() => setPanelOpen(false)}
+              onSaved={handleVisitSaved}
+            />
+          </div>
         )}
 
-        {/* ── ADD mode (panelOpen) ─────────────────────────────────────── */}
-        {panelOpen && (
-          <>
-            {/* ADD + history VISIBLE: form ON TOP, history feed BELOW */}
-            {historyVisible ? (
-              <>
-                {/* NewVisitPanel — full right-region width */}
-                <div className="max-h-[78vh]">
-                  <NewVisitPanel
-                    userId={userId}
-                    activeComplaints={complaints}
-                    activeDiagnoses={diagnoses}
-                    onClose={() => setPanelOpen(false)}
-                    onSaved={handleVisitSaved}
-                  />
-                </div>
-
-                {/* История визитов heading: [◀ toggle | heading | count] */}
-                <div className="flex items-center gap-2 pt-1">
-                  <HistoryToggleBtn
-                    visible={historyVisible}
-                    onToggle={() => setHistoryVisible((v) => !v)}
-                  />
-                  <h2 className={doctorSectionTitleClass}>История визитов</h2>
-                  {!loading && (
-                    <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
-                  )}
-                </div>
-
-                {/* History feed — independently scrollable */}
-                <div className="flex max-h-[60vh] flex-col gap-2.5 overflow-y-auto opacity-80">
-                  {loading && (
-                    <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
-                  )}
-                  {!loading && visits.map((v, i) => (
-                    <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} userId={userId} onSaved={fetchClinical} />
-                  ))}
-                </div>
-              </>
-            ) : (
-              /* ADD + history HIDDEN: form fills right column, card is clear */
-              <>
-                {/* Thin header with ▶ toggle to restore history */}
-                <div className="flex items-center gap-2">
-                  <HistoryToggleBtn
-                    visible={historyVisible}
-                    onToggle={() => setHistoryVisible((v) => !v)}
-                  />
-                  <span className={doctorSectionSubtitleClass}>
-                    История скрыта — ▶ показать
-                  </span>
-                </div>
-
-                {/* NewVisitPanel — wide, comfortable */}
-                <div className="max-h-[85vh]">
-                  <NewVisitPanel
-                    userId={userId}
-                    activeComplaints={complaints}
-                    activeDiagnoses={diagnoses}
-                    onClose={() => setPanelOpen(false)}
-                    onSaved={handleVisitSaved}
-                  />
-                </div>
-              </>
+        {/* ── History feed (shown when historyVisible) ─────────────────────── */}
+        {historyVisible ? (
+          <div className={cn(
+            "flex flex-col gap-2.5",
+            panelOpen && "max-h-[60vh] overflow-y-auto opacity-80",
+          )}>
+            {loading && (
+              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка истории визитов…</p>
             )}
-          </>
+            {!loading && fetchError && (
+              <p className="py-1 text-xs text-destructive">Не удалось загрузить историю визитов.</p>
+            )}
+            {!loading && !fetchError && visits.length === 0 && (
+              <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
+            )}
+            {!loading && visits.map((v, i) => (
+              <VisitCard key={v.id} visit={v} defaultExpanded={i === 0} userId={userId} onSaved={fetchClinical} />
+            ))}
+            {!panelOpen && (
+              <p className={doctorSectionSubtitleClass}>
+                История визитов — справа. «+ Новый визит» переключает экран в режим добавления.
+                Стрелка ◀ скрывает историю — карта снова видна чётко рядом с формой.
+              </p>
+            )}
+          </div>
+        ) : (
+          !panelOpen && (
+            <p className={doctorSectionSubtitleClass}>
+              История скрыта — карта видна слева без блюра. Нажмите ▶, чтобы вернуть историю
+              визитов.
+            </p>
+          )
         )}
       </div>
     </div>
