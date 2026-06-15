@@ -85,5 +85,16 @@ export function createPgPatientFilesPort(): PatientFilesPort {
       const row = updated[0];
       return row ? mapRow(row) : null;
     },
+
+    async renameFile(id: string, fileName: string): Promise<PatientFileRecord | null> {
+      const db = getDrizzle();
+      const updated = await db
+        .update(patientFiles)
+        .set({ fileName })
+        .where(eq(patientFiles.id, id))
+        .returning();
+      const row = updated[0];
+      return row ? mapRow(row) : null;
+    },
   };
 }

@@ -49,4 +49,5 @@ export interface PatientFilesPort {
   getFile(id: string): Promise<PatientFileRecord | null>;
   createFile(params: CreatePatientFileParams): Promise<PatientFileRecord>;
   linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null>;
+  renameFile(id: string, fileName: string): Promise<PatientFileRecord | null>;
 }

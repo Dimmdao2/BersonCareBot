@@ -31,6 +31,10 @@ export function createPatientFilesService({ patientFilesPort }: PatientFilesServ
     async linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null> {
       return patientFilesPort.linkFileToVisit(id, visitId);
     },
+
+    async renameFile(id: string, fileName: string): Promise<PatientFileRecord | null> {
+      return patientFilesPort.renameFile(id, fileName);
+    },
   };
 }
 

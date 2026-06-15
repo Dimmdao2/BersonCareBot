@@ -53,4 +53,12 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
     store.set(id, updated);
     return updated;
   },
+
+  async renameFile(id: string, fileName: string): Promise<PatientFileRecord | null> {
+    const existing = store.get(id);
+    if (!existing) return null;
+    const updated = { ...existing, fileName };
+    store.set(id, updated);
+    return updated;
+  },
 };

@@ -46,9 +46,14 @@ export async function GET(
   return NextResponse.json({ ok: true, file: { ...file, previewUrl } });
 }
 
-const patchBodySchema = z.object({
-  visitId: z.string().uuid(),
-});
+const patchBodySchema = z
+  .object({
+    visitId: z.string().uuid().optional(),
+    fileName: z.string().min(1).optional(),
+  })
+  .refine((d) => d.visitId !== undefined || d.fileName !== undefined, {
+    message: "at least one of visitId or fileName is required",
+  });
 
 export async function PATCH(
   request: Request,
@@ -85,7 +90,16 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const updated = await deps.patientFiles.linkFileToVisit(fileId, parsed.data.visitId);
+  let updated: Awaited<ReturnType<typeof deps.patientFiles.getFile>> = existing;
+
+  if (parsed.data.visitId !== undefined) {
+    updated = await deps.patientFiles.linkFileToVisit(fileId, parsed.data.visitId);
+  }
+
+  if (parsed.data.fileName !== undefined) {
+    updated = await deps.patientFiles.renameFile(fileId, parsed.data.fileName);
+  }
+
   if (!updated) {
     return NextResponse.json({ ok: false, error: "update_failed" }, { status: 500 });
   }

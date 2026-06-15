@@ -473,16 +473,77 @@ function FileListRow({
 function FileCardTile({
   file,
   isActive,
+  userId,
   onClick,
+  onRenamed,
 }: {
   file: FileRecord;
   isActive: boolean;
+  userId: string;
   onClick: () => void;
+  onRenamed: (newName: string) => void;
 }) {
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  function startEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditingName(file.fileName);
+    setRenameError(null);
+  }
+
+  function cancelEdit() {
+    setEditingName(null);
+    setRenameError(null);
+  }
+
+  async function commitEdit() {
+    if (editingName === null) return;
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      cancelEdit();
+      return;
+    }
+    if (trimmed === file.fileName) {
+      cancelEdit();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/files/${file.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: trimmed }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (data?.ok) {
+        onRenamed(trimmed);
+        setEditingName(null);
+        setRenameError(null);
+      } else {
+        setRenameError(data?.error ?? "Ошибка переименования");
+      }
+    } catch {
+      setRenameError("Сетевая ошибка");
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void commitEdit();
+    } else if (e.key === "Escape") {
+      cancelEdit();
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={editingName === null ? onClick : undefined}
+      onKeyDown={(e) => {
+        if (editingName === null && (e.key === "Enter" || e.key === " ")) onClick();
+      }}
       className={cn(
         "flex flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors cursor-pointer overflow-hidden",
         isActive
@@ -490,9 +551,38 @@ function FileCardTile({
           : "border-border bg-background/60 hover:bg-muted/40",
       )}
     >
-      <span className="text-2xl leading-none shrink-0">{fileIcon(file.mimeType)}</span>
+      <div className="flex items-start justify-between gap-1">
+        <span className="text-2xl leading-none shrink-0">{fileIcon(file.mimeType)}</span>
+        {editingName === null && (
+          <button
+            type="button"
+            title="Переименовать"
+            onClick={startEdit}
+            className="shrink-0 text-[10px] text-muted-foreground/60 hover:text-primary transition-colors leading-none mt-0.5"
+            aria-label="Переименовать файл"
+          >
+            ✎
+          </button>
+        )}
+      </div>
       <div className="min-w-0">
-        <div className="truncate text-xs font-medium text-foreground leading-snug">{file.fileName}</div>
+        {editingName !== null ? (
+          <input
+            type="text"
+            value={editingName}
+            autoFocus
+            onChange={(e) => setEditingName(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => void commitEdit()}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full rounded border border-primary/40 bg-background px-1 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
+        ) : (
+          <div className="truncate text-xs font-medium text-foreground leading-snug">{file.fileName}</div>
+        )}
+        {renameError && (
+          <div className="text-[10px] text-destructive mt-0.5 truncate">{renameError}</div>
+        )}
         <div className="text-[10px] text-muted-foreground mt-0.5">
           {categoryLabel(file.category)} · {formatDate(file.createdAt)}
         </div>
@@ -503,7 +593,7 @@ function FileCardTile({
           из визита
         </span>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -821,6 +911,12 @@ export function PatientTabFiles({
     );
   }
 
+  function handleRenamed(fileId: string, newName: string) {
+    setFiles((prev) =>
+      prev.map((f) => (f.id === fileId ? { ...f, fileName: newName } : f)),
+    );
+  }
+
   function handleUploaded() {
     void loadFiles();
   }
@@ -899,7 +995,9 @@ export function PatientTabFiles({
               key={file.id}
               file={file}
               isActive={selectedFileId === file.id}
+              userId={userId}
               onClick={() => handleSelectFile(file)}
+              onRenamed={(newName) => handleRenamed(file.id, newName)}
             />
           ))}
         </div>
