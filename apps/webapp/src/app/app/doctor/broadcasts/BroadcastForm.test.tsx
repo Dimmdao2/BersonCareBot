@@ -19,6 +19,7 @@ vi.mock("./actions", () => ({
 }));
 
 import { BroadcastForm } from "./BroadcastForm";
+import { getAudienceOptionLabel } from "./labels";
 import type { BroadcastAuditEntry, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
 import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
 
@@ -180,18 +181,22 @@ describe("BroadcastForm", () => {
       expect(audienceInput).toHaveAttribute("aria-expanded", "true");
     });
     await userEvent.click(
-      screen.getByRole("button", { name: /неактивные.*90.*дней/i }),
+      screen.getByRole("button", { name: getAudienceOptionLabel("inactive") }),
     );
-    expect(document.getElementById("broadcast-audience-form-warning")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.getElementById("broadcast-audience-form-warning")).toBeInTheDocument();
+    });
     // Now pick a non-approximate option
     await userEvent.click(audienceInput);
     await waitFor(() => {
       expect(audienceInput).toHaveAttribute("aria-expanded", "true");
     });
     await userEvent.click(
-      screen.getByRole("button", { name: "Все клиенты" }),
+      screen.getByRole("button", { name: getAudienceOptionLabel("all") }),
     );
-    expect(document.getElementById("broadcast-audience-form-warning")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.getElementById("broadcast-audience-form-warning")).not.toBeInTheDocument();
+    });
   });
 
   it("after successful preview renders confirm step with audience size", async () => {
