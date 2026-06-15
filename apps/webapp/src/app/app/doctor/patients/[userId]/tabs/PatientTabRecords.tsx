@@ -155,9 +155,10 @@ function StatusChip({ status, rescheduledToDate }: { status: AppointmentStatus; 
 type Props = {
   userId: string;
   header?: PatientCardHeader;
+  onCreateVisitFromAppointment?: (appointmentId: string) => void;
 };
 
-export function PatientTabRecords({ userId, header }: Props) {
+export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
@@ -312,10 +313,10 @@ export function PatientTabRecords({ userId, header }: Props) {
       ================================================================ */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.25fr_1fr] md:items-start">
 
-        {/* LEFT: История записей */}
+        {/* LEFT: Визиты */}
         <div className={doctorSectionCardClass}>
           <div className="flex items-center justify-between gap-2">
-            <p className={doctorSectionTitleClass}>История записей</p>
+            <p className={doctorSectionTitleClass}>Визиты</p>
             <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>новые сверху · прокручивается</span>
           </div>
 
@@ -351,8 +352,11 @@ export function PatientTabRecords({ userId, header }: Props) {
                   <button
                     type="button"
                     onClick={() => {
-                      // TODO(bridge to Карта visit form): pass appt date/location/service
-                      openTab("karta");
+                      if (onCreateVisitFromAppointment) {
+                        onCreateVisitFromAppointment(appt.id);
+                      } else {
+                        openTab("karta");
+                      }
                     }}
                     className="inline-flex items-center rounded-md bg-primary/15 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/25 transition-colors whitespace-nowrap flex-none cursor-pointer"
                   >
@@ -362,7 +366,13 @@ export function PatientTabRecords({ userId, header }: Props) {
                 {appt.status === "completed" && appt.hasVisitRecord && (
                   <button
                     type="button"
-                    onClick={() => openTab("karta")}
+                    onClick={() => {
+                      if (onCreateVisitFromAppointment) {
+                        onCreateVisitFromAppointment(appt.id);
+                      } else {
+                        openTab("karta");
+                      }
+                    }}
                     className="text-[11px] text-muted-foreground whitespace-nowrap flex-none hover:text-primary transition-colors cursor-pointer"
                   >
                     визит {fmtDateShort(appt.date)} →
