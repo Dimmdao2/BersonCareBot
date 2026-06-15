@@ -39,6 +39,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -1104,7 +1105,7 @@ function AddLifestyleForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Дата записи</label>
-        <input type="date" value={recordDate} onChange={e => setRecordDate(e.target.value)} className={inputClass} />
+        <DoctorDatePicker value={recordDate} onChange={setRecordDate} />
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Образ жизни / привычки</label>

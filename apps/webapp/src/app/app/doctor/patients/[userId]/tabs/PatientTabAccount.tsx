@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 import { Phone, Send, Smartphone, Mail, Key, Monitor } from "lucide-react";
 import {
   doctorSectionCardClass,
@@ -1001,12 +1002,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-0.5">
                   <label className="text-[11px] text-muted-foreground">Дата рождения</label>
-                  <input
-                    type="date"
-                    value={iBirthDate}
-                    onChange={(e) => setIBirthDate(e.target.value)}
-                    className="h-7 rounded border border-border bg-background px-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
-                  />
+                  <DoctorDatePicker value={iBirthDate} onChange={setIBirthDate} />
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <label className="text-[11px] text-muted-foreground">Пол</label>

@@ -13,6 +13,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -102,11 +103,11 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
         />
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Срок</span>
-          <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+          <DoctorDateTimePicker value={dueAt} onChange={setDueAt} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Напомнить</span>
-          <Input type="datetime-local" value={remindAt} onChange={(e) => setRemindAt(e.target.value)} />
+          <DoctorDateTimePicker value={remindAt} onChange={setRemindAt} />
         </label>
         <LabeledSwitch
           label="Важное"
