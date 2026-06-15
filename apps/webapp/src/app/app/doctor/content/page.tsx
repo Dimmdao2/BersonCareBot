@@ -6,6 +6,7 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import type { ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentHubShell, type ContentHubSection } from "./ContentHubShell";
 import type { ContentRatingSummary } from "./ContentRatingChip";
+import type { PublishedCourseOption } from "./ContentForm";
 
 export default async function DoctorContentPage() {
   const session = await requireDoctorAccess();
@@ -14,6 +15,7 @@ export default async function DoctorContentPage() {
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
   let ratingsById: Record<string, ContentRatingSummary> = {};
+  let publishedCourses: PublishedCourseOption[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
 
   try {
@@ -27,6 +29,9 @@ export default async function DoctorContentPage() {
     ratingsById = Object.fromEntries(
       [...ratingMap.entries()].map(([id, agg]) => [id, { avg: agg.avg, count: agg.count }]),
     );
+    publishedCourses = (
+      await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
+    ).map((c) => ({ id: c.id, title: c.title }));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content", err);
   }
@@ -71,8 +76,10 @@ export default async function DoctorContentPage() {
       <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
         <ContentHubShell
           sections={hubSections}
+          fullSections={sections}
           pagesBySectionSlug={pagesBySectionSlug}
           ratingsById={ratingsById}
+          publishedCourses={publishedCourses}
           loadError={
             loadError
               ? { digest: loadError.digest, name: loadError.name, message: loadError.message }

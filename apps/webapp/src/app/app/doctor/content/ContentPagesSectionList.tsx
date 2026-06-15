@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
+import { cn } from "@/lib/utils";
 import {
   DndContext,
   KeyboardSensor,
@@ -85,11 +86,16 @@ function SortablePageRow({
   rating,
   authPending,
   onToggleRequiresAuth,
+  onSelectPage,
+  isSelected,
 }: {
   page: ContentPageListRow;
   rating?: ContentRatingSummary | null;
   authPending: boolean;
   onToggleRequiresAuth: (id: string, next: boolean) => void;
+  /** When provided — title becomes a selection button instead of a navigation link. */
+  onSelectPage?: (id: string) => void;
+  isSelected?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
   const style = {
@@ -102,16 +108,29 @@ function SortablePageRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2"
+      className={cn(
+        "flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2",
+        isSelected && "border-primary/40 bg-primary/5 ring-1 ring-primary/30 ring-offset-1 ring-offset-background",
+      )}
     >
       <DragHandle listeners={listeners as never} attributes={attributes as never} />
       <div className="min-w-0 flex-1">
-        <Link
-          href={`/app/doctor/content/edit/${page.id}`}
-          className="block truncate font-medium text-foreground hover:underline"
-        >
-          {page.title}
-        </Link>
+        {onSelectPage ? (
+          <button
+            type="button"
+            onClick={() => onSelectPage(page.id)}
+            className="block w-full truncate text-left font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {page.title}
+          </button>
+        ) : (
+          <Link
+            href={`/app/doctor/content/edit/${page.id}`}
+            className="block truncate font-medium text-foreground hover:underline"
+          >
+            {page.title}
+          </Link>
+        )}
         <p className="truncate font-mono text-xs text-muted-foreground">{page.slug}</p>
       </div>
       <ContentRatingChip rating={rating} className="hidden shrink-0 sm:inline-flex" />
@@ -153,6 +172,8 @@ export function ContentPagesSectionList({
   /** Override view mode from parent; when undefined, reads from localStorage. */
   viewMode: viewModeProp,
   onViewModeChange,
+  selectedPageId,
+  onSelectPage,
 }: {
   sectionSlug: string;
   sectionTitle: string;
@@ -168,6 +189,12 @@ export function ContentPagesSectionList({
   /** When provided: controlled view mode (tiles / list). */
   viewMode?: DoctorCatalogViewMode;
   onViewModeChange?: (mode: DoctorCatalogViewMode) => void;
+  /**
+   * Master-detail selection: when provided, list rows become selection buttons
+   * instead of navigation links. Tiles get onSelect + isActive.
+   */
+  selectedPageId?: string | null;
+  onSelectPage?: (id: string) => void;
 }) {
   const [items, setItems] = useState(initialPages);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -360,7 +387,14 @@ export function ContentPagesSectionList({
           columns={3}
           estimatedRowHeight={200}
           keyExtractor={(p) => p.id}
-          renderItem={(p) => <ContentPageTileCard page={p} rating={ratingsById?.[p.id]} />}
+          renderItem={(p) => (
+            <ContentPageTileCard
+              page={p}
+              rating={ratingsById?.[p.id]}
+              onSelect={onSelectPage}
+              isActive={selectedPageId ? p.id === selectedPageId : undefined}
+            />
+          )}
           containerClassName="flex-1 min-h-[200px]"
         />
       ) : (
@@ -375,6 +409,8 @@ export function ContentPagesSectionList({
                   rating={ratingsById?.[p.id]}
                   authPending={authPending}
                   onToggleRequiresAuth={onToggleRequiresAuth}
+                  onSelectPage={onSelectPage}
+                  isSelected={selectedPageId ? p.id === selectedPageId : undefined}
                 />
               ))}
             </ul>
