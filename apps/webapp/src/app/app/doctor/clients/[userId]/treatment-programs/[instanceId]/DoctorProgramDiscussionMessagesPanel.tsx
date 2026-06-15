@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/doctor/primitives/dialog";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { cn } from "@/lib/utils";
 import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
@@ -344,26 +344,27 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                 ) : null}
                 {fromPatient && onSendReply && activeReplyMessageId === m.id ? (
                   <div className="w-full max-w-[min(100%,26rem)]">
-                    <div className="relative mt-1 rounded-md border border-border bg-background p-2 pb-10">
-                      <Textarea
+                    <div className={`mt-1 rounded-md border border-border bg-background p-2${replySending ? " pointer-events-none opacity-50" : ""}`}>
+                      <MarkdownEditor
+                        name={`reply-draft-${m.id}`}
                         value={replyDraft}
-                        onChange={(event) => setReplyDraft(event.target.value)}
-                        rows={3}
+                        onChange={setReplyDraft}
                         maxLength={4000}
-                        placeholder="Введите ответ пациенту"
-                        className="min-h-[84px] resize-y"
-                        disabled={replySending}
+                        label="Ответ пациенту (Markdown)"
                       />
-                      <Button
-                        type="button"
-                        size="icon"
-                        className="absolute right-3 bottom-3 size-8 rounded-full"
-                        disabled={replySending || !replyDraft.trim()}
-                        aria-label="Отправить ответ"
-                        onClick={() => void submitReply(m)}
-                      >
-                        <SendHorizontal className="size-4" />
-                      </Button>
+                      <div className="mt-2 flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="rounded-full"
+                          disabled={replySending || !replyDraft.trim()}
+                          aria-label="Отправить ответ"
+                          onClick={() => void submitReply(m)}
+                        >
+                          <SendHorizontal className="size-4 mr-1" />
+                          Отправить
+                        </Button>
+                      </div>
                     </div>
                     {replyError ? <p className="mt-1 text-xs text-destructive">{replyError}</p> : null}
                   </div>
