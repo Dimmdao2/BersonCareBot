@@ -11,6 +11,7 @@ import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice"
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import {
   ContentNav,
   useContentNavState,
@@ -27,6 +28,7 @@ import {
   useInlineContentEditor,
   ContentEditorRightPane,
 } from "./ContentEditorRightPane";
+import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,12 +104,12 @@ function SystemFolderPane({
   const editor = useInlineContentEditor();
 
   const folderHeader = (
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <h2 className="m-0 text-xl font-semibold">{label}</h2>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h2 className="m-0 text-base font-semibold">{label}</h2>
+      <div className="ml-auto flex flex-wrap items-center gap-1.5">
         <Link
           href={`/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(folderCode)}`}
-          className={buttonVariants({ variant: "outline", size: "default" })}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           Создать подраздел
         </Link>
@@ -257,11 +259,11 @@ function ArticleSectionPane({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 className="m-0 text-xl font-semibold">{sectionTitle}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="m-0 text-base font-semibold">{sectionTitle}</h2>
         <Link
           href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}${newPageSystemParentCode ? `&systemParentCode=${encodeURIComponent(newPageSystemParentCode)}` : ""}`}
-          className={buttonVariants({ size: "default" })}
+          className={buttonVariants({ variant: "default", size: "sm" })}
         >
           Создать страницу
         </Link>
@@ -288,6 +290,34 @@ function ArticleSectionPane({
 }
 
 // ---------------------------------------------------------------------------
+// Count computation helper (#2)
+// ---------------------------------------------------------------------------
+
+function computeCountsByPaneKey(
+  sections: ContentHubSection[],
+  pagesBySectionSlug: Record<string, ContentPageListRow[]>,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+
+  // System folder pane keys: sum pages across all child subsections
+  for (const code of SYSTEM_PARENT_CODES) {
+    const childSlugs = sections
+      .filter((s) => s.kind === "system" && s.systemParentCode === code)
+      .map((s) => s.slug);
+    counts[code] = childSlugs.reduce((sum, slug) => sum + (pagesBySectionSlug[slug]?.length ?? 0), 0);
+  }
+
+  // Article section pane keys: direct pages for that slug
+  for (const sec of sections) {
+    if (sec.kind === "article") {
+      counts[`section:${sec.slug}`] = pagesBySectionSlug[sec.slug]?.length ?? 0;
+    }
+  }
+
+  return counts;
+}
+
+// ---------------------------------------------------------------------------
 // ContentHubShell
 // ---------------------------------------------------------------------------
 
@@ -311,6 +341,11 @@ export function ContentHubShell({
         .filter((s) => s.kind === "article")
         .map((s) => ({ slug: s.slug, title: s.title, isVisible: s.isVisible })),
     [sections],
+  );
+
+  const countsByPaneKey = useMemo(
+    () => computeCountsByPaneKey(sections, pagesBySectionSlug),
+    [sections, pagesBySectionSlug],
   );
 
   const { activePaneKey, setActivePaneKey } = useContentNavState(articleSectionEntries);
@@ -366,13 +401,21 @@ export function ContentHubShell({
   };
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
-      <ContentNav
-        articleSections={articleSectionEntries}
-        activePaneKey={activePaneKey}
-        onPaneChange={setActivePaneKey}
+    <>
+      <DoctorPageHeader
+        id="doctor-content-header"
+        title="Контент"
+        subtitle="Системные разделы, статьи и медиа для приложения пациента"
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-4">{renderRightPanel()}</div>
-    </div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
+        <ContentNav
+          articleSections={articleSectionEntries}
+          activePaneKey={activePaneKey}
+          onPaneChange={setActivePaneKey}
+          countsByPaneKey={countsByPaneKey}
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-4">{renderRightPanel()}</div>
+      </div>
+    </>
   );
 }

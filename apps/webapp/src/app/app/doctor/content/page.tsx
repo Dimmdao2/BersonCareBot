@@ -1,5 +1,4 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { PageSection } from "@/components/common/layout/PageSection";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
@@ -73,21 +72,19 @@ export default async function DoctorContentPage() {
 
   return (
     <DoctorAppShell title="Контент" user={session.user}>
-      <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
-        <ContentHubShell
-          sections={hubSections}
-          fullSections={sections}
-          pagesBySectionSlug={pagesBySectionSlug}
-          ratingsById={ratingsById}
-          publishedCourses={publishedCourses}
-          loadError={
-            loadError
-              ? { digest: loadError.digest, name: loadError.name, message: loadError.message }
-              : null
-          }
-          isDev={isDev}
-        />
-      </PageSection>
+      <ContentHubShell
+        sections={hubSections}
+        fullSections={sections}
+        pagesBySectionSlug={pagesBySectionSlug}
+        ratingsById={ratingsById}
+        publishedCourses={publishedCourses}
+        loadError={
+          loadError
+            ? { digest: loadError.digest, name: loadError.name, message: loadError.message }
+            : null
+        }
+        isDev={isDev}
+      />
     </DoctorAppShell>
   );
 }

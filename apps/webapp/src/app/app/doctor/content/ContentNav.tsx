@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { Separator } from "@/shared/ui/doctor/primitives/separator";
 import { Eye, EyeOff, Plus } from "lucide-react";
 import {
@@ -36,6 +35,8 @@ export type ContentNavProps = {
   articleSections: ContentNavSectionEntry[];
   activePaneKey: ContentNavPaneKey;
   onPaneChange: (key: ContentNavPaneKey) => void;
+  /** Count of pages per pane key (warmups|sos|situations|lessons|section:<slug>). */
+  countsByPaneKey?: Record<string, number>;
 };
 
 // ---------------------------------------------------------------------------
@@ -51,27 +52,45 @@ const SYSTEM_FOLDER_LABELS: Record<(typeof SYSTEM_PARENT_CODES)[number], string>
 
 const CONTENT_BASE = "/app/doctor/content";
 
-function NavItem({
+// ---------------------------------------------------------------------------
+// Lightweight nav row — file-tree list style
+// ---------------------------------------------------------------------------
+
+function NavRow({
   label,
   active,
+  count,
   onClick,
+  trailingSlot,
 }: {
   label: string;
   active: boolean;
+  count?: number;
   onClick: () => void;
+  trailingSlot?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-current={active ? "page" : undefined}
-      onClick={onClick}
-      className={cn(
-        buttonVariants({ variant: active ? "default" : "outline", size: "default" }),
-        "h-auto min-h-9 w-full justify-start px-3 py-1.5 text-sm font-normal whitespace-normal",
-      )}
-    >
-      {label}
-    </button>
+    <div className="group relative flex items-center">
+      <button
+        type="button"
+        aria-current={active ? "page" : undefined}
+        onClick={onClick}
+        className={cn(
+          "flex flex-1 min-w-0 items-center gap-1 rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal text-left transition-colors",
+          active
+            ? "border-l-2 border-primary bg-primary/10 font-medium text-foreground"
+            : "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+        )}
+      >
+        <span className="flex-1 min-w-0">{label}</span>
+        {typeof count === "number" && count > 0 ? (
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{count}</span>
+        ) : null}
+      </button>
+      {trailingSlot ? (
+        <div className="shrink-0 pl-0.5">{trailingSlot}</div>
+      ) : null}
+    </div>
   );
 }
 
@@ -131,7 +150,12 @@ type SectionVisState = { slug: string; title: string; isVisible: boolean };
  * Client-side panel switcher — no full-page navigations.
  * Active pane key is kept in parent state + synced to ?section= URL param.
  */
-export function ContentNav({ articleSections, activePaneKey, onPaneChange }: ContentNavProps) {
+export function ContentNav({
+  articleSections,
+  activePaneKey,
+  onPaneChange,
+  countsByPaneKey = {},
+}: ContentNavProps) {
   const initialUserSections: SectionVisState[] = articleSections
     .filter((s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug))
     .map((s) => ({ slug: s.slug, title: s.title, isVisible: s.isVisible }));
@@ -170,35 +194,41 @@ export function ContentNav({ articleSections, activePaneKey, onPaneChange }: Con
 
   return (
     <nav
-      className="flex w-full flex-col gap-1.5 md:w-64 md:shrink-0"
+      className="flex w-full flex-col gap-0.5 md:w-56 md:shrink-0"
       aria-label="Контент и страницы"
     >
       {/* ── Системные разделы ── */}
-      <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="px-2.5 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Системные разделы
       </p>
-      <Link
-        href="/app/doctor/patient-home"
-        className={cn(
-          buttonVariants({ variant: "outline", size: "default" }),
-          "h-auto min-h-9 w-full justify-start px-3 py-1.5 text-sm font-normal whitespace-normal",
-        )}
-      >
-        Главная пациента
-      </Link>
+
+      {/* Главная пациента — external link, no pane switch */}
+      <div className="group relative flex items-center">
+        <Link
+          href="/app/doctor/patient-home"
+          className={cn(
+            "flex flex-1 min-w-0 items-center rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal transition-colors",
+            "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          )}
+        >
+          Главная пациента
+        </Link>
+      </div>
+
       {SYSTEM_PARENT_CODES.map((code) => (
-        <NavItem
+        <NavRow
           key={code}
           label={SYSTEM_FOLDER_LABELS[code]}
           active={activePaneKey === code}
+          count={countsByPaneKey[code]}
           onClick={() => onPaneChange(code)}
         />
       ))}
 
-      <Separator className="my-1" />
+      <Separator className="my-1.5" />
 
       {/* ── Статьи и страницы ── */}
-      <div className="flex items-center justify-between px-1">
+      <div className="flex items-center justify-between px-2.5 pb-0.5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Статьи и страницы
         </p>
@@ -213,40 +243,51 @@ export function ContentNav({ articleSections, activePaneKey, onPaneChange }: Con
       </div>
 
       {userSections.length === 0 ? (
-        <p className="px-1 text-xs text-muted-foreground">Нет пользовательских разделов.</p>
+        <p className="px-2.5 text-xs text-muted-foreground">Нет пользовательских разделов.</p>
       ) : (
         userSections.map((s) => (
-          <div key={s.slug} className="flex items-center gap-1">
-            <NavItem
-              label={s.title}
-              active={activePaneKey === `section:${s.slug}`}
-              onClick={() => onPaneChange(`section:${s.slug}`)}
-            />
-            <SectionVisibilityToggle
-              slug={s.slug}
-              isVisible={s.isVisible}
-              onToggle={handleVisibilityToggle}
-              disabled={isPending}
-            />
-          </div>
+          <NavRow
+            key={s.slug}
+            label={s.title}
+            active={activePaneKey === `section:${s.slug}`}
+            count={countsByPaneKey[`section:${s.slug}`]}
+            onClick={() => onPaneChange(`section:${s.slug}`)}
+            trailingSlot={
+              <SectionVisibilityToggle
+                slug={s.slug}
+                isVisible={s.isVisible}
+                onToggle={handleVisibilityToggle}
+                disabled={isPending}
+              />
+            }
+          />
         ))
       )}
 
-      <Separator className="my-1" />
+      <Separator className="my-1.5" />
 
       {/* ── Медиа ── */}
-      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="px-2.5 pb-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Медиа
       </p>
-      <Link
-        href={`${CONTENT_BASE}/library`}
-        className={cn(
-          buttonVariants({ variant: "outline", size: "default" }),
-          "h-auto min-h-9 w-full justify-start px-3 py-1.5 text-sm font-normal whitespace-normal",
-        )}
-      >
-        Файлы и медиа
-      </Link>
+
+      {/* Файлы и медиа — external link */}
+      <div className="group relative flex items-center">
+        <Link
+          href={`${CONTENT_BASE}/library`}
+          className={cn(
+            "flex flex-1 min-w-0 items-center rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal transition-colors",
+            "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          )}
+        >
+          Файлы и медиа
+        </Link>
+      </div>
+
+      {/* ── Hint blurb (#11) ── */}
+      <p className="mt-2 px-2.5 text-xs text-muted-foreground leading-relaxed">
+        Системные разделы не удаляются. «Статьи и страницы» — ваши собственные.
+      </p>
     </nav>
   );
 }
