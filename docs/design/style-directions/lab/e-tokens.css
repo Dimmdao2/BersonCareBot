@@ -1,1 +1,59 @@
-/* E redesign — global tokens (filled later) */
+/* ============================================================
+   E redesign — global tokens & base surfaces (light sidebar)
+   CSS-only override layer, scoped to the doctor shell.
+   Tailwind v4 reads --color-* tokens, so we set BOTH names.
+   This file ports almost verbatim into doctor.css later.
+   ============================================================ */
+
+#app-shell-doctor{
+  /* --- surfaces --- */
+  --background:#f3f1ed;            --color-background:#f3f1ed;       /* warm greige page canvas */
+  --card:#ffffff;                 --color-card:#ffffff;            /* white floating cards */
+  --popover:#ffffff;              --color-popover:#ffffff;
+  --muted:#eef0f2;                --color-muted:#eef0f2;
+  --muted-foreground:#5a6675;     --color-muted-foreground:#5a6675;
+  --secondary:#eef0f2;            --color-secondary:#eef0f2;
+  --secondary-foreground:#16202e; --color-secondary-foreground:#16202e;
+  --accent:#eef0f2;               --color-accent:#eef0f2;
+  --accent-foreground:#16202e;    --color-accent-foreground:#16202e;
+
+  /* --- text / ink --- */
+  --foreground:#16202e;           --color-foreground:#16202e;
+
+  /* --- borders / inputs / focus --- */
+  --border:#e7e3db;               --color-border:#e7e3db;
+  --input:#e7e3db;                --color-input:#e7e3db;
+  --ring:hsl(215 35% 40%);        --color-ring:hsl(215 35% 40%);
+
+  /* --- brand accent: steel-blue --- */
+  --primary:hsl(215 35% 40%);          --color-primary:hsl(215 35% 40%);
+  --primary-foreground:#ffffff;        --color-primary-foreground:#ffffff;
+
+  /* --- semantic (brick danger; success/gold live in component partials) --- */
+  --destructive:#c2402f;          --color-destructive:#c2402f;
+  --destructive-foreground:#ffffff; --color-destructive-foreground:#ffffff;
+
+  /* --- shape --- */
+  --radius:0.75rem;               /* 12px on cards/controls via shadcn */
+}
+
+/* page canvas */
+#app-shell-doctor,
+#app-shell-content{ background:#f3f1ed; }
+
+/* per-page header bar → white (pages that have it) */
+#app-shell-doctor [data-doctor-page-header]{ background:#ffffff !important; box-shadow:none !important; }
+
+/* light sidebar, separated from the greige canvas (needs html body to beat app CSS) */
+html body #doctor-admin-sidebar{
+  background:#ffffff !important;
+  border-right:1px solid #e7e3db !important;
+}
+
+/* white cards: low soft shadow, soft warm border, calmer radius */
+#app-shell-content .bg-card{
+  background:#ffffff !important;
+  border-color:#ece8e1 !important;
+  border-radius:12px !important;
+  box-shadow:0 1px 2px rgba(28,24,18,.05), 0 3px 8px rgba(28,24,18,.06) !important;
+}
