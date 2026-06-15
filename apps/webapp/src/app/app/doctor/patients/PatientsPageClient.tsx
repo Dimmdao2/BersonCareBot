@@ -16,6 +16,7 @@
 
 import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search, X, Ban, CalendarDays, Dumbbell, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -692,59 +693,64 @@ export function PatientsPageClient({
   // Icon filter state (client-side only, not reflected in URL)
   const [iconFilters, setIconFilters] = useState<IconFiltersState>(DEFAULT_ICON_FILTERS);
 
-  const navigateWithFilters = useCallback(
+  const router = useRouter();
+
+  /** Navigate to update server-side filters (segment, channel, archive). */
+  const navigateToFilters = useCallback(
     (overrides: {
-      q?: string;
       segment?: string | null;
       channel?: string | null;
       archivedOnly?: boolean;
     }) => {
       const url = buildUrl({
-        q: overrides.q ?? searchInput,
+        q: searchInput,
         segment: overrides.segment !== undefined ? overrides.segment : activeSegment,
         channel: overrides.channel !== undefined ? overrides.channel : activeChannel,
         archivedOnly: overrides.archivedOnly !== undefined ? overrides.archivedOnly : archivedOnly,
       });
       startListTransition(() => {
-        // Use replaceState-equivalent: don't add to history for filter changes
-        window.history.replaceState(null, "", url);
-        // Trigger a server re-fetch by reloading the list promise via API
-        const sp = new URLSearchParams();
-        const q = overrides.q ?? searchInput;
-        const seg = overrides.segment !== undefined ? overrides.segment : activeSegment;
-        const ch = overrides.channel !== undefined ? overrides.channel : activeChannel;
-        const arch = overrides.archivedOnly !== undefined ? overrides.archivedOnly : archivedOnly;
-        if (q?.trim()) sp.set("q", q.trim());
-        if (seg) sp.set("segment", seg);
-        if (ch) sp.set("channel", ch);
-        if (arch) sp.set("archived", "true");
-        const newPromise = fetch(`/api/doctor/patients?${sp.toString()}`)
-          .then((r) => {
-            if (!r.ok) throw new Error(`Patients fetch failed: ${r.status}`);
-            return r.json() as Promise<{ clients: ClientListItem[] }>;
-          })
-          .then((data) => data.clients);
+        router.push(url, { scroll: false });
+      });
+    },
+    [router, searchInput, activeSegment, activeChannel, archivedOnly],
+  );
+
+  /** Fetch client list from API (for search debounce — avoids full navigation). */
+  const fetchList = useCallback(
+    (q: string) => {
+      const sp = new URLSearchParams();
+      if (q.trim()) sp.set("q", q.trim());
+      if (activeSegment) sp.set("segment", activeSegment);
+      if (activeChannel) sp.set("channel", activeChannel);
+      if (archivedOnly) sp.set("archived", "true");
+      const newPromise = fetch(`/api/doctor/patients?${sp.toString()}`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`Patients fetch failed: ${r.status}`);
+          return r.json() as Promise<{ clients: ClientListItem[] }>;
+        })
+        .then((data) => data.clients);
+      startListTransition(() => {
         setListPromise(newPromise);
       });
     },
-    [searchInput, activeSegment, activeChannel, archivedOnly],
+    [activeSegment, activeChannel, archivedOnly],
   );
 
   const handleSegmentChange = useCallback(
     (value: string | null) => {
       setActiveSegment(value);
-      navigateWithFilters({ segment: value });
+      navigateToFilters({ segment: value });
     },
-    [navigateWithFilters],
+    [navigateToFilters],
   );
 
   const handleChannelChange = useCallback(
     (channel: string | null, archived: boolean) => {
       setActiveChannel(channel);
       setArchivedOnly(archived);
-      navigateWithFilters({ channel, archivedOnly: archived });
+      navigateToFilters({ channel, archivedOnly: archived });
     },
-    [navigateWithFilters],
+    [navigateToFilters],
   );
 
   const handleSearchInput = useCallback(
@@ -755,19 +761,19 @@ export function PatientsPageClient({
       if (trimmed.length === 0 || trimmed.length >= SEARCH_MIN_CHARS) {
         debounceRef.current = setTimeout(() => {
           setSearchQuery(trimmed);
-          navigateWithFilters({ q: value });
+          fetchList(value);
         }, SEARCH_DEBOUNCE_MS);
       }
     },
-    [navigateWithFilters],
+    [fetchList],
   );
 
   const clearSearch = useCallback(() => {
     setSearchInput("");
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearchQuery("");
-    navigateWithFilters({ q: "" });
-  }, [navigateWithFilters]);
+    fetchList("");
+  }, [fetchList]);
 
   // Keep state in sync when server-side navigation occurs (Next.js router)
   useEffect(() => {
