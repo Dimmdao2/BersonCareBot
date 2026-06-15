@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import { DoctorClientSupportPanel } from "@/app/app/doctor/clients/DoctorClientSupportPanel";
 import type { ActiveComplaint } from "@/modules/patient-clinical/ports";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
@@ -1331,6 +1332,12 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
               )}
             </>
           )}
+        </div>
+
+        {/* Сопровождение — moved here from Учётка (S2.5) */}
+        <div className={doctorSectionCardClass}>
+          <span className={doctorSectionTitleClass}>Сопровождение</span>
+          <DoctorClientSupportPanel patientUserId={userId} />
         </div>
 
         {/* Сообщения */}

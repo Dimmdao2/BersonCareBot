@@ -443,6 +443,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           <MembershipPanel userId={userId} />
         </div>
       </div>
+
+      {/* ================================================================
+          ФИНАНСЫ — Платежи (moved from Учётка S2.5)
+      ================================================================ */}
+      <PaymentsPanel userId={userId} />
+
     </div>
   );
 }
@@ -571,6 +577,297 @@ function MembershipPanel({ userId }: { userId: string }) {
 
       <p className={cn(doctorSectionSubtitleClass, "text-[11px] leading-relaxed")}>
         Работа с абонементом — здесь. Карточка «Абонемент» на Обзоре ведёт сюда по клику.
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Payments panel — moved from PatientTabAccount (S2.5)
+// Real data from GET /api/doctor/patients/{userId}/payments
+// ---------------------------------------------------------------------------
+
+type PaymentItem = {
+  id: string;
+  amountMinor: number;
+  currency?: string;
+  kind: "cash" | "acquiring";
+  status: string;
+  comment?: string | null;
+  service?: string | null;
+  visitId?: string | null;
+  createdAt: string;
+};
+
+type PaymentsResponse = {
+  ok: true;
+  payments: PaymentItem[];
+  totalPaidMinor: number;
+};
+
+function fmtRub(minorAmount: number): string {
+  return (minorAmount / 100).toLocaleString("ru-RU") + " ₽";
+}
+
+function fmtPaymentDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function PaymentsPanel({ userId }: { userId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [payments, setPayments] = useState<PaymentItem[] | null>(null);
+  const [totalPaidMinor, setTotalPaidMinor] = useState(0);
+  const [fetched, setFetched] = useState(false);
+
+  // Cash form state
+  const [showCashForm, setShowCashForm] = useState(false);
+  const [cashAmountRub, setCashAmountRub] = useState("");
+  const [cashComment, setCashComment] = useState("");
+  const [cashService, setCashService] = useState("");
+  const [cashPending, setCashPending] = useState(false);
+  const [cashError, setCashError] = useState<string | null>(null);
+
+  const loadPayments = async () => {
+    setLoading(true);
+    setError(null);
+    setUnavailable(false);
+    try {
+      const res = await fetch(
+        `/api/doctor/patients/${encodeURIComponent(userId)}/payments`,
+        { credentials: "include" },
+      );
+      if (res.status === 404 || res.status === 501) {
+        setUnavailable(true);
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as PaymentsResponse | null;
+      if (!res.ok || !data?.ok) {
+        setUnavailable(true);
+        return;
+      }
+      setPayments(data.payments);
+      setTotalPaidMinor(data.totalPaidMinor);
+    } catch {
+      setUnavailable(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!fetched) {
+      setFetched(true);
+      void loadPayments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const handleSubmitCash = async () => {
+    const rubles = parseFloat(cashAmountRub.replace(",", "."));
+    if (!rubles || rubles <= 0) {
+      setCashError("Введите сумму > 0");
+      return;
+    }
+    const amountMinor = Math.round(rubles * 100);
+    setCashPending(true);
+    setCashError(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/patients/${encodeURIComponent(userId)}/payments`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amountMinor,
+            comment: cashComment.trim() || undefined,
+            service: cashService.trim() || undefined,
+          }),
+        },
+      );
+      if (res.status === 404 || res.status === 501) {
+        setCashError("Эндпоинт платежей ещё не готов — попробуйте позже.");
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !data?.ok) {
+        setCashError(data?.error ?? `Ошибка ${res.status}`);
+        return;
+      }
+      setCashAmountRub("");
+      setCashComment("");
+      setCashService("");
+      setShowCashForm(false);
+      setFetched(false);
+    } catch {
+      setCashError("network");
+    } finally {
+      setCashPending(false);
+    }
+  };
+
+  // Reload when fetched flag resets
+  useEffect(() => {
+    if (!fetched) {
+      setFetched(true);
+      void loadPayments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetched]);
+
+  return (
+    <div className={doctorSectionCardClass}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className={doctorSectionTitleClass}>Финансы · Платежи</p>
+        {!unavailable && payments !== null && (
+          <button
+            type="button"
+            onClick={() => setFetched(false)}
+            className="ml-auto text-xs text-muted-foreground hover:text-primary cursor-pointer"
+          >
+            обновить
+          </button>
+        )}
+      </div>
+
+      {loading && (
+        <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>Загрузка платежей…</p>
+      )}
+
+      {unavailable && !loading && (
+        <div className="rounded-lg border border-border bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+          Платежи недоступны — эндпоинт строится параллельным агентом.
+          Данные появятся после деплоя миграции.
+        </div>
+      )}
+
+      {error && !unavailable && !loading && (
+        <p className="text-[11px] text-destructive">{error}</p>
+      )}
+
+      {!unavailable && !loading && payments !== null && (
+        <>
+          {/* Total */}
+          <div className={cn(doctorStatCardShellClass)}>
+            <div className={cn(doctorMetricLabelClass, "mb-0.5")}>Итого оплачено</div>
+            <div className={cn(doctorMetricValueClass, "text-base")}>{fmtRub(totalPaidMinor)}</div>
+          </div>
+
+          {/* Payment list */}
+          {payments.length === 0 ? (
+            <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>Нет записей об оплате.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {payments.map((p) => (
+                <div
+                  key={p.id}
+                  className={cn(doctorSectionItemClass, "flex items-center gap-2 text-xs")}
+                >
+                  <span className="flex-none text-muted-foreground text-[11px] font-medium">
+                    {p.kind === "cash" ? "нал" : "экв"}
+                  </span>
+                  <span className="flex-1 truncate">
+                    {p.service ?? p.comment ?? (p.kind === "cash" ? "Наличные" : "Эквайринг")}
+                    {p.comment && p.service && (
+                      <span className="text-muted-foreground ml-1">· {p.comment}</span>
+                    )}
+                  </span>
+                  <span className="font-semibold tabular-nums whitespace-nowrap">
+                    {fmtRub(p.amountMinor)}
+                  </span>
+                  <span className={cn(doctorSectionSubtitleClass, "whitespace-nowrap pl-2")}>
+                    {fmtPaymentDate(p.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Manual cash form */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCashForm((v) => !v);
+                setCashError(null);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+            >
+              Внести наличные
+            </button>
+            <span className="text-[11px] text-muted-foreground">Эквайринг — скоро</span>
+          </div>
+
+          {showCashForm && (
+            <div className="rounded-lg border border-border bg-background p-3 flex flex-col gap-2 shadow-sm">
+              <p className={cn(doctorSectionTitleClass, "text-xs")}>Внести наличные</p>
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="flex flex-col gap-0.5 flex-1 min-w-[100px]">
+                  <label className="text-[11px] text-muted-foreground">Сумма, ₽</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    placeholder="4000"
+                    value={cashAmountRub}
+                    onChange={(e) => setCashAmountRub(e.target.value)}
+                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
+                  <label className="text-[11px] text-muted-foreground">Услуга</label>
+                  <input
+                    type="text"
+                    placeholder="Приём · 60 мин"
+                    value={cashService}
+                    onChange={(e) => setCashService(e.target.value)}
+                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
+                  <label className="text-[11px] text-muted-foreground">Комментарий</label>
+                  <input
+                    type="text"
+                    placeholder="доп. инфо…"
+                    value={cashComment}
+                    onChange={(e) => setCashComment(e.target.value)}
+                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+              </div>
+              {cashError && (
+                <p className="text-[11px] text-destructive">{cashError}</p>
+              )}
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  disabled={cashPending}
+                  onClick={() => { setShowCashForm(false); setCashError(null); }}
+                  className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  disabled={cashPending}
+                  onClick={() => void handleSubmitCash()}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-60"
+                >
+                  {cashPending ? "…" : "Сохранить"}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+        Учёт наличных платежей. Эквайринг (провайдер не выбран) — следующий этап.
       </p>
     </div>
   );
