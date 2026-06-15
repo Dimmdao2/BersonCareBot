@@ -250,6 +250,7 @@ function DiagnosisAutocomplete({
           value={draft}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="Начните вводить — поиск по справочнику..."
+          autoComplete="off"
           className="flex-1 rounded-t-lg border border-primary bg-background px-2.5 py-1.5 text-sm text-foreground focus-visible:outline-none"
         />
         <button
@@ -319,6 +320,15 @@ export function NewVisitPanel({
   const [service, setService] = useState("");
   const [duration, setDuration] = useState("");
 
+  // Catalog options populated from patient appointments history
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
+  const [durationOptions, setDurationOptions] = useState<string[]>([]);
+  // "other" mode for each field when user selects "Другое..."
+  const [locationOther, setLocationOther] = useState(false);
+  const [serviceOther, setServiceOther] = useState(false);
+  const [durationOther, setDurationOther] = useState(false);
+
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
     { id: "fc_init", priority: false, text: "", severity: 0 },
@@ -382,6 +392,45 @@ export function NewVisitPanel({
     );
   }, [activeDiagnoses]);
 
+  // Auto-switch visitType based on whether patient has active complaints/diagnoses
+  useEffect(() => {
+    if (activeComplaints.length === 0 && activeDiagnoses.length === 0) {
+      setVisitType("first");
+    } else {
+      setVisitType("repeat");
+    }
+  }, [activeComplaints, activeDiagnoses]);
+
+  // Populate location/service/duration from patient appointments history
+  useEffect(() => {
+    fetch(`/api/doctor/patients/${userId}/appointments`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string; durationMin?: number }> }>) : null))
+      .then((data) => {
+        if (!data?.appointments) return;
+        const appts = data.appointments;
+        const uniqueLocations = [...new Set(
+          appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean)
+        )];
+        const uniqueServices = [...new Set(
+          appts.map((a) => a.serviceName ?? "").filter(Boolean)
+        )];
+        const uniqueDurations = [...new Set(
+          appts.map((a) => (a.durationMin ? `${a.durationMin} мин` : "")).filter(Boolean)
+        )];
+        setLocationOptions(uniqueLocations);
+        setServiceOptions(uniqueServices);
+        setDurationOptions(uniqueDurations);
+        // Pre-fill from the most recent appointment
+        const latest = appts[0];
+        if (latest) {
+          if (latest.branchName ?? latest.location) setLocation(latest.branchName ?? latest.location ?? "");
+          if (latest.serviceName) setService(latest.serviceName);
+          if (latest.durationMin) setDuration(`${latest.durationMin} мин`);
+        }
+      })
+      .catch(() => { /* silently ignore — fall back to free-text inputs */ });
+  }, [userId]);
+
   // ── Save ──────────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -397,9 +446,9 @@ export function NewVisitPanel({
     const body: Record<string, unknown> = {
       visitType,
       date: visitedAt,      // API field name from task spec
-      location: location || null,
-      service: service || null,
-      duration: duration || null,
+      location: location.trim() || undefined,
+      service: service.trim() || undefined,
+      duration: duration.trim() || undefined,
     };
 
     if (visitType === "first") {
@@ -523,27 +572,72 @@ export function NewVisitPanel({
               </option>
             ))}
           </select>
-          <input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Место приёма"
-            className={cn(chipSelectClass, "w-32 placeholder:text-muted-foreground/60")}
-          />
-          <input
-            type="text"
-            value={service}
-            onChange={(e) => setService(e.target.value)}
-            placeholder="Услуга"
-            className={cn(chipSelectClass, "w-28 placeholder:text-muted-foreground/60")}
-          />
-          <input
-            type="text"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            placeholder="Длительность"
-            className={cn(chipSelectClass, "w-24 placeholder:text-muted-foreground/60")}
-          />
+          {locationOptions.length > 0 && !locationOther ? (
+            <select
+              value={location}
+              onChange={(e) => {
+                if (e.target.value === "__other__") { setLocationOther(true); setLocation(""); }
+                else setLocation(e.target.value);
+              }}
+              className={cn(chipSelectClass, "w-32")}
+            >
+              <option value="">— место приёма —</option>
+              {locationOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              <option value="__other__">Другое...</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Место приёма"
+              className={cn(chipSelectClass, "w-32 placeholder:text-muted-foreground/60")}
+            />
+          )}
+          {serviceOptions.length > 0 && !serviceOther ? (
+            <select
+              value={service}
+              onChange={(e) => {
+                if (e.target.value === "__other__") { setServiceOther(true); setService(""); }
+                else setService(e.target.value);
+              }}
+              className={cn(chipSelectClass, "w-28")}
+            >
+              <option value="">— услуга —</option>
+              {serviceOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              <option value="__other__">Другое...</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={service}
+              onChange={(e) => setService(e.target.value)}
+              placeholder="Услуга"
+              className={cn(chipSelectClass, "w-28 placeholder:text-muted-foreground/60")}
+            />
+          )}
+          {durationOptions.length > 0 && !durationOther ? (
+            <select
+              value={duration}
+              onChange={(e) => {
+                if (e.target.value === "__other__") { setDurationOther(true); setDuration(""); }
+                else setDuration(e.target.value);
+              }}
+              className={cn(chipSelectClass, "w-24")}
+            >
+              <option value="">— длит. —</option>
+              {durationOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              <option value="__other__">Другое...</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="Длительность"
+              className={cn(chipSelectClass, "w-24 placeholder:text-muted-foreground/60")}
+            />
+          )}
         </span>
       </div>
       <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
@@ -606,16 +700,18 @@ export function NewVisitPanel({
                       />
                       /10
                     </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFirstComplaints((prev) => prev.filter((x) => x.id !== c.id))
-                      }
-                      title="Удалить"
-                      className="flex-none text-sm text-muted-foreground hover:text-destructive"
-                    >
-                      ✕
-                    </button>
+                    {firstComplaints.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFirstComplaints((prev) => prev.filter((x) => x.id !== c.id))
+                        }
+                        title="Удалить"
+                        className="flex-none text-sm text-muted-foreground hover:text-destructive"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -666,6 +762,7 @@ export function NewVisitPanel({
                   </div>
                 ))}
                 {/* Autocomplete input */}
+                {/* TODO: diagnosis status model (preliminary/confirmed/closed + history) — OWNER-GATED, needs ALTER TABLE patient_diagnoses migration */}
                 <DiagnosisAutocomplete userId={userId} onSelect={addFirstDiagnosis} />
               </div>
               <p className={hintClass}>

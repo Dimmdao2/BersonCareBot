@@ -962,7 +962,7 @@ function AddTraumaForm({
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Год</label>
-          <input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="2003 (28 лет)" className={inputClass} />
+          <input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="Год (напр. 2003)" className={inputClass} />
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Тип</label>
@@ -971,7 +971,7 @@ function AddTraumaForm({
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Что произошло</label>
-        <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Перелом копчика" className={inputClass} />
+        <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Опишите травму или операцию…" className={inputClass} />
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Иммобилизация / восстановление</label>
@@ -1224,9 +1224,10 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
    */
   const leftBlur = panelOpen && historyVisible;
 
-  // Callback for NewVisitPanel after successful save — refetch + close panel
+  // Callback for NewVisitPanel after successful save — refetch + close panel + show history
   const handleVisitSaved = useCallback(() => {
     setPanelOpen(false);
+    setHistoryVisible(true);
     fetchClinical();
   }, [fetchClinical]);
 
@@ -1464,10 +1465,12 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
              or visitType changes. The «+ Новый визит» button is hidden while
              the form is open to avoid double-open. ────────────────────────── */}
         <div className="flex items-center gap-2">
-          <HistoryToggleBtn
-            visible={historyVisible}
-            onToggle={() => setHistoryVisible((v) => !v)}
-          />
+          {!loading && visits.length > 0 ? (
+            <HistoryToggleBtn
+              visible={historyVisible}
+              onToggle={() => setHistoryVisible((v) => !v)}
+            />
+          ) : null}
           <h2 className={doctorSectionTitleClass}>История визитов</h2>
           {!loading && (
             <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
@@ -1485,7 +1488,7 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
 
         {/* ── New visit form (shown when panelOpen) ────────────────────────── */}
         {panelOpen && (
-          <div className={cn(historyVisible ? "max-h-[78vh]" : "max-h-[85vh]")}>
+          <div className={cn("relative z-10", historyVisible ? "max-h-[78vh]" : "max-h-[85vh]")}>
             <NewVisitPanel
               userId={userId}
               activeComplaints={complaints}
