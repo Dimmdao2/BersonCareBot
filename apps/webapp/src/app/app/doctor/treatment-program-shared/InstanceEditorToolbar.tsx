@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import toast from "react-hot-toast";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
@@ -11,27 +10,23 @@ import { tplToolbarTextBtnClass, INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS } from "./
 
 export function InstanceEditorToolbar(props: {
   programTitle: string;
-  patientProfileHref: string;
-  patientDisplayName: string;
+  patientProfileHref?: string;
+  patientDisplayName?: string;
   programStatus: TreatmentProgramInstanceStatus;
   pipelineStageCount: number;
-  onCommentsClick: () => void;
   onAddStageClick: () => void;
   onChangeStageOrderClick: () => void;
 }) {
   const {
     programTitle,
-    patientProfileHref,
-    patientDisplayName,
     programStatus,
     pipelineStageCount,
-    onCommentsClick,
     onAddStageClick,
     onChangeStageOrderClick,
   } = props;
   const { isDirty, saving, saveDraft, discardDraft } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
-  const statusLabel = programStatus === "completed" ? "завершена" : "активна";
+  const statusLabel = programStatus === "completed" ? "Завершена" : "Активно";
 
   const handleSave = () => {
     void saveDraft().then((r) => {
@@ -55,17 +50,6 @@ export function InstanceEditorToolbar(props: {
       <div className="flex flex-col gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm lg:justify-self-start">
           <h1 className="truncate font-semibold tracking-tight text-foreground">{programTitle}</h1>
-          <span className="hidden text-muted-foreground sm:inline" aria-hidden>
-            ·
-          </span>
-          <span className="min-w-0 truncate text-muted-foreground">
-            <Link
-              href={patientProfileHref}
-              className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              {patientDisplayName}
-            </Link>
-          </span>
           <span
             className={cn(
               "rounded-md px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide",
@@ -83,18 +67,7 @@ export function InstanceEditorToolbar(props: {
           ) : null}
         </div>
 
-        <div className="flex justify-center lg:justify-self-center">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className={tplToolbarTextBtnClass}
-            onClick={onCommentsClick}
-            data-testid="instance-editor-comments"
-          >
-            Комментарии
-          </Button>
-        </div>
+        <div className="hidden lg:block" />
 
         <div className="flex flex-wrap items-center justify-end gap-2 lg:justify-self-end">
           <Button

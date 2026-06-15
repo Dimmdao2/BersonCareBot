@@ -103,8 +103,17 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
       user={session.user}
       backHref={backHref}
       backLabel="Карточка клиента"
-     
+
     >
+      <p className="mb-2 text-sm text-muted-foreground">
+        Пациент:{" "}
+        <a
+          href={backHref}
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+        >
+          {patientDisplayName}
+        </a>
+      </p>
       <TreatmentProgramInstanceDetailClient
         patientProfileHref={backHref}
         patientDisplayName={patientDisplayName}
