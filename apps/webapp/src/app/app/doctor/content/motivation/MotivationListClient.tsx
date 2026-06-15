@@ -228,9 +228,18 @@ export function MotivationListClient({ quoteRows }: { quoteRows: QuoteRow[] }) {
         </p>
       ) : null}
 
-      <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setShowAdd((v) => !v)}>
-        {showAdd ? "Скрыть форму" : "Добавить"}
-      </Button>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-foreground">Цитаты</span>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="ml-auto"
+          onClick={() => setShowAdd((v) => !v)}
+        >
+          {showAdd ? "Скрыть форму" : "Добавить"}
+        </Button>
+      </div>
 
       {showAdd ? (
         <form action={quoteAction} className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">

@@ -1,5 +1,5 @@
 /** Wave 3 phase 15C — doctor detail TZ aggregates via `runWebappPgText`. */
-import { and, avg, count, desc, eq, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { resolveMaterialRatingTargetVideoMediaIds } from "@/infra/repos/materialRatingTargetVideoMediaIds";
 import { getDrizzle } from "@/app-layer/db/drizzle";
@@ -96,6 +96,44 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         distribution: row ? buildDistributionFromRow(row) : emptyDistribution(),
       };
       return out;
+    },
+
+    async listAggregates(input) {
+      const result = new Map<string, MaterialRatingAggregate>();
+      if (input.targetIds.length === 0) return result;
+      const db = getDrizzle();
+      const userExclude = drizzleExcludeUserIdColumn(materialRatings.userId, input.excludedUserIds ?? []);
+      const rows = await db
+        .select({
+          targetId: materialRatings.targetId,
+          cnt: count(),
+          avgStars: avg(materialRatings.stars),
+          c1: sql<number>`coalesce(sum(CASE WHEN ${materialRatings.stars} = 1 THEN 1 ELSE 0 END), 0)::int`,
+          c2: sql<number>`coalesce(sum(CASE WHEN ${materialRatings.stars} = 2 THEN 1 ELSE 0 END), 0)::int`,
+          c3: sql<number>`coalesce(sum(CASE WHEN ${materialRatings.stars} = 3 THEN 1 ELSE 0 END), 0)::int`,
+          c4: sql<number>`coalesce(sum(CASE WHEN ${materialRatings.stars} = 4 THEN 1 ELSE 0 END), 0)::int`,
+          c5: sql<number>`coalesce(sum(CASE WHEN ${materialRatings.stars} = 5 THEN 1 ELSE 0 END), 0)::int`,
+        })
+        .from(materialRatings)
+        .where(
+          and(
+            eq(materialRatings.targetKind, input.targetKind),
+            inArray(materialRatings.targetId, input.targetIds),
+            userExclude,
+          ),
+        )
+        .groupBy(materialRatings.targetId);
+
+      for (const r of rows) {
+        const cnt = Number(r.cnt ?? 0);
+        const avgVal = r.avgStars != null ? Number(r.avgStars) : null;
+        result.set(r.targetId, {
+          count: cnt,
+          avg: cnt === 0 ? null : avgVal,
+          distribution: buildDistributionFromRow(r),
+        });
+      }
+      return result;
     },
 
     async listDoctorSummary(input) {

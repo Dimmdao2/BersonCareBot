@@ -1,10 +1,11 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { PageSection } from "@/components/common/layout/PageSection";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import type { ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentHubShell, type ContentHubSection } from "./ContentHubShell";
+import type { ContentRatingSummary } from "./ContentRatingChip";
+import type { PublishedCourseOption } from "./ContentForm";
 
 export default async function DoctorContentPage() {
   const session = await requireDoctorAccess();
@@ -12,11 +13,24 @@ export default async function DoctorContentPage() {
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
+  let ratingsById: Record<string, ContentRatingSummary> = {};
+  let publishedCourses: PublishedCourseOption[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
 
   try {
     pages = await deps.contentPages.listAll();
     sections = await deps.contentSections.listAll();
+    // Batch-load ★ ratings for the material cards/rows (one grouped query, no N+1).
+    const ratingMap = await deps.materialRating.listDoctorAggregates({
+      targetKind: "content_page",
+      targetIds: pages.map((p) => p.id),
+    });
+    ratingsById = Object.fromEntries(
+      [...ratingMap.entries()].map(([id, agg]) => [id, { avg: agg.avg, count: agg.count }]),
+    );
+    publishedCourses = (
+      await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
+    ).map((c) => ({ id: c.id, title: c.title }));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content", err);
   }
@@ -58,18 +72,19 @@ export default async function DoctorContentPage() {
 
   return (
     <DoctorAppShell title="Контент" user={session.user}>
-      <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
-        <ContentHubShell
-          sections={hubSections}
-          pagesBySectionSlug={pagesBySectionSlug}
-          loadError={
-            loadError
-              ? { digest: loadError.digest, name: loadError.name, message: loadError.message }
-              : null
-          }
-          isDev={isDev}
-        />
-      </PageSection>
+      <ContentHubShell
+        sections={hubSections}
+        fullSections={sections}
+        pagesBySectionSlug={pagesBySectionSlug}
+        ratingsById={ratingsById}
+        publishedCourses={publishedCourses}
+        loadError={
+          loadError
+            ? { digest: loadError.digest, name: loadError.name, message: loadError.message }
+            : null
+        }
+        isDev={isDev}
+      />
     </DoctorAppShell>
   );
 }

@@ -9,6 +9,13 @@ export type CatalogSplitLayoutProps = {
   mobileView: "list" | "detail";
   mobileBackSlot?: ReactNode;
   className?: string;
+  /**
+   * Tailwind class that sets the desktop grid-cols.
+   * Defaults to "lg:grid-cols-2" — the historical equal-split behaviour.
+   * Pass e.g. "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" for an asymmetric split.
+   * ADDITIVE — existing callers that omit this prop are visually unchanged.
+   */
+  desktopColsClassName?: string;
 };
 
 export function CatalogSplitLayout({
@@ -17,11 +24,13 @@ export function CatalogSplitLayout({
   mobileView,
   mobileBackSlot,
   className,
+  desktopColsClassName = "lg:grid-cols-2",
 }: CatalogSplitLayoutProps) {
   return (
     <div
       className={cn(
-        "relative min-h-[calc(100dvh_-_8rem)] overflow-hidden lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-stretch lg:gap-3 lg:overflow-x-hidden lg:overflow-y-visible",
+        "relative min-h-[calc(100dvh_-_8rem)] overflow-hidden lg:grid lg:min-h-0 lg:items-stretch lg:gap-3 lg:overflow-x-hidden lg:overflow-y-visible",
+        desktopColsClassName,
         className,
       )}
     >
