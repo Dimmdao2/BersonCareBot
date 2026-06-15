@@ -211,7 +211,6 @@ export function ContentPagesSectionList({
     if (viewModeProp) return;
     const saved = readDoctorCatalogViewPreference(CONTENT_PAGES_VIEW_STORAGE_KEY);
     if (saved) setLocalViewMode(saved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewModeProp]);
 
   const viewMode: DoctorCatalogViewMode = viewModeProp ?? localViewMode;

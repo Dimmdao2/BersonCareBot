@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/shared/ui/doctor/primitives/separator";
 import { Eye, EyeOff, Plus } from "lucide-react";
@@ -156,36 +156,34 @@ export function ContentNav({
   onPaneChange,
   countsByPaneKey = {},
 }: ContentNavProps) {
-  const initialUserSections: SectionVisState[] = articleSections
-    .filter((s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug))
-    .map((s) => ({ slug: s.slug, title: s.title, isVisible: s.isVisible }));
-
-  const [userSections, setUserSections] = useState<SectionVisState[]>(initialUserSections);
-  const [isPending, startTransition] = useTransition();
-
-  // Keep in sync if prop identity changes (e.g. after server revalidation)
-  useEffect(() => {
-    setUserSections(
+  const baseUserSections: SectionVisState[] = useMemo(
+    () =>
       articleSections
         .filter((s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug))
         .map((s) => ({ slug: s.slug, title: s.title, isVisible: s.isVisible })),
-    );
-  }, [articleSections]);
+    [articleSections],
+  );
+  const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>({});
+  const [isPending, startTransition] = useTransition();
+  const userSections = useMemo(
+    () =>
+      baseUserSections.map((section) => ({
+        ...section,
+        isVisible: visibilityOverrides[section.slug] ?? section.isVisible,
+      })),
+    [baseUserSections, visibilityOverrides],
+  );
 
   const handleVisibilityToggle = useCallback(
     (slug: string, nextIsVisible: boolean) => {
       // Optimistic update
-      setUserSections((prev) =>
-        prev.map((s) => (s.slug === slug ? { ...s, isVisible: nextIsVisible } : s)),
-      );
+      setVisibilityOverrides((prev) => ({ ...prev, [slug]: nextIsVisible }));
 
       startTransition(async () => {
         const result = await setSectionVisibility(slug, nextIsVisible);
         if (!result.ok) {
           // Revert on failure
-          setUserSections((prev) =>
-            prev.map((s) => (s.slug === slug ? { ...s, isVisible: !nextIsVisible } : s)),
-          );
+          setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
         }
       });
     },
