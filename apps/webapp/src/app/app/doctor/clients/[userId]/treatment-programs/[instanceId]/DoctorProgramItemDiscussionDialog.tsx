@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
 import { markDoctorProgramDiscussionRead } from "@/app/app/doctor/doctorProgramDiscussionMarkRead";
@@ -126,65 +126,65 @@ export function DoctorProgramItemDiscussionDialog(props: {
   }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{itemLabel ? `Обсуждение: ${itemLabel}` : "Обсуждение"}</DialogTitle>
-        </DialogHeader>
-        <DoctorProgramDiscussionMessagesPanel
-          messages={messages}
-          loading={loading}
-          loadingOlder={loadingOlder}
-          error={error}
-          nextCursor={nextCursor}
-          peerLastReadAt={peerLastReadAt}
-          onSendReply={async (_stageItemId, text) => {
-            const sendResult = await sendDoctorProgramDiscussionReply({
-              instanceId,
-              stageItemId: itemId,
-              text,
+    <DoctorModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={itemLabel ? `Обсуждение: ${itemLabel}` : "Обсуждение"}
+      size="lg"
+    >
+      <DoctorProgramDiscussionMessagesPanel
+        messages={messages}
+        loading={loading}
+        loadingOlder={loadingOlder}
+        error={error}
+        nextCursor={nextCursor}
+        peerLastReadAt={peerLastReadAt}
+        onSendReply={async (_stageItemId, text) => {
+          const sendResult = await sendDoctorProgramDiscussionReply({
+            instanceId,
+            stageItemId: itemId,
+            text,
+          });
+          if (!sendResult.ok) return sendResult;
+          const generation = loadGenerationRef.current;
+          try {
+            await loadPage(null, false, generation);
+          } catch {
+            if (generation === loadGenerationRef.current) {
+              setError("Ответ отправлен, но список не обновился. Откройте обсуждение заново.");
+            }
+          }
+          return { ok: true as const };
+        }}
+        onDeleteMediaMessage={async (messageId) => {
+          const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({ instanceId, messageId });
+          if (!deleteResult.ok) return deleteResult;
+          const generation = loadGenerationRef.current;
+          try {
+            await loadPage(null, false, generation);
+          } catch {
+            if (generation === loadGenerationRef.current) {
+              setError("Файл удалён из чата, но список не обновился. Откройте обсуждение заново.");
+            }
+          }
+          return { ok: true as const };
+        }}
+        onLoadOlder={() => {
+          if (!nextCursor) return;
+          const generation = loadGenerationRef.current;
+          setLoadingOlder(true);
+          void loadPage(nextCursor, true, generation)
+            .catch((e) => {
+              if (generation !== loadGenerationRef.current) return;
+              setError(e instanceof Error ? e.message : "Не удалось загрузить обсуждение");
+            })
+            .finally(() => {
+              if (generation === loadGenerationRef.current) {
+                setLoadingOlder(false);
+              }
             });
-            if (!sendResult.ok) return sendResult;
-            const generation = loadGenerationRef.current;
-            try {
-              await loadPage(null, false, generation);
-            } catch {
-              if (generation === loadGenerationRef.current) {
-                setError("Ответ отправлен, но список не обновился. Откройте обсуждение заново.");
-              }
-            }
-            return { ok: true as const };
-          }}
-          onDeleteMediaMessage={async (messageId) => {
-            const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({ instanceId, messageId });
-            if (!deleteResult.ok) return deleteResult;
-            const generation = loadGenerationRef.current;
-            try {
-              await loadPage(null, false, generation);
-            } catch {
-              if (generation === loadGenerationRef.current) {
-                setError("Файл удалён из чата, но список не обновился. Откройте обсуждение заново.");
-              }
-            }
-            return { ok: true as const };
-          }}
-          onLoadOlder={() => {
-            if (!nextCursor) return;
-            const generation = loadGenerationRef.current;
-            setLoadingOlder(true);
-            void loadPage(nextCursor, true, generation)
-              .catch((e) => {
-                if (generation !== loadGenerationRef.current) return;
-                setError(e instanceof Error ? e.message : "Не удалось загрузить обсуждение");
-              })
-              .finally(() => {
-                if (generation === loadGenerationRef.current) {
-                  setLoadingOlder(false);
-                }
-              });
-          }}
-        />
-      </DialogContent>
-    </Dialog>
+        }}
+      />
+    </DoctorModal>
   );
 }

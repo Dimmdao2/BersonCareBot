@@ -5,13 +5,7 @@ import Link from "next/link";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import type { PatientPackageSessionRow } from "@/modules/memberships/types";
 
 const LINKAGE_LABELS: Record<string, string> = {
@@ -237,80 +231,84 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
         </ul>
       )}
 
-      <Dialog open={confirmStep === 1} onOpenChange={(o) => !o && setConfirmStep(0)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Подтверждение</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm">
-            {pendingDetach
-              ? FIRST_CONFIRM_TEXT[pendingDetach.outcome]
-              : "Подтвердите действие."}
-          </p>
-          <DialogFooter>
+      <DoctorModal
+        open={confirmStep === 1}
+        onClose={() => setConfirmStep(0)}
+        title="Подтверждение"
+        size="sm"
+        footer={
+          <>
             <Button type="button" variant="outline" onClick={() => setConfirmStep(0)}>
               Отмена
             </Button>
             <Button type="button" onClick={afterFirstConfirm}>
               Продолжить
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <p className="text-sm">
+          {pendingDetach
+            ? FIRST_CONFIRM_TEXT[pendingDetach.outcome]
+            : "Подтвердите действие."}
+        </p>
+      </DoctorModal>
 
-      <Dialog open={confirmStep === 2} onOpenChange={(o) => !o && setConfirmStep(0)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Прошедшая запись</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm">Сеанс уже прошел. Проверьте, что выбрана правильная запись.</p>
-          <DialogFooter>
+      <DoctorModal
+        open={confirmStep === 2}
+        onClose={() => setConfirmStep(0)}
+        title="Прошедшая запись"
+        size="sm"
+        footer={
+          <>
             <Button type="button" variant="outline" onClick={() => setConfirmStep(0)}>
               Отмена
             </Button>
             <Button type="button" onClick={afterSecondConfirm}>
               Подтвердить
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <p className="text-sm">Сеанс уже прошел. Проверьте, что выбрана правильная запись.</p>
+      </DoctorModal>
 
-      <Dialog open={lateChoice !== null} onOpenChange={(o) => !o && setLateChoice(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Поздняя отвязка</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">Выберите исход для записи вне бесплатного окна отмены.</p>
-          <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch">
-            <Button
-              type="button"
-              onClick={() => {
-                if (!lateChoice) return;
-                const { appointmentId, isPast } = lateChoice;
-                setLateChoice(null);
-                beginDetach(appointmentId, "release_reserve", isPast);
-              }}
-            >
-              Вернуть резерв в абонемент
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                if (!lateChoice) return;
-                const { appointmentId, isPast } = lateChoice;
-                setLateChoice(null);
-                beginDetach(appointmentId, "charge_as_delivered", isPast);
-              }}
-            >
-              Списать как оказанную
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setLateChoice(null)}>
-              Отмена
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DoctorModal
+        open={lateChoice !== null}
+        onClose={() => setLateChoice(null)}
+        title="Поздняя отвязка"
+        size="sm"
+      >
+        <p className="text-sm text-muted-foreground">Выберите исход для записи вне бесплатного окна отмены.</p>
+        <div className="flex flex-col gap-2 pt-2">
+          <Button
+            type="button"
+            onClick={() => {
+              if (!lateChoice) return;
+              const { appointmentId, isPast } = lateChoice;
+              setLateChoice(null);
+              beginDetach(appointmentId, "release_reserve", isPast);
+            }}
+          >
+            Вернуть резерв в абонемент
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              if (!lateChoice) return;
+              const { appointmentId, isPast } = lateChoice;
+              setLateChoice(null);
+              beginDetach(appointmentId, "charge_as_delivered", isPast);
+            }}
+          >
+            Списать как оказанную
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setLateChoice(null)}>
+            Отмена
+          </Button>
+        </div>
+      </DoctorModal>
     </div>
   );
 }
