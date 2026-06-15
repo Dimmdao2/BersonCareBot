@@ -137,11 +137,14 @@ commits are on `feat`/`main` (`git log <branch> --not feat/doctor-ui-rebuild`), 
 the owner has signed off on discarding them.
 
 Candidates (as of 2026-06-15):
-- `claude/patients-rework` (local + origin) — Пациенты rework backup. ⚠️ Its full impl
-  was SUPERSEDED by the main-tree version; only the `1.4fr/1fr` tweak was carried over.
-  Holds UNIQUE unmerged bits (instant-render preview from `ClientListItem`, `hasApp`
-  wiring, cleaner `clients→patients` icon case). KEEP until owner confirms no cherry-pick
-  needed, then delete.
+- `claude/patients-rework` — Пациенты rework backup. Local branch + worktree PRUNED
+  2026-06-15; kept only on `origin` as a safety backup. Its impl was SUPERSEDED by the
+  main-tree version and is essentially a pure duplicate (verified: the kept version also
+  instant-renders the preview from `ClientListItem` and lazy-loads only deep stats — same
+  behavior). Only trivial diffs (`hasApp` line in preview, cleaner `clients→patients`
+  icon case); nothing worth cherry-picking. The `1.4fr/1fr` column tweak was already
+  carried into feat (`72a7d57c`). The `origin/claude/patients-rework` ref can be deleted
+  whenever the owner wants — no recovery value beyond peace of mind.
 - `claude/admiring-jennings-93cf22` (local + origin) — Контент work; merged into feat
   2026-06-15 (`fc075106..35674729`). Safe to delete after a final `--not feat` check.
 - `origin/claude/doctor-pages-rebuild` — early pages-rebuild phase branch; superseded.
