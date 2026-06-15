@@ -1,1 +1,512 @@
-/* E redesign — calendar / schedule (filled later) */
+/* ============================================================
+   E redesign — calendar / schedule (Расписание page)
+   Palette: canvas #f9f9f6 | card #fff | border #e7e3db
+            ink #16202e | muted #5a6675 | faint #8b95a3
+            accent #42608a | accent-soft #eef2f7
+            success #2f8a62/#e6f3ec
+            gold #c2812e/#fbf2df
+            danger #c2402f/#fdf0ee
+   Scoped: #app-shell-doctor / #app-shell-content
+   ============================================================ */
+
+/* ─── 1. PAGE CANVAS ──────────────────────────────────────── */
+#app-shell-content {
+  background: #f9f9f6 !important;
+}
+
+/* ─── 2. STICKY SCHEDULE HEADER ──────────────────────────── */
+#doctor-schedule-header {
+  background: rgba(249, 249, 246, 0.96) !important;
+  border-bottom: 1px solid #e7e3db !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* Page title */
+#doctor-schedule-header h1 {
+  color: #16202e !important;
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* ─── 3. SECTION TABS (Записи / График работы / Настройки) ─ */
+#doctor-schedule-tabs {
+  gap: 2px !important;
+}
+
+#doctor-schedule-tabs button {
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  padding: 5px 11px !important;
+  border-radius: 6px !important;
+  transition: background 0.12s ease, color 0.12s ease !important;
+  color: #5a6675 !important;
+  background: transparent !important;
+}
+
+/* Active tab — the app applies bg-primary text-primary-foreground */
+#doctor-schedule-tabs button[aria-current="page"] {
+  background: #42608a !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+
+#doctor-schedule-tabs button:not([aria-current="page"]):hover {
+  background: #eef2f7 !important;
+  color: #16202e !important;
+}
+
+/* ─── 4. TOOLBAR (view toggles + period nav + render toggle) ─ */
+[data-testid="cal-toolbar"] {
+  gap: 8px !important;
+  padding: 6px 0 4px !important;
+}
+
+/* ── 4a. View-mode group (3 дня / Неделя / Месяц) ── */
+[data-testid="view-btn-3days"],
+[data-testid="view-btn-weekgrid"],
+[data-testid="view-btn-month"] {
+  height: 30px !important;
+  padding: 0 12px !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  border-radius: 6px !important;
+  border: 1px solid !important;
+  transition: background 0.12s, color 0.12s, border-color 0.12s !important;
+}
+
+/* Inactive view button */
+[data-testid="view-btn-weekgrid"],
+[data-testid="view-btn-month"] {
+  background: #fff !important;
+  color: #5a6675 !important;
+  border-color: #e7e3db !important;
+}
+
+[data-testid="view-btn-weekgrid"]:hover,
+[data-testid="view-btn-month"]:hover {
+  background: #eef2f7 !important;
+  color: #42608a !important;
+  border-color: #c8d4e5 !important;
+}
+
+/* Active view button (3 дня — bg-primary class from app) */
+[data-testid="view-btn-3days"] {
+  background: #42608a !important;
+  color: #fff !important;
+  border-color: #34507a !important;
+}
+
+[data-testid="view-btn-3days"]:hover {
+  background: #34507a !important;
+}
+
+/* ── 4b. Period nav (Сегодня / ◀ / label / ▶) ── */
+[data-testid="period-today"],
+[data-testid="period-prev"],
+[data-testid="period-next"] {
+  height: 30px !important;
+  border-radius: 6px !important;
+  border: 1px solid #e7e3db !important;
+  background: #fff !important;
+  color: #16202e !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  transition: background 0.12s, border-color 0.12s !important;
+}
+
+[data-testid="period-today"]:hover,
+[data-testid="period-prev"]:hover,
+[data-testid="period-next"]:hover {
+  background: #eef2f7 !important;
+  border-color: #c8d4e5 !important;
+  color: #42608a !important;
+}
+
+/* Period label text */
+[data-testid="period-label"] {
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  color: #16202e !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* ── 4c. Render mode toggle (calendar icon / list icon) ── */
+[data-testid="render-btn-calendar"],
+[data-testid="render-btn-list"] {
+  border-radius: 6px !important;
+  border: 1px solid !important;
+  width: 30px !important;
+  height: 30px !important;
+  transition: background 0.12s, color 0.12s, border-color 0.12s !important;
+}
+
+/* Active render button */
+[data-testid="render-btn-calendar"] {
+  background: #42608a !important;
+  color: #fff !important;
+  border-color: #34507a !important;
+}
+
+/* Inactive render button */
+[data-testid="render-btn-list"] {
+  background: #fff !important;
+  color: #5a6675 !important;
+  border-color: #e7e3db !important;
+}
+
+[data-testid="render-btn-list"]:hover {
+  background: #eef2f7 !important;
+  color: #42608a !important;
+  border-color: #c8d4e5 !important;
+}
+
+/* ─── 5. KPI STAT ROW ─────────────────────────────────────── */
+[data-testid="cal-kpi-row"] {
+  gap: 8px !important;
+  margin-bottom: 2px !important;
+}
+
+[data-testid^="kpi-"] {
+  background: #fff !important;
+  border: 1px solid #e7e3db !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  transition: border-color 0.12s, box-shadow 0.12s !important;
+  cursor: pointer !important;
+}
+
+[data-testid^="kpi-"]:hover {
+  border-color: #c8d4e5 !important;
+  box-shadow: 0 1px 4px rgba(66, 96, 138, 0.08) !important;
+}
+
+/* KPI label */
+[data-testid^="kpi-"] p:first-child {
+  font-size: 9.5px !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #8b95a3 !important;
+  line-height: 1.3 !important;
+  margin-bottom: 2px !important;
+}
+
+/* KPI number */
+[data-testid^="kpi-"] p:last-child {
+  font-size: 1.125rem !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+  font-variant-numeric: tabular-nums !important;
+  line-height: 1.2 !important;
+}
+
+/* ─── 6. CALENDAR CONTAINER ──────────────────────────────── */
+.fc {
+  font-family: inherit !important;
+  background: transparent !important;
+}
+
+.fc-view-harness {
+  background: #fff !important;
+  border-radius: 10px !important;
+  border: 1px solid #e7e3db !important;
+  overflow: hidden !important;
+}
+
+/* ─── 7. SCROLLGRID / TABLE BORDERS ─────────────────────── */
+.fc-scrollgrid {
+  border: none !important;
+}
+
+.fc-scrollgrid td,
+.fc-scrollgrid th {
+  border-color: #efece6 !important;
+}
+
+/* ─── 8. COLUMN / DAY HEADERS ────────────────────────────── */
+.fc-col-header {
+  background: #faf9f7 !important;
+}
+
+.fc-col-header-cell {
+  padding: 7px 4px !important;
+  border-bottom: 1px solid #e7e3db !important;
+  background: transparent !important;
+}
+
+.fc-col-header-cell-cushion {
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  color: #5a6675 !important;
+  text-transform: none !important;
+  text-decoration: none !important;
+  display: inline-block !important;
+  padding: 2px 6px !important;
+  border-radius: 5px !important;
+}
+
+/* Today's column header — subtle accent-soft pill */
+.fc-col-header-cell.fc-day-today {
+  background: #eef2f7 !important;
+}
+
+.fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  color: #42608a !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+}
+
+/* ─── 9. TIME AXIS / SLOT LABELS ─────────────────────────── */
+.fc-timegrid-axis {
+  border-right: 1px solid #efece6 !important;
+}
+
+.fc-timegrid-slot {
+  height: 2rem !important;
+  border-color: #f2eeea !important;
+}
+
+.fc-timegrid-slot-label {
+  font-size: 0.6875rem !important;
+  font-weight: 400 !important;
+  color: #aab0bb !important;
+  font-variant-numeric: tabular-nums !important;
+  text-align: right !important;
+  padding-right: 6px !important;
+}
+
+/* Minor (half-hour) slot label — invisible, just the hairline */
+.fc-timegrid-slot.fc-timegrid-slot-minor {
+  border-top-style: dashed !important;
+  border-color: #f5f2ee !important;
+}
+
+.fc-timegrid-slot-label.fc-timegrid-slot-minor .fc-timegrid-slot-label-cushion {
+  display: none !important;
+}
+
+/* ─── 10. COLUMN BACKGROUNDS ─────────────────────────────── */
+.fc-timegrid-col.fc-day-today {
+  background: rgba(238, 242, 247, 0.35) !important;
+}
+
+/* ─── 11. NOW INDICATOR ──────────────────────────────────── */
+.fc-timegrid-now-indicator-line {
+  border-color: #42608a !important;
+  border-width: 1.5px !important;
+}
+
+.fc-timegrid-now-indicator-arrow {
+  border-top-color: #42608a !important;
+  border-bottom-color: #42608a !important;
+}
+
+/* ─── 12. APPOINTMENT CHIPS ──────────────────────────────── */
+
+/* The app emits !bg-primary/15 and !border-primary/35 as Tailwind @layer utilities
+   !important classes. CSS Cascade 5: @layer utilities !important beats unlayered
+   !important. Strategy: set --primary directly on the event element (unlayered,
+   higher specificity than the #app-shell-doctor ancestor rule) so the Tailwind
+   color-mix(in oklab, var(--primary) 15%, transparent) resolves to success-green.
+   Also set background-color directly as a non-@layer fallback. */
+
+/* Confirmed/default chip — success green (Подтверждена) */
+
+:is(#app-shell-content, #app-shell-doctor) .fc-timegrid-event.fc-event.fc-v-event {
+  /* Override --primary on the event element so Tailwind's !bg-primary/15 and
+     !border-primary/35 produce success-green instead of steel-blue.
+     color-mix(in oklab, #2f8a62 15%, transparent) on white ≈ #e6f3ec mint. */
+  --primary: #2f8a62;
+  /* Fallback direct background for browsers not supporting color-mix */
+  background: #e6f3ec !important;
+  background-color: #e6f3ec !important;
+  border-radius: 5px !important;
+  box-shadow: 0 1px 3px rgba(22, 32, 46, 0.07) !important;
+  cursor: pointer !important;
+  margin: 1px !important;
+  transition: box-shadow 0.12s, opacity 0.12s !important;
+  /* Left accent bar — override the 1px right/top/bottom with green tint,
+     and set a stronger 3px solid left bar. The !border-primary/35 Tailwind
+     class will use var(--primary)=#2f8a62 making it a green border. */
+  border-top: 1px solid rgba(47, 138, 98, 0.25) !important;
+  border-right: 1px solid rgba(47, 138, 98, 0.25) !important;
+  border-bottom: 1px solid rgba(47, 138, 98, 0.25) !important;
+  border-left: 3px solid #2f8a62 !important;
+}
+
+:is(#app-shell-content, #app-shell-doctor) .fc-timegrid-event.fc-event.fc-v-event:hover {
+  box-shadow: 0 3px 10px rgba(22, 32, 46, 0.13) !important;
+}
+
+/* Color the text inside confirmed chips */
+:is(#app-shell-content, #app-shell-doctor) .fc-timegrid-event.fc-event.fc-v-event .fc-event-main {
+  color: #1d6346 !important;
+  --fc-event-text-color: #1d6346 !important;
+}
+
+/* CSS hooks: status coloring via data-status attribute or class.
+   Pending/gold: */
+#app-shell-content .fc-timegrid-event.fc-event.status-pending,
+#app-shell-content .fc-timegrid-event[data-status="pending"] {
+  background-color: #fbf2df !important;
+  border-left-color: #c2812e !important;
+}
+#app-shell-content .fc-timegrid-event.fc-event.status-pending .fc-event-main,
+#app-shell-content .fc-timegrid-event[data-status="pending"] .fc-event-main {
+  color: #7a4f12 !important;
+  --fc-event-text-color: #7a4f12 !important;
+}
+
+/* Cancelled / danger: */
+#app-shell-content .fc-timegrid-event.fc-event.status-cancelled,
+#app-shell-content .fc-timegrid-event[data-status="cancelled"] {
+  background-color: #fdf0ee !important;
+  border-left-color: #c2402f !important;
+  opacity: 0.85 !important;
+}
+#app-shell-content .fc-timegrid-event.fc-event.status-cancelled .fc-event-main,
+#app-shell-content .fc-timegrid-event[data-status="cancelled"] .fc-event-main {
+  color: #7a1f15 !important;
+  --fc-event-text-color: #7a1f15 !important;
+}
+
+/* Past events — slightly muted across all statuses */
+#app-shell-content .fc-timegrid-event.fc-event.fc-event-past {
+  opacity: 0.58 !important;
+}
+
+/* Event main content */
+.fc-event-main {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.fc-event-main > div {
+  padding: 3px 6px 2px !important;
+}
+
+/* Event title (name · session) */
+.fc-event-main .truncate.font-medium,
+.fc-event-main div.truncate:first-child {
+  font-size: 0.6875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Event subtitle (status label) */
+.fc-event-main .truncate.opacity-80,
+.fc-event-main div.truncate:not(:first-child) {
+  font-size: 0.625rem !important;
+  font-weight: 400 !important;
+  opacity: 0.72 !important;
+  line-height: 1.3 !important;
+}
+
+/* Background events (blocked periods) */
+.fc-event.fc-bg-event {
+  background: rgba(139, 149, 163, 0.08) !important;
+  border: none !important;
+  border-left: 2px solid rgba(139, 149, 163, 0.25) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Resize handle */
+.fc-event-resizer-end {
+  bottom: 0 !important;
+  height: 6px !important;
+  border-top: 1.5px solid rgba(255,255,255,0.5) !important;
+  border-radius: 0 0 5px 5px !important;
+  cursor: s-resize !important;
+}
+
+/* ─── 13. RIGHT DETAIL PANEL (empty state) ─────────────────── */
+aside.w-full.shrink-0 {
+  min-width: 280px !important;
+}
+
+[data-testid="right-panel-empty"] {
+  background: #fff !important;
+  border: 1px solid #e7e3db !important;
+  border-radius: 10px !important;
+  padding: 28px 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  gap: 8px !important;
+  box-shadow: 0 1px 3px rgba(22, 32, 46, 0.04) !important;
+}
+
+/* The emoji icon */
+[data-testid="right-panel-empty"] > div:first-child {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 10px !important;
+  background: #eef2f7 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.25rem !important;
+  opacity: 1 !important;
+  margin-bottom: 4px !important;
+}
+
+/* "Запись не выбрана" heading */
+[data-testid="right-panel-empty"] p:nth-child(2) {
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  color: #16202e !important;
+  margin: 0 !important;
+}
+
+/* Subtitle / hint texts */
+[data-testid="right-panel-empty"] p:nth-child(3),
+[data-testid="right-panel-empty"] p:nth-child(4) {
+  font-size: 0.75rem !important;
+  color: #8b95a3 !important;
+  line-height: 1.45 !important;
+  margin: 0 !important;
+}
+
+/* "Nearest window" hint — subtle accent treatment */
+[data-testid="nearest-window-hint"] {
+  color: #42608a !important;
+  background: #eef2f7 !important;
+  padding: 4px 10px !important;
+  border-radius: 20px !important;
+  font-size: 0.7rem !important;
+  font-weight: 500 !important;
+  margin-top: 2px !important;
+}
+
+/* ─── 14. CREATE APPOINTMENT BUTTON ─────────────────────────── */
+[data-testid="create-appointment-btn"] {
+  background: #42608a !important;
+  color: #fff !important;
+  border-color: #34507a !important;
+  border-radius: 7px !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  transition: background 0.12s !important;
+}
+
+[data-testid="create-appointment-btn"]:hover {
+  background: #34507a !important;
+}
+
+/* ─── 15. CALENDAR WRAPPER CARD ─────────────────────────────── */
+/* The container div wrapping the FC + the right aside */
+#tab-panel-cal > div,
+#app-shell-content [data-testid="tab-panel-cal"] > div {
+  gap: 12px !important;
+}
+
+/* The inner card that wraps overflow + the FC element */
+.overflow-hidden.rounded-xl.border {
+  border-color: #e7e3db !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+}
