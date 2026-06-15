@@ -19,6 +19,10 @@ import { canAccessDoctor } from "@/modules/roles/service";
 const querySchema = z.object({
   instanceId: z.string().uuid(),
   stageItemId: z.string().uuid(),
+  windowDays: z
+    .enum(["7", "30"])
+    .optional()
+    .transform((v) => (v === "30" ? 30 : 7) as 7 | 30),
 });
 
 export async function GET(request: Request) {
@@ -34,18 +38,20 @@ export async function GET(request: Request) {
   const parsed = querySchema.safeParse({
     instanceId: searchParams.get("instanceId"),
     stageItemId: searchParams.get("stageItemId"),
+    windowDays: searchParams.get("windowDays") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
 
-  const { instanceId, stageItemId } = parsed.data;
+  const { instanceId, stageItemId, windowDays } = parsed.data;
 
   try {
     const deps = buildAppDeps();
-    const points = await deps.treatmentProgramProgress.listExerciseMetricsForWeek({
+    const points = await deps.treatmentProgramProgress.listExerciseMetricsForWindow({
       instanceId,
       instanceStageItemId: stageItemId,
+      windowDays,
     });
     return NextResponse.json({ ok: true, points });
   } catch {
