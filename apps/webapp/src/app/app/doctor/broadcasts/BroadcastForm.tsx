@@ -21,6 +21,7 @@ import {
 import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import {
   previewBroadcastAction,
   executeBroadcastAction,
@@ -383,27 +384,15 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
       </div>
 
       {/* Body */}
-      <div className="px-3 py-2.5">
-        <div className="mb-1.5 flex items-center justify-between">
-          <label
-            htmlFor="broadcast-body"
-            className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
-          >
-            Текст сообщения <span aria-hidden>*</span>
-          </label>
-          <span className="text-[10px] text-muted-foreground">
-            {body.length} / 800
-          </span>
-        </div>
-        <textarea
-          id="broadcast-body"
+      <div className={`px-3 py-2.5${isFormLocked ? " pointer-events-none opacity-50" : ""}`}>
+        {/* NOTE: body is stored as Markdown. Per-channel rendering (e.g. markdownToTelegramHtml)
+            should be applied server-side at delivery time in a future iteration. */}
+        <MarkdownEditor
+          name="broadcast-body"
           value={body}
+          onChange={setBody}
           maxLength={800}
-          disabled={isFormLocked}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Текст рассылки (минимум 10 символов)"
-          rows={5}
-          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          label="Текст сообщения * (Markdown)"
         />
       </div>
 
