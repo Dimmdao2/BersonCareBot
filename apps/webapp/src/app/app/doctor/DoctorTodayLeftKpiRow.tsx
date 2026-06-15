@@ -1,13 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState } from "react";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
+import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
+import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import {
   DoctorTodayAttentionDialog,
   type DoctorTodayAttentionKind,
 } from "./DoctorTodayAttentionDialog";
-import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
+import type { TodayDashboardData, TodayIntakeItem, TodayExerciseCommentAttentionItem } from "./loadDoctorTodayDashboard";
 import { routePaths } from "@/app-layer/routes/paths";
 
 type Props = Pick<
@@ -29,6 +32,45 @@ type Props = Pick<
   pendingTestsTotal: number;
 };
 
+type KpiModal = "comments" | "intake" | null;
+
+function IntakeModalItem({ item }: { item: TodayIntakeItem }) {
+  return (
+    <div className={doctorSectionItemClass}>
+      <p className="font-medium text-foreground">{item.patientName}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">Тел.: {item.patientPhone}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {item.typeLabel} · {item.createdAtLabel}
+      </p>
+      {item.summaryPreview ? (
+        <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
+          {item.summaryPreview}
+        </p>
+      ) : null}
+      <p className="mt-2">
+        <Link href={item.href} className={doctorInlineLinkClass}>
+          Открыть заявку
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+function ExerciseCommentModalItem({ item }: { item: TodayExerciseCommentAttentionItem }) {
+  return (
+    <div className={doctorSectionItemClass}>
+      <p className="font-medium text-foreground">{item.patientDisplayName}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{item.stageItemTitle}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{item.latestMessageAtLabel}</p>
+      <p className="mt-2">
+        <Link href={item.href} className={doctorInlineLinkClass}>
+          Открыть комментарии
+        </Link>
+      </p>
+    </div>
+  );
+}
+
 export function DoctorTodayLeftKpiRow({
   intakeCount,
   pendingTestsTotal,
@@ -46,6 +88,7 @@ export function DoctorTodayLeftKpiRow({
   exerciseCommentAttentionTruncated,
 }: Props) {
   const [dialogKind, setDialogKind] = useState<DoctorTodayAttentionKind | null>(null);
+  const [kpiModal, setKpiModal] = useState<KpiModal>(null);
   const [exerciseCommentsState, setExerciseCommentsState] = useState({
     items: exerciseCommentAttentionItems,
     total: exerciseCommentAttentionTotal,
@@ -71,23 +114,23 @@ export function DoctorTodayLeftKpiRow({
           tone={unreadTotal > 0 ? "warning" : "neutral"}
           href={routePaths.doctorCommunications}
         />
-        {/* Комментарии к упражнениям → диалог */}
+        {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
           id="doctor-today-left-kpi-comments"
           title="Комментарии"
           value={exerciseCommentsState.total}
           tone={exerciseCommentsState.total > 0 ? "warning" : "neutral"}
-          onClick={() => openDialog("exerciseComments")}
+          onClick={() => setKpiModal("comments")}
         />
-        {/* Онлайн-заявки → диалог */}
+        {/* Онлайн-заявки → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
           id="doctor-today-left-kpi-intake"
           title="Заявки"
           value={intakeCount}
           tone={intakeCount > 0 ? "warning" : "neutral"}
-          onClick={() => openDialog("intake")}
+          onClick={() => setKpiModal("intake")}
         />
-        {/* Тесты к проверке → диалог */}
+        {/* Тесты к проверке → legacy AttentionDialog (unchanged) */}
         <DoctorStatCard
           id="doctor-today-left-kpi-tests"
           title="Тесты"
@@ -97,6 +140,50 @@ export function DoctorTodayLeftKpiRow({
         />
       </DoctorMetricList>
 
+      {/* KpiPreviewModal: Комментарии */}
+      <KpiPreviewModal<TodayExerciseCommentAttentionItem>
+        open={kpiModal === "comments"}
+        onClose={() => setKpiModal(null)}
+        title="Комментарии"
+        count={exerciseCommentsState.total}
+        items={exerciseCommentsState.items}
+        renderItem={(item) => <ExerciseCommentModalItem item={item} />}
+        searchPlaceholder="Поиск по пациенту…"
+        searchPredicate={(item, q) =>
+          item.patientDisplayName.toLowerCase().includes(q.toLowerCase()) ||
+          item.stageItemTitle.toLowerCase().includes(q.toLowerCase())
+        }
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Нет новых комментариев по упражнениям
+          </p>
+        }
+      />
+
+      {/* KpiPreviewModal: Заявки */}
+      <KpiPreviewModal<TodayIntakeItem>
+        open={kpiModal === "intake"}
+        onClose={() => setKpiModal(null)}
+        title="Заявки"
+        count={intakeCount}
+        items={newIntakeRequests}
+        renderItem={(item) => <IntakeModalItem item={item} />}
+        searchPlaceholder="Поиск по пациенту…"
+        searchPredicate={(item, q) =>
+          item.patientName.toLowerCase().includes(q.toLowerCase()) ||
+          item.patientPhone.toLowerCase().includes(q.toLowerCase())
+        }
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Новых заявок нет.{" "}
+            <Link href="/app/doctor/online-intake" className={doctorInlineLinkClass}>
+              Все заявки
+            </Link>
+          </p>
+        }
+      />
+
+      {/* Legacy AttentionDialog: kept for Тесты */}
       <DoctorTodayAttentionDialog
         open={dialogKind !== null}
         onOpenChange={(open) => {

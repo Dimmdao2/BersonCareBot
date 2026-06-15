@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { getDoctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
+import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import type { SpecialistTaskRow as Task } from "@/modules/specialist-tasks/types";
 import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority";
+import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
 
 function formatWhen(iso: string | null): string | null {
   if (!iso) return null;
@@ -44,6 +47,18 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy }: Props) {
           {overdue ? <span className="text-xs font-medium text-destructive">Просрочено</span> : null}
           <span className="text-xs text-muted-foreground">Открыта</span>
         </div>
+        {/* Patient link (S2.8): show when task is linked to a patient */}
+        {task.patientUserId ? (
+          <p className="mt-0.5 text-xs">
+            <Link
+              href={patientCardHref(task.patientUserId)}
+              className={doctorInlineLinkClass}
+              title="Открыть карточку пациента"
+            >
+              Пациент
+            </Link>
+          </p>
+        ) : null}
         {formatWhen(task.createdAt) ? (
           <p className="text-xs text-muted-foreground">Поставлена: {formatWhen(task.createdAt)}</p>
         ) : null}
