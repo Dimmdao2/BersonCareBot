@@ -63,6 +63,12 @@ export function ContentForm({
    * Не передаётся в полностраничных роутах (/edit/[id], /new).
    */
   onBack,
+  /**
+   * Compact sidebar: уже ~260px вместо 340px; чуть теснее gaps.
+   * Используется в inline-pane (ContentEditorRightPane).
+   * По умолчанию false — полностраничные роуты не меняются.
+   */
+  compact = false,
 }: {
   page?: ContentPage;
   sections: ContentSectionRow[];
@@ -72,6 +78,7 @@ export function ContentForm({
   initialSectionSlug?: string | null;
   sectionSelectReadOnly?: boolean;
   onBack?: () => void;
+  compact?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
   const isNew = !page;
@@ -112,6 +119,8 @@ export function ContentForm({
   const [previewOpen, setPreviewOpen] = useState(false);
   const slugManualRef = useRef(false);
   const bannerRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const isPublishedHiddenRef = useRef<HTMLInputElement>(null);
 
   // ─── baseline snapshot for dirty detection ────────────────────────────────
   const baselineRef = useRef({
@@ -240,8 +249,16 @@ export function ContentForm({
   // ─── save button disabled logic ───────────────────────────────────────────
   const saveDisabled = pending || (!isDirty && !isNew);
 
+  // ─── derived grid/gap classes based on compact prop ─────────────────────
+  const gridColsClass = compact
+    ? "lg:grid-cols-[minmax(0,1fr)_260px]"
+    : "lg:grid-cols-[minmax(0,1fr)_340px]";
+  const gapXClass = compact ? "gap-x-4" : "gap-x-6";
+  const colGapClass = compact ? "gap-4" : "gap-5";
+
   return (
     <form
+      ref={formRef}
       action={formAction}
       className="flex flex-col gap-0"
       onInput={(e) => {
@@ -254,20 +271,33 @@ export function ContentForm({
         if (target.name === "linked_course_id") setLinkedCourseIdValue(target.value);
       }}
     >
-      {/* Two-column grid: left = main content, right = sidebar ~340px */}
-      <div className="grid grid-cols-1 gap-x-6 gap-y-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      {/* Two-column grid: left = main content, right = sidebar */}
+      <div className={`grid grid-cols-1 gap-y-6 ${gapXClass} ${gridColsClass}`}>
 
         {/* ── MAIN COLUMN ─────────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-5">
+        <div className={`flex flex-col ${colGapClass}`}>
 
-          {/* Optional back button (inline mode only) */}
-          {onBack ? (
-            <div>
+          {/* Header row: optional back button + publish status chip (#8).
+               Always rendered — chip is always visible; back button only in inline mode. */}
+          <div className="flex items-center justify-between gap-2">
+            {onBack ? (
               <Button type="button" variant="ghost" size="sm" onClick={handleBack} className="-ml-2">
                 ← к списку
               </Button>
-            </div>
-          ) : null}
+            ) : (
+              <span />
+            )}
+            {/* #8 — Publish-status chip: green when published, muted when draft */}
+            {isPublishedValue ? (
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                Опубликовано
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                Черновик
+              </span>
+            )}
+          </div>
 
           {/* Rating summary (edit mode) */}
           {page && materialRatingSummary ? (
@@ -427,19 +457,21 @@ export function ContentForm({
             onValueChange={setBodyMdValue}
           />
 
-          {/* Checkboxes: Опубликовано / Требует авторизации */}
+          {/* #4 — Hidden is_published.
+               Uncontrolled so we can set .value synchronously in publish/unpublish handlers
+               before requestSubmit() — React state (isPublishedValue) drives the chip + dirty
+               detection; the DOM value is the authoritative FormData source.
+               FormData field name is unchanged; saveContentPage is NOT touched. */}
+          <input
+            ref={isPublishedHiddenRef}
+            type="hidden"
+            name="is_published"
+            key={`pub-hidden-${page?.id ?? "new"}`}
+            defaultValue={isPublishedValue ? "on" : ""}
+          />
+
+          {/* Requires-auth checkbox stays as-is */}
           <div className="flex flex-col gap-3">
-            <label className="flex cursor-pointer items-center gap-2.5">
-              <input
-                type="checkbox"
-                name="is_published"
-                defaultChecked={page?.isPublished ?? true}
-                key={`pub-${page?.id ?? "new"}`}
-                onChange={(e) => setIsPublishedValue(e.target.checked)}
-                className="h-4 w-4 rounded border-input accent-primary"
-              />
-              <span className={fieldLabelClass}>Опубликовано</span>
-            </label>
             <label className="flex cursor-pointer items-center gap-2.5">
               <input
                 type="checkbox"
@@ -456,9 +488,9 @@ export function ContentForm({
         {/* ── END MAIN COLUMN ─────────────────────────────────────────────── */}
 
         {/* ── SIDEBAR COLUMN ──────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-5">
+        <div className={`flex flex-col ${colGapClass}`}>
           {/* Sticky wrapper keeps sidebar in view while main column scrolls */}
-          <div className="lg:sticky lg:top-4 flex flex-col gap-5">
+          <div className={`lg:sticky lg:top-4 flex flex-col ${colGapClass}`}>
 
             {/* Error / success banner — at the top of sidebar for visibility after scroll */}
             <div ref={bannerRef}>
@@ -486,10 +518,47 @@ export function ContentForm({
               ) : null}
             </div>
 
-            {/* Save button */}
-            <Button type="submit" disabled={saveDisabled} className="w-full">
-              {pending ? "Сохранение…" : "Сохранить"}
-            </Button>
+            {/* #4 — Save / Publish separation bar.
+                 «Сохранить» submits with current isPublishedValue unchanged.
+                 «Опубликовать» sets isPublishedValue=true then submits.
+                 «Снять с публикации» sets isPublishedValue=false then submits.
+                 Hidden is_published input (in main column) reflects isPublishedValue.
+                 saveContentPage + FormData field names are untouched. */}
+            <div className="flex flex-col gap-2">
+              <Button type="submit" disabled={saveDisabled} className="w-full">
+                {pending ? "Сохранение…" : "Сохранить"}
+              </Button>
+              {isPublishedValue ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={pending}
+                  onClick={() => {
+                    // Set DOM value synchronously so FormData picks it up on submit
+                    if (isPublishedHiddenRef.current) isPublishedHiddenRef.current.value = "";
+                    setIsPublishedValue(false);
+                    formRef.current?.requestSubmit();
+                  }}
+                >
+                  Снять с публикации
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="default"
+                  className="w-full"
+                  disabled={pending}
+                  onClick={() => {
+                    if (isPublishedHiddenRef.current) isPublishedHiddenRef.current.value = "on";
+                    setIsPublishedValue(true);
+                    formRef.current?.requestSubmit();
+                  }}
+                >
+                  Опубликовать
+                </Button>
+              )}
+            </div>
 
             {/* Preview toggle */}
             <Button type="button" variant="outline" className="w-full" onClick={() => setPreviewOpen((v) => !v)}>

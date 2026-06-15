@@ -144,6 +144,7 @@ export function ContentEditorRightPane({
       sections={sections}
       publishedCourses={publishedCourses}
       onBack={clear}
+      compact
     />
   );
 }

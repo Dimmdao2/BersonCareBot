@@ -179,6 +179,7 @@ function SystemFolderPane({
         left={leftContent}
         right={rightContent}
         mobileView={editor.selectedPageId != null ? "detail" : "list"}
+        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
         mobileBackSlot={
           editor.selectedPageId != null ? (
             <Button
@@ -272,6 +273,7 @@ function ArticleSectionPane({
         left={leftContent}
         right={rightContent}
         mobileView={editor.selectedPageId != null ? "detail" : "list"}
+        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
         mobileBackSlot={
           editor.selectedPageId != null ? (
             <Button
