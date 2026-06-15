@@ -598,6 +598,43 @@ export function createTreatmentProgramProgressService(deps: {
       return actionLog.listForInstance({ instanceId, limit: 200 });
     },
 
+    async listExerciseMetricsForWindow(params: {
+      instanceId: string;
+      instanceStageItemId: string;
+      windowDays: 7 | 30;
+    }): Promise<import("./types").ExerciseMetricPoint[]> {
+      assertUuid(params.instanceId);
+      assertUuid(params.instanceStageItemId);
+      const now = new Date();
+      // Use +1 min as exclusive upper bound so rows created at "now" are included.
+      const windowEndDate = new Date(now.getTime() + 60_000);
+      const windowEndUtcIso = windowEndDate.toISOString();
+      const windowStartDate = new Date(now);
+      windowStartDate.setUTCDate(windowStartDate.getUTCDate() - params.windowDays);
+      const windowStartUtcIso = windowStartDate.toISOString();
+      const rows = await actionLog.listDoneForStageItemInWindow({
+        instanceId: params.instanceId,
+        instanceStageItemId: params.instanceStageItemId,
+        windowStartUtcIso,
+        windowEndUtcExclusiveIso: windowEndUtcIso,
+      });
+      return rows.map((r) => {
+        const p = r.payload ?? {};
+        const reps =
+          typeof p.reps === "number" && Number.isFinite(p.reps) ? p.reps : null;
+        const weightKg =
+          typeof p.weightKg === "number" && Number.isFinite(p.weightKg)
+            ? p.weightKg
+            : null;
+        const sets =
+          typeof p.sets === "number" && Number.isFinite(p.sets) ? p.sets : null;
+        const d = p.perceivedDifficulty;
+        const difficulty: import("./types").LfkPostSessionDifficulty | null =
+          d === "easy" || d === "medium" || d === "hard" ? d : null;
+        return { at: r.createdAt, reps, weightKg, sets, difficulty };
+      });
+    },
+
     async listExerciseMetricsForWeek(params: {
       instanceId: string;
       instanceStageItemId: string;
@@ -605,7 +642,6 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(params.instanceId);
       assertUuid(params.instanceStageItemId);
       const now = new Date();
-      // Use +1 min as exclusive upper bound so rows created at "now" are included.
       const windowEndDate = new Date(now.getTime() + 60_000);
       const windowEndUtcIso = windowEndDate.toISOString();
       const windowStartDate = new Date(now);
