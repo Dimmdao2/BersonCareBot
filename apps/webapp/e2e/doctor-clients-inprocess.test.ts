@@ -31,11 +31,9 @@ describe("doctor clients e2e (in-process)", () => {
     expect(profile).toBeNull();
   });
 
-  it("DoctorClientsPanel and ClientsFilters are client components", async () => {
-    const panel = await import("@/app/app/doctor/clients/DoctorClientsPanel");
-    const filters = await import("@/app/app/doctor/clients/ClientsFilters");
-    expect(typeof panel.DoctorClientsPanel).toBe("function");
-    expect(typeof filters.ClientsFilters).toBe("function");
+  it("PatientsPageClient is a client component (unified patients list)", async () => {
+    const mod = await import("@/app/app/doctor/patients/PatientsPageClient");
+    expect(typeof mod.PatientsPageClient).toBe("function");
   });
 
   it("ClientProfileCard and doctorClientProfileHref are defined", async () => {

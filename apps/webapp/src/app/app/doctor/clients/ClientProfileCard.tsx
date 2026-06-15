@@ -90,7 +90,7 @@ function ClientProfileCardInner({
   profile,
   messageHistory,
   userId,
-  listBasePath = "/app/doctor/clients",
+  listBasePath = "/app/doctor/patients",
   profileListScope,
   isAdmin = false,
   canPermanentDelete = false,

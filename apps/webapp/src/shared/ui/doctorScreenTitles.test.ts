@@ -12,8 +12,8 @@ describe("getDoctorScreenTitle", () => {
     expect(getDoctorScreenTitle("/app/doctor/online-intake")).toBe("Онлайн-заявки");
     expect(getDoctorScreenTitle("/app/doctor/content/library")).toBe("Библиотека файлов");
   });
-  it("returns patients for list", () => {
-    expect(getDoctorScreenTitle("/app/doctor/clients")).toBe("Пациенты");
+  it("returns patients for list (new canonical URL)", () => {
+    expect(getDoctorScreenTitle("/app/doctor/patients")).toBe("Пациенты");
   });
   it("returns client for detail", () => {
     expect(getDoctorScreenTitle("/app/doctor/clients/u1")).toBe("Клиент");

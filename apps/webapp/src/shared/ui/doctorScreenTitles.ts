@@ -22,7 +22,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/admin/integrations": "Интеграции",
     "/app/doctor/admin/booking": "Настройки записи",
     "/app/doctor/admin/technical": "Технические режимы",
-    "/app/doctor/clients": "Пациенты",
+    "/app/doctor/patients": "Пациенты",
     "/app/doctor/schedule": "Расписание",
     "/app/doctor/communications": "Коммуникации",
     "/app/doctor/appointments": "Записи",

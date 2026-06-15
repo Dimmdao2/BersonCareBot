@@ -4,14 +4,16 @@
  * PatientsPageClient — unified patients list.
  *
  * Layout (desktop, 2-column):
- *   LEFT  – filter panel: search (full-width) + segment stat cards + channel row + additional filters
+ *   LEFT  – filter panel: search (full-width, top of block) + segment stat cards + channel row + additional filters
  *   RIGHT – patient list with icon-filter rail header + patient preview
  *
- * The filter panel markup is kept pixel-for-pixel identical to the old DoctorClientsPanel
- * right-section (§ "Дополнительные фильтры" + DoctorStatCard segments).
- * Only the height clip is fixed: the panel now fills the full viewport height.
+ * The filter panel markup reproduces the old DoctorClientsPanel right-section
+ * pixel-for-pixel (grid-cols-2 xl:grid-cols-2 stat cards, «Дополнительные фильтры»
+ * button row, same spacing/borders), with the only permitted change being the
+ * panel's outer height (now full-height, not clipped).
+ * Search is placed at the very top of the left block, above the stat cards.
  *
- * Search logic reused from Wave-2 PatientsPageClient (debounced API call, min 3 chars).
+ * Search logic: debounced API call (/api/doctor/patients?q=…), min 3 chars.
  */
 
 import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
@@ -61,6 +63,20 @@ type IconFiltersState = {
   app: TriFilterState;
 };
 
+// Legacy per-button filter state (mirrors old DoctorClientsPanel ClientFiltersState)
+type LegacyFiltersState = {
+  telegram: boolean;
+  max: boolean;
+  email: boolean;
+  phone: boolean;
+  visitedMonth: boolean;
+  cancellations: boolean;
+  reschedules: boolean;
+  withoutAppointments: boolean;
+  memberships: boolean;
+  archive: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Segment definitions (merged: old 4-card model + new extended segments)
 // ---------------------------------------------------------------------------
@@ -85,32 +101,19 @@ type SegmentDef = {
 };
 
 const SEGMENTS: SegmentDef[] = [
-  { key: "all",                 title: "Все",                  urlValue: null },
-  { key: "appointments",        title: "С записями",           urlValue: "appointments" },
-  { key: "on_support",          title: "На сопровождении",     urlValue: "on_support" },
-  { key: "with_program",        title: "С программой",         urlValue: "with_program" },
-  { key: "without_appointments",title: "Без приёмов",          urlValue: "without_appointments" },
-  { key: "new",                 title: "Новые",                urlValue: "new" },
-  { key: "former",              title: "Бывшие",               urlValue: "former" },
-  { key: "cancellations",       title: "С отменами",           urlValue: "cancellations" },
-  { key: "memberships",         title: "С абонементами",       urlValue: "memberships" },
-  { key: "visited_month",       title: "Приём в этом мес.",    urlValue: "visited_month" },
+  { key: "all",                  title: "Все",                  urlValue: null },
+  { key: "appointments",         title: "С записями",           urlValue: "appointments" },
+  { key: "on_support",           title: "На сопровождении",     urlValue: "on_support" },
+  { key: "with_program",         title: "С программой",         urlValue: "with_program" },
+  { key: "without_appointments", title: "Без приёмов",          urlValue: "without_appointments" },
+  { key: "new",                  title: "Новые",                urlValue: "new" },
+  { key: "former",               title: "Бывшие",               urlValue: "former" },
+  { key: "cancellations",        title: "С отменами",           urlValue: "cancellations" },
+  { key: "memberships",          title: "С абонементами",       urlValue: "memberships" },
+  { key: "visited_month",        title: "Приём в этом мес.",    urlValue: "visited_month" },
 ];
 
-// Row split: top row (5 items), bottom row (5 items)
-const SEGMENTS_ROW1 = SEGMENTS.slice(0, 5);
-const SEGMENTS_ROW2 = SEGMENTS.slice(5);
-
-type ChannelKey = "telegram" | "max" | "email" | "phone" | "archive";
-type ChannelDef = { key: ChannelKey; label: string };
-
-const CHANNELS: ChannelDef[] = [
-  { key: "telegram", label: "Telegram" },
-  { key: "max",      label: "MAX" },
-  { key: "email",    label: "Email" },
-  { key: "phone",    label: "Телефон" },
-  { key: "archive",  label: "Архив" },
-];
+type ChannelKey = "telegram" | "max" | "email" | "phone";
 
 const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(10,1.75rem)] gap-1";
 
@@ -204,6 +207,19 @@ const DEFAULT_ICON_FILTERS: IconFiltersState = {
   email: "off",
   phone: "off",
   app: "off",
+};
+
+const DEFAULT_LEGACY_FILTERS: LegacyFiltersState = {
+  telegram: false,
+  max: false,
+  email: false,
+  phone: false,
+  visitedMonth: false,
+  cancellations: false,
+  reschedules: false,
+  withoutAppointments: false,
+  memberships: false,
+  archive: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -369,12 +385,17 @@ type PatientsContentProps = {
   activeChannel: string | null;
   archivedOnly: boolean;
   searchQuery: string;
+  searchInput: string;
+  legacyFilters: LegacyFiltersState;
   iconFilters: IconFiltersState;
   isListPending: boolean;
   onSegmentChange: (value: string | null) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
+  onToggleLegacyFilter: (key: keyof LegacyFiltersState) => void;
   onCycleRichIconFilter: (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
   onCycleTriIconFilter: (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
+  onClearSearch: () => void;
+  onSearchInput: (value: string) => void;
 };
 
 function PatientsContent({
@@ -384,12 +405,17 @@ function PatientsContent({
   activeChannel,
   archivedOnly,
   searchQuery,
+  searchInput,
+  legacyFilters,
   iconFilters,
   isListPending,
   onSegmentChange,
   onChannelChange,
+  onToggleLegacyFilter,
   onCycleRichIconFilter,
   onCycleTriIconFilter,
+  onClearSearch,
+  onSearchInput,
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -409,24 +435,51 @@ function PatientsContent({
 
   return (
     <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
-      {/* ===== LEFT: filter panel ===== */}
-      {/* rounded-lg border bg-card p3 keeps the exact old right-section look */}
-      <section className="rounded-lg border border-border bg-card p-3">
-        {/* Segment stat cards — exact DoctorMetricList / DoctorStatCard markup from old page */}
-        <DoctorMetricList className="grid-cols-5 xl:grid-cols-5 mb-1">
-          {SEGMENTS_ROW1.map((seg) => (
-            <DoctorStatCard
-              key={seg.key}
-              id={`doctor-patients-segment-${seg.key}`}
-              title={seg.title}
-              value={getSegmentCount(seg.key, metrics, allClients) ?? "—"}
-              tone={segmentTone(seg.key)}
-              onClick={() => onSegmentChange(seg.urlValue)}
+      {/* ===== LEFT: filter/selection panel ===== */}
+      {/* Outer card exactly mirrors old DoctorClientsPanel right-section: rounded-lg border bg-card p-3 */}
+      {/* Height: full viewport height (old page was clipped at bottom — fixed here) */}
+      <section
+        className={cn(
+          "rounded-lg border border-border bg-card p-3",
+          "lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_6rem)] lg:overflow-y-auto",
+        )}
+      >
+        {/* Search — full width of this left block, above the stat cards */}
+        <div className="mb-3">
+          <div className="relative flex items-center">
+            <Search
+              className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
+              aria-hidden
             />
-          ))}
-        </DoctorMetricList>
-        <DoctorMetricList className="grid-cols-5 xl:grid-cols-5">
-          {SEGMENTS_ROW2.map((seg) => (
+            <Input
+              type="search"
+              placeholder="Поиск (от 3 символов)…"
+              value={searchInput}
+              onChange={(e) => onSearchInput(e.target.value)}
+              className="pl-8 pr-8 text-sm"
+              aria-label="Поиск пациентов"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={onClearSearch}
+                className="absolute right-2.5 text-muted-foreground hover:text-foreground"
+                aria-label="Сбросить поиск"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+          {searchInput.length > 0 && searchInput.trim().length < 3 ? (
+            <p className="mt-1 text-muted-foreground text-xs">
+              Введите ещё {3 - searchInput.trim().length} симв.
+            </p>
+          ) : null}
+        </div>
+
+        {/* Segment stat cards — grid-cols-2 xl:grid-cols-2, identical to old DoctorClientsPanel right-section */}
+        <DoctorMetricList className="grid-cols-2 xl:grid-cols-2">
+          {SEGMENTS.map((seg) => (
             <DoctorStatCard
               key={seg.key}
               id={`doctor-patients-segment-${seg.key}`}
@@ -438,33 +491,110 @@ function PatientsContent({
           ))}
         </DoctorMetricList>
 
-        {/* Channel / archive row */}
+        {/* Additional filters — exact markup from old DoctorClientsPanel §"Дополнительные фильтры" */}
         <div className="mt-3 border-t border-border/60 pt-3">
-          <p className="mb-2 text-xs text-muted-foreground">Канал связи · архив</p>
+          <p className="mb-2 text-xs text-muted-foreground">Дополнительные фильтры</p>
           <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
-            {CHANNELS.map((ch) => {
-              const isArchive = ch.key === "archive";
-              const isActive = isArchive ? archivedOnly : activeChannel === ch.key;
-              return (
-                <Button
-                  key={ch.key}
-                  type="button"
-                  size="sm"
-                  variant={isActive ? "default" : "outline"}
-                  className="h-7 px-2 text-xs"
-                  onClick={() => {
-                    if (isArchive) {
-                      onChannelChange(null, !archivedOnly);
-                    } else {
-                      onChannelChange(isActive ? null : ch.key, false);
-                    }
-                  }}
-                  aria-pressed={isActive}
-                >
-                  {ch.label}
-                </Button>
-              );
-            })}
+            <Button
+              type="button"
+              size="sm"
+              variant={activeChannel === "telegram" ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onChannelChange(activeChannel === "telegram" ? null : "telegram", false)}
+              aria-pressed={activeChannel === "telegram"}
+            >
+              Telegram
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={activeChannel === "max" ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onChannelChange(activeChannel === "max" ? null : "max", false)}
+              aria-pressed={activeChannel === "max"}
+            >
+              MAX
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={activeChannel === "email" ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onChannelChange(activeChannel === "email" ? null : "email", false)}
+              aria-pressed={activeChannel === "email"}
+            >
+              Email
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={activeChannel === "phone" ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onChannelChange(activeChannel === "phone" ? null : "phone", false)}
+              aria-pressed={activeChannel === "phone"}
+            >
+              Телефон
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={legacyFilters.visitedMonth ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onToggleLegacyFilter("visitedMonth")}
+              aria-pressed={legacyFilters.visitedMonth}
+            >
+              Приём в этом месяце
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={legacyFilters.cancellations ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onToggleLegacyFilter("cancellations")}
+              aria-pressed={legacyFilters.cancellations}
+            >
+              Есть отмены
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={legacyFilters.reschedules ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onToggleLegacyFilter("reschedules")}
+              aria-pressed={legacyFilters.reschedules}
+            >
+              Есть переносы
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={legacyFilters.withoutAppointments ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onToggleLegacyFilter("withoutAppointments")}
+              aria-pressed={legacyFilters.withoutAppointments}
+            >
+              Без записей
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={legacyFilters.memberships ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onToggleLegacyFilter("memberships")}
+              aria-pressed={legacyFilters.memberships}
+            >
+              С абонементами
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={archivedOnly ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              onClick={() => onChannelChange(null, !archivedOnly)}
+              aria-pressed={archivedOnly}
+            >
+              Архив
+            </Button>
           </div>
         </div>
       </section>
@@ -485,7 +615,7 @@ function PatientsContent({
           <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
             <HeaderIconButton
               label="Фильтр записей"
-              title="Записи: все -> с записями -> с активными -> без записей"
+              title="Записи: все состояния -> с записями -> с активными -> без записей"
               state={iconFilters.appointments}
               onClick={() => onCycleRichIconFilter("appointments")}
             >
@@ -493,7 +623,7 @@ function PatientsContent({
             </HeaderIconButton>
             <HeaderIconButton
               label="Фильтр переписки"
-              title="Переписка: все -> с перепиской -> с непрочитанными -> без переписки"
+              title="Переписка: все состояния -> с перепиской -> с непрочитанными -> без переписки"
               state={iconFilters.messages}
               onClick={() => onCycleRichIconFilter("messages")}
             >
@@ -679,7 +809,7 @@ export function PatientsPageClient({
 
   // Search state (local, debounced)
   const [searchInput, setSearchInput] = useState(initialFilters.q);
-  const [, setSearchQuery] = useState(initialFilters.q);
+  const [searchQuery, setSearchQuery] = useState(initialFilters.q);
   const [listPromise, setListPromise] = useState<Promise<ClientListItem[]>>(initialListPromise);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -692,6 +822,9 @@ export function PatientsPageClient({
 
   // Icon filter state (client-side only, not reflected in URL)
   const [iconFilters, setIconFilters] = useState<IconFiltersState>(DEFAULT_ICON_FILTERS);
+
+  // Legacy per-button filter state (client-side only)
+  const [legacyFilters, setLegacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
 
   const router = useRouter();
 
@@ -775,6 +908,13 @@ export function PatientsPageClient({
     fetchList("");
   }, [fetchList]);
 
+  const handleToggleLegacyFilter = useCallback(
+    (key: keyof LegacyFiltersState) => {
+      setLegacyFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+    },
+    [],
+  );
+
   // Keep state in sync when server-side navigation occurs (Next.js router)
   useEffect(() => {
     setListPromise(initialListPromise);
@@ -800,105 +940,26 @@ export function PatientsPageClient({
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Search — full width of the left block (placed above the 2-col grid) */}
-      <form
-        id="doctor-patients-search-form"
-        onSubmit={(e) => e.preventDefault()}
-        className="flex flex-col gap-2"
-      >
-        <div className="relative flex items-center">
-          <Search
-            className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            placeholder="Поиск (от 3 символов)…"
-            value={searchInput}
-            onChange={(e) => handleSearchInput(e.target.value)}
-            className="pl-8 pr-8 text-sm"
-            aria-label="Поиск пациентов"
-          />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={clearSearch}
-              className="absolute right-2.5 text-muted-foreground hover:text-foreground"
-              aria-label="Сбросить поиск"
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
-        </div>
-        {searchInput.length > 0 && searchInput.trim().length < 3 ? (
-          <p className="text-muted-foreground text-xs">
-            Введите ещё {3 - searchInput.trim().length} симв.
-          </p>
-        ) : null}
-        {/* Active filter badge row */}
-        {(activeSegment || activeChannel || archivedOnly) && (
-          <div className="flex flex-wrap gap-1">
-            {activeSegment && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                {SEGMENTS.find((s) => s.urlValue === activeSegment)?.title ?? activeSegment}
-                <button
-                  type="button"
-                  onClick={() => handleSegmentChange(null)}
-                  className="hover:text-primary/70"
-                  aria-label="Снять фильтр сегмента"
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            )}
-            {activeChannel && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground">
-                {CHANNELS.find((c) => c.key === activeChannel)?.label ?? activeChannel}
-                <button
-                  type="button"
-                  onClick={() => handleChannelChange(null, false)}
-                  className="hover:text-muted-foreground"
-                  aria-label="Снять фильтр канала"
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            )}
-            {archivedOnly && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground">
-                Архив
-                <button
-                  type="button"
-                  onClick={() => handleChannelChange(null, false)}
-                  className="hover:text-muted-foreground"
-                  aria-label="Выйти из архива"
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            )}
-          </div>
-        )}
-      </form>
-
-      {/* 2-column grid: filter panel (left) + patient list (right) */}
-      <Suspense fallback={<PatientListSkeleton />}>
-        <PatientsContent
-          listPromise={listPromise}
-          metricsPromise={metricsPromise}
-          activeSegment={activeSegment}
-          activeChannel={activeChannel}
-          archivedOnly={archivedOnly}
-          searchQuery={searchInput}
-          iconFilters={iconFilters}
-          isListPending={isListPending}
-          onSegmentChange={handleSegmentChange}
-          onChannelChange={handleChannelChange}
-          onCycleRichIconFilter={handleCycleRichIconFilter}
-          onCycleTriIconFilter={handleCycleTriIconFilter}
-        />
-      </Suspense>
-    </div>
+    <Suspense fallback={<PatientListSkeleton />}>
+      <PatientsContent
+        listPromise={listPromise}
+        metricsPromise={metricsPromise}
+        activeSegment={activeSegment}
+        activeChannel={activeChannel}
+        archivedOnly={archivedOnly}
+        searchQuery={searchQuery}
+        searchInput={searchInput}
+        legacyFilters={legacyFilters}
+        iconFilters={iconFilters}
+        isListPending={isListPending}
+        onSegmentChange={handleSegmentChange}
+        onChannelChange={handleChannelChange}
+        onToggleLegacyFilter={handleToggleLegacyFilter}
+        onCycleRichIconFilter={handleCycleRichIconFilter}
+        onCycleTriIconFilter={handleCycleTriIconFilter}
+        onClearSearch={clearSearch}
+        onSearchInput={handleSearchInput}
+      />
+    </Suspense>
   );
 }

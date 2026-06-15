@@ -17,12 +17,12 @@ describe("isDoctorNavItemActive", () => {
   it("matches overview only on /app/doctor", () => {
     expect(isDoctorNavItemActive("/app/doctor", "/app/doctor")).toBe(true);
     expect(isDoctorNavItemActive("/app/doctor", "/app/doctor/")).toBe(true);
-    expect(isDoctorNavItemActive("/app/doctor", "/app/doctor/clients")).toBe(false);
+    expect(isDoctorNavItemActive("/app/doctor", "/app/doctor/patients")).toBe(false);
   });
 
   it("matches path prefix for nested routes", () => {
     expect(
-      isDoctorNavItemActive("/app/doctor/clients?scope=appointments", "/app/doctor/clients"),
+      isDoctorNavItemActive("/app/doctor/patients?segment=on_support", "/app/doctor/patients"),
     ).toBe(true);
     expect(
       isDoctorNavItemActive("/app/doctor/clients?scope=appointments", "/app/doctor/clients/42"),

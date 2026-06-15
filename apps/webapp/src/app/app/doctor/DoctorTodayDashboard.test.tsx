@@ -164,7 +164,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText("Клиентов на сопровождении нет")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Список клиентов" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients?scope=all&support=on",
+      "/app/doctor/patients?segment=on_support",
     );
     // Мини-календарь: нет записей (R1: подсказка над таймлайном)
     expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
@@ -207,7 +207,7 @@ describe("DoctorTodayDashboard", () => {
     );
     expect(screen.getByRole("link", { name: "Все на сопровождении" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients?scope=all&support=on",
+      "/app/doctor/patients?segment=on_support",
     );
   });
 

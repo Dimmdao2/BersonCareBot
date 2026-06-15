@@ -192,10 +192,10 @@ const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
 
 const MESSAGES_HREF = "/app/doctor/messages";
 
-export const ON_SUPPORT_LIST_HREF = "/app/doctor/clients?scope=all&support=on";
+export const ON_SUPPORT_LIST_HREF = "/app/doctor/patients?segment=on_support";
 
 export const PROGRAM_WITHOUT_SUPPORT_LIST_HREF =
-  "/app/doctor/clients?scope=all&support=programWithoutSupport";
+  "/app/doctor/patients?segment=with_program";
 
 export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointmentItem {
   const uid = row.clientUserId?.trim() ?? "";
