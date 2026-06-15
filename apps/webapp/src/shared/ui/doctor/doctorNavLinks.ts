@@ -114,7 +114,6 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
         href: "/app/doctor/audit-log",
         badgeKey: "registrationSystemFailures",
       },
-      { id: "booking-merge", label: "Мердж пациентов", href: "/app/doctor/booking-merge" },
     ],
   },
 ];
