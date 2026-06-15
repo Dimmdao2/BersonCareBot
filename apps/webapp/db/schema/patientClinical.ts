@@ -32,6 +32,10 @@ export type ClinicalComplaintStatus = (typeof CLINICAL_COMPLAINT_STATUSES)[numbe
 export const CLINICAL_DIAGNOSIS_STATUSES = ["active", "refined", "resolved"] as const;
 export type ClinicalDiagnosisStatus = (typeof CLINICAL_DIAGNOSIS_STATUSES)[number];
 
+/** Врачебный клинический статус диагноза (не зависит от visit-lifecycle). */
+export const DIAGNOSIS_CLINICAL_STATUSES = ["предварительный", "подтверждённый", "закрытый"] as const;
+export type DiagnosisClinicalStatus = (typeof DIAGNOSIS_CLINICAL_STATUSES)[number];
+
 // -- Справочник диагнозов (общеклиничный, без привязки к пациенту) ------------
 
 export const clinicalDiagnosisCatalog = pgTable(
@@ -175,6 +179,11 @@ export const clinicalDiagnosis = pgTable(
     text: text("text").notNull(),
     priority: boolean("priority").default(false).notNull(),
     status: text("status").default("active").notNull(),
+    /**
+     * Врачебный клинический статус: предварительный → подтверждённый → закрытый.
+     * Независим от visit-based status (active/refined/resolved).
+     */
+    clinicalStatus: text("clinical_status").default("предварительный").notNull(),
     sourceVisitId: uuid("source_visit_id").notNull(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -199,6 +208,42 @@ export const clinicalDiagnosis = pgTable(
     check(
       "clinical_diagnosis_status_check",
       sql`status = ANY (ARRAY['active'::text, 'refined'::text, 'resolved'::text])`,
+    ),
+    check(
+      "clinical_diagnosis_clinical_status_check",
+      sql`clinical_status = ANY (ARRAY['предварительный'::text, 'подтверждённый'::text, 'закрытый'::text])`,
+    ),
+  ],
+);
+
+// -- История изменений клинического статуса диагноза --------------------------
+
+export const clinicalDiagnosisStatusHistory = pgTable(
+  "clinical_diagnosis_status_history",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    diagnosisId: uuid("diagnosis_id").notNull(),
+    oldStatus: text("old_status"),
+    newStatus: text("new_status").notNull(),
+    changedBy: uuid("changed_by"),
+    changedAt: timestamp("changed_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    note: text("note"),
+  },
+  (table) => [
+    index("idx_clinical_diagnosis_status_history_diagnosis_id").on(table.diagnosisId),
+    foreignKey({
+      columns: [table.diagnosisId],
+      foreignColumns: [clinicalDiagnosis.id],
+      name: "clinical_diagnosis_status_history_diagnosis_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.changedBy],
+      foreignColumns: [platformUsers.id],
+      name: "clinical_diagnosis_status_history_changed_by_fkey",
+    }).onDelete("set null"),
+    check(
+      "clinical_diagnosis_status_history_new_status_check",
+      sql`new_status = ANY (ARRAY['предварительный'::text, 'подтверждённый'::text, 'закрытый'::text])`,
     ),
   ],
 );

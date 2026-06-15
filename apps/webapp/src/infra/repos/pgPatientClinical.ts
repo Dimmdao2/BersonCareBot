@@ -20,7 +20,10 @@ import type {
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
+  DiagnosisClinicalStatus,
+  DiagnosisStatusHistoryEntry,
   PatientClinicalPort,
+  SetDiagnosisClinicalStatusInput,
   UpdateComplaintFieldsInput,
   UpdateDiagnosisFieldsInput,
   UpdateVisitFieldsInput,
@@ -32,6 +35,7 @@ import {
   clinicalComplaintUpdate,
   clinicalDiagnosis,
   clinicalDiagnosisCatalog,
+  clinicalDiagnosisStatusHistory,
   clinicalDiagnosisUpdate,
   clinicalVisit,
 } from "../../../db/schema/patientClinical";
@@ -175,6 +179,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           text: d.text,
           priority: d.priority,
           status: d.status === "refined" ? "refined" : "active",
+          clinicalStatus: (d.clinicalStatus ?? "предварительный") as DiagnosisClinicalStatus,
           meta,
         };
       });
@@ -465,6 +470,69 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         )
         .returning({ id: clinicalVisit.id });
       return updated.length > 0;
+    },
+
+    // -- Клинический статус диагноза ------------------------------------------
+
+    async setDiagnosisClinicalStatus(input: SetDiagnosisClinicalStatusInput): Promise<boolean> {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        // Fetch current status (also validates patientUserId scope).
+        const existing = await tx
+          .select({ id: clinicalDiagnosis.id, clinicalStatus: clinicalDiagnosis.clinicalStatus })
+          .from(clinicalDiagnosis)
+          .where(
+            and(
+              eq(clinicalDiagnosis.id, input.diagnosisId),
+              eq(clinicalDiagnosis.patientUserId, input.patientUserId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) return false;
+
+        const oldStatus = existing[0].clinicalStatus ?? "предварительный";
+
+        await tx
+          .update(clinicalDiagnosis)
+          .set({ clinicalStatus: input.newStatus })
+          .where(eq(clinicalDiagnosis.id, input.diagnosisId));
+
+        await tx.insert(clinicalDiagnosisStatusHistory).values({
+          diagnosisId: input.diagnosisId,
+          oldStatus,
+          newStatus: input.newStatus,
+          changedBy: input.changedBy,
+          note: input.note ?? null,
+        });
+
+        return true;
+      });
+    },
+
+    async getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
+      const db = getDrizzle();
+      // Join with platform_users to get name — but platform_users may not have a simple
+      // "name" field; fall back to null (the UI shows «неизвестно» in that case).
+      const rows = await db
+        .select({
+          id: clinicalDiagnosisStatusHistory.id,
+          oldStatus: clinicalDiagnosisStatusHistory.oldStatus,
+          newStatus: clinicalDiagnosisStatusHistory.newStatus,
+          changedAt: clinicalDiagnosisStatusHistory.changedAt,
+          note: clinicalDiagnosisStatusHistory.note,
+        })
+        .from(clinicalDiagnosisStatusHistory)
+        .where(eq(clinicalDiagnosisStatusHistory.diagnosisId, diagnosisId))
+        .orderBy(asc(clinicalDiagnosisStatusHistory.changedAt));
+
+      return rows.map((r) => ({
+        id: r.id,
+        oldStatus: r.oldStatus ?? null,
+        newStatus: r.newStatus,
+        changedAt: r.changedAt,
+        changedByName: null, // name resolution deferred (no denormalized name column)
+        note: r.note ?? null,
+      }));
     },
 
     // -- Анамнез ------------------------------------------------------------------

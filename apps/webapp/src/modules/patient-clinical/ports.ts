@@ -25,12 +25,37 @@ export type ActiveComplaint = {
   since: string;
 };
 
+/**
+ * Врачебный клинический статус диагноза.
+ * Независим от visit-based lifecycle (active/refined/resolved).
+ */
+export type DiagnosisClinicalStatus = "предварительный" | "подтверждённый" | "закрытый";
+
+export const DIAGNOSIS_CLINICAL_STATUS_VALUES: DiagnosisClinicalStatus[] = [
+  "предварительный",
+  "подтверждённый",
+  "закрытый",
+];
+
+/** Запись в истории изменений клинического статуса. */
+export type DiagnosisStatusHistoryEntry = {
+  id: string;
+  oldStatus: string | null;
+  newStatus: string;
+  changedAt: string;
+  /** null если пользователь удалён. */
+  changedByName: string | null;
+  note: string | null;
+};
+
 /** Активный (не снятый) диагноз. */
 export type ActiveDiagnosis = {
   id: string;
   text: string;
   priority: boolean;
   status: "active" | "refined";
+  /** Врачебный клинический статус. */
+  clinicalStatus: DiagnosisClinicalStatus;
   /** Человекочитаемая мета, напр. «уточнён 22.01» / «поставлен 05.01». */
   meta: string;
 };
@@ -232,6 +257,15 @@ export type UpdateDiagnosisFieldsInput = {
   priority?: boolean;
 };
 
+/** Установить клинический статус диагноза + записать в историю. */
+export type SetDiagnosisClinicalStatusInput = {
+  patientUserId: string;
+  diagnosisId: string;
+  newStatus: DiagnosisClinicalStatus;
+  changedBy: string;
+  note?: string | null;
+};
+
 /**
  * Правка текстовых полей визита (осмотр/манипуляции/пробы/рекомендации/локация/длительность).
  * Пустая строка очищает поле (→ null). Не трогает жалобы/диагнозы/динамику визита.
@@ -269,6 +303,18 @@ export interface PatientClinicalPort {
   updateDiagnosisFields(input: UpdateDiagnosisFieldsInput): Promise<boolean>;
   /** Поправить текстовые поля визита. */
   updateVisitFields(input: UpdateVisitFieldsInput): Promise<boolean>;
+
+  // -- Клинический статус диагноза -----------------------------------------
+
+  /**
+   * Установить клинический статус диагноза.
+   * Обновляет clinical_diagnosis.clinical_status + пишет строку в history.
+   * Возвращает false если диагноз не найден для данного пациента.
+   */
+  setDiagnosisClinicalStatus(input: SetDiagnosisClinicalStatusInput): Promise<boolean>;
+
+  /** История изменений клинического статуса (старые→новые). */
+  getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]>;
 
   // -- Анамнез (append-log, не per-visit) -----------------------------------
 

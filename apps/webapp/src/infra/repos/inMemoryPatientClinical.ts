@@ -19,7 +19,10 @@ import type {
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
+  DiagnosisClinicalStatus,
+  DiagnosisStatusHistoryEntry,
   PatientClinicalPort,
+  SetDiagnosisClinicalStatusInput,
   UpdateComplaintFieldsInput,
   UpdateDiagnosisFieldsInput,
   UpdateVisitFieldsInput,
@@ -73,9 +76,20 @@ type DiagnosisRow = {
   text: string;
   priority: boolean;
   status: "active" | "refined" | "resolved";
+  clinicalStatus: DiagnosisClinicalStatus;
   sourceVisitId: string;
   resolvedAt: string | null;
   createdAt: string;
+};
+
+type DiagnosisStatusHistoryRow = {
+  id: string;
+  diagnosisId: string;
+  oldStatus: string | null;
+  newStatus: string;
+  changedBy: string | null;
+  changedAt: string;
+  note: string | null;
 };
 
 type DiagnosisUpdateRow = {
@@ -131,6 +145,7 @@ const complaints: ComplaintRow[] = [];
 const complaintUpdates: ComplaintUpdateRow[] = [];
 const diagnoses: DiagnosisRow[] = [];
 const diagnosisUpdates: DiagnosisUpdateRow[] = [];
+const diagnosisStatusHistory: DiagnosisStatusHistoryRow[] = [];
 const catalog: CatalogRow[] = [];
 const anamnesisTrauma: AnamnesisTraumaRow[] = [];
 const anamnesisIllness: AnamnesisIllnessRow[] = [];
@@ -223,6 +238,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           text: d.text,
           priority: d.priority,
           status: d.status === "refined" ? "refined" : "active",
+          clinicalStatus: d.clinicalStatus ?? "предварительный",
           meta,
         };
       })
@@ -350,6 +366,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           text: d.text,
           priority: d.priority,
           status: "active",
+          clinicalStatus: "предварительный",
           sourceVisitId: visitId,
           resolvedAt: null,
           createdAt: now,
@@ -492,5 +509,40 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     };
     anamnesisLifestyle.push(row);
     return { id: row.id, date: fmtDisplayDateInMemory(row.recordDate), text: row.text };
+  },
+
+  // -- Клинический статус диагноза ------------------------------------------
+
+  async setDiagnosisClinicalStatus(input: SetDiagnosisClinicalStatusInput): Promise<boolean> {
+    const diagnosis = diagnoses.find(
+      (d) => d.id === input.diagnosisId && d.patientUserId === input.patientUserId,
+    );
+    if (!diagnosis) return false;
+    const oldStatus = diagnosis.clinicalStatus;
+    diagnosis.clinicalStatus = input.newStatus;
+    diagnosisStatusHistory.push({
+      id: randomUUID(),
+      diagnosisId: input.diagnosisId,
+      oldStatus,
+      newStatus: input.newStatus,
+      changedBy: input.changedBy,
+      changedAt: new Date().toISOString(),
+      note: input.note ?? null,
+    });
+    return true;
+  },
+
+  async getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
+    return diagnosisStatusHistory
+      .filter((h) => h.diagnosisId === diagnosisId)
+      .sort((a, b) => a.changedAt.localeCompare(b.changedAt))
+      .map((h) => ({
+        id: h.id,
+        oldStatus: h.oldStatus,
+        newStatus: h.newStatus,
+        changedAt: h.changedAt,
+        changedByName: null,
+        note: h.note,
+      }));
   },
 };
