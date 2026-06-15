@@ -69,17 +69,30 @@ export async function GET(
   const toCompletedAtExclusive = toExclusive.toISOString().slice(0, 10);
 
   const deps = buildAppDeps();
-  const sessions = await deps.diaries.listLfkSessionsInRange({
-    userId,
-    fromCompletedAt: fromDate,
-    toCompletedAtExclusive,
-  });
 
-  // Aggregate: count sessions per local calendar day (completedAt is a date string YYYY-MM-DD or ISO timestamp)
+  // Fetch both sources in parallel:
+  //  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
+  //  2. patient_practice_completions — treatment program exercise completions
+  const [sessions, practiceCompletions] = await Promise.all([
+    deps.diaries.listLfkSessionsInRange({
+      userId,
+      fromCompletedAt: fromDate,
+      toCompletedAtExclusive,
+    }),
+    deps.patientPractice.listByUserInUtcRange(userId, fromDate, toCompletedAtExclusive),
+  ]);
+
+  // Aggregate: count per local calendar day
+  // completedAt may be "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm:ss..."
   const counts = new Map<string, number>();
   for (const session of sessions) {
-    // completedAt may be "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm:ss..."
     const day = session.completedAt.slice(0, 10);
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  for (const completion of practiceCompletions) {
+    // Skip warmup-only sources — only exercise completions count for the calendar
+    if (completion.source === "daily_warmup") continue;
+    const day = completion.completedAt.slice(0, 10);
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
 
