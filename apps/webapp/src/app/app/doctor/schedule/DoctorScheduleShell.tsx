@@ -100,6 +100,8 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
 export type DoctorScheduleShellProps = {
   /** Начальный таб (от серверной страницы). */
   initialTab?: ScheduleTabId;
+  /** IANA-таймзона из system_settings (от серверной страницы). */
+  initialTimeZone?: string;
 };
 
 /**
@@ -117,6 +119,7 @@ export type DoctorScheduleShellProps = {
  */
 export function DoctorScheduleShell({
   initialTab,
+  initialTimeZone,
 }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) return initialTab;
@@ -233,6 +236,7 @@ export function DoctorScheduleShell({
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}
               initialData={undefined}
               isActive={tabId === activeTab}
+              initialTimeZone={initialTimeZone}
             />
           </div>
         );

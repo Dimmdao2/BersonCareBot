@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { DateTime } from "luxon";
-import { Calendar, List } from "lucide-react";
+import { Calendar, List, Search } from "lucide-react";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
@@ -40,6 +41,7 @@ import type {
 import type { WorkingBounds } from "@/modules/booking-calendar/types";
 import type { ScheduleKpis } from "@/modules/doctor-appointments/ports";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
+import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -415,9 +417,10 @@ const KPI_ITEMS: Array<{ key: keyof ScheduleKpis; label: string }> = [
 type KpiRowTabProps = {
   kpis: ScheduleKpis | null;
   kpisLoading: boolean;
+  onKpiClick?: (key: keyof ScheduleKpis) => void;
 };
 
-function KpiRowTab({ kpis, kpisLoading }: KpiRowTabProps) {
+function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
   return (
     <div
       className="grid grid-cols-3 gap-2 md:grid-cols-5 xl:grid-cols-9 md:gap-2"
@@ -430,9 +433,8 @@ function KpiRowTab({ kpis, kpisLoading }: KpiRowTabProps) {
           data-testid={`kpi-${key}`}
           role="button"
           tabIndex={0}
-          onClick={() => {
-            /* no-op: фильтрация — следующая итерация */
-          }}
+          onClick={() => onKpiClick?.(key)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onKpiClick?.(key); }}
         >
           <p className={doctorMetricLabelClass}>{label}</p>
           <p className={doctorMetricValueClass}>
@@ -666,9 +668,10 @@ export function ScheduleCalendarTab({
   deepLinkParams,
   onDeepLinkChange,
   isActive,
+  initialTimeZone,
 }: ScheduleTabProps) {
   // ─── State ─────────────────────────────────────────────────────────────────
-  const [timeZone] = useState("Europe/Moscow");
+  const [timeZone] = useState(initialTimeZone ?? "Europe/Moscow");
   const [view, setViewState] = useState<CalV26View>(() => resolveView(deepLinkParams.view));
   const [anchorDate, setAnchorDateState] = useState<string>(() =>
     resolveAnchorDate(deepLinkParams.date, timeZone),
@@ -690,6 +693,8 @@ export function ScheduleCalendarTab({
   const [kpis, setKpis] = useState<ScheduleKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [kpiModalFilter, setKpiModalFilter] = useState<keyof ScheduleKpis | null>(null);
   // R32: время старта, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -1144,11 +1149,54 @@ export function ScheduleCalendarTab({
   // visibleRange for list mode
   const listRange = useMemo(() => visibleRange(view, anchorDate, currentTimeZone), [view, anchorDate, currentTimeZone]);
 
+  // Search: filter appointments by patientName
+  const visibleEvents = useMemo<CalendarEvent[]>(() => {
+    if (!searchQuery.trim()) return data?.events ?? [];
+    const q = searchQuery.toLowerCase();
+    return (data?.events ?? []).filter(
+      (e) => e.kind === "appointment" && (e.patientName ?? "").toLowerCase().includes(q),
+    );
+  }, [data?.events, searchQuery]);
+
+  // KPI modal: predicate map + filtered items
+  const KPI_PREDICATES: Partial<Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>> = {
+    cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
+    firstVisitInPeriod: (_e) => false, // no isFirstVisit field on type; show nothing
+    repeatVisitInPeriod: (_e) => false, // same
+    bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
+    pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
+    futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
+    uniquePatientsInPeriod: (_e) => true,
+    recordsInPeriod: (_e) => true,
+    reschedulesInPeriod: (e) => e.rescheduleCount > 0,
+  };
+
+  const kpiModalItems = useMemo<CalendarAppointmentEvent[]>(() => {
+    if (!kpiModalFilter) return [];
+    const pred = KPI_PREDICATES[kpiModalFilter];
+    if (!pred) return [];
+    return (data?.events ?? []).filter(
+      (e): e is CalendarAppointmentEvent => e.kind === "appointment" && pred(e),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kpiModalFilter, data?.events, currentTimeZone]);
+
+  const kpiModalTitle = kpiModalFilter
+    ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? "")
+    : "";
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn(
+      "flex flex-col gap-4",
+      renderMode === "list" && "overflow-hidden h-[calc(100dvh_-_3.5rem_-_9rem)]",
+    )}>
       {/* KPI row (D2) — full width, hidden in day */}
       {showKpi ? (
-        <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} />
+        <KpiRowTab
+          kpis={kpis}
+          kpisLoading={kpisLoading}
+          onKpiClick={(key) => setKpiModalFilter((prev) => prev === key ? null : key)}
+        />
       ) : null}
 
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
@@ -1231,6 +1279,28 @@ export function ScheduleCalendarTab({
           </Button>
         </div>
 
+        {/* Search bar (list mode) */}
+        {renderMode === "list" ? (
+          <div className="relative flex-1 min-w-[8rem] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" aria-hidden />
+            <Input
+              type="search"
+              placeholder="Поиск записей…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 text-sm h-8"
+              aria-label="Поиск записей"
+            />
+          </div>
+        ) : null}
+
+        {/* найдено N counter when searching */}
+        {renderMode === "list" && searchQuery.trim() ? (
+          <span className="text-xs text-muted-foreground" data-testid="search-count">
+            найдено {visibleEvents.filter((e) => e.kind === "appointment").length}
+          </span>
+        ) : null}
+
         {/* «Сегодня» — вернуть текущий вид к сегодняшнему периоду */}
         <Button
           type="button"
@@ -1309,13 +1379,19 @@ export function ScheduleCalendarTab({
       ) : null}
 
       {/* Main content row: calendar/list + aside panel */}
-      <div className="flex flex-col gap-4 lg:flex-row">
+      <div className={cn(
+        "flex flex-col gap-4 lg:flex-row",
+        renderMode === "list" && "min-h-0 flex-1 overflow-hidden",
+      )}>
         {/* Content area */}
-        <div className="min-w-0 flex-1">
+        <div className={cn(
+          "min-w-0 flex-1",
+          renderMode === "list" && "overflow-y-auto",
+        )}>
           {renderMode === "list" ? (
             // List view — period-bound, grouped by day
             <ListView
-              events={data?.events ?? []}
+              events={visibleEvents}
               anchorDate={anchorDate}
               timeZone={currentTimeZone}
               rangeFrom={listRange.from}
@@ -1558,6 +1634,26 @@ export function ScheduleCalendarTab({
         onCommentChange={setRescheduleComment}
         onConfirm={confirmRescheduleConfirm}
         onCancel={cancelRescheduleConfirm}
+      />
+
+      <KpiPreviewModal
+        open={kpiModalFilter !== null}
+        onClose={() => setKpiModalFilter(null)}
+        title={kpiModalTitle}
+        count={kpiModalItems.length}
+        items={kpiModalItems}
+        searchPlaceholder="Поиск по имени…"
+        searchPredicate={(item, q) =>
+          (item.patientName ?? "").toLowerCase().includes(q.toLowerCase())
+        }
+        renderItem={(item) => (
+          <div className="flex justify-between items-center py-1 text-sm">
+            <span className="font-medium">{item.patientName ?? "Запись"}</span>
+            <span className="text-xs text-muted-foreground">
+              {parseFeedInstant(item.startAt, currentTimeZone).toFormat("d MMM HH:mm")}
+            </span>
+          </div>
+        )}
       />
     </div>
   );

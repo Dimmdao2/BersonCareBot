@@ -11,6 +11,8 @@ export type ScheduleTabProps = {
   initialData?: unknown;
   /** Признак активного таба. Используется для управления поллингом. По умолчанию true. */
   isActive?: boolean;
+  /** IANA-таймзона из system_settings (от серверной страницы). */
+  initialTimeZone?: string;
 };
 
 export type ScheduleTabRegistryEntry = {
