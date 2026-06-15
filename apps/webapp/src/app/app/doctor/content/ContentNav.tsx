@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/shared/ui/doctor/primitives/separator";
-import { Eye, EyeOff, Plus } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
   isHelpSectionSlug,
   SYSTEM_PARENT_CODES,
 } from "@/modules/content-sections/types";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { setSectionVisibility } from "./sections/sectionVisibilityActions";
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,9 @@ const SYSTEM_FOLDER_LABELS: Record<(typeof SYSTEM_PARENT_CODES)[number], string>
   warmups: "Разминки",
   lessons: "Уроки · Новости · Мотивации",
 };
+
+/** Pane keys hidden from the nav (stubs/removed sections). */
+const HIDDEN_SYSTEM_CODES = new Set<string>(["lessons"]);
 
 const CONTENT_BASE = "/app/doctor/content";
 
@@ -213,7 +217,7 @@ export function ContentNav({
         </Link>
       </div>
 
-      {SYSTEM_PARENT_CODES.map((code) => (
+      {SYSTEM_PARENT_CODES.filter((code) => !HIDDEN_SYSTEM_CODES.has(code)).map((code) => (
         <NavRow
           key={code}
           label={SYSTEM_FOLDER_LABELS[code]}
@@ -232,11 +236,10 @@ export function ContentNav({
         </p>
         <Link
           href={`${CONTENT_BASE}/sections/new`}
-          className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          title="Создать раздел"
           aria-label="Создать раздел"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-6 px-2 text-xs")}
         >
-          <Plus className="size-3.5" aria-hidden />
+          + Раздел
         </Link>
       </div>
 
