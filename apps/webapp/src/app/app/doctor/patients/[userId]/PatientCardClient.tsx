@@ -16,6 +16,7 @@ import {
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { formatFioForDoctor } from "@/lib/parseFullName";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
 import { PatientTabKarta } from "./tabs/PatientTabKarta";
@@ -336,15 +337,22 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Пол</label>
-                    <select
-                      value={fioGender}
-                      onChange={(e) => setFioGender(e.target.value as "male" | "female" | "")}
-                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    <Select
+                      value={fioGender || "__none__"}
+                      onValueChange={(v) => setFioGender(v === "__none__" ? "" : v as "male" | "female")}
                     >
-                      <option value="">Не указан</option>
-                      <option value="female">Женский</option>
-                      <option value="male">Мужской</option>
-                    </select>
+                      <SelectTrigger
+                        className="h-8 text-sm w-[120px]"
+                        displayLabel={fioGender === "male" ? "Мужской" : fioGender === "female" ? "Женский" : "Не указан"}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Не указан</SelectItem>
+                        <SelectItem value="female">Женский</SelectItem>
+                        <SelectItem value="male">Мужской</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 {fioError && (
