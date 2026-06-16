@@ -1,6 +1,6 @@
 # SAAS_FOUNDATION — initiative index
 
-**Status:** SKELETON (2026-06-17). Planning only — no implementation started.
+**Status:** ⛔ **BLOCKED — REWORK REQUIRED before F0.1** (fresh review 2026-06-17). Planning only, no code started. See [`REVIEW_2026-06-17_FRESH.md`](REVIEW_2026-06-17_FRESH.md): C1 scope classification wrong ~2–3× (missed the `patient_user_id` EHR core), C2 D7 config primitive doesn't exist, C3 headless runtimes + RLS sequencing. Fix C1+C2 before executing.
 **Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.

@@ -67,6 +67,12 @@ Legend: **V** = verify level (step/phase). Allowed paths are the scope boundary 
 | F0.20 | multi-tenant isolation test fixtures (2 orgs + shared patient) | webapp test | phase | M |
 
 ## Clinical scope classification (grounded F0.8 — read-only `information_schema`, 2026-06-17)
+> ⛔ **INVALID — superseded by fresh review C1 (REVIEW_2026-06-17_FRESH.md).** The heuristic below
+> matched only `platform_user_id|user_id` (2 of 15 user-key columns) and **missed the entire EHR core
+> keyed by `patient_user_id`** (18 tables incl. clinical_diagnosis/visit, patient_files, patient_payment)
+> + ~20 child tables. Real SCOPE surface ≈ **45–55**, not 18. Re-derive by FK reachability (new F0.8);
+> B1/B2/B3 batching invalidated. The list below is kept only as the record of the error.
+
 44 user-owned public tables lack `organization_id`. **NOT all are per-org** — scoping a global
 identity/auth table would be a BUG (a person has ONE password / phone / channel binding across all
 orgs). Classification:
