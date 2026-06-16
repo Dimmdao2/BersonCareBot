@@ -11,7 +11,6 @@ import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 
-import { AdminPlatformRegistrationStatsClient } from "./AdminPlatformRegistrationStatsClient";
 import { AdminPlatformSubscriberStatsClient } from "./AdminPlatformSubscriberStatsClient";
 import { AnalyticsPeriodToolbar } from "./AnalyticsPeriodToolbar";
 import { ClientContactPieChart } from "./ClientContactPieChart";
@@ -164,12 +163,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
         onApplyCustom={handleApplyCustom}
       />
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <AdminPlatformSubscriberStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
-        <AdminPlatformRegistrationStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
-      </div>
-
-      <DoctorAnalyticsAppointmentsSection period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
+      <AdminPlatformSubscriberStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
 
       <DoctorSection id="doctor-stats-clients-section">
         <DoctorSectionTitle>Клиенты</DoctorSectionTitle>
@@ -224,6 +218,9 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
           </div>
         </div>
       </DoctorSection>
+
+      <DoctorAnalyticsAppointmentsSection period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
+
       <MetricAccountsDialog
         open={metricDialogOpen}
         onOpenChange={setMetricDialogOpen}

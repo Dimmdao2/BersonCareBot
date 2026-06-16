@@ -47,6 +47,13 @@ const NotificationsInAppTab = dynamic(
     })),
   { ssr: false },
 );
+const RegistrationInAppTab = dynamic(
+  () =>
+    import("./clients/RegistrationStatsAppTabWrapper").then((m) => ({
+      default: m.RegistrationStatsAppTabWrapper,
+    })),
+  { ssr: false },
+);
 const SoprovozhdeniePage = dynamic(
   () =>
     import("./soprovozhdenie/SoprovozhdeniePage").then((m) => ({
@@ -187,6 +194,8 @@ export function DoctorAnalyticsShell({ initialTab, clientsData }: DoctorAnalytic
             <AppTab />
             {/* Push-статистика и уведомления — перенесены из упразднённой вкладки «Уведомления» */}
             <NotificationsInAppTab />
+            {/* Регистрации и слияния — перенесены из вкладки «Клиенты» (AN-03) */}
+            <RegistrationInAppTab />
           </div>
         </div>
       ) : null}

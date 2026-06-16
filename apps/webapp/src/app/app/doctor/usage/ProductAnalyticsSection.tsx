@@ -187,7 +187,7 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Активные клиенты по суткам</CardTitle>
+              <CardTitle className="text-sm">Активные пользователи по суткам</CardTitle>
             </CardHeader>
             <CardContent>
               <ProductAnalyticsActiveUsersChart rows={data.activeUsersDaily} />
@@ -319,7 +319,7 @@ export function ProductAnalyticsSection() {
           <UsageMetricAccountsDialog
             open={clientsDialogOpen}
             onOpenChange={setClientsDialogOpen}
-            title="Активные клиенты"
+            title="Активные пользователи"
             rows={sortedClientRows}
             displayTimezone={data.displayTimezone}
           />
