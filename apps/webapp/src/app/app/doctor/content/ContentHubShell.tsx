@@ -302,8 +302,23 @@ export function ContentHubShell({
       );
     }
 
-    if (activePaneKey === "patient-home" || activePaneKey === "media") {
-      // These are handled as Link navigations in ContentNav; won't reach here
+    if (activePaneKey === "patient-home") {
+      return (
+        <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/30 px-5 py-6">
+          <div>
+            <h2 className="mb-1 text-base font-semibold">Главная пациента</h2>
+            <p className="text-sm text-muted-foreground">
+              Настройка блоков главного экрана приложения: упражнения, разминки, SOS, программа и другие элементы.
+            </p>
+          </div>
+          <Link href="/app/doctor/patient-home" className={buttonVariants({ variant: "default", size: "sm" })}>
+            Настроить блоки главной страницы →
+          </Link>
+        </div>
+      );
+    }
+
+    if (activePaneKey === "media") {
       return null;
     }
 

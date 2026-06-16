@@ -204,18 +204,12 @@ export function ContentNav({
         Системные разделы
       </p>
 
-      {/* Главная пациента — external link, no pane switch */}
-      <div className="group relative flex items-center">
-        <Link
-          href="/app/doctor/patient-home"
-          className={cn(
-            "flex flex-1 min-w-0 items-center rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal transition-colors",
-            "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-          )}
-        >
-          Главная пациента
-        </Link>
-      </div>
+      {/* Главная пациента — in-pane (keeps ContentNav visible) */}
+      <NavRow
+        label="Главная пациента"
+        active={activePaneKey === "patient-home"}
+        onClick={() => onPaneChange("patient-home")}
+      />
 
       {SYSTEM_PARENT_CODES.filter((code) => !HIDDEN_SYSTEM_CODES.has(code)).map((code) => (
         <NavRow

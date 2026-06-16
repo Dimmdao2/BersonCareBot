@@ -1153,7 +1153,7 @@ function AddTraumaForm({
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Иммобилизация / восстановление</label>
-        <input value={immob} onChange={e => setImmob(e.target.value)} placeholder="4 нед лёжа" className={inputClass} />
+        <input value={immob} onChange={e => setImmob(e.target.value)} placeholder="Длительность, режим восстановления…" className={inputClass} />
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
@@ -1213,11 +1213,11 @@ function AddIllnessForm({
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Период</label>
-          <input ref={periodRef} value={period} onChange={e => setPeriod(e.target.value)} placeholder="1999–2000" className={inputClass} />
+          <input ref={periodRef} value={period} onChange={e => setPeriod(e.target.value)} placeholder="Год или период" className={inputClass} />
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Что</label>
-          <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Стресс · 8 мес" className={inputClass} />
+          <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Что произошло, длительность…" className={inputClass} />
         </div>
       </div>
       <div className="flex flex-col gap-0.5">
