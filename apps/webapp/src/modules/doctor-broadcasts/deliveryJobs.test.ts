@@ -3,6 +3,7 @@ import {
   buildBroadcastMessengerHtml,
   buildBroadcastMessageText,
   buildDoctorBroadcastDeliveryJobs,
+  markdownToTelegramHtml,
   splitBroadcastPlainCombined,
 } from "./deliveryJobs";
 import type { BroadcastNotificationPrefsFlags } from "./ports";
@@ -231,9 +232,39 @@ describe("splitBroadcastPlainCombined", () => {
   });
 });
 
+describe("markdownToTelegramHtml", () => {
+  it("passes plain text through unchanged", () => {
+    expect(markdownToTelegramHtml("Hello world")).toBe("Hello world");
+  });
+  it("HTML-escapes user content", () => {
+    expect(markdownToTelegramHtml("a < b")).toBe("a &lt; b");
+  });
+  it("converts bold", () => {
+    expect(markdownToTelegramHtml("say **hello** now")).toBe("say <b>hello</b> now");
+  });
+  it("converts italic", () => {
+    expect(markdownToTelegramHtml("say _hello_ now")).toBe("say <i>hello</i> now");
+  });
+  it("does not italicise snake_case", () => {
+    expect(markdownToTelegramHtml("use my_var_name")).toBe("use my_var_name");
+  });
+  it("converts strikethrough", () => {
+    expect(markdownToTelegramHtml("~~old~~")).toBe("<s>old</s>");
+  });
+  it("converts inline code", () => {
+    expect(markdownToTelegramHtml("`GET /api`")).toBe("<code>GET /api</code>");
+  });
+  it("converts bullet list", () => {
+    expect(markdownToTelegramHtml("- item one\n- item two")).toBe("• item one\n• item two");
+  });
+});
+
 describe("buildBroadcastMessengerHtml", () => {
-  it("wraps title in bold and escapes html in body", () => {
+  it("wraps title in bold and converts markdown body", () => {
     expect(buildBroadcastMessengerHtml("News", "a < b")).toBe("<b>News</b>\n\na &lt; b");
+  });
+  it("renders markdown bold in body", () => {
+    expect(buildBroadcastMessengerHtml("T", "**важно**")).toBe("<b>T</b>\n\n<b>важно</b>");
   });
 });
 

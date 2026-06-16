@@ -398,8 +398,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
 
       {/* Body */}
       <div className={`px-3 py-2.5${isFormLocked ? " pointer-events-none opacity-50" : ""}`}>
-        {/* NOTE: body is stored as Markdown. Per-channel rendering (e.g. markdownToTelegramHtml)
-            should be applied server-side at delivery time in a future iteration. */}
+        {/* body is stored as Markdown; markdownToTelegramHtml converts it for Telegram/MAX at delivery time */}
         <MarkdownEditor
           name="broadcast-body"
           value={body}

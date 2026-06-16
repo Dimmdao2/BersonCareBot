@@ -36,13 +36,41 @@ export function splitBroadcastPlainCombined(combined: string): { title: string; 
   };
 }
 
-/** Telegram/MAX HTML: bold title, plain body. */
+/**
+ * Convert simple Markdown to Telegram HTML parse_mode text.
+ * Supported: **bold**, _italic_, ~~strikethrough~~, `code`, - / * bullet lists.
+ * Text is HTML-escaped first; formatting tags are injected after escaping
+ * so user content can never inject raw HTML.
+ */
+export function markdownToTelegramHtml(md: string): string {
+  // HTML-escape the raw text so user-supplied < > & are safe.
+  let t = escapeHtml(md.trim());
+
+  // Bold: **text** (no newlines inside)
+  t = t.replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
+
+  // Italic: _text_ (no underscores or newlines inside; not inside a word like snake_case)
+  t = t.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, "<i>$1</i>");
+
+  // Strikethrough: ~~text~~
+  t = t.replace(/~~([^~\n]+)~~/g, "<s>$1</s>");
+
+  // Inline code: `code` (no newlines inside)
+  t = t.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+
+  // Unordered list: "- item" or "* item" at start of line → "• item"
+  t = t.replace(/^[*-] (.+)$/gm, "• $1");
+
+  return t;
+}
+
+/** Telegram/MAX HTML: bold title, Markdown body converted to Telegram HTML. */
 export function buildBroadcastMessengerHtml(title: string, body: string): string {
   const t = title.trim();
-  const b = body.trim();
+  const b = markdownToTelegramHtml(body);
   const head = t ? `<b>${escapeHtml(t)}</b>` : "";
   if (!b) return head || "";
-  return head ? `${head}\n\n${escapeHtml(b)}` : escapeHtml(b);
+  return head ? `${head}\n\n${b}` : b;
 }
 
 function stableEventId(auditId: string, channel: string, clientUserId: string, suffix: string): string {
