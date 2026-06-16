@@ -55,6 +55,7 @@ export type PatientsPageClientProps = {
   listPromise: Promise<ClientListItem[]>;
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   initialFilters: InitialFilters;
+  patientPluralLabel?: string;
 };
 
 type TriFilterState = "off" | "positive" | "negative";
@@ -654,6 +655,7 @@ function PatientPreviewPane({ userId, item, onClose }: PatientPreviewPaneProps) 
 type PatientsContentProps = {
   listPromise: Promise<ClientListItem[]>;
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
+  patientPluralLabel: string;
   activeSegment: string | null;
   activeChannel: string | null;
   archivedOnly: boolean;
@@ -678,6 +680,7 @@ type PatientsContentProps = {
 function PatientsContent({
   listPromise,
   metricsPromise,
+  patientPluralLabel,
   activeSegment,
   activeChannel,
   archivedOnly,
@@ -759,7 +762,7 @@ function PatientsContent({
     <>
     <DoctorPageHeader
       id="doctor-patients-header"
-      title="Пациенты"
+      title={patientPluralLabel}
     />
     <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* ===== LEFT: patient list ===== */}
@@ -798,7 +801,7 @@ function PatientsContent({
           {/* PAT-07: Пациенты / Все toggle */}
           <div className="mt-2 flex gap-1" role="group" aria-label="Фильтр: пациенты или все">
             {([
-              { cat: "client" as ClientCategory, label: "Пациенты", count: allClients.filter((c) => getClientCategory(c) === "client").length },
+              { cat: "client" as ClientCategory, label: patientPluralLabel, count: allClients.filter((c) => getClientCategory(c) === "client").length },
               { cat: "all" as ClientCategory, label: "Все", count: allClients.length },
             ]).map(({ cat, label, count }) => (
               <button
@@ -1051,7 +1054,7 @@ function PatientsContent({
                       : "border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  {CATEGORY_LABELS[cat]}
+                  {cat === "client" ? patientPluralLabel : CATEGORY_LABELS[cat]}
                   <span className="tabular-nums opacity-70">{count}</span>
                 </button>
               );
@@ -1204,6 +1207,7 @@ export function PatientsPageClient({
   listPromise: initialListPromise,
   metricsPromise,
   initialFilters,
+  patientPluralLabel = "Пациенты",
 }: PatientsPageClientProps) {
   const [isListPending, startListTransition] = useTransition();
 
@@ -1332,6 +1336,7 @@ export function PatientsPageClient({
       <PatientsContent
         listPromise={listPromise}
         metricsPromise={metricsPromise}
+        patientPluralLabel={patientPluralLabel}
         activeSegment={activeSegment}
         activeChannel={activeChannel}
         archivedOnly={archivedOnly}

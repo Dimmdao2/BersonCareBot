@@ -7,6 +7,17 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { PatientsPageClient } from "./PatientsPageClient";
 
+function getValueJson<T>(v: unknown, fallback: T): T {
+  if (v !== null && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
+    return (v as Record<string, unknown>).value as T;
+  }
+  return fallback;
+}
+
+function resolvePatientPluralLabel(singular: string): string {
+  return singular === "клиент" ? "Клиенты" : "Пациенты";
+}
+
 type PageProps = {
   searchParams?: Promise<{
     q?: string;
@@ -25,6 +36,10 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   const archivedOnly = sp.archived === "true";
 
   const deps = buildAppDeps();
+
+  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
+  const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
+  const patientPluralLabel = resolvePatientPluralLabel(String(patientSingular));
 
   const listPromise = deps.doctorClients.listClients(
     {
@@ -52,11 +67,12 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   const metricsPromise = deps.doctorClientsPort.getDashboardPatientMetrics();
 
   return (
-    <DoctorAppShell title="Пациенты" user={session.user} layout="full-height">
+    <DoctorAppShell title={patientPluralLabel} user={session.user} layout="full-height">
       <PatientsPageClient
         listPromise={listPromise}
         metricsPromise={metricsPromise}
         initialFilters={{ q, segment, channel, archivedOnly }}
+        patientPluralLabel={patientPluralLabel}
       />
     </DoctorAppShell>
   );
