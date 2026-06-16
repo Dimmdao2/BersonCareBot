@@ -5,6 +5,7 @@ import { DateTime } from "luxon";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import luxonPlugin from "@fullcalendar/luxon3";
 import ruLocale from "@fullcalendar/core/locales/ru";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { doctorSectionSubtitleClass, doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
@@ -135,7 +136,7 @@ export function DoctorTodayMiniCalendar({
           }
         `}</style>
         <FullCalendar
-          plugins={[timeGridPlugin, interactionPlugin]}
+          plugins={[timeGridPlugin, interactionPlugin, luxonPlugin]}
           locale={ruLocale}
           initialView="timeGridDay"
           initialDate={todayIso}
