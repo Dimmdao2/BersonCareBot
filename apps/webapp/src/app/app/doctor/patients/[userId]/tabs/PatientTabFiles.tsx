@@ -448,7 +448,7 @@ function FileListRow({
     >
       <span className="text-base leading-tight shrink-0 mt-0.5">{fileIcon(file.mimeType)}</span>
       <div className="flex-1 min-w-0">
-        <div className="truncate text-sm font-medium text-foreground">{file.fileName}</div>
+        <div className="truncate text-sm text-foreground">{file.fileName}</div>
         <div className={cn(doctorSectionSubtitleClass, "text-xs mt-0.5")}>
           {categoryLabel(file.category)} · {formatDate(file.createdAt)}
           {file.visitId ? " · привязан к визиту" : " · без привязки"}
