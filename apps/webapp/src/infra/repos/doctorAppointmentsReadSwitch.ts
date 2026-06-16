@@ -53,5 +53,7 @@ export function createDoctorAppointmentsReadSwitchPort(input: {
     // KPI всегда из canonical (см. doc-comment выше); legacy — лишь fallback при отсутствии canonical.
     getScheduleKpis: async (query, audience) =>
       (input.canonicalPort ?? input.legacyPort).getScheduleKpis(query, audience),
+    getAppointmentDailySeries: async (filter, audience) =>
+      (await pick()).getAppointmentDailySeries(filter, audience),
   };
 }

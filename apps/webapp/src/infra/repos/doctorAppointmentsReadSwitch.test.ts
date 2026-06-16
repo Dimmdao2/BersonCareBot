@@ -36,6 +36,7 @@ function mockPort(tag: string): DoctorAppointmentsPort {
       cancellationsInPeriod: 0,
       reschedulesInPeriod: 0,
     })),
+    getAppointmentDailySeries: vi.fn(async () => ({ daySeries: [], branchSeries: [] })),
   };
 }
 

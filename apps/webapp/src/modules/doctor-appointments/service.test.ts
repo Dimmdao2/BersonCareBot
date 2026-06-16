@@ -60,6 +60,9 @@ describe("doctor-appointments service", () => {
         reschedulesInPeriod: 0,
       };
     },
+    async getAppointmentDailySeries() {
+      return { daySeries: [], branchSeries: [] };
+    },
   };
 
   const service = createDoctorAppointmentsService({ appointmentsPort: mockPort });
@@ -113,6 +116,9 @@ describe("doctor-appointments service", () => {
       async getScheduleKpis() {
         return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
       },
+      async getAppointmentDailySeries() {
+        return { daySeries: [], branchSeries: [] };
+      },
     };
 
     const svc = createDoctorAppointmentsService({ appointmentsPort: portWithIso });
@@ -158,6 +164,9 @@ describe("doctor-appointments service", () => {
       async getScheduleKpis() {
         return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
       },
+      async getAppointmentDailySeries() {
+        return { daySeries: [], branchSeries: [] };
+      },
     };
 
     const svc = createDoctorAppointmentsService({ appointmentsPort: portWithIso });
@@ -192,6 +201,7 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
         futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0,
       }),
       getScheduleKpis: async () => kpis,
+      getAppointmentDailySeries: async () => ({ daySeries: [], branchSeries: [] }),
     };
   }
 

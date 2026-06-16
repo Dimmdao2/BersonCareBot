@@ -551,5 +551,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
         reschedulesInPeriod: rescheduleRow[0]?.c ?? 0,
       };
     },
+
+    // Canonical appointments are not yet used for daily series analytics; stub returns empty.
+    async getAppointmentDailySeries() {
+      return { daySeries: [], branchSeries: [] };
+    },
   };
 }

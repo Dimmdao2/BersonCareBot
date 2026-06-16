@@ -112,6 +112,23 @@ export type ScheduleKpisQuery = {
   serviceId?: string | null;
 };
 
+/** Одна точка в дневном ряду динамики записей. */
+export type AppointmentDayPoint = {
+  /** Дата в формате YYYY-MM-DD (бизнес-таймзона). */
+  day: string;
+  pastVisits: number;
+  bookingsCreated: number;
+  cancellationActions: number;
+};
+
+/** Статистика по филиалу за выбранный период. */
+export type AppointmentBranchPoint = {
+  /** Название филиала или «Без филиала» если null. */
+  branchName: string;
+  pastVisits: number;
+  cancelledVisits: number;
+};
+
 export type DoctorAppointmentsPort = {
   listAppointmentsForSpecialist(
     filter: DoctorAppointmentsListFilter,
@@ -128,4 +145,9 @@ export type DoctorAppointmentsPort = {
     query: ScheduleKpisQuery,
     audience?: DoctorAppointmentsAudience,
   ): Promise<ScheduleKpis>;
+  /** Дневной ряд динамики записей + разбивка по филиалам за выбранный период. */
+  getAppointmentDailySeries(
+    filter: DoctorAppointmentStatsFilter,
+    audience?: { excludedUserIds?: string[] },
+  ): Promise<{ daySeries: AppointmentDayPoint[]; branchSeries: AppointmentBranchPoint[] }>;
 };

@@ -9,6 +9,7 @@ import type {
   ScheduleKpisQuery,
 } from "@/modules/doctor-appointments/ports";
 
+
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
   async listAppointmentsForSpecialist(
     _filter: DoctorAppointmentsListFilter,
@@ -56,5 +57,8 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
       cancellationsInPeriod: 0,
       reschedulesInPeriod: 0,
     };
+  },
+  async getAppointmentDailySeries() {
+    return { daySeries: [], branchSeries: [] };
   },
 };
