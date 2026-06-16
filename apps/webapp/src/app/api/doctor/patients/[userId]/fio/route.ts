@@ -1,8 +1,8 @@
 /**
  * PATCH /api/doctor/patients/[userId]/fio
  *
- * Update patient FIO fields (Фамилия / Имя / Отчество) and optionally displayName.
- * Accepts: { firstName, lastName, patronymic, displayName }
+ * Update patient FIO fields (Фамилия / Имя / Отчество), displayName, birthDate, and gender.
+ * Accepts: { firstName, lastName, patronymic, displayName, birthDate, gender }
  * All fields optional and nullable. At least one must be provided.
  *
  * Response: { ok: true } | { ok: false, error: string }
@@ -17,6 +17,8 @@ const bodySchema = z.object({
   lastName: z.string().trim().max(200).nullable().optional(),
   patronymic: z.string().trim().max(200).nullable().optional(),
   displayName: z.string().trim().min(1).max(200).optional(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  gender: z.enum(["male", "female"]).nullable().optional(),
 });
 
 export async function PATCH(
@@ -59,12 +61,26 @@ export async function PATCH(
   if ("lastName" in data) nameFields.lastName = data.lastName ?? null;
   if ("patronymic" in data) nameFields.patronymic = data.patronymic ?? null;
 
-  if (Object.keys(nameFields).length === 0) {
+  const hasBirthDate = "birthDate" in data;
+  const hasGender = "gender" in data;
+
+  if (Object.keys(nameFields).length === 0 && !hasBirthDate && !hasGender) {
     return NextResponse.json({ ok: false, error: "no_fields_to_update" }, { status: 422 });
   }
 
   const deps = buildAppDeps();
-  await deps.doctorClients.setPatientNames(userId, nameFields);
+
+  if (Object.keys(nameFields).length > 0) {
+    await deps.doctorClients.setPatientNames(userId, nameFields);
+  }
+
+  if (hasBirthDate) {
+    await deps.doctorClients.setPatientBirthDate(userId, data.birthDate ?? null);
+  }
+
+  if (hasGender) {
+    await deps.doctorClients.setPatientGender(userId, data.gender ?? null);
+  }
 
   return NextResponse.json({ ok: true });
 }

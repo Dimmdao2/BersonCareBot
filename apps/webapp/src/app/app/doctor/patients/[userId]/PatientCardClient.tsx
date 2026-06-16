@@ -94,11 +94,17 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
     firstName: string | null;
     lastName: string | null;
     patronymic: string | null;
+    displayName?: string | null;
+    birthDate?: string | null;
+    gender?: "male" | "female" | null;
   } | null>(null);
   // Draft input values
   const [fioLastName, setFioLastName] = useState("");
   const [fioFirstName, setFioFirstName] = useState("");
   const [fioPatronymic, setFioPatronymic] = useState("");
+  const [fioDisplayName, setFioDisplayName] = useState("");
+  const [fioBirthDate, setFioBirthDate] = useState("");
+  const [fioGender, setFioGender] = useState<"male" | "female" | "">("");
 
   // Auto-switch to karta tab when opening with createVisitFrom URL param
   useEffect(() => {
@@ -131,6 +137,12 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
   const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
   const resolvedLastName = fioOverride ? fioOverride.lastName : identity.lastName;
   const resolvedPatronymic = fioOverride ? fioOverride.patronymic : identity.patronymic;
+  const resolvedDisplayName =
+    fioOverride?.displayName !== undefined ? fioOverride.displayName : identity.displayName;
+  const resolvedBirthDate =
+    fioOverride?.birthDate !== undefined ? fioOverride.birthDate : identity.birthDate;
+  const resolvedGender =
+    fioOverride?.gender !== undefined ? fioOverride.gender : identity.gender;
   const fioDisplay = formatFioForDoctor(resolvedLastName, resolvedFirstName, resolvedPatronymic);
   const hasFio = Boolean(resolvedFirstName || resolvedLastName || resolvedPatronymic);
 
@@ -138,6 +150,9 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
     setFioLastName(resolvedLastName ?? "");
     setFioFirstName(resolvedFirstName ?? "");
     setFioPatronymic(resolvedPatronymic ?? "");
+    setFioDisplayName(resolvedDisplayName ?? "");
+    setFioBirthDate(resolvedBirthDate ?? "");
+    setFioGender(resolvedGender ?? "");
     setFioError(null);
     setFioEditing(true);
   }
@@ -158,6 +173,9 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
           lastName: fioLastName.trim() || null,
           firstName: fioFirstName.trim() || null,
           patronymic: fioPatronymic.trim() || null,
+          displayName: fioDisplayName.trim() || undefined,
+          birthDate: fioBirthDate.trim() || null,
+          gender: fioGender || null,
         }),
       });
       if (!res.ok) {
@@ -170,6 +188,9 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
         lastName: fioLastName.trim() || null,
         firstName: fioFirstName.trim() || null,
         patronymic: fioPatronymic.trim() || null,
+        displayName: fioDisplayName.trim() || null,
+        birthDate: fioBirthDate.trim() || null,
+        gender: fioGender || null,
       });
       setFioEditing(false);
     } catch {
@@ -179,11 +200,11 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
     }
   }
 
-  /** Active age: from header birthDate */
+  /** Active age: from resolved birthDate (override wins) */
   const activeAge: number | null = (() => {
-    if (!identity.birthDate) return null;
+    if (!resolvedBirthDate) return null;
     const today = new Date();
-    const bd = new Date(identity.birthDate);
+    const bd = new Date(resolvedBirthDate);
     let age = today.getFullYear() - bd.getFullYear();
     const m = today.getMonth() - bd.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
@@ -227,9 +248,9 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
                 </div>
 
                 {/* displayName as secondary label (отображаемое имя) */}
-                {hasFio && identity.displayName && (
+                {hasFio && resolvedDisplayName && (
                   <div className={cn(doctorSectionSubtitleClass, "mt-0 text-xs text-muted-foreground/70")}>
-                    отобр.: {identity.displayName}
+                    отобр.: {resolvedDisplayName}
                   </div>
                 )}
               </div>
@@ -291,6 +312,39 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
                     />
                   </div>
                 </div>
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Отображаемое имя</label>
+                  <input
+                    type="text"
+                    value={fioDisplayName}
+                    onChange={(e) => setFioDisplayName(e.target.value)}
+                    placeholder="Как обращаться к пациенту"
+                    className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Дата рождения</label>
+                    <input
+                      type="date"
+                      value={fioBirthDate}
+                      onChange={(e) => setFioBirthDate(e.target.value)}
+                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Пол</label>
+                    <select
+                      value={fioGender}
+                      onChange={(e) => setFioGender(e.target.value as "male" | "female" | "")}
+                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Не указан</option>
+                      <option value="female">Женский</option>
+                      <option value="male">Мужской</option>
+                    </select>
+                  </div>
+                </div>
                 {fioError && (
                   <p className="text-xs text-destructive">{fioError}</p>
                 )}
@@ -317,22 +371,22 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
               </div>
             )}
 
-            {/* ДР · возраст — read-only; edit in «Учётка» */}
+            {/* ДР · возраст — read-only; edit via pencil */}
             <div className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
               <span>
                 ДР:{" "}
-                {identity.birthDate ? (
-                  <>{fmtBirthDate(identity.birthDate)}{activeAge != null ? ` · ${activeAge} лет` : ""}</>
+                {resolvedBirthDate ? (
+                  <>{fmtBirthDate(resolvedBirthDate)}{activeAge != null ? ` · ${activeAge} лет` : ""}</>
                 ) : (
                   "—"
                 )}
               </span>
             </div>
 
-            {/* Пол — read-only; edit in «Учётка» */}
+            {/* Пол — read-only; edit via pencil */}
             <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
               <span>
-                Пол: {identity.gender === "male" ? "М" : identity.gender === "female" ? "Ж" : "—"}
+                Пол: {resolvedGender === "male" ? "М" : resolvedGender === "female" ? "Ж" : "—"}
               </span>
             </div>
 
