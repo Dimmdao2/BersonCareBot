@@ -816,8 +816,10 @@ function PatientsContent({
         <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
             {isAnyFilterActive
-              ? <>найдено {filtered.length} / {allClients.length}</>
-              : <>Пациентов: {allClients.length}</>}
+              ? <>найдено {filtered.length} / {categoryBase.length}</>
+              : activeCategory === "all"
+                ? <>Клиентов: {allClients.length}</>
+                : <>Пациентов: {categoryBase.length}</>}
             {isListPending && <span className="ml-1 animate-pulse">…</span>}
           </p>
           <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
