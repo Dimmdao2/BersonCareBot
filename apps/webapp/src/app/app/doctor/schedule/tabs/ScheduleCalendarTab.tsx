@@ -31,6 +31,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import luxonPlugin from "@fullcalendar/luxon3";
 import ruLocale from "@fullcalendar/core/locales/ru";
 import type { CalendarOptions as FullCalendarOptions } from "@fullcalendar/core";
 import type {
@@ -943,7 +944,7 @@ export function ScheduleCalendarTab({
             start: f.start,
             end: f.end,
             display: "background" as const,
-            classNames: ["!bg-slate-500/10 !border-transparent"],
+            classNames: ["!bg-slate-100 !border-transparent"],
             editable: false,
             extendedProps: { kind: "nonworking" as const },
           }))
@@ -1477,7 +1478,7 @@ export function ScheduleCalendarTab({
                 }
               `}</style>
               <FullCalendar
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
                 locale={ruLocale}
                 key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}`}
                 initialView={fcInitialView}

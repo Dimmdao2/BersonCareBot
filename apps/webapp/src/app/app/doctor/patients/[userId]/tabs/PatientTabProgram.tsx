@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
@@ -8,6 +9,7 @@ import {
 } from "@/shared/ui/doctor/doctorVisual";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
+import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import { PatientProgramPanelLoader } from "./program/PatientProgramPanelLoader";
 import { ProgramHistoryModal } from "./program/ProgramHistoryModal";
 
@@ -17,8 +19,45 @@ type Props = {
 };
 
 export function PatientTabProgram({ userId, header: _header }: Props) {
+  const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [programCheckDone, setProgramCheckDone] = useState(false);
 
+  // PROG-01: if active program exists, navigate directly to its editor
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`)
+      .then((r) => r.json())
+      .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
+        if (cancelled) return;
+        if (data.ok && Array.isArray(data.items)) {
+          const active = data.items.find((i) => i.status !== "completed");
+          if (active) {
+            router.push(
+              `/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(active.id)}`,
+            );
+            return;
+          }
+        }
+        setProgramCheckDone(true);
+      })
+      .catch(() => {
+        if (!cancelled) setProgramCheckDone(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, router]);
+
+  if (!programCheckDone) {
+    return (
+      <div className={cn(doctorSectionCardClass)}>
+        <p className="text-sm text-muted-foreground">Загрузка программы…</p>
+      </div>
+    );
+  }
+
+  // PROG-12: no active program — show list/assign interface
   return (
     <div className={cn(doctorSectionCardClass, "gap-4")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
