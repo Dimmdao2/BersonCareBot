@@ -348,29 +348,21 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
   );
 
   return (
-    <div
-      id="doctor-support-inbox"
-      className={cn(
-        "min-h-[400px]",
-        DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-      )}
-    >
-      <CatalogSplitLayout
-        left={leftPane}
-        right={rightPane}
-        mobileView={selectedId ? "detail" : "list"}
-        mobileBackSlot={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSelectedId(null)}
-            className="mb-2"
-          >
-            ← К списку
-          </Button>
-        }
-        className="lg:grid-cols-[0.8fr_1.6fr] h-full"
-      />
-    </div>
+    <CatalogSplitLayout
+      left={leftPane}
+      right={rightPane}
+      mobileView={selectedId ? "detail" : "list"}
+      mobileBackSlot={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedId(null)}
+          className="mb-2"
+        >
+          ← К списку
+        </Button>
+      }
+      className={cn("lg:grid-cols-[0.8fr_1.6fr]", DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE)}
+    />
   );
 }

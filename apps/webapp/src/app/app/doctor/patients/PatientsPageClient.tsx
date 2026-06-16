@@ -783,6 +783,29 @@ function PatientsContent({
               Введите ещё {3 - searchInput.trim().length} симв.
             </p>
           ) : null}
+          {/* PAT-07: Пациенты / Все toggle */}
+          <div className="mt-2 flex gap-1" role="group" aria-label="Фильтр: пациенты или все">
+            {([
+              { cat: "client" as ClientCategory, label: "Пациенты", count: allClients.filter((c) => getClientCategory(c) === "client").length },
+              { cat: "all" as ClientCategory, label: "Все", count: allClients.length },
+            ]).map(({ cat, label, count }) => (
+              <button
+                key={cat}
+                type="button"
+                aria-pressed={activeCategory === cat}
+                onClick={() => onCategoryChange(cat)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  activeCategory === cat
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {label}
+                <span className="tabular-nums opacity-70">{count}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Sticky header: count + icon filter rail */}
