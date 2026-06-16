@@ -548,9 +548,11 @@ export function DoctorOnlineIntakeClient({
                     onClick={(e) => e.stopPropagation()}
                     className="min-w-0 truncate text-sm font-semibold hover:underline"
                   >
-                    {formatFioForDoctor(item.lastName, item.firstName, undefined)}
+                    {(item.lastName || item.firstName)
+                      ? formatFioForDoctor(item.lastName, item.firstName, undefined)
+                      : (item.patientName || "—")}
                   </Link>
-                  {item.patientName && item.patientName !== formatFioForDoctor(item.lastName, item.firstName, undefined) && (
+                  {(item.lastName || item.firstName) && item.patientName && item.patientName !== formatFioForDoctor(item.lastName, item.firstName, undefined) && (
                     <span className="min-w-0 truncate text-xs text-muted-foreground">{item.patientName}</span>
                   )}
                 </div>
@@ -615,9 +617,11 @@ export function DoctorOnlineIntakeClient({
                     href={patientCardHref(detail.patientUserId)}
                     className="text-sm font-bold hover:underline"
                   >
-                    {formatFioForDoctor(detail.lastName, detail.firstName, undefined)}
+                    {(detail.lastName || detail.firstName)
+                      ? formatFioForDoctor(detail.lastName, detail.firstName, undefined)
+                      : (detail.patientName || "—")}
                   </Link>
-                  {detail.patientName && detail.patientName !== formatFioForDoctor(detail.lastName, detail.firstName, undefined) && (
+                  {(detail.lastName || detail.firstName) && detail.patientName && detail.patientName !== formatFioForDoctor(detail.lastName, detail.firstName, undefined) && (
                     <div className="text-xs text-muted-foreground">{detail.patientName}</div>
                   )}
                   <div className="mt-0.5 text-xs text-muted-foreground">
