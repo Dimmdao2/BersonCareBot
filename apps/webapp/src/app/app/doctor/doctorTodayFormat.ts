@@ -13,8 +13,8 @@ export function truncateText(text: string | null | undefined, max = TEXT_PREVIEW
   return `${t.slice(0, max - 1)}…`;
 }
 
-export function formatDateTimeRu(iso: string): string {
+export function formatDateTimeRu(iso: string, timeZone = "Europe/Moscow"): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short", timeZone });
 }

@@ -8,6 +8,7 @@ import { doctorSectionSubtitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import { cn } from "@/lib/utils";
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/calendarIana";
 import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
 import { SpecialistTaskRow as TaskRow } from "./clients/SpecialistTaskRow";
 
@@ -42,7 +43,11 @@ function formatWhenShort(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+  return d.toLocaleString("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: DEFAULT_APP_DISPLAY_TIMEZONE,
+  });
 }
 
 export function DoctorGlobalTasksSection({

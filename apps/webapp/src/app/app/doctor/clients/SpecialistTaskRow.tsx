@@ -9,12 +9,17 @@ import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import type { SpecialistTaskRow as Task } from "@/modules/specialist-tasks/types";
 import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority";
 import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/calendarIana";
 
 function formatWhen(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+  return d.toLocaleString("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: DEFAULT_APP_DISPLAY_TIMEZONE,
+  });
 }
 
 type Props = {
