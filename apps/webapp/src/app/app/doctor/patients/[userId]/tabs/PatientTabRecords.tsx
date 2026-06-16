@@ -5,7 +5,7 @@
  * Data: real from GET /api/doctor/patients/[userId]/appointments (client-side fetch).
  * Falls back to mock display if fetch fails / empty so UI never breaks.
  * «Оформить визит»: dispatches custom event "patient:open-tab" with {tab:"karta"} — consumed by
- *   PatientCardClient to switch to the Карта tab. TODO(bridge to Карта visit form).
+ *   PatientCardClient (lines 140-141) to switch to the Карта tab.
  * Note: booking-reputation & merge removed from this tab per owner decision 2026-06-14.
  */
 
@@ -68,7 +68,7 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     service: item.serviceName ?? "Запись",
     status: item.status === "rescheduled" ? "rescheduled" : item.status,
     durationMin: item.durationMin ?? undefined,
-    hasVisitRecord: false, // TODO(bridge to Карта visit form): нет поля в модели
+    hasVisitRecord: false, // PatientAppointmentItem doesn't include visit-record presence yet
   };
 }
 
@@ -107,7 +107,6 @@ function fmtWeekday(iso: string): string {
 
 /** Dispatch custom event to switch PatientCardClient to a different tab. */
 function openTab(tabId: string) {
-  // TODO(bridge to Карта visit form): PatientCardClient listens to this event and switches tab
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("patient:open-tab", { detail: { tab: tabId } }));
   }

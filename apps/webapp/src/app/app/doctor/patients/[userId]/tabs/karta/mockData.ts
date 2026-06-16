@@ -1,8 +1,5 @@
-// Справочные списки полей формы «Новый визит» (NewVisitPanel).
-// Локация, услуга и длительность теперь вводятся свободным текстом —
-// эти константы оставлены пустыми и не импортируются в NewVisitPanel.
-// TODO(backend): подтягивать из booking / каталогов.
-
+// Stub retained for module resolution; location/service/duration are now
+// loaded from /api/doctor/booking-engine/services in NewVisitPanel (VIZ-06).
 export const VISIT_LOCATION_OPTIONS: string[] = [];
 export const VISIT_SERVICE_OPTIONS: string[] = [];
 export const VISIT_DURATION_OPTIONS: string[] = [];
