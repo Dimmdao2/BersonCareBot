@@ -247,6 +247,7 @@ function DiagnosisAutocomplete({
       <div className="flex items-center gap-2">
         <span className="flex-none text-sm text-muted-foreground">⚑</span>
         <input
+          type="search"
           value={draft}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="Начните вводить — поиск по справочнику..."

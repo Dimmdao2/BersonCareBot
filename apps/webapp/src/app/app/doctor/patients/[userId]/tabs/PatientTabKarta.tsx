@@ -1140,7 +1140,7 @@ function AddTraumaForm({
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Год</label>
-          <input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="Год (напр. 2003)" className={inputClass} />
+          <input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="Год" className={inputClass} />
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Тип</label>
@@ -1222,7 +1222,7 @@ function AddIllnessForm({
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Комментарий</label>
-        <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Начались панические атаки" className={inputClass} />
+        <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Описание, последствия, примечание…" className={inputClass} />
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
