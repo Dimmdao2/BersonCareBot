@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { DbPort, DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { sendMaxMessage } from '../../integrations/max/client.js';
-import { maxConfig } from '../../integrations/max/config.js';
-import { getMaxApiKey } from '../../integrations/max/runtimeConfig.js';
 import { logger } from '../observability/logger.js';
 import { extractSystemSettingInnerValue } from './publicSystemSettings.js';
 import {
@@ -175,7 +172,7 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
     }
   }
 
-  if (channels.max && maxConfig.enabled) {
+  if (channels.max) {
     let maxIds: string[] = [];
     try {
       const lists = await loadAdminMessengerIdLists(input.db);
@@ -188,33 +185,43 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
         { scope: 'admin_incident', event: 'admin_incident_alert_skipped_no_recipients', channel: 'max' },
         'skipped',
       );
+    } else if (!dispatch) {
+      logger.info(
+        { scope: 'admin_incident', event: 'admin_incident_alert_skipped_no_dispatch', channel: 'max' },
+        'skipped',
+      );
     } else {
-      const apiKey = await getMaxApiKey();
-      if (!apiKey.trim()) {
-        logger.info(
-          { scope: 'admin_incident', event: 'admin_incident_alert_skipped_no_max_api_key', channel: 'max' },
-          'skipped',
-        );
-      } else {
-        const config = { apiKey };
-        for (const id of maxIds) {
-          const userId = Number(id);
-          if (!Number.isFinite(userId)) continue;
-          try {
-            await sendMaxMessage(config, { userId, text });
-          } catch (err) {
-            logger.warn(
-              {
-                err,
-                scope: 'admin_incident',
-                event: 'admin_incident_relay_failed',
-                topic: input.topic,
-                channel: 'max',
-                recipient: id,
-              },
-              'relay failed',
-            );
-          }
+      for (const id of maxIds) {
+        const userId = Number(id);
+        if (!Number.isFinite(userId)) continue;
+        const eventId = clip(`admin-incident:${input.topic}:${dk}:max:${id}`, 240);
+        const intent: OutgoingIntent = {
+          type: 'message.send',
+          meta: {
+            eventId,
+            occurredAt: new Date().toISOString(),
+            source: 'max',
+          },
+          payload: {
+            recipient: { userId },
+            message: { text },
+            delivery: { channels: ['max'], maxAttempts: 1 },
+          },
+        };
+        try {
+          await dispatch.dispatchOutgoing(intent);
+        } catch (err) {
+          logger.warn(
+            {
+              err,
+              scope: 'admin_incident',
+              event: 'admin_incident_relay_failed',
+              topic: input.topic,
+              channel: 'max',
+              recipient: id,
+            },
+            'relay failed',
+          );
         }
       }
     }
