@@ -47,6 +47,25 @@ export async function sendWebPushToSubscriptions(params: {
     params;
   if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
+  // DEV SAFETY GUARD — web-push delivery happens HERE in the webapp, bypassing the integrator
+  // dispatchPort dev-redirect, sending straight to real subscription endpoints. In non-production the
+  // subscriptions come from the prod-refreshed dev DB (REAL patients/doctors) → sending would leak to
+  // real people. Suppress entirely unless explicitly opted in. NEVER reaches a real endpoint in dev.
+  // (Proper fix later: move web-push delivery into the integrator as a dispatchPort channel/adapter.)
+  if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_WEB_PUSH !== "1") {
+    logger.warn(
+      {
+        scope: "web_push",
+        event: "dev_web_push_suppressed",
+        count: subscriptions.length,
+        userId: logContext?.userId,
+        topicCode: logContext?.topicCode,
+      },
+      "[web-push] DEV suppress: not sending to real subscriptions in non-production (set ALLOW_DEV_WEB_PUSH=1 to override)",
+    );
+    return { delivered: 0, errors: 0, deactivated: 0 };
+  }
+
   const body = JSON.stringify({
     title: payload.title,
     body: payload.body,
