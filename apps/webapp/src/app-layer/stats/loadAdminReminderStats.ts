@@ -34,6 +34,12 @@ export type ContentEngagementTopPageRow = {
   count: number;
 };
 
+export type ExerciseVideoTopItemRow = {
+  mediaId: string;
+  title: string;
+  count: number;
+};
+
 const DEFAULT_WINDOW_HOURS = 168;
 const MIN_WINDOW_HOURS = 1;
 const MAX_WINDOW_HOURS = 720;
@@ -82,6 +88,10 @@ export type ContentEngagementStatsResponse = {
   warmupVideoEstimatedWatchMinutes: number;
   /** Оценка минут просмотра всех видео: сумма длительностей по `media_playback_resolution_events`. */
   videoPlaybackEstimatedWatchMinutes: number;
+  /** Открытия видео упражнений из программ лечения — топ по названию упражнения. */
+  exerciseVideoTopItems: ExerciseVideoTopItemRow[];
+  /** Суммарное число открытий видео упражнений за период. */
+  exerciseVideoCount: number;
   /** Same rolling window as other blocks; reuses `loadAdminPlaybackHealthMetrics`. */
   videoPlayback: AdminPlaybackHealthMetrics;
   /** Ошибки воспроизведения в браузере; тот же helper, что `GET /api/admin/system-health` → `videoPlaybackClient`. */
@@ -201,6 +211,10 @@ export async function loadContentEngagementStats(opts: {
   const pushOpenUserExclude = drizzleExcludeUserIdColumn(productAnalyticsEventsRecent.userId, excludedUserIds);
   const pushSentUserExclude = drizzleExcludeUserIdColumn(productPushNotifications.userId, excludedUserIds);
   const resolutionUserExclude = drizzleExcludeUserIdColumn(mediaPlaybackResolutionEvents.userId, excludedUserIds);
+  const exerciseUserExcludeSql =
+    excludedUserIds.length > 0
+      ? sql`AND mpre.user_id NOT IN (${drizzleSqlUuidInList(excludedUserIds)})`
+      : sql``;
   const trimmedContentVideoUrl = sql`trim(split_part(split_part(${contentPages.videoUrl}, '#', 1), '?', 1))`;
   const apiMediaIdFromContentVideoUrl = sql`(
     substring(
@@ -229,6 +243,7 @@ export async function loadContentEngagementStats(opts: {
     reminderRulesEnabledRow,
     videoPlayback,
     videoPlaybackClient,
+    exerciseVideoRows,
   ] = await Promise.all([
     db
       .select({
@@ -387,6 +402,29 @@ export async function loadContentEngagementStats(opts: {
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours, excludedUserIds }),
     loadAdminPlaybackClientHealthMetrics({ windowHours, excludedUserIds }),
+    db.execute<{ media_id: string; title: string; n: string }>(sql`
+      WITH exercise_media AS (
+        SELECT DISTINCT
+          (regexp_match(elem->>'url', '/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'))[1]::uuid AS media_id,
+          tpisi.snapshot->>'title' AS title
+        FROM treatment_program_instance_stage_items tpisi,
+             jsonb_array_elements(tpisi.snapshot->'media') AS elem
+        WHERE tpisi.item_type = 'exercise'
+          AND elem->>'type' = 'video'
+          AND (regexp_match(elem->>'url', '/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'))[1] IS NOT NULL
+      )
+      SELECT
+        em.media_id::text AS media_id,
+        em.title,
+        COUNT(mpre.id)::text AS n
+      FROM exercise_media em
+      JOIN media_playback_resolution_events mpre ON mpre.media_id = em.media_id
+      WHERE mpre.resolved_at >= ${windowCutoffSql}
+        ${exerciseUserExcludeSql}
+      GROUP BY em.media_id, em.title
+      ORDER BY COUNT(mpre.id) DESC
+      LIMIT 15
+    `),
   ]);
 
   const pushOpensHourly = mergePushOpenBuckets([
@@ -453,6 +491,12 @@ export async function loadContentEngagementStats(opts: {
     })),
     warmupVideoEstimatedWatchMinutes,
     videoPlaybackEstimatedWatchMinutes,
+    exerciseVideoTopItems: exerciseVideoRows.rows.map((r) => ({
+      mediaId: r.media_id ?? "",
+      title: r.title ?? "",
+      count: Number(r.n ?? 0),
+    })),
+    exerciseVideoCount: exerciseVideoRows.rows.reduce((sum, r) => sum + Number(r.n ?? 0), 0),
     videoPlayback,
     videoPlaybackClient,
   };

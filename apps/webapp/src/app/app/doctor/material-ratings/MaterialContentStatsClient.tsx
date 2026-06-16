@@ -29,6 +29,7 @@ const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
 const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
 const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
+const FILL_EXERCISE_VIDEO = "hsl(280 45% 50% / 0.9)";
 
 const VIDEO_DELIVERY_COLORS: Record<string, string> = {
   HLS: "hsl(215 60% 52%)",
@@ -48,6 +49,13 @@ function topPagesToChartData(rows: TopPageRow[]) {
       count: r.count,
     };
   });
+}
+
+function exerciseVideoToChartData(rows: Array<{ title: string; count: number }>) {
+  return rows.map((r) => ({
+    label: r.title.length > 44 ? `${r.title.slice(0, 41)}…` : r.title,
+    count: r.count,
+  }));
 }
 
 function chartHeightForRows(rowCount: number): number {
@@ -182,6 +190,11 @@ export function MaterialContentStatsClient() {
     [data?.warmupVideoTopPages],
   );
 
+  const exerciseVideoChartData = useMemo(
+    () => exerciseVideoToChartData(data?.exerciseVideoTopItems ?? []),
+    [data?.exerciseVideoTopItems],
+  );
+
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
@@ -234,6 +247,25 @@ export function MaterialContentStatsClient() {
                 hint="оценка по длительности роликов"
               />
               <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="py-2">
+              <CardTitle className="text-sm">Открытия видео упражнений из программ (топ)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <DoctorStatCard
+                id="content-stats-exercise-video-count"
+                title="Всего открытий"
+                value={data.exerciseVideoCount}
+                hint="за период"
+              />
+              <TopPagesHorizontalBarChart
+                data={exerciseVideoChartData}
+                barName="Открытий"
+                fill={FILL_EXERCISE_VIDEO}
+              />
             </CardContent>
           </Card>
 
