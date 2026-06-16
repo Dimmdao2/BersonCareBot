@@ -25,6 +25,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { formatFioForDoctor } from "@/lib/parseFullName";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -514,7 +515,7 @@ function PatientPreviewPane({ userId, item, onClose }: PatientPreviewPaneProps) 
           {(item.lastName ?? item.firstName) ? (
             <>
               <span className="block truncate text-sm font-bold text-foreground">
-                {[item.lastName, item.firstName].filter(Boolean).join(" ")}
+                {formatFioForDoctor(item.lastName, item.firstName, item.patronymic)}
               </span>
               <span className="block truncate text-xs text-muted-foreground">{item.displayName}</span>
             </>
@@ -943,7 +944,7 @@ function PatientsContent({
                       {(c.lastName ?? c.firstName) ? (
                         <>
                           <span className="block truncate text-sm font-semibold text-foreground">
-                            {[c.lastName, c.firstName].filter(Boolean).join(" ")}
+                            {formatFioForDoctor(c.lastName, c.firstName, c.patronymic)}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">{c.displayName}</span>
                         </>

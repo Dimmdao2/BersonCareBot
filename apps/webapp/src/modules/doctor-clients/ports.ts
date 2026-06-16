@@ -52,10 +52,10 @@ export type DoctorClientsFilters = {
 export type ClientListItem = {
   userId: string;
   displayName: string;
-  /** Реальное имя (скрытое ФИО) — показывается мельче под displayName в разделе «Пациенты». */
   firstName?: string | null;
-  /** Реальная фамилия (скрытое ФИО) — показывается мельче под displayName в разделе «Пациенты». */
   lastName?: string | null;
+  /** Отчество из platform_users.patronymic — часть ФИО, основного идентификатора пациента для врача. */
+  patronymic?: string | null;
   phone: string | null;
   bindings: ChannelBindings;
   hasEmail?: boolean;

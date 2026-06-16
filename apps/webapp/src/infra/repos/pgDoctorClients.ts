@@ -96,7 +96,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         filters.archivedOnly === true
           ? `COALESCE(is_archived, false) = true`
           : `COALESCE(is_archived, false) = false`;
-      const listBase = `SELECT id, display_name, first_name, last_name, phone_normalized, created_at, email, email_verified_at
+      const listBase = `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, created_at, email, email_verified_at
          FROM platform_users pu
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
       const listQ = appendSqlExcludeUserIds(listBase, "pu.id", excluded, []);
@@ -105,6 +105,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         display_name: string | null;
         first_name: string | null;
         last_name: string | null;
+        patronymic: string | null;
         phone_normalized: string | null;
         created_at: string;
         email: string | null;
@@ -319,6 +320,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             displayName: r.display_name ?? "",
             firstName: r.first_name ?? null,
             lastName: r.last_name ?? null,
+            patronymic: r.patronymic ?? null,
             phone,
             bindings,
             hasEmail: Boolean(email) || Boolean(r.email_verified_at),
