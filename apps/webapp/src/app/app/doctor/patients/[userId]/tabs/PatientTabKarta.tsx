@@ -1392,15 +1392,13 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
     fetchAnamnesis();
   }, [fetchClinical, fetchAnamnesis]);
 
-  // Auto-open new visit panel when navigated from schedule with createVisitFrom param
+  // Auto-open new visit panel when navigated via URL param or in-page tab switch from Визиты
   useEffect(() => {
     if (pendingAppointmentId) {
       setPanelOpen(true);
       onPendingConsumed?.();
     }
-  // Only fire once on mount (pendingAppointmentId is stable from URL param)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pendingAppointmentId, onPendingConsumed]);
 
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;
