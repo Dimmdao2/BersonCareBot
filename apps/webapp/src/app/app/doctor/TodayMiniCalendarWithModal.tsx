@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { DateTime } from "luxon";
 import { DoctorTodayMiniCalendar } from "./DoctorTodayMiniCalendar";
-import { TodayAppointmentModal } from "./TodayAppointmentModal";
+import { TodayAppointmentFullModal } from "./TodayAppointmentFullModal";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 
 type Props = {
@@ -20,7 +21,11 @@ export function TodayMiniCalendarWithModal({
   displayIana,
   workingBounds,
 }: Props) {
-  const [selectedAppt, setSelectedAppt] = useState<TodayAppointmentItem | null>(null);
+  const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
+
+  const todayIso =
+    DateTime.now().setZone(displayIana).toISODate() ??
+    new Date().toISOString().slice(0, 10);
 
   return (
     <>
@@ -30,11 +35,13 @@ export function TodayMiniCalendarWithModal({
         todayDateLabel={todayDateLabel}
         displayIana={displayIana}
         workingBounds={workingBounds}
-        onEventClick={setSelectedAppt}
+        onEventClick={(appt) => setSelectedApptId(appt.id)}
       />
-      <TodayAppointmentModal
-        appt={selectedAppt}
-        onClose={() => setSelectedAppt(null)}
+      <TodayAppointmentFullModal
+        apptId={selectedApptId}
+        todayIso={todayIso}
+        displayIana={displayIana}
+        onClose={() => setSelectedApptId(null)}
       />
     </>
   );
