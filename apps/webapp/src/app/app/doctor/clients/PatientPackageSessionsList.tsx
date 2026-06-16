@@ -139,6 +139,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
   function formatWhen(iso: string) {
     try {
       return new Date(iso).toLocaleString("ru-RU", {
+        timeZone: "Europe/Moscow",
         day: "2-digit",
         month: "2-digit",
         hour: "2-digit",

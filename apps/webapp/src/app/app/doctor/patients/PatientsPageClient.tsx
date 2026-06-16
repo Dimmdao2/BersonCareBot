@@ -442,7 +442,7 @@ function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /** Format ISO date+time → DD.MM.YYYY HH:MM */
@@ -450,7 +450,7 @@ function fmtDateTime(date: string | null | undefined, time?: string | null): str
   if (!date) return "—";
   const d = new Date(date);
   if (isNaN(d.getTime())) return "—";
-  const dateStr = d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const dateStr = d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
   return time ? `${dateStr} ${time}` : dateStr;
 }
 

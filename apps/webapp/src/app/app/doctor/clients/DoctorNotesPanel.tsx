@@ -79,7 +79,7 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
         {notes.map((n) => (
           <li key={n.id} id={`doctor-note-${n.id}`} className="rounded-md border border-border p-2 text-sm">
             <span className="text-muted-foreground text-xs">
-              {new Date(n.createdAt).toLocaleString("ru-RU")}
+              {new Date(n.createdAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
             </span>
             <p className="mt-1 whitespace-pre-wrap">{n.text}</p>
           </li>

@@ -50,9 +50,9 @@ function formatConversationTime(value: string): string {
     date.getDate() === now.getDate() &&
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear();
-  const time = date.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const time = date.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" });
   if (isToday) return time;
-  const dayMonth = date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" });
+  const dayMonth = date.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit" });
   return `${dayMonth} · ${time}`;
 }
 

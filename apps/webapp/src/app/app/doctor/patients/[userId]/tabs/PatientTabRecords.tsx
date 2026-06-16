@@ -102,7 +102,7 @@ function fmtDateShort(iso: string): string {
 function fmtWeekday(iso: string): string {
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("ru-RU", { weekday: "short" }).replace(".", "");
+  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", weekday: "short" }).replace(".", "");
 }
 
 /** Dispatch custom event to switch PatientCardClient to a different tab. */

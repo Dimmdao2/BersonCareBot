@@ -116,7 +116,7 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
               className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs flex flex-col gap-1"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground">{new Date(row.created_at).toLocaleString()}</span>
+                <span className="text-muted-foreground">{new Date(row.created_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}</span>
                 <Badge variant="outline" className="font-mono text-[10px]">
                   {row.action}
                 </Badge>
@@ -135,7 +135,7 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
               ) : null}
               {row.resolved_at ? (
                 <span className="text-muted-foreground">
-                  закрыт {new Date(row.resolved_at).toLocaleString()}
+                  закрыт {new Date(row.resolved_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
                 </span>
               ) : null}
               {canManuallyResolveAuditRow(row) ? (

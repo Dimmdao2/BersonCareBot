@@ -123,9 +123,9 @@ function formatIntakeDate(iso: string): string {
     d.getMonth() === now.getMonth() &&
     d.getFullYear() === now.getFullYear();
   if (isToday) {
-    return `сегодня · ${d.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+    return `сегодня · ${d.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" })}`;
   }
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit" });
 }
 
 // ── Detail body ─────────────────────────────────────────────────────────────
