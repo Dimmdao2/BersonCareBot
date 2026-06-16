@@ -138,6 +138,7 @@ export function DoctorTodayMiniCalendar({
           allDaySlot={false}
           nowIndicator
           height="auto"
+          timeZone={displayIana}
           slotMinTime={slotMinTime}
           slotMaxTime={slotMaxTime}
           events={fcEvents}
