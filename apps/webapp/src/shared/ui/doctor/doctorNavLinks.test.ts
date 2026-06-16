@@ -114,12 +114,12 @@ describe("doctor menu structure", () => {
     expect(ids).toContain("admin-technical");
   });
 
-  it("system has booking-merge", () => {
+  it("system does not have booking-merge (removed per SET-05), has system-health and audit-log", () => {
     const items = getDoctorMenuItems(adminAccess);
     const system = items.find((i) => i.id === "system");
     expect(system?.requiresAdminMode).toBe(true);
     const ids = system!.items!.map((i) => i.id);
-    expect(ids).toContain("booking-merge");
+    expect(ids).not.toContain("booking-merge");
     expect(ids).toContain("system-health");
     expect(ids).toContain("audit-log");
   });
