@@ -384,34 +384,49 @@ export function NewVisitPanel({
     }
   }, [activeComplaints, activeDiagnoses]);
 
-  // Populate location/service/duration from patient appointments history
+  // Populate location/service/duration from patient appointments history + booking-engine catalog
   useEffect(() => {
-    fetch(`/api/doctor/patients/${userId}/appointments`)
+    const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
       .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string; durationMin?: number }> }>) : null))
-      .then((data) => {
-        if (!data?.appointments) return;
-        const appts = data.appointments;
-        const uniqueLocations = [...new Set(
-          appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean)
-        )];
-        const uniqueServices = [...new Set(
-          appts.map((a) => a.serviceName ?? "").filter(Boolean)
-        )];
-        const uniqueDurations = [...new Set(
-          appts.map((a) => (a.durationMin ? `${a.durationMin} мин` : "")).filter(Boolean)
-        )];
-        setLocationOptions(uniqueLocations);
-        setServiceOptions(uniqueServices);
-        setDurationOptions(uniqueDurations);
-        // Pre-fill from the most recent appointment
-        const latest = appts[0];
-        if (latest) {
-          if (latest.branchName ?? latest.location) setLocation(latest.branchName ?? latest.location ?? "");
-          if (latest.serviceName) setService(latest.serviceName);
-          if (latest.durationMin) setDuration(`${latest.durationMin} мин`);
-        }
-      })
-      .catch(() => { /* silently ignore — fall back to free-text inputs */ });
+      .catch(() => null);
+
+    const servicesFetch = fetch(`/api/doctor/booking-engine/services`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ ok: boolean; services?: Array<{ title: string; durationMinutes: number; isActive: boolean }> }>) : null))
+      .catch(() => null);
+
+    void Promise.all([apptsFetch, servicesFetch]).then(([apptData, servicesData]) => {
+      const appts = apptData?.appointments ?? [];
+
+      const uniqueLocations = [...new Set(
+        appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean)
+      )];
+
+      // Merge appointment history services with booking-engine active services
+      const apptServices = appts.map((a) => a.serviceName ?? "").filter(Boolean);
+      const catalogServices = (servicesData?.services ?? [])
+        .filter((s) => s.isActive)
+        .map((s) => s.title);
+      const uniqueServices = [...new Set([...apptServices, ...catalogServices])];
+
+      // Merge appointment history durations with booking-engine active durations
+      const apptDurations = appts.map((a) => (a.durationMin ? `${a.durationMin} мин` : "")).filter(Boolean);
+      const catalogDurations = (servicesData?.services ?? [])
+        .filter((s) => s.isActive)
+        .map((s) => `${s.durationMinutes} мин`);
+      const uniqueDurations = [...new Set([...apptDurations, ...catalogDurations])];
+
+      setLocationOptions(uniqueLocations);
+      setServiceOptions(uniqueServices);
+      setDurationOptions(uniqueDurations);
+
+      // Pre-fill from the most recent appointment
+      const latest = appts[0];
+      if (latest) {
+        if (latest.branchName ?? latest.location) setLocation(latest.branchName ?? latest.location ?? "");
+        if (latest.serviceName) setService(latest.serviceName);
+        if (latest.durationMin) setDuration(`${latest.durationMin} мин`);
+      }
+    });
   }, [userId]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
