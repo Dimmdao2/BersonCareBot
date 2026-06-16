@@ -1,9 +1,10 @@
 # SaaS Foundation Plan — Dormant-but-Ready Multi-Tenant / Multi-Lingual / Multi-Region
 
-Status: DRAFT v2 (2026-06-16) — hardened after an adversarial repo-grounded review. See **§12** for
-findings folded in and **§13** for corrected sizing. The original v1 design (§0–§11) stands as the
-target shape, but its "flip = a flag" promise is **corrected below**: the dormant scaffolding flips;
-enforcing isolation is a one-time multi-week cutover, not a switch.
+Status: DRAFT v3 (2026-06-16) — grounded against the prod-mirror DB + deploy configs; Rubitime
+deprecation folded in. **Read the "v3 — GROUNDED PLAN" section directly below first** — it is
+authoritative and supersedes earlier framing where they conflict. §12 = adversarial findings, §13 =
+sizing, §0–§11 = design reference. The v1 "flip = a flag" promise is corrected: the scaffolding is
+dormant/flag-gated; enforcing isolation is a one-time multi-week cutover (T0).
 
 Purpose: lay every seam and mechanism for a multi-specialist,
 multi-cabinet, multi-region (RU↔EU), multi-locale SaaS **now**, while the production app stays
@@ -13,6 +14,114 @@ set of config flags flipped over pre-built, tested machinery — not a refactor.
 Chosen model (owner-confirmed): **global Person + Cabinet(=tenant) + Enrollment(join, clinical
 root)**. A patient (Person) may enrol into many Cabinets; per-doctor clinical data hangs off the
 Enrollment, not the Person.
+
+---
+
+## v3 — GROUNDED PLAN (authoritative; supersedes earlier framing where they conflict)
+
+Verified 2026-06-16 against the prod-mirror dev DB (`bcb_webapp_dev`) + deploy/compose configs.
+Owner direction: **Rubitime is being deprecated** (progressively off prod over ~1 month) — anchor
+tenancy ENTIRELY on the new `be_*` engine + clinical tables; freeze & drop legacy
+`patient_bookings`/`appointment_records`; do not scope them.
+
+### Ground truth (measured, not assumed)
+- **Pooling:** app connects DIRECTLY to Postgres `127.0.0.1:5432`; NO pgbouncer (no process, no
+  deploy/compose reference). → the per-request **pinned-connection + session `SET` + `RESET ALL`**
+  model is viable; no transaction-pooler constraint. (Re-confirm the prod box before T0.)
+- **App DB role** (`bcb_webapp_dev_user`): `rolsuper=f`, `rolbypassrls=f`, and it **owns the tables**.
+  Two consequences that **invalidate the v2 dormancy plan**:
+  1. "App runs under a BYPASSRLS role until flip" is impossible — this role can't bypass.
+  2. A table **owner is exempt from its own RLS** unless `FORCE ROW LEVEL SECURITY` is set — so naive
+     `ENABLE RLS` would not apply to the app at all (owner-exempt), or, as a non-owner, deny everything.
+  - **Corrected dormant strategy:** (1) split into a **migration/owner role** + a **non-owner app
+    role**; (2) `ENABLE` + **`FORCE ROW LEVEL SECURITY`** on scoped tables; (3) policies are
+    **GUC-gated permissive**: `USING ( current_setting('app.enforce_tenancy', true) IS DISTINCT FROM
+    'on' OR <tenant predicate> )`. GUC unset today → permissive → zero behavior change; T0 = default
+    the GUC `on` per request. Policies present, testable, inert. (Note: any role may set custom `app.*`
+    GUCs, incl. non-superuser — the context mechanism works.)
+- **Tenancy data is trivially small:** exactly **1 organization** (`a0000000-…-0001`, "Точка Здоровья"),
+  **2 specialists**, `platform_users` = 241 client / 5 admin / 1 doctor; ALL `be_appointments` and
+  `be_patient_timeline_events` are under the single org. → backfill is tiny & unambiguous, BUT
+  multi-org paths have zero real-data coverage — design carefully, can't lean on data.
+- `patient_bookings` has `branch_id` only (no org) — irrelevant (legacy Rubitime, frozen).
+- `be_organization_members` does NOT exist → E1 is a clean build, not an extend.
+
+### Phase 0 — ordered, E1 FIRST
+
+**Block 1 — E1: identity→organization bridge (THE unblocker).**
+- Create `be_organization_members(organization_id FK, platform_user_id FK, role text
+  [owner|admin|doctor|assistant], specialist_id uuid NULL FK be_specialists, status, created_at,
+  UNIQUE(organization_id, platform_user_id))`.
+- Seed (tiny): map the 1 doctor + 5 admins → the single org with roles; link `specialist_id` for the
+  doctor where a `be_specialists` row matches.
+- `Principal` derivation: logged-in `platform_user_id` → membership → `{ doctor, userId,
+  organizationId, role }`; single membership → that org; multiple → active-org in session.
+- The real single-tenant lever is **`getDefaultOrganizationId()`** — ONE resolver returning the same
+  default org for everyone, called in **62 files** (only the 2 `require*BookingEngine` gates are real
+  chokepoints; the rest — patient RSC, `api/booking/public`, memberships, products, payments,
+  integrator — call it raw). E1 makes this resolver **context-aware** (prefer session/membership org,
+  fall back to default) so most callers inherit the fix.
+- (Re-verified: URL `?specialistId` is NOT a cross-tenant hole — the calendar is already org-scoped via
+  `requireDoctorBookingEngine().ctx.organizationId` (`api/doctor/booking-engine/_requireDoctorBookingEngine.ts:35`
+  resolves org via `getDefaultOrganizationId`); `specialistId` is a within-org filter = the
+  `card_visibility` concern, not a breach. Claim corrected.)
+
+**Block 2 — enrollment:** an EXPLICIT `(organization_id, platform_user_id)` table. (Re-verified: do
+NOT reuse `be_patient_timeline_events` — it holds only **4 rows**; and **102/241 patients have no
+`be_*` footprint at all**, so enrollment cannot be derived from booking activity. Backfill = assign
+all existing patients → the single org; trivial today, but multi-org derivation has zero data.)
+
+**Block 3 — scope columns:** add nullable `organization_id` to the ~50 **clinical** tables (NOT
+legacy/Rubitime); backfill to the single org (trivial — 241 patients).
+
+**Block 4 — roles + RLS (dormant):** migration/owner role + non-owner app role; `ENABLE` + `FORCE`
+RLS + GUC-gated permissive policies (patient: org + person; doctor: org via membership). CI invariant:
+every scoped table has FORCE RLS + a policy.
+
+**Block 5 — rest (dormant):** SecretsResolver + env fallback; i18n provider ru-only via **proxy (not
+middleware)**; S3 key prefix with org; dormant `activeOrganizationId` session field; outbox / audit /
+soft-delete; isolation test fixtures (2 orgs + a shared patient).
+
+**Dropped from Phase 0** (deferred to the region phase): the `persons`/`directory` split —
+`platform_users.id` is already the patient FK baked into the new engine; splitting now fights it for
+no near-term gain.
+
+### Re-verification corrections (2026-06-16) — what changed after re-checking
+- **Mirror is fresh** (newest client 2026-06-13) → dev measurements trustworthy; prod-box role +
+  pooling parity still to confirm before T0 (NOT before Block 1 — E1 doesn't enable RLS).
+- **Specialist duplication is live:** two `be_specialists` both "Дмитрий Берсон" — active (`518e…`,
+  327 appts) + inactive (`c951…`, 0 appts). The E1 seed links the doctor → the ACTIVE one; resolving
+  the duplicate is a prerequisite (ties into the existing specialist-consolidation work).
+- **Non-session org-sourcing is the genuinely-new E1 work** (not the gates): `api/booking/public`
+  (7 files, unauthenticated), payment webhooks, and integrator events have NO session — org must come
+  from the booking link (a path param/token, NOT a subdomain) or be derived from the processed entity.
+- Two v3 claims were over-optimistic and are corrected above: enrollment source (timeline is empty),
+  and `specialistId` (already org-scoped, not a hole).
+
+### Org resolution by channel + authz layering (2026-06-16 — owner direction)
+Entry is **web/PWA/browser-first**; the bot is delivery + phone-verification (+ a trimmed miniApp,
+likely owner-only). So "org = bot" is NOT the primary mechanism. Org resolves per channel, then flows
+into the SAME request context; the channel-resolved org carries **zero authority**:
+- **Authenticated** (PWA / returning patient / doctor) → org from **session/membership** (dominant).
+- **Anonymous public booking** (cold first contact, narrow surface) → **custom domain (Host)** /
+  **embeddable widget publishable-key** / **QR-short-link → token → 302 → cookie**.
+- **Bot:** shared bot + deep-link by default; **per-org bot = paid/tariff** option.
+- **Discovery marketplace** (planned) → org from in-app selection.
+
+Three independent layers — never collapse them: (1) **context** = which org (scope hint, no rights);
+(2) **authn** = who (session); (3) **authz** = what you may access = **RLS + membership/enrollment**,
+enforced per request regardless of how org was resolved. A forged/swapped org cookie only changes which
+org's **public** surface (services/free slots) is shown — RLS denies all private/clinical data without an
+authenticated principal. Ownership ("принадлежность") is enforced **once, centrally (RLS)** — universal by
+construction, NOT duplicated per endpoint. Phase 0 (solo, web-first): resolver reads org from session;
+channel binding for public booking is built when public multi-tenant booking actually ships.
+
+### Sizing delta vs §13
+- Backfill risk DOWN (1 org / 241 patients — tiny). E1 added as a small, clean Phase-0 block. Dormant
+  RLS mechanism corrected (FORCE + GUC-gated + role split) — same effort, now actually correct.
+- **Phase 0 ≈ 3–4.5 wk** (E1 added, persons-split removed, trivial backfill — roughly nets out). T0
+  cutover unchanged **~6–9 wk** (dominated by the connection refactor + 104 `getDefaultOrganizationId`
+  sites + 4 process entrypoints — independent of data size). Lifecycle ~5–8 wk; EN ~3–4.5; EU ~7–11.
 
 ---
 
