@@ -773,7 +773,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           sc.admin_scope,
           sc.status,
           sc.opened_at::text,
-          sc.last_message_at::text,
+          COALESCE(last_personal.personal_msg_at, sc.created_at)::text AS last_message_at,
           sc.closed_at::text,
           sc.close_reason,
           COALESCE(pu.display_name, '') AS display_name,
