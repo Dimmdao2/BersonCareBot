@@ -94,25 +94,18 @@ vi.mock("@/shared/ui/doctor/DoctorAppShell", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// DoctorCommunicationsTabsNav — упрощённая: кнопки для каждого таба
+// DoctorPageHeader — рендерим title + tabs slot (inline CommunicationsTabsNav
+// теперь передаётся через tabs-проп, а не через отдельный компонент).
 // ---------------------------------------------------------------------------
-vi.mock("./DoctorCommunicationsTabsNav", () => ({
-  DoctorCommunicationsTabsNav: ({
-    activeTab,
-    onTabClick,
+vi.mock("@/shared/ui/doctor/shell/DoctorPageHeader", () => ({
+  DoctorPageHeader: ({
+    tabs,
   }: {
-    activeTab: string;
-    onTabClick?: (tab: string) => void;
-    badges?: Record<string, number>;
-  }) => (
-    <nav data-testid="tabs-nav" data-active={activeTab}>
-      {(["chats", "intake", "comments", "broadcasts"] as const).map((id) => (
-        <button key={id} data-testid={`btn-${id}`} onClick={() => onTabClick?.(id)}>
-          {id}
-        </button>
-      ))}
-    </nav>
-  ),
+    title?: React.ReactNode;
+    tabs?: React.ReactNode;
+    subtitle?: React.ReactNode;
+    toolbar?: React.ReactNode;
+  }) => <div data-testid="page-header">{tabs}</div>,
 }));
 
 // ---------------------------------------------------------------------------

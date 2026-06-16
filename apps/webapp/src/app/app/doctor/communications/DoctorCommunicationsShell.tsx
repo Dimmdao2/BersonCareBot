@@ -32,6 +32,8 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
   return (
     <div
       id="doctor-communications-tabs"
+      data-testid="tabs-nav"
+      data-active={activeTab}
       aria-label="Разделы коммуникаций"
       className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
@@ -61,6 +63,7 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
           <button
             key={tab.id}
             type="button"
+            data-testid={`btn-${tab.id}`}
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
             className={itemClass}
