@@ -338,6 +338,7 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
           <DoctorChatPanel
             key={selectedId}
             conversationId={selectedId}
+            className="flex-1 min-h-0"
             onReadStateChanged={loadList}
             onSent={loadList}
           />

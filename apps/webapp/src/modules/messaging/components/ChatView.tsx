@@ -75,7 +75,7 @@ export function ChatView({
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
-      <div className={scrollClasses}>
+      <div className={cn(scrollClasses, messages.length === 0 && "flex items-center justify-center")}>
         {messages.length === 0 ?
           <p
             className={cn(patientRelative ? cn("text-center", patientMutedTextClass) : "text-center text-sm text-muted-foreground")}

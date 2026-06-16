@@ -974,9 +974,13 @@ export function PatientTabFiles({
           </button>
         </p>
       ) : filteredFiles.length === 0 ? (
-        <p className="px-2 py-2 text-sm text-muted-foreground">
-          {activeCategory === "all" ? "Файлов пока нет." : "Нет файлов в этой категории."}
-        </p>
+        <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            {activeCategory === "all"
+              ? "Файлов пока нет. Перетащите файлы сюда или нажмите «Загрузить»."
+              : "Нет файлов в этой категории."}
+          </p>
+        </div>
       ) : viewMode === "list" ? (
         <div className="flex flex-col gap-0.5 py-0.5">
           {filteredFiles.map((file) => (
