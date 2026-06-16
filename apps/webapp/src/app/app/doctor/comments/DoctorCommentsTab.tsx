@@ -466,6 +466,8 @@ export function DoctorCommentsTab({
   const [metricsLoading, setMetricsLoading] = useState(false);
 
   const threadVersionRef = useRef(0);
+  // CMT-06: stageItemId to auto-navigate to once exercisesData loads (feed click deep-link)
+  const pendingStageItemIdRef = useRef<string | null>(null);
   // Снимок «непрочитанности» упражнений на момент входа в пациента (state B):
   // stageItemId → было ли непрочитано при входе. Используется для ранжирования
   // (непрочитанные сверху) БЕЗ живой перетасовки — порядок фиксируется на входе
@@ -496,6 +498,22 @@ export function DoctorCommentsTab({
 
   useEffect(() => {
     exercisesDataRef.current = exercisesData;
+  }, [exercisesData]);
+
+  // CMT-06: when exercisesData loads, auto-navigate to pending stageItemId from feed click
+  useEffect(() => {
+    if (!exercisesData || !pendingStageItemIdRef.current) return;
+    const target = pendingStageItemIdRef.current;
+    pendingStageItemIdRef.current = null;
+    for (const group of exercisesData.groups) {
+      const ex = group.exercises.find((e) => e.stageItemId === target);
+      if (ex) {
+        setSelectedExercise(ex);
+        setMarkReadSent(false);
+        setMetricsPoints(null);
+        break;
+      }
+    }
   }, [exercisesData]);
 
   // ── Computed: filtered patients ──
@@ -844,7 +862,10 @@ export function DoctorCommentsTab({
                 type="button"
                 onClick={() => {
                   const patient = allPatients.find((p) => p.patientUserId === item.patientUserId);
-                  if (patient) handleSelectPatient(patient);
+                  if (patient) {
+                    pendingStageItemIdRef.current = item.stageItemId;
+                    handleSelectPatient(patient);
+                  }
                 }}
                 className="flex w-full cursor-pointer flex-col gap-0.5 border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
               >
