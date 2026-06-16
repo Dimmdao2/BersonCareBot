@@ -97,6 +97,7 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
   const [query, setQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<"name" | "text">("name");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const sigRef = useRef<string>("");
@@ -198,7 +199,7 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
         ? allList.filter((c) => c.onSupport)
         : allList;
 
-  const filteredList = query.trim()
+  const filteredList = query.trim() && searchMode === "name"
     ? filteredByChip.filter((c) => {
         const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
         return searchable.includes(query.toLowerCase());
@@ -217,14 +218,30 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       {/* Header: search bar, then filter chips below */}
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
-        <Input
-          type="search"
-          placeholder="Поиск по имени пациента"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="h-8 w-full"
-          aria-label="Поиск по имени пациента"
-        />
+        <div className="flex gap-1.5">
+          <Input
+            type="search"
+            placeholder={searchMode === "name" ? "Поиск по имени / телефону" : "Поиск по тексту сообщений (скоро)"}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-8 min-w-0 flex-1"
+            disabled={searchMode === "text"}
+            aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту — недоступен"}
+          />
+          <button
+            type="button"
+            title={searchMode === "name" ? "Переключить на поиск по тексту сообщений" : "Переключить на поиск по имени"}
+            onClick={() => { setSearchMode(m => m === "name" ? "text" : "name"); setQuery(""); }}
+            className={cn(
+              "shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+              searchMode === "text"
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-muted/40",
+            )}
+          >
+            {searchMode === "name" ? "Аб" : "✉"}
+          </button>
+        </div>
         <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
