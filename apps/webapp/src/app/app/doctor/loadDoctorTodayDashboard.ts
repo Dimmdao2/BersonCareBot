@@ -31,7 +31,6 @@ import {
   mapProactiveInsightsForToday,
   type TodayProactiveInsightItem,
 } from "./mapProactiveInsightsForToday";
-import { doctorClientProfileHref } from "./clients/doctorClientProfileHref";
 import { patientCardHref } from "./patients/patientCardHref";
 import { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
 import {
@@ -212,9 +211,7 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     status: row.status,
     branchName: row.branchName,
     scheduleProvenancePrefix: row.scheduleProvenancePrefix ?? null,
-    href: hasClient
-      ? doctorClientProfileHref(uid, { profileListScope: "appointments" })
-      : "/app/doctor/appointments",
+    href: hasClient ? patientCardHref(uid) : "/app/doctor/appointments",
     ctaLabel: hasClient ? "Открыть карточку" : "Открыть записи",
   };
 }
