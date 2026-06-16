@@ -8,10 +8,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { buildTreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers";
-import {
-  DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
-  doctorClientProfileHref,
-} from "../../../doctorClientProfileHref";
+import { patientCardHref } from "../../../../patients/patientCardHref";
 import { TreatmentProgramInstanceDetailClient } from "./TreatmentProgramInstanceDetailClient";
 
 type Props = {
@@ -92,18 +89,14 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
   const initialFocusTestResultId =
     focusItemIdRaw && z.string().uuid().safeParse(focusItemIdRaw).success ? focusItemIdRaw : undefined;
 
-  const backHref = doctorClientProfileHref(userId, {
-    profileListScope: scopeParam,
-    hash: DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
-  });
+  const backHref = patientCardHref(userId, { tab: "program" });
 
   return (
     <DoctorAppShell
       title={detail.title}
       user={session.user}
       backHref={backHref}
-      backLabel="Карточка клиента"
-
+      backLabel="Карточка пациента"
     >
       <p className="mb-2 text-sm text-muted-foreground">
         Пациент:{" "}
