@@ -461,6 +461,7 @@ type ListDayCardProps = {
   appointments: CalendarAppointmentEvent[];
   timeZone: string;
   onSelect: (appt: CalendarAppointmentEvent) => void;
+  nextApptId?: string;
 };
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
@@ -478,7 +479,7 @@ function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string 
   return cn(base, isPast && "opacity-60");
 }
 
-function ListDayCard({ dateKey, label, appointments, timeZone, onSelect }: ListDayCardProps) {
+function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApptId }: ListDayCardProps) {
   return (
     <div
       className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2"
@@ -490,6 +491,7 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect }: ListD
           const start = parseFeedInstant(appt.startAt, timeZone).toFormat("HH:mm");
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat("HH:mm");
           const cancelled = isCancelledAppointmentStatus(appt.status);
+          const isNext = appt.id === nextApptId;
           return (
             <button
               key={appt.id}
@@ -497,6 +499,7 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect }: ListD
               onClick={() => onSelect(appt)}
               className={cn(
                 "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm",
+                isNext ? "ring-2 ring-primary/70 ring-offset-1" : "",
                 listRowClass(appt, timeZone),
               )}
               data-testid={`list-appt-${appt.id}`}
@@ -507,6 +510,11 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect }: ListD
               <span className={cn("min-w-0 truncate", cancelled && "line-through")}>
                 {appt.patientName ?? "Запись"}
               </span>
+              {isNext && (
+                <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Следующая
+                </span>
+              )}
               {cancelled ? (
                 <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-destructive">
                   Отмена
@@ -572,6 +580,18 @@ function ListView({
     }
   }
 
+  // SCH-09: find first upcoming non-cancelled appointment across all day groups
+  const now = DateTime.now().setZone(timeZone);
+  let nextApptId: string | undefined;
+  outer: for (const { appointments } of dayGroups) {
+    for (const appt of appointments) {
+      if (!isCancelledAppointmentStatus(appt.status) && parseFeedInstant(appt.startAt, timeZone) > now) {
+        nextApptId = appt.id;
+        break outer;
+      }
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3" data-testid="list-view">
       {dayGroups.length === 0 ? (
@@ -587,6 +607,7 @@ function ListView({
             appointments={appointments}
             timeZone={timeZone}
             onSelect={onSelect}
+            nextApptId={nextApptId}
           />
         ))
       )}
