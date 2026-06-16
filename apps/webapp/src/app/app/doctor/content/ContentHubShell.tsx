@@ -6,7 +6,6 @@ import { isSectionSlugProtectedFromDelete, isSystemParentCode } from "@/modules/
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
 import type { SystemParentCode } from "@/modules/content-sections/types";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import {
@@ -129,24 +128,14 @@ function SystemFolderPane({
     <div className="flex flex-col gap-4">
       {folderHeader}
       {editor.selectedPageId != null ? (
-        <>
-          <Button
-            variant="ghost"
-            type="button"
-            className="mb-2 h-9 w-fit px-2"
-            onClick={editor.clear}
-          >
-            ← к списку
-          </Button>
-          <ContentEditorRightPane
-            selectedPageId={editor.selectedPageId}
-            loadedPage={editor.loadedPage}
-            loading={editor.loading}
-            clear={editor.clear}
-            sections={fullSections}
-            publishedCourses={publishedCourses}
-          />
-        </>
+        <ContentEditorRightPane
+          selectedPageId={editor.selectedPageId}
+          loadedPage={editor.loadedPage}
+          loading={editor.loading}
+          clear={editor.clear}
+          sections={fullSections}
+          publishedCourses={publishedCourses}
+        />
       ) : (
         <div className="flex flex-col gap-8">
           {childSections.map((sec) => {
@@ -212,16 +201,7 @@ function ArticleSectionPane({
           >
             Создать страницу
           </Link>
-        ) : (
-          <Button
-            variant="ghost"
-            type="button"
-            className="h-9 px-2"
-            onClick={editor.clear}
-          >
-            ← к списку
-          </Button>
-        )}
+        ) : null}
       </div>
       {editor.selectedPageId != null ? (
         <ContentEditorRightPane
