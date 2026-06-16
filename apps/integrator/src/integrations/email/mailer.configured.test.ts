@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./config.js', () => ({
   emailConfig: {
@@ -41,6 +41,12 @@ const resolvedConfigured: ResolvedSmtpOutboundConfig = {
 describe('mailer when configured', () => {
   beforeEach(() => {
     mockSendMail.mockClear();
+    // Run as production so the dev-suppress guard does not interfere with transport tests
+    vi.stubEnv('NODE_ENV', 'production');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('sendMail calls transport and returns result', async () => {

@@ -5,11 +5,14 @@ import { createSmscClient } from './client.js';
 describe('smsc client nock', () => {
   beforeEach(() => {
     nock.disableNetConnect();
+    // Run as production so the dev-suppress guard does not interfere with nock HTTP intercepts
+    vi.stubEnv('NODE_ENV', 'production');
   });
 
   afterEach(() => {
     nock.cleanAll();
     nock.enableNetConnect();
+    vi.unstubAllEnvs();
   });
 
   it('calls smsc provider endpoint and returns ok', async () => {

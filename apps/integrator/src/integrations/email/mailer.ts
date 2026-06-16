@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
+import { logger } from '../../infra/observability/logger.js';
 
 export type SendMailParams = {
   to: string | string[];
@@ -59,6 +60,24 @@ export async function sendMail(
   resolved: ResolvedSmtpOutboundConfig,
   params: SendMailParams,
 ): Promise<SendMailResult> {
+  // DEV SAFETY GUARD — this integrator SMTP sink is reached via bypass paths (P11/P21/P19) that do NOT
+  // go through integrator dispatchPort, so the dispatchPort dev-redirect does NOT cover them. In dev the
+  // DB is a prod refresh with real client email addresses → sending would leak to real people. Suppress
+  // entirely unless explicitly opted in. Prod is a pure passthrough (NODE_ENV === 'production').
+  // (Proper fix later: route all email through dispatchPort as a DeliveryAdapter; guard retired then.)
+  if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_EMAIL !== '1') {
+    logger.warn(
+      {
+        scope: 'email',
+        event: 'dev_email_suppressed',
+        to: Array.isArray(params.to) ? params.to : [params.to],
+        subject: params.subject,
+      },
+      '[email] DEV suppress: not sending SMTP in non-production (set ALLOW_DEV_EMAIL=1 to override)',
+    );
+    return { accepted: [], rejected: [] };
+  }
+
   const transport = getOrCreateTransport(resolved);
   const toList = Array.isArray(params.to) ? params.to : [params.to];
   const from = params.from ?? resolved.fromAddress;
