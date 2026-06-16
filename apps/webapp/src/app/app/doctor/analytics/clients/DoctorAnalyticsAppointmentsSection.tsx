@@ -15,6 +15,7 @@ type Props = {
   period: AnalyticsPeriodValue;
   ready: boolean;
   onMetricClick?: (metric: DoctorAnalyticsMetricKey, title: string) => void;
+  patientGenPlural?: string;
 };
 
 type ApiResponse = {
@@ -25,7 +26,7 @@ type ApiResponse = {
   branchSeries?: AppointmentBranchPoint[];
 };
 
-export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClick }: Props) {
+export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClick, patientGenPlural = "клиентов" }: Props) {
   const [stats, setStats] = useState<AppointmentStats | null>(null);
   const [daySeries, setDaySeries] = useState<AppointmentDayPoint[]>([]);
   const [branchSeries, setBranchSeries] = useState<AppointmentBranchPoint[]>([]);
@@ -89,10 +90,10 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
           <DoctorMetricList id="doctor-stats-appointments-cards">
             <DoctorStatCard
               id="doctor-stats-appointments-past-visits"
-              title="Визиты клиентов"
+              title={`Визиты ${patientGenPlural}`}
               value={stats.pastVisitsInPeriod}
               onClick={
-                onMetricClick ? () => onMetricClick("appointments_past_visits", "Визиты клиентов за период") : undefined
+                onMetricClick ? () => onMetricClick("appointments_past_visits", `Визиты ${patientGenPlural} за период`) : undefined
               }
             />
             <DoctorStatCard

@@ -83,9 +83,10 @@ export type AnalyticsClientsData = {
 type AnalyticsTabsNavProps = {
   activeTab: AnalyticsTabId;
   onTabClick: (tab: AnalyticsTabId) => void;
+  clientsLabel?: string;
 };
 
-function AnalyticsTabsNav({ activeTab, onTabClick }: AnalyticsTabsNavProps) {
+function AnalyticsTabsNav({ activeTab, onTabClick, clientsLabel }: AnalyticsTabsNavProps) {
   return (
     <div
       id="doctor-analytics-tabs"
@@ -108,7 +109,7 @@ function AnalyticsTabsNav({ activeTab, onTabClick }: AnalyticsTabsNavProps) {
             )}
             data-testid={`tab-btn-${tab.id}`}
           >
-            {tab.label}
+            {tab.id === "clients" && clientsLabel ? clientsLabel : tab.label}
           </button>
         );
       })}
@@ -125,6 +126,10 @@ export type DoctorAnalyticsShellProps = {
   initialTab?: AnalyticsTabId;
   /** SSR-срез для вкладки «Клиенты». */
   clientsData: AnalyticsClientsData;
+  /** Именование клиентов из настройки patient_label: «Клиенты» или «Пациенты». */
+  patientPluralLabel?: string;
+  /** Генитив мн.ч. из той же настройки: «клиентов» или «пациентов». */
+  patientGenPlural?: string;
 };
 
 /**
@@ -139,7 +144,7 @@ export type DoctorAnalyticsShellProps = {
  * S4.2: вкладка «Уведомления» упразднена — push-статистика включена в «Приложение».
  * Добавлена вкладка «Сопровождение» (placeholder, метрики будут расширены).
  */
-export function DoctorAnalyticsShell({ initialTab, clientsData }: DoctorAnalyticsShellProps) {
+export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLabel, patientGenPlural }: DoctorAnalyticsShellProps) {
   const resolvedInit: AnalyticsTabId = (() => {
     if (initialTab) return initialTab;
     if (typeof window !== "undefined") {
@@ -179,7 +184,7 @@ export function DoctorAnalyticsShell({ initialTab, clientsData }: DoctorAnalytic
       <DoctorPageHeader
         id="doctor-analytics-header"
         title="Аналитика"
-        tabs={<AnalyticsTabsNav activeTab={activeTab} onTabClick={handleTabChange} />}
+        tabs={<AnalyticsTabsNav activeTab={activeTab} onTabClick={handleTabChange} clientsLabel={patientPluralLabel} />}
       />
       {mountedTabs.has("clients") ? (
         <div hidden={activeTab !== "clients"} data-testid="tab-panel-clients">
@@ -187,6 +192,8 @@ export function DoctorAnalyticsShell({ initialTab, clientsData }: DoctorAnalytic
             calendarTodayYmd={clientsData.calendarTodayYmd}
             displayIana={clientsData.displayIana}
             clients={clientsData.clients}
+            patientPluralLabel={patientPluralLabel}
+            patientGenPlural={patientGenPlural}
           />
         </div>
       ) : null}

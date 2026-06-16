@@ -15,6 +15,21 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { DoctorAnalyticsShell } from "./DoctorAnalyticsShell";
 import { analyticsTabFromQuery } from "./doctorAnalyticsTabs";
 
+function getValueJson<T>(v: unknown, fallback: T): T {
+  if (v !== null && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
+    return (v as Record<string, unknown>).value as T;
+  }
+  return fallback;
+}
+
+function resolvePatientLabels(singular: string) {
+  const isKlient = singular === "клиент";
+  return {
+    patientPluralLabel: isKlient ? "Клиенты" : "Пациенты",
+    patientGenPlural: isKlient ? "клиентов" : "пациентов",
+  };
+}
+
 type Props = {
   searchParams: Promise<{ tab?: string | string[] }>;
 };
@@ -29,13 +44,23 @@ export default async function DoctorAnalyticsPage({ searchParams }: Props) {
   const displayIana = await getAppDisplayTimeZone();
   const calendarTodayYmd = DateTime.now().setZone(displayIana).toFormat("yyyy-LL-dd");
   const audience = await loadDoctorAnalyticsAudience();
-  const contactBreakdown = await deps.doctorClientsPort.getClientContactBreakdown({
-    excludedUserIds: audience.excludedUserIds,
-  });
+
+  const [doctorSettings, contactBreakdown] = await Promise.all([
+    deps.systemSettings.listSettingsByScope("doctor"),
+    deps.doctorClientsPort.getClientContactBreakdown({ excludedUserIds: audience.excludedUserIds }),
+  ]);
+
+  const patientSingular = getValueJson(
+    doctorSettings.find((x) => x.key === "patient_label")?.valueJson,
+    "пациент",
+  );
+  const { patientPluralLabel, patientGenPlural } = resolvePatientLabels(String(patientSingular));
 
   return (
     <DoctorAnalyticsShell
       initialTab={initialTab}
+      patientPluralLabel={patientPluralLabel}
+      patientGenPlural={patientGenPlural}
       clientsData={{
         calendarTodayYmd,
         displayIana,
