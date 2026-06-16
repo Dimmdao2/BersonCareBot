@@ -512,12 +512,16 @@ function PatientPreviewPane({ userId, item, onClose }: PatientPreviewPaneProps) 
       {/* Header row: name + close button */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-bold text-foreground">{item.displayName}</span>
-          {(item.firstName ?? item.lastName) ? (
-            <span className="block truncate text-xs text-muted-foreground">
-              {[item.firstName, item.lastName].filter(Boolean).join(" ")}
-            </span>
-          ) : null}
+          {(item.lastName ?? item.firstName) ? (
+            <>
+              <span className="block truncate text-sm font-bold text-foreground">
+                {[item.lastName, item.firstName].filter(Boolean).join(" ")}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">{item.displayName}</span>
+            </>
+          ) : (
+            <span className="block truncate text-sm font-bold text-foreground">{item.displayName}</span>
+          )}
         </div>
         <button
           type="button"
@@ -926,8 +930,17 @@ function PatientsContent({
                       isSelected && "bg-primary/15 hover:bg-primary/15",
                     )}
                   >
-                    <div className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
+                    <div className="min-w-0 flex-1">
+                      {(c.lastName ?? c.firstName) ? (
+                        <>
+                          <span className="block truncate text-sm font-semibold text-foreground">
+                            {[c.lastName, c.firstName].filter(Boolean).join(" ")}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">{c.displayName}</span>
+                        </>
+                      ) : (
+                        <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
+                      )}
                     </div>
                     <div className={CLIENT_ICON_RAIL_CLASS}>
                       <IconSlot
