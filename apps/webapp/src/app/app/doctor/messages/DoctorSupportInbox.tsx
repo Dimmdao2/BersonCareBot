@@ -200,7 +200,7 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
 
   const filteredList = query.trim()
     ? filteredByChip.filter((c) => {
-        const searchable = [c.lastName, c.firstName, c.displayName].filter(Boolean).join(" ").toLowerCase();
+        const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
         return searchable.includes(query.toLowerCase());
       })
     : filteredByChip;
