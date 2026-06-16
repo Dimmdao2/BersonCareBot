@@ -510,7 +510,7 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
         />
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>
-        <PatientTabProgram userId={identity.userId} header={header} />
+        <PatientTabProgram userId={identity.userId} header={header} active={activeTab === "program"} />
       </div>
       <div className={cn(activeTab !== "records" && "hidden")}>
         <PatientTabRecords

@@ -148,7 +148,18 @@ export function DoctorTodayDashboard({
                       className="flex items-center justify-between gap-2 text-sm"
                     >
                       <Link href={c.href} className={`${doctorInlineLinkClass} min-w-0 font-medium`}>
-                        <span className="truncate">{c.displayName}</span>
+                        {(c.lastName ?? c.firstName) ? (
+                          <>
+                            <span className="block truncate">
+                              {[c.lastName, c.firstName].filter(Boolean).join(" ")}
+                            </span>
+                            <span className="block truncate text-xs font-normal text-muted-foreground">
+                              {c.displayName}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="truncate">{c.displayName}</span>
+                        )}
                       </Link>
                       <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                         <span

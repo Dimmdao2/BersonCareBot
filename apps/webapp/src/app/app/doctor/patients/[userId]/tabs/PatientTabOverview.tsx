@@ -855,9 +855,9 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
             <button
               type="button"
               onClick={() => onTabSwitch?.("karta")}
-              className="text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+              className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 transition-colors cursor-pointer"
             >
-              открыть Карту →
+              Открыть Карту →
             </button>
           </div>
 
@@ -1211,9 +1211,9 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
             <button
               type="button"
               onClick={() => onTabSwitch?.("program")}
-              className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+              className="ml-auto inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 transition-colors cursor-pointer"
             >
-              открыть программу →
+              Открыть программу →
             </button>
           </div>
 

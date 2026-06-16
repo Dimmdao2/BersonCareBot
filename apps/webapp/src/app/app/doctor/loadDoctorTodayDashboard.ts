@@ -155,6 +155,8 @@ export type TodayUnreadConversationItem = {
 export type TodayOnSupportClientItem = {
   userId: string;
   displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   href: string;
   unreadMessagesCount: number;
   exerciseDoneTodayCount: number;
@@ -240,6 +242,8 @@ export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSuppo
   return {
     userId: uid,
     displayName: row.displayName.trim() || "—",
+    firstName: row.firstName ?? null,
+    lastName: row.lastName ?? null,
     href: patientCardHref(uid),
     unreadMessagesCount: 0,
     exerciseDoneTodayCount: 0,

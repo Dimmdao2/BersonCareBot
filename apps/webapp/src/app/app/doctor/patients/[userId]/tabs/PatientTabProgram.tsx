@@ -16,15 +16,19 @@ import { ProgramHistoryModal } from "./program/ProgramHistoryModal";
 type Props = {
   userId: string;
   header?: PatientCardHeader;
+  active?: boolean;
 };
 
-export function PatientTabProgram({ userId, header: _header }: Props) {
+export function PatientTabProgram({ userId, header: _header, active }: Props) {
   const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [programCheckDone, setProgramCheckDone] = useState(false);
 
-  // PROG-01: if active program exists, navigate directly to its editor
+  // PROG-01: if active program exists, navigate directly to its editor.
+  // Guard: only trigger when this tab is actually visible — without this guard the
+  // component mounts (even when CSS-hidden) and fires router.push unconditionally.
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`)
       .then((r) => r.json())
@@ -47,7 +51,7 @@ export function PatientTabProgram({ userId, header: _header }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [userId, router]);
+  }, [userId, router, active]);
 
   if (!programCheckDone) {
     return (
