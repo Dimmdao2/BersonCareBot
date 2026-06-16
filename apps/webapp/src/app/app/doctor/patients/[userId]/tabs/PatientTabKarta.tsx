@@ -1474,15 +1474,10 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
           </p>
         </section>
 
-        {/* Актуальный диагноз */}
+        {/* Актуальный диагноз — read-only; diagnoses are added via visits (KARTA-02) */}
         <section className={doctorSectionCardClass}>
           <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <h3 className={doctorSectionTitleClass}>Актуальный диагноз</h3>
-              <button type="button" className={plusBtnClass} title="Добавить диагноз">
-                +
-              </button>
-            </span>
+            <h3 className={doctorSectionTitleClass}>Актуальный диагноз</h3>
             <span className={miniTabRowClass}>
               <MiniTab active>Текущий</MiniTab>
               <MiniTab>История</MiniTab>
