@@ -255,7 +255,7 @@ function deriveSlotTimes(
   workingBounds: WorkingBounds | null | undefined,
   events: CalendarEvent[] | undefined,
   timeZone: string,
-): { slotMinTime: string; slotMaxTime: string } {
+): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
   let min: number | null = workingBounds ? workingBounds.minMinute : null;
   let max: number | null = workingBounds ? workingBounds.maxMinute : null;
   for (const e of events ?? []) {
@@ -273,12 +273,12 @@ function deriveSlotTimes(
     }
   }
   if (min == null || max == null) {
-    return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX };
+    return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX, loMinute: 0, hiMinute: 24 * 60 };
   }
   // Час запаса, выравнивание по часу, clamp в [0, 24ч].
   const lo = Math.max(0, Math.floor((min - 60) / 60) * 60);
   const hi = Math.min(24 * 60, Math.ceil((max + 60) / 60) * 60);
-  return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi) };
+  return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
 }
 
 // ---------------------------------------------------------------------------
@@ -944,7 +944,7 @@ export function ScheduleCalendarTab({
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
-  const { slotMinTime, slotMaxTime } = deriveSlotTimes(workingBounds, data?.events, currentTimeZone);
+  const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(workingBounds, data?.events, currentTimeZone);
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
@@ -958,14 +958,14 @@ export function ScheduleCalendarTab({
         ? buildNonWorkingFillEvents(
             data.events.filter((e) => e.kind === "working"),
             currentTimeZone,
-            workingBounds.minMinute,
-            workingBounds.maxMinute,
+            loMinute,
+            hiMinute,
           ).map((f) => ({
             id: f.id,
             start: f.start,
             end: f.end,
             display: "background" as const,
-            classNames: ["!bg-slate-100 !border-transparent"],
+            classNames: ["!bg-slate-300"],
             editable: false,
             extendedProps: { kind: "nonworking" as const },
           }))
