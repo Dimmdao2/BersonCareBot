@@ -1,9 +1,15 @@
 /**
  * MAX Platform API client via @maxhub/max-bot-api.
  * Docs: https://github.com/max-messenger/max-bot-api-client-ts
+ *
+ * SAFETY: sendMaxMessage() passes every outgoing send through
+ * applyMaxUserIdRedirect() so that in non-production environments all messages
+ * are forcibly routed to the configured test recipient. See
+ * shared/devDeliveryRedirect.ts.
  */
 import { Bot } from '@maxhub/max-bot-api';
 import type { AttachmentRequest, BotCommand, BotInfo, Message, MessageLinkType } from '@maxhub/max-bot-api/types';
+import { applyMaxUserIdRedirect } from '../../shared/devDeliveryRedirect.js';
 
 export type MaxClientConfig = {
   apiKey: string;
@@ -106,19 +112,27 @@ export async function setMaxBotCommands(
 
 /**
  * POST /messages?chat_id= or ?user_id= — send message.
+ *
+ * SAFETY chokepoint: applyMaxUserIdRedirect() is called here so that ALL MAX
+ * sends — regardless of which call site invoked sendMaxMessage — are subject
+ * to the dev redirect. No call site can bypass this.
  */
 export async function sendMaxMessage(
   config: MaxClientConfig,
   params: MaxSendMessageParams,
 ): Promise<Message> {
   const { logger } = await import('../../infra/observability/logger.js');
+
+  // Apply dev redirect before any API call. In production this is a no-op.
+  const safe = applyMaxUserIdRedirect(params, logger);
+
   try {
     const bot = getBot(config);
-    if (params.userId != null) {
-      return await bot.api.sendMessageToUser(params.userId, params.text, params.extra);
+    if (safe.userId != null) {
+      return await bot.api.sendMessageToUser(safe.userId, safe.text, safe.extra);
     }
-    if (params.chatId != null) {
-      return await bot.api.sendMessageToChat(params.chatId, params.text, params.extra);
+    if (safe.chatId != null) {
+      return await bot.api.sendMessageToChat(safe.chatId, safe.text, safe.extra);
     }
     throw new MaxSendError('MAX_PAYLOAD_INVALID: chatId or userId required');
   } catch (err) {

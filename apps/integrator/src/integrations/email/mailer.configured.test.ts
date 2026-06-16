@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./config.js', () => ({
   emailConfig: {
@@ -27,6 +27,7 @@ vi.mock('nodemailer', () => ({
 }));
 
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
+import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
 
 const resolvedConfigured: ResolvedSmtpOutboundConfig = {
   configured: true,
@@ -41,6 +42,16 @@ const resolvedConfigured: ResolvedSmtpOutboundConfig = {
 describe('mailer when configured', () => {
   beforeEach(() => {
     mockSendMail.mockClear();
+    // These tests exercise the real send path; set production so the dev
+    // redirect does not suppress emails before they reach the transport mock.
+    process.env.NODE_ENV = 'production';
+    delete process.env.DEV_DELIVERY_REDIRECT;
+    _resetDevRedirectActiveCache();
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = 'test';
+    _resetDevRedirectActiveCache();
   });
 
   it('sendMail calls transport and returns result', async () => {

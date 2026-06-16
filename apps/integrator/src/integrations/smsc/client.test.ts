@@ -1,6 +1,7 @@
 /* global RequestInit */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSmscClient } from './client.js';
+import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
 
 function createLogger() {
   return {
@@ -10,6 +11,19 @@ function createLogger() {
 }
 
 describe('createSmscClient', () => {
+  beforeEach(() => {
+    // These tests exercise the real HTTP send path; set production so the dev
+    // redirect does not suppress SMS before they reach the fetch mock.
+    process.env.NODE_ENV = 'production';
+    delete process.env.DEV_DELIVERY_REDIRECT;
+    _resetDevRedirectActiveCache();
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = 'test';
+    _resetDevRedirectActiveCache();
+  });
+
   it('sends utf-8 json requests to smsc', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
