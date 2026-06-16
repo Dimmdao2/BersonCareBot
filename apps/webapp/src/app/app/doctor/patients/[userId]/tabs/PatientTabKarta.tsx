@@ -62,6 +62,9 @@ import { NewVisitPanel } from "./karta/NewVisitPanel";
 type Props = {
   userId: string;
   header?: PatientCardHeader;
+  /** When set, auto-open the new-visit panel (linked to this appointment). */
+  pendingAppointmentId?: string | null;
+  onPendingConsumed?: () => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -1314,7 +1317,7 @@ function AddLifestyleForm({
 
 const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
-export function PatientTabKarta({ userId, header: _header }: Props) {
+export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, onPendingConsumed }: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
 
@@ -1378,6 +1381,16 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
     fetchClinical();
     fetchAnamnesis();
   }, [fetchClinical, fetchAnamnesis]);
+
+  // Auto-open new visit panel when navigated from schedule with createVisitFrom param
+  useEffect(() => {
+    if (pendingAppointmentId) {
+      setPanelOpen(true);
+      onPendingConsumed?.();
+    }
+  // Only fire once on mount (pendingAppointmentId is stable from URL param)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;

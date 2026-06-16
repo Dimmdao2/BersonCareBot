@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
+import { patientCardHref } from "../patients/patientCardHref";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { DateTime } from "luxon";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
@@ -342,14 +342,23 @@ function DoctorCalendarEventPanelInner({
         ) : null}
         {selected.patientPhone ? <p>{selected.patientPhone}</p> : null}
         {selected.platformUserId ? (
-          <Link
-            href={doctorClientProfileHref(selected.platformUserId, {
-              profileListScope: "appointments",
-            })}
-            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-          >
-            Карточка клиента
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={patientCardHref(selected.platformUserId)}
+              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Карточка пациента
+            </Link>
+            <Link
+              href={patientCardHref(selected.platformUserId, {
+                tab: "karta",
+                createVisitFrom: selected.id,
+              })}
+              className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              + Создать визит из записи
+            </Link>
+          </div>
         ) : null}
         {selected.packageTitle ? <Badge variant="secondary">{selected.packageTitle}</Badge> : null}
         {selected.paymentStatus ? (

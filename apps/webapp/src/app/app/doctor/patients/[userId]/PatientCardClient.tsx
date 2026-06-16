@@ -27,6 +27,8 @@ import { PatientTabComms } from "./tabs/PatientTabComms";
 
 type Props = {
   cardHeaderPromise: Promise<PatientCardHeader | null>;
+  initialTab?: string;
+  createVisitFrom?: string;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms";
@@ -74,10 +76,14 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeaderPromise }: Props) {
+export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom }: Props) {
   const header = use(cardHeaderPromise);
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
+  const resolvedInitialTab: TabId =
+    initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
+  const [activeTab, setActiveTab] = useState<TabId>(resolvedInitialTab);
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(
+    createVisitFrom ?? null,
+  );
 
   // FIO inline edit state
   const [fioEditing, setFioEditing] = useState(false);
@@ -93,6 +99,11 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
   const [fioLastName, setFioLastName] = useState("");
   const [fioFirstName, setFioFirstName] = useState("");
   const [fioPatronymic, setFioPatronymic] = useState("");
+
+  // Auto-switch to karta tab when opening with createVisitFrom URL param
+  useEffect(() => {
+    if (createVisitFrom) setActiveTab("karta");
+  }, [createVisitFrom]);
 
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
   useEffect(() => {
@@ -491,7 +502,12 @@ export function PatientCardClient({ cardHeaderPromise }: Props) {
         />
       </div>
       <div className={cn(activeTab !== "karta" && "hidden")}>
-        <PatientTabKarta userId={identity.userId} header={header} />
+        <PatientTabKarta
+          userId={identity.userId}
+          header={header}
+          pendingAppointmentId={pendingAppointmentId}
+          onPendingConsumed={() => setPendingAppointmentId(null)}
+        />
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>
         <PatientTabProgram userId={identity.userId} header={header} />

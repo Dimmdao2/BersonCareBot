@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import type { ProductAnalyticsClientActivityRow } from "@/modules/product-analytics/types";
 import { formatDisplayZoneInstantRu } from "@/shared/datetime/displayTimeZoneFormat";
+import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
 
 type Props = {
   open: boolean;
@@ -24,7 +25,7 @@ export function UsageMetricAccountsDialog({ open, onOpenChange, title, rows, dis
             {rows.map((row) => (
               <li key={row.userId} className="rounded-md border border-border/60 p-2">
                 <Link
-                  href={`/app/doctor/clients/${row.userId}`}
+                  href={patientCardHref(row.userId)}
                   className="text-sm font-medium text-primary underline-offset-2 hover:underline"
                 >
                   {row.displayName}

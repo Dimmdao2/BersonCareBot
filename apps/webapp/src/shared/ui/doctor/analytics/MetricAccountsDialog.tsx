@@ -9,6 +9,7 @@ import type {
 } from "@/modules/doctor-analytics-metric-accounts/ports";
 import type { AnalyticsPeriodValue } from "@/app/app/doctor/analytics/clients/analyticsPeriodUi";
 import { buildAdminStatsQuery } from "@/app/app/doctor/analytics/clients/analyticsPeriodUi";
+import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
 
 type Props = {
   open: boolean;
@@ -140,7 +141,7 @@ export function MetricAccountsDialog({
               <li key={`${item.userId}-${item.eventAt ?? "none"}-${idx}`} className="rounded-md border border-border/60 p-2">
                 {item.userId ? (
                   <Link
-                    href={`/app/doctor/clients/${item.userId}`}
+                    href={patientCardHref(item.userId)}
                     className="text-sm font-medium text-primary underline-offset-2 hover:underline"
                   >
                     {item.displayName}
