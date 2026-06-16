@@ -13,6 +13,8 @@ import { buildDoctorNotificationTopicModels } from "@/modules/doctor-notificatio
 import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
 import { SettingsTabsNav } from "./SettingsTabsNav";
 import type { SettingsTab } from "./SettingsTabsNav";
+import { DoctorTimezoneSection } from "./DoctorTimezoneSection";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -88,6 +90,11 @@ export default async function SettingsPage({
     doctorSettings.find((x) => x.key === "doctor_specialist_task_reminder_channels")?.valueJson ?? null,
   );
   const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const tzRow = await runWebappPgText<{ calendar_timezone: string | null }>(
+    `SELECT calendar_timezone FROM platform_users WHERE id = $1::uuid`,
+    [session.user.userId],
+  );
+  const doctorCalendarTimezone = tzRow.rows[0]?.calendar_timezone ?? null;
   const emailVerified = Boolean(accountEmail.emailVerifiedAt);
   const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
   const hasMax = Boolean(session.user.bindings.maxId?.trim());
@@ -132,6 +139,7 @@ export default async function SettingsPage({
             supportCommentsWithoutSupportDefault={Boolean(supportCommentsWithoutSupportDefault)}
             supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
           />
+          <DoctorTimezoneSection initialTimezone={doctorCalendarTimezone} />
         </div>
       )}
 
