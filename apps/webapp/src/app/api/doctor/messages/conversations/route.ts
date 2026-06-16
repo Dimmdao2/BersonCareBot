@@ -22,11 +22,21 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const unreadOnly = doctorSupportUnreadOnlyFromQuery(url.searchParams.get("unread"));
 
-  const [list, onSupportClients] = await Promise.all([
+  const [list, allClients] = await Promise.all([
     deps.messaging.doctorSupport.listOpenConversations({ limit: 50, unreadOnly }),
-    deps.doctorClients.listClients({ supportStatus: "on" }),
+    deps.doctorClients.listClients({}),
   ]);
-  const onSupportIds = new Set(onSupportClients.map((c) => c.userId));
+
+  // Build userId → { firstName, lastName, isOnSupport } map from the full client list.
+  // listClients({}) always populates isOnSupport for every row (joined from doctor_patient_support).
+  const clientInfoMap = new Map<string, { firstName: string | null; lastName: string | null; isOnSupport: boolean }>();
+  for (const c of allClients) {
+    clientInfoMap.set(c.userId, {
+      firstName: c.firstName ?? null,
+      lastName: c.lastName ?? null,
+      isOnSupport: c.isOnSupport ?? false,
+    });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -34,7 +44,7 @@ export async function GET(request: Request) {
       const patientUserId = parsePlatformUserIdFromWebappConversationId(
         c.integratorConversationId,
       );
-      const onSupport = patientUserId != null && onSupportIds.has(patientUserId);
+      const clientInfo = patientUserId ? clientInfoMap.get(patientUserId) : null;
       return {
         conversationId: c.conversationId,
         integratorConversationId: c.integratorConversationId,
@@ -43,12 +53,14 @@ export async function GET(request: Request) {
         openedAt: c.openedAt,
         lastMessageAt: c.lastMessageAt,
         displayName: c.displayName,
+        firstName: clientInfo?.firstName ?? null,
+        lastName: clientInfo?.lastName ?? null,
         phoneNormalized: c.phoneNormalized,
         lastMessageText: c.lastMessageText,
         lastSenderRole: c.lastSenderRole,
         unreadFromUserCount: c.unreadFromUserCount,
         hasUnreadFromUser: c.unreadFromUserCount > 0,
-        onSupport,
+        onSupport: clientInfo?.isOnSupport ?? false,
       };
     }),
   });

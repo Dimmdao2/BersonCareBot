@@ -17,6 +17,8 @@ const POLL_INTERVAL_MS = 1_000;
 type ConvRow = {
   conversationId: string;
   displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   phoneNormalized: string | null;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -29,6 +31,8 @@ type ConvRow = {
 type ConversationApiRow = {
   conversationId: string;
   displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   phoneNormalized: string | null;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -54,14 +58,15 @@ function formatConversationTime(value: string): string {
 
 function getSenderPrefix(conv: ConvRow): string {
   if (conv.lastSenderRole === "admin") return "Вы";
-  const firstName = (conv.displayName.split(" ")[0] ?? "").trim();
-  return firstName || "Пациент";
+  return conv.firstName || (conv.displayName.split(" ")[0] ?? "").trim() || "Пациент";
 }
 
 function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
   return conversations.map((c) => ({
     conversationId: c.conversationId,
     displayName: c.displayName,
+    firstName: c.firstName ?? null,
+    lastName: c.lastName ?? null,
     phoneNormalized: c.phoneNormalized,
     lastMessageAt: c.lastMessageAt,
     lastMessageText: c.lastMessageText,
@@ -194,7 +199,10 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
         : allList;
 
   const filteredList = query.trim()
-    ? filteredByChip.filter((c) => c.displayName.toLowerCase().includes(query.toLowerCase()))
+    ? filteredByChip.filter((c) => {
+        const searchable = [c.lastName, c.firstName, c.displayName].filter(Boolean).join(" ").toLowerCase();
+        return searchable.includes(query.toLowerCase());
+      })
     : filteredByChip;
 
   if (loading) {
@@ -278,8 +286,12 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
             >
               <div className="min-w-0 flex-1 overflow-hidden">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-sm font-semibold">
-                    {c.displayName || "Без имени"}
+                  <span className="min-w-0 truncate text-sm font-semibold">
+                    {(c.lastName ?? c.firstName) ? (
+                      [c.lastName, c.firstName].filter(Boolean).join(" ")
+                    ) : (
+                      c.displayName || "Без имени"
+                    )}
                     {c.onSupport && (
                       <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
                     )}
@@ -288,6 +300,9 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
                     {formatConversationTime(c.lastMessageAt)}
                   </span>
                 </div>
+                {(c.lastName ?? c.firstName) && (
+                  <p className="truncate text-xs text-muted-foreground">{c.displayName}</p>
+                )}
                 {c.lastMessageText && (
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     <span className="font-medium text-foreground/80">{getSenderPrefix(c)}:</span>{" "}
@@ -324,7 +339,11 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
           {/* Thread header: patient name + close button */}
           <div className="shrink-0 flex items-center gap-2 border-b border-border px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {selectedConv?.displayName ?? "—"}
+              {selectedConv
+                ? ((selectedConv.lastName ?? selectedConv.firstName)
+                    ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(" ")
+                    : selectedConv.displayName)
+                : "—"}
             </span>
             <button
               type="button"
