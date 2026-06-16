@@ -34,6 +34,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActiveComplaint, ActiveDiagnosis, DiagnosisCatalogSuggestion } from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
+import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,37 +77,8 @@ type RepeatDiagnosisUpdate = {
 // Date helpers
 // ---------------------------------------------------------------------------
 
-/** Generate an array of ISO date strings for today ± N days (today first). */
-function generateDateOptions(daysAhead = 0, daysBefore = 7): string[] {
-  const result: string[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  // today
-  result.push(toIsoDate(today));
-  // past days
-  for (let i = 1; i <= daysBefore; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    result.push(toIsoDate(d));
-  }
-  // future days (rare but useful)
-  for (let i = 1; i <= daysAhead; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    result.push(toIsoDate(d));
-  }
-  return result;
-}
-
 function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/** Format ISO date as DD.MM.YYYY for display. */
-function fmtDisplay(iso: string): string {
-  const [y, m, day] = iso.split("-");
-  if (!y || !m || !day) return iso;
-  return `${day}.${m}.${y}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,9 +286,7 @@ export function NewVisitPanel({
 }) {
   const [visitType, setVisitType] = useState<VisitType>("repeat");
 
-  // Date options: ISO strings (today is index 0)
-  const dateOptions = generateDateOptions(0, 7);
-  const [selectedDate, setSelectedDate] = useState(dateOptions[0]);
+  const [selectedDate, setSelectedDate] = useState(() => toIsoDate(new Date()));
   const [location, setLocation] = useState("");
   const [service, setService] = useState("");
   const [duration, setDuration] = useState("");
@@ -572,18 +542,8 @@ export function NewVisitPanel({
           ✕
         </button>
         <span className="flex flex-wrap gap-1.5">
-          {/* Date selector — ISO values, human display */}
-          <select
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className={chipSelectClass}
-          >
-            {dateOptions.map((iso) => (
-              <option key={iso} value={iso}>
-                {fmtDisplay(iso)}
-              </option>
-            ))}
-          </select>
+          {/* Date picker — DoctorDatePicker (shared project picker, ISO yyyy-MM-dd) */}
+          <DoctorDatePicker value={selectedDate} onChange={setSelectedDate} />
           {locationOptions.length > 0 && !locationOther ? (
             <select
               value={location}
