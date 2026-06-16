@@ -13,6 +13,7 @@ import {
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
+import { patientCardHref } from "../patients/patientCardHref";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
@@ -537,7 +538,7 @@ export function DoctorOnlineIntakeClient({
             >
               <div className="flex min-w-0 items-baseline justify-between gap-2">
                 <Link
-                  href={doctorClientProfileHref(item.patientUserId)}
+                  href={patientCardHref(item.patientUserId)}
                   onClick={(e) => e.stopPropagation()}
                   className="min-w-0 truncate text-sm font-semibold hover:underline"
                 >
@@ -601,7 +602,7 @@ export function DoctorOnlineIntakeClient({
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <Link
-                    href={doctorClientProfileHref(detail.patientUserId)}
+                    href={patientCardHref(detail.patientUserId)}
                     className="text-sm font-bold hover:underline"
                   >
                     {detail.patientName}
@@ -758,9 +759,7 @@ export function DoctorOnlineIntakeClient({
                 )}
                 {detail.status !== "closed" && (
                   <Link
-                    href={doctorClientProfileHref(detail.patientUserId, {
-                      profileListScope: "appointments",
-                    })}
+                    href={patientCardHref(detail.patientUserId)}
                     className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
                   >
                     Карточка клиента
