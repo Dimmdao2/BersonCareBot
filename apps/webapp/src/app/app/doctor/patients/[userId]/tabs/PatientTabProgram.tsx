@@ -38,7 +38,7 @@ export function PatientTabProgram({ userId, header: _header, active }: Props) {
           const active = data.items.find((i) => i.status !== "completed");
           if (active) {
             router.push(
-              `/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(active.id)}`,
+              `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(active.id)}`,
             );
             return;
           }

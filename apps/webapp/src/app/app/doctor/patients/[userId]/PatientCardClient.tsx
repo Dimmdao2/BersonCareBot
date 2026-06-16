@@ -6,7 +6,7 @@
  *
  * Header: FIO display with inline edit. All other editing lives in the «Учётка» tab.
  */
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, type ReactNode } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import {
   doctorSectionCardClass,
@@ -31,6 +31,10 @@ type Props = {
   initialTab?: string;
   createVisitFrom?: string;
   visitDate?: string;
+  /** SSR-provided physical data (рост/вес) — skips client fetch when present. */
+  initialPhysicalData?: { heightCm: number | null; weightKg: number | null } | null;
+  /** When set, renders this node in place of PatientTabProgram in the Программа tab. */
+  embeddedProgramContent?: ReactNode;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms";
@@ -78,7 +82,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate }: Props) {
+export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent }: Props) {
   const header = use(cardHeaderPromise);
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -109,10 +113,10 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
   const [fioBirthDate, setFioBirthDate] = useState("");
   const [fioGender, setFioGender] = useState<"male" | "female" | "">("");
 
-  // Physical data (рост / вес) state
-  const [physicalLoaded, setPhysicalLoaded] = useState(false);
-  const [physicalHeightCm, setPhysicalHeightCm] = useState<number | null>(null);
-  const [physicalWeightKg, setPhysicalWeightKg] = useState<number | null>(null);
+  // Physical data (рост / вес) state — initialPhysicalData SSR wins, else client-fetch
+  const [physicalLoaded, setPhysicalLoaded] = useState(initialPhysicalData != null);
+  const [physicalHeightCm, setPhysicalHeightCm] = useState<number | null>(initialPhysicalData?.heightCm ?? null);
+  const [physicalWeightKg, setPhysicalWeightKg] = useState<number | null>(initialPhysicalData?.weightKg ?? null);
   const [physicalEditing, setPhysicalEditing] = useState(false);
   const [physicalSaving, setPhysicalSaving] = useState(false);
   const [physicalError, setPhysicalError] = useState<string | null>(null);
@@ -137,8 +141,9 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
     return () => window.removeEventListener("patient:open-tab", handleOpenTab);
   }, []);
 
-  // Fetch physical data (рост/вес) once header is available
+  // Fetch physical data (рост/вес) only when not SSR-provided
   useEffect(() => {
+    if (initialPhysicalData != null) return; // SSR data already loaded
     if (!header) return;
     const userId = header.identity.userId;
     fetch(`/api/doctor/patients/${userId}/physical`)
@@ -739,7 +744,9 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
         />
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>
-        <PatientTabProgram userId={identity.userId} header={header} active={activeTab === "program"} />
+        {embeddedProgramContent ?? (
+          <PatientTabProgram userId={identity.userId} header={header} active={activeTab === "program"} />
+        )}
       </div>
       <div className={cn(activeTab !== "records" && "hidden")}>
         <PatientTabRecords

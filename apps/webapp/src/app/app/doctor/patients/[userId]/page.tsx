@@ -9,6 +9,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { routePaths } from "@/app-layer/routes/paths";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { PatientCardClient } from "./PatientCardClient";
 
 type PageProps = {
@@ -27,7 +28,17 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
 
-  const cardHeaderPromise = deps.doctorClients.getPatientCardHeader(userId);
+  const [cardHeaderPromise, physicalRow] = await Promise.all([
+    deps.doctorClients.getPatientCardHeader(userId),
+    runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
+      `SELECT height_cm, weight_kg FROM platform_users WHERE id = $1::uuid AND role = 'client'`,
+      [userId],
+    ),
+  ]);
+
+  const physicalData = physicalRow.rows[0]
+    ? { heightCm: physicalRow.rows[0].height_cm, weightKg: physicalRow.rows[0].weight_kg }
+    : { heightCm: null, weightKg: null };
 
   const initialTab = typeof sp.tab === "string" ? sp.tab : undefined;
   const createVisitFrom = typeof sp.createVisitFrom === "string" ? sp.createVisitFrom : undefined;
@@ -37,10 +48,11 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     <DoctorAppShell title="Карточка пациента" user={session.user} backHref={routePaths.doctorPatients}>
       <section className={doctorPageStackClass}>
         <PatientCardClient
-          cardHeaderPromise={cardHeaderPromise}
+          cardHeaderPromise={Promise.resolve(cardHeaderPromise)}
           initialTab={initialTab}
           createVisitFrom={createVisitFrom}
           visitDate={visitDate}
+          initialPhysicalData={physicalData}
         />
       </section>
     </DoctorAppShell>
