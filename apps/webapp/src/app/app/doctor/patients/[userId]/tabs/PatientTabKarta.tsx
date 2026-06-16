@@ -1147,7 +1147,15 @@ function AddTraumaForm({
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Тип</label>
-          <input value={type} onChange={e => setType(e.target.value)} placeholder="Травма / Операция" className={inputClass} />
+          <select value={type} onChange={e => setType(e.target.value)} className={inputClass}>
+            <option value="Травма">Травма</option>
+            <option value="Операция">Операция</option>
+            <option value="Перелом">Перелом</option>
+            <option value="Растяжение">Растяжение</option>
+            <option value="Разрыв">Разрыв</option>
+            <option value="Вывих">Вывих</option>
+            <option value="Контузия">Контузия</option>
+          </select>
         </div>
       </div>
       <div className="flex flex-col gap-0.5">
