@@ -335,7 +335,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Каналы · куда отправить
         </p>
-        <div className="grid auto-cols-fr grid-flow-col gap-2">
+        <div className="grid auto-cols-fr grid-flow-col gap-1.5">
           {BROADCAST_ACTIVE_CHANNELS.map((ch) => {
             const active = selectedChannels.has(ch);
             const count = channelCounts ? channelCounts[ch as keyof BroadcastChannelCounts] : null;
@@ -343,7 +343,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
               <label
                 key={ch}
                 className={cn(
-                  "flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-2 py-2 transition-colors",
+                  "flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-1.5 py-2.5 transition-colors",
                   active
                     ? "border-primary bg-primary/10"
                     : "border-border bg-background hover:bg-muted/30",
@@ -357,12 +357,16 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
                   onChange={() => toggleChannel(ch)}
                   className="sr-only"
                 />
-                <span className={cn("text-xs font-semibold", active && "text-primary")}>
+                {count !== null ? (
+                  <span className={cn("text-sm font-bold leading-none", active ? "text-primary" : "text-foreground")}>
+                    {count}
+                  </span>
+                ) : (
+                  <span className="text-sm leading-none text-muted-foreground">—</span>
+                )}
+                <span className={cn("mt-0.5 text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
                   {CHANNEL_TILE_LABELS[ch]}
                 </span>
-                {count !== null && (
-                  <span className="text-[10px] text-muted-foreground">{count}</span>
-                )}
               </label>
             );
           })}
