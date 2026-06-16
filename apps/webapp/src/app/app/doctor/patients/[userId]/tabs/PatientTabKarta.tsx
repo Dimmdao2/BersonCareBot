@@ -1490,15 +1490,30 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
             {!loading && fetchError && (
               <p className="py-1 text-xs text-destructive">Не удалось загрузить диагнозы.</p>
             )}
-            {!loading && !fetchError && diagnoses.length === 0 && (
-              <p className="py-2 text-xs text-muted-foreground">Диагнозов пока нет.</p>
+            {!loading && !fetchError && diagnoses.filter((d) => d.clinicalStatus === "подтверждённый").length === 0 && (
+              <p className="py-2 text-xs text-muted-foreground">
+                Подтверждённых диагнозов нет.
+              </p>
             )}
-            {!loading && diagnoses.map((d) => (
+            {!loading && diagnoses.filter((d) => d.clinicalStatus === "подтверждённый").map((d) => (
               <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
             ))}
           </div>
+          {/* Предварительные диагнозы — не становятся актуальными автоматически (VIZ-15) */}
+          {!loading && !fetchError && diagnoses.filter((d) => d.clinicalStatus === "предварительный").length > 0 && (
+            <div className="mt-2 border-t border-border pt-2">
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Предварительные
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {diagnoses.filter((d) => d.clinicalStatus === "предварительный").map((d) => (
+                  <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
+                ))}
+              </div>
+            </div>
+          )}
           <p className={doctorSectionSubtitleClass}>
-            по клику на диагноз: уточнить · снять (уходит в историю с датой)
+            по клику на диагноз: подтвердить · уточнить · снять (уходит в историю с датой)
           </p>
         </section>
 

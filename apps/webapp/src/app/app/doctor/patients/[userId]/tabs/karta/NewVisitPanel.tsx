@@ -944,7 +944,7 @@ export function NewVisitPanel({
           </button>
           {!saveError && (
             <span className={cn(hintClass, "ml-auto")}>
-              Пустые секции не сохраняются и не показываются в ленте
+              Ручное сохранение — данные не сохраняются до нажатия «Сохранить визит»
             </span>
           )}
         </div>

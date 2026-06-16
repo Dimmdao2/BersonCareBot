@@ -155,14 +155,22 @@ export default async function SettingsPage({
       {effectiveTab === "schedule" && (
         <div className="space-y-4">
           <div className="rounded-lg border border-border p-4">
-            <h2 className="mb-1 text-sm font-semibold">Запись и расписание</h2>
-            <p className="text-sm text-muted-foreground">Раздел в разработке</p>
+            <h2 className="mb-1 text-sm font-semibold">Расписание приёма</h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              График работы, перерывы и управление записями.
+            </p>
+            <Link
+              href="/app/doctor/schedule"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Открыть расписание
+            </Link>
           </div>
           {isAdmin && (
             <div className="rounded-lg border border-border p-4">
               <h2 className="mb-1 text-sm font-semibold">Настройки записи (администратор)</h2>
               <p className="mb-3 text-sm text-muted-foreground">
-                Детальные настройки расписания, каталога и правил записи.
+                Услуги, локации, правила записи, оплаты и форма онлайн-записи.
               </p>
               <Link
                 href="/app/doctor/admin/booking"
@@ -178,21 +186,31 @@ export default async function SettingsPage({
       {effectiveTab === "app" && (
         <div className="space-y-4">
           <div className="rounded-lg border border-border p-4">
-            <h2 className="mb-1 text-sm font-semibold">Приложение для пациентов</h2>
+            <h2 className="mb-1 text-sm font-semibold">Установить кабинет как приложение</h2>
             <p className="mb-3 text-sm text-muted-foreground">
-              Настройки внешнего вида и параметров приложения для пациентов.
+              Установите кабинет врача на телефон или компьютер для быстрого доступа.
             </p>
-            {isAdmin ? (
+            <Link
+              href="/app/doctor/install"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Установить приложение
+            </Link>
+          </div>
+          {isAdmin && (
+            <div className="rounded-lg border border-border p-4">
+              <h2 className="mb-1 text-sm font-semibold">Настройки приложения для пациентов</h2>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Внешний вид и параметры пациентского приложения.
+              </p>
               <Link
                 href="/app/doctor/admin/app-settings"
                 className="text-sm font-medium text-primary underline-offset-4 hover:underline"
               >
                 Открыть настройки приложения
               </Link>
-            ) : (
-              <p className="text-sm text-muted-foreground">Раздел в разработке</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
