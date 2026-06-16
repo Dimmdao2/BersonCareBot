@@ -309,12 +309,11 @@ function getSegmentCount(
 // ---------------------------------------------------------------------------
 
 function buildUrl(filters: {
-  q?: string;
   channel?: string | null;
   archivedOnly?: boolean;
 }): string {
   const sp = new URLSearchParams();
-  if (filters.q?.trim()) sp.set("q", filters.q.trim());
+  // q is intentionally omitted — text search is done client-side (PAT-10)
   // segment is intentionally omitted — filtering is done client-side
   if (filters.channel) sp.set("channel", filters.channel);
   if (filters.archivedOnly) sp.set("archived", "true");
@@ -713,6 +712,18 @@ function PatientsContent({
   );
   if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasMemberships === true);
 
+  // PAT-09/10: client-side text search across all name fields
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    filtered = filtered.filter(
+      (c) =>
+        c.displayName?.toLowerCase().includes(q) ||
+        c.firstName?.toLowerCase().includes(q) ||
+        c.lastName?.toLowerCase().includes(q) ||
+        c.phone?.toLowerCase().includes(q),
+    );
+  }
+
   // Context base for segment card counts (PAT-02/06):
   // When a segment is active, other segment cards show counts within that segment's subset.
   const categoryBase = applyCategoryFilter(allClients, activeCategory);
@@ -728,7 +739,8 @@ function PatientsContent({
     legacyFilters.cancellations ||
     legacyFilters.visitedMonth ||
     legacyFilters.withoutAppointments ||
-    legacyFilters.memberships;
+    legacyFilters.memberships ||
+    !!searchQuery.trim();
 
   // Segment tone: highlight active segment card
   function segmentTone(key: SegmentKey): "neutral" | "warning" {
@@ -765,7 +777,7 @@ function PatientsContent({
             />
             <Input
               type="search"
-              placeholder="Поиск (от 3 символов)…"
+              placeholder="Поиск…"
               value={searchInput}
               onChange={(e) => onSearchInput(e.target.value)}
               className="pl-8 pr-8 text-sm"
@@ -782,11 +794,6 @@ function PatientsContent({
               </button>
             )}
           </div>
-          {searchInput.length > 0 && searchInput.trim().length < 3 ? (
-            <p className="mt-1 text-muted-foreground text-xs">
-              Введите ещё {3 - searchInput.trim().length} симв.
-            </p>
-          ) : null}
           {/* PAT-07: Пациенты / Все toggle */}
           <div className="mt-2 flex gap-1" role="group" aria-label="Фильтр: пациенты или все">
             {([
@@ -1190,8 +1197,7 @@ function PatientsContent({
 // Root component — manages state + debounced search
 // ---------------------------------------------------------------------------
 
-const SEARCH_DEBOUNCE_MS = 400;
-const SEARCH_MIN_CHARS = 3;
+const SEARCH_DEBOUNCE_MS = 200;
 
 export function PatientsPageClient({
   listPromise: initialListPromise,
@@ -1227,14 +1233,13 @@ export function PatientsPageClient({
 
   const router = useRouter();
 
-  /** Navigate to update server-side filters (channel, archive). Segment is client-side only. */
+  /** Navigate to update server-side filters (channel, archive). Segment and search are client-side only. */
   const navigateToFilters = useCallback(
     (overrides: {
       channel?: string | null;
       archivedOnly?: boolean;
     }) => {
       const url = buildUrl({
-        q: searchInput,
         channel: overrides.channel !== undefined ? overrides.channel : activeChannel,
         archivedOnly: overrides.archivedOnly !== undefined ? overrides.archivedOnly : archivedOnly,
       });
@@ -1242,28 +1247,7 @@ export function PatientsPageClient({
         router.push(url, { scroll: false });
       });
     },
-    [router, searchInput, activeChannel, archivedOnly],
-  );
-
-  /** Fetch client list from API (for search debounce — avoids full navigation). Segment is not passed — client-side only. */
-  const fetchList = useCallback(
-    (q: string) => {
-      const sp = new URLSearchParams();
-      if (q.trim()) sp.set("q", q.trim());
-      // segment intentionally omitted — filtering is done client-side
-      if (activeChannel) sp.set("channel", activeChannel);
-      if (archivedOnly) sp.set("archived", "true");
-      const newPromise = fetch(`/api/doctor/patients?${sp.toString()}`)
-        .then((r) => {
-          if (!r.ok) throw new Error(`Patients fetch failed: ${r.status}`);
-          return r.json() as Promise<{ clients: ClientListItem[] }>;
-        })
-        .then((data) => data.clients);
-      startListTransition(() => {
-        setListPromise(newPromise);
-      });
-    },
-    [activeChannel, archivedOnly],
+    [router, activeChannel, archivedOnly],
   );
 
   const handleSegmentChange = useCallback(
@@ -1288,22 +1272,20 @@ export function PatientsPageClient({
       setSearchInput(value);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       const trimmed = value.trim();
-      if (trimmed.length === 0 || trimmed.length >= SEARCH_MIN_CHARS) {
-        debounceRef.current = setTimeout(() => {
-          setSearchQuery(trimmed);
-          fetchList(value);
-        }, SEARCH_DEBOUNCE_MS);
-      }
+      // PAT-10: debounce only — no API call, filtering is purely client-side
+      debounceRef.current = setTimeout(() => {
+        setSearchQuery(trimmed);
+      }, SEARCH_DEBOUNCE_MS);
     },
-    [fetchList],
+    [],
   );
 
   const clearSearch = useCallback(() => {
     setSearchInput("");
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearchQuery("");
-    fetchList("");
-  }, [fetchList]);
+    // PAT-10: no fetchList call — client-side filtering resets automatically
+  }, []);
 
   const handleToggleLegacyFilter = useCallback(
     (key: keyof LegacyFiltersState) => {

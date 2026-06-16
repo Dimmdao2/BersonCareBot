@@ -28,7 +28,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
 
   const listPromise = deps.doctorClients.listClients(
     {
-      search: q || undefined,
+      // PAT-10: search is done client-side — do not pass q to DB
       archivedOnly,
       viewerUserId: session.user.userId,
       // Segment filters
