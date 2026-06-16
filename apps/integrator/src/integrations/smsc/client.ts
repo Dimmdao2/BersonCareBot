@@ -1,11 +1,5 @@
-/**
- * SAFETY: sendSms() calls applySmsRedirect() before any HTTP request so that
- * in non-production environments SMS sends are NO-OP + warn and never reach a
- * real patient phone. See shared/devDeliveryRedirect.ts.
- */
 import fetch from 'node-fetch';
 import type { SmsClient } from './types.js';
-import { applySmsRedirect } from '../../shared/devDeliveryRedirect.js';
 
 type WarnLogger = {
   warn(payload: Record<string, unknown>, message: string): void;
@@ -38,12 +32,6 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
     async sendSms(input) {
       if (!input.toPhone || !input.message) {
         return { ok: false, error: 'SMSC_INVALID_INPUT' };
-      }
-
-      // SAFETY chokepoint: suppress SMS in dev before any network call.
-      const redirect = applySmsRedirect(input.toPhone, config.log);
-      if (redirect.suppressed) {
-        return { ok: true };
       }
 
       const apiKey = config.getApiKey ? await config.getApiKey() : (config.apiKey ?? '');
