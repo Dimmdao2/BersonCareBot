@@ -1445,9 +1445,6 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <h3 className={doctorSectionTitleClass}>Жалобы</h3>
-              <button type="button" className={plusBtnClass} title="Добавить жалобу">
-                +
-              </button>
             </span>
             <span className={miniTabRowClass}>
               <MiniTab active>Актуальные</MiniTab>
