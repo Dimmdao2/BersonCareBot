@@ -21,6 +21,8 @@ export type DoctorOnlineIntakeDetailJson = {
   status: string;
   patientName: string;
   patientPhone: string;
+  lastName: string;
+  firstName: string;
   createdAt: string;
   updatedAt: string;
   description?: string;
@@ -66,6 +68,8 @@ export async function buildDoctorOnlineIntakeDetailResponse(
     status: full.status,
     patientName: full.patientName,
     patientPhone: full.patientPhone,
+    lastName: full.lastName,
+    firstName: full.firstName,
     createdAt: full.createdAt,
     updatedAt: full.updatedAt,
     statusHistory: full.statusHistory.map((h) => ({

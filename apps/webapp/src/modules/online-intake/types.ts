@@ -55,6 +55,9 @@ export type IntakeRequestFull = IntakeRequest & {
 export type DoctorIntakePatientIdentity = {
   patientName: string;
   patientPhone: string;
+  /** Structured name fields from `platform_users.last_name` / `platform_users.first_name`. Always strings; may be "" if not set. */
+  lastName: string;
+  firstName: string;
 };
 
 export type IntakeRequestWithPatientIdentity = IntakeRequest & DoctorIntakePatientIdentity;

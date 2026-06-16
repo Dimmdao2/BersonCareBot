@@ -84,6 +84,8 @@ describe("loadDoctorTodayDashboard helpers", () => {
       updatedAt: "2026-05-02T10:00:00.000Z",
       patientName: "Петр",
       patientPhone: "+79990001122",
+      lastName: "",
+      firstName: "",
     } satisfies IntakeRequestWithPatientIdentity;
     const item = mapIntakeToTodayItem(row);
     expect(item.typeLabel).toBe("ЛФК");

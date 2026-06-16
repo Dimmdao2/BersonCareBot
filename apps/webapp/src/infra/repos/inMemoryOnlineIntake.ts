@@ -33,11 +33,13 @@ export function createInMemoryOnlineIntake(deps?: {
     return new Date().toISOString();
   }
 
-  function patientIdentityForUser(userId: string): { patientName: string; patientPhone: string } {
+  function patientIdentityForUser(userId: string): { patientName: string; patientPhone: string; lastName: string; firstName: string } {
     const p = deps?.userProfiles?.get(userId);
     return {
       patientName: p?.displayName ?? "",
       patientPhone: p?.phone ?? "",
+      lastName: "",
+      firstName: "",
     };
   }
 

@@ -73,6 +73,8 @@ type HistoryRow = {
 type RequestRowWithIdentity = RequestRow & {
   patient_name: string;
   patient_phone: string;
+  last_name: string;
+  first_name: string;
 };
 
 function mapRequestWithPatientIdentity(row: RequestRowWithIdentity): IntakeRequestWithPatientIdentity {
@@ -80,6 +82,8 @@ function mapRequestWithPatientIdentity(row: RequestRowWithIdentity): IntakeReque
     ...mapRequest(row),
     patientName: row.patient_name,
     patientPhone: row.patient_phone,
+    lastName: row.last_name,
+    firstName: row.first_name,
   };
 }
 
@@ -284,7 +288,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
     async getByIdForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null> {
       const { rows: reqRows } = await runWebappPgText<RequestRowWithIdentity>(
-        `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone
+        `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone,
+                COALESCE(pu.last_name, '') AS last_name, COALESCE(pu.first_name, '') AS first_name
          FROM online_intake_requests r
          LEFT JOIN platform_users pu ON pu.id = r.user_id
          WHERE r.id = $1`,
@@ -295,6 +300,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const request = mapRequest(reqRow);
       const patientName = reqRow.patient_name;
       const patientPhone = reqRow.patient_phone;
+      const lastName = reqRow.last_name;
+      const firstName = reqRow.first_name;
 
       const { rows: ansRows } = await runWebappPgText<AnswerRow>(
         `SELECT * FROM online_intake_answers WHERE request_id = $1 ORDER BY ordinal`,
@@ -313,6 +320,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         ...request,
         patientName,
         patientPhone,
+        lastName,
+        firstName,
         answers: ansRows.map(mapAnswer),
         attachments: attRows.map(mapAttachment),
         statusHistory: histRows.map(mapHistory),
@@ -388,7 +397,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const total = parseInt(countRows[0].count, 10);
 
       const { rows } = await runWebappPgText<RequestRowWithIdentity>(
-        `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone
+        `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone,
+                COALESCE(pu.last_name, '') AS last_name, COALESCE(pu.first_name, '') AS first_name
          FROM online_intake_requests r
          LEFT JOIN platform_users pu ON pu.id = r.user_id
          ${where}

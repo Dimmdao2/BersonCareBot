@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatFioForDoctor } from "@/lib/parseFullName";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
@@ -30,6 +31,8 @@ type IntakeItem = {
   summary: string | null;
   patientName: string;
   patientPhone: string;
+  lastName?: string;
+  firstName?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -41,6 +44,8 @@ type IntakeDetail = {
   status: IntakeStatus;
   patientName: string;
   patientPhone: string;
+  lastName?: string;
+  firstName?: string;
   createdAt: string;
   updatedAt: string;
   description?: string;
@@ -537,13 +542,18 @@ export function DoctorOnlineIntakeClient({
               )}
             >
               <div className="flex min-w-0 items-baseline justify-between gap-2">
-                <Link
-                  href={patientCardHref(item.patientUserId)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="min-w-0 truncate text-sm font-semibold hover:underline"
-                >
-                  {item.patientName}
-                </Link>
+                <div className="min-w-0 flex flex-col">
+                  <Link
+                    href={patientCardHref(item.patientUserId)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="min-w-0 truncate text-sm font-semibold hover:underline"
+                  >
+                    {formatFioForDoctor(item.lastName, item.firstName, undefined)}
+                  </Link>
+                  {item.patientName && item.patientName !== formatFioForDoctor(item.lastName, item.firstName, undefined) && (
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">{item.patientName}</span>
+                  )}
+                </div>
                 <span
                   className={cn(
                     "shrink-0 text-xs font-semibold",
@@ -605,8 +615,11 @@ export function DoctorOnlineIntakeClient({
                     href={patientCardHref(detail.patientUserId)}
                     className="text-sm font-bold hover:underline"
                   >
-                    {detail.patientName}
+                    {formatFioForDoctor(detail.lastName, detail.firstName, undefined)}
                   </Link>
+                  {detail.patientName && detail.patientName !== formatFioForDoctor(detail.lastName, detail.firstName, undefined) && (
+                    <div className="text-xs text-muted-foreground">{detail.patientName}</div>
+                  )}
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     Заявка · {formatIntakeDate(detail.createdAt)}
                   </div>
