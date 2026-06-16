@@ -19,5 +19,8 @@ export function createInMemoryBroadcastChannelCountsPort(
     async getChannelConnectionCounts(): Promise<BroadcastChannelCounts> {
       return { ...counts };
     },
+    async getChannelCountsByUserIds(_userIds: readonly string[]): Promise<BroadcastChannelCounts> {
+      return { ...DEFAULT_IN_MEMORY_CHANNEL_COUNTS };
+    },
   };
 }

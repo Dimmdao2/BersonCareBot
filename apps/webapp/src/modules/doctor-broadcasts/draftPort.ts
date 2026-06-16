@@ -26,4 +26,5 @@ export type BroadcastChannelCounts = {
 
 export type BroadcastChannelCountsPort = {
   getChannelConnectionCounts(): Promise<BroadcastChannelCounts>;
+  getChannelCountsByUserIds(userIds: readonly string[]): Promise<BroadcastChannelCounts>;
 };

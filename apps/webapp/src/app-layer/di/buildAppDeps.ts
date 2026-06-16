@@ -79,6 +79,7 @@ import { inMemoryPatientBroadcastsPort } from "@/infra/repos/inMemoryPatientBroa
 import { createPgBroadcastDraftPort } from "@/infra/repos/pgBroadcastDrafts";
 import { createInMemoryBroadcastDraftPort } from "@/infra/repos/inMemoryBroadcastDrafts";
 import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
+import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
 import { createPgBroadcastChannelCountsPort } from "@/infra/repos/broadcastChannelCounts";
 import { createInMemoryBroadcastChannelCountsPort } from "@/infra/repos/inMemoryBroadcastChannelCounts";
 import { createPgBroadcastEmailRecipientsPort } from "@/infra/repos/pgBroadcastEmailRecipients";
@@ -1423,6 +1424,12 @@ function _buildAppDeps() {
       saveDraft: (doctorUserId: string, draft: BroadcastDraft) =>
         broadcastDraftPort.saveDraft(doctorUserId, draft),
       getChannelCounts: () => broadcastChannelCountsPort.getChannelConnectionCounts(),
+      getChannelCountsByAudience: async (filter: BroadcastAudienceFilter) => {
+        if (filter === "all") return broadcastChannelCountsPort.getChannelConnectionCounts();
+        const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
+        const userIds = clients.map((c) => c.userId);
+        return broadcastChannelCountsPort.getChannelCountsByUserIds(userIds);
+      },
     },
     doctorMotivationQuotesEditor: doctorMotivationQuotesEditorPort,
     purchases: {

@@ -93,3 +93,24 @@ export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> 
   const deps = buildAppDeps();
   return deps.doctorBroadcastComposer.getChannelCounts();
 }
+
+const audienceFilterSchema = z.enum([
+  "all",
+  "active_clients",
+  "with_upcoming_appointment",
+  "without_appointment",
+  "with_telegram",
+  "with_max",
+  "sms_only",
+  "inactive",
+]);
+
+export async function getChannelCountsByAudienceAction(
+  audience: string,
+): Promise<BroadcastChannelCounts> {
+  await requireDoctorAccess();
+  const parsed = audienceFilterSchema.safeParse(audience);
+  if (!parsed.success) throw new Error("invalid_audience_filter");
+  const deps = buildAppDeps();
+  return deps.doctorBroadcastComposer.getChannelCountsByAudience(parsed.data);
+}

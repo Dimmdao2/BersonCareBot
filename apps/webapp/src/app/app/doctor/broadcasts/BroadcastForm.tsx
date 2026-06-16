@@ -28,6 +28,7 @@ import {
   loadDraftAction,
   saveDraftAction,
   getChannelCountsAction,
+  getChannelCountsByAudienceAction,
 } from "./actions";
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "@/modules/doctor-broadcasts/deliveryQueueKind";
 import type { BroadcastChannelCounts } from "@/modules/doctor-broadcasts/draftPort";
@@ -103,6 +104,14 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
       }
     })();
   }, []);
+
+  // Re-fetch channel counts filtered by selected audience so tiles reflect the segment.
+  useEffect(() => {
+    if (!audience) return;
+    void getChannelCountsByAudienceAction(audience).then((counts) => {
+      setChannelCounts(counts);
+    }).catch(() => undefined);
+  }, [audience]);
 
   // Применяем префилл при изменении nonce (идемпотентно: повторный клик
   // «Создать на основе» по той же записи инкрементирует nonce → эффект снова сработает).
