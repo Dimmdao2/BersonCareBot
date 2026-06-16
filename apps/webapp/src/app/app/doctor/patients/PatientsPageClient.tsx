@@ -709,6 +709,13 @@ function PatientsContent({
   );
   if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasMemberships === true);
 
+  // Context base for segment card counts (PAT-02/06):
+  // When a segment is active, other segment cards show counts within that segment's subset.
+  const categoryBase = applyCategoryFilter(allClients, activeCategory);
+  const contextBase = activeSegment && activeSegment !== "all"
+    ? categoryBase.filter((c) => clientSegmentPredicate(c, activeSegment as SegmentKey))
+    : categoryBase;
+
   // Determine if any filter is active (for "найдено N" header)
   const isAnyFilterActive =
     activeCategory !== "all" ||
@@ -782,7 +789,7 @@ function PatientsContent({
         <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
             {isAnyFilterActive
-              ? <>найдено {filtered.length}</>
+              ? <>найдено {filtered.length} / {allClients.length}</>
               : <>Пациентов: {allClients.length}</>}
             {isListPending && <span className="ml-1 animate-pulse">…</span>}
           </p>
@@ -1012,7 +1019,7 @@ function PatientsContent({
                 key={seg.key}
                 id={`doctor-patients-segment-${seg.key}`}
                 title={seg.title}
-                value={getSegmentCount(seg.key, metrics, allClients) ?? "—"}
+                value={seg.key === "all" ? allClients.length : (getSegmentCount(seg.key, metrics, contextBase) ?? "—")}
                 tone={segmentTone(seg.key)}
                 onClick={() => onSegmentChange(seg.urlValue)}
               />

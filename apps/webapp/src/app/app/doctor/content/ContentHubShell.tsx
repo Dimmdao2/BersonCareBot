@@ -104,12 +104,6 @@ function SystemFolderPane({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="m-0 text-base font-semibold">{label}</h2>
       <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        <Link
-          href={`/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(folderCode)}`}
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          Создать подраздел
-        </Link>
         <AttachExistingSectionsModal
           folderCode={folderCode}
           freeSections={freeSections}
