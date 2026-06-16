@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
-import {
-  DoctorTodayAttentionDialog,
-  type DoctorTodayAttentionKind,
-} from "./DoctorTodayAttentionDialog";
-import type { TodayDashboardData, TodayIntakeItem, TodayExerciseCommentAttentionItem } from "./loadDoctorTodayDashboard";
+import type {
+  TodayDashboardData,
+  TodayIntakeItem,
+  TodayUnreadConversationItem,
+  TodayExerciseCommentAttentionItem,
+} from "./loadDoctorTodayDashboard";
+import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
 import { routePaths } from "@/app-layer/routes/paths";
 
 type Props = Pick<
@@ -20,10 +22,6 @@ type Props = Pick<
   | "unreadTotal"
   | "pendingProgramTests"
   | "pendingProgramTestsTotal"
-  | "pendingProgramTestsTruncated"
-  | "proactiveInsights"
-  | "proactiveInsightsTotal"
-  | "proactiveInsightsTruncated"
   | "exerciseCommentAttentionItems"
   | "exerciseCommentAttentionTotal"
   | "exerciseCommentAttentionTruncated"
@@ -32,7 +30,7 @@ type Props = Pick<
   pendingTestsTotal: number;
 };
 
-type KpiModal = "comments" | "intake" | null;
+type KpiModal = "messages" | "comments" | "intake" | "tests" | null;
 
 function IntakeModalItem({ item }: { item: TodayIntakeItem }) {
   return (
@@ -50,6 +48,43 @@ function IntakeModalItem({ item }: { item: TodayIntakeItem }) {
       <p className="mt-2">
         <Link href={item.href} className={doctorInlineLinkClass}>
           Открыть заявку
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
+  return (
+    <div className={doctorSectionItemClass}>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="font-medium text-foreground">{item.displayName}</p>
+        <span className="shrink-0 text-xs text-muted-foreground">{item.lastMessageAtLabel}</span>
+      </div>
+      {item.lastMessagePreview ? (
+        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.lastMessagePreview}</p>
+      ) : null}
+      {item.unreadFromUserCount > 0 ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">{item.unreadFromUserCount} непрочитанных</p>
+      ) : null}
+      <p className="mt-2">
+        <Link href={routePaths.doctorCommunications} className={doctorInlineLinkClass}>
+          Открыть переписку
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+function PendingTestModalItem({ item }: { item: TodayPendingProgramTestItem }) {
+  return (
+    <div className={doctorSectionItemClass}>
+      <p className="font-medium text-foreground">{item.patientDisplayName}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{item.instanceTitle} · {item.stageTitle}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{item.submittedAtLabel}</p>
+      <p className="mt-2">
+        <Link href={item.href} className={doctorInlineLinkClass}>
+          Проверить тест
         </Link>
       </p>
     </div>
@@ -79,25 +114,16 @@ export function DoctorTodayLeftKpiRow({
   unreadTotal,
   pendingProgramTests,
   pendingProgramTestsTotal,
-  pendingProgramTestsTruncated,
-  proactiveInsights,
-  proactiveInsightsTotal,
-  proactiveInsightsTruncated,
   exerciseCommentAttentionItems,
   exerciseCommentAttentionTotal,
   exerciseCommentAttentionTruncated,
 }: Props) {
-  const [dialogKind, setDialogKind] = useState<DoctorTodayAttentionKind | null>(null);
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
   const [exerciseCommentsState, setExerciseCommentsState] = useState({
     items: exerciseCommentAttentionItems,
     total: exerciseCommentAttentionTotal,
     truncated: exerciseCommentAttentionTruncated,
   });
-
-  const openDialog = useCallback((kind: DoctorTodayAttentionKind) => {
-    setDialogKind(kind);
-  }, []);
 
   return (
     <>
@@ -106,13 +132,13 @@ export function DoctorTodayLeftKpiRow({
         aria-label="Входящий поток"
         className="grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4"
       >
-        {/* Сообщения → прямая ссылка на коммуникации */}
+        {/* Сообщения → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
           id="doctor-today-left-kpi-messages"
           title="Сообщения"
           value={unreadTotal}
           tone={unreadTotal > 0 ? "warning" : "neutral"}
-          href={routePaths.doctorCommunications}
+          onClick={() => setKpiModal("messages")}
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -130,13 +156,13 @@ export function DoctorTodayLeftKpiRow({
           tone={intakeCount > 0 ? "warning" : "neutral"}
           onClick={() => setKpiModal("intake")}
         />
-        {/* Тесты к проверке → legacy AttentionDialog (unchanged) */}
+        {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
           id="doctor-today-left-kpi-tests"
           title="Тесты"
           value={pendingTestsTotal}
           tone={pendingTestsTotal > 0 ? "warning" : "neutral"}
-          onClick={() => openDialog("pendingTests")}
+          onClick={() => setKpiModal("tests")}
         />
       </DoctorMetricList>
 
@@ -183,37 +209,47 @@ export function DoctorTodayLeftKpiRow({
         }
       />
 
-      {/* Legacy AttentionDialog: kept for Тесты */}
-      <DoctorTodayAttentionDialog
-        open={dialogKind !== null}
-        onOpenChange={(open) => {
-          if (!open) setDialogKind(null);
-        }}
-        kind={dialogKind}
-        newIntakeRequests={newIntakeRequests}
-        unreadConversations={unreadConversations}
-        unreadTotal={unreadTotal}
-        pendingProgramTests={pendingProgramTests}
-        pendingProgramTestsTotal={pendingProgramTestsTotal}
-        pendingProgramTestsTruncated={pendingProgramTestsTruncated}
-        proactiveInsights={proactiveInsights}
-        proactiveInsightsTotal={proactiveInsightsTotal}
-        proactiveInsightsTruncated={proactiveInsightsTruncated}
-        exerciseCommentAttentionItems={exerciseCommentsState.items}
-        exerciseCommentAttentionTotal={exerciseCommentsState.total}
-        exerciseCommentAttentionTruncated={exerciseCommentsState.truncated}
-        onExerciseCommentResolved={(stageItemId) => {
-          setExerciseCommentsState((prev) => {
-            const nextItems = prev.items.filter((item) => item.stageItemId !== stageItemId);
-            const removed = nextItems.length === prev.items.length ? 0 : 1;
-            const nextTotal = Math.max(0, prev.total - removed);
-            return {
-              items: nextItems,
-              total: nextTotal,
-              truncated: nextTotal > nextItems.length,
-            };
-          });
-        }}
+      {/* KpiPreviewModal: Сообщения (SEG-02) */}
+      <KpiPreviewModal<TodayUnreadConversationItem>
+        open={kpiModal === "messages"}
+        onClose={() => setKpiModal(null)}
+        title="Сообщения"
+        count={unreadTotal}
+        items={unreadConversations}
+        renderItem={(item) => <UnreadConversationModalItem item={item} />}
+        searchPlaceholder="Поиск по имени…"
+        searchPredicate={(item, q) =>
+          item.displayName.toLowerCase().includes(q.toLowerCase()) ||
+          (item.phoneNormalized?.toLowerCase().includes(q.toLowerCase()) ?? false)
+        }
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Нет непрочитанных сообщений.{" "}
+            <Link href={routePaths.doctorCommunications} className={doctorInlineLinkClass}>
+              Открыть коммуникации
+            </Link>
+          </p>
+        }
+      />
+
+      {/* KpiPreviewModal: Тесты к проверке (SEG-02) */}
+      <KpiPreviewModal<TodayPendingProgramTestItem>
+        open={kpiModal === "tests"}
+        onClose={() => setKpiModal(null)}
+        title="Тесты к проверке"
+        count={pendingProgramTestsTotal}
+        items={pendingProgramTests}
+        renderItem={(item) => <PendingTestModalItem item={item} />}
+        searchPlaceholder="Поиск по пациенту…"
+        searchPredicate={(item, q) =>
+          item.patientDisplayName.toLowerCase().includes(q.toLowerCase()) ||
+          item.instanceTitle.toLowerCase().includes(q.toLowerCase())
+        }
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Нет тестов, ожидающих проверки
+          </p>
+        }
       />
     </>
   );

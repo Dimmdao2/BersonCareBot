@@ -100,10 +100,6 @@ export function DoctorTodayDashboard({
             unreadTotal={data.unreadTotal}
             pendingProgramTests={data.pendingProgramTests}
             pendingProgramTestsTotal={data.pendingProgramTestsTotal}
-            pendingProgramTestsTruncated={data.pendingProgramTestsTruncated}
-            proactiveInsights={data.proactiveInsights}
-            proactiveInsightsTotal={data.proactiveInsightsTotal}
-            proactiveInsightsTruncated={data.proactiveInsightsTruncated}
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
@@ -237,6 +233,8 @@ export function DoctorTodayDashboard({
             weekAppointmentsCount={kpiStats.appointments.total}
             monthAppointmentCount={monthAppointmentCount}
             todayAppointments={data.todayAppointments}
+            weekAppointments={data.weekAppointments}
+            monthAppointments={data.monthAppointments}
           />
 
           {/* §1.1: Мини-календарь — расписание на сегодня (выше «Следующей записи») */}

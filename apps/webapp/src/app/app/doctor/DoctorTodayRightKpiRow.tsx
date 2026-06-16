@@ -14,6 +14,10 @@ type Props = {
   monthAppointmentCount: number;
   /** Appointments for today (for preview modal) */
   todayAppointments?: TodayAppointmentItem[];
+  /** Appointments this week (for week modal) */
+  weekAppointments?: TodayAppointmentItem[];
+  /** Appointments this calendar month (for month modal) */
+  monthAppointments?: TodayAppointmentItem[];
 };
 
 type ModalKind = "today" | "week" | "month";
@@ -49,10 +53,14 @@ export function DoctorTodayRightKpiRow({
   weekAppointmentsCount,
   monthAppointmentCount,
   todayAppointments,
+  weekAppointments,
+  monthAppointments,
 }: Props) {
   const [openModal, setOpenModal] = useState<ModalKind | null>(null);
 
   const todayItems = todayAppointments ?? [];
+  const weekItems = weekAppointments ?? [];
+  const monthItems = monthAppointments ?? [];
 
   return (
     <>
@@ -73,14 +81,14 @@ export function DoctorTodayRightKpiRow({
           id="doctor-today-right-kpi-week"
           title="Записи неделя"
           value={weekAppointmentsCount}
-          href={SCHEDULE_HREF}
+          onClick={() => setOpenModal("week")}
         />
         {/* Renamed: «Месяц» → «Записи месяц» */}
         <DoctorStatCard
           id="doctor-today-right-kpi-month"
           title="Записи месяц"
           value={monthAppointmentCount}
-          href={SCHEDULE_HREF}
+          onClick={() => setOpenModal("month")}
         />
       </DoctorMetricList>
 
@@ -100,6 +108,52 @@ export function DoctorTodayRightKpiRow({
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Записей на сегодня нет.{" "}
+            <Link href={SCHEDULE_HREF} className={doctorInlineLinkClass}>
+              Открыть расписание
+            </Link>
+          </p>
+        }
+      />
+
+      {/* Modal: Записи неделя */}
+      <KpiPreviewModal<TodayAppointmentItem>
+        open={openModal === "week"}
+        onClose={() => setOpenModal(null)}
+        title="Записи на неделе"
+        count={weekAppointmentsCount}
+        items={weekItems}
+        renderItem={(item) => <AppointmentModalItem item={item} />}
+        searchPlaceholder="Поиск по пациенту…"
+        searchPredicate={(item, q) =>
+          item.clientLabel.toLowerCase().includes(q.toLowerCase()) ||
+          (item.rubitimeNameIfDifferent?.toLowerCase().includes(q.toLowerCase()) ?? false)
+        }
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Записей на этой неделе нет.{" "}
+            <Link href={SCHEDULE_HREF} className={doctorInlineLinkClass}>
+              Открыть расписание
+            </Link>
+          </p>
+        }
+      />
+
+      {/* Modal: Записи месяц */}
+      <KpiPreviewModal<TodayAppointmentItem>
+        open={openModal === "month"}
+        onClose={() => setOpenModal(null)}
+        title="Записи в этом месяце"
+        count={monthAppointmentCount}
+        items={monthItems}
+        renderItem={(item) => <AppointmentModalItem item={item} />}
+        searchPlaceholder="Поиск по пациенту…"
+        searchPredicate={(item, q) =>
+          item.clientLabel.toLowerCase().includes(q.toLowerCase()) ||
+          (item.rubitimeNameIfDifferent?.toLowerCase().includes(q.toLowerCase()) ?? false)
+        }
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Записей в этом месяце нет.{" "}
             <Link href={SCHEDULE_HREF} className={doctorInlineLinkClass}>
               Открыть расписание
             </Link>

@@ -950,9 +950,24 @@ export function ScheduleCalendarTab({
           }))
         : [];
     const mapped = data.events.map((event) => {
-      // Рабочее время — не рендерим (фон белый). Перерывы покрыты серой
-      // заливкой нерабочего диапазона (§3.14) — отдельные break-эвенты не нужны.
-      if (event.kind === "working" || event.kind === "break") return null;
+      // Рабочее время — не рендерим (фон белый).
+      if (event.kind === "working") return null;
+
+      // SCH-10: перерывы рендерим как фоновые события с более тёмным серым,
+      // чтобы их можно было отличить от нерабочего времени (до/после смены).
+      if (event.kind === "break" && isTimeGrid) {
+        return {
+          id: `break:${event.id}`,
+          start: event.startAt,
+          end: event.endAt,
+          title: "Перерыв",
+          display: "background" as const,
+          classNames: ["!bg-slate-300/60 !border-l-2 !border-slate-400/60"],
+          editable: false,
+          extendedProps: { kind: "break" as const },
+        };
+      }
+      if (event.kind === "break") return null;
 
       if (event.kind === "block") {
         return {

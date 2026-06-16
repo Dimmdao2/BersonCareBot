@@ -21,10 +21,6 @@ function emptyProps() {
     unreadTotal: 0,
     pendingProgramTests: [],
     pendingProgramTestsTotal: 0,
-    pendingProgramTestsTruncated: false,
-    proactiveInsights: [],
-    proactiveInsightsTotal: 0,
-    proactiveInsightsTruncated: false,
     exerciseCommentAttentionItems: [],
     exerciseCommentAttentionTotal: 0,
     exerciseCommentAttentionTruncated: false,
@@ -32,25 +28,25 @@ function emptyProps() {
 }
 
 describe("DoctorTodayLeftKpiRow", () => {
-  it("renders 4 KPI cards with zero values (zeros are informative)", () => {
+  it("renders 4 KPI cards as modal-opening buttons (SEG-02)", () => {
     render(<DoctorTodayLeftKpiRow {...emptyProps()} />);
-    expect(screen.getByRole("link", { name: /Сообщения/i })).toBeInTheDocument();
+    // SEG-02: all 4 KPI cards open KpiPreviewModal (buttons)
+    expect(screen.getByRole("button", { name: /Сообщения/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Заявки/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Тесты/i })).toBeInTheDocument();
   });
 
-  it("Сообщения link points to doctorCommunications route", () => {
-    render(<DoctorTodayLeftKpiRow {...emptyProps()} />);
-    expect(screen.getByRole("link", { name: /Сообщения/i })).toHaveAttribute(
-      "href",
-      "/app/doctor/communications",
-    );
+  it("clicking Сообщения opens messages KpiPreviewModal", async () => {
+    const user = userEvent.setup();
+    render(<DoctorTodayLeftKpiRow {...emptyProps()} unreadTotal={5} />);
+    await user.click(screen.getByRole("button", { name: /Сообщения/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("shows unread count on Сообщения", () => {
+  it("shows unread count on Сообщения button", () => {
     render(<DoctorTodayLeftKpiRow {...emptyProps()} unreadTotal={7} />);
-    expect(screen.getByRole("link", { name: /Сообщения/i })).toHaveTextContent("7");
+    expect(screen.getByRole("button", { name: /Сообщения/i })).toHaveTextContent("7");
   });
 
   it("clicking Заявки opens intake dialog", async () => {

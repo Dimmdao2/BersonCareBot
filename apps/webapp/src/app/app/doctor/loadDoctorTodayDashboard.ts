@@ -163,6 +163,10 @@ export type TodayOnSupportClientItem = {
 
 export type TodayDashboardData = {
   todayAppointments: TodayAppointmentItem[];
+  /** All appointments this week (incl. today) for SEG-04 week modal. */
+  weekAppointments: TodayAppointmentItem[];
+  /** All appointments in calendar month for SEG-04 month modal. */
+  monthAppointments: TodayAppointmentItem[];
   newIntakeRequests: TodayIntakeItem[];
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
@@ -373,6 +377,7 @@ export async function loadDoctorTodayDashboard(
   const [
     todayRaw,
     weekRaw,
+    monthRaw,
     newIntake,
     unreadConversations,
     unreadTotal,
@@ -381,6 +386,7 @@ export async function loadDoctorTodayDashboard(
   ] = await Promise.all([
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }, audience),
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }, audience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "recordsInCalendarMonth" }, audience),
     intakeService.listForDoctor({ status: "new", limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),
@@ -457,6 +463,8 @@ export async function loadDoctorTodayDashboard(
 
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
+    weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
+    monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
     newIntakeRequests: newIntake.items.map(mapIntakeToTodayItem),
     unreadConversations: unreadConversations.map(mapConversationToTodayItem),
     unreadTotal,

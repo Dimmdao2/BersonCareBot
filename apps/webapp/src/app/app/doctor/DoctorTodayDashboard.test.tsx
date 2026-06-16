@@ -38,6 +38,8 @@ const DEFAULT_DISPLAY_IANA = "Europe/Moscow";
 function emptyData(): TodayDashboardData {
   return {
     todayAppointments: [],
+    weekAppointments: [],
+    monthAppointments: [],
     newIntakeRequests: [],
     unreadConversations: [],
     unreadTotal: 0,
@@ -130,22 +132,21 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.queryByRole("heading", { name: "Ближайшие записи" })).not.toBeInTheDocument();
   });
 
-  it("renders left KPI row with 4 compact counters", () => {
+  it("renders left KPI row with 4 compact counters as modal-opening buttons", () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
         data={{ ...emptyData(), unreadTotal: 3, newIntakeRequests: [], pendingProgramTestsTotal: 5, exerciseCommentAttentionTotal: 1 }}
       />,
     );
-    // Сообщения — ссылка (не кнопка)
-    expect(screen.getByRole("link", { name: /Сообщения/i })).toBeInTheDocument();
-    // Кнопочные KPI
+    // SEG-02: all 4 KPI cards open KpiPreviewModal (buttons, not links)
+    expect(screen.getByRole("button", { name: /Сообщения/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Заявки/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Тесты/i })).toBeInTheDocument();
   });
 
-  it("renders right KPI row with 3 appointment counters", () => {
+  it("renders right KPI row with 3 appointment counters as modal-opening buttons", () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
@@ -154,9 +155,10 @@ describe("DoctorTodayDashboard", () => {
         monthAppointmentCount={45}
       />,
     );
-    expect(screen.getByRole("link", { name: /Сегодня/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Неделя/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Месяц/i })).toBeInTheDocument();
+    // SEG-04: all three open KpiPreviewModal, so they are buttons not links
+    expect(screen.getByRole("button", { name: /Записи сегодня/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Записи неделя/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Записи месяц/i })).toBeInTheDocument();
   });
 
   it("shows empty states for on-support and mini-calendar when no data", () => {
@@ -237,7 +239,7 @@ describe("DoctorTodayDashboard", () => {
     );
   });
 
-  it("opens pending program tests in attention dialog via left KPI card", async () => {
+  it("opens pending program tests KpiPreviewModal via left KPI card", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       pendingProgramTestsTotal: 12,
@@ -258,13 +260,13 @@ describe("DoctorTodayDashboard", () => {
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     await openLeftKpiDialog(/Тесты/);
-    expect(screen.getByText(/Попыток без оценки: 12/)).toBeInTheDocument();
+    // SEG-02: KpiPreviewModal shown for tests
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Иванова")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Оценить" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Проверить тест" })).toHaveAttribute(
       "href",
       "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
     );
-    expect(screen.getByText("Показаны первые 1 из 12")).toBeInTheDocument();
   });
 
   it("opens proactive patient insights via signals section button", async () => {
@@ -292,7 +294,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText("Петров")).toBeInTheDocument();
   });
 
-  it("shows unread messages KPI as link to communications", () => {
+  it("opens unread messages KpiPreviewModal via left KPI card", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       unreadTotal: 5,
@@ -310,9 +312,11 @@ describe("DoctorTodayDashboard", () => {
       ],
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
-    // «Сообщения» — ссылка (не кнопка) ведёт на communications
-    const msgLink = screen.getByRole("link", { name: /Сообщения/i });
-    expect(msgLink).toHaveAttribute("href", "/app/doctor/communications");
+    // SEG-02: «Сообщения» is now a button that opens KpiPreviewModal
+    const msgBtn = screen.getByRole("button", { name: /Сообщения/i });
+    await userEvent.setup().click(msgBtn);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Пациент")).toBeInTheDocument();
   });
 
   it("opens exercise comments attention dialog via left KPI card", async () => {
@@ -345,10 +349,11 @@ describe("DoctorTodayDashboard", () => {
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     await openLeftKpiDialog(/Комментарии/);
-    expect(screen.getByRole("heading", { name: "Новые комментарии по упражнениям" })).toBeInTheDocument();
+    // SEG-02: KpiPreviewModal shown for exercise comments
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Иванов Иван")).toBeInTheDocument();
     expect(screen.getByText("Приседания")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть комментарии в программе" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Открыть комментарии" })).toHaveAttribute(
       "href",
       "/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1",
     );
