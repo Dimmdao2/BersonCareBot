@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen } from "lucide-react";
+import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen } from "lucide-react";
 import type { ElementType } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/shared/ui/doctor/primitives/popover";
 import { cn } from "@/lib/utils";
 import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
 import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
@@ -12,11 +17,7 @@ import { useDoctorPendingProgramTestsCount } from "@/modules/treatment-program/h
 import { useDoctorProactiveInsightsCount } from "@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount";
 import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 import {
-  DOCTOR_MENU_DEFAULT_CLUSTER_ID,
-  DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY,
-  DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
   getDoctorMenuItems,
-  isDoctorMenuClusterId,
   isDoctorNavItemActive,
   type DoctorMenuAccess,
   type DoctorMenuBadgeKey,
@@ -84,41 +85,10 @@ const SHEET_LINK_CLASS = cn(
   "h-auto w-full justify-start px-3 py-2 font-normal",
 );
 
-const CLUSTER_TRIGGER_CLASS = cn(
+const FLYOUT_LINK_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
-  "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-semibold text-foreground",
+  "h-auto w-full justify-start px-3 py-2 text-sm font-normal",
 );
-
-/** Читает открытый кластер: JSON-массив (берётся последний валидный id), иначе миграция v1. `null` — оставить начальный state. */
-function readOpenClustersFromStorage(): Set<string> | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const v2 = window.localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY);
-    if (v2 !== null) {
-      try {
-        const parsed: unknown = JSON.parse(v2);
-        if (Array.isArray(parsed)) {
-          // Пустой массив = пользователь явно закрыл все кластеры.
-          if (parsed.length === 0) return new Set();
-          const ids = parsed.filter((x): x is string => typeof x === "string" && isDoctorMenuClusterId(x));
-          // Все сохранённые id устарели (например, после миграции структуры меню) →
-          // вернуть null, чтобы использовался дефолт DOCTOR_MENU_DEFAULT_CLUSTER_ID.
-          if (ids.length === 0) return null;
-          return new Set([ids[ids.length - 1]!]);
-        }
-      } catch {
-        /* невалидный JSON v2 — пробуем v1 */
-      }
-    }
-    const v1 = window.localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY);
-    if (v1 && isDoctorMenuClusterId(v1)) {
-      return new Set([v1]);
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
 
 export type DoctorMenuAccordionProps = {
   variant: "sidebar" | "sheet";
@@ -130,67 +100,157 @@ export type DoctorMenuAccordionProps = {
   onNavigate?: () => void;
 };
 
-export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabel, onNavigate }: DoctorMenuAccordionProps) {
-  const linkClass = variant === "sidebar" ? SIDEBAR_LINK_CLASS : SHEET_LINK_CLASS;
-  const iconSize = variant === "sidebar" ? 16 : 18;
+/** Sidebar: single group flyout — hover-controlled Popover to the right. */
+function SidebarGroupFlyout({
+  item,
+  badgeCounts,
+  pathname,
+  onNavigate,
+}: {
+  item: DoctorMenuLinkItem;
+  badgeCounts: Record<DoctorMenuBadgeKey, number>;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // Track whether pointer is over trigger or content so we close on leave of both
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const Icon = getIconForMenuId(item.id);
+  const iconSize = 16;
 
-  const messagesUnread = useDoctorSupportUnreadCount();
-  const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
-  const pendingProgramTests = useDoctorPendingProgramTestsCount();
-  const proactiveInsights = useDoctorProactiveInsightsCount();
-  const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(menuAccess.role === "admin");
-
-  const badgeCounts = useMemo(
-    () =>
-      ({
-        onlineIntakeNew,
-        messagesUnread,
-        registrationSystemFailures,
-        pendingProgramTests,
-        todayAttention: pendingProgramTests + proactiveInsights,
-        communicationsTotal: onlineIntakeNew + messagesUnread,
-      }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [onlineIntakeNew, messagesUnread, registrationSystemFailures, pendingProgramTests, proactiveInsights],
-  );
-
-  const [openClusterIds, setOpenClusterIds] = useState<Set<string>>(
-    () => new Set([DOCTOR_MENU_DEFAULT_CLUSTER_ID]),
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const fromStorage = readOpenClustersFromStorage();
-    if (fromStorage !== null) {
-      setOpenClusterIds(fromStorage);
+  const cancelClose = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
     }
   }, []);
 
-  const toggleCluster = useCallback((id: string) => {
-    setOpenClusterIds((prev) => {
-      const next = prev.has(id) ? new Set<string>() : new Set([id]);
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify([...next]));
-          window.localStorage.removeItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY);
-        } catch {
-          /* ignore */
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimerRef.current = setTimeout(() => setOpen(false), 120);
+  }, [cancelClose]);
+
+  // Check if any sub-item is active (to highlight the group trigger)
+  const anySubActive = useMemo(
+    () => item.items?.some((sub) => sub.href && isDoctorNavItemActive(sub.href, pathname)) ?? false,
+    [item.items, pathname],
+  );
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            id={`doctor-sidebar-group-${item.id}`}
+            aria-expanded={open}
+            aria-haspopup="menu"
+            onMouseEnter={() => {
+              cancelClose();
+              setOpen(true);
+            }}
+            onMouseLeave={scheduleClose}
+            onFocus={() => setOpen(true)}
+            onBlur={scheduleClose}
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal",
+              anySubActive && "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+            )}
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              {Icon && (
+                <Icon
+                  size={iconSize}
+                  strokeWidth={NAV_STRIP_ICON_STROKE}
+                  aria-hidden
+                  className="shrink-0"
+                />
+              )}
+              <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+            </span>
+            <ChevronRight
+              className="size-3 shrink-0 text-muted-foreground"
+              strokeWidth={NAV_STRIP_ICON_STROKE}
+              aria-hidden
+            />
+          </button>
         }
-      }
-      return next;
-    });
-  }, []);
+      />
+      <PopoverContent
+        side="right"
+        sideOffset={4}
+        align="start"
+        alignOffset={-4}
+        className="w-52 min-w-[12rem] p-1.5"
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleClose}
+      >
+        <div
+          role="menu"
+          aria-label={item.label}
+          className="flex flex-col gap-0.5"
+        >
+          {item.items?.map((sub) => {
+            if (!sub.href) return null;
+            const rawCount = sub.badgeKey ? badgeCounts[sub.badgeKey] : 0;
+            const badgeText = sub.badgeKey ? formatNavBadgeCount(rawCount) : null;
+            const aria = badgeText ? linkAriaLabelWhenBadged(sub, badgeText) : undefined;
+            return (
+              <Link
+                key={sub.id}
+                id={`doctor-sidebar-link-${sub.id}`}
+                href={sub.href}
+                prefetch={false}
+                role="menuitem"
+                onClick={onNavigate}
+                aria-label={aria}
+                className={cn(
+                  FLYOUT_LINK_CLASS,
+                  isDoctorNavItemActive(sub.href, pathname) &&
+                    "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+                )}
+              >
+                <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate">{sub.label}</span>
+                  {badgeText && sub.badgeKey ? (
+                    <span
+                      className={navBadgeClassName(sub.badgeKey)}
+                      aria-label={badgeSpanAriaLabel(sub.badgeKey, badgeText)}
+                    >
+                      {badgeText}
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
-  // menuAccess — plain-объект, пересоздаётся в родителе при каждом ре-рендере;
-  // используем примитивные поля как зависимости, чтобы избежать лишних пересчётов.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess.role, menuAccess.adminMode, patientLabel]);
+/**
+ * Mobile sheet: two-level navigation.
+ * Level 1 = top-level items; tapping a group pushes to Level 2.
+ * Level 2 = sub-items with back button.
+ */
+function SheetTwoLevelMenu({
+  items,
+  badgeCounts,
+  pathname,
+  onNavigate,
+}: {
+  items: DoctorMenuLinkItem[];
+  badgeCounts: Record<DoctorMenuBadgeKey, number>;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const [activeGroup, setActiveGroup] = useState<DoctorMenuLinkItem | null>(null);
 
-  const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu", icon?: ElementType) => {
-    const href = item.href;
-    // renderLink вызывается только для пунктов с href (не раскрывающихся);
-    // ранний return вместо non-null assertion — безопасно и для TypeScript.
-    if (!href) return null;
-
+  const renderLink = (item: DoctorMenuLinkItem, icon?: ElementType) => {
+    if (!item.href) return null;
     const rawCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
     const badgeText = item.badgeKey ? formatNavBadgeCount(rawCount) : null;
     const aria = badgeText ? linkAriaLabelWhenBadged(item, badgeText) : undefined;
@@ -199,14 +259,14 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabe
     return (
       <Link
         key={item.id}
-        id={navPrefix === "sidebar" ? `doctor-sidebar-link-${item.id}` : `doctor-menu-link-${item.id}`}
-        href={href}
+        id={`doctor-menu-link-${item.id}`}
+        href={item.href}
         prefetch={false}
         onClick={onNavigate}
         aria-label={aria}
         className={cn(
-          linkClass,
-          isDoctorNavItemActive(href, pathname) &&
+          SHEET_LINK_CLASS,
+          isDoctorNavItemActive(item.href, pathname) &&
             "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
         )}
       >
@@ -214,7 +274,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabe
           <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
             {Icon && (
               <Icon
-                size={iconSize}
+                size={18}
                 strokeWidth={NAV_STRIP_ICON_STROKE}
                 aria-hidden
                 className="shrink-0"
@@ -235,59 +295,168 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabe
     );
   };
 
-  return (
-    <div className={cn("flex flex-col gap-1.5", variant === "sheet" && "gap-2")}>
-      {items.map((item) => {
-        const navPrefix = variant === "sidebar" ? "sidebar" : "menu";
+  if (activeGroup) {
+    return (
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveGroup(null)}
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "mb-1 h-auto w-full items-center justify-start gap-2 px-3 py-2 font-normal text-muted-foreground",
+          )}
+        >
+          <ArrowLeft size={16} strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden className="shrink-0" />
+          <span className="text-sm font-semibold text-foreground">{activeGroup.label}</span>
+        </button>
+        <div className="flex flex-col gap-0.5">
+          {activeGroup.items?.map((sub) => renderLink(sub))}
+        </div>
+      </div>
+    );
+  }
 
+  return (
+    <div className="flex flex-col gap-1">
+      {items.map((item) => {
         if (!item.items) {
-          // Простая ссылка верхнего уровня: рендерим с иконкой
-          return renderLink(item, navPrefix, getIconForMenuId(item.id) ?? undefined);
+          // Simple top-level link
+          return renderLink(item, getIconForMenuId(item.id) ?? undefined);
         }
 
-        // Раскрывающийся блок
-        const open = openClusterIds.has(item.id);
-        const panelId = `doctor-menu-cluster-panel-${item.id}`;
-        const triggerId = `doctor-menu-cluster-trigger-${item.id}`;
+        // Group trigger — tap opens second level
         const Icon = getIconForMenuId(item.id);
+        const anySubActive = item.items.some((sub) => sub.href && isDoctorNavItemActive(sub.href, pathname));
 
         return (
-          <div key={item.id} className="flex flex-col">
-            <button
-              type="button"
-              id={triggerId}
-              aria-expanded={open}
-              aria-controls={panelId}
-              className={CLUSTER_TRIGGER_CLASS}
-              onClick={() => toggleCluster(item.id)}
-            >
-              <ChevronRight
-                className={cn(
-                  "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
-                  open && "rotate-90",
-                )}
-                strokeWidth={NAV_STRIP_ICON_STROKE}
-                aria-hidden
-              />
+          <button
+            key={item.id}
+            type="button"
+            id={`doctor-menu-group-${item.id}`}
+            aria-haspopup="menu"
+            onClick={() => setActiveGroup(item)}
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left font-normal",
+              anySubActive && "bg-primary/15 font-medium text-primary hover:bg-primary/15",
+            )}
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-2">
               {Icon && (
                 <Icon
-                  size={iconSize}
+                  size={18}
                   strokeWidth={NAV_STRIP_ICON_STROKE}
                   aria-hidden
                   className="shrink-0"
                 />
               )}
-              <span className="min-w-0 flex-1 text-left">{item.label}</span>
-            </button>
-            <div
-              id={panelId}
-              role="region"
-              aria-labelledby={triggerId}
-              className={cn("flex flex-col gap-0.5 pl-3 pr-2", open && "pb-1.5")}
+              <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+            </span>
+            <ChevronRight
+              className="size-3.5 shrink-0 text-muted-foreground"
+              strokeWidth={NAV_STRIP_ICON_STROKE}
+              aria-hidden
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabel, onNavigate }: DoctorMenuAccordionProps) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess.role, menuAccess.adminMode, patientLabel]);
+
+  const messagesUnread = useDoctorSupportUnreadCount();
+  const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
+  const pendingProgramTests = useDoctorPendingProgramTestsCount();
+  const proactiveInsights = useDoctorProactiveInsightsCount();
+  const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(menuAccess.role === "admin");
+
+  const badgeCounts = useMemo(
+    () =>
+      ({
+        onlineIntakeNew,
+        messagesUnread,
+        registrationSystemFailures,
+        pendingProgramTests,
+        todayAttention: pendingProgramTests + proactiveInsights,
+        communicationsTotal: onlineIntakeNew + messagesUnread,
+      }) satisfies Record<DoctorMenuBadgeKey, number>,
+    [onlineIntakeNew, messagesUnread, registrationSystemFailures, pendingProgramTests, proactiveInsights],
+  );
+
+  if (variant === "sheet") {
+    return (
+      <SheetTwoLevelMenu
+        items={items}
+        badgeCounts={badgeCounts}
+        pathname={pathname}
+        onNavigate={onNavigate}
+      />
+    );
+  }
+
+  // Sidebar (desktop): flat top-level list; groups get hover flyout
+  return (
+    <div className="flex flex-col gap-0.5">
+      {items.map((item) => {
+        if (!item.items) {
+          // Simple top-level link with icon
+          if (!item.href) return null;
+          const Icon = getIconForMenuId(item.id);
+          const rawCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
+          const badgeText = item.badgeKey ? formatNavBadgeCount(rawCount) : null;
+          const aria = badgeText ? linkAriaLabelWhenBadged(item, badgeText) : undefined;
+          return (
+            <Link
+              key={item.id}
+              id={`doctor-sidebar-link-${item.id}`}
+              href={item.href}
+              prefetch={false}
+              onClick={onNavigate}
+              aria-label={aria}
+              className={cn(
+                SIDEBAR_LINK_CLASS,
+                isDoctorNavItemActive(item.href, pathname) &&
+                  "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+              )}
             >
-              {open ? item.items.map((sub) => renderLink(sub, navPrefix)) : null}
-            </div>
-          </div>
+              <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                  {Icon && (
+                    <Icon
+                      size={16}
+                      strokeWidth={NAV_STRIP_ICON_STROKE}
+                      aria-hidden
+                      className="shrink-0"
+                    />
+                  )}
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                </span>
+                {badgeText && item.badgeKey ? (
+                  <span
+                    className={navBadgeClassName(item.badgeKey)}
+                    aria-label={badgeSpanAriaLabel(item.badgeKey, badgeText)}
+                  >
+                    {badgeText}
+                  </span>
+                ) : null}
+              </span>
+            </Link>
+          );
+        }
+
+        // Group → flyout
+        return (
+          <SidebarGroupFlyout
+            key={item.id}
+            item={item}
+            badgeCounts={badgeCounts}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
         );
       })}
     </div>
