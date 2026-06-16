@@ -262,6 +262,20 @@ export type DoctorClientsPort = {
     userId: string,
     names: { displayName?: string; firstName?: string | null; lastName?: string | null; patronymic?: string | null },
   ): Promise<void>;
+  /**
+   * Возвращает физические параметры пациента (рост/вес).
+   * Null если не заданы. Возвращает null целиком если пользователь не найден или не клиент.
+   */
+  getPatientPhysical(userId: string): Promise<{ heightCm: number | null; weightKg: number | null } | null>;
+  /**
+   * Устанавливает рост и/или вес пациента (platform_users.height_cm / weight_kg).
+   * Обновляются только переданные поля (null = сброс).
+   * Работает только для клиентов (role='client').
+   */
+  setPatientPhysical(
+    userId: string,
+    params: { heightCm?: number | null; weightKg?: number | null },
+  ): Promise<void>;
 };
 
 export type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";

@@ -157,6 +157,19 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       return deps.clientsPort.setPatientNames(userId, names);
     },
 
+    async getPatientPhysical(
+      userId: string,
+    ): Promise<{ heightCm: number | null; weightKg: number | null } | null> {
+      return deps.clientsPort.getPatientPhysical(userId);
+    },
+
+    async setPatientPhysical(
+      userId: string,
+      params: { heightCm?: number | null; weightKg?: number | null },
+    ): Promise<void> {
+      return deps.clientsPort.setPatientPhysical(userId, params);
+    },
+
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
     ): Promise<PatientProgramInteractionPolicy> {

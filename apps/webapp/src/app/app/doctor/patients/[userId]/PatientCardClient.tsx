@@ -15,7 +15,7 @@ import {
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from "lucide-react";
+import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check, Scale } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { formatFioForDoctor } from "@/lib/parseFullName";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
@@ -109,6 +109,17 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
   const [fioBirthDate, setFioBirthDate] = useState("");
   const [fioGender, setFioGender] = useState<"male" | "female" | "">("");
 
+  // Physical data (рост / вес) state
+  const [physicalLoaded, setPhysicalLoaded] = useState(false);
+  const [physicalHeightCm, setPhysicalHeightCm] = useState<number | null>(null);
+  const [physicalWeightKg, setPhysicalWeightKg] = useState<number | null>(null);
+  const [physicalEditing, setPhysicalEditing] = useState(false);
+  const [physicalSaving, setPhysicalSaving] = useState(false);
+  const [physicalError, setPhysicalError] = useState<string | null>(null);
+  // Draft values while editing (string so empty input is allowed)
+  const [draftHeightCm, setDraftHeightCm] = useState("");
+  const [draftWeightKg, setDraftWeightKg] = useState("");
+
   // Auto-switch to karta tab when opening with createVisitFrom URL param
   useEffect(() => {
     if (createVisitFrom) setActiveTab("karta");
@@ -125,6 +136,23 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
     window.addEventListener("patient:open-tab", handleOpenTab);
     return () => window.removeEventListener("patient:open-tab", handleOpenTab);
   }, []);
+
+  // Fetch physical data (рост/вес) once header is available
+  useEffect(() => {
+    if (!header) return;
+    const userId = header.identity.userId;
+    fetch(`/api/doctor/patients/${userId}/physical`)
+      .then((r) => r.json())
+      .then((data: { ok: boolean; heightCm?: number | null; weightKg?: number | null }) => {
+        if (data.ok) {
+          setPhysicalHeightCm(data.heightCm ?? null);
+          setPhysicalWeightKg(data.weightKg ?? null);
+        }
+        setPhysicalLoaded(true);
+      })
+      .catch(() => setPhysicalLoaded(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [header?.identity.userId]);
 
   if (!header) {
     return (
@@ -200,6 +228,59 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
       setFioError("Ошибка сети");
     } finally {
       setFioSaving(false);
+    }
+  }
+
+  /** Open inline physical edit form with current values pre-filled */
+  function openPhysicalEdit() {
+    setDraftHeightCm(physicalHeightCm != null ? String(physicalHeightCm) : "");
+    setDraftWeightKg(physicalWeightKg != null ? String(physicalWeightKg) : "");
+    setPhysicalError(null);
+    setPhysicalEditing(true);
+  }
+
+  function cancelPhysicalEdit() {
+    setPhysicalEditing(false);
+    setPhysicalError(null);
+  }
+
+  async function savePhysical() {
+    setPhysicalSaving(true);
+    setPhysicalError(null);
+
+    const heightVal = draftHeightCm.trim() === "" ? null : parseInt(draftHeightCm.trim(), 10);
+    const weightVal = draftWeightKg.trim() === "" ? null : parseInt(draftWeightKg.trim(), 10);
+
+    if (heightVal !== null && (isNaN(heightVal) || heightVal < 50 || heightVal > 250)) {
+      setPhysicalError("Рост должен быть от 50 до 250 см");
+      setPhysicalSaving(false);
+      return;
+    }
+    if (weightVal !== null && (isNaN(weightVal) || weightVal < 10 || weightVal > 500)) {
+      setPhysicalError("Вес должен быть от 10 до 500 кг");
+      setPhysicalSaving(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/doctor/patients/${identity.userId}/physical`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heightCm: heightVal, weightKg: weightVal }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setPhysicalError((json as { error?: string })?.error ?? "Ошибка сохранения");
+        return;
+      }
+      // Optimistic update
+      setPhysicalHeightCm(heightVal);
+      setPhysicalWeightKg(weightVal);
+      setPhysicalEditing(false);
+    } catch {
+      setPhysicalError("Ошибка сети");
+    } finally {
+      setPhysicalSaving(false);
     }
   }
 
@@ -399,6 +480,86 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
                 Пол: {resolvedGender === "male" ? "М" : resolvedGender === "female" ? "Ж" : "—"}
               </span>
             </div>
+
+            {/* Рост / Вес — read-only with inline edit (OBZ-11) */}
+            {physicalLoaded && (
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">
+                  {physicalHeightCm != null && physicalWeightKg != null
+                    ? `${physicalHeightCm} см · ${physicalWeightKg} кг`
+                    : physicalHeightCm != null
+                    ? `${physicalHeightCm} см`
+                    : physicalWeightKg != null
+                    ? `${physicalWeightKg} кг`
+                    : "Рост/вес: —"}
+                </span>
+                <button
+                  type="button"
+                  title="Редактировать рост и вес"
+                  onClick={openPhysicalEdit}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+                >
+                  <Scale className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+
+            {/* Inline physical edit form */}
+            {physicalEditing && (
+              <div className="mt-2 flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Рост (см)</label>
+                    <input
+                      type="number"
+                      min={50}
+                      max={250}
+                      step={1}
+                      value={draftHeightCm}
+                      onChange={(e) => setDraftHeightCm(e.target.value)}
+                      placeholder="напр. 175"
+                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Вес (кг)</label>
+                    <input
+                      type="number"
+                      min={10}
+                      max={500}
+                      step={1}
+                      value={draftWeightKg}
+                      onChange={(e) => setDraftWeightKg(e.target.value)}
+                      placeholder="напр. 70"
+                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+                {physicalError && (
+                  <p className="text-xs text-destructive">{physicalError}</p>
+                )}
+                <div className="flex gap-2 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={savePhysical}
+                    disabled={physicalSaving}
+                    className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 cursor-pointer transition-colors"
+                  >
+                    <Check className="h-3 w-3" />
+                    {physicalSaving ? "Сохранение…" : "Сохранить"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelPhysicalEdit}
+                    disabled={physicalSaving}
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60 cursor-pointer transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Phone + channel icons */}
             <div className="flex items-center gap-2 mt-2 flex-wrap">

@@ -174,4 +174,17 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
   ): Promise<void> {
     /* no-op in memory stub */
   },
+
+  async getPatientPhysical(
+    _userId: string,
+  ): Promise<{ heightCm: number | null; weightKg: number | null } | null> {
+    return { heightCm: null, weightKg: null };
+  },
+
+  async setPatientPhysical(
+    _userId: string,
+    _params: { heightCm?: number | null; weightKg?: number | null },
+  ): Promise<void> {
+    /* no-op in memory stub */
+  },
 };

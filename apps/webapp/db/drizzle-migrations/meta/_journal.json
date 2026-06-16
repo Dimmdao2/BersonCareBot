@@ -904,6 +904,20 @@
       "when": 1786972800000,
       "tag": "0128_patient_diagnosis_status",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1787059200000,
+      "tag": "0129_add_patronymic",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1787059300000,
+      "tag": "0130_patient_height_weight",
+      "breakpoints": true
     }
   ]
 }

@@ -81,6 +81,10 @@ export const platformUsers = pgTable("platform_users", {
 	gender: text("gender"),
 	/** Отчество пациента (patronymic). Nullable. */
 	patronymic: text("patronymic"),
+	/** Рост пациента в сантиметрах (nullable). */
+	heightCm: integer("height_cm"),
+	/** Вес пациента в килограммах (nullable, integer for simplicity). */
+	weightKg: integer("weight_kg"),
 }, (table) => [
 	index("idx_platform_users_integrator_uid").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")).where(sql`(integrator_user_id IS NOT NULL)`),
 	index("idx_platform_users_merged_into").using("btree", table.mergedIntoId.asc().nullsLast().op("uuid_ops")).where(sql`(merged_into_id IS NOT NULL)`),

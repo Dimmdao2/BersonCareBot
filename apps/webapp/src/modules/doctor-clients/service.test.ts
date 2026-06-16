@@ -71,6 +71,8 @@ describe("doctor-clients service", () => {
     async setPatientBirthDate() {},
     async setPatientGender() {},
     async setPatientNames() {},
+    async getPatientPhysical() { return { heightCm: null, weightKg: null }; },
+    async setPatientPhysical() {},
   };
 
   const service = createDoctorClientsService({
@@ -263,6 +265,8 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     async setPatientBirthDate() {},
     async setPatientGender() {},
     async setPatientNames() {},
+    async getPatientPhysical() { return { heightCm: null, weightKg: null }; },
+    async setPatientPhysical() {},
   };
 
   afterEach(() => {

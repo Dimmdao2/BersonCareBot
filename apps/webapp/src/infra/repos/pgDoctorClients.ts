@@ -983,6 +983,37 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
     },
 
+    async getPatientPhysical(userId: string) {
+      const result = await runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
+        `SELECT height_cm, weight_kg FROM platform_users WHERE id = $1::uuid AND role = 'client'`,
+        [userId],
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return { heightCm: row.height_cm ?? null, weightKg: row.weight_kg ?? null };
+    },
+
+    async setPatientPhysical(
+      userId: string,
+      params: { heightCm?: number | null; weightKg?: number | null },
+    ): Promise<void> {
+      const sets: string[] = ["updated_at = now()"];
+      const values: unknown[] = [userId];
+      if ("heightCm" in params) {
+        values.push(params.heightCm ?? null);
+        sets.push(`height_cm = $${values.length}::integer`);
+      }
+      if ("weightKg" in params) {
+        values.push(params.weightKg ?? null);
+        sets.push(`weight_kg = $${values.length}::integer`);
+      }
+      if (sets.length <= 1) return; // only updated_at, nothing to do
+      await runWebappPgText(
+        `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1::uuid AND role = 'client'`,
+        values,
+      );
+    },
+
     async getClientContactBreakdown(audience?: { excludedUserIds?: string[] }) {
       const excluded = audience?.excludedUserIds ?? [];
       const base = `SELECT
