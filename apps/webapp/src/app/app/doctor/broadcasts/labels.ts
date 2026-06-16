@@ -19,8 +19,8 @@ export const BROADCAST_AUDIENCE_FILTERS_ORDER: readonly BroadcastAudienceFilter[
  */
 export const BROADCAST_FORM_CATEGORIES: readonly { value: BroadcastCategory; label: string }[] = [
   { value: "organizational", label: "Организационное" },
-  { value: "important_notice", label: "Важное" },
-  { value: "service", label: "Сервисное" },
+  { value: "important_notice", label: "🔴❗ Важное" },
+  { value: "service", label: "⚙️ Сервисное" },
   { value: "marketing", label: "Рекламное" },
 ] as const;
 
