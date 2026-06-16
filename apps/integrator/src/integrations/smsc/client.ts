@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import type { SmsClient } from './types.js';
+import { logger } from '../../infra/observability/logger.js';
 
 type WarnLogger = {
   warn(payload: Record<string, unknown>, message: string): void;
@@ -30,6 +31,23 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
 
   return {
     async sendSms(input) {
+      // DEV SAFETY GUARD — this SMSC sink is reached via bypass paths (P10/P22) that do NOT go through
+      // the integrator dispatchPort dev-redirect. In dev the DB is a prod refresh with real phone numbers
+      // → sending would leak real SMS (costs money + reaches real people). Suppress entirely unless
+      // explicitly opted in. Prod is a pure passthrough (NODE_ENV === 'production').
+      // (Proper fix later: route send-sms through dispatchPort → smsc DeliveryAdapter; guard retired then.)
+      if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_SMS !== '1') {
+        logger.warn(
+          {
+            scope: 'sms',
+            event: 'dev_sms_suppressed',
+            toPhone: input.toPhone,
+          },
+          '[sms] DEV suppress: not sending SMS in non-production (set ALLOW_DEV_SMS=1 to override)',
+        );
+        return { ok: false, error: 'dev_suppressed' };
+      }
+
       if (!input.toPhone || !input.message) {
         return { ok: false, error: 'SMSC_INVALID_INPUT' };
       }

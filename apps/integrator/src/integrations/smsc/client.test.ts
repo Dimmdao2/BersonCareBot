@@ -1,5 +1,5 @@
 /* global RequestInit */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSmscClient } from './client.js';
 
 function createLogger() {
@@ -9,7 +9,61 @@ function createLogger() {
   };
 }
 
+describe('createSmscClient dev-suppress guard', () => {
+  beforeEach(() => {
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('ALLOW_DEV_SMS', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('suppresses SMS in non-production without override', async () => {
+    const fetchImpl = vi.fn();
+    const client = createSmscClient({
+      apiKey: 'test-key',
+      log: { warn: vi.fn(), error: vi.fn() },
+      fetchImpl: fetchImpl as unknown as typeof globalThis.fetch,
+    });
+
+    const result = await client.sendSms({ toPhone: '+79990001122', message: 'test' });
+
+    expect(result).toEqual({ ok: false, error: 'dev_suppressed' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('passes through in production (NODE_ENV=production)', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => JSON.stringify({ id: 1, cnt: 1 }),
+    });
+    const client = createSmscClient({
+      apiKey: 'prod-key',
+      log: { warn: vi.fn(), error: vi.fn() },
+      fetchImpl: fetchImpl as unknown as typeof globalThis.fetch,
+    });
+
+    const result = await client.sendSms({ toPhone: '+79990001122', message: 'hello' });
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('createSmscClient', () => {
+  beforeEach(() => {
+    // run as production so guard does not interfere with existing tests
+    vi.stubEnv('NODE_ENV', 'production');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('sends utf-8 json requests to smsc', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,

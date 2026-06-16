@@ -116,6 +116,21 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
   }
 
   if (channels.max && maxConfig.enabled && lists.max.length > 0) {
+    // DEV SAFETY GUARD — this MAX branch calls sendMaxMessage directly, bypassing the integrator
+    // dispatchPort dev-redirect (P5). The admin_max_ids recipients are real admin accounts.
+    // Suppress in non-production unless explicitly opted in. Prod is a pure passthrough.
+    // (Proper fix later: route through dispatchPort → max DeliveryAdapter; guard retired then.)
+    if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_MAX !== '1') {
+      logger.warn(
+        {
+          scope: 'max',
+          event: 'dev_max_suppressed',
+          channel: 'max',
+          recipientCount: lists.max.length,
+        },
+        '[max] DEV suppress: not sending direct MAX message in non-production (set ALLOW_DEV_MAX=1 to override)',
+      );
+    } else {
     const apiKey = await getMaxApiKey();
     if (!apiKey.trim()) {
       logger.info(
@@ -142,6 +157,7 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
           );
         }
       }
+    }
     }
   } else if (channels.max) {
     logger.info(

@@ -66,10 +66,13 @@ describe("POST /api/patient/support", () => {
     patientGateMock.mockResolvedValue("allow");
     envForTest.ADMIN_TELEGRAM_ID = 424242;
     headerMap.entries = [["user-agent", "VitestUA/1"]];
+    // Run existing tests as production so the dev-suppress guard doesn't interfere
+    vi.stubEnv("NODE_ENV", "production");
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
@@ -287,5 +290,41 @@ describe("POST /api/patient/support", () => {
       }),
     );
     expect(res.status).toBe(503);
+  });
+
+  describe("dev-suppress guard (P24)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("does not call Telegram fetch in non-production (dev guard)", async () => {
+      vi.stubEnv("NODE_ENV", "test");
+      vi.stubEnv("ALLOW_DEV_TELEGRAM_SUPPORT", "");
+      getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "guard-test-u" }));
+      const res = await POST(
+        new Request("http://localhost/api/patient/support", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonBody("a@b.co", "test message"),
+        }),
+      );
+      // guard returns 200 (suppressed) without calling fetch
+      expect(res.status).toBe(200);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("calls Telegram fetch when NODE_ENV=production (guard passthrough)", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "guard-prod-u" }));
+      const res = await POST(
+        new Request("http://localhost/api/patient/support", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonBody("a@b.co", "test message"),
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

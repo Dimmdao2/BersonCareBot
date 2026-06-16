@@ -36,10 +36,13 @@ describe("POST /api/public/support", () => {
       ["user-agent", "VitestUA/1"],
       ["x-forwarded-for", `203.0.113.${supportTestIpSeq % 250}`],
     ];
+    // Run existing tests as production so the dev-suppress guard doesn't interfere
+    vi.stubEnv("NODE_ENV", "production");
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
@@ -91,5 +94,39 @@ describe("POST /api/public/support", () => {
       }),
     );
     expect(second.status).toBe(429);
+  });
+
+  describe("dev-suppress guard (P25)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("does not call Telegram fetch in non-production (dev guard)", async () => {
+      vi.stubEnv("NODE_ENV", "test");
+      vi.stubEnv("ALLOW_DEV_TELEGRAM_SUPPORT", "");
+      const res = await POST(
+        new Request("http://localhost/api/public/support", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonBody("guest@example.com", "help please"),
+        }),
+      );
+      // guard returns 200 (suppressed) without calling fetch
+      expect(res.status).toBe(200);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("calls Telegram fetch when NODE_ENV=production (guard passthrough)", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      const res = await POST(
+        new Request("http://localhost/api/public/support", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonBody("guest@example.com", "help please"),
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -167,6 +167,25 @@ export async function POST(request: Request) {
     }),
   );
 
+  // DEV SAFETY GUARD — this route calls the Telegram Bot API directly via raw fetch (S7 / P24),
+  // bypassing the integrator dispatchPort dev-redirect. Even though the recipient is ADMIN_TELEGRAM_ID
+  // (not arbitrary clients), this is an uncontrolled send path outside the chokepoint. Suppress in
+  // non-production unless explicitly opted in. Prod is a pure passthrough (NODE_ENV === 'production').
+  // (Proper fix later: route through dispatchPort; guard retired then.)
+  if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_TELEGRAM_SUPPORT !== "1") {
+    logger.warn(
+      {
+        scope: "telegram_support",
+        event: "dev_telegram_support_suppressed",
+        route: "patient",
+        userId: session.user.userId,
+      },
+      "[telegram_support] DEV suppress: not sending support message to Telegram in non-production (set ALLOW_DEV_TELEGRAM_SUPPORT=1 to override)",
+    );
+    lastSupportByRateKey.set(rateKey, Date.now());
+    return NextResponse.json({ ok: true, message: "Сообщение отправлено" });
+  }
+
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

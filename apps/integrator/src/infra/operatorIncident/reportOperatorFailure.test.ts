@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const openOrTouchMock = vi.hoisted(() => vi.fn());
 const enqueueMock = vi.hoisted(() => vi.fn());
@@ -26,8 +26,9 @@ vi.mock('../../integrations/max/client.js', () => ({
 vi.mock('../../integrations/max/config.js', () => ({
   maxConfig: maxConfigMock,
 }));
+const getMaxApiKeyMock = vi.hoisted(() => vi.fn().mockResolvedValue(''));
 vi.mock('../../integrations/max/runtimeConfig.js', () => ({
-  getMaxApiKey: vi.fn().mockResolvedValue(''),
+  getMaxApiKey: getMaxApiKeyMock,
 }));
 
 import { reportOperatorFailure } from './reportOperatorFailure.js';
@@ -122,5 +123,55 @@ describe('reportOperatorFailure', () => {
     });
 
     expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  describe('MAX dev-suppress guard (P5)', () => {
+    beforeEach(() => {
+      // Enable max channel so the guard code is reached
+      maxConfigMock.enabled = true;
+      loadConfigMock.mockResolvedValue({
+        topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
+        channels: {
+          critical: { telegram: false, max: true, web_push: false },
+          digest: { telegram: false, max: false, web_push: false },
+          account_conflicts: { telegram: false, max: false, web_push: false },
+        },
+      });
+      loadListsMock.mockResolvedValue({ telegram: [], max: ['9999'] });
+      getMaxApiKeyMock.mockResolvedValue('max-api-key');
+    });
+
+    afterEach(() => {
+      maxConfigMock.enabled = false;
+      vi.unstubAllEnvs();
+    });
+
+    it('does not call sendMaxMessage in non-production (dev guard)', async () => {
+      vi.stubEnv('NODE_ENV', 'test');
+      vi.stubEnv('ALLOW_DEV_MAX', '');
+
+      await reportOperatorFailure({
+        direction: 'outbound',
+        integration: 'max',
+        errorClass: 'max_send_failed',
+        alertLines: ['fail'],
+      });
+
+      expect(sendMaxMessageMock).not.toHaveBeenCalled();
+    });
+
+    it('calls sendMaxMessage in production (guard passthrough)', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+
+      await reportOperatorFailure({
+        direction: 'outbound',
+        integration: 'max',
+        errorClass: 'max_send_failed',
+        alertLines: ['fail'],
+      });
+
+      expect(sendMaxMessageMock).toHaveBeenCalledTimes(1);
+      expect(sendMaxMessageMock).toHaveBeenCalledWith({ apiKey: 'max-api-key' }, { userId: 9999, text: 'fail' });
+    });
   });
 });
