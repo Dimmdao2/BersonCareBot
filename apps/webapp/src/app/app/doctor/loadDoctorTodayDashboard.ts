@@ -115,7 +115,10 @@ export type DoctorTodayDashboardDeps = {
 
 export type TodayAppointmentItem = {
   id: string;
+  /** Форматированная метка времени «ЧЧ:мм ДД.ММ» (для отображения в списках). */
   time: string;
+  /** UTC ISO-момент записи (`record_at`); используется для точного позиционирования в FullCalendar. */
+  recordAtIso: string | null;
   clientLabel: string;
   /** Имя из Rubitime при расхождении с профилем; иначе `null`. */
   rubitimeNameIfDifferent: string | null;
@@ -201,6 +204,7 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
   return {
     id: row.id,
     time: row.time,
+    recordAtIso: row.recordAtIso,
     clientLabel: row.clientLabel,
     rubitimeNameIfDifferent: row.rubitimeNameIfDifferent,
     clientUserId: hasClient ? uid : null,

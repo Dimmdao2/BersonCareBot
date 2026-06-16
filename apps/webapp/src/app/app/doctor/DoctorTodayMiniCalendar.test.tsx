@@ -52,6 +52,7 @@ function makeAppt(id: string, time: string, clientLabel = "Пациент"): Tod
   return {
     id,
     time,
+    recordAtIso: null,
     clientLabel,
     clientUserId: "user-1",
     type: "Сеанс",

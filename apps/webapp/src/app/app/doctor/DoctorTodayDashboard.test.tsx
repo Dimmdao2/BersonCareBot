@@ -361,6 +361,7 @@ describe("DoctorTodayDashboard", () => {
         {
           id: "ap1",
           time: "09:00",
+          recordAtIso: null,
           clientLabel: "Клиент Тест",
           clientUserId: "user-1",
           type: "Осмотр",

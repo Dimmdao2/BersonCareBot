@@ -26,6 +26,7 @@ function makeAppt(overrides: Partial<TodayAppointmentItem> = {}): TodayAppointme
   return {
     id: "appt-1",
     time: "10:00",
+    recordAtIso: null,
     clientLabel: "Иванова Мария",
     clientUserId: "user-1",
     type: "Сеанс",

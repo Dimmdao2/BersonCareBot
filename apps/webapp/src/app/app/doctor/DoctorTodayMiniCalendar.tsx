@@ -58,15 +58,20 @@ export function DoctorTodayMiniCalendar({
     new Date().toISOString().slice(0, 10);
 
   // Маппинг TodayAppointmentItem → FullCalendar events
+  // appt.time — форматированная метка «ЧЧ:мм ДД.ММ»; используем recordAtIso (UTC ISO)
+  // для точного позиционирования. FC с timeZone={displayIana} корректно показывает
+  // UTC-момент в нужной таймзоне. Фоллбэк: пробуем parсить appt.time как «HH:MM...».
   const fcEvents = appointments.map((appt) => {
-    const start = DateTime.fromISO(`${todayIso}T${appt.time}`, {
-      zone: displayIana,
-    }).toISO();
-    const end = DateTime.fromISO(`${todayIso}T${appt.time}`, {
-      zone: displayIana,
-    })
-      .plus({ minutes: 60 })
-      .toISO();
+    let startDt: DateTime;
+    if (appt.recordAtIso) {
+      startDt = DateTime.fromISO(appt.recordAtIso, { zone: "utc" });
+    } else {
+      // Фоллбэк: берём только «ЧЧ:мм» из строки time (первые 5 символов)
+      const timeOnly = appt.time.slice(0, 5);
+      startDt = DateTime.fromISO(`${todayIso}T${timeOnly}`, { zone: displayIana });
+    }
+    const start = startDt.isValid ? startDt.toISO() : undefined;
+    const end = startDt.isValid ? startDt.plus({ minutes: 60 }).toISO() ?? undefined : undefined;
     return {
       id: appt.id,
       title: appt.clientLabel,
