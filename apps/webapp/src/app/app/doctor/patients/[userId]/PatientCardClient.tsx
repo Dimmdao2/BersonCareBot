@@ -29,6 +29,7 @@ type Props = {
   cardHeaderPromise: Promise<PatientCardHeader | null>;
   initialTab?: string;
   createVisitFrom?: string;
+  visitDate?: string;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms";
@@ -76,7 +77,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom }: Props) {
+export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate }: Props) {
   const header = use(cardHeaderPromise);
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -84,6 +85,7 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
   const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(
     createVisitFrom ?? null,
   );
+  const [pendingVisitDate, setPendingVisitDate] = useState<string | null>(visitDate ?? null);
 
   // FIO inline edit state
   const [fioEditing, setFioEditing] = useState(false);
@@ -560,7 +562,11 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
           userId={identity.userId}
           header={header}
           pendingAppointmentId={pendingAppointmentId}
-          onPendingConsumed={() => setPendingAppointmentId(null)}
+          pendingVisitDate={pendingVisitDate}
+          onPendingConsumed={() => {
+            setPendingAppointmentId(null);
+            setPendingVisitDate(null);
+          }}
         />
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>

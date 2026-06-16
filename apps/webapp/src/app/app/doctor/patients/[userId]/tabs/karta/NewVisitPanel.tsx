@@ -275,18 +275,30 @@ export function NewVisitPanel({
   userId,
   activeComplaints,
   activeDiagnoses,
+  pendingVisitDate,
   onClose,
   onSaved,
 }: {
   userId: string;
   activeComplaints: ActiveComplaint[];
   activeDiagnoses: ActiveDiagnosis[];
+  /** ISO date string (YYYY-MM-DD) to pre-fill the visit date from the appointment. */
+  pendingVisitDate?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [visitType, setVisitType] = useState<VisitType>("repeat");
 
-  const [selectedDate, setSelectedDate] = useState(() => toIsoDate(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() =>
+    pendingVisitDate ? pendingVisitDate : toIsoDate(new Date()),
+  );
+
+  // If pendingVisitDate changes after initial render (e.g. parent updates), sync it in.
+  useEffect(() => {
+    if (pendingVisitDate) {
+      setSelectedDate(pendingVisitDate);
+    }
+  }, [pendingVisitDate]);
   const [location, setLocation] = useState("");
   const [service, setService] = useState("");
   const [duration, setDuration] = useState("");

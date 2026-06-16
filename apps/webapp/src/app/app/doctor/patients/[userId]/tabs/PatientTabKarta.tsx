@@ -64,6 +64,8 @@ type Props = {
   header?: PatientCardHeader;
   /** When set, auto-open the new-visit panel (linked to this appointment). */
   pendingAppointmentId?: string | null;
+  /** When set, pre-fill the new-visit date (ISO YYYY-MM-DD) from the appointment. */
+  pendingVisitDate?: string | null;
   onPendingConsumed?: () => void;
 };
 
@@ -1325,7 +1327,7 @@ function AddLifestyleForm({
 
 const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
-export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, onPendingConsumed }: Props) {
+export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, onPendingConsumed }: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
 
@@ -1688,6 +1690,7 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
               userId={userId}
               activeComplaints={complaints}
               activeDiagnoses={diagnoses}
+              pendingVisitDate={pendingVisitDate}
               onClose={() => setPanelOpen(false)}
               onSaved={handleVisitSaved}
             />

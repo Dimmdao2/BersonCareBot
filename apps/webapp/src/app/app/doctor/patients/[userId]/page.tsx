@@ -31,6 +31,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
 
   const initialTab = typeof sp.tab === "string" ? sp.tab : undefined;
   const createVisitFrom = typeof sp.createVisitFrom === "string" ? sp.createVisitFrom : undefined;
+  const visitDate = typeof sp.visitDate === "string" ? sp.visitDate : undefined;
 
   return (
     <DoctorAppShell title="Карточка пациента" user={session.user} backHref={routePaths.doctorPatients}>
@@ -39,6 +40,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           cardHeaderPromise={cardHeaderPromise}
           initialTab={initialTab}
           createVisitFrom={createVisitFrom}
+          visitDate={visitDate}
         />
       </section>
     </DoctorAppShell>

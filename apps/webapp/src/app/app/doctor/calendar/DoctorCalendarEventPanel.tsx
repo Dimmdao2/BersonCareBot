@@ -353,6 +353,7 @@ function DoctorCalendarEventPanelInner({
               href={patientCardHref(selected.platformUserId, {
                 tab: "karta",
                 createVisitFrom: selected.id,
+                visitDate: selected.startAt ? selected.startAt.slice(0, 10) : undefined,
               })}
               className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
             >
