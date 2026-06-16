@@ -24,6 +24,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -731,6 +732,11 @@ function PatientsContent({
   const selectedItem = selectedUserId ? filtered.find((c) => c.userId === selectedUserId) ?? null : null;
 
   return (
+    <>
+    <DoctorPageHeader
+      id="doctor-patients-header"
+      title="Пациенты"
+    />
     <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* ===== LEFT: patient list ===== */}
       <section
@@ -1131,6 +1137,7 @@ function PatientsContent({
         ) : null}
       </div>
     </div>
+    </>
   );
 }
 

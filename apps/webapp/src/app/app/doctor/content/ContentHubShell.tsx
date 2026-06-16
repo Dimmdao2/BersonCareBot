@@ -410,7 +410,6 @@ export function ContentHubShell({
       <DoctorPageHeader
         id="doctor-content-header"
         title="Контент"
-        subtitle="Системные разделы, статьи и медиа для приложения пациента"
       />
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
         <ContentNav

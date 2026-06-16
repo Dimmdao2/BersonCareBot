@@ -4,10 +4,12 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorCommunicationsTabsNav } from "./DoctorCommunicationsTabsNav";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { cn } from "@/lib/utils";
 import {
   COMMUNICATIONS_BASE,
   COMMUNICATIONS_DEFAULT_TAB,
+  COMMUNICATIONS_TABS,
   communicationsTabFromQuery,
   type CommunicationsTabId,
 } from "./doctorCommunicationsTabs";
@@ -15,6 +17,65 @@ import {
   COMMUNICATIONS_TAB_REGISTRY,
   type CommunicationsTabProps,
 } from "./communicationsTabRegistry";
+
+// ---------------------------------------------------------------------------
+// Tabs nav (inline, passed to DoctorPageHeader.tabs slot)
+// ---------------------------------------------------------------------------
+
+type CommunicationsTabsNavProps = {
+  activeTab: CommunicationsTabId;
+  badges?: Partial<Record<CommunicationsTabId, number>>;
+  onTabClick: (tab: CommunicationsTabId) => void;
+};
+
+function CommunicationsTabsNav({ activeTab, badges, onTabClick }: CommunicationsTabsNavProps) {
+  return (
+    <div
+      id="doctor-communications-tabs"
+      data-testid="tabs-nav"
+      data-active={activeTab}
+      aria-label="Разделы коммуникаций"
+      className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {COMMUNICATIONS_TABS.map((tab) => {
+        const active = tab.id === activeTab;
+        const badge = badges?.[tab.id];
+        const itemClass = cn(
+          "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+          active
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        );
+        const badgeEl =
+          badge && badge > 0 ? (
+            <span
+              className={cn(
+                "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums",
+                active
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-destructive/10 text-destructive",
+              )}
+            >
+              {badge}
+            </span>
+          ) : null;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            data-testid={`btn-${tab.id}`}
+            aria-current={active ? "page" : undefined}
+            onClick={() => onTabClick(tab.id)}
+            className={itemClass}
+          >
+            {tab.label}
+            {badgeEl}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * Динамические компоненты табов — строятся один раз при загрузке модуля, а не при каждом рендере.
@@ -159,10 +220,16 @@ export function DoctorCommunicationsShell({
 
   return (
     <DoctorAppShell title="Коммуникации" layout="full-height">
-      <DoctorCommunicationsTabsNav
-        activeTab={activeTab}
-        badges={badges}
-        onTabClick={handleTabChange}
+      <DoctorPageHeader
+        id="doctor-communications-header"
+        title="Коммуникации"
+        tabs={
+          <CommunicationsTabsNav
+            activeTab={activeTab}
+            badges={badges}
+            onTabClick={handleTabChange}
+          />
+        }
       />
       {COMMUNICATIONS_TAB_REGISTRY.map((entry) => {
         if (!mountedTabs.has(entry.id)) return null;
