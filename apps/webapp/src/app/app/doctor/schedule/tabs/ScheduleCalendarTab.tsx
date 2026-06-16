@@ -117,6 +117,13 @@ function parseFeedInstant(value: string, zone: string): DateTime {
   return DateTime.fromJSDate(new Date(value)).setZone(zone);
 }
 
+/** Normalise a raw Postgres timestamptz string to a proper ISO 8601 string
+ *  in the doctor's timezone so FullCalendar + luxon3 can parse it reliably. */
+function toFcDate(value: string, zone: string): string {
+  const dt = parseFeedInstant(value, zone);
+  return dt.isValid ? (dt.toISO() ?? value) : value;
+}
+
 // ---------------------------------------------------------------------------
 // Helper: visibleRange
 // ---------------------------------------------------------------------------
@@ -979,8 +986,8 @@ export function ScheduleCalendarTab({
       if (event.kind === "break" && isTimeGrid) {
         return {
           id: `break:${event.id}`,
-          start: event.startAt,
-          end: event.endAt,
+          start: toFcDate(event.startAt, currentTimeZone),
+          end: toFcDate(event.endAt, currentTimeZone),
           title: "Перерыв",
           display: "background" as const,
           classNames: ["!bg-slate-300/60 !border-l-2 !border-slate-400/60"],
@@ -993,8 +1000,8 @@ export function ScheduleCalendarTab({
       if (event.kind === "block") {
         return {
           id: `block:${event.id}`,
-          start: event.startAt,
-          end: event.endAt,
+          start: toFcDate(event.startAt, currentTimeZone),
+          end: toFcDate(event.endAt, currentTimeZone),
           title: eventTitle(event),
           editable: false,
           classNames: [eventClassName(event)],
@@ -1004,8 +1011,8 @@ export function ScheduleCalendarTab({
       if (event.kind === "freeSlot") {
         return {
           id: `free:${event.id}`,
-          start: event.startAt,
-          end: event.endAt,
+          start: toFcDate(event.startAt, currentTimeZone),
+          end: toFcDate(event.endAt, currentTimeZone),
           title: eventTitle(event),
           editable: false,
           classNames: [eventClassName(event)],
@@ -1014,8 +1021,8 @@ export function ScheduleCalendarTab({
       }
       return {
         id: event.id,
-        start: event.startAt,
-        end: event.endAt,
+        start: toFcDate(event.startAt, currentTimeZone),
+        end: toFcDate(event.endAt, currentTimeZone),
         // Для month-вида: только фамилия (D4)
         title: view === "month" ? eventLastName(event) : eventTitle(event),
         editable: !isCancelledAppointmentStatus(event.status),
