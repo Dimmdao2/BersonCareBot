@@ -23,7 +23,6 @@ import {
 import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from "@/app/app/doctor/analytics/shared/analyticsWindowHourPresets";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
-import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard";
 import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
@@ -214,10 +213,6 @@ export function MaterialContentStatsClient() {
 
       {data ? (
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <PushOpensAnalyticsCard data={data} variant="1" />
-          </div>
-
           <Card className="h-full">
             <CardHeader className="py-2">
               <CardTitle className="text-sm">Завершения практики по страницам (топ)</CardTitle>
