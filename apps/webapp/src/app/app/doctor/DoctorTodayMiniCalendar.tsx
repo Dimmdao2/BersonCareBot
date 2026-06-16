@@ -37,6 +37,8 @@ type Props = {
    * Вычисляются на сервере через deriveWorkingBounds; `null` = день закрыт/нет данных.
    */
   workingBounds?: { startMinute: number; endMinute: number } | null;
+  /** Если передан — вызывается при клике на событие вместо перехода по href. */
+  onEventClick?: (appt: TodayAppointmentItem) => void;
 };
 
 export function DoctorTodayMiniCalendar({
@@ -44,6 +46,7 @@ export function DoctorTodayMiniCalendar({
   todayDateLabel,
   displayIana,
   workingBounds,
+  onEventClick,
 }: Props) {
   // slotMinTime/slotMaxTime из рабочих границ (с буфером по 30 мин), иначе дефолт
   const slotMinTime = workingBounds != null
@@ -79,7 +82,7 @@ export function DoctorTodayMiniCalendar({
       start: start ?? undefined,
       end: end ?? undefined,
       classNames: ["!bg-primary/15 text-foreground !border-primary/35"],
-      extendedProps: { href: appt.href },
+      extendedProps: { href: appt.href, appt },
     };
   });
 
@@ -149,9 +152,14 @@ export function DoctorTodayMiniCalendar({
           slotMaxTime={slotMaxTime}
           events={fcEvents}
           eventClick={(info) => {
-            const href = info.event.extendedProps?.href as string | undefined;
-            if (href) {
-              window.location.href = href;
+            const appt = info.event.extendedProps?.appt as TodayAppointmentItem | undefined;
+            if (onEventClick && appt) {
+              onEventClick(appt);
+            } else {
+              const href = info.event.extendedProps?.href as string | undefined;
+              if (href) {
+                window.location.href = href;
+              }
             }
           }}
           eventContent={(info) => (

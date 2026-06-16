@@ -12,7 +12,7 @@ import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayLeftKpiRow } from "./DoctorTodayLeftKpiRow";
 import { DoctorTodayRightKpiRow } from "./DoctorTodayRightKpiRow";
 import { DoctorTodaySignalsSection } from "./DoctorTodaySignalsSection";
-import { DoctorTodayMiniCalendar } from "./DoctorTodayMiniCalendar";
+import { TodayMiniCalendarWithModal } from "./TodayMiniCalendarWithModal";
 import {
   ON_SUPPORT_LIST_HREF,
   PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
@@ -240,7 +240,7 @@ export function DoctorTodayDashboard({
           />
 
           {/* §1.1: Мини-календарь — расписание на сегодня (выше «Следующей записи») */}
-          <DoctorTodayMiniCalendar
+          <TodayMiniCalendarWithModal
             appointments={data.todayAppointments}
             nowMinutes={nowMinutes}
             todayDateLabel={todayDateLabel}
