@@ -79,6 +79,8 @@ const emptyKpi: DoctorStatsState = {
       total: 0,
       phoneOnly: 0,
       appGuests: 0,
+      patientsCount: 0,
+      subscribersOnlyCount: 0,
       pie: {
         telegram_only: 0,
         max_only: 0,

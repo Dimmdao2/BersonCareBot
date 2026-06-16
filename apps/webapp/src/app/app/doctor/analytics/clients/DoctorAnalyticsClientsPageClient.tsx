@@ -28,6 +28,8 @@ type ClientsSnapshot = {
   total: number;
   phoneOnly: number;
   appGuests: number;
+  patientsCount: number;
+  subscribersOnlyCount: number;
   contactBreakdown: ClientContactBreakdown;
 };
 
@@ -180,6 +182,18 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
               id="doctor-stats-clients-cards"
               className="grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 max-w-xl"
             >
+              <DoctorStatCard
+                id="doctor-stats-clients-patients"
+                title="Пациентов"
+                value={clients.patientsCount}
+                onClick={() => openMetric("clients_total", "Пациенты (с записями)")}
+              />
+              <DoctorStatCard
+                id="doctor-stats-clients-potential"
+                title="Потенциальных"
+                value={clients.subscribersOnlyCount}
+                onClick={() => openMetric("clients_total", "Потенциальные (без записей)")}
+              />
               <DoctorStatCard
                 id="doctor-stats-clients-total"
                 title="Всего клиентов"

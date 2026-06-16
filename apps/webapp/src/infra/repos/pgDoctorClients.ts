@@ -989,7 +989,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            ${sqlMessengerBotBlocked("pu.id", "telegram")} AS telegram_bot_blocked,
            ${sqlMessengerBotBlocked("pu.id", "max")} AS max_bot_blocked,
            (pu.email_verified_at IS NOT NULL) AS has_verified_email,
-           (pu.phone_normalized IS NOT NULL AND btrim(pu.phone_normalized) <> '') AS has_phone
+           (pu.phone_normalized IS NOT NULL AND btrim(pu.phone_normalized) <> '') AS has_phone,
+           EXISTS(SELECT 1 FROM appointment_records ar WHERE ar.platform_user_id = pu.id) AS has_appointment
          FROM platform_users pu
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
@@ -1002,6 +1003,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         max_bot_blocked: boolean;
         has_verified_email: boolean;
         has_phone: boolean;
+        has_appointment: boolean;
       }>(q.sql, q.params);
       const breakdown = emptyClientContactBreakdown();
       for (const row of rows.rows) {
@@ -1013,6 +1015,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         });
         if (row.telegram_bot_blocked) breakdown.messengerBotBlocked.telegram += 1;
         if (row.max_bot_blocked) breakdown.messengerBotBlocked.max += 1;
+        if (row.has_appointment) breakdown.patientsCount += 1;
+        else breakdown.subscribersOnlyCount += 1;
       }
       return breakdown;
     },

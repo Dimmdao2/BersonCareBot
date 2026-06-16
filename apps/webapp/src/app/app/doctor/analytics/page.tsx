@@ -43,6 +43,8 @@ export default async function DoctorAnalyticsPage({ searchParams }: Props) {
           total: contactBreakdown.total,
           phoneOnly: contactBreakdown.phoneOnly,
           appGuests: contactBreakdown.appGuests,
+          patientsCount: contactBreakdown.patientsCount,
+          subscribersOnlyCount: contactBreakdown.subscribersOnlyCount,
           contactBreakdown,
         },
       }}

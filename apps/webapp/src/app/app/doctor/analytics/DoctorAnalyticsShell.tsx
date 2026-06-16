@@ -70,6 +70,8 @@ export type AnalyticsClientsData = {
     total: number;
     phoneOnly: number;
     appGuests: number;
+    patientsCount: number;
+    subscribersOnlyCount: number;
     contactBreakdown: ClientContactBreakdown;
   };
 };

@@ -50,6 +50,8 @@ describe("DoctorAnalyticsClientsPageClient filters", () => {
           total: 0,
           phoneOnly: 0,
           appGuests: 0,
+          patientsCount: 0,
+          subscribersOnlyCount: 0,
           contactBreakdown: emptyClientContactBreakdown(),
         }}
       />,
