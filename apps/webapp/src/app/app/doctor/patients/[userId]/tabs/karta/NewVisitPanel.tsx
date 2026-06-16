@@ -436,8 +436,19 @@ export function NewVisitPanel({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleSave = async () => {
-    setSaving(true);
     setSaveError(null);
+
+    // Client-side validation — required fields (VIZ-13)
+    const missing: string[] = [];
+    if (!location.trim()) missing.push("Место приёма");
+    if (!service.trim()) missing.push("Услуга");
+    if (!duration.trim()) missing.push("Длительность");
+    if (missing.length > 0) {
+      setSaveError(`Заполните обязательные поля: ${missing.join(", ")}`);
+      return;
+    }
+
+    setSaving(true);
 
     // Build ISO visitedAt: selectedDate is already YYYY-MM-DD
     const visitedAt = `${selectedDate}T12:00:00.000Z`;

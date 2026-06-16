@@ -1398,9 +1398,10 @@ export function PatientTabKarta({ userId, header: _header }: Props) {
       : "lg:grid-cols-[1fr_1.3fr]";
 
   /**
-   * Blur the LEFT clinical card ONLY when panel is open AND history is visible.
+   * Blur the LEFT clinical card ONLY when panel is open, history is visible, AND there are
+   * actual visits — don't blur when opening a new form on an empty history (VIZ-05).
    */
-  const leftBlur = panelOpen && historyVisible;
+  const leftBlur = panelOpen && historyVisible && visits.length > 0;
 
   // Callback for NewVisitPanel after successful save — refetch + close panel + show history
   const handleVisitSaved = useCallback(() => {
