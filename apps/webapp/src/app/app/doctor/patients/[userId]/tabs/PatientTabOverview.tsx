@@ -21,6 +21,8 @@ import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import type { DoctorPatientProgramActivity } from "@/app/app/doctor/patients/loadDoctorPatientProgramActivity";
+import { parseCatalogMediaRows } from "@/app/app/patient/treatment/stageItemSnapshot";
+import { DoctorCatalogMediaStaticThumb } from "@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -108,7 +110,15 @@ interface TreatmentInstanceStage {
       title?: string | null;
       loadType?: string | null;
       difficulty?: number | null;
-      media?: Array<{ mediaUrl: string; mediaType: string; sortOrder: number }> | null;
+      /** Raw media rows as stored in the snapshot JSON; may include previewSmUrl/previewMdUrl from the media worker. */
+      media?: Array<{
+        mediaUrl: string;
+        mediaType: string;
+        sortOrder: number;
+        previewSmUrl?: string | null;
+        previewMdUrl?: string | null;
+        previewStatus?: string | null;
+      }> | null;
     } | null;
     effectiveComment?: string | null;
     settings?: Record<string, unknown> | null;
@@ -294,19 +304,6 @@ function currentMonthRange(): { from: string; to: string } {
 /** Month label in Russian for the current month. */
 function currentMonthLabel(): string {
   return new Date().toLocaleDateString("ru-RU", { month: "long" });
-}
-
-/** Safely extract the first thumbnail URL from an exercise snapshot's media array. */
-function getItemThumbnailUrl(
-  snapshot: { media?: Array<{ mediaUrl: string; mediaType: string; sortOrder: number }> | null } | null | undefined,
-): string | null {
-  if (!snapshot) return null;
-  const media = snapshot.media;
-  if (!Array.isArray(media) || media.length === 0) return null;
-  const first = media[0];
-  const url = typeof first?.mediaUrl === "string" ? first.mediaUrl : null;
-  if (!url) return null;
-  return url;
 }
 
 // ---------------------------------------------------------------------------
@@ -1291,31 +1288,24 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
                       (it) => it.itemType === "exercise" && !systemGroupIds.has(it.groupId ?? ""),
                     );
                     return visibleItems.map((item) => {
-                      const thumb = getItemThumbnailUrl(item.snapshot);
+                      // Parse media using the shared catalog helper (same as exercises-page etalon).
+                      // This correctly handles previewSmUrl/previewMdUrl for video thumbnails,
+                      // which a plain snapshot.media[0].mediaUrl approach misses.
+                      const allMedia = parseCatalogMediaRows(item.snapshot?.media ?? null);
+                      // Prefer video (has rich preview) then first available media.
+                      const primaryMedia =
+                        allMedia.find((m) => m.mediaType === "video") ?? allMedia[0] ?? null;
                       return (
                         <div
                           key={item.id}
                           className="flex items-center gap-2 border border-border rounded-[7px] px-2 py-1 bg-card text-[11.5px] text-foreground mb-1"
                         >
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt={item.snapshot?.title ?? ""}
-                              className="w-[22px] h-[22px] rounded-md object-cover flex-none"
-                              onError={(e) => {
-                                const img = e.target as HTMLImageElement;
-                                img.style.display = "none";
-                                const fallback = img.nextElementSibling as HTMLElement | null;
-                                if (fallback) fallback.style.display = "flex";
-                              }}
-                            />
-                          ) : null}
-                          <span
-                            className="w-[22px] h-[22px] rounded-md bg-muted/50 flex items-center justify-center text-xs flex-none"
-                            style={{ display: thumb ? "none" : "flex" }}
-                          >
-                            💪
-                          </span>
+                          <DoctorCatalogMediaStaticThumb
+                            media={primaryMedia}
+                            frameClassName="w-[22px] h-[22px] rounded-md flex-none"
+                            sizes="22px"
+                            iconClassName="size-3"
+                          />
                           <span className="flex-1 min-w-0 truncate">
                             {item.snapshot?.title ?? "Упражнение"}
                           </span>
