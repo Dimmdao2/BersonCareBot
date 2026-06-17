@@ -45,6 +45,21 @@ export type AddCashPaymentInput = {
   createdBy: string;
 };
 
+// -- Типы для операций эквайринга --------------------------------------------
+
+/** Alias for PaymentStatus — used in port method signatures for clarity. */
+export type PatientPaymentStatus = PaymentStatus;
+
+export type InsertAcquiringPendingInput = {
+  patientUserId: string;
+  amountMinor: number;
+  currency: string;
+  description?: string | null;
+  provider: string;
+  providerPaymentId: string;
+  createdBy: string;
+};
+
 // -- Основной порт платежей ---------------------------------------------------
 
 export interface PatientPaymentsPort {
@@ -52,6 +67,16 @@ export interface PatientPaymentsPort {
   listPayments(patientUserId: string): Promise<PatientPayment[]>;
   /** Записать ручной платёж наличными (kind='cash', status='paid'). */
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
+  /** Найти запись оплаты по внешнему ID провайдера (для webhook). */
+  findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null>;
+  /** Обновить статус acquiring-платежа по его ID. */
+  updatePatientPaymentStatus(
+    id: string,
+    status: PatientPaymentStatus,
+    providerPaymentId?: string,
+  ): Promise<void>;
+  /** Создать запись ожидающего acquiring-платежа (kind='acquiring', status='pending'). */
+  insertAcquiringPending(input: InsertAcquiringPendingInput): Promise<PatientPayment>;
 }
 
 // -- Seam для эквайринга (заглушка до подключения провайдера) ----------------
