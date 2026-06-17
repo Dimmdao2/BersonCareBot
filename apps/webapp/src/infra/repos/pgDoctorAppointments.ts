@@ -306,16 +306,40 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
            AND updated_at >= NOW() - INTERVAL '30 days'${cancel30Ex.clause}`,
         cancel30Ex.params,
       );
+      // firstVisitInPeriod: appointments in window where phone_normalized has no earlier non-cancelled record
+      const firstVisitResult = await runWebappPgText<{ c: string }>(
+        `SELECT COUNT(*)::text AS c
+         FROM appointment_records a
+         WHERE a.deleted_at IS NULL
+           AND a.status <> 'canceled'
+           AND a.record_at >= $1::timestamptz AND a.record_at < $2::timestamptz
+           AND a.phone_normalized IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM appointment_records earlier
+             WHERE earlier.deleted_at IS NULL
+               AND earlier.status <> 'canceled'
+               AND earlier.phone_normalized = a.phone_normalized
+               AND (
+                 earlier.record_at < a.record_at
+                 OR (earlier.record_at = a.record_at AND earlier.integrator_record_id < a.integrator_record_id)
+               )
+           )${rangeEx.clause}`,
+        [from, toExclusive, ...rangeEx.params],
+      );
       const row = rangeResult.rows[0];
       const row30 = cancellations30dResult.rows[0];
+      const firstVisitCount = parseInt(firstVisitResult.rows[0]?.c ?? "0", 10) || 0;
+      const pastVisitsCount = row ? parseInt(row.past_visits, 10) : 0;
       return {
-        pastVisitsInPeriod: row ? parseInt(row.past_visits, 10) : 0,
+        pastVisitsInPeriod: pastVisitsCount,
         cancelledVisitsInPeriod: row ? parseInt(row.cancelled_visits, 10) : 0,
         bookingsCreatedInPeriod: parseInt(bookingsCreatedResult.rows[0]?.count ?? "0", 10) || 0,
         cancellationActionsInPeriod: row ? parseInt(row.cancellation_actions, 10) : 0,
         rescheduleActionsInPeriod: row ? parseInt(row.reschedule_actions, 10) : 0,
         total: row ? parseInt(row.total, 10) : 0,
         cancellations30d: row30 ? parseInt(row30.count, 10) : 0,
+        firstVisitInPeriod: firstVisitCount,
+        repeatVisitInPeriod: Math.max(0, pastVisitsCount - firstVisitCount),
       };
     },
 

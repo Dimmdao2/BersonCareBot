@@ -38,6 +38,8 @@ describe("doctor-appointments service", () => {
         rescheduleActionsInPeriod: 0,
         total: filter.kind === "range" && filter.range === "today" ? 1 : 0,
         cancellations30d: 2,
+        firstVisitInPeriod: 0,
+        repeatVisitInPeriod: 0,
       };
     },
     async getDashboardAppointmentMetrics() {
@@ -108,6 +110,8 @@ describe("doctor-appointments service", () => {
           rescheduleActionsInPeriod: 0,
           total: 0,
           cancellations30d: 0,
+          firstVisitInPeriod: 0,
+          repeatVisitInPeriod: 0,
         };
       },
       async getDashboardAppointmentMetrics() {
@@ -156,6 +160,8 @@ describe("doctor-appointments service", () => {
           rescheduleActionsInPeriod: 0,
           total: 0,
           cancellations30d: 0,
+          firstVisitInPeriod: 0,
+          repeatVisitInPeriod: 0,
         };
       },
       async getDashboardAppointmentMetrics() {
@@ -196,6 +202,7 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
       getAppointmentStats: async () => ({
         pastVisitsInPeriod: 0, cancelledVisitsInPeriod: 0, bookingsCreatedInPeriod: 0,
         cancellationActionsInPeriod: 0, rescheduleActionsInPeriod: 0, total: 0, cancellations30d: 0,
+        firstVisitInPeriod: 0, repeatVisitInPeriod: 0,
       }),
       getDashboardAppointmentMetrics: async () => ({
         futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0,
