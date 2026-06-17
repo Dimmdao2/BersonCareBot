@@ -49,6 +49,7 @@ import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import { getSmscApiKey } from '../integrations/smsc/runtimeConfig.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
+import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import { maxConfig } from '../integrations/max/config.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
 import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
@@ -220,6 +221,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createTelegramDeliveryAdapter(),
     createSmscDeliveryAdapter({ smsClient }),
     ...(maxConfig.enabled ? [createMaxDeliveryAdapter()] : []),
+    createEmailDeliveryAdapter({ getDb: () => dbPort }),
   ];
 
   const dispatchPort =
