@@ -688,7 +688,7 @@ export type VapidCredentials = {
  * for a user at send time (PLAN S13 Model β — integrator M2M-reads webapp).
  *
  * Used by `WebPushDeliveryAdapter` (S14) to retrieve subscriptions and VAPID details
- * before sending. NOT for write operations (subscription capture stays in webapp).
+ * before sending, and to clean up dead subscriptions after 410/404 provider responses.
  */
 export type WebPushAccessPort = {
   /**
@@ -702,4 +702,11 @@ export type WebPushAccessPort = {
    * Returns `null` when VAPID is not configured in the webapp or on network/auth error.
    */
   getVapidCredentials(): Promise<VapidCredentials | null>;
+
+  /**
+   * Remove a dead subscription by endpoint after a 410/404 from the push provider.
+   * Mirrors webapp's `WebPushSubscriptionsPort.deleteByEndpointIfExists`.
+   * Returns `true` on successful deletion or if not found; `false` on error.
+   */
+  deleteSubscriptionByEndpoint(endpoint: string): Promise<boolean>;
 };

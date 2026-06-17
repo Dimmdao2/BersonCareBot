@@ -17,7 +17,7 @@ type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
 const relayPayloadSchema = z.object({
   messageId: z.string().min(1),
-  channel: z.enum(['telegram', 'max', 'email', 'sms'] as const),
+  channel: z.enum(['telegram', 'max', 'email', 'sms', 'web_push'] as const),
   recipient: z.string().min(1),
   text: z.string().min(1),
   idempotencyKey: z.string().min(1),
@@ -99,6 +99,34 @@ function buildIntent(parsed: RelayPayload) {
         subject,
         message: { text: parsed.text },
         delivery: { channels: ['email'] },
+      },
+    };
+  }
+
+  if (parsed.channel === 'web_push') {
+    // S14a: extend relay-outbound to carry web_push intents (N4 APPROVED §5b).
+    // recipient = pushUserId (integrator/webapp user id whose subscriptions receive the push).
+    // Push content comes from text (body) + metadata (title, url, pushExtras).
+    // payload shape matches WebPushDeliveryAdapter expectations (S14):
+    //   payload.recipient.pushUserId, payload.message.text (body), payload.title,
+    //   payload.url, payload.pushExtras, payload.delivery.channels.
+    const title = typeof parsed.metadata?.title === 'string' ? parsed.metadata.title : 'BersonCare';
+    const url = typeof parsed.metadata?.url === 'string' ? parsed.metadata.url : '/';
+    const rawExtras = parsed.metadata?.pushExtras;
+    const pushExtras =
+      rawExtras !== null && typeof rawExtras === 'object' && !Array.isArray(rawExtras)
+        ? (rawExtras as Record<string, unknown>)
+        : undefined;
+    return {
+      type: 'message.send' as const,
+      meta: { ...meta, source: 'web_push' },
+      payload: {
+        recipient: { pushUserId: parsed.recipient },
+        message: { text: parsed.text },
+        title,
+        url,
+        ...(pushExtras ? { pushExtras } : {}),
+        delivery: { channels: ['web_push'] },
       },
     };
   }

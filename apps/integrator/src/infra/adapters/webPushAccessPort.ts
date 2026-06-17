@@ -7,7 +7,9 @@
  * Pattern: mirrors `deliveryTargetsPort.ts` / `webappEventsClient.fetchSignedGet` sign contract.
  * VAPID private key crossing M2M is acceptable per N3: already server-side in system_settings.
  *
- * Used by `WebPushDeliveryAdapter` (S14). NOT wired as a DI dep until S14.
+ * Extended in S14 to add `deleteSubscriptionByEndpoint` for 410/404 dead-subscription cleanup.
+ * The adapter calls this after receiving a 410/404 from the push provider, matching the
+ * `onSubscriptionDead` callback in the webapp's `sendWebPushToSubscriptions`.
  */
 import { createHmac } from 'node:crypto';
 import { integratorWebhookSecret } from '../../config/env.js';
@@ -15,6 +17,10 @@ import type { VapidCredentials, WebPushAccessPort, WebPushSubscriptionPayload } 
 
 function signGet(timestamp: string, canonicalGet: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${canonicalGet}`).digest('base64url');
+}
+
+function signPost(timestamp: string, body: string, secret: string): string {
+  return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('base64url');
 }
 
 async function fetchSignedGet<T>(input: {
@@ -101,6 +107,31 @@ export function createWebPushAccessPort(deps: {
           return { publicKey, privateKey, subject };
         },
       });
+    },
+
+    async deleteSubscriptionByEndpoint(endpoint: string): Promise<boolean> {
+      const baseUrl = await getAppBaseUrl();
+      const secret = integratorWebhookSecret();
+      if (!baseUrl || !secret) return false;
+
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/web-push/subscriptions/delete`;
+      const body = JSON.stringify({ endpoint });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = signPost(timestamp, body, secret);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bersoncare-Timestamp': timestamp,
+            'X-Bersoncare-Signature': signature,
+          },
+          body,
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
     },
   };
 }
