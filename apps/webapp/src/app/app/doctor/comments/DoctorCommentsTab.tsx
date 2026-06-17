@@ -27,10 +27,11 @@ import { useDoctorExerciseCommentsSearch } from "./useDoctorExerciseCommentsSear
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { type ExerciseMetricPoint } from "@/shared/ui/doctor/ExerciseMicroChart";
 import {
-  ExerciseMicroChart,
-  type ExerciseMetricPoint,
-} from "@/shared/ui/doctor/ExerciseMicroChart";
+  ExerciseExecutionGraph,
+  type DayBar,
+} from "@/shared/ui/doctor/ExerciseExecutionGraph";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,11 @@ type ThreadApiResponse = {
 type MetricsApiResponse = {
   ok: boolean;
   points?: ExerciseMetricPoint[];
+};
+
+type DayActivityApiResponse = {
+  ok: boolean;
+  days?: DayBar[];
 };
 
 export type DoctorCommentsTabProps = {
@@ -461,9 +467,11 @@ export function DoctorCommentsTab({
   const [markReadSent, setMarkReadSent] = useState(false);
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
 
-  // State C: exercise metrics micro-chart
+  // State C: exercise metrics chart (CMT-01..04)
   const [metricsPoints, setMetricsPoints] = useState<ExerciseMetricPoint[] | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [dayBars, setDayBars] = useState<DayBar[]>([]);
+  const [chartWindowDays, setChartWindowDays] = useState<7 | 30>(7);
 
   const threadVersionRef = useRef(0);
   // CMT-06: stageItemId to auto-navigate to once exercisesData loads (feed click deep-link)
@@ -684,12 +692,12 @@ export function DoctorCommentsTab({
     void loadThread(exercisesData.instanceId, selectedExercise.stageItemId);
   }, [selectedExercise, exercisesData, loadThread]);
 
-  // ── Load exercise metrics for micro-chart (state C) ──
-  const loadMetrics = useCallback(async (instanceId: string, stageItemId: string) => {
+  // ── Load exercise metrics for chart (CMT-01..04) ──
+  const loadMetrics = useCallback(async (instanceId: string, stageItemId: string, windowDays: 7 | 30 = 7) => {
     setMetricsLoading(true);
     setMetricsPoints(null);
     try {
-      const params = new URLSearchParams({ instanceId, stageItemId });
+      const params = new URLSearchParams({ instanceId, stageItemId, windowDays: String(windowDays) });
       const res = await fetch(`/api/doctor/comments/exercise-metrics?${params.toString()}`);
       const data = (await res.json()) as MetricsApiResponse;
       if (data.ok && data.points) {
@@ -704,10 +712,27 @@ export function DoctorCommentsTab({
     }
   }, []);
 
+  // ── Load day-activity bars for chart (CMT-02) ──
+  const loadDayBars = useCallback(async (patientUserId: string, instanceId: string, windowDays: 7 | 30 = 7) => {
+    try {
+      const params = new URLSearchParams({ instanceId, windowDays: String(windowDays) });
+      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(patientUserId)}/program-day-activity?${params.toString()}`);
+      const data = (await res.json()) as DayActivityApiResponse;
+      if (data.ok && data.days) {
+        setDayBars(data.days);
+      } else {
+        setDayBars([]);
+      }
+    } catch {
+      setDayBars([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (!selectedExercise || !exercisesData) return;
-    void loadMetrics(exercisesData.instanceId, selectedExercise.stageItemId);
-  }, [selectedExercise, exercisesData, loadMetrics]);
+    void loadMetrics(exercisesData.instanceId, selectedExercise.stageItemId, chartWindowDays);
+    void loadDayBars(exercisesData.patientUserId, exercisesData.instanceId, chartWindowDays);
+  }, [selectedExercise, exercisesData, loadMetrics, loadDayBars, chartWindowDays]);
 
   useEffect(() => {
     if (
@@ -1041,13 +1066,18 @@ export function DoctorCommentsTab({
                   )}
                 </span>
               </div>
-              {/* Микро-график статистики за последнюю неделю */}
+              {/* График выполнения упражнения (CMT-01..04) */}
               {metricsLoading && (
                 <p className="mt-1.5 text-[10px] text-muted-foreground">Загрузка статистики…</p>
               )}
-              {!metricsLoading && metricsPoints !== null && (
+              {!metricsLoading && (metricsPoints !== null || dayBars.length > 0) && (
                 <div className="mt-2">
-                  <ExerciseMicroChart points={metricsPoints} />
+                  <ExerciseExecutionGraph
+                    metricPoints={metricsPoints ?? []}
+                    dayBars={dayBars}
+                    windowDays={chartWindowDays}
+                    onWindowChange={setChartWindowDays}
+                  />
                 </div>
               )}
             </div>
