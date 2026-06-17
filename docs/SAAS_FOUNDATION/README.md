@@ -1,6 +1,6 @@
 # SAAS_FOUNDATION — initiative index
 
-**Status:** 🔁 **HARDENING LOOP** — `CORRECTED_PLAN.md` is now **v3**. Round-1 review found 9 (3C/3H) → folded. The 219-wide tier reconciliation is now **PERFORMED** (`scope-derivation/tiers-218.tsv`): SCOPED 153 (109 need org_id, 44 be_*) / BOOTSTRAP 24 / INFRA 22 / LEGACY 16 / TELEMETRY 4 = 219 ✓. Fixed: system_settings single-tier row-level hybrid, integrator bridge orphan handling, bigint↔uuid key types. Under **fresh re-review**; terminates at **2 consecutive clean** (streak **0/2**). Architecture stable. Not for execution until the loop closes.
+**Status:** 🔁 **HARDENING LOOP — converging** (r1: 9 findings gross-miss → r2: 7 consistency/detail → v4). `CORRECTED_PLAN.md` = **v4**. Reconciliation (`tiers-218.tsv`, single source): SCOPED **148** (104 need org_id, 44 be_*) / BOOTSTRAP 24 / INFRA 27 / LEGACY 16 / TELEMETRY 4 = 219 ✓. v4 fixes: artifacts unified, outbox/queue+mailing-topics→INFRA, system_settings PK detail, integrator per-table resolution paths, be_* precise. Under **fresh re-review**; terminates at **2 consecutive clean** (streak **0/2**). Not for execution until the loop closes.
 **Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.
