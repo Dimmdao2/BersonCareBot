@@ -1,6 +1,6 @@
 # SAAS_FOUNDATION — initiative index
 
-**Status:** 🔁 **HARDENING LOOP — strongly converging** (findings r1→r2→r3 = 9/3C → 7/2C → 5/0C; reviewer confirmed prior C1/C2/H2 damage repaired). `CORRECTED_PLAN.md` = **v5** (folds r3 doc-nits F1–F5). Reconciliation (`tiers-218.tsv`, single source, artifacts diff-identical): SCOPED **148** (104 need org_id, 44 be_*) / BOOTSTRAP 24 / INFRA 27 / LEGACY 16 / TELEMETRY 4 = 219 ✓. Under **fresh re-review**; terminates at **2 consecutive clean** (streak **0/2**). Not for execution until the loop closes.
+**Status:** 🔁 **HARDENING LOOP — near close** (findings r1→r4 = 9/3C → 7/2C → 5/0C → 2/0C0H, all r4 = MEDIUM doc-accuracy). `CORRECTED_PLAN.md` = **v6** (folds r4 M1/M2). Reviewer confirmed all design/scope axes clean: reconciliation `tiers-218.tsv` ↔ DB is a perfect bijection (219), artifacts diff-identical, every SCOPED table org-resolvable, bridge measurements exact. SCOPED **148** (104 need org_id) / BOOTSTRAP 24 / INFRA 27 / LEGACY 16 / TELEMETRY 4 = 219 ✓. Under **fresh re-review**; terminates at **2 consecutive clean** (streak **0/2**). Not for execution until the loop closes.
 **Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.
