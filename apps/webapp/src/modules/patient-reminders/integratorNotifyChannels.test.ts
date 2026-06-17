@@ -10,12 +10,8 @@ import {
   type PatientReminderIntegratorNotifyDeps,
 } from "./integratorNotifyChannels";
 
-const sendWebPushMock = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/web-push/sendWebPushToSubscriptions", () => ({
-  sendWebPushToSubscriptions: sendWebPushMock,
-}));
-
 // S10: email send now goes through relayOutbound; smtpInnerFromValueJson moved to smtpOutboundPatch.
+// S14e (P3): web_push send also goes through relayOutbound (relay-outbound intent to integrator).
 const relayOutboundMock = vi.hoisted(() => vi.fn());
 vi.mock("@/modules/messaging/relayOutbound", () => ({
   relayOutbound: relayOutboundMock,
@@ -104,8 +100,7 @@ function buildDeps(overrides: Partial<PatientReminderIntegratorNotifyDeps> = {})
 describe("runPatientReminderIntegratorNotify", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    sendWebPushMock.mockResolvedValue({ delivered: 1, errors: 0, deactivated: 0 });
-    // S10: relayOutbound used for email now
+    // S10: relayOutbound used for email; S14e: also used for web_push
     relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
     getWebPushVapidKeyPairMock.mockResolvedValue({ publicKey: "pub", privateKey: "priv" });
     smtpInnerFromValueJsonMock.mockReturnValue({
@@ -119,7 +114,7 @@ describe("runPatientReminderIntegratorNotify", () => {
       findPlatformUserByIntegratorId: async () => null,
     }));
     expect(result).toMatchObject({ ok: true, skipped: "no_platform_user", skippedChannels: [] });
-    expect(sendWebPushMock).not.toHaveBeenCalled();
+    expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
   it("returns muted with resolved skippedChannels", async () => {
@@ -130,7 +125,7 @@ describe("runPatientReminderIntegratorNotify", () => {
     const skipped = result.skippedChannels as Array<{ reason: string }>;
     expect(skipped.length).toBeGreaterThan(0);
     expect(skipped.every((s) => s.reason === "muted")).toBe(true);
-    expect(sendWebPushMock).not.toHaveBeenCalled();
+    expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
   it("returns skipped when all topic channels disabled", async () => {
@@ -148,7 +143,7 @@ describe("runPatientReminderIntegratorNotify", () => {
     expect(result.selectedChannels).toEqual([]);
     const skipped = result.skippedChannels as Array<{ reason: string }>;
     expect(skipped.some((s) => s.reason === "disabled_by_user_topic_channel")).toBe(true);
-    expect(sendWebPushMock).not.toHaveBeenCalled();
+    expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
   it("skips web_push when there are no active subscriptions", async () => {
@@ -166,10 +161,14 @@ describe("runPatientReminderIntegratorNotify", () => {
     expect(result.selectedChannels).toEqual(["telegram"]);
     const skipped = result.skippedChannels as Array<{ channel: string; reason: string }>;
     expect(skipped.find((s) => s.channel === "web_push")?.reason).toBe("no_active_subscriptions");
-    expect(sendWebPushMock).not.toHaveBeenCalled();
+    // S14e: no relay call for web_push when no active subscriptions
+    expect(relayOutboundMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "web_push" }),
+    );
   });
 
-  it("delivers web_push when selected", async () => {
+  it("delivers web_push when selected via relay-outbound (S14e P3 migration)", async () => {
+    // S14e: web_push now goes through relayOutbound, not sendWebPushToSubscriptions.
     const result = await runPatientReminderIntegratorNotify(
       { ...baseBody, topicCode: "training_reminders" },
       buildDeps({
@@ -179,20 +178,36 @@ describe("runPatientReminderIntegratorNotify", () => {
     );
     expect(result.selectedChannels).toContain("web_push");
     expect(result.webPushDelivered).toBe(1);
-    expect(sendWebPushMock).toHaveBeenCalledTimes(1);
+    // Assert relay called with channel:'web_push' and required pushExtras fields
+    expect(relayOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "web_push",
+        recipient: "platform-uid",
+        metadata: expect.objectContaining({
+          pushExtras: expect.objectContaining({
+            topicCode: "training_reminders",
+            intentType: "patient_reminder",
+          }),
+        }),
+      }),
+    );
   });
 
-  it("records web_push provider errors and deactivated subscriptions", async () => {
-    sendWebPushMock.mockResolvedValue({ delivered: 0, errors: 2, deactivated: 1 });
+  it("records web_push relay error when relay fails", async () => {
+    // S14e: when relayOutbound fails for web_push, webPushErrors=1 webPushDelivered=0.
+    relayOutboundMock.mockImplementation(({ channel }: { channel: string }) => {
+      if (channel === "web_push") return Promise.resolve({ ok: false, reason: "relay_error" });
+      return Promise.resolve({ ok: true, status: "accepted" });
+    });
     const result = await runPatientReminderIntegratorNotify(
       { ...baseBody, topicCode: "training_reminders" },
       buildDeps({
         getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
       }),
     );
-    expect(result.webPushErrors).toBe(2);
+    expect(result.webPushErrors).toBe(1);
     expect(result.webPushDelivered).toBe(0);
-    expect(result.webPushDeactivated).toBe(1);
+    expect(result.webPushDeactivated).toBe(0);
   });
 
   it("sends email when selected and not rate limited (via relayOutbound)", async () => {
@@ -206,6 +221,9 @@ describe("runPatientReminderIntegratorNotify", () => {
   });
 
   it("skips email with rate_limited in skippedChannels", async () => {
+    // S14e: relayOutbound is now used for both web_push AND email.
+    // When email is rate-limited, relayOutbound must NOT be called with channel:'email',
+    // but may be called for web_push (since baseBody default deps have subs + vapid configured).
     const result = await runPatientReminderIntegratorNotify(baseBody, buildDeps({
       reminderTransactionalEmailCooldown: {
         shouldSkipDueToCooldown: async () => true,
@@ -213,7 +231,9 @@ describe("runPatientReminderIntegratorNotify", () => {
       },
     }));
     expect(result.emailSkipped).toBe("rate_limited");
-    expect(relayOutboundMock).not.toHaveBeenCalled();
+    expect(relayOutboundMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "email" }),
+    );
     const skipped = result.skippedChannels as Array<{ channel: string; reason: string }>;
     expect(skipped.find((s) => s.channel === "email" && s.reason === "rate_limited")).toBeDefined();
   });
