@@ -243,4 +243,116 @@ describe('messageToIntent — round-trip samples', () => {
     expect(payload.recipient).not.toHaveProperty('userId');
     expect(payload.recipient).not.toHaveProperty('email');
   });
+
+  // ── S12: web_push round-trip ────────────────────────────────────────────────
+  // DoD: a web_push UnifiedOutgoingMessage → messageToIntent → back preserves all
+  // push fields with 1:1 mapping to WebPushClientPayload (no data loss).
+  //
+  // Field mapping verified here (PLAN S12):
+  //   UnifiedContent.title          → payload.title           (WebPushClientPayload.title)
+  //   UnifiedContent.text           → payload.message.text    (WebPushClientPayload.body)
+  //   UnifiedContent.url            → payload.url             (WebPushClientPayload.url)
+  //   pushExtras.tag                → payload.pushExtras.tag
+  //   pushExtras.trackingId         → payload.pushExtras.trackingId
+  //   pushExtras.topicCode (null)   → payload.pushExtras.topicCode (null preserved)
+  //   pushExtras.intentType         → payload.pushExtras.intentType
+  //   pushExtras.pushKind           → payload.pushExtras.pushKind
+  //   pushExtras.warmupSloganKey    → payload.pushExtras.warmupSloganKey
+  //   recipient.pushUserId          → payload.recipient.pushUserId
+  //   channel 'web_push'            → payload.delivery.channels[0] = 'web_push'
+
+  it('web_push — round-trips all WebPushClientPayload fields losslessly (S12 DoD)', () => {
+    const msg: UnifiedOutgoingMessage = {
+      kind: 'message.send',
+      channel: 'web_push',
+      recipient: { pushUserId: 'user-uuid-1234' },
+      content: {
+        title: 'New message from Dr. Ivanov',
+        text: 'You have a new reply from your doctor.',
+        url: 'https://app.bersoncare.ru/patient/messages',
+        pushExtras: {
+          tag: 'doctor-reply',
+          trackingId: 'track-abc123',
+          topicCode: null,          // nullable — must survive as null, not dropped
+          intentType: 'doctor_reply',
+          pushKind: 'transactional',
+          warmupSloganKey: null,    // nullable — must survive as null, not dropped
+        },
+      },
+      meta: {
+        eventId: 'web_push:msg:user-uuid-1234:reply-789',
+        occurredAt: now,
+        source: 'web_push',
+      },
+    };
+
+    const intent = messageToIntent(msg);
+
+    expect(intent.type).toBe('message.send');
+    expect(intent.meta.source).toBe('web_push');
+    expect(intent.meta.eventId).toBe('web_push:msg:user-uuid-1234:reply-789');
+
+    const payload = intent.payload as Record<string, unknown>;
+
+    // channel tag in canonical wire location (D2 / D3)
+    expect((payload.delivery as Record<string, unknown>).channels).toEqual(['web_push']);
+
+    // recipient.pushUserId forwarded (subscriptions resolved later in S14 adapter)
+    expect((payload.recipient as Record<string, unknown>).pushUserId).toBe('user-uuid-1234');
+    // No other recipient fields should appear
+    expect(payload.recipient).not.toHaveProperty('chatId');
+    expect(payload.recipient).not.toHaveProperty('userId');
+    expect(payload.recipient).not.toHaveProperty('email');
+    expect(payload.recipient).not.toHaveProperty('phoneNormalized');
+
+    // WebPushClientPayload.title → payload.title
+    expect(payload.title).toBe('New message from Dr. Ivanov');
+
+    // WebPushClientPayload.body → payload.message.text
+    expect((payload.message as Record<string, unknown>).text).toBe('You have a new reply from your doctor.');
+
+    // WebPushClientPayload.url → payload.url
+    expect(payload.url).toBe('https://app.bersoncare.ru/patient/messages');
+
+    // All pushExtras forwarded into payload.pushExtras — 1:1 with WebPushClientPayload optional fields
+    const extras = payload.pushExtras as Record<string, unknown>;
+    expect(extras).toBeDefined();
+    expect(extras.tag).toBe('doctor-reply');
+    expect(extras.trackingId).toBe('track-abc123');
+    // Nullable fields must be preserved as null (not stripped/undefined)
+    expect(extras.topicCode).toBeNull();
+    expect(extras.intentType).toBe('doctor_reply');
+    expect(extras.pushKind).toBe('transactional');
+    expect(extras.warmupSloganKey).toBeNull();
+  });
+
+  it('web_push — minimal payload (title+text+url only, no extras) round-trips correctly', () => {
+    // Ensures sparse web_push messages work (no pushExtras, no optional fields).
+    const msg: UnifiedOutgoingMessage = {
+      kind: 'message.send',
+      channel: 'web_push',
+      recipient: { pushUserId: 'user-uuid-5678' },
+      content: {
+        title: 'Reminder',
+        text: 'Time for your exercise!',
+        url: 'https://app.bersoncare.ru/patient',
+      },
+      meta: {
+        eventId: 'web_push:reminder:user-uuid-5678',
+        occurredAt: now,
+        source: 'web_push',
+      },
+    };
+
+    const intent = messageToIntent(msg);
+    const payload = intent.payload as Record<string, unknown>;
+
+    expect((payload.delivery as Record<string, unknown>).channels).toEqual(['web_push']);
+    expect((payload.recipient as Record<string, unknown>).pushUserId).toBe('user-uuid-5678');
+    expect(payload.title).toBe('Reminder');
+    expect((payload.message as Record<string, unknown>).text).toBe('Time for your exercise!');
+    expect(payload.url).toBe('https://app.bersoncare.ru/patient');
+    // No pushExtras key at all when not set
+    expect(payload.pushExtras).toBeUndefined();
+  });
 });
