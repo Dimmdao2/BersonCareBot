@@ -1,6 +1,9 @@
 /**
  * POST /api/patient/support — обращение в поддержку: письмо админу в Telegram.
  * Доступ: сессия пациента; разрешены tier `allow` и onboarding `need_activation`; только `stale_session` → 401.
+ *
+ * S7 (unified-messaging): raw fetch(api.telegram.org) removed; message now emitted via
+ * relayOutbound → integrator dispatchPort → redirect-covered chokepoint (D7).
  */
 
 import { headers } from "next/headers";
@@ -8,9 +11,9 @@ import { NextResponse } from "next/server";
 import { logger } from "@/app-layer/logging/logger";
 import { env } from "@/config/env";
 import { getCurrentSession } from "@/modules/auth/service";
-import { getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
 import { patientClientBusinessGate } from "@/modules/platform-access";
 import { canAccessPatient } from "@/modules/roles/service";
+import { relayOutbound } from "@/modules/messaging/relayOutbound";
 
 const RATE_LIMIT_MS = 60_000;
 const lastSupportByRateKey = new Map<string, number>();
@@ -144,9 +147,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
   }
 
-  const token = (await getTelegramBotToken()).trim();
   const adminId = env.ADMIN_TELEGRAM_ID;
-  if (!token || !isValidTelegramAdminChatId(adminId)) {
+  if (!isValidTelegramAdminChatId(adminId)) {
     return NextResponse.json(
       { ok: false, error: "config", message: "Отправка временно недоступна" },
       { status: 503 },
@@ -167,37 +169,21 @@ export async function POST(request: Request) {
     }),
   );
 
-  // DEV SAFETY GUARD — this route calls the Telegram Bot API directly via raw fetch (S7 / P24),
-  // bypassing the integrator dispatchPort dev-redirect. Even though the recipient is ADMIN_TELEGRAM_ID
-  // (not arbitrary clients), this is an uncontrolled send path outside the chokepoint. Suppress in
-  // non-production unless explicitly opted in. Prod is a pure passthrough (NODE_ENV === 'production').
-  // (Proper fix later: route through dispatchPort; guard retired then.)
-  if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_TELEGRAM_SUPPORT !== "1") {
-    logger.warn(
-      {
-        scope: "telegram_support",
-        event: "dev_telegram_support_suppressed",
-        route: "patient",
-        userId: session.user.userId,
-      },
-      "[telegram_support] DEV suppress: not sending support message to Telegram in non-production (set ALLOW_DEV_TELEGRAM_SUPPORT=1 to override)",
-    );
-    lastSupportByRateKey.set(rateKey, Date.now());
-    return NextResponse.json({ ok: true, message: "Сообщение отправлено" });
-  }
-
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: adminId,
-      text: messageText,
-    }),
+  // S7 (unified-messaging): emit telegram intent via relay-outbound → integrator dispatchPort.
+  // The pre-fork dev redirect (D7/G1) is the single chokepoint; interim dev-suppress guard retired here.
+  const messageId = `support:patient:${session.user.userId}:${Date.now()}`;
+  const result = await relayOutbound({
+    messageId,
+    channel: "telegram",
+    recipient: String(adminId),
+    text: messageText,
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    logger.error({ status: res.status, body: err }, "[patient/support] Telegram sendMessage failed");
+  if (!result.ok) {
+    logger.error(
+      { reason: result.reason, route: "patient/support" },
+      "[patient/support] relay-outbound failed",
+    );
     return NextResponse.json(
       { ok: false, error: "send_failed", message: "Не удалось отправить. Попробуйте позже." },
       { status: 502 },
