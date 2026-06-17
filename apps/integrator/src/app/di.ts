@@ -35,6 +35,8 @@ import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { tryConsumeStart } from '../infra/db/repos/channelUsers.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
+import { createUnifiedSender } from '../infra/adapters/sendUnified.js';
+import type { UnifiedSender } from '../infra/adapters/sendUnified.js';
 import { createActorResolutionPort } from '../infra/adapters/actorResolutionPort.js';
 import { createContentCatalogPort } from '../infra/adapters/contentCatalogPort.js';
 import { createDeliveryDefaultsPort } from '../infra/adapters/deliveryDefaultsPort.js';
@@ -125,6 +127,8 @@ export type AppDeps = {
   smsClient: SmsClient;
   dbWritePort: DbWritePort;
   dispatchPort: DispatchPort;
+  /** Unified send façade — THE single entry point for outbound sends (PLAN S3). */
+  unifiedSender: UnifiedSender;
   contentPort: ContentPort;
   /** Шаблоны контента (reply keyboard / inline из JSON меню). */
   templatePort: TemplatePort;
@@ -230,6 +234,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   dispatchPortForReminders.current = dispatchPort;
 
+  // Unified send façade — built from the existing dispatchPort (PLAN S3).
+  const unifiedSender = createUnifiedSender({ dispatchPort });
+
   const idempotencyPort = input.idempotencyPort ?? createPostgresIdempotencyPort(dbPort);
 
   const actorResolutionPort = createActorResolutionPort({ writePort: dbWritePort });
@@ -277,6 +284,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     smsClient,
     dbWritePort,
     dispatchPort,
+    unifiedSender,
     contentPort,
     templatePort,
     sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,

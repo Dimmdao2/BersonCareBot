@@ -151,6 +151,13 @@ export type {
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin } from './messengerStaff.js';
 
+export type {
+  Channel,
+  UnifiedContent,
+  UnifiedOutgoingMessage,
+  UnifiedRecipient,
+} from './unifiedMessage.js';
+
 export {
   actionResultSchema,
   actionSchema,

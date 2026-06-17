@@ -12,6 +12,7 @@ import {
   hasDevPrefix,
 } from '../../shared/devDeliveryRedirect.js';
 import { logger } from '../observability/logger.js';
+import { readChannel } from './channelRouting.js';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -32,17 +33,6 @@ function sanitizePayloadForLogs(intent: OutgoingIntent): Record<string, unknown>
     kind: 'otp_redacted',
     channel: readChannel(intent),
   };
-}
-
-function readChannel(intent: OutgoingIntent): string | null {
-  if (intent.type !== 'message.send') return intent.meta.source || null;
-  const payload = intent.payload as DeliveryPayload;
-  const channels = payload.delivery?.channels;
-  if (Array.isArray(channels)) {
-    const normalized = channels.filter((item): item is string => typeof item === 'string');
-    if (normalized.length > 0) return normalized[0] as string;
-  }
-  return intent.meta?.source ?? null;
 }
 
 function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {
