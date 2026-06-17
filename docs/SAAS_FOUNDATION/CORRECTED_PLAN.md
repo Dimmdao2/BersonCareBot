@@ -1,65 +1,46 @@
-# SAAS Foundation — PLAN v2 (canonical, 2026-06-17)
+# SAAS Foundation — PLAN v3 (canonical, 2026-06-17)
 
-**Live plan, in the hardening loop** (revise → fresh adversarial agent → repeat until 2 consecutive
-clean — see `LOG.md`). Supersedes `00/01/02_*` framing (history). Evidence: `scope-derivation/`
-(VERIFIED_SCOPE + needs-orgid-FINAL + integrator-tables.tsv), `REVIEW_2026-06-17_FRESH.md`,
-`FOUNDATION_PLAN.md` (rationale), `spike/` (silo PoC that drove the pivot to RLS).
+**Live plan, in the hardening loop** (revise → fresh cold agent → repeat until 2 consecutive clean; `LOG.md`).
+Supersedes `00/01/02_*` (history). Authoritative scope artifact: **`scope-derivation/tiers-218.tsv`**
+(every base table → exactly one tier; reconciliation PERFORMED, not asserted). Other evidence:
+VERIFIED_SCOPE.md, REVIEW_2026-06-17_FRESH.md, FOUNDATION_PLAN.md, spike/.
 
-v2 changelog (incorporates plan-review C-1/C-2/C-3/H-1..H-5):
-- **C-1:** scope now spans **`public` + `integrator`** (218 base tables), not public-only. Integrator per-patient tables added via an identity org-bridge.
-- **C-3:** RLS = **classified policy generator** (per-table descriptor), not one loop-template; 41 child/junction tables get denormalized `organization_id`+`patient_user_id`.
-- **C-2:** context chokepoint is **T0-weight** — Phase 0 builds only the dormant mechanism; the path-audit cutover is T0.
-- **H-4:** **three access tiers** (SCOPED / PUBLIC / BOOTSTRAP-READABLE) so default-deny doesn't brick login.
-- **H-1/H-2/H-3/H-5** folded into stages below.
+v3 changelog (folds round-1 review C-A/C-B/C-C + H-A/H-B/H-C + M-A/M-B):
+- **C-A/H-C/M-A:** the 219-wide reconciliation is now actually run (`tiers-218.tsv`), spanning public+integrator+drizzle — every previously-missed table (comments, patient_merge_candidates, mailing_logs_webapp, user_subscriptions_webapp, reminder_delivery_events/occurrence_history, patient_home_blocks, all integrator per-patient) is tiered.
+- **C-B/M-B:** tier model gives each table EXACTLY one tier; bootstrap tables that also hold per-tenant rows use a **row-level org predicate** (below) — no double-assignment.
+- **C-C/H-A:** integrator org-bridge + **orphan/NULL handling** + explicit **bigint↔uuid** key types.
+- **H-B:** telemetry-split applied uniformly (delivery logs/queues → SCOPED; aggregate analytics → TELEMETRY).
 
-## Locked architecture (stable across rounds)
-- Tenant = **Organization** (reuse `be_organizations`). Person = `platform_users` (global). Enrollment = `(organization_id, platform_user_id)`.
-- Isolation = **shared DB + Postgres RLS**, two row-level walls (practice↔practice via `organization_id`; patient↔patient via patient ownership) — one enforcement layer.
-- Fail-safe = **default-DENY + FORCE RLS**, with **three explicit tiers**:
-  1. **SCOPED** — RLS by org (+patient by actor). The ~100 tables.
-  2. **PUBLIC** — key-free allowlist (store inventory, public-booking catalog, marketing).
-  3. **BOOTSTRAP-READABLE** — readable pre-org-context: auth/session/OTP/credential/channel tables + `system_settings` login reads (login resolves identity→org, so these MUST be reachable before context exists). Explicit allowlist.
-  A table not in exactly one tier → CI fails (P0.10).
+## Locked architecture (stable)
+- Tenant = **Organization** (`be_organizations`). Person = `platform_users`. Enrollment = `(organization_id, platform_user_id)`.
+- Isolation = **shared DB + Postgres RLS**; two row-level walls (org_id + patient ownership), one layer.
+- Fail-safe = **default-DENY + FORCE RLS**, three tiers (see tiers-218.tsv).
 
-## Scope (re-derived over public + integrator = 218)
-- **public:** 84 (incl. catalogs per-tenant) **+ 2** `be_*` gaps (`be_package_items`, `be_patient_package_items`) = **86**.
-- **integrator (~15 per-patient):** contacts, content_access_grants, conversations, conversation_messages, message_drafts, question_messages, user_questions, user_reminder_rules, user_reminder_occurrences, user_reminder_delivery_logs, user_subscriptions, mailing_logs, telegram_state (+ `identities`/`users` = the **org-bridge** mapping). `rubitime_*` (8) = LEGACY/frozen; rest = infra/global.
-- **org-bridge (C-1):** integrator rows key by `user_id`/`user_identity_id`/`external_chat_id` → resolve via `integrator.identities`/`users` → `platform_users` → enrollment → `organization_id`; backfill org_id on integrator scope tables through this chain.
-- **child/junction denorm (C-3):** 41 public (clinical_*_update/_status_history, online_intake_*, support_*_messages, treatment_program_*_stage*, test_results, lfk_complex_exercises…) + integrator children get denormalized `organization_id`+`patient_user_id` so the policy is a cheap indexed equality.
-- **Total scope ≈ ~100 tables.** Completeness gate now over **218** (the C-1 fix).
+## Reconciliation (PERFORMED over 219 = 218 base + drizzle ledger)
+| Tier | Count | Meaning / RLS treatment |
+|---|---|---|
+| **SCOPED** | **153** | per-patient/per-tenant. **109 need `organization_id` added** (44 are `be_*`, already org-scoped). RLS by org (+ patient by actor). |
+| **BOOTSTRAP-READABLE** | 24 | identity/auth/session/credential/channel + `system_settings` + `platform_users`. Readable pre-org-context (login resolves identity→org). |
+| **INFRA** | 22 | migrations/ledgers/idempotency/operator-health/webhook-status — no person data; global. |
+| **LEGACY** | 16 | `rubitime_*` (8) + old `booking_*`/`branches`/`patient_bookings`/`appointment_records` (8) — frozen, dropped post-sunset. |
+| **TELEMETRY** | 4 | aggregate analytics (product_analytics_*) + infra error telemetry (media_hls_proxy, operator_health) — global. |
+
+CI invariant (P0.10): every base table ∈ exactly one tier → else build fails. (This IS the completeness gate, now over 219.)
+
+## Key design resolutions (round-1 fixes)
+- **Bootstrap row-level hybrid (C-B/M-B):** tables that are bootstrap-readable yet hold per-tenant rows (`system_settings`, `platform_user_contacts`, `user_phone_history`) stay in **one** tier (BOOTSTRAP) with policy
+  `USING (organization_id IS NULL OR organization_id = current_setting('app.org', true)::uuid)` — global/identity rows always readable pre-context; per-org rows scoped. `system_settings` gets a nullable `organization_id` (global rows NULL; per-org rows set) — reconciles P0.11 with H-4 (no contradiction; one tier, one policy).
+- **Integrator org-bridge + orphans (C-C):** bridge = `public.platform_users.integrator_user_id (bigint) ↔ integrator.users.id`. Measured: 247 platform_users (108 linked / 139 NULL), 115 integrator.users (10 unlinked). P0.4 sub-step: enumerate integrator SCOPED rows whose bridge→org resolves NULL → **assign to the single existing org** at backfill (today 1 org; trivially correct) + **CI assert: no SCOPED row has NULL org_id** before any FORCE/enforce flip. Orphan integrator.users (no platform_user) → quarantine list for owner.
+- **Denorm key types (H-A):** public SCOPED → `organization_id uuid` (+ patient ownership already `platform_users.id` uuid). Integrator SCOPED → add `organization_id uuid` resolved via bridge at backfill; patient predicate on integrator side uses the **bigint** integrator-user key (no uuid available) — documented per-schema, not a uniform uuid equality.
 
 ## Phase 0 — stages (dormant; zero behavior change)
-| # | Stage | Addresses |
-|---|---|---|
-| P0.0 | **Inventory over public+integrator (218)** — 3-method + arbiter + completeness gate across ALL non-system schemas → the authoritative scoped/public/bootstrap/legacy classification | C-1 |
-| P0.1 | `be_organization_members` (Drizzle) + seed staff→org (doctor→active specialist `518e…`, assertions) | H-5seed |
-| P0.2 | `OrganizationMembershipPort` + `resolveOrgForUser` (port/DI) | — |
-| P0.3 | `org_enrollments` + backfill all patients→org; **integrator identity↔platform_user bridge map** | C-1 |
-| P0.4 | Scope columns: `organization_id` (+ denorm `patient_user_id` on 41 children) on ~100 tables incl integrator + the 2 be_*; batched; backfill→single org | C-1,C-3,H-5 |
-| P0.5 | DB roles: migrator/owner vs **non-bypass app role**; **boot-migrations run under migrator** | H-2 |
-| P0.6 | Context **MECHANISM** (AsyncLocalStorage + per-request pinned client; resolve `buildAppDeps=cache()` singleton clash) — dormant capability only | C-2 |
-| P0.7 | **Full non-request writer census + context**: bot(per-update)/worker(per-job)/scheduler(per-tick)/media-worker + **payment webhook** + **15 server actions** + boot-migrations | H-2 |
-| P0.8 | **Classified RLS policy generator** (per-table descriptor: org col, patient col OR parent-join, actor rule) over all scoped; `ENABLE`+`FORCE`; GUC-gated permissive (dormant) | C-3 |
-| P0.9 | **Three-tier default-deny**: SCOPED / PUBLIC allowlist / **BOOTSTRAP-READABLE allowlist** | H-4 |
-| P0.10 | **CI fail-safe invariant over 218**: every table ∈ exactly one tier (scoped+policy / public / bootstrap) else build fails | C-1,H-4 |
-| P0.11 | `system_settings` **org-aware** (org_id on table + integrator mirror + `updateSetting` + admin API + **rule 000 amendment**) | H-3,C2 |
-| P0.12 | Residual-risk: polymorphic refs (`item_ref_id`/`linked_object_*`) + JSON-blob-PII scan → each scoped/justified; tie to catalog decision | — |
-| P0.13 | Isolation fixtures: **provision synthetic 2nd org + 2nd patient**, then assert practice↔practice AND patient↔patient blocked under non-bypass role | M-1 |
+P0.0 reconciliation = DONE (tiers-218.tsv) · P0.1 `be_organization_members`+seed · P0.2 membership resolver (port/DI) · P0.3 `org_enrollments`+backfill + **integrator bridge map** · P0.4 `organization_id` (+denorm `patient_user_id` on child tables; per-schema types) on the **109** + 2 be_ gaps, batched, backfill→single org, **+ orphan NULL sub-step + CI no-NULL assert** · P0.5 DB roles (migrator/owner vs non-bypass app; boot-migrations use migrator) · P0.6 context **mechanism** (AsyncLocalStorage + pinned client; resolve `buildAppDeps=cache()` clash) — dormant · P0.7 **full writer census** (bot/worker/scheduler/media-worker + payment webhook + 15 server actions + boot-migrations) · P0.8 **classified RLS policy generator** (per-table descriptor; bootstrap-hybrid predicate) ENABLE+FORCE GUC-gated permissive · P0.9 three-tier default-deny (SCOPED/PUBLIC/BOOTSTRAP) · P0.10 CI invariant over 219 (exactly-one-tier + no-NULL-org) · P0.11 `system_settings` org-aware (nullable org_id + mirror + rule-000 amend) · P0.12 residual: polymorphic refs (`comments.target_*`, `item_ref_id`) + JSON-blob-PII scan on payload queues · P0.13 isolation fixtures (synthetic 2nd org + 2nd patient) → assert both walls under non-bypass role.
 
-## T0 — enforcement cutover (NOT Phase 0; honest weight)
-Opt-in audit of **340 `getPool/getDrizzle/runWebappPgText` + 40 dedicated `.connect()` + 29 raw `.query()` sites** + integrator/media-worker separate pools → route through the chokepoint; flip GUC `enforce_tenancy=on`; switch app to non-bypass role; staging **shadow-run** (log would-be denials) before the real flip. **Gate:** P0.10 invariant green over 218 AND prod-parity confirmed.
+## T0 — enforcement cutover (NOT Phase 0)
+Opt-in audit of 340 `getPool/getDrizzle/runWebappPgText` + 40 dedicated `.connect()` + 29 raw `.query()` + integrator/media-worker pools → route through chokepoint; flip GUC + non-bypass role; staging shadow-run. Gate: P0.10 green over 219 + prod-parity.
 
-## Later phases
-Onboarding/provisioning · **marketplace/store** (per-tenant catalogs + buy = **copy-with-ID-remap** into tenant; patient FKs reference tenant-local copies; design before store ships — H-1) · EN locale · multi-region.
+## Sizing (v3 — up: 109 scoped incl integrator + child denorm + bridge)
+Phase 0 (dormant) **~7–10 wk** · T0 cutover **~4–6 wk** · later (onboarding/store/EN/region) separate.
 
-## C-findings status (v2)
-C-1 ✅ scope over 218 + integrator bridge (P0.0/P0.3/P0.4) · C-2 ✅ chokepoint = mechanism(P0.6)+T0-cutover, re-sized · C-3 ✅ classified generator + child denorm (P0.4/P0.8) · H-1 ✅ store copy = later-phase design (deferred) · H-2 ✅ full writer census (P0.7) · H-3 ✅ real system_settings change (P0.11) · H-4 ✅ 3 tiers (P0.9/P0.10) · H-5 ✅ +2 be_* (P0.4).
-
-## Sizing (v2, honest — up from v1 due to integrator + child denorm + tiers)
-- **Phase 0 (dormant): ~6–9 wk** (~100 tables incl integrator + 41-child denorm + classified generator + 3 tiers + chokepoint mechanism + writer census).
-- **T0 cutover: ~4–6 wk** (340/40/29 path audit + pool routing + shadow-run).
-- Later (onboarding/store/EN/region): separate.
-
-## Open owner-decisions (defaults applied unless overridden)
-1. Integrator per-patient data org-owned, scoped via identity-bridge — **default: yes** (applied).
-2. Store copy/ID-remap = later-phase design; catalogs get org_id now — **default: defer** (applied).
+## Open owner-decisions (defaults applied)
+1. Integrator per-patient = scoped via bridge (yes). 2. Store copy/ID-remap = later phase (defer). 3. `mailings`/`mailing_topics` = per-tenant SCOPED (default; flag). 4. Orphan integrator.users (10) → quarantine for review.
