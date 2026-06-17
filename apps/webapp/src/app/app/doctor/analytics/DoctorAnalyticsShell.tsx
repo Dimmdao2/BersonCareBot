@@ -54,6 +54,15 @@ const RegistrationInAppTab = dynamic(
     })),
   { ssr: false },
 );
+// Подписчики приложения (C1/C2) — перенесены из вкладки «Клиенты» (AN-11):
+// подписчики ≠ клиенты (§24.6/24.9), это аудитория приложения.
+const SubscribersInAppTab = dynamic(
+  () =>
+    import("./clients/SubscriberStatsAppTabWrapper").then((m) => ({
+      default: m.SubscriberStatsAppTabWrapper,
+    })),
+  { ssr: false },
+);
 const SoprovozhdeniePage = dynamic(
   () =>
     import("./soprovozhdenie/SoprovozhdeniePage").then((m) => ({
@@ -205,6 +214,8 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
             <NotificationsInAppTab />
             {/* Регистрации и слияния — перенесены из вкладки «Клиенты» (AN-03) */}
             <RegistrationInAppTab />
+            {/* Подписчики — перенесены из вкладки «Клиенты» (AN-11): подписчики ≠ клиенты */}
+            <SubscribersInAppTab />
           </div>
         </div>
       ) : null}
