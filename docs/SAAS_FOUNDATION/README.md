@@ -1,6 +1,6 @@
 # SAAS_FOUNDATION — initiative index
 
-**Status:** ⚠️ **REVISION REQUIRED** (plan-review 2026-06-17 — see banner in `CORRECTED_PLAN.md`). Architecture HOLDS (shared-DB+RLS, default-deny, tenant=Organization), but the review (confirmed by DB queries) found: **C-1** scope missed the entire **`integrator` schema** (33 PII tables, 0 org_id) — completeness was on `public`(185) not all **218** tables; **C-3** the "one uniform RLS template" is unimplementable (41/84 tables have no ownership column); **C-2** the chokepoint is T0-weight not a dormant hook; **H-4** default-deny bricks login without an explicit bootstrap-readable tier. **Not ready for P0.1** — revising scope (over public+integrator) + RLS mechanics. 2 owner-decisions pending: integrator org-bridge, catalog/store copy model.
+**Status:** 🔁 **HARDENING LOOP** — `CORRECTED_PLAN.md` is now **v2** (incorporates C-1/C-2/C-3/H-1..H-5: scope over public+integrator=218, classified RLS generator + child denorm, 3 access tiers incl bootstrap-readable, chokepoint=T0, full writer census). Under **fresh adversarial re-review**; loop terminates at **2 consecutive clean** reviews (current streak **0/2**). Architecture stable (shared-DB+RLS, default-deny, tenant=Organization). Not for execution until the loop closes.
 **Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.
