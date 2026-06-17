@@ -5,11 +5,6 @@ import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircl
 import type { ElementType } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/shared/ui/doctor/primitives/popover";
 import { cn } from "@/lib/utils";
 import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
 import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
@@ -100,7 +95,21 @@ export type DoctorMenuAccordionProps = {
   onNavigate?: () => void;
 };
 
-/** Sidebar: single group flyout — hover-controlled Popover to the right. */
+/**
+ * Sidebar: hover-flyout to the right.
+ *
+ * FIX for Q-C1 flicker: the previous implementation used @base-ui/react/popover which renders
+ * into a portal (outside the trigger's DOM subtree). A 4px gap between trigger and portal content
+ * caused onMouseLeave to fire on the trigger before onMouseEnter fired on the content, racing
+ * against base-ui's own click-outside close logic. Even with a 120ms debounce the Popover's
+ * internal state machine would fire synchronously and win the race.
+ *
+ * Solution: render the flyout panel as a CHILD of a wrapper div that spans both the trigger and
+ * the panel. The wrapper is `position: relative; overflow: visible`. The panel is
+ * `position: absolute; left: 100%`. Mouse movement from trigger→panel never fires a mouseleave
+ * on the wrapper — it's all within the same DOM subtree. The wrapper's onMouseEnter/onMouseLeave
+ * control open/close with a small delay to handle fast movements cleanly.
+ */
 function SidebarGroupFlyout({
   item,
   badgeCounts,
@@ -113,22 +122,33 @@ function SidebarGroupFlyout({
   onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  // Track whether pointer is over trigger or content so we close on leave of both
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const Icon = getIconForMenuId(item.id);
   const iconSize = 16;
 
-  const cancelClose = useCallback(() => {
+  const cancelTimers = useCallback(() => {
     if (closeTimerRef.current !== null) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
+    if (openTimerRef.current !== null) {
+      clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
   }, []);
 
-  const scheduleClose = useCallback(() => {
-    cancelClose();
-    closeTimerRef.current = setTimeout(() => setOpen(false), 120);
-  }, [cancelClose]);
+  const handleWrapperEnter = useCallback(() => {
+    cancelTimers();
+    // Small open delay (80ms) acts as hover-intent — prevents accidental open on fast cursor sweeps.
+    openTimerRef.current = setTimeout(() => setOpen(true), 80);
+  }, [cancelTimers]);
+
+  const handleWrapperLeave = useCallback(() => {
+    cancelTimers();
+    // Close delay (150ms) gives the user time to correct their trajectory.
+    closeTimerRef.current = setTimeout(() => setOpen(false), 150);
+  }, [cancelTimers]);
 
   // Check if any sub-item is active (to highlight the group trigger)
   const anySubActive = useMemo(
@@ -137,59 +157,69 @@ function SidebarGroupFlyout({
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            id={`doctor-sidebar-group-${item.id}`}
-            aria-expanded={open}
-            aria-haspopup="menu"
-            onMouseEnter={() => {
-              cancelClose();
-              setOpen(true);
-            }}
-            onMouseLeave={scheduleClose}
-            onFocus={() => setOpen(true)}
-            onBlur={scheduleClose}
-            className={cn(
-              buttonVariants({ variant: "ghost" }),
-              "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal",
-              anySubActive && "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
-            )}
-          >
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              {Icon && (
-                <Icon
-                  size={iconSize}
-                  strokeWidth={NAV_STRIP_ICON_STROKE}
-                  aria-hidden
-                  className="shrink-0"
-                />
-              )}
-              <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
-            </span>
-            <ChevronRight
-              className="size-3 shrink-0 text-muted-foreground"
+    // Wrapper spans both trigger and flyout panel.
+    // overflow-visible is important so the absolutely-positioned panel is not clipped.
+    // The negative right margin (-mr-2) compensates for the sidebar's pr-2 so the panel
+    // appears flush to the sidebar's right edge.
+    <div
+      className="relative"
+      onMouseEnter={handleWrapperEnter}
+      onMouseLeave={handleWrapperLeave}
+    >
+      <button
+        type="button"
+        id={`doctor-sidebar-group-${item.id}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls={open ? `doctor-sidebar-flyout-${item.id}` : undefined}
+        onFocus={() => {
+          cancelTimers();
+          setOpen(true);
+        }}
+        onBlur={(e) => {
+          // Only close on blur if focus leaves the whole flyout tree
+          if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node | null)) {
+            closeTimerRef.current = setTimeout(() => setOpen(false), 150);
+          }
+        }}
+        className={cn(
+          buttonVariants({ variant: "ghost" }),
+          "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal",
+          anySubActive && "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+        )}
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {Icon && (
+            <Icon
+              size={iconSize}
               strokeWidth={NAV_STRIP_ICON_STROKE}
               aria-hidden
+              className="shrink-0"
             />
-          </button>
-        }
-      />
-      <PopoverContent
-        side="right"
-        sideOffset={4}
-        align="start"
-        alignOffset={-4}
-        className="w-52 min-w-[12rem] p-1.5"
-        onMouseEnter={cancelClose}
-        onMouseLeave={scheduleClose}
-      >
+          )}
+          <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+        </span>
+        <ChevronRight
+          className="size-3 shrink-0 text-muted-foreground"
+          strokeWidth={NAV_STRIP_ICON_STROKE}
+          aria-hidden
+        />
+      </button>
+
+      {/* Flyout panel — absolutely positioned to the right of the trigger, same top.
+          Rendered in-tree (no portal) so mouse movement between trigger and panel
+          stays within the wrapper and never triggers a close. */}
+      {open && (
         <div
+          id={`doctor-sidebar-flyout-${item.id}`}
           role="menu"
           aria-label={item.label}
-          className="flex flex-col gap-0.5"
+          className={cn(
+            "absolute top-0 left-full z-50 ml-1",
+            "min-w-[12rem] w-52 rounded-lg bg-popover p-1.5 text-sm text-popover-foreground",
+            "shadow-md ring-1 ring-foreground/10",
+            "flex flex-col gap-0.5",
+          )}
         >
           {item.items?.map((sub) => {
             if (!sub.href) return null;
@@ -226,8 +256,8 @@ function SidebarGroupFlyout({
             );
           })}
         </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }
 
