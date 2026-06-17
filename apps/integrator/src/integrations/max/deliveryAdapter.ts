@@ -6,6 +6,7 @@ import * as maxClient from './client.js';
 import { MaxSendError } from './client.js';
 import { parseMaxPlatformUserId, readMaxOutboundRecipient } from './maxRecipient.js';
 import { getMaxApiKey } from './runtimeConfig.js';
+import { readChannel } from '../../infra/adapters/channelRouting.js';
 
 /**
  * MAX Platform API: `open_app` открывает мини-приложение внутри клиента (MAX Bridge + initData).
@@ -43,16 +44,6 @@ function maxContactIdForOpenApp(intent: OutgoingIntent, payload: DeliveryPayload
   return parseMaxPlatformUserId(intent.meta?.userId);
 }
 
-function readChannel(intent: OutgoingIntent): string | null {
-  if (intent.type !== 'message.send') return intent.meta.source || null;
-  const payload = intent.payload as DeliveryPayload;
-  const channels = payload.delivery?.channels;
-  if (Array.isArray(channels)) {
-    const normalized = channels.filter((item): item is string => typeof item === 'string');
-    if (normalized.length > 0) return normalized[0] as string;
-  }
-  return intent.meta?.source ?? null;
-}
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;

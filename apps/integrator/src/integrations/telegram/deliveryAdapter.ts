@@ -1,6 +1,7 @@
 import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { classifyTelegramRecipientBlockedError } from '../../infra/delivery/recipientBotBlocked.js';
 import { createMessagingPort } from './client.js';
+import { readChannelWithDefault } from '../../infra/adapters/channelRouting.js';
 
 type RequestLoggerLike = {
   error: (obj: Record<string, unknown>, message: string) => void;
@@ -18,15 +19,6 @@ type DeliveryPayload = {
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
 
-function readChannel(intent: OutgoingIntent): string {
-  const payload = intent.payload as DeliveryPayload;
-  const channels = payload.delivery?.channels;
-  if (Array.isArray(channels)) {
-    const normalized = channels.filter((item): item is string => typeof item === 'string');
-    if (normalized.length > 0) return normalized[0] as string;
-  }
-  return 'smsc';
-}
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
@@ -110,7 +102,8 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
         return false;
       }
       if (intent.type === 'message.send' || intent.type === 'message.copy') {
-        return readChannel(intent) === 'telegram';
+        // Falls back to 'smsc' (the original adapter default, D4 — preserved exactly).
+        return readChannelWithDefault(intent, 'smsc') === 'telegram';
       }
       return intent.meta.source === 'telegram';
     },

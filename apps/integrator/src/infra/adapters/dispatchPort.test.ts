@@ -2,21 +2,12 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { createDefaultDispatchPort } from './dispatchPort.js';
 import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
+import { readChannel } from './channelRouting.js';
 
 const sendPrimaryMock = vi.fn().mockResolvedValue(undefined);
 const sendSecondaryMock = vi.fn().mockResolvedValue(undefined);
 const channelPrimary = 'channel-a';
 const channelSecondary = 'channel-b';
-
-function readChannel(intent: OutgoingIntent): string | null {
-  const payload = intent.payload as { delivery?: { channels?: unknown } };
-  const channels = payload.delivery?.channels;
-  if (Array.isArray(channels)) {
-    const normalized = channels.filter((item): item is string => typeof item === 'string');
-    if (normalized.length > 0) return normalized[0] as string;
-  }
-  return null;
-}
 
 function buildAdapters(): DeliveryAdapter[] {
   return [
