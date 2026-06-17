@@ -131,7 +131,7 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(intent.meta.eventId).toMatch(/^otp:email:/);
 
     // The intent type and channel must be correct.
-    const intentTyped = intent as { type: string; payload: { delivery: { channels: string[] } } };
+    const intentTyped = intent as unknown as { type: string; payload: { delivery: { channels: string[] } } };
     expect(intentTyped.type).toBe('message.send');
     expect(intentTyped.payload.delivery.channels[0]).toBe('email');
   });
