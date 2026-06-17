@@ -14,6 +14,7 @@ import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/
 import { SettingsTabsNav } from "./SettingsTabsNav";
 import type { SettingsTab } from "./SettingsTabsNav";
 import { DoctorTimezoneSection } from "./DoctorTimezoneSection";
+import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
@@ -89,6 +90,19 @@ export default async function SettingsPage({
   const taskReminderChannels = parseSpecialistTaskReminderChannels(
     doctorSettings.find((x) => x.key === "doctor_specialist_task_reminder_channels")?.valueJson ?? null,
   );
+  const appointmentReminderEnabled = getValueJson(
+    doctorSettings.find((x) => x.key === "doctor_appointment_reminder_enabled")?.valueJson,
+    false,
+  );
+  const appointmentReminderOffsetsRaw = getValueJson<unknown>(
+    doctorSettings.find((x) => x.key === "doctor_appointment_reminder_offsets_minutes")?.valueJson,
+    null,
+  );
+  const appointmentReminderOffsets: number[] = Array.isArray(appointmentReminderOffsetsRaw)
+    ? (appointmentReminderOffsetsRaw as unknown[]).filter(
+        (x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0,
+      )
+    : [];
   const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
   const tzRow = await runWebappPgText<{ calendar_timezone: string | null }>(
     `SELECT calendar_timezone FROM platform_users WHERE id = $1::uuid`,
@@ -103,13 +117,17 @@ export default async function SettingsPage({
   const globalWebPushEnabled =
     channelPrefs.find((p) => p.channelCode === "web_push")?.isEnabledForNotifications !== false;
   const prefRows = await deps.topicChannelPrefs.listByUserId(session.user.userId);
-  const notificationTopics = buildDoctorNotificationTopicModels(prefRows, {
-    hasTelegram,
-    hasMax,
-    emailVerified,
-    hasWebPushSubscription,
-    globalWebPushEnabled,
-  }, taskReminderChannels);
+  const notificationTopics = buildDoctorNotificationTopicModels(
+    prefRows,
+    {
+      hasTelegram,
+      hasMax,
+      emailVerified,
+      hasWebPushSubscription,
+      globalWebPushEnabled,
+    },
+    taskReminderChannels,
+  );
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
@@ -140,6 +158,10 @@ export default async function SettingsPage({
             supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
           />
           <DoctorTimezoneSection initialTimezone={doctorCalendarTimezone} />
+          <AppointmentReminderSettingsSection
+            initialEnabled={Boolean(appointmentReminderEnabled)}
+            initialOffsetsMinutes={appointmentReminderOffsets}
+          />
         </div>
       )}
 
