@@ -1,6 +1,6 @@
 # SAAS_FOUNDATION — initiative index
 
-**Status:** ⛔ **BLOCKED — REWORK REQUIRED before F0.1** (fresh review 2026-06-17). Planning only, no code started. See [`REVIEW_2026-06-17_FRESH.md`](REVIEW_2026-06-17_FRESH.md): C1 scope classification wrong ~2–3× (missed the `patient_user_id` EHR core), C2 D7 config primitive doesn't exist, C3 headless runtimes + RLS sequencing. Fix C1+C2 before executing.
+**Status:** ⛔ **BLOCKED — REWORK REQUIRED before F0.1** (fresh review 2026-06-17). Planning only, no code started. **C1 RESOLVED** → verified **66-table** must-scope list ([`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md), 3 independent methods + DB arbiter + completeness gate; EHR core recovered). **Direction converged: shared-DB + RLS** (silo dropped — patient↔patient isolation needs row-level anyway, which RLS gives and schemas can't). Remaining before F0.1: C2 (D7 config redesign), C3 (headless runtimes), + ~4 borderline owner-decisions (telemetry / content catalogs / system_settings / legacy-confirm).
 **Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.
