@@ -138,6 +138,22 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
                   : undefined
               }
             />
+            <DoctorStatCard
+              id="doctor-stats-appointments-first-visits"
+              title="Первичных визитов"
+              value={stats.firstVisitInPeriod}
+              onClick={
+                onMetricClick ? () => onMetricClick("appointments_past_visits", "Первичные визиты за период") : undefined
+              }
+            />
+            <DoctorStatCard
+              id="doctor-stats-appointments-repeat-visits"
+              title="Повторных визитов"
+              value={stats.repeatVisitInPeriod}
+              onClick={
+                onMetricClick ? () => onMetricClick("appointments_past_visits", "Повторные визиты за период") : undefined
+              }
+            />
           </DoctorMetricList>
 
           {daySeries.length > 1 ? (
@@ -147,8 +163,8 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
           ) : null}
 
           {branchSeries.length > 1 ? (
-            <div className="mt-4 flex flex-col gap-2">
-              <h4 className="text-sm font-medium text-muted-foreground">По филиалам</h4>
+            <div className="mt-4 max-w-3xl">
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">По филиалам</h4>
               <DoctorMetricList id="doctor-stats-appointments-branches">
                 {branchSeries.map((b) => (
                   <DoctorStatCard
