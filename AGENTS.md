@@ -10,6 +10,7 @@
 - `docs/ARCHITECTURE/SERVER CONVENTIONS.md`
 - `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — **dev-серверы, dev-bypass вход в кабинеты, живое UI-тестирование**
 - `deploy/HOST_DEPLOY_README.md`
+- `docs/AGENT_AUTORUN_SCHEME.md` — **СХЕМА АВТО-ПРОХОДА АГЕНТАМИ** (канон оркестрации: фазы планирования/исполнения, роли, цикл аудитов, параллельность, governance) — для любой оркестрованной/автономной работы
 
 ---
 
@@ -603,6 +604,10 @@ pnpm run ci
 #### Cost rule
 
 **Аудит не должен быть дороже выполнения задачи.** Если аудит инициирует **больше** прогонов (или тяжелее уровень), чем было разумно при самой реализации — стратегия **неверна**; нужно остановиться и сузить scope.
+
+### Dev-DB opt-in smoke-тесты
+
+Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Запускаются вручную в dev-среде. Обязаны быть **строго read-only** — `bcb_webapp_dev` содержит реальные PII пациентов. Полное соглашение: `.cursor/rules/test-execution-policy.md` §«Dev-DB opt-in smoke-тесты».
 
 ---
 

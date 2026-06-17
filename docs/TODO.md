@@ -157,6 +157,40 @@
 - [x] **`/help`** — каталог и статьи из CMS (раздел `help`, фаза 6).
 - [ ] **`/diary` («Статистика»)** — полная переработка (график разминок, упражнения плана, «сегодня») **отложена**; см. [`apps/webapp/src/app/app/patient/diary/diary.md`](../apps/webapp/src/app/app/patient/diary/diary.md).
 
+## Login/Register — волна 2 (отложено)
+
+- **PHASE_07** (backfill существующей базы) и **PHASE_08** (массовые setup-письма) отложены после MVP волны 1; планы фаз не удалены.
+- **Browser E2E** всех провайдеров OAuth — не настроен, отложен.
+- **Перенос `user_email_setup_tokens`** при будущем merge веток — не закрыт; схема/миграция `0076_user_email_setup_tokens.sql` есть, реальная отправка письма в pipeline не включена.
+- Источники: `docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md` (§2026-05-20 «Отложено (не в волне 1)», финальный статус §2026-05-20), `docs/LOGIN_REGISTER_NEW_LOGIC/SCOPE_DECISIONS.md`, `docs/LOGIN_REGISTER_NEW_LOGIC/README.md` §«Backfill».
+
+## Дубль определений Drizzle-схемы integrator ↔ webapp
+
+- **Проблема:** части схемы определены **параллельно** в `apps/integrator` и `apps/webapp/db/schema` для одних и тех же таблиц; нет общего пакета.
+- **TODO:** вынести в общий workspace-пакет; до выноса — обязательный чеклист «колонка в колонку» при любых DDL-изменениях, затрагивающих обе стороны.
+- **ВАЖНО:** это отдельный пункт от уже записанного «Integrator — один каталог записи (убрать дубль `integrator.rubitime_*`)» — тот про дубль **данных** в каталоге, этот про дубль **определений схемы**.
+- Источник: `docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md` §«Сквозные риски» (строка «Дубль определений схемы»), `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
+
+## PWA / Web Push — хвосты (вне MVP)
+
+- **FCM** (Firebase Cloud Messaging) — не реализован, в backlog.
+- **Офлайн-кэш** Service Worker — не в scope текущих фаз.
+- **Переименование маршрутов `patient` → `client`** — отдельная миграция, не смешивать с PWA-фазами.
+- **Посты / фрагменты CMS на главной** — не блокирует фазы 1–3, отложено.
+- **ВАЖНО:** секция «Web Push / PWA» выше (reschedule-push + broadcast-preview) — отдельная; этот пункт добавляет только отсутствующие там хвосты.
+- Источник: `docs/PWA_INITIATIVE/BACKLOG.md` (таблица backlog + список §«Отложенное»).
+
+## BOT_FIXES — хвост: нативный Telegram-reply
+
+- **TODO:** поддержать нативный Telegram-reply без отдельной inline-кнопки «Ответить» — прокидывать `message_id` из входящего сообщения в `conversationId` исходящего, чтобы ответ встал в тред без UI-кнопки.
+- Источник: `docs/BOT_FIXES/LOG.md` §«Backlog (вне инициативы)».
+
+## Operator Health — post-MVP: полная матрица «инвариант → тест» (PHASE_G)
+
+- **MVP закрыт**: критические entrypoints покрыты тестами (LOG.md + MVP_IMPLEMENTATION_PLAN §7).
+- **Post-MVP (PHASE_G):** заполнить полную матрицу тестов (G.1) с привязкой «инвариант → тестовый файл» в appendix к `PHASE_G_TESTS_AND_DOCS.md`; нагрузочное тестирование вебхуков.
+- Источник: `docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_G_TESTS_AND_DOCS.md` §post-MVP (чеклист «Post-MVP: полная матрица G.1»).
+
 ## Recommendations catalog — D5 rename `domain` → `kind` (deferred)
 
 - **Статус:** отложено owner; **не блокирует** архив [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) и закрытие ROADMAP_2 patient/doctor polish.
