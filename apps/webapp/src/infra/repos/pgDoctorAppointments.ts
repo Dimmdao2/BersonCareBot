@@ -307,6 +307,8 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         cancel30Ex.params,
       );
       // firstVisitInPeriod: appointments in window where phone_normalized has no earlier non-cancelled record
+      // Note: table is aliased "a" so the exclusion clause must reference "a", not "appointment_records"
+      const firstVisitEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 3, "a");
       const firstVisitResult = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c
          FROM appointment_records a
@@ -323,8 +325,8 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
                  earlier.record_at < a.record_at
                  OR (earlier.record_at = a.record_at AND earlier.integrator_record_id < a.integrator_record_id)
                )
-           )${rangeEx.clause}`,
-        [from, toExclusive, ...rangeEx.params],
+           )${firstVisitEx.clause}`,
+        [from, toExclusive, ...firstVisitEx.params],
       );
       const row = rangeResult.rows[0];
       const row30 = cancellations30dResult.rows[0];

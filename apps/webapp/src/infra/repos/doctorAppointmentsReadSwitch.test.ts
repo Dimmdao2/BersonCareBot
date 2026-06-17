@@ -19,6 +19,8 @@ function mockPort(tag: string): DoctorAppointmentsPort {
       rescheduleActionsInPeriod: 0,
       total: 1,
       cancellations30d: 0,
+      firstVisitInPeriod: 0,
+      repeatVisitInPeriod: 0,
     })),
     getDashboardAppointmentMetrics: vi.fn(async () => ({
       futureActiveCount: 1,
