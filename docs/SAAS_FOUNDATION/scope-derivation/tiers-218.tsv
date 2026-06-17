@@ -24,8 +24,11 @@ BOOTSTRAP|public.user_pins
 BOOTSTRAP|public.user_web_push_subscriptions
 INFRA|drizzle.__drizzle_migrations
 INFRA|integrator.booking_calendar_map
+INFRA|integrator.delivery_attempt_logs
 INFRA|integrator.idempotency_keys
 INFRA|integrator.integration_data_quality_incidents
+INFRA|integrator.mailing_topics
+INFRA|integrator.projection_outbox
 INFRA|integrator.schema_migrations
 INFRA|public.admin_audit_log
 INFRA|public.auth_rate_limit_events
@@ -35,11 +38,13 @@ INFRA|public.content_section_slug_history
 INFRA|public.idempotency_keys
 INFRA|public.integration_webhook_error_events
 INFRA|public.integration_webhook_last_status
+INFRA|public.integrator_push_outbox
 INFRA|public.mailing_topics_webapp
 INFRA|public.media_playback_stats_hourly
 INFRA|public.operator_health_alert_sent
 INFRA|public.operator_incidents
 INFRA|public.operator_job_status
+INFRA|public.outgoing_delivery_queue
 INFRA|public.phone_otp_locks
 INFRA|public.product_analytics_hourly
 INFRA|public.schema_migrations
@@ -64,12 +69,9 @@ SCOPED|integrator.contacts
 SCOPED|integrator.content_access_grants
 SCOPED|integrator.conversation_messages
 SCOPED|integrator.conversations
-SCOPED|integrator.delivery_attempt_logs
 SCOPED|integrator.mailing_logs
-SCOPED|integrator.mailing_topics
 SCOPED|integrator.mailings
 SCOPED|integrator.message_drafts
-SCOPED|integrator.projection_outbox
 SCOPED|integrator.question_messages
 SCOPED|integrator.user_questions
 SCOPED|integrator.user_reminder_delivery_logs
@@ -139,7 +141,6 @@ SCOPED|public.content_sections
 SCOPED|public.courses
 SCOPED|public.doctor_notes
 SCOPED|public.doctor_patient_support
-SCOPED|public.integrator_push_outbox
 SCOPED|public.lfk_complex_exercises
 SCOPED|public.lfk_complex_template_exercises
 SCOPED|public.lfk_complex_templates
@@ -164,7 +165,6 @@ SCOPED|public.online_intake_answers
 SCOPED|public.online_intake_attachments
 SCOPED|public.online_intake_requests
 SCOPED|public.online_intake_status_history
-SCOPED|public.outgoing_delivery_queue
 SCOPED|public.patient_comorbidity
 SCOPED|public.patient_content_rating_feedback
 SCOPED|public.patient_daily_warmup_presentations
