@@ -1455,6 +1455,19 @@ export function ScheduleCalendarTab({
                    принудительно делаем текст записей ТЁМНЫМ (FC форсит белый через
                    --fc-event-text-color, его и переопределяем — иначе белое на светлом),
                    и курсор pointer на всех записях (в т.ч. отменённых — клик работает). */
+
+                /* CAL-P1 — kill green flash on first paint.
+                   FC default --fc-bg-event-color is #8fdf82 (green, opacity 0.3).
+                   All display:"background" events here use Tailwind !bg-slate-* which win
+                   the cascade, but only after the stylesheet settles. At frame-0 FC paints
+                   its default green before the important-utilities kick in. Setting
+                   --fc-bg-event-color to transparent on the .fc root means the very first
+                   paint is transparent (not green); the Tailwind !bg-slate-300 / !bg-slate-300/60
+                   utilities apply in the same frame and set the final slate colour normally. */
+                .fc {
+                  --fc-bg-event-color: transparent;
+                }
+
                 .fc-timegrid-event-harness { margin-inline: 1px; }
                 .fc-event {
                   box-shadow: none !important;
