@@ -6,7 +6,7 @@
  * The integrator's `WebPushDeliveryAdapter` resolves subscriptions + VAPID and
  * performs the actual send, covered by the pre-fork redirect chokepoint (G1).
  *
- * G2 guard in `sendWebPushToSubscriptions.ts` is kept intact — it still protects
+ * G2 guard retired (S16) — 0 live callers, secondary layer. Was:
  * the other un-migrated legs (S14c–S14g).
  *
  * `systemSettings` is kept in `PatientWebPushNotifyDeps` for call-site backward

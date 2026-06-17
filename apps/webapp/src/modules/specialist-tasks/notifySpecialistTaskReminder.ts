@@ -161,7 +161,7 @@ export async function notifySpecialistTaskReminder(
     // the actual send, covered by the pre-fork redirect chokepoint (G1).
     // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the telegram
     // test chat — ZERO real webpush.sendNotification calls.
-    // G2 guard in sendWebPushToSubscriptions.ts is kept intact (retires in S16).
+    // G2 guard retired (S16) — 0 live callers, secondary safety layer only.
     const vapid = await getWebPushVapidKeyPair(deps.systemSettings);
     if (vapid) {
       const subs = await deps.webPushSubscriptions.listActiveByUserId(ownerId);

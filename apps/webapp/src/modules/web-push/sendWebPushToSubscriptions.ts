@@ -47,12 +47,15 @@ export async function sendWebPushToSubscriptions(params: {
     params;
   if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
-  // DEV SAFETY GUARD — web-push delivery happens HERE in the webapp, bypassing the integrator
-  // dispatchPort dev-redirect, sending straight to real subscription endpoints. In non-production the
-  // subscriptions come from the prod-refreshed dev DB (REAL patients/doctors) → sending would leak to
-  // real people.
+  // S16 — DEV SECONDARY SAFETY GUARD (G2, retired as primary sink).
   //
-  // Strategy: DELIVER only to the test user (same source-of-truth as the integrator redirect —
+  // All 7 web-push messaging legs (S14a–S14g) now route through the integrator dispatchPort,
+  // which applies `applyPreForkDevRedirect` (G1) before adapter selection → the
+  // WebPushDeliveryAdapter is only reached with test-user recipients. This function has 0 live
+  // business-logic callers; it is kept only as a secondary belt-and-suspenders layer for any
+  // hypothetical future direct callers.
+  //
+  // Strategy: DELIVER only to the test user (same source-of-truth as the integrator G1 redirect —
   // env DEV_REDIRECT_WEB_PUSH_USER_ID, default «Дмитрий Берсон» 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0).
   // All other subscriptions are SUPPRESSED. NEVER reaches a real endpoint in dev.
   //
