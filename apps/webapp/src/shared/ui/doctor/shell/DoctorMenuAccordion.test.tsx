@@ -5,10 +5,6 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DoctorMenuAccordion, formatNavBadgeCount } from "./DoctorMenuAccordion";
-import {
-  DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY,
-  DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
-} from "@/shared/ui/doctor/doctorNavLinks";
 
 const menuAccess = { role: "doctor" as const, adminMode: false };
 const adminAccess = { role: "admin" as const, adminMode: true };
@@ -50,13 +46,15 @@ vi.mock("next/link", () => ({
     onClick?: MouseEventHandler<HTMLAnchorElement>;
     id?: string;
     "aria-label"?: string;
+    role?: string;
   }) {
-    const { href, children, onClick, id, "aria-label": ariaLabel, ...rest } = props;
+    const { href, children, onClick, id, "aria-label": ariaLabel, role, ...rest } = props;
     return (
       <a
         href={href}
         id={id}
         aria-label={ariaLabel}
+        role={role}
         {...rest}
         onClick={(e) => {
           e.preventDefault();
@@ -67,6 +65,18 @@ vi.mock("next/link", () => ({
       </a>
     );
   },
+}));
+
+// Mock popover to render content inline (no portal in jsdom)
+vi.mock("@/shared/ui/doctor/primitives/popover", () => ({
+  Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
+    <div data-popover-open={open}>{children}</div>
+  ),
+  PopoverTrigger: ({ render: renderProp }: { render?: ReactNode; children?: ReactNode }) =>
+    renderProp ?? null,
+  PopoverContent: ({ children }: { children: ReactNode }) => (
+    <div data-popover-content>{children}</div>
+  ),
 }));
 
 describe("formatNavBadgeCount", () => {
@@ -88,7 +98,6 @@ describe("formatNavBadgeCount", () => {
 
 describe("DoctorMenuAccordion", () => {
   beforeEach(() => {
-    localStorage.clear();
     pathnameRef.value = "/app/doctor";
     unreadCountRef.value = 0;
     intakeCountRef.value = 0;
@@ -96,37 +105,35 @@ describe("DoctorMenuAccordion", () => {
     proactiveInsightsCountRef.value = 0;
   });
 
-  it("opens Библиотека by default when localStorage empty", async () => {
+  it("renders top-level sidebar links including Каталог ЛФК group trigger", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
-      // top-level links always visible
       expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
-      // sub-items of library visible because it's open by default
-      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
+    // Каталог ЛФК is a group trigger button
+    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toBeInTheDocument();
   });
 
-  it("toggles Библиотека closed and open on header click", async () => {
-    const user = userEvent.setup();
+  it("sidebar renders sub-items inside flyout content (always visible via popover mock)", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: "Упражнения" }));
-    await user.click(screen.getByRole("button", { name: "Библиотека" }));
-    expect(screen.queryByRole("link", { name: "Упражнения" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "false");
-    await user.click(screen.getByRole("button", { name: "Библиотека" }));
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
+      // sub-items are rendered inside popover content (which is always visible in jsdom mock)
+      expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Комплексы ЛФК" })).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("top-level direct links are always visible regardless of open cluster", async () => {
+  it("sidebar: Каталог ЛФК trigger has aria-haspopup=menu", async () => {
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => screen.getByRole("button", { name: /Каталог ЛФК/ }));
+    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toHaveAttribute("aria-haspopup", "menu");
+  });
+
+  it("top-level direct links are always visible regardless of groups", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
     expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
-    // «Расписание» теперь — обычная top-level ссылка (не аккордеон): табы перенесены внутрь страницы.
     expect(screen.getByRole("link", { name: /Расписание/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Коммуникации/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Контент/ })).toBeInTheDocument();
@@ -135,89 +142,51 @@ describe("DoctorMenuAccordion", () => {
   it("hides settings and system for doctor role", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
-    expect(screen.queryByRole("button", { name: "Настройки" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Система" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Настройки/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
   it("shows settings and system for admin role", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: "Настройки" }));
-    expect(screen.getByRole("button", { name: "Система" })).toBeInTheDocument();
+    await waitFor(() => screen.getByRole("button", { name: /Настройки/ }));
+    expect(screen.getByRole("button", { name: /Система/ })).toBeInTheDocument();
   });
 
-  it("restores from legacy v1 single-cluster key when v2 absent", async () => {
-    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "library");
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+  // Sheet (mobile) tests
+
+  it("sheet: renders top-level including Каталог ЛФК group trigger", async () => {
+    render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
+    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toBeInTheDocument();
+  });
+
+  it("sheet: tapping Каталог ЛФК shows sub-items and back button", async () => {
+    const user = userEvent.setup();
+    render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => screen.getByRole("button", { name: /Каталог ЛФК/ }));
+    await user.click(screen.getByRole("button", { name: /Каталог ЛФК/ }));
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Комплексы ЛФК" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Клинические тесты" })).toBeInTheDocument();
     });
+    // Back button present
+    expect(screen.getByRole("button", { name: /Назад|Каталог ЛФК/ })).toBeInTheDocument();
   });
 
-  it("restores open clusters from localStorage (JSON array)", async () => {
-    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify(["library"]));
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
-    });
-  });
-
-  it("keeps only the last cluster when restoring multi-open storage", async () => {
-    // only last valid id retained; analytics is admin-only sub-items but still a valid cluster id
-    localStorage.setItem(
-      DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
-      JSON.stringify(["analytics", "library"]),
-    );
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
-    });
-    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("falls back to default cluster when localStorage invalid for both keys", async () => {
-    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, "not-json");
-    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "no-such-cluster");
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+  it("sheet: back button from second level returns to top level", async () => {
+    const user = userEvent.setup();
+    render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => screen.getByRole("button", { name: /Каталог ЛФК/ }));
+    await user.click(screen.getByRole("button", { name: /Каталог ЛФК/ }));
+    await waitFor(() => screen.getByRole("link", { name: "Упражнения" }));
+    // Click the first button in second level view (back button)
+    const backBtn = screen.getAllByRole("button")[0]!;
+    await user.click(backBtn);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
     });
-    // falls back to library open by default
-    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("falls back to default (library) when stored v2 IDs are all unrecognised after migration", async () => {
-    // Before migration users had e.g. "patients-work" or "lfk-catalog" in storage.
-    // After migration those IDs no longer exist → should use default "library", not collapse all.
-    localStorage.setItem(
-      DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
-      JSON.stringify(["patients-work"]),
-    );
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
-    });
-    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("respects explicitly empty clusters array (user intentionally closed all)", async () => {
-    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify([]));
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
-    // explicitly collapsed — do NOT fall back to default
     expect(screen.queryByRole("link", { name: "Упражнения" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("saves cluster id to localStorage on toggle", async () => {
-    const user = userEvent.setup();
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: "Упражнения" }));
-    // close library
-    await user.click(screen.getByRole("button", { name: "Библиотека" }));
-    const raw = localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY);
-    expect(raw).toBeTruthy();
-    expect(JSON.parse(raw!)).toEqual([]);
-    expect(localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY)).toBeNull();
   });
 
   it("calls onNavigate when link clicked", async () => {
