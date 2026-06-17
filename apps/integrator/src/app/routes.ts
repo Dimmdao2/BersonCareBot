@@ -73,7 +73,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   });
 
   await registerBersoncareSendSmsRoute(app, {
-    smsClient: deps.smsClient,
+    dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
   });
 
