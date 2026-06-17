@@ -68,6 +68,7 @@ import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReads
 import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscriptionMailingReadsPort.js';
 import { createWebPushAccessPort } from '../infra/adapters/webPushAccessPort.js';
 import type { WebPushAccessPort } from '../kernel/contracts/index.js';
+import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -146,8 +147,8 @@ export type AppDeps = {
   webappEventsPort: WebappEventsPort;
   /**
    * Read port for web-push subscriptions + VAPID (PLAN S13 Model β).
-   * Used by `WebPushDeliveryAdapter` (S14) to fetch subscriptions + VAPID at send time.
-   * NOT wired to an adapter yet — that is S14.
+   * Used by `WebPushDeliveryAdapter` (S14a) to fetch subscriptions + VAPID at send time
+   * and to clean up dead subscriptions after 410/404. Wired in S14a.
    */
   webPushAccessPort: WebPushAccessPort;
 };
@@ -233,6 +234,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createSmscDeliveryAdapter({ smsClient }),
     ...(maxConfig.enabled ? [createMaxDeliveryAdapter()] : []),
     createEmailDeliveryAdapter({ getDb: () => dbPort }),
+    createWebPushDeliveryAdapter({ webPushAccessPort }),
   ];
 
   const dispatchPort =

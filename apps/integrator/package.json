@@ -37,9 +37,9 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@bersoncare/booking-rubitime-sync": "workspace:*",
     "@bersoncare/operator-db-schema": "workspace:*",
     "@bersoncare/platform-merge": "workspace:*",
-    "@bersoncare/booking-rubitime-sync": "workspace:*",
     "@maxhub/max-bot-api": "^0.2.2",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
@@ -52,6 +52,7 @@
     "p-retry": "^7.1.1",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
+    "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -61,6 +62,7 @@
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.20.0",
+    "@types/web-push": "^3.6.4",
     "nock": "^14.0.15",
     "tsx": "^4.22.0",
     "typescript": "^5.9.3",
