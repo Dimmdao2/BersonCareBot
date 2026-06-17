@@ -50,20 +50,45 @@ export async function sendWebPushToSubscriptions(params: {
   // DEV SAFETY GUARD — web-push delivery happens HERE in the webapp, bypassing the integrator
   // dispatchPort dev-redirect, sending straight to real subscription endpoints. In non-production the
   // subscriptions come from the prod-refreshed dev DB (REAL patients/doctors) → sending would leak to
-  // real people. Suppress entirely unless explicitly opted in. NEVER reaches a real endpoint in dev.
-  // (Proper fix later: move web-push delivery into the integrator as a dispatchPort channel/adapter.)
+  // real people.
+  //
+  // Strategy: DELIVER only to the test user (same source-of-truth as the integrator redirect —
+  // env DEV_REDIRECT_WEB_PUSH_USER_ID, default «Дмитрий Берсон» 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0).
+  // All other subscriptions are SUPPRESSED. NEVER reaches a real endpoint in dev.
+  //
+  // ALLOW_DEV_WEB_PUSH=1 bypasses this guard entirely (e.g. for manual E2E runs with a real device).
   if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_WEB_PUSH !== "1") {
+    const testUserId =
+      process.env.DEV_REDIRECT_WEB_PUSH_USER_ID?.trim() || "1c312a64-fab8-4b75-b24e-88a1d6ebe4e0";
+    const callerUserId = logContext?.userId;
+
+    // If the caller userId does NOT match the test user, suppress entirely.
+    if (!callerUserId || callerUserId !== testUserId) {
+      logger.warn(
+        {
+          scope: "web_push",
+          event: "dev_web_push_suppressed",
+          count: subscriptions.length,
+          userId: callerUserId ?? null,
+          testUserId,
+          topicCode: logContext?.topicCode,
+        },
+        "[web-push] DEV suppress: caller is not the test user — not sending to real subscriptions in non-production",
+      );
+      return { delivered: 0, errors: 0, deactivated: 0 };
+    }
+
+    // Caller IS the test user — allow all their subscriptions through.
     logger.warn(
       {
         scope: "web_push",
-        event: "dev_web_push_suppressed",
+        event: "dev_web_push_test_user_allowed",
         count: subscriptions.length,
-        userId: logContext?.userId,
+        userId: callerUserId,
         topicCode: logContext?.topicCode,
       },
-      "[web-push] DEV suppress: not sending to real subscriptions in non-production (set ALLOW_DEV_WEB_PUSH=1 to override)",
+      "[web-push] DEV: delivering to test user's subscriptions (caller matches DEV_REDIRECT_WEB_PUSH_USER_ID)",
     );
-    return { delivered: 0, errors: 0, deactivated: 0 };
   }
 
   const body = JSON.stringify({
