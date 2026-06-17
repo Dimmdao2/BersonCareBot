@@ -7,9 +7,9 @@ import type {
 } from '../../kernel/contracts/index.js';
 import {
   isDevRedirectActive,
-  getDevRedirectChatId,
   buildDevPrefix,
   hasDevPrefix,
+  resolveDevRedirect,
 } from '../../shared/devDeliveryRedirect.js';
 import { logger } from '../observability/logger.js';
 import { readChannel } from './channelRouting.js';
@@ -74,28 +74,33 @@ async function logDeliveryAttempt(
   });
 }
 
+/** Sentinel returned by the pre-fork redirect when a send must be suppressed. */
+const SUPPRESS = Symbol('dev_redirect_suppress');
+type RedirectResult = OutgoingIntent | typeof SUPPRESS;
+
 /**
- * PRE-FORK DEV DELIVERY REDIRECT (primary override layer).
+ * PRE-FORK DEV DELIVERY REDIRECT (primary, authoritative override layer).
  *
  * When active (NODE_ENV !== 'production' OR DEV_DELIVERY_REDIRECT=1), every
- * outgoing intent is collapsed to the single test telegram chat BEFORE it
- * branches to any channel adapter. This is the primary, authoritative override:
- * one place guarantees no new channel can ever be missed.
+ * outgoing intent is redirected to the dev TEST USER's binding FOR ITS OWN CHANNEL
+ * BEFORE it branches to any channel adapter:
+ *   telegram → his telegram chat, max → his max id, sms/smsc → his phone,
+ *   email → his email, web_push → his subscription (via pushUserId).
+ * The channel is PRESERVED so the tester experiences the real client app per channel.
  *
- * Per-channel guards in telegram/max clients are kept as defense-in-depth.
+ * If the test user has NO binding for the intent's channel (or the channel is
+ * unknown), the send is SUPPRESSED — `applyPreForkDevRedirect` returns the SUPPRESS
+ * sentinel and `dispatchOutgoing` short-circuits without reaching any adapter. This
+ * guarantees a send NEVER reaches a real client and NEVER a different person (D7).
  *
- * Channel collapse: non-telegram intents become telegram intents addressed to the
- * test chat. This is intentional — there is one test recipient (telegram), and the
- * owner explicitly requested everything collapse there.
+ * This is the SINGLE chokepoint (owner's hard rule: no per-channel duplication).
+ * Per-channel guards in telegram/max clients remain as defense-in-depth.
  *
- * Intents that carry no user recipient (callback.answer, message.delete to the
- * same chat, etc.) are also redirected so the underlying API call cannot leak to
- * a real chat_id embedded in the payload.
+ * Pure function of env + intent — no DB, no IO (keeps the hot path cheap).
  */
-function applyPreForkDevRedirect(intent: OutgoingIntent): OutgoingIntent {
+function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
   if (!isDevRedirectActive()) return intent;
 
-  const testChatId = getDevRedirectChatId();
   const payload = (intent.payload ?? {}) as DeliveryPayload & Record<string, unknown>;
 
   // Read original recipient for logging/prefix.
@@ -106,21 +111,39 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): OutgoingIntent {
       ? origChatId
       : typeof origChatId === 'string'
         ? origChatId
-        : intent.meta.source ?? 'unknown';
+        : (origRecipient?.email as string | undefined) ??
+          (origRecipient?.phoneNormalized as string | undefined) ??
+          (origRecipient?.pushUserId as string | undefined) ??
+          (origRecipient?.userId as string | number | undefined) ??
+          intent.meta.source ??
+          'unknown';
+
+  const intendedChannel = readChannel(intent);
+  const outcome = resolveDevRedirect(intendedChannel);
+
+  if (outcome.kind === 'suppress') {
+    logger.warn(
+      {
+        intendedRecipient: originalId,
+        intendedChannel,
+        intentType: intent.type,
+        suppressReason: outcome.reason,
+      },
+      'PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS',
+    );
+    return SUPPRESS;
+  }
 
   logger.warn(
     {
-      intendedChatId: originalId,
-      intendedChannel: readChannel(intent),
-      sentTo: testChatId,
-      sentChannel: 'telegram',
+      intendedRecipient: originalId,
+      intendedChannel,
+      sentTo: outcome.label,
+      sentChannel: outcome.deliveryChannel,
       intentType: intent.type,
     },
     'PRE_FORK_DEV_DELIVERY_REDIRECT',
   );
-
-  // Redirect recipient to test chat id.
-  const redirectedRecipient = { chatId: testChatId };
 
   // Prefix text body (message.send carries message.text; others may not have text).
   const origMessage = payload.message as Record<string, unknown> | undefined;
@@ -135,22 +158,24 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): OutgoingIntent {
       ? { ...origMessage, ...(newText !== undefined ? { text: newText } : {}) }
       : undefined;
 
-  // Force channel to telegram (collapse everything to the single test recipient).
+  // Preserve the channel; only rewrite delivery.channels[0] to the canonical wire value.
   const origDelivery = payload.delivery as Record<string, unknown> | undefined;
   const newDelivery =
     origDelivery !== undefined
-      ? { ...origDelivery, channels: ['telegram'] }
-      : { channels: ['telegram'] };
+      ? { ...origDelivery, channels: [outcome.deliveryChannel] }
+      : { channels: [outcome.deliveryChannel] };
 
   return {
     ...intent,
     meta: {
       ...intent.meta,
-      source: 'telegram',
+      source: outcome.deliveryChannel,
     },
     payload: {
       ...payload,
-      recipient: redirectedRecipient,
+      // Fresh recipient object containing ONLY this channel's id field(s) — no real
+      // email/phone/pushUserId/userId from the original intent can survive.
+      recipient: outcome.recipient,
       ...(newMessage !== undefined ? { message: newMessage } : {}),
       delivery: newDelivery,
     },
@@ -171,6 +196,22 @@ export function createDefaultDispatchPort(deps: {
       // PRIMARY DEV REDIRECT: override before the channel fork so no adapter can
       // ever be reached with a real recipient in non-production environments.
       const safeIntent = applyPreForkDevRedirect(intent);
+
+      // SUPPRESS: the test user has no binding for this channel (or unknown channel).
+      // No-op success — never reach an adapter, never a real client (D7).
+      if (safeIntent === SUPPRESS) {
+        if (intent.type === 'message.send') {
+          await logDeliveryAttempt(
+            deps.writePort,
+            intent,
+            readChannel(intent) ?? 'unknown',
+            'success',
+            1,
+            'dev_redirect_suppressed',
+          );
+        }
+        return {};
+      }
 
       const channel = readChannel(safeIntent);
       if (!channel) throw new Error('CHANNEL_NOT_SPECIFIED');

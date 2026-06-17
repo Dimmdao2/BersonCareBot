@@ -1,23 +1,22 @@
 /**
- * S11 — Pre-fork redirect channel-coverage tests.
+ * PER-CHANNEL PRE-FORK REDIRECT — channel-coverage + D7 safety tests (Q-A rework).
  *
- * PLAN S11 DoD: Prove the pre-fork redirect (`applyPreForkDevRedirect`) neutralizes
- * EVERY channel — including `email` (recipient.email) and `web_push` (pushUserId) —
- * not just `chatId`. This test file is the audit evidence cited by S15 and S16.
+ * Supersedes the S11 "collapse-everything-to-telegram" proof. The dev redirect now
+ * redirects each intent to the TEST USER's binding FOR ITS OWN CHANNEL (channel
+ * PRESERVED), and SUPPRESSES channels with no binding. This file is the audit
+ * evidence that:
  *
- * For channel ∈ { telegram, max, smsc, email, web_push }, dispatch a message with a
- * REAL-looking recipient and DEV_DELIVERY_REDIRECT=1. Assert:
- *   (a) PRE_FORK_DEV_DELIVERY_REDIRECT is logged.
- *   (b) The selected adapter is the telegram adapter (not the channel-specific one).
- *   (c) The outbound recipient is the test chat id (chatId = TEST_CHAT_ID).
- *   (d) NO real email / phone / pushUserId / userId reaches any adapter send().
- *
- * Audited in S11: `applyPreForkDevRedirect` sets `recipient = { chatId: testChatId }`
- * (a new object containing ONLY chatId) and overrides `delivery.channels` to
- * `['telegram']` before the adapter fork. Since the redirect constructs a fresh
- * recipient object, no real `email`/`phoneNormalized`/`pushUserId`/`userId` field
- * from the original intent can survive. This test proves that invariant
- * programmatically for each channel.
+ *   (a) PER-CHANNEL: for channel ∈ { telegram, max, smsc, email, web_push } a
+ *       real-looking recipient is REWRITTEN to the test user's binding for THAT
+ *       channel, and the intent reaches THAT channel's own adapter (not collapsed).
+ *   (b) D7 (no real recipient leaks): the outbound recipient object that reaches
+ *       any adapter contains ONLY the test user's id field(s) for that channel —
+ *       no real chatId/userId/phoneNormalized/email/pushUserId from the original
+ *       intent can survive.
+ *   (c) SUPPRESS-D7: when the test user has NO binding for a channel, NO adapter is
+ *       ever reached (no-op success) — never a real client, never a different person.
+ *   (d) PRODUCTION: redirect inactive → real recipients pass through to their own
+ *       channel adapter unchanged.
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
@@ -25,48 +24,49 @@ import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/ind
 import { createDefaultDispatchPort } from './dispatchPort.js';
 import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Дмитрий per-channel targets (set via env, deterministic) ──────────────────
 
-const TEST_CHAT_ID = 364943522; // default from TELEGRAM_ADMIN_ID
+const TG_TARGET = 7924656602;
+const MAX_TARGET = 207278131;
+const PHONE_TARGET = '+79189000782';
+const EMAIL_TARGET = 'dimmdao@yandex.ru';
+const PUSH_TARGET = '1c312a64-fab8-4b75-b24e-88a1d6ebe4e0';
 const NOW = '2026-06-17T00:00:00.000Z';
 
 // ─── Adapter factories ─────────────────────────────────────────────────────────
 
-/**
- * Build a telegram adapter that uses meta.source === 'telegram' to handle.
- * After the redirect, meta.source is forced to 'telegram', so this will catch
- * the collapsed intent for ANY original channel.
- */
-function buildTelegramCaptureAdapter(): {
+/** Capture adapter for one channel (matches delivery.channels[0]). */
+function buildChannelCaptureAdapter(channel: string): {
   adapter: DeliveryAdapter;
   captured: OutgoingIntent[];
-  sendSpy: ReturnType<typeof vi.fn>;
 } {
   const captured: OutgoingIntent[] = [];
-  const sendSpy = vi.fn(async (intent: OutgoingIntent) => {
-    captured.push(intent);
-    return {};
-  });
   const adapter: DeliveryAdapter = {
-    canHandle: (intent) => intent.meta.source === 'telegram',
-    send: sendSpy,
+    canHandle: (intent) =>
+      intent.type === 'message.send' &&
+      Array.isArray((intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
+      ((intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []).includes(channel),
+    send: async (intent) => {
+      captured.push(intent);
+      return {};
+    },
   };
-  return { adapter, captured, sendSpy };
+  return { adapter, captured };
 }
 
-/**
- * Build a spy adapter for a non-telegram channel that MUST NOT be reached
- * when the redirect is active.
- */
-function buildBypassAdapter(
+/** Adapter that throws if reached — for "must not be called" assertions. */
+function buildForbiddenAdapter(
   name: string,
-  canHandleFn: (intent: OutgoingIntent) => boolean,
+  channel: string,
 ): { adapter: DeliveryAdapter; sendSpy: ReturnType<typeof vi.fn> } {
   const sendSpy = vi.fn(async () => {
-    throw new Error(`${name} adapter send() should NOT be called when redirect is active`);
+    throw new Error(`${name} adapter send() should NOT be called`);
   });
   const adapter: DeliveryAdapter = {
-    canHandle: canHandleFn,
+    canHandle: (intent) =>
+      intent.type === 'message.send' &&
+      Array.isArray((intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
+      ((intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []).includes(channel),
     send: sendSpy,
   };
   return { adapter, sendSpy };
@@ -74,37 +74,53 @@ function buildBypassAdapter(
 
 // ─── Env helpers ──────────────────────────────────────────────────────────────
 
-function activateRedirect() {
-  // Use explicit flag so NODE_ENV doesn't matter for the test.
+function activateRedirectWithTargets() {
   process.env.NODE_ENV = 'production'; // avoid implicit test-env activation
   process.env.DEV_DELIVERY_REDIRECT = '1';
-  process.env.TELEGRAM_ADMIN_ID = String(TEST_CHAT_ID);
-  delete process.env.DEV_DELIVERY_REDIRECT_CHAT_ID;
+  process.env.DEV_REDIRECT_TELEGRAM_CHAT_ID = String(TG_TARGET);
+  process.env.DEV_REDIRECT_MAX_USER_ID = String(MAX_TARGET);
+  process.env.DEV_REDIRECT_PHONE = PHONE_TARGET;
+  process.env.DEV_REDIRECT_EMAIL = EMAIL_TARGET;
+  process.env.DEV_REDIRECT_WEB_PUSH_USER_ID = PUSH_TARGET;
+  delete process.env.DEV_REDIRECT_DISABLE_DEFAULTS;
   _resetDevRedirectActiveCache();
 }
 
 function restoreEnv() {
   process.env.NODE_ENV = 'test';
   delete process.env.DEV_DELIVERY_REDIRECT;
-  delete process.env.TELEGRAM_ADMIN_ID;
+  delete process.env.DEV_REDIRECT_TELEGRAM_CHAT_ID;
+  delete process.env.DEV_REDIRECT_MAX_USER_ID;
+  delete process.env.DEV_REDIRECT_PHONE;
+  delete process.env.DEV_REDIRECT_EMAIL;
+  delete process.env.DEV_REDIRECT_WEB_PUSH_USER_ID;
+  delete process.env.DEV_REDIRECT_DISABLE_DEFAULTS;
   delete process.env.DEV_DELIVERY_REDIRECT_CHAT_ID;
+  delete process.env.TELEGRAM_ADMIN_ID;
   _resetDevRedirectActiveCache();
 }
 
 // ─── Per-channel test cases ────────────────────────────────────────────────────
 
-/**
- * Each entry describes one channel's real-looking intent and an optional
- * bypass adapter that should NOT be called.
- *
- * "real-looking" means the recipient carries the fields that the actual
- * channel adapter would read to send to a real user.
- */
-const CHANNEL_CASES = [
+type ChannelCase = {
+  channel: string;
+  wireChannel: string; // delivery.channels[0] after redirect
+  source: string;
+  description: string;
+  intent: (eventId: string) => OutgoingIntent;
+  /** The recipient field(s) that the test user's binding produces. */
+  expectedRecipient: Record<string, unknown>;
+  /** Real recipient fields from the original intent that must NOT survive. */
+  realFieldsThatMustNotLeak: string[];
+};
+
+const CHANNEL_CASES: ChannelCase[] = [
   {
-    channel: 'telegram' as const,
-    description: 'telegram — real chatId',
-    intent: (eventId: string): OutgoingIntent => ({
+    channel: 'telegram',
+    wireChannel: 'telegram',
+    source: 'telegram',
+    description: 'telegram — real chatId → his telegram chat',
+    intent: (eventId) => ({
       type: 'message.send',
       meta: { eventId, occurredAt: NOW, source: 'telegram' },
       payload: {
@@ -113,14 +129,15 @@ const CHANNEL_CASES = [
         delivery: { channels: ['telegram'], maxAttempts: 1 },
       },
     }),
-    // Telegram itself also serves as the bypass — the chatId must be rewritten to TEST_CHAT_ID.
-    bypassChannel: null, // telegram IS the collapse target; no separate bypass adapter needed
-    realFieldsThatMustNotLeak: [] as string[], // chatId is expected — just must be TEST_CHAT_ID
+    expectedRecipient: { chatId: TG_TARGET },
+    realFieldsThatMustNotLeak: [],
   },
   {
-    channel: 'max' as const,
-    description: 'max — real userId',
-    intent: (eventId: string): OutgoingIntent => ({
+    channel: 'max',
+    wireChannel: 'max',
+    source: 'max',
+    description: 'max — real userId → his MAX id',
+    intent: (eventId) => ({
       type: 'message.send',
       meta: { eventId, occurredAt: NOW, source: 'max' },
       payload: {
@@ -129,14 +146,15 @@ const CHANNEL_CASES = [
         delivery: { channels: ['max'], maxAttempts: 1 },
       },
     }),
-    bypassChannel: 'max',
-    // After redirect the recipient is { chatId: TEST_CHAT_ID } only — no userId.
-    realFieldsThatMustNotLeak: ['userId'],
+    expectedRecipient: { userId: MAX_TARGET, chatId: MAX_TARGET },
+    realFieldsThatMustNotLeak: [],
   },
   {
-    channel: 'smsc' as const,
-    description: 'smsc — real phoneNormalized',
-    intent: (eventId: string): OutgoingIntent => ({
+    channel: 'smsc',
+    wireChannel: 'smsc',
+    source: 'smsc',
+    description: 'smsc — real phoneNormalized → his phone',
+    intent: (eventId) => ({
       type: 'message.send',
       meta: { eventId, occurredAt: NOW, source: 'smsc' },
       payload: {
@@ -145,13 +163,15 @@ const CHANNEL_CASES = [
         delivery: { channels: ['smsc'], maxAttempts: 1 },
       },
     }),
-    bypassChannel: 'smsc',
-    realFieldsThatMustNotLeak: ['phoneNormalized'],
+    expectedRecipient: { phoneNormalized: PHONE_TARGET },
+    realFieldsThatMustNotLeak: [],
   },
   {
-    channel: 'email' as const,
-    description: 'email — real recipient.email',
-    intent: (eventId: string): OutgoingIntent => ({
+    channel: 'email',
+    wireChannel: 'email',
+    source: 'email',
+    description: 'email — real recipient.email → his email',
+    intent: (eventId) => ({
       type: 'message.send',
       meta: { eventId, occurredAt: NOW, source: 'email' },
       payload: {
@@ -161,13 +181,15 @@ const CHANNEL_CASES = [
         delivery: { channels: ['email'], maxAttempts: 1 },
       },
     }),
-    bypassChannel: 'email',
-    realFieldsThatMustNotLeak: ['email'],
+    expectedRecipient: { email: EMAIL_TARGET },
+    realFieldsThatMustNotLeak: ['chatId', 'pushUserId', 'phoneNormalized'],
   },
   {
-    channel: 'web_push' as const,
-    description: 'web_push — real pushUserId',
-    intent: (eventId: string): OutgoingIntent => ({
+    channel: 'web_push',
+    wireChannel: 'web_push',
+    source: 'web_push',
+    description: 'web_push — real pushUserId → his pushUserId',
+    intent: (eventId) => ({
       type: 'message.send',
       meta: { eventId, occurredAt: NOW, source: 'web_push' },
       payload: {
@@ -176,16 +198,16 @@ const CHANNEL_CASES = [
         delivery: { channels: ['web_push'], maxAttempts: 1 },
       },
     }),
-    bypassChannel: 'web_push',
-    realFieldsThatMustNotLeak: ['pushUserId'],
+    expectedRecipient: { pushUserId: PUSH_TARGET },
+    realFieldsThatMustNotLeak: ['chatId', 'email', 'phoneNormalized'],
   },
-] as const;
+];
 
 // ─── Main test suite ──────────────────────────────────────────────────────────
 
-describe('S11 — PRE-FORK DEV REDIRECT: all channels collapse to telegram test chat', () => {
+describe('PER-CHANNEL PRE-FORK REDIRECT: each channel → Дмитрий, channel preserved', () => {
   beforeEach(() => {
-    activateRedirect();
+    activateRedirectWithTargets();
   });
 
   afterEach(() => {
@@ -193,287 +215,199 @@ describe('S11 — PRE-FORK DEV REDIRECT: all channels collapse to telegram test 
     vi.restoreAllMocks();
   });
 
-  // ─── (a) + (b): PRE_FORK_DEV_DELIVERY_REDIRECT is logged; telegram adapter is selected ──
+  // (a) PRE_FORK_DEV_DELIVERY_REDIRECT is logged; the channel's OWN adapter is reached.
 
   it.each(CHANNEL_CASES)(
-    '(a)(b) channel=$channel: logs PRE_FORK_DEV_DELIVERY_REDIRECT and routes to telegram adapter',
-    async ({ channel, description: _desc, intent, bypassChannel }) => {
-      const { adapter: tgAdapter, captured } = buildTelegramCaptureAdapter();
+    '(a) channel=$channel: logs redirect and routes to its own ($wireChannel) adapter',
+    async ({ channel, wireChannel, intent }) => {
+      const target = buildChannelCaptureAdapter(wireChannel);
 
-      // Build bypass adapter for this channel so we can assert it is not called.
-      const bypassAdapters: DeliveryAdapter[] = [];
-      const bypassSendSpies: ReturnType<typeof vi.fn>[] = [];
-      if (bypassChannel) {
-        const { adapter: bypass, sendSpy } = buildBypassAdapter(
-          bypassChannel,
-          (i) =>
-            i.type === 'message.send' &&
-            Array.isArray((i.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-            (
-              (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
-            ).includes(bypassChannel),
-        );
-        bypassAdapters.push(bypass);
-        bypassSendSpies.push(sendSpy);
-      }
+      const port = createDefaultDispatchPort({ adapters: [target.adapter] });
 
-      const port = createDefaultDispatchPort({
-        adapters: [tgAdapter, ...bypassAdapters],
-      });
-
-      // Spy on logger to capture the redirect log.
       const { logger } = await import('../observability/logger.js');
       const warnSpy = vi.spyOn(logger, 'warn');
 
-      await port.dispatchOutgoing(intent(`s11-ab-${channel}`));
+      await port.dispatchOutgoing(intent(`pc-a-${channel}`));
 
-      // (a) PRE_FORK_DEV_DELIVERY_REDIRECT must be logged.
       const redirectLogs = warnSpy.mock.calls.filter(
         (args) => typeof args[1] === 'string' && args[1] === 'PRE_FORK_DEV_DELIVERY_REDIRECT',
       );
-      expect(
-        redirectLogs.length,
-        `Expected PRE_FORK_DEV_DELIVERY_REDIRECT log for channel=${channel}`,
-      ).toBeGreaterThan(0);
+      expect(redirectLogs.length, `redirect log for ${channel}`).toBeGreaterThan(0);
 
-      // (b) Telegram adapter must have been called (not the bypass).
-      expect(
-        captured,
-        `Telegram adapter should have received the intent for channel=${channel}`,
-      ).toHaveLength(1);
-
-      // Bypass adapters must NOT have been called.
-      for (const spy of bypassSendSpies) {
-        expect(spy, `Bypass adapter for ${bypassChannel ?? ''} must not be called`).not.toHaveBeenCalled();
-      }
+      expect(target.captured, `own adapter reached for ${channel}`).toHaveLength(1);
     },
   );
 
-  // ─── (c): Outbound recipient is the test chat id ───────────────────────────
+  // (b) Outbound recipient equals the test user's binding for that channel; channel preserved.
 
   it.each(CHANNEL_CASES)(
-    '(c) channel=$channel: outbound recipient.chatId === TEST_CHAT_ID',
-    async ({ channel, intent }) => {
-      const { adapter, captured } = buildTelegramCaptureAdapter();
-      const port = createDefaultDispatchPort({ adapters: [adapter] });
+    '(b) channel=$channel: recipient rewritten to Дмитрий binding; channel preserved',
+    async ({ channel, wireChannel, expectedRecipient, intent }) => {
+      const target = buildChannelCaptureAdapter(wireChannel);
+      const port = createDefaultDispatchPort({ adapters: [target.adapter] });
 
-      await port.dispatchOutgoing(intent(`s11-c-${channel}`));
+      await port.dispatchOutgoing(intent(`pc-b-${channel}`));
 
-      expect(captured).toHaveLength(1);
-      const receivedPayload = captured[0]!.payload as {
+      expect(target.captured).toHaveLength(1);
+      const payload = target.captured[0]!.payload as {
         recipient: Record<string, unknown>;
         delivery: { channels: string[] };
       };
-
-      // (c) chatId must be the test chat id.
-      expect(
-        receivedPayload.recipient.chatId,
-        `recipient.chatId must be TEST_CHAT_ID for channel=${channel}`,
-      ).toBe(TEST_CHAT_ID);
-
-      // Delivery channel must be telegram.
-      expect(
-        receivedPayload.delivery.channels,
-        `delivery.channels must be ['telegram'] for channel=${channel}`,
-      ).toEqual(['telegram']);
+      expect(payload.recipient).toEqual(expectedRecipient);
+      expect(payload.delivery.channels).toEqual([wireChannel]);
     },
   );
 
-  // ─── (d): No real email/phone/push value reaches any adapter ─────────────
+  // (c) D7: no real recipient field reaches the adapter.
 
   it.each(CHANNEL_CASES)(
-    '(d) channel=$channel: no real recipient field ($realFieldsThatMustNotLeak) reaches adapter.send()',
-    async ({ channel, intent, realFieldsThatMustNotLeak }) => {
-      if (realFieldsThatMustNotLeak.length === 0) return; // telegram only checks chatId override (covered above)
+    '(c) D7 channel=$channel: no real recipient field reaches adapter.send()',
+    async ({ channel, wireChannel, realFieldsThatMustNotLeak, intent }) => {
+      const target = buildChannelCaptureAdapter(wireChannel);
+      const port = createDefaultDispatchPort({ adapters: [target.adapter] });
 
-      const { adapter, captured } = buildTelegramCaptureAdapter();
-      const port = createDefaultDispatchPort({ adapters: [adapter] });
+      await port.dispatchOutgoing(intent(`pc-c-${channel}`));
 
-      await port.dispatchOutgoing(intent(`s11-d-${channel}`));
-
-      expect(captured).toHaveLength(1);
-      const receivedRecipient = (captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
+      expect(target.captured).toHaveLength(1);
+      const recipient = (target.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
 
       for (const field of realFieldsThatMustNotLeak) {
-        expect(
-          receivedRecipient,
-          `recipient.${field} must NOT be present in adapter.send() for channel=${channel} (redirect must drop it)`,
-        ).not.toHaveProperty(field);
+        expect(recipient, `recipient.${field} must be absent for ${channel}`).not.toHaveProperty(field);
       }
     },
   );
 
-  // ─── Email-specific: no email address reaches any adapter ─────────────────
+  // (d) D7 cross-adapter: even if ALL channel adapters are registered, only the right one runs.
 
-  it('email channel: real recipient.email is dropped — sendMail-like adapter would have no target', async () => {
-    // This is the critical safety proof for retiring email interim guards (S15).
-    // Even if an email-capable adapter were registered alongside telegram, the redirect
-    // collapses the intent to channel='telegram' BEFORE adapter selection, so the
-    // email adapter's canHandle() returns false and send() is never called.
+  it('D7: with all 5 adapters registered, an email intent reaches ONLY the email adapter', async () => {
+    const tg = buildForbiddenAdapter('telegram', 'telegram');
+    const max = buildForbiddenAdapter('max', 'max');
+    const sms = buildForbiddenAdapter('smsc', 'smsc');
+    const push = buildForbiddenAdapter('web_push', 'web_push');
+    const email = buildChannelCaptureAdapter('email');
 
-    const { adapter: tgAdapter, captured } = buildTelegramCaptureAdapter();
-
-    // Simulate an email adapter being registered (as will exist after S8).
-    const emailSendSpy = vi.fn(async () => ({}));
-    const emailAdapter: DeliveryAdapter = {
-      canHandle: (i) =>
-        i.type === 'message.send' &&
-        Array.isArray((i.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-        (
-          (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
-        ).includes('email'),
-      send: emailSendSpy,
-    };
-
-    const port = createDefaultDispatchPort({ adapters: [tgAdapter, emailAdapter] });
+    const port = createDefaultDispatchPort({
+      adapters: [tg.adapter, max.adapter, sms.adapter, push.adapter, email.adapter],
+    });
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 's11-email-adapter', occurredAt: NOW, source: 'email' },
+      meta: { eventId: 'pc-d-email', occurredAt: NOW, source: 'email' },
       payload: {
         recipient: { email: 'real.patient@clinic.example.com' },
-        subject: 'Test Subject',
-        message: { text: 'Test email body' },
+        subject: 'S',
+        message: { text: 'B' },
         delivery: { channels: ['email'], maxAttempts: 1 },
       },
     });
 
-    // Telegram adapter got it, not email.
-    expect(captured).toHaveLength(1);
-    expect(emailSendSpy).not.toHaveBeenCalled();
+    expect(email.captured).toHaveLength(1);
+    expect(tg.sendSpy).not.toHaveBeenCalled();
+    expect(max.sendSpy).not.toHaveBeenCalled();
+    expect(sms.sendSpy).not.toHaveBeenCalled();
+    expect(push.sendSpy).not.toHaveBeenCalled();
+    expect((email.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.email).toBe(
+      EMAIL_TARGET,
+    );
+  });
+});
 
-    // recipient.email is absent from what telegram adapter received.
-    const recipient = (captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
-    expect(recipient).not.toHaveProperty('email');
-    expect(recipient.chatId).toBe(TEST_CHAT_ID);
+// ─── SUPPRESS-D7: missing binding → no adapter reached ─────────────────────────
+
+describe('SUPPRESS-D7: a channel with no binding never reaches an adapter', () => {
+  beforeEach(() => {
+    // Disable defaults; configure ONLY telegram. All other channels have no binding.
+    process.env.NODE_ENV = 'production';
+    process.env.DEV_DELIVERY_REDIRECT = '1';
+    process.env.DEV_REDIRECT_DISABLE_DEFAULTS = '1';
+    process.env.DEV_REDIRECT_TELEGRAM_CHAT_ID = String(TG_TARGET);
+    delete process.env.DEV_REDIRECT_EMAIL;
+    delete process.env.DEV_REDIRECT_PHONE;
+    delete process.env.DEV_REDIRECT_WEB_PUSH_USER_ID;
+    delete process.env.DEV_REDIRECT_MAX_USER_ID;
+    _resetDevRedirectActiveCache();
   });
 
-  // ─── Web_push-specific: no push subscription ref reaches any adapter ───────
+  afterEach(() => {
+    restoreEnv();
+  });
 
-  it('web_push channel: pushUserId dropped — adapter cannot perform a real push', async () => {
-    // Critical safety proof for G2 retirement (S16).
-    // With redirect active, a web_push intent collapses to telegram before any
-    // WebPushDeliveryAdapter (S14) could read pushUserId and look up subscriptions.
+  it.each([
+    { channel: 'email', source: 'email', recipient: { email: 'real@example.com' } },
+    { channel: 'smsc', source: 'smsc', recipient: { phoneNormalized: '+79991234567' } },
+    { channel: 'web_push', source: 'web_push', recipient: { pushUserId: 'real-user-1' } },
+    { channel: 'max', source: 'max', recipient: { userId: 42, chatId: 42 } },
+  ])('channel=$channel with no binding → no-op success, adapter never called', async ({ channel, source, recipient }) => {
+    const forbidden = buildForbiddenAdapter(channel, channel);
+    const port = createDefaultDispatchPort({ adapters: [forbidden.adapter] });
 
-    const { adapter: tgAdapter, captured } = buildTelegramCaptureAdapter();
+    await expect(
+      port.dispatchOutgoing({
+        type: 'message.send',
+        meta: { eventId: `sup-${channel}`, occurredAt: NOW, source },
+        payload: {
+          recipient,
+          message: { text: 'must be suppressed' },
+          delivery: { channels: [channel], maxAttempts: 1 },
+        },
+      }),
+    ).resolves.toEqual({});
 
-    // Simulate a web_push adapter being registered (as will exist after S14).
-    const webPushSendSpy = vi.fn(async () => ({}));
-    const webPushAdapter: DeliveryAdapter = {
-      canHandle: (i) =>
-        i.type === 'message.send' &&
-        Array.isArray((i.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-        (
-          (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
-        ).includes('web_push'),
-      send: webPushSendSpy,
-    };
+    expect(forbidden.sendSpy).not.toHaveBeenCalled();
+  });
+});
 
-    const port = createDefaultDispatchPort({ adapters: [tgAdapter, webPushAdapter] });
+// ─── Production: redirect inactive, real recipients pass through ───────────────
+
+describe('PRODUCTION: redirect inactive — real recipients pass through to own channel', () => {
+  beforeEach(() => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.DEV_DELIVERY_REDIRECT;
+    _resetDevRedirectActiveCache();
+  });
+
+  afterEach(() => {
+    restoreEnv();
+  });
+
+  it('production: email intent reaches email adapter with the REAL recipient.email', async () => {
+    const email = buildChannelCaptureAdapter('email');
+    const port = createDefaultDispatchPort({ adapters: [email.adapter] });
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 's11-webpush-adapter', occurredAt: NOW, source: 'web_push' },
+      meta: { eventId: 'prod-email', occurredAt: NOW, source: 'email' },
       payload: {
-        recipient: { pushUserId: 'real-patient-user-id-99' },
-        message: { text: 'You have a new message.' },
-        delivery: { channels: ['web_push'], maxAttempts: 1 },
-        pushExtras: { tag: 'chat-msg', topicCode: 'patient_chat' },
+        recipient: { email: 'prod.patient@example.com' },
+        subject: 'Your appointment',
+        message: { text: 'Appointment confirmed.' },
+        delivery: { channels: ['email'], maxAttempts: 1 },
       },
     });
 
-    // Telegram adapter got it, not web_push.
-    expect(captured).toHaveLength(1);
-    expect(webPushSendSpy).not.toHaveBeenCalled();
-
-    // pushUserId is absent from what telegram adapter received.
-    const recipient = (captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
-    expect(recipient).not.toHaveProperty('pushUserId');
-    expect(recipient.chatId).toBe(TEST_CHAT_ID);
+    expect(email.captured).toHaveLength(1);
+    expect((email.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.email).toBe(
+      'prod.patient@example.com',
+    );
   });
 
-  // ─── Production mode: redirect inactive, real recipients pass through ──────
+  it('production: web_push intent reaches web_push adapter with the REAL pushUserId', async () => {
+    const push = buildChannelCaptureAdapter('web_push');
+    const port = createDefaultDispatchPort({ adapters: [push.adapter] });
 
-  describe('PRE-FORK DEV REDIRECT inactive (production, no force flag)', () => {
-    beforeEach(() => {
-      process.env.NODE_ENV = 'production';
-      delete process.env.DEV_DELIVERY_REDIRECT;
-      _resetDevRedirectActiveCache();
+    await port.dispatchOutgoing({
+      type: 'message.send',
+      meta: { eventId: 'prod-push', occurredAt: NOW, source: 'web_push' },
+      payload: {
+        recipient: { pushUserId: 'prod-user-id-999' },
+        message: { text: 'New message from doctor.' },
+        delivery: { channels: ['web_push'], maxAttempts: 1 },
+      },
     });
 
-    it('production: email intent is NOT collapsed — email adapter receives real recipient.email', async () => {
-      const { adapter: tgAdapter, captured: tgCaptured } = buildTelegramCaptureAdapter();
-
-      const emailCaptured: OutgoingIntent[] = [];
-      const emailAdapter: DeliveryAdapter = {
-        canHandle: (i) =>
-          i.type === 'message.send' &&
-          Array.isArray((i.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-          (
-            (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
-          ).includes('email'),
-        send: async (intent) => {
-          emailCaptured.push(intent);
-          return {};
-        },
-      };
-
-      const port = createDefaultDispatchPort({ adapters: [tgAdapter, emailAdapter] });
-
-      await port.dispatchOutgoing({
-        type: 'message.send',
-        meta: { eventId: 's11-prod-email', occurredAt: NOW, source: 'email' },
-        payload: {
-          recipient: { email: 'prod.patient@example.com' },
-          subject: 'Your appointment',
-          message: { text: 'Appointment confirmed.' },
-          delivery: { channels: ['email'], maxAttempts: 1 },
-        },
-      });
-
-      // In prod: email adapter handles it, NOT telegram.
-      expect(tgCaptured).toHaveLength(0);
-      expect(emailCaptured).toHaveLength(1);
-      const recipient = (emailCaptured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
-      // Real email reaches adapter in prod.
-      expect(recipient.email).toBe('prod.patient@example.com');
-    });
-
-    it('production: web_push intent is NOT collapsed — web_push adapter receives real pushUserId', async () => {
-      const { adapter: tgAdapter, captured: tgCaptured } = buildTelegramCaptureAdapter();
-
-      const pushCaptured: OutgoingIntent[] = [];
-      const webPushAdapter: DeliveryAdapter = {
-        canHandle: (i) =>
-          i.type === 'message.send' &&
-          Array.isArray((i.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-          (
-            (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
-          ).includes('web_push'),
-        send: async (intent) => {
-          pushCaptured.push(intent);
-          return {};
-        },
-      };
-
-      const port = createDefaultDispatchPort({ adapters: [tgAdapter, webPushAdapter] });
-
-      await port.dispatchOutgoing({
-        type: 'message.send',
-        meta: { eventId: 's11-prod-push', occurredAt: NOW, source: 'web_push' },
-        payload: {
-          recipient: { pushUserId: 'prod-user-id-999' },
-          message: { text: 'New message from doctor.' },
-          delivery: { channels: ['web_push'], maxAttempts: 1 },
-        },
-      });
-
-      // In prod: web_push adapter handles it, NOT telegram.
-      expect(tgCaptured).toHaveLength(0);
-      expect(pushCaptured).toHaveLength(1);
-      const recipient = (pushCaptured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
-      // Real pushUserId reaches adapter in prod.
-      expect(recipient.pushUserId).toBe('prod-user-id-999');
-    });
+    expect(push.captured).toHaveLength(1);
+    expect((push.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.pushUserId).toBe(
+      'prod-user-id-999',
+    );
   });
 });
