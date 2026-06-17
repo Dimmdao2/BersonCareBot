@@ -30,11 +30,8 @@ INFRA|integrator.integration_data_quality_incidents
 INFRA|integrator.mailing_topics
 INFRA|integrator.projection_outbox
 INFRA|integrator.schema_migrations
-INFRA|public.admin_audit_log
 INFRA|public.auth_rate_limit_events
-INFRA|public.broadcast_audit
 INFRA|public.clinical_test_measure_kinds
-INFRA|public.content_section_slug_history
 INFRA|public.idempotency_keys
 INFRA|public.integration_webhook_error_events
 INFRA|public.integration_webhook_last_status
@@ -76,6 +73,7 @@ SCOPED|integrator.user_reminder_delivery_logs
 SCOPED|integrator.user_reminder_occurrences
 SCOPED|integrator.user_reminder_rules
 SCOPED|integrator.user_subscriptions
+SCOPED|public.admin_audit_log
 SCOPED|public.be_appointment_cancellations
 SCOPED|public.be_appointment_events
 SCOPED|public.be_appointment_history_events
@@ -120,6 +118,7 @@ SCOPED|public.be_specialists
 SCOPED|public.be_subscription_packages
 SCOPED|public.be_working_days
 SCOPED|public.be_working_hours
+SCOPED|public.broadcast_audit
 SCOPED|public.broadcast_audit_recipients
 SCOPED|public.clinical_anamnesis_illness
 SCOPED|public.clinical_anamnesis_lifestyle
@@ -135,6 +134,7 @@ SCOPED|public.clinical_visit
 SCOPED|public.comments
 SCOPED|public.content_access_grants_webapp
 SCOPED|public.content_pages
+SCOPED|public.content_section_slug_history
 SCOPED|public.content_sections
 SCOPED|public.courses
 SCOPED|public.doctor_notes
