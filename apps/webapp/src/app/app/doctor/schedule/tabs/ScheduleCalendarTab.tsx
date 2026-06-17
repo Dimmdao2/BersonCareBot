@@ -1529,9 +1529,9 @@ export function ScheduleCalendarTab({
                   line-height: 1.5 !important;
                 }
 
-                /* §3.12 — «сегодня» в Неделя/3 дня: зелёная заливка ячейки заголовка (emerald/oklab) */
+                /* §3.12 — «сегодня» в Неделя/3 дня: нейтральный фон заголовка (muted, без зелени) */
                 .fc-col-header-cell.fc-day-today {
-                  background-color: color-mix(in oklab, var(--color-emerald-500) 16%, transparent) !important;
+                  background-color: var(--muted) !important;
                 }
                 .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
                   display: inline;
@@ -1539,7 +1539,6 @@ export function ScheduleCalendarTab({
                   height: auto;
                   border-radius: 0;
                   background-color: transparent;
-                  color: var(--foreground);
                   font-weight: 600;
                 }
               `}</style>
