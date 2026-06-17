@@ -1,5 +1,6 @@
 "use client";
 
+import "react-day-picker/style.css";
 import { useState } from "react";
 import { DayPicker } from "react-day-picker";
 import { ru } from "react-day-picker/locale";
