@@ -152,7 +152,6 @@ describe('relayMessengerPhoneBindAdminIncident — MAX via dispatchPort', () => 
     await expect(
       relayMessengerPhoneBindAdminIncident({
         db,
-        getDispatchPort: undefined,
         topic: 'messenger_phone_bind_blocked',
         dedupKey: 'no-dispatch',
         lines: ['test'],
