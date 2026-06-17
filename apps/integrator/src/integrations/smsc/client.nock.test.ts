@@ -5,14 +5,13 @@ import { createSmscClient } from './client.js';
 describe('smsc client nock', () => {
   beforeEach(() => {
     nock.disableNetConnect();
-    // Run as production so the dev-suppress guard does not interfere with nock HTTP intercepts
-    vi.stubEnv('NODE_ENV', 'production');
+    // NOTE: ALLOW_DEV_SMS guard was retired in S15 — no NODE_ENV stub needed for that.
+    // nock intercepts work regardless of NODE_ENV.
   });
 
   afterEach(() => {
     nock.cleanAll();
     nock.enableNetConnect();
-    vi.unstubAllEnvs();
   });
 
   it('calls smsc provider endpoint and returns ok', async () => {
