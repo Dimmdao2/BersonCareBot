@@ -59,14 +59,31 @@ export type UnifiedContent = {
   /**
    * web_push specific extras that map 1:1 to WebPushClientPayload fields
    * (apps/webapp/src/modules/web-push/sendWebPushToSubscriptions.ts).
+   *
+   * Field mapping to WebPushClientPayload (superset — no data loss):
+   *   UnifiedContent.title          → WebPushClientPayload.title   (required in push)
+   *   UnifiedContent.text           → WebPushClientPayload.body    (required in push)
+   *   UnifiedContent.url            → WebPushClientPayload.url     (required in push)
+   *   pushExtras.tag                → WebPushClientPayload.tag?
+   *   pushExtras.trackingId         → WebPushClientPayload.trackingId?
+   *   pushExtras.topicCode          → WebPushClientPayload.topicCode?    (string | null)
+   *   pushExtras.intentType         → WebPushClientPayload.intentType?   (string | null)
+   *   pushExtras.pushKind           → WebPushClientPayload.pushKind?     (string | null)
+   *   pushExtras.warmupSloganKey    → WebPushClientPayload.warmupSloganKey? (string | null)
+   *
+   * Nullable fields preserved as `string | null` to match the source type exactly.
    */
   pushExtras?: {
     tag?: string;
     trackingId?: string;
-    pushKind?: string;
-    warmupSloganKey?: string;
-    topicCode?: string;
-    intentType?: string;
+    /** Matches WebPushClientPayload.topicCode?: string | null */
+    topicCode?: string | null;
+    /** Matches WebPushClientPayload.intentType?: string | null */
+    intentType?: string | null;
+    /** Matches WebPushClientPayload.pushKind?: string | null */
+    pushKind?: string | null;
+    /** Matches WebPushClientPayload.warmupSloganKey?: string | null */
+    warmupSloganKey?: string | null;
   };
 };
 
