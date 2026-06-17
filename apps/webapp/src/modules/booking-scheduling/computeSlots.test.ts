@@ -13,7 +13,12 @@ import {
 
 describe("booking-scheduling computeSlots", () => {
   it("uses default working hours when none configured", () => {
-    expect(pickWorkingHours([])).toHaveLength(5);
+    expect(pickWorkingHours([])).toHaveLength(0);
+  });
+
+  it("zero rows → workingIntervalsForDate returns 0 intervals", () => {
+    const intervals = workingIntervalsForDate("2026-06-01", "UTC", [], 0);
+    expect(intervals).toHaveLength(0);
   });
 
   it("subtracts busy intervals from working time", () => {

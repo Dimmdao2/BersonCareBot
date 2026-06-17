@@ -27,13 +27,31 @@ export async function GET(request: Request) {
   if ("error" in parsed) {
     return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
   }
+
+  // When the caller omits specialistId (e.g. ScheduleCalendarTab fetches without it),
+  // fall back to the single specialist for this org so that per-specialist working-hours
+  // rows (saved by the schedule editor) are included in the calendar feed.
+  // Multiple specialists → keep null (all specialists visible, global-only working rows).
+  let resolvedSpecialistId = parsed.specialistId;
+  if (resolvedSpecialistId === null && deps.bookingEngine) {
+    try {
+      const specialists = await deps.bookingEngine.catalog.listSpecialists(gate.ctx.organizationId);
+      const active = specialists.filter((s) => s.isActive);
+      if (active.length === 1) {
+        resolvedSpecialistId = active[0]!.id;
+      }
+    } catch {
+      // Non-critical: if lookup fails, keep null (global rows)
+    }
+  }
+
   try {
     const aggregate = await deps.bookingCalendar.getCalendar({
       organizationId: gate.ctx.organizationId,
       rangeStart: parsed.rangeStart,
       rangeEnd: parsed.rangeEnd,
       timeZone,
-      specialistId: parsed.specialistId,
+      specialistId: resolvedSpecialistId,
       branchId: parsed.branchId,
       roomId: parsed.roomId,
       serviceId: parsed.serviceId,
