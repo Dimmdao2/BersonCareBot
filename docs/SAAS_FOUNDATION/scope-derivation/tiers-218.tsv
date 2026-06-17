@@ -40,13 +40,11 @@ INFRA|public.integration_webhook_error_events
 INFRA|public.integration_webhook_last_status
 INFRA|public.integrator_push_outbox
 INFRA|public.mailing_topics_webapp
-INFRA|public.media_playback_stats_hourly
 INFRA|public.operator_health_alert_sent
 INFRA|public.operator_incidents
 INFRA|public.operator_job_status
 INFRA|public.outgoing_delivery_queue
 INFRA|public.phone_otp_locks
-INFRA|public.product_analytics_hourly
 INFRA|public.schema_migrations
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.rubitime_api_throttle
@@ -153,6 +151,7 @@ SCOPED|public.mailing_logs_webapp
 SCOPED|public.material_ratings
 SCOPED|public.media_files
 SCOPED|public.media_folders
+SCOPED|public.media_hls_proxy_error_events
 SCOPED|public.media_playback_client_events
 SCOPED|public.media_playback_resolution_events
 SCOPED|public.media_playback_user_video_first_resolve
@@ -165,6 +164,7 @@ SCOPED|public.online_intake_answers
 SCOPED|public.online_intake_attachments
 SCOPED|public.online_intake_requests
 SCOPED|public.online_intake_status_history
+SCOPED|public.operator_health_failure_archive
 SCOPED|public.patient_comorbidity
 SCOPED|public.patient_content_rating_feedback
 SCOPED|public.patient_daily_warmup_presentations
@@ -177,6 +177,8 @@ SCOPED|public.patient_lfk_assignments
 SCOPED|public.patient_merge_candidates
 SCOPED|public.patient_payment
 SCOPED|public.patient_practice_completions
+SCOPED|public.product_analytics_events_recent
+SCOPED|public.product_analytics_user_hourly
 SCOPED|public.product_push_notifications
 SCOPED|public.program_action_log
 SCOPED|public.program_item_discussion_messages
@@ -213,7 +215,5 @@ SCOPED|public.treatment_program_template_stages
 SCOPED|public.treatment_program_templates
 SCOPED|public.user_subscriptions_webapp
 SCOPED|public.webapp_reminder_occurrences
-TELEMETRY|public.media_hls_proxy_error_events
-TELEMETRY|public.operator_health_failure_archive
-TELEMETRY|public.product_analytics_events_recent
-TELEMETRY|public.product_analytics_user_hourly
+TELEMETRY|public.media_playback_stats_hourly
+TELEMETRY|public.product_analytics_hourly

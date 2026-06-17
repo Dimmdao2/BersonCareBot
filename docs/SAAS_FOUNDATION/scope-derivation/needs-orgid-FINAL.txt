@@ -42,6 +42,7 @@ public.mailing_logs_webapp
 public.material_ratings
 public.media_files
 public.media_folders
+public.media_hls_proxy_error_events
 public.media_playback_client_events
 public.media_playback_resolution_events
 public.media_playback_user_video_first_resolve
@@ -54,6 +55,7 @@ public.online_intake_answers
 public.online_intake_attachments
 public.online_intake_requests
 public.online_intake_status_history
+public.operator_health_failure_archive
 public.patient_comorbidity
 public.patient_content_rating_feedback
 public.patient_daily_warmup_presentations
@@ -66,6 +68,8 @@ public.patient_lfk_assignments
 public.patient_merge_candidates
 public.patient_payment
 public.patient_practice_completions
+public.product_analytics_events_recent
+public.product_analytics_user_hourly
 public.product_push_notifications
 public.program_action_log
 public.program_item_discussion_messages
