@@ -155,7 +155,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 max-w-6xl">
       <AnalyticsPeriodToolbar
         period={period}
         periodLabel={periodLabel}
