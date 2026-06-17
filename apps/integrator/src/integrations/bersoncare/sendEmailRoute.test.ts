@@ -245,10 +245,9 @@ describe('POST /api/bersoncare/send-email', () => {
       const realDispatchPort = createDefaultDispatchPort({ adapters: [emailAdapter] });
 
       // Force prod mode so the pre-fork dev redirect does NOT collapse to telegram.
+      // (No ALLOW_DEV_EMAIL needed — the interim guard was retired in S15.)
       const origNodeEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
-      // Allow dev email so mailer's own dev-suppress guard doesn't block the call.
-      process.env.ALLOW_DEV_EMAIL = '1';
       try {
         const { app } = await buildTestApp(TEST_SECRET, realDispatchPort);
 
@@ -276,7 +275,6 @@ describe('POST /api/bersoncare/send-email', () => {
         );
       } finally {
         process.env.NODE_ENV = origNodeEnv;
-        delete process.env.ALLOW_DEV_EMAIL;
       }
     });
   });

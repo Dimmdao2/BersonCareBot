@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { isResolvedMailerConfigured, sendMail } from './mailer.js';
 
@@ -36,43 +36,7 @@ describe('mailer when not configured', () => {
   });
 });
 
-describe('mailer dev-suppress guard', () => {
-  const configured: ResolvedSmtpOutboundConfig = {
-    configured: true,
-    smtpHost: 'smtp.example.com',
-    smtpPort: 587,
-    smtpSecure: false,
-    smtpUser: 'user',
-    smtpPass: 'pass',
-    fromAddress: 'noreply@example.com',
-  };
-
-  beforeEach(() => {
-    vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv('ALLOW_DEV_EMAIL', '');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('suppresses send in non-production (NODE_ENV=test) without override', async () => {
-    const result = await sendMail(configured, {
-      to: 'client@example.com',
-      subject: 'Test',
-      text: 'Body',
-    });
-    // guard fires before transport is created: returns empty result, no network call
-    expect(result).toEqual({ accepted: [], rejected: [] });
-    expect(result.messageId).toBeUndefined();
-  });
-
-  it('suppresses send when NODE_ENV is not set (undefined treated as non-production)', async () => {
-    vi.stubEnv('NODE_ENV', '');
-    const result = await sendMail(configured, {
-      to: 'client@example.com',
-      subject: 'Subj',
-    });
-    expect(result).toEqual({ accepted: [], rejected: [] });
-  });
-});
+// NOTE: The interim ALLOW_DEV_EMAIL per-sink guard was retired in S15.
+// Dev safety for email is now provided solely by the pre-fork redirect in dispatchPort
+// (S11 dispatchPort.redirect.test.ts proves all channels including email collapse to
+// the telegram test chat before any adapter can call sendMail).

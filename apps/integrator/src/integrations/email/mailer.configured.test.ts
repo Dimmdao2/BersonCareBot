@@ -41,7 +41,8 @@ const resolvedConfigured: ResolvedSmtpOutboundConfig = {
 describe('mailer when configured', () => {
   beforeEach(() => {
     mockSendMail.mockClear();
-    // Run as production so the dev-suppress guard does not interfere with transport tests
+    // Run as production so the pre-fork dev redirect does not collapse to telegram instead of
+    // reaching the email adapter (DEV_DELIVERY_REDIRECT is active in non-prod by default in vitest).
     vi.stubEnv('NODE_ENV', 'production');
   });
 
