@@ -380,6 +380,9 @@ describe("DoctorCommentsTab — навигация B→C (выбор упраж�
         if (url.includes("exercise-metrics")) {
           return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
         }
+        if (url.includes("program-day-activity")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
+        }
         // discussion + mark-read
         return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
       }),
@@ -442,6 +445,9 @@ describe("DoctorCommentsTab — ответ в треде (state C)", () => {
         }
         if (url.includes("exercise-metrics")) {
           return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
+        }
+        if (url.includes("program-day-activity")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
         }
         if (url.includes("program-note-reply")) {
           return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
@@ -534,6 +540,9 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
       if (url.includes("exercise-metrics")) {
         return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
       }
+      if (url.includes("program-day-activity")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
+      }
       return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -564,6 +573,9 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
         if (url.includes("exercise-metrics")) {
           return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
         }
+        if (url.includes("program-day-activity")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
+        }
         return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
       }),
     );
@@ -575,7 +587,7 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
     await waitFor(() => screen.getByText(/Болит колено/i));
 
     await waitFor(() => {
-      expect(screen.getByText(/нет данных за последние 7 дней/i)).toBeInTheDocument();
+      expect(screen.getByText(/нет данных за период/i)).toBeInTheDocument();
     });
   });
 
@@ -597,6 +609,9 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
             }),
           });
         }
+        if (url.includes("program-day-activity")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
+        }
         return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
       }),
     );
@@ -608,7 +623,7 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
     await waitFor(() => screen.getByText(/Болит колено/i));
 
     await waitFor(() => {
-      expect(screen.getByText("повт.")).toBeInTheDocument();
+      expect(screen.getByText("повт.×подх.")).toBeInTheDocument();
     });
   });
 });
@@ -664,6 +679,9 @@ describe("DoctorCommentsTab — read-state (D3)", () => {
       }
       if (url.includes("exercise-metrics")) {
         return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
+      }
+      if (url.includes("program-day-activity")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
       }
       // discussion + mark-read
       return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
