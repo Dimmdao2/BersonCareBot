@@ -12,7 +12,7 @@ import {
   type DeliveryTargets,
 } from "@/modules/channel-preferences/deliveryTargets";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { smtpInnerFromValueJson } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
 import type { ResolvedNotificationChannels } from "@/modules/patient-notifications/notificationChannelContract";
 import type { NotificationTopicGate } from "@/modules/patient-notifications/resolveNotificationChannels";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";

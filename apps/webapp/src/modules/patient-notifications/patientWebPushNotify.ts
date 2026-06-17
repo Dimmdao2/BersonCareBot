@@ -8,7 +8,7 @@ import {
   bookingLifecycleChatIntegratorMessageId,
 } from "@/modules/messaging/appendPatientInboundAdminMessage";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
-import { smtpInnerFromValueJson } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
 import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
 import {
   resolvePatientNotificationChannels,

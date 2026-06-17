@@ -1,5 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { smtpInnerFromValueJson } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
 import type { NotificationDeliveryHealthSnapshot } from "@/modules/notification-delivery/types";
 import {
   NOTIFICATION_DELIVERY_CHANNELS,

@@ -27,3 +27,17 @@ export function parseSmtpOutboundPatchValue(normalizedEnvelope: {
   if (!parsed.success) return { ok: false };
   return { ok: true, value: parsed.data };
 }
+
+/**
+ * Extract and parse the SMTP inner config from a raw `value_json` envelope (from system_settings).
+ * Handles both `{ value: {...} }` envelopes and bare inner objects.
+ * Used by web-push VAPID subject derivation and channel-availability resolution across the webapp.
+ * Relocated here from sendTransactionalSmtp.ts (S10 — that file deleted after SMTP send migrated to integrator).
+ */
+export function smtpInnerFromValueJson(valueJson: unknown): ReturnType<typeof smtpOutboundInnerSchema.safeParse> {
+  const inner =
+    typeof valueJson === "object" && valueJson !== null && "value" in valueJson ?
+      (valueJson as { value: unknown }).value
+    : valueJson;
+  return smtpOutboundInnerSchema.safeParse(inner);
+}
