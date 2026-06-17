@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
@@ -73,11 +73,11 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
   }
 
   return (
-    <Card className="border-border">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Часовой пояс</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <DoctorSection>
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Часовой пояс</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      <div className="flex flex-col gap-3">
         <Input
           type="search"
           placeholder="Поиск по названию зоны…"
@@ -120,7 +120,7 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </DoctorSection>
   );
 }
