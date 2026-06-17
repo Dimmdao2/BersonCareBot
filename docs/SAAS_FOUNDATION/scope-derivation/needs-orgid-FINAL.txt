@@ -11,6 +11,8 @@ integrator.user_reminder_delivery_logs
 integrator.user_reminder_occurrences
 integrator.user_reminder_rules
 integrator.user_subscriptions
+public.admin_audit_log
+public.broadcast_audit
 public.broadcast_audit_recipients
 public.clinical_anamnesis_illness
 public.clinical_anamnesis_lifestyle
@@ -26,6 +28,7 @@ public.clinical_visit
 public.comments
 public.content_access_grants_webapp
 public.content_pages
+public.content_section_slug_history
 public.content_sections
 public.courses
 public.doctor_notes
