@@ -16,3 +16,5 @@
 2026-06-17T19:20:48+02:00 | ANL-12 line toggle, ANL-14 max-width, PAT-05 prop cleanup — tsc clean, committing
 2026-06-17T19:25:03+02:00 | PASS: ANL-12 line toggle + ANL-14 max-width + PAT-05 prop cleanup — all MERGED to feat 40eaffed + RENDER-VERIFIED. Blocked: ANL-10/11/13/CAL-02/Q-F5 NEEDS-OWNER. Next: client-side booking reminder (D-SETTINGS-REMINDERS Phase 3)
 2026-06-17T20:11:23+02:00 | round3 pass complete — Q-C2/CAL-02/ANL-04/07/09 verified, idle
+2026-06-17T20:43:23+02:00 | QG-PASS: independent audit complete — Q-C2✅ Q-R✅ ANL✅ FIN-01✅ FIN-05✅ | RELAUNCH: Q-C7(1Issue) Q-C10(sparse-data) | BLOCKED-OWNER: ANL-10/11/13 Q-F5
+2026-06-17T20:51:24+02:00 | Q-C7 fix: moved history.replaceState out of setState updater in DoctorScheduleShell

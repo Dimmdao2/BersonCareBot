@@ -199,21 +199,20 @@ export function DoctorScheduleShell({
 
   const handleDeepLinkChange = useCallback(
     (tabId: ScheduleTabId, key: string, value: string | null) => {
-      setDeepLinks((prev) => {
-        const tabParams = { ...(prev[tabId] ?? {}) };
-        if (value === null) delete tabParams[key];
-        else tabParams[key] = value;
-        const next = { ...prev, [tabId]: tabParams };
-        deepLinksRef.current = next;
-        if (activeTabRef.current === tabId) {
-          window.history.replaceState(
-            null,
-            "",
-            buildTabUrl(tabId, tabParams),
-          );
-        }
-        return next;
-      });
+      // Compute next state from the always-current ref (not an updater fn) so
+      // we can do the URL side-effect OUTSIDE React's render phase. Calling
+      // history.replaceState inside a setState updater triggers the React
+      // "Cannot update a component while rendering" warning.
+      const prev = deepLinksRef.current;
+      const tabParams = { ...(prev[tabId] ?? {}) };
+      if (value === null) delete tabParams[key];
+      else tabParams[key] = value;
+      const next = { ...prev, [tabId]: tabParams };
+      deepLinksRef.current = next;
+      setDeepLinks(next);
+      if (activeTabRef.current === tabId) {
+        window.history.replaceState(null, "", buildTabUrl(tabId, tabParams));
+      }
     },
     [buildTabUrl],
   );
