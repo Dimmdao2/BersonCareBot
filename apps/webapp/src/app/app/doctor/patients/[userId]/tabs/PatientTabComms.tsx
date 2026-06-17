@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   userId: string;
+  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
 };
 
 /**
@@ -35,12 +36,18 @@ type Props = {
  */
 const CHAT_CARD_HEIGHT = "h-[min(65vh,580px)]";
 
-export function PatientTabComms({ userId }: Props) {
-  const [activeInstance, setActiveInstance] = useState<TreatmentProgramInstanceSummary | null>(null);
-  const [instanceLoading, setInstanceLoading] = useState(true);
+export function PatientTabComms({ userId, initialProgramInstances }: Props) {
+  const ssrActive = initialProgramInstances != null
+    ? (initialProgramInstances.find((i) => i.status !== "completed") ?? null)
+    : undefined;
+  const [activeInstance, setActiveInstance] = useState<TreatmentProgramInstanceSummary | null>(
+    ssrActive !== undefined ? ssrActive : null,
+  );
+  const [instanceLoading, setInstanceLoading] = useState(ssrActive === undefined);
   const [discussionOpen, setDiscussionOpen] = useState(false);
 
   useEffect(() => {
+    if (initialProgramInstances != null) return;
     let cancelled = false;
     setInstanceLoading(true);
     fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`, {
@@ -63,7 +70,7 @@ export function PatientTabComms({ userId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, initialProgramInstances]);
 
   return (
     <div className="flex flex-col gap-3">

@@ -13,6 +13,7 @@ import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
 import type { DoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
+import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -47,6 +48,7 @@ type Props = {
   initialSignals?: ProactiveInsightRow[] | null;
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
+  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms";
@@ -94,7 +96,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments }: Props) {
+export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances }: Props) {
   const header = use(cardHeaderPromise);
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -766,7 +768,7 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>
         {embeddedProgramContent ?? (
-          <PatientTabProgram userId={identity.userId} header={header} active={activeTab === "program"} />
+          <PatientTabProgram userId={identity.userId} header={header} active={activeTab === "program"} initialProgramInstances={initialProgramInstances} />
         )}
       </div>
       <div className={cn(activeTab !== "records" && "hidden")}>
@@ -787,7 +789,7 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
         <PatientTabAccount userId={identity.userId} header={header} active={activeTab === "account"} />
       </div>
       <div className={cn(activeTab !== "comms" && "hidden")}>
-        <PatientTabComms userId={identity.userId} />
+        <PatientTabComms userId={identity.userId} initialProgramInstances={initialProgramInstances} />
       </div>
     </div>
   );

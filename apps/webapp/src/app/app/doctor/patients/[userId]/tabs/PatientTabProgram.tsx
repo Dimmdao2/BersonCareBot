@@ -17,9 +17,10 @@ type Props = {
   userId: string;
   header?: PatientCardHeader;
   active?: boolean;
+  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
 };
 
-export function PatientTabProgram({ userId, header: _header, active }: Props) {
+export function PatientTabProgram({ userId, header: _header, active, initialProgramInstances }: Props) {
   const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [programCheckDone, setProgramCheckDone] = useState(false);
@@ -29,16 +30,27 @@ export function PatientTabProgram({ userId, header: _header, active }: Props) {
   // component mounts (even when CSS-hidden) and fires router.push unconditionally.
   useEffect(() => {
     if (!active) return;
+    if (initialProgramInstances != null) {
+      const activeInstance = initialProgramInstances.find((i) => i.status !== "completed");
+      if (activeInstance) {
+        router.push(
+          `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(activeInstance.id)}`,
+        );
+        return;
+      }
+      setProgramCheckDone(true);
+      return;
+    }
     let cancelled = false;
     fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`)
       .then((r) => r.json())
       .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.items)) {
-          const active = data.items.find((i) => i.status !== "completed");
-          if (active) {
+          const activeInst = data.items.find((i) => i.status !== "completed");
+          if (activeInst) {
             router.push(
-              `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(active.id)}`,
+              `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(activeInst.id)}`,
             );
             return;
           }
@@ -51,7 +63,7 @@ export function PatientTabProgram({ userId, header: _header, active }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [userId, router, active]);
+  }, [userId, router, active, initialProgramInstances]);
 
   if (!programCheckDone) {
     return (

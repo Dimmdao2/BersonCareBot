@@ -42,6 +42,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     signals,
     programActivity,
     appointments,
+    programInstances,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
     runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
@@ -58,6 +59,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       { patientUserId: userId, viewerUserId: session.user.userId },
     ),
     deps.doctorClientsPort.listPatientAppointments(userId),
+    deps.treatmentProgramInstance.listForPatientClinicalView(userId),
   ]);
 
   const physicalData = physicalRow.rows[0]
@@ -84,6 +86,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialSignals={signals}
           initialProgramActivity={programActivity}
           initialAppointments={appointments}
+          initialProgramInstances={programInstances}
         />
       </section>
     </DoctorAppShell>
