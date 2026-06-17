@@ -982,7 +982,7 @@ export function ScheduleCalendarTab({
             start: f.start,
             end: f.end,
             display: "background" as const,
-            classNames: ["!bg-slate-300"],
+            classNames: ["!bg-slate-200"],
             editable: false,
             extendedProps: { kind: "nonworking" as const },
           }))
@@ -1000,7 +1000,7 @@ export function ScheduleCalendarTab({
           end: toFcDate(event.endAt, currentTimeZone),
           title: "Перерыв",
           display: "background" as const,
-          classNames: ["!bg-slate-300/60 !border-l-2 !border-slate-400/60"],
+          classNames: ["!bg-slate-200/70 !border-l-2 !border-slate-400/60"],
           editable: false,
           extendedProps: { kind: "break" as const },
         };
@@ -1529,9 +1529,9 @@ export function ScheduleCalendarTab({
                   line-height: 1.5 !important;
                 }
 
-                /* §3.12 — «сегодня» в Неделя/3 дня: нейтральный фон заголовка (muted, без зелени) */
+                /* §3.12 / CR-3 — «сегодня» в Неделя/3 дня: синеватый фон заголовка (primary, 18%) */
                 .fc-col-header-cell.fc-day-today {
-                  background-color: var(--muted) !important;
+                  background-color: oklch(from var(--primary) l c h / 0.18) !important;
                 }
                 .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
                   display: inline;
@@ -1578,33 +1578,37 @@ export function ScheduleCalendarTab({
                     anchorDate;
                   drillDownDay(dateKey);
                 }}
-                // Клик по числу в month → drill-down
-                dayCellContent={(arg) => {
-                  if (view === "month") {
-                    const isToday =
-                      DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
-                      DateTime.now().setZone(currentTimeZone).toISODate();
-                    return (
-                      <button
-                        type="button"
-                        className={cn(
-                          "fc-daygrid-day-number hover:underline cursor-pointer",
-                          isToday && "fc-today-circle",
-                        )}
-                        onClick={() => {
-                          const dateKey =
-                            DateTime.fromJSDate(arg.date)
-                              .setZone(currentTimeZone)
-                              .toISODate() ?? anchorDate;
-                          drillDownDay(dateKey);
-                        }}
-                      >
-                        {arg.date.getDate()}
-                      </button>
-                    );
-                  }
-                  return null;
-                }}
+                // CR-1 / Клик по числу в month → drill-down.
+                // Pass dayCellContent only in month view to avoid FullCalendar calling it
+                // (and getting a React element) for timeGrid column headers, which logged a
+                // "1 Issue" console error in the Next.js dev overlay.
+                {...(view === "month"
+                  ? {
+                      dayCellContent: (arg: { date: Date }) => {
+                        const isToday =
+                          DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
+                          DateTime.now().setZone(currentTimeZone).toISODate();
+                        return (
+                          <button
+                            type="button"
+                            className={cn(
+                              "fc-daygrid-day-number hover:underline cursor-pointer",
+                              isToday && "fc-today-circle",
+                            )}
+                            onClick={() => {
+                              const dateKey =
+                                DateTime.fromJSDate(arg.date)
+                                  .setZone(currentTimeZone)
+                                  .toISODate() ?? anchorDate;
+                              drillDownDay(dateKey);
+                            }}
+                          >
+                            {arg.date.getDate()}
+                          </button>
+                        );
+                      },
+                    }
+                  : {})}
                 eventClick={(arg) => {
                   const appointment = arg.event.extendedProps?.appointment as
                     | CalendarAppointmentEvent
@@ -1616,7 +1620,28 @@ export function ScheduleCalendarTab({
                 }}
                 // C7: клик по свободному месту сетки → открыть форму создания с подставленным временем.
                 // В month-режиме allDay=true, время не определено — подставляем только дату.
+                // CR-2: клик по нерабочей (серой) зоне НЕ открывает панель создания.
                 dateClick={(arg) => {
+                  // CR-2: block create-panel when clicking inside a non-working background event.
+                  const clickedMs = arg.date.getTime();
+                  const isNonWorking =
+                    Array.isArray(calendarEvents) &&
+                    (
+                      calendarEvents as Array<{
+                        start?: string;
+                        end?: string;
+                        extendedProps?: { kind?: string };
+                      }>
+                    ).some(
+                      (ev) =>
+                        ev.extendedProps?.kind === "nonworking" &&
+                        ev.start &&
+                        ev.end &&
+                        new Date(ev.start).getTime() <= clickedMs &&
+                        clickedMs < new Date(ev.end).getTime(),
+                    );
+                  if (isNonWorking) return;
+
                   const clicked: Date | null = arg.date ?? null;
                   const isTimeGrid = !arg.allDay;
                   const startLocal = clicked

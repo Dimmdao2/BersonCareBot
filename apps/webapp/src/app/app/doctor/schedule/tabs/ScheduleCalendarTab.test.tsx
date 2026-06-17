@@ -48,6 +48,15 @@ vi.mock("@fullcalendar/react", () => ({
       >
         select
       </button>
+      {/* CR-2: click in post-shift nonworking zone (18:30 Moscow = 15:30 UTC) */}
+      <button
+        data-testid="fc-nonworking-click"
+        onClick={() =>
+          dateClick?.({ date: new Date("2026-06-17T15:30:00Z"), allDay: false })
+        }
+      >
+        nonworking-click
+      </button>
     </div>
   ),
 }));
@@ -863,6 +872,68 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         expect(panel.getAttribute("data-start-in-create")).toBe("true");
         expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T14:00");
       });
+    });
+  });
+
+  // ─── CR-2: dateClick non-working zone guard ───────────────────────────────
+
+  describe("CR-2 — dateClick blocked in non-working zone", () => {
+    // Calendar response with a working period 10:00-18:00 Moscow (07:00-15:00 UTC)
+    // and workingBounds 10:00-18:00. Grid: lo=10:00 Moscow, hi=19:00 Moscow.
+    // This generates a nonworking fill from 18:00 to 19:00 Moscow (15:00-16:00 UTC).
+    // fc-timegrid-click fires at 11:00 UTC (14:00 Moscow) — inside working hours.
+    // fc-nonworking-click fires at 15:30 UTC (18:30 Moscow) — inside nonworking fill.
+    const makeWorkingCalResponse = () => ({
+      ok: true,
+      view: "3days",
+      anchorDate: "2026-06-17",
+      timeZone: "Europe/Moscow",
+      events: [
+        {
+          kind: "working",
+          id: "work-1",
+          startAt: "2026-06-17T07:00:00.000Z", // 10:00 Moscow
+          endAt: "2026-06-17T15:00:00.000Z",   // 18:00 Moscow
+        },
+      ],
+      filters: { specialists: [], branches: [], rooms: [], services: [] },
+      showWorkingHours: true,
+      workingBounds: { minMinute: 600, maxMinute: 1080 }, // 10:00-18:00
+    });
+
+    it("click in working area (11:00 UTC) opens create panel", async () => {
+      setupFetchMock(makeWorkingCalResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      // Wait for data to load so calendarEvents gets nonworking events
+      await waitFor(() => screen.queryByTestId("right-panel-empty") !== null);
+
+      await user.click(screen.getByTestId("fc-timegrid-click"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+      });
+    });
+
+    it("click in non-working zone (15:30 UTC = 18:30 Moscow) does NOT open create panel", async () => {
+      setupFetchMock(makeWorkingCalResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      // Wait for data to load so calendarEvents gets nonworking events
+      await waitFor(() => screen.queryByTestId("right-panel-empty") !== null);
+
+      await user.click(screen.getByTestId("fc-nonworking-click"));
+
+      // After click: create panel must NOT appear
+      await new Promise((r) => setTimeout(r, 100));
+      expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
+      expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
     });
   });
 
