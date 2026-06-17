@@ -10,6 +10,8 @@ import ruLocale from "@fullcalendar/core/locales/ru";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { doctorSectionSubtitleClass, doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
+import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
+import { isCancelledAppointmentStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
 
 /** Конвертирует минуты от полуночи в строку "HH:MM:SS" для slotMinTime/slotMaxTime. */
 function minuteToHHMM(minute: number): string {
@@ -21,8 +23,26 @@ function minuteToHHMM(minute: number): string {
 const DEFAULT_SLOT_MIN = "09:00:00";
 const DEFAULT_SLOT_MAX = "19:00:00";
 
+/** Maps a canonical CalendarAppointmentEvent to a display class matching the schedule calendar. */
+function canonicalEventClass(appt: CalendarAppointmentEvent): string {
+  if (isCancelledAppointmentStatus(appt.status))
+    return "!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through";
+  if (appt.status === "awaiting_payment" || appt.prepaymentPending)
+    return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
+  if (appt.packageUsageRef || appt.packageTitle)
+    return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
+  return "!bg-primary/15 text-foreground !border-primary/35";
+}
+
 type Props = {
+  /** Server-rendered list — used for sr-only accessibility and empty-state detection. */
   appointments: TodayAppointmentItem[];
+  /**
+   * Canonical calendar events fetched client-side from /api/doctor/booking-engine/calendar.
+   * When provided, these are used for FullCalendar rendering (instead of the legacy list).
+   * Using canonical events ensures the IDs match what DoctorCalendarEventPanel expects.
+   */
+  calendarEvents?: CalendarAppointmentEvent[];
   /**
    * Минуты с полуночи (больше не используются — FC рисует линию "сейчас" сам).
    * Проп оставлен для обратной совместимости с вызывающим кодом.
@@ -37,15 +57,26 @@ type Props = {
    * Вычисляются на сервере через deriveWorkingBounds; `null` = день закрыт/нет данных.
    */
   workingBounds?: { startMinute: number; endMinute: number } | null;
-  /** Если передан — вызывается при клике на событие вместо перехода по href. */
+  /**
+   * Called when a canonical CalendarAppointmentEvent is clicked.
+   * Use this (not onEventClick) when calendarEvents are provided — it passes the full
+   * event object so the modal can display it directly without re-fetching.
+   */
+  onCanonicalEventClick?: (appt: CalendarAppointmentEvent) => void;
+  /**
+   * Legacy callback for clicking a TodayAppointmentItem (used when calendarEvents is not set).
+   * @deprecated Prefer onCanonicalEventClick + calendarEvents.
+   */
   onEventClick?: (appt: TodayAppointmentItem) => void;
 };
 
 export function DoctorTodayMiniCalendar({
   appointments,
+  calendarEvents,
   todayDateLabel,
   displayIana,
   workingBounds,
+  onCanonicalEventClick,
   onEventClick,
 }: Props) {
   // slotMinTime/slotMaxTime из рабочих границ (с буфером по 30 мин), иначе дефолт
@@ -61,30 +92,42 @@ export function DoctorTodayMiniCalendar({
     DateTime.now().setZone(displayIana).toISODate() ??
     new Date().toISOString().slice(0, 10);
 
-  // Маппинг TodayAppointmentItem → FullCalendar events
-  // appt.time — форматированная метка «ЧЧ:мм ДД.ММ»; используем recordAtIso (UTC ISO)
-  // для точного позиционирования. FC с timeZone={displayIana} корректно показывает
-  // UTC-момент в нужной таймзоне. Фоллбэк: пробуем parсить appt.time как «HH:MM...».
-  const fcEvents = appointments.map((appt) => {
-    let startDt: DateTime;
-    if (appt.recordAtIso) {
-      startDt = DateTime.fromISO(appt.recordAtIso, { zone: "utc" });
-    } else {
-      // Фоллбэк: берём только «ЧЧ:мм» из строки time (первые 5 символов)
-      const timeOnly = appt.time.slice(0, 5);
-      startDt = DateTime.fromISO(`${todayIso}T${timeOnly}`, { zone: displayIana });
+  // Build FullCalendar events.
+  // Priority: canonical events (calendarEvents prop) > legacy TodayAppointmentItem list.
+  // Canonical events have be_appointments.id which is what DoctorCalendarEventPanel expects.
+  const fcEvents = (() => {
+    if (calendarEvents && calendarEvents.length > 0) {
+      // Map CalendarAppointmentEvent → FC event (same pattern as ScheduleCalendarTab)
+      return calendarEvents.map((appt) => ({
+        id: appt.id,
+        title: appt.patientName ?? "Запись",
+        start: appt.startAt,
+        end: appt.endAt,
+        classNames: [canonicalEventClass(appt)],
+        extendedProps: { canonicalAppt: appt },
+      }));
     }
-    const start = startDt.isValid ? startDt.toISO() : undefined;
-    const end = startDt.isValid ? startDt.plus({ minutes: 60 }).toISO() ?? undefined : undefined;
-    return {
-      id: appt.id,
-      title: appt.clientLabel,
-      start: start ?? undefined,
-      end: end ?? undefined,
-      classNames: ["!bg-primary/15 text-foreground !border-primary/35"],
-      extendedProps: { href: appt.href, appt },
-    };
-  });
+    // Fallback: map legacy TodayAppointmentItem list (used while calendarEvents loads)
+    return appointments.map((appt) => {
+      let startDt: DateTime;
+      if (appt.recordAtIso) {
+        startDt = DateTime.fromISO(appt.recordAtIso, { zone: "utc" });
+      } else {
+        const timeOnly = appt.time.slice(0, 5);
+        startDt = DateTime.fromISO(`${todayIso}T${timeOnly}`, { zone: displayIana });
+      }
+      const start = startDt.isValid ? startDt.toISO() : undefined;
+      const end = startDt.isValid ? startDt.plus({ minutes: 60 }).toISO() ?? undefined : undefined;
+      return {
+        id: appt.id,
+        title: appt.clientLabel,
+        start: start ?? undefined,
+        end: end ?? undefined,
+        classNames: ["!bg-primary/15 text-foreground !border-primary/35"],
+        extendedProps: { href: appt.href, appt },
+      };
+    });
+  })();
 
   return (
     <DoctorSection id="doctor-today-mini-calendar">
@@ -152,14 +195,24 @@ export function DoctorTodayMiniCalendar({
           slotMaxTime={slotMaxTime}
           events={fcEvents}
           eventClick={(info) => {
+            // Prefer canonical event (has be_appointments.id, works with DoctorCalendarEventPanel).
+            const canonicalAppt = info.event.extendedProps?.canonicalAppt as
+              | CalendarAppointmentEvent
+              | undefined;
+            if (onCanonicalEventClick && canonicalAppt) {
+              onCanonicalEventClick(canonicalAppt);
+              return;
+            }
+            // Legacy fallback (used while calendarEvents hasn't loaded yet).
             const appt = info.event.extendedProps?.appt as TodayAppointmentItem | undefined;
             if (onEventClick && appt) {
               onEventClick(appt);
-            } else {
-              const href = info.event.extendedProps?.href as string | undefined;
-              if (href) {
-                window.location.href = href;
-              }
+              return;
+            }
+            // Last resort: navigate to href.
+            const href = info.event.extendedProps?.href as string | undefined;
+            if (href) {
+              window.location.href = href;
             }
           }}
           eventContent={(info) => (

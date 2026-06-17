@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { DoctorTodayMiniCalendar } from "./DoctorTodayMiniCalendar";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
+import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -66,6 +67,38 @@ function makeAppt(id: string, time: string, clientLabel = "Пациент"): Tod
 }
 
 const DEFAULT_IANA = "Europe/Moscow";
+
+function makeCanonicalAppt(id: string, patientName = "Пациент"): CalendarAppointmentEvent {
+  return {
+    kind: "appointment",
+    id,
+    startAt: "2026-06-17T08:00:00Z",
+    endAt: "2026-06-17T09:00:00Z",
+    status: "confirmed",
+    source: "rubitime_projection",
+    specialistId: "spec-1",
+    specialistName: "Доктор",
+    branchId: null,
+    branchTitle: null,
+    roomId: null,
+    roomTitle: null,
+    serviceId: null,
+    serviceTitle: "Сеанс",
+    platformUserId: "user-be-1",
+    patientName,
+    patientPhone: "+79990000001",
+    bookingStatus: null,
+    rubitimeId: null,
+    rubitimeManageUrl: null,
+    paymentStatus: null,
+    prepaymentPending: false,
+    packageUsageRef: null,
+    packageTitle: null,
+    rescheduleCount: 0,
+    originalStartAt: null,
+    formComments: [],
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -186,6 +219,51 @@ describe("DoctorTodayMiniCalendar", () => {
           />,
         ),
       ).not.toThrow();
+    });
+  });
+
+  // Q-C4 — Canonical events (fix for ID mismatch between legacy and be_appointments)
+  describe("canonical calendarEvents (Q-C4 fix)", () => {
+    it("uses patientName from canonical events for FC titles when calendarEvents provided", () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt("legacy-id-1", "10:00", "Legacyname")]}
+          calendarEvents={[makeCanonicalAppt("canonical-id-1", "КаноническийПациент")]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+        />,
+      );
+      // FC should show canonical name, not legacy name
+      expect(screen.getByTestId("fc-event")).toHaveTextContent("КаноническийПациент");
+      // sr-only list still shows legacy name (from appointments prop)
+      expect(screen.getByRole("link", { name: "Legacyname" })).toBeInTheDocument();
+    });
+
+    it("falls back to legacy appointments for FC when calendarEvents is empty", () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt("a1", "10:00", "ЛегасиПациент")]}
+          calendarEvents={[]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+        />,
+      );
+      // Falls back to legacy name
+      expect(screen.getByTestId("fc-event")).toHaveTextContent("ЛегасиПациент");
+    });
+
+    it("falls back to legacy appointments for FC when calendarEvents not provided", () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt("a1", "10:00", "ЛегасиПациент2")]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+        />,
+      );
+      expect(screen.getByTestId("fc-event")).toHaveTextContent("ЛегасиПациент2");
     });
   });
 
