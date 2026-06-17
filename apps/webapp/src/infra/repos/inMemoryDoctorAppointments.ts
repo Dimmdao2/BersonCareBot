@@ -29,6 +29,8 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
       rescheduleActionsInPeriod: 0,
       total: 0,
       cancellations30d: 0,
+      firstVisitInPeriod: 0,
+      repeatVisitInPeriod: 0,
     };
   },
   async getDashboardAppointmentMetrics(

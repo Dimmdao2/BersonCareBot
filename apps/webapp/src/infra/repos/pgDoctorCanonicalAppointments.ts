@@ -368,6 +368,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
         rescheduleActionsInPeriod: rescheduleActionsRow[0]?.count ?? 0,
         total: totalRow[0]?.count ?? 0,
         cancellations30d: cancel30Row[0]?.count ?? 0,
+        firstVisitInPeriod: 0,
+        repeatVisitInPeriod: 0,
       };
     },
 

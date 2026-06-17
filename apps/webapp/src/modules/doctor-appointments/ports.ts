@@ -66,6 +66,10 @@ export type AppointmentStats = {
   total: number;
   /** Отмены за 30 суток по `updated_at` — KPI «Сегодня». */
   cancellations30d: number;
+  /** Записи в периоде, у пациента которых НЕТ более ранней неотменённой записи (по phone_normalized). */
+  firstVisitInPeriod: number;
+  /** pastVisitsInPeriod − firstVisitInPeriod. */
+  repeatVisitInPeriod: number;
 };
 
 /** Метрики записей для дашборда врача (этап 9). Семантика — в DOCTOR_DASHBOARD_METRICS.md. */
