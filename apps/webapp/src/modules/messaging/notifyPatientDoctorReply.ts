@@ -10,10 +10,8 @@ import {
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { buildMessagePushCopy } from "@/modules/web-push/pushNotificationCopy";
-import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
 
@@ -59,10 +57,9 @@ async function buildAvailability(
   deps: NotifyPatientDoctorReplyDeps,
   platformUserId: string,
 ): Promise<PatientNotificationChannelAvailability> {
-  const [emailFields, bindings, vapidKeys, smtp, subs] = await Promise.all([
+  const [emailFields, bindings, smtp, subs] = await Promise.all([
     deps.getProfileEmailFields(platformUserId),
     deps.getChannelBindings(platformUserId),
-    getWebPushVapidKeyPair(deps.systemSettings),
     deps.systemSettings.getSetting("smtp_outbound", "admin"),
     deps.webPushSubscriptions.listActiveByUserId(platformUserId),
   ]);
@@ -73,7 +70,8 @@ async function buildAvailability(
     hasEmail: Boolean(emailFields.email?.trim()),
     emailVerified: Boolean(emailFields.emailVerifiedAt),
     hasWebPushSubscription: subs.length > 0,
-    vapidConfigured: Boolean(vapidKeys),
+    // VAPID is now resolved by the integrator adapter at send time — always available from webapp's view.
+    vapidConfigured: true,
     smtpConfigured: smtpParsed?.success === true,
   };
 }
@@ -81,6 +79,15 @@ async function buildAvailability(
 /**
  * Fan-out ответа врача: Web Push, Telegram/MAX (relay-outbound), email.
  * Fire-and-forget из `sendAdminReply`; ошибки логируются, не пробрасываются.
+ *
+ * P16 MIGRATION (PLAN S14 web-push leg):
+ * The web_push leg now emits a `web_push` intent to the integrator via relay-outbound
+ * instead of calling `sendWebPushToSubscriptions` directly (G2-guarded webapp sink).
+ * The integrator's `WebPushDeliveryAdapter` resolves subscriptions + VAPID and performs
+ * the actual send, covered by the pre-fork redirect chokepoint (G1).
+ * G2 guard in `sendWebPushToSubscriptions.ts` is kept intact — it protects any remaining
+ * un-migrated legs. `vapidConfigured` is now set to `true` unconditionally in
+ * `buildAvailability` — VAPID is read by the integrator adapter at send time.
  */
 export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDeps) {
   return async function notifyPatientDoctorReply(params: NotifyPatientDoctorReplyParams): Promise<void> {
@@ -154,33 +161,34 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     }
 
     if (selectedChannels.includes("web_push")) {
-      const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
-      if (vapidKeys) {
-        const subs = await deps.webPushSubscriptions.listActiveByUserId(platformUserId);
-        const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
-        const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
-        const vapidSubject =
-          smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
-            `mailto:${smtpParsed.data.from}`
-          : "mailto:noreply@invalid";
+      const hasSubs = await deps.webPushSubscriptions.hasAnyForUserId(platformUserId);
+      if (hasSubs) {
+        // P16 (PLAN S14 web-push leg): emit a web_push intent to the integrator via relay-outbound.
+        // The integrator's WebPushDeliveryAdapter resolves subscriptions + VAPID and performs
+        // the actual send. In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to
+        // the telegram test chat — ZERO real webpush.sendNotification calls.
+        const pushCopy = buildMessagePushCopy(trimmed);
+        const tag = `doctor_reply:${messageId}`;
         tasks.push(
-          sendWebPushToSubscriptions({
-            subscriptions: subs,
-            vapidPublicKey: vapidKeys.publicKey,
-            vapidPrivateKey: vapidKeys.privateKey,
-            vapidSubject,
-            payload: {
-              ...buildMessagePushCopy(trimmed),
-              url: openUrl,
-              tag: `doctor_reply:${messageId}`,
+          relayOutbound(
+            {
+              messageId: `${messageId}:web_push`,
+              channel: "web_push",
+              recipient: platformUserId,
+              text: pushCopy.body,
+              metadata: {
+                title: pushCopy.title,
+                url: openUrl,
+                pushExtras: { tag },
+              },
             },
-            onSubscriptionDead: async (endpoint) => {
-              await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
-            },
-            verbose,
-            logContext: { userId: platformUserId },
+            deps,
+          ).then((res) => {
+            if (!res.ok) {
+              logger.error({ platformUserId, reason: res.reason }, "doctor reply web push relay failed");
+            }
           }).catch((err: unknown) => {
-            logger.error({ err, platformUserId }, "doctor reply web push failed");
+            logger.error({ err, platformUserId }, "doctor reply web push relay error");
           }),
         );
       }
