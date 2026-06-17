@@ -20,6 +20,7 @@ todos:
   - id: tests-docs
     content: Targeted vitest (CAS, off-presented, backfill); docs + LOG; deprecated skip_to_next; финальный pnpm run ci
     status: completed
+status: completed
 isProject: false
 ---
 

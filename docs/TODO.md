@@ -106,7 +106,7 @@
 
 - **Контекст:** внешняя доставка инцидентов идентичности (TG/Max по **`admin_incident_alert_config`**) закрыта — [`.cursor/plans/archive/admin_incident_alerts.plan.md`](../.cursor/plans/archive/admin_incident_alerts.plan.md). Отдельно остаётся **только админский UI**, без этого ключа и без relay.
 - **TODO:** при ошибке **ручного merge** в админке — **toast** (оператор уже в контексте действия). При **частичном purge** / **отложенном** сбое внешней очистки — как и задумано: **`admin_audit_log`** + in-app: мгновенный сбой — **toast**; отложенный (post-commit) — **заметка на экране «сегодня»** админа, не терять при уходе со страницы.
-- **Спека / backlog:** [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md`](OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md) §8.
+- **Спека / backlog:** [`docs/_ARCHIVE/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md`](_ARCHIVE/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md) §8.
 
 ## Rate limiting
 
@@ -129,15 +129,15 @@
 
 Очередь фаз 0–7: [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md). Планы Cursor (архив): [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md), [`.cursor/plans/archive/phase1_support_model_7c745931.plan.md`](../.cursor/plans/archive/phase1_support_model_7c745931.plan.md) (фазы 0–1 закрыты 2026-06-02).
 
-Следующий контур карточки пациента и «Сегодня» — **не** блокирует закрытие [`MASTER_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md) (назначение программы). Детали — [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md) §продуктовые решения.
+Следующий контур карточки пациента и «Сегодня» — **не** блокирует закрытие [`MASTER_PLAN.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md) (назначение программы). Детали — [`docs/_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md) §продуктовые решения.
 
 - [x] **P0 (фаза 0):** ряд «Комментарии» + «Отметить выполнение» на плитках вкладки «Программа» (`PatientTreatmentProgramStagePageProgramSection`).
 - [x] Флаг **«На сопровождении»** per patient (не = активная программа); блок «Сегодня» только по флагу; экран/ссылка «программа без сопровождения».
 - [x] Вкл/выкл **«Комментарии»** и **«Отправить медиа»** per patient + default в настройках врача для клиентов без сопровождения (кнопки видны, disabled если выкл).
-- [x] Карточка пациента: перегруппировка (Tabs + Hero + Action Strip, фаза 2B) — [`CARD_REDESIGN_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md).
+- [x] Карточка пациента: перегруппировка (Tabs + Hero + Action Strip, фаза 2B) — [`CARD_REDESIGN_PLAN.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md).
 - [x] Карточка: график самочувствия (спарклайн + раскрытие, фаза 2B).
 - [x] Карточка: Care Plan / программа на «Обзоре» и inbox на табе «Программа» (фаза 2B); inline quick-reply в карточке — вне scope (ответ на экране инстанса).
-- [x] Задачи специалиста (глобальные + по пациенту, напоминания, фаза 2C) — [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md).
+- [x] Задачи специалиста (глобальные + по пациенту, напоминания, фаза 2C) — [`SPECIALIST_TASKS.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md).
 - [x] Редактор назначенной программы: in-memory draft (metadata + structural), одно «Сохранить» → `POST …/editor-batch`; смена статуса этапа — модалка при metadata-dirty; завершение программы → все этапы completed; лента изменений в карточке.
 - [x] **Редактор инстанса — batch-toolbar (фазы 1–7, 2026-06-03):** draft + editor-batch, sticky toolbar, collapsible этапы, instance discussion dialog, timeline `program_changed` (раскрываемый diff) + unsaved gate UX (metadata-only). **План закрыт** — [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md); LOG §2026-06-03 ф.7.
 - [x] **Добавление из каталога** на экране программы и в конструкторе шаблона: фильтры **регион + тип нагрузки + поиск** (exercise/lfk_complex); **без** «Без региона»/«Без типа» — те пункты только в каталогах врача при редактировании карточек.
@@ -153,7 +153,7 @@
 
 ## Patient — хвосты ROADMAP_2 (owner 2026-06-01)
 
-- **CLOSED:** напоминания в primary nav (неактуально); чат + поддержка (достаточно как есть); legacy «Кабинет» → страница **«Запись»** (доработки — [`OWN_BOOKING_ENGINE_INITIATIVE/`](OWN_BOOKING_ENGINE_INITIATIVE/README.md)).
+- **CLOSED:** напоминания в primary nav (неактуально); чат + поддержка (достаточно как есть); legacy «Кабинет» → страница **«Запись»** (доработки — [`OWN_BOOKING_ENGINE_INITIATIVE/`](_ARCHIVE/OWN_BOOKING_ENGINE_INITIATIVE/README.md)).
 - [x] **`/help`** — каталог и статьи из CMS (раздел `help`, фаза 6).
 - [ ] **`/diary` («Статистика»)** — полная переработка (график разминок, упражнения плана, «сегодня») **отложена**; см. [`apps/webapp/src/app/app/patient/diary/diary.md`](../apps/webapp/src/app/app/patient/diary/diary.md).
 
@@ -162,7 +162,7 @@
 - **PHASE_07** (backfill существующей базы) и **PHASE_08** (массовые setup-письма) отложены после MVP волны 1; планы фаз не удалены.
 - **Browser E2E** всех провайдеров OAuth — не настроен, отложен.
 - **Перенос `user_email_setup_tokens`** при будущем merge веток — не закрыт; схема/миграция `0076_user_email_setup_tokens.sql` есть, реальная отправка письма в pipeline не включена.
-- Источники: `docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md` (§2026-05-20 «Отложено (не в волне 1)», финальный статус §2026-05-20), `docs/LOGIN_REGISTER_NEW_LOGIC/SCOPE_DECISIONS.md`, `docs/LOGIN_REGISTER_NEW_LOGIC/README.md` §«Backfill».
+- Источники: `docs/_ARCHIVE/LOGIN_REGISTER_NEW_LOGIC/LOG.md` (§2026-05-20 «Отложено (не в волне 1)», финальный статус §2026-05-20), `docs/_ARCHIVE/LOGIN_REGISTER_NEW_LOGIC/SCOPE_DECISIONS.md`, `docs/_ARCHIVE/LOGIN_REGISTER_NEW_LOGIC/README.md` §«Backfill».
 
 ## Дубль определений Drizzle-схемы integrator ↔ webapp
 
@@ -178,18 +178,18 @@
 - **Переименование маршрутов `patient` → `client`** — отдельная миграция, не смешивать с PWA-фазами.
 - **Посты / фрагменты CMS на главной** — не блокирует фазы 1–3, отложено.
 - **ВАЖНО:** секция «Web Push / PWA» выше (reschedule-push + broadcast-preview) — отдельная; этот пункт добавляет только отсутствующие там хвосты.
-- Источник: `docs/PWA_INITIATIVE/BACKLOG.md` (таблица backlog + список §«Отложенное»).
+- Источник: `docs/_ARCHIVE/PWA_INITIATIVE/BACKLOG.md` (таблица backlog + список §«Отложенное»).
 
 ## BOT_FIXES — хвост: нативный Telegram-reply
 
 - **TODO:** поддержать нативный Telegram-reply без отдельной inline-кнопки «Ответить» — прокидывать `message_id` из входящего сообщения в `conversationId` исходящего, чтобы ответ встал в тред без UI-кнопки.
-- Источник: `docs/BOT_FIXES/LOG.md` §«Backlog (вне инициативы)».
+- Источник: `docs/_ARCHIVE/BOT_FIXES/LOG.md` §«Backlog (вне инициативы)».
 
 ## Operator Health — post-MVP: полная матрица «инвариант → тест» (PHASE_G)
 
 - **MVP закрыт**: критические entrypoints покрыты тестами (LOG.md + MVP_IMPLEMENTATION_PLAN §7).
 - **Post-MVP (PHASE_G):** заполнить полную матрицу тестов (G.1) с привязкой «инвариант → тестовый файл» в appendix к `PHASE_G_TESTS_AND_DOCS.md`; нагрузочное тестирование вебхуков.
-- Источник: `docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_G_TESTS_AND_DOCS.md` §post-MVP (чеклист «Post-MVP: полная матрица G.1»).
+- Источник: `docs/_ARCHIVE/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_G_TESTS_AND_DOCS.md` §post-MVP (чеклист «Post-MVP: полная матрица G.1»).
 
 ## Recommendations catalog — D5 rename `domain` → `kind` (deferred)
 
