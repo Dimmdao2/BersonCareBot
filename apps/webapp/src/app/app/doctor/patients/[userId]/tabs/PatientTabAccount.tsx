@@ -927,10 +927,6 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
             suspendLoad={!active}
           />
 
-          <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            Merge требует роль admin; компонент обрабатывает 403 сам.
-            Audit выдаёт «нет роли» при 403 без краша.
-          </p>
         </SectionCard>
       </div>
     </div>

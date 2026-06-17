@@ -110,7 +110,6 @@ function openTab(tabId: string) {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("patient:open-tab", { detail: { tab: tabId } }));
   }
-  console.log("[PatientTabRecords] request open tab:", tabId);
 }
 
 // ---------------------------------------------------------------------------
@@ -434,7 +433,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                         <button
                           key={label}
                           type="button"
-                          onClick={() => console.log("[PatientTabRecords] action:", label)}
+                          onClick={() => undefined}
                           className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
                         >
                           {label}

@@ -18,3 +18,5 @@
 2026-06-17T20:11:23+02:00 | round3 pass complete — Q-C2/CAL-02/ANL-04/07/09 verified, idle
 2026-06-17T20:43:23+02:00 | QG-PASS: independent audit complete — Q-C2✅ Q-R✅ ANL✅ FIN-01✅ FIN-05✅ | RELAUNCH: Q-C7(1Issue) Q-C10(sparse-data) | BLOCKED-OWNER: ANL-10/11/13 Q-F5
 2026-06-17T20:51:24+02:00 | Q-C7 fix: moved history.replaceState out of setState updater in DoctorScheduleShell
+2026-06-17T20:56:47+02:00 | Q-C10: seeding exercise_log data for Наташа Шалина (CMT graph)
+2026-06-17T21:09:47+02:00 | SALVAGE: patient sub-route redirect + dev notes removed + console.logs removed
