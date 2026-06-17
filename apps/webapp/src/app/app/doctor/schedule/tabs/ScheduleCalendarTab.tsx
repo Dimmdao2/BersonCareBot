@@ -255,15 +255,23 @@ function minuteToHHMM(minute: number): string {
 
 /**
  * Диапазон часовой сетки = объединение рабочих границ И фактических записей,
- * чтобы ранние/поздние приёмы (7-8 утра и т.п.) НЕ обрезались. Час запаса с краёв.
+ * чтобы ранние/поздние приёмы (7-8 утра и т.п.) НЕ обрезались.
+ *
+ * Логика нижней границы (CAL-01):
+ * - Если все записи укладываются в рабочий период, нижняя граница = начало
+ *   рабочего периода, выровненное вниз до часа (без дополнительного запаса).
+ * - Только если запись начинается ДО рабочего периода, добавляется буфер 30 мин
+ *   и округление вниз до часа — чтобы ранняя запись не обрезалась.
+ * Верхняя граница: 60 мин запаса + округление вверх до часа.
  * Если нет ни рабочих границ, ни записей — дефолт.
  */
-function deriveSlotTimes(
+export function deriveSlotTimes(
   workingBounds: WorkingBounds | null | undefined,
   events: CalendarEvent[] | undefined,
   timeZone: string,
 ): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
-  let min: number | null = workingBounds ? workingBounds.minMinute : null;
+  const workingFloor: number | null = workingBounds ? workingBounds.minMinute : null;
+  let min: number | null = workingFloor;
   let max: number | null = workingBounds ? workingBounds.maxMinute : null;
   for (const e of events ?? []) {
     if (e.kind !== "appointment" && e.kind !== "block") continue;
@@ -282,8 +290,10 @@ function deriveSlotTimes(
   if (min == null || max == null) {
     return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX, loMinute: 0, hiMinute: 24 * 60 };
   }
-  // Час запаса, выравнивание по часу, clamp в [0, 24ч].
-  const lo = Math.max(0, Math.floor((min - 60) / 60) * 60);
+  // Нижняя граница: если событие вышло за рабочий период — 30 мин запас + округление вниз;
+  // иначе (min == workingFloor или нет рабочих границ) — без запаса, просто округление вниз.
+  const hasEarlyEvent = workingFloor != null && min < workingFloor;
+  const lo = Math.max(0, hasEarlyEvent ? Math.floor((min - 30) / 60) * 60 : Math.floor(min / 60) * 60);
   const hi = Math.min(24 * 60, Math.ceil((max + 60) / 60) * 60);
   return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
 }
