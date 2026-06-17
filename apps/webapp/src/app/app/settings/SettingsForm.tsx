@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Select,
@@ -80,11 +80,11 @@ export function SettingsForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Настройки кабинета</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
+    <DoctorSection>
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Настройки кабинета</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium" htmlFor="patient-label-select">
             Как называть пациента
@@ -133,7 +133,7 @@ export function SettingsForm({
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </DoctorSection>
   );
 }
