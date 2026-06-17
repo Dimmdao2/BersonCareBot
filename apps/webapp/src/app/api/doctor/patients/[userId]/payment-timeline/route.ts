@@ -16,7 +16,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorBookingEngine } from "../../booking-engine/_requireDoctorBookingEngine";
+import { requireDoctorBookingEngine } from "../../../booking-engine/_requireDoctorBookingEngine";
 import type { PatientPayment } from "@/modules/patient-payments/ports";
 import type { PaymentHistoryEventRecord } from "@/modules/payments/types";
 
@@ -98,7 +98,7 @@ export async function GET(
   const [patientPayments, historyEvents] = await Promise.all([
     deps.patientPayments.listPayments(userId),
     deps.payments
-      ? deps.payments.listHistoryForUser(userId, gate.ctx.organizationId)
+      ? deps.payments.listPaymentHistoryForUser(userId, gate.ctx.organizationId)
       : ([] as PaymentHistoryEventRecord[]),
   ]);
 
