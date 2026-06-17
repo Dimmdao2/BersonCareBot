@@ -112,6 +112,9 @@ export function messageToIntent(msg: UnifiedOutgoingMessage): OutgoingIntent {
   if (msg.content.replyMarkup !== undefined) payload.replyMarkup = msg.content.replyMarkup;
   if (msg.content.parse_mode !== undefined) payload.parse_mode = msg.content.parse_mode;
   if (msg.content.title !== undefined) payload.title = msg.content.title;
+  // Forward content.subject separately so the email adapter reads payload.subject (not payload.title).
+  // This is the contract fix for S9: email subject is the single source of truth via content.subject.
+  if (msg.content.subject !== undefined) payload.subject = msg.content.subject;
   if (msg.content.url !== undefined) payload.url = msg.content.url;
   if (msg.content.html !== undefined) payload.html = msg.content.html;
   if (msg.content.fromOverride !== undefined) payload.fromOverride = msg.content.fromOverride;

@@ -23,6 +23,9 @@ type EmailDeliveryPayload = {
   recipient?: { email?: unknown };
   message?: { text?: unknown };
   html?: unknown;
+  /** payload.subject: set by messageToIntent when UnifiedContent.subject is present (contract fix S9). */
+  subject?: unknown;
+  /** payload.title: legacy path — used when content.subject was not set (backwards compat). */
   title?: unknown;
   fromOverride?: unknown;
   delivery?: { channels?: unknown };
@@ -50,8 +53,9 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         throw err;
       }
 
-      // content.subject maps to payload.title (via messageToIntent) or a fallback.
-      const subject = asString(payload.title) ?? 'BersonCare';
+      // content.subject maps to payload.subject (S9 contract fix); fall back to payload.title
+      // for backward compat with call sites that predated the subject field, then a final fallback.
+      const subject = asString(payload.subject) ?? asString(payload.title) ?? 'BersonCare';
       const text = asString(payload.message?.text);
       const html = asString(payload.html);
 
