@@ -982,7 +982,7 @@ export function ScheduleCalendarTab({
             start: f.start,
             end: f.end,
             display: "background" as const,
-            classNames: ["!bg-slate-200"],
+            classNames: ["!bg-[#eeeeee]", "!opacity-60"],
             editable: false,
             extendedProps: { kind: "nonworking" as const },
           }))
@@ -1000,7 +1000,7 @@ export function ScheduleCalendarTab({
           end: toFcDate(event.endAt, currentTimeZone),
           title: "Перерыв",
           display: "background" as const,
-          classNames: ["!bg-slate-200/70 !border-l-2 !border-slate-400/60"],
+          classNames: ["!bg-[#d1d5db]", "!opacity-80"],
           editable: false,
           extendedProps: { kind: "break" as const },
         };
@@ -1468,12 +1468,13 @@ export function ScheduleCalendarTab({
 
                 /* CAL-P1 — kill green flash on first paint.
                    FC default --fc-bg-event-color is #8fdf82 (green, opacity 0.3).
-                   All display:"background" events here use Tailwind !bg-slate-* which win
-                   the cascade, but only after the stylesheet settles. At frame-0 FC paints
-                   its default green before the important-utilities kick in. Setting
+                   All display:"background" events here use Tailwind !bg-[#eeeeee] / !bg-[#d1d5db]
+                   which win the cascade, but only after the stylesheet settles. At frame-0 FC
+                   paints its default green before the important-utilities kick in. Setting
                    --fc-bg-event-color to transparent on the .fc root means the very first
-                   paint is transparent (not green); the Tailwind !bg-slate-300 / !bg-slate-300/60
-                   utilities apply in the same frame and set the final slate colour normally. */
+                   paint is transparent (not green); the Tailwind bg utilities apply in the
+                   same frame and set the final colour normally.
+                   CR-8: non-working = #eee/0.6 (visible grey); break = #d1d5db/0.8 (darker). */
                 .fc {
                   --fc-bg-event-color: transparent;
                 }
@@ -1623,8 +1624,9 @@ export function ScheduleCalendarTab({
                 // CR-2: клик по нерабочей (серой) зоне НЕ открывает панель создания.
                 dateClick={(arg) => {
                   // CR-2: block create-panel when clicking inside a non-working background event.
+                  // CR-8: also block clicks on break («Перерыв») zones.
                   const clickedMs = arg.date.getTime();
-                  const isNonWorking =
+                  const isNonWorkingOrBreak =
                     Array.isArray(calendarEvents) &&
                     (
                       calendarEvents as Array<{
@@ -1634,13 +1636,14 @@ export function ScheduleCalendarTab({
                       }>
                     ).some(
                       (ev) =>
-                        ev.extendedProps?.kind === "nonworking" &&
+                        (ev.extendedProps?.kind === "nonworking" ||
+                          ev.extendedProps?.kind === "break") &&
                         ev.start &&
                         ev.end &&
                         new Date(ev.start).getTime() <= clickedMs &&
                         clickedMs < new Date(ev.end).getTime(),
                     );
-                  if (isNonWorking) return;
+                  if (isNonWorkingOrBreak) return;
 
                   const clicked: Date | null = arg.date ?? null;
                   const isTimeGrid = !arg.allDay;
