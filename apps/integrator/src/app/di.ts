@@ -66,6 +66,8 @@ import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.j
 import { createRemindersWritesPort } from '../infra/adapters/remindersWritesPort.js';
 import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReadsPort.js';
 import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscriptionMailingReadsPort.js';
+import { createWebPushAccessPort } from '../infra/adapters/webPushAccessPort.js';
+import type { WebPushAccessPort } from '../kernel/contracts/index.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -142,6 +144,12 @@ export type AppDeps = {
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
   webappEventsPort: WebappEventsPort;
+  /**
+   * Read port for web-push subscriptions + VAPID (PLAN S13 Model β).
+   * Used by `WebPushDeliveryAdapter` (S14) to fetch subscriptions + VAPID at send time.
+   * NOT wired to an adapter yet — that is S14.
+   */
+  webPushAccessPort: WebPushAccessPort;
 };
 
 /** Собирает полностью связанный набор зависимостей app-слоя. */
@@ -182,6 +190,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     ...(subscriptionMailingReadsPort !== undefined ? { subscriptionMailingReadsPort } : {}),
   });
   const webappEventsPort = createWebappEventsPort({
+    getAppBaseUrl: () => getAppBaseUrl(dbPort),
+  });
+  const webPushAccessPort = createWebPushAccessPort({
     getAppBaseUrl: () => getAppBaseUrl(dbPort),
   });
   const dispatchPortRef: { current?: DispatchPort } = {};
@@ -294,6 +305,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     contextQueryPort,
     eventGateway,
     webappEventsPort,
+    webPushAccessPort,
     ...(telegramRegistrar !== undefined ? { registerTelegramWebhookRoutes: telegramRegistrar } : {}),
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
     ...(maxRegistrar !== undefined ? { registerMaxWebhookRoutes: maxRegistrar } : {}),

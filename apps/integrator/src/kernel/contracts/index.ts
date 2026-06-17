@@ -131,6 +131,9 @@ export type {
   SubscriptionMailingReadsPort,
   MailingTopicReadRow,
   UserSubscriptionReadRow,
+  WebPushAccessPort,
+  WebPushSubscriptionPayload,
+  VapidCredentials,
 } from './ports.js';
 
 export {

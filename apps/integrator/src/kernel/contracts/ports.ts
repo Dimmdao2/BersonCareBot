@@ -655,3 +655,51 @@ export type SubscriptionMailingReadsPort = {
   listTopics(): Promise<MailingTopicReadRow[]>;
   getSubscriptionsByUserId(integratorUserId: string): Promise<UserSubscriptionReadRow[]>;
 };
+
+// --- PLAN S13: web_push subscription + VAPID access (Model β) ---
+
+/**
+ * A single active web-push subscription as returned by the webapp.
+ * Mirrors `WebPushSubscriptionPayloadV1` from `apps/webapp/src/modules/web-push/ports.ts`.
+ */
+export type WebPushSubscriptionPayload = {
+  endpoint: string;
+  expirationTime: number | null;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+};
+
+/**
+ * VAPID keypair + subject as returned by the webapp M2M route.
+ * Crossing M2M is acceptable per N3: already server-side in system_settings.
+ * `subject` is centrally derived (Inventory §5.7) — `mailto:<smtp_from>` or fallback.
+ */
+export type VapidCredentials = {
+  publicKey: string;
+  privateKey: string;
+  /** `mailto:` URI; centrally derived by the webapp (see modules/web-push/vapidSubject.ts). */
+  subject: string;
+};
+
+/**
+ * Port for the integrator to read active web-push subscriptions and VAPID credentials
+ * for a user at send time (PLAN S13 Model β — integrator M2M-reads webapp).
+ *
+ * Used by `WebPushDeliveryAdapter` (S14) to retrieve subscriptions and VAPID details
+ * before sending. NOT for write operations (subscription capture stays in webapp).
+ */
+export type WebPushAccessPort = {
+  /**
+   * Fetch active web-push subscriptions for a platform user.
+   * Returns `null` on network/auth error; empty array when the user has no subscriptions.
+   */
+  getSubscriptionsForUser(pushUserId: string): Promise<WebPushSubscriptionPayload[] | null>;
+
+  /**
+   * Fetch the VAPID keypair (publicKey, privateKey) and the centrally-derived subject.
+   * Returns `null` when VAPID is not configured in the webapp or on network/auth error.
+   */
+  getVapidCredentials(): Promise<VapidCredentials | null>;
+};

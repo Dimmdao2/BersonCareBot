@@ -20,6 +20,7 @@ function createDeps(getProjectionHealth: AppDeps['getProjectionHealth']): AppDep
     contextQueryPort: {} as AppDeps['contextQueryPort'],
     eventGateway: {} as AppDeps['eventGateway'],
     webappEventsPort: {} as AppDeps['webappEventsPort'],
+    webPushAccessPort: {} as AppDeps['webPushAccessPort'],
   };
 }
 
