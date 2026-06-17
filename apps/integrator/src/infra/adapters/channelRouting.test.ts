@@ -184,6 +184,37 @@ describe('messageToIntent — round-trip samples', () => {
     expect((payload.message as Record<string, unknown>).text).toBe('Max message');
   });
 
+  it('email sample — content.subject forwarded as payload.subject (contract fix S9)', () => {
+    // Verifies: messageToIntent forwards content.subject → payload.subject,
+    // so EmailDeliveryAdapter can read payload.subject as the canonical email subject.
+    const msg: UnifiedOutgoingMessage = {
+      kind: 'message.send',
+      channel: 'email',
+      recipient: { email: 'user@example.com' },
+      content: {
+        subject: 'Email Subject Line',
+        text: 'Body text',
+      },
+      meta: {
+        eventId: 'email:send:abc123',
+        occurredAt: now,
+        source: 'email',
+      },
+    };
+
+    const intent = messageToIntent(msg);
+
+    const payload = intent.payload as Record<string, unknown>;
+    // payload.subject must be present (canonical email subject path).
+    expect(payload.subject).toBe('Email Subject Line');
+    // payload.delivery.channels[0] must be 'email'.
+    expect((payload.delivery as Record<string, unknown>).channels).toEqual(['email']);
+    // recipient.email must be forwarded.
+    expect((payload.recipient as Record<string, unknown>).email).toBe('user@example.com');
+    // message.text must be forwarded.
+    expect((payload.message as Record<string, unknown>).text).toBe('Body text');
+  });
+
   it('smsc sample — matches relayOutboundRoute.buildIntent sms branch (channels=[smsc])', () => {
     // relayOutboundRoute.buildIntent for 'sms': recipient:{phoneNormalized}, channels:['smsc']
     const msg: UnifiedOutgoingMessage = {

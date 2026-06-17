@@ -39,8 +39,13 @@ export type UnifiedRecipient = {
 export type UnifiedContent = {
   /** Body text (messenger, SMS, email plain-text). */
   text?: string;
-  /** Title / subject. web_push title; email subject. */
+  /** Title for web_push and messenger (NOT the email subject — use `subject` for email). */
   title?: string;
+  /** Email subject line. Forwarded as `payload.subject` by messageToIntent.
+   *  The EmailDeliveryAdapter reads `payload.subject ?? payload.title` so existing
+   *  call sites that set only `title` keep working, but new email call sites should
+   *  always set `content.subject` (contract fix, PLAN S9). */
+  subject?: string;
   /** CTA URL for web_push or email. */
   url?: string;
   /** Email HTML body (takes precedence over `text` for HTML-capable email clients). */

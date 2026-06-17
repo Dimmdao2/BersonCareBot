@@ -91,7 +91,13 @@ async function buildApp(
   });
   vi.spyOn(mailer, 'sendMail').mockResolvedValue({ accepted: [], rejected: [], messageId: 'x' });
   const sendEmailDb = { query: vi.fn() } as unknown as DbPort;
-  await registerBersoncareSendEmailRoute(app, { sharedSecret: TEST_SECRET, db: sendEmailDb });
+  // S9: route now requires dispatchPort; use a no-op stub for this test fixture.
+  const sendEmailDispatch = { dispatchOutgoing: vi.fn().mockResolvedValue({}) };
+  await registerBersoncareSendEmailRoute(app, {
+    sharedSecret: TEST_SECRET,
+    db: sendEmailDb,
+    dispatchPort: sendEmailDispatch,
+  });
   const mockWritePort = { writeDb: vi.fn().mockResolvedValue(undefined) };
   await registerRubitimeRecordM2mRoutes(app, {
     sharedSecret: TEST_SECRET,
