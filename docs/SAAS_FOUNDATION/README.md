@@ -1,6 +1,6 @@
 # SAAS_FOUNDATION — initiative index
 
-**Status:** 🔁 **HARDENING LOOP — long tail** (findings r1→r5 = 9/3C → 7/2C → 5/0C → 2/0C0H → 1 MEDIUM; each a single shrinking nit). `CORRECTED_PLAN.md` = **v7** (folds r5: per-user analytics re-tiered TELEMETRY→SCOPED — was a cross-tenant leak). Reviewer confirmed all design/scope axes clean (perfect DB↔artifact bijection over 219; bridge exact). SCOPED **152** (108 need org_id) / BOOTSTRAP 24 / INFRA 25 / LEGACY 16 / TELEMETRY 2 = 219 ✓. Under **fresh re-review**; terminates at **2 consecutive clean** (streak **0/2**). Not for execution until the loop closes.
+**Status:** 🔁 **HARDENING LOOP — long tail** (findings r1→r5 = 9/3C → 7/2C → 5/0C → 2/0C0H → 1 MEDIUM; each a single shrinking nit). `CORRECTED_PLAN.md` = **v7** (folds r5: per-user analytics re-tiered TELEMETRY→SCOPED — was a cross-tenant leak). Reviewer confirmed all design/scope axes clean (perfect DB↔artifact bijection over 219; bridge exact). SCOPED **152** (108 need org_id) / BOOTSTRAP 24 / INFRA 25 / LEGACY 16 / TELEMETRY 2 = 219 ✓. **Round 6 = CLEAN (zero findings)** — streak **1/2**. A fresh independent confirmation review is running; if it is also clean → 2 consecutive → loop closes, plan HARDENED. (r4+r5 were already 0-critical/0-high.)
 **Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.
