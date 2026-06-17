@@ -39,4 +39,13 @@ Full machine list: `needs-orgid.txt`; full per-table classification: `arbiter.ts
 - **Gate:** 185 tables all classified, sum reconciles ✅ (the check that would have caught C1 — clinical_* and patient_files/payment are now IN scope, not silently dropped).
 - **FK-closure invariant:** children of scoped tables (e.g. clinical_diagnosis_update, _status_history) pulled in automatically ✅.
 - **`be_*` (44):** already carry `organization_id` → confirmed tenant-scoped, **no work** (not in the 66).
-- Next: lock borderlines with owner → final count = 56 (telemetry out) to ~80 (catalogs per-tenant) → corrected RLS plan on the final list.
+## ✅ FINAL — owner decisions applied (2026-06-17): **84 tables need `organization_id`**
+List: `needs-orgid-FINAL.txt`. Decisions:
+- **Telemetry SPLIT:** delivery/usage logs (notification_delivery_attempts, support_delivery_events, reminder_journal, media_playback_*, media_transcode_jobs) → SCOPE; aggregate analytics + infra telemetry (product_analytics_events_recent, product_analytics_user_hourly, media_hls_proxy_error_events, operator_health_failure_archive) → GLOBAL (−4 from core → 62).
+- **Catalogs PER-TENANT (+22):** lfk_exercises(+_media,+_regions), lfk_complex_templates(+_exercises), treatment_program_templates(+_stage*), courses, content_pages, content_sections, tests, test_sets(+_items), recommendations(+_regions), reference_categories(+_items), motivational_quotes, clinical_diagnosis_catalog, clinical_test_regions. Each specialist/clinic owns its library. (`user_email_setup_tokens` was a created_by false-positive → stays GLOBAL.)
+- **NEW workstream — MARKETPLACE/STORE** (owner: "магазин с покупкой библиотек упражнений"): a GLOBAL store inventory of sellable library-products + purchase records; buying = COPY into the tenant's per-tenant catalog (same copy pattern as patient-transfer). Later feature, NOT Phase-0 foundation, but the per-tenant catalog model already supports it.
+- **system_settings:** org-aware row-level (global + per-org rows) — ties to C2/D7 redesign.
+- **Legacy-8:** frozen, not scoped.
+
+**Reconciles: 84 need-org + 44 `be_*`(have org) + 8 legacy + ~18 identity + ~31 infra/analytics = 185 ✅.**
+Next: corrected **shared-DB + RLS** plan on these 84 + store workstream + C2 (D7 config) + C3 (headless runtimes).
