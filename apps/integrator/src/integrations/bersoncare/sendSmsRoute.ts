@@ -1,10 +1,15 @@
 /**
  * Маршрут приёма запросов от вебапп (bersoncare): отправка SMS с кодом подтверждения.
  * Контракт: webapp/INTEGRATOR_CONTRACT.md, раздел «Flow: BersonCare → Integrator (send SMS)».
+ *
+ * S6 (PLAN): no longer calls smsClient.sendSms directly — instead builds a `smsc`-channel
+ * UnifiedOutgoingMessage and dispatches via dispatchPort (redirect-covered; smsc adapter delivers).
+ * OTP redaction is preserved via the `otp:`-prefixed eventId (dispatchPort.ts::isOtpIntent).
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { SmsClient } from '../smsc/types.js';
+import type { DispatchPort } from '../../kernel/contracts/index.js';
+import { messageToIntent } from '../../infra/adapters/channelRouting.js';
 import { logger } from '../../infra/observability/logger.js';
 
 const WINDOW_SECONDS = 300;
@@ -32,7 +37,7 @@ function verifySignature(timestamp: string, rawBody: string, signature: string, 
 }
 
 export type BersoncareSendSmsDeps = {
-  smsClient: SmsClient;
+  dispatchPort: DispatchPort;
   sharedSecret: string;
 };
 
@@ -40,7 +45,7 @@ export async function registerBersoncareSendSmsRoute(
   app: FastifyInstance,
   deps: BersoncareSendSmsDeps,
 ): Promise<void> {
-  const { smsClient, sharedSecret } = deps;
+  const { dispatchPort, sharedSecret } = deps;
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     const raw: string =
@@ -72,19 +77,35 @@ export async function registerBersoncareSendSmsRoute(
 
     const phone = typeof request.body?.phone === 'string' ? request.body.phone.trim() : '';
     const code = typeof request.body?.code === 'string' ? request.body.code.trim() : '';
+    const idempotencyKey =
+      typeof request.body?.idempotencyKey === 'string' ? request.body.idempotencyKey.trim() : '';
     if (!phone || !code) {
       return reply.code(400).send({ ok: false, error: 'phone and code required' });
     }
 
-    const result = await smsClient.sendSms({
-      toPhone: phone,
-      message: `Ваш код BersonCare: ${code}`,
+    // Build smsc-channel UnifiedOutgoingMessage and dispatch via the single chokepoint.
+    // The `otp:` eventId prefix triggers OTP-redaction in dispatchPort::isOtpIntent,
+    // so the SMS code is never logged. (PLAN S6, D3, D7)
+    const intent = messageToIntent({
+      kind: 'message.send',
+      channel: 'smsc',
+      recipient: { phoneNormalized: phone },
+      content: { text: `Ваш код BersonCare: ${code}` },
+      meta: {
+        eventId: `otp:sms:${idempotencyKey || phone}`,
+        occurredAt: new Date().toISOString(),
+        source: 'smsc',
+      },
     });
 
-    if (!result.ok) {
-      logger.warn({ phone: phone.slice(0, 6) + '…', error: result.error }, 'bersoncare send-sms: SMSC failed');
-      return reply.code(502).send({ ok: false, error: result.error ?? 'sms_failed' });
+    try {
+      await dispatchPort.dispatchOutgoing(intent);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.warn({ phone: phone.slice(0, 6) + '…', error: errMsg }, 'bersoncare send-sms: dispatch failed');
+      return reply.code(502).send({ ok: false, error: 'sms_failed' });
     }
+
     return reply.code(200).send({ ok: true });
   });
 }
