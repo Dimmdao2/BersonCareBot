@@ -51,6 +51,7 @@ export function DoctorWorkspaceShell({
           userDisplayName={userDisplayName}
           adminMode={adminMode}
           menuAccess={{ role: userRole, adminMode }}
+          patientLabel={patientLabel}
           hideMenuOnDesktop={showDoctorDesktopNav}
         />
         <div className={cn("flex min-h-0 flex-1", DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>

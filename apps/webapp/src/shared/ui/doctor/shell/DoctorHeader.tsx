@@ -33,6 +33,8 @@ type DoctorHeaderProps = {
   userDisplayName?: string;
   adminMode?: boolean;
   menuAccess: DoctorMenuAccess;
+  /** Если `"клиент"`, пункт «Пациенты» в Sheet-меню отображается как «Клиенты» (как в сайдбаре). */
+  patientLabel?: string;
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
 };
@@ -45,7 +47,7 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
 
-export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuOnDesktop }: DoctorHeaderProps) {
+export function DoctorHeader({ userDisplayName, adminMode, menuAccess, patientLabel, hideMenuOnDesktop }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
@@ -171,6 +173,7 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
                 variant="sheet"
                 pathname={pathname}
                 menuAccess={menuAccess}
+                patientLabel={patientLabel}
                 onNavigate={closeMenu}
               />
               <Link href={routePaths.doctorInstall} onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
