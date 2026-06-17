@@ -1605,10 +1605,23 @@ export function ScheduleCalendarTab({
                   setShowCreatePanel(false);
                   onDeepLinkChange("appt", appointment.id);
                 }}
-                // R24: клик по свободному месту календаря сбрасывает выбор записи.
-                dateClick={() => {
+                // C7: клик по свободному месту сетки → открыть форму создания с подставленным временем.
+                // В month-режиме allDay=true, время не определено — подставляем только дату.
+                dateClick={(arg) => {
+                  const clicked: Date | null = arg.date ?? null;
+                  const isTimeGrid = !arg.allDay;
+                  const startLocal = clicked
+                    ? isTimeGrid
+                      ? DateTime.fromJSDate(clicked, { zone: "utc" }).toFormat(
+                          "yyyy-MM-dd'T'HH:mm",
+                        )
+                      : DateTime.fromJSDate(clicked, { zone: "utc" }).toFormat(
+                          "yyyy-MM-dd'T'09:00",
+                        )
+                    : null;
                   setSelected(null);
-                  setShowCreatePanel(false);
+                  setCreateInitialStart(startLocal);
+                  setShowCreatePanel(true);
                   onDeepLinkChange("appt", null);
                 }}
                 eventDrop={onDrop}
