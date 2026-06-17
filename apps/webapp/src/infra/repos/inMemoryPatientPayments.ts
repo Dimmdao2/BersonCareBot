@@ -6,7 +6,9 @@
 import { randomUUID } from "node:crypto";
 import type {
   AddCashPaymentInput,
+  InsertAcquiringPendingInput,
   PatientPayment,
+  PatientPaymentStatus,
   PatientPaymentsPort,
 } from "@/modules/patient-payments/ports";
 
@@ -42,6 +44,42 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       visitId: input.visitId ?? null,
       provider: null,
       providerPaymentId: null,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+    };
+    payments.push(row);
+    return row;
+  },
+
+  async findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null> {
+    return payments.find((p) => p.providerPaymentId === providerPaymentId) ?? null;
+  },
+
+  async updatePatientPaymentStatus(
+    id: string,
+    status: PatientPaymentStatus,
+    providerPaymentId?: string,
+  ): Promise<void> {
+    const row = payments.find((p) => p.id === id);
+    if (row) {
+      row.status = status;
+      if (providerPaymentId !== undefined) row.providerPaymentId = providerPaymentId;
+    }
+  },
+
+  async insertAcquiringPending(input: InsertAcquiringPendingInput): Promise<PatientPayment> {
+    const row: PatientPayment = {
+      id: randomUUID(),
+      patientUserId: input.patientUserId,
+      amountMinor: input.amountMinor,
+      currency: input.currency,
+      kind: "acquiring",
+      status: "pending",
+      comment: input.description ?? null,
+      service: null,
+      visitId: null,
+      provider: input.provider,
+      providerPaymentId: input.providerPaymentId,
       createdBy: input.createdBy,
       createdAt: new Date().toISOString(),
     };
