@@ -11,7 +11,6 @@ import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 
-import { AdminPlatformSubscriberStatsClient } from "./AdminPlatformSubscriberStatsClient";
 import { AnalyticsPeriodToolbar } from "./AnalyticsPeriodToolbar";
 import { ClientContactPieChart } from "./ClientContactPieChart";
 import { DoctorAnalyticsAppointmentsSection } from "./DoctorAnalyticsAppointmentsSection";
@@ -166,8 +165,6 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
         onCustomToChange={handleCustomToChange}
         onApplyCustom={handleApplyCustom}
       />
-
-      <AdminPlatformSubscriberStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
 
       <DoctorSection id="doctor-stats-clients-section">
         <DoctorSectionTitle>{patientPluralLabel}</DoctorSectionTitle>
