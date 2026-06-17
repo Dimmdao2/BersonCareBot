@@ -85,7 +85,7 @@ async function buildAvailability(
  * instead of calling `sendWebPushToSubscriptions` directly (G2-guarded webapp sink).
  * The integrator's `WebPushDeliveryAdapter` resolves subscriptions + VAPID and performs
  * the actual send, covered by the pre-fork redirect chokepoint (G1).
- * G2 guard in `sendWebPushToSubscriptions.ts` is kept intact — it protects any remaining
+ * G2 guard retired (S16) — 0 live callers. Was:
  * un-migrated legs. `vapidConfigured` is now set to `true` unconditionally in
  * `buildAvailability` — VAPID is read by the integrator adapter at send time.
  */

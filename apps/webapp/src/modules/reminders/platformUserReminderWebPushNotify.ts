@@ -6,7 +6,7 @@
  * The integrator's `WebPushDeliveryAdapter` handles the actual send + VAPID resolution,
  * covered by the pre-fork redirect chokepoint (G1).
  *
- * G2 guard in `sendWebPushToSubscriptions.ts` is kept intact — it still protects the
+ * G2 guard retired (S16) — 0 live callers. Was:
  * other un-migrated legs (S14c–S14g). Do NOT touch that guard here.
  *
  * Channel-preference + subscription existence + VAPID availability pre-checks are still

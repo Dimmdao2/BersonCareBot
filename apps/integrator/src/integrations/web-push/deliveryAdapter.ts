@@ -13,11 +13,12 @@
  *   5. Reports delivery attempt results for analytics (mirrors `onAttempt` from S6).
  *
  * SAFETY: This adapter is only reachable via `dispatchOutgoing`, which applies
- * `applyPreForkDevRedirect` BEFORE adapter selection. In dev (DEV_DELIVERY_REDIRECT=1 or
- * NODE_ENV !== 'production'), the intent is collapsed to the telegram test chat and this
- * adapter's `canHandle` returns false — so `sendWebPushViaProvider` is NEVER called.
- * The G2 guard in `sendWebPushToSubscriptions.ts` remains in place for the 6 remaining
- * webapp push legs that haven't migrated yet (S14b–S14g).
+ * `applyPreForkDevRedirect` BEFORE adapter selection (G1 chokepoint). In dev
+ * (DEV_DELIVERY_REDIRECT=1 or NODE_ENV !== 'production'), the redirect runs first and this
+ * adapter's `canHandle` returns false — so `sendWebPushViaProvider` is NEVER called with a
+ * real recipient.
+ * S16: G2 guard in `sendWebPushToSubscriptions.ts` is now retired as primary sink — all 7
+ * S14 legs (S14a–S14g) complete, 0 live callers. Kept as secondary safety layer only.
  */
 import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent, WebPushAccessPort } from '../../kernel/contracts/index.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
