@@ -1,5 +1,31 @@
 # SAAS Foundation — CORRECTED PLAN (canonical, 2026-06-17)
 
+> ⚠️ **REVISION REQUIRED before execution (plan-review 2026-06-17, confirmed by direct DB queries).** The
+> architecture HOLDS (shared-DB+RLS, default-deny, tenant=Organization) — but scope-completeness + 2
+> mechanisms are wrong:
+> - **C-1 [CRIT]:** completeness was computed on `public` only (185). DB has **218 base tables** — the
+>   **`integrator` schema (33 tables, 0 org_id)** holds per-patient PII (conversations, conversation_messages,
+>   user_questions, user_reminder_rules, user_subscriptions, mailing_logs, contacts, identities,
+>   content_access_grants) and is entirely unscoped. → re-derive over `public`+`integrator`; integrator rows
+>   keyed by `user_id`/`user_identity_id`/`external_chat_id` need an **org bridge** (OWNER-DECISION how).
+> - **C-3 [CRIT]:** "one uniform RLS template via a loop" (P0.8) is unimplementable — **41 of 84** scope
+>   tables have NO ownership column (patient predicate only via parent-JOIN); the other 43 use 7 different
+>   ownership columns. → replace with a **classified policy generator** + **denormalize org_id+patient_user_id
+>   onto the 41 child/junction tables** in P0.4.
+> - **C-2 [CRIT]:** P0.6 chokepoint is NOT a dormant "targeted hook" — singleton/`cache()`-DI rewrite +
+>   340/40/29 connection paths + separate integrator/media-worker pools → **T0-weight**, not Phase-0. Split
+>   into mechanism + opt-in audit; re-size.
+> - **H-4 [HIGH]:** default-deny **bricks login** unless an explicit **identity/bootstrap-readable tier** is
+>   enumerated (auth/session/OTP tables + `system_settings` are read BEFORE org context; some are in the 84).
+>   Add as a 3rd allowlist category in P0.9/P0.10.
+> - **H-1:** catalog-per-tenant collides with the store copy model via real FKs (`template_id`/`catalog_id`…)
+>   → design catalog identity + copy/ID-remap BEFORE P0.4 batches catalogs (OWNER-DECISION).
+> - **H-2:** more context-less writers (payment webhook, 15 server actions, boot-migrations) → full census in
+>   P0.7. **H-3:** system_settings org-aware = real schema+mirror change (P0.11). **H-5:** be_package_items +
+>   be_patient_package_items lack org_id (2 real be_* gaps; be_organizations is the root).
+> **Next:** revise the plan incorporating these (~1 day planning, no code lost) → then execute. Two
+> owner-decisions: integrator org-bridge (C-1) + catalog/store copy model (H-1).
+
 **This is the live plan.** Supersedes the framing in `00_DECISIONS_AND_SCHEMA.md` / `01_MASTER_PLAN.md` /
 `02_PHASED_BRIEF.md` (kept as history) where they conflict. Evidence: `scope-derivation/VERIFIED_SCOPE.md`
 (the 84-table list), `REVIEW_2026-06-17_FRESH.md` (why the first plan was wrong), `FOUNDATION_PLAN.md`
