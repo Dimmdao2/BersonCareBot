@@ -111,58 +111,57 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.queryByRole("menuitem", { name: "Комплексы ЛФК" })).not.toBeInTheDocument();
   });
 
-  it("sidebar: flyout opens on mouseenter and shows sub-items after delay", () => {
+  it("sidebar: flyout opens on mouseenter and shows sub-items", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
-    const wrapper = trigger.parentElement!;
 
     // Before hover — closed
     expect(screen.queryByRole("menuitem", { name: "Упражнения" })).not.toBeInTheDocument();
 
-    // Hover over wrapper
-    fireEvent.mouseEnter(wrapper);
-    // Advance past the 80ms open delay
-    act(() => { vi.advanceTimersByTime(100); });
+    // Hover over trigger button
+    fireEvent.mouseEnter(trigger);
 
-    // Flyout should be open
+    // Flyout should be open immediately (no open delay)
     expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Комплексы ЛФК" })).toBeInTheDocument();
   });
 
-  it("sidebar: flyout closes after mouse leaves wrapper", () => {
+  it("sidebar: flyout closes after mouse leaves trigger", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
-    const wrapper = trigger.parentElement!;
 
     // Open
-    fireEvent.mouseEnter(wrapper);
-    act(() => { vi.advanceTimersByTime(100); });
+    fireEvent.mouseEnter(trigger);
     expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
 
-    // Leave
-    fireEvent.mouseLeave(wrapper);
+    // Leave trigger — starts close timer
+    fireEvent.mouseLeave(trigger);
     act(() => { vi.advanceTimersByTime(200); });
     expect(screen.queryByRole("menuitem", { name: "Упражнения" })).not.toBeInTheDocument();
   });
 
-  it("sidebar: re-entering wrapper cancels close timer (no flicker)", () => {
+  it("sidebar: entering flyout panel cancels close timer (no flicker on hover transit)", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
-    const wrapper = trigger.parentElement!;
 
-    // Open
-    fireEvent.mouseEnter(wrapper);
-    act(() => { vi.advanceTimersByTime(100); });
+    // Open via trigger
+    fireEvent.mouseEnter(trigger);
     expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
 
-    // Leave — starts close timer
-    fireEvent.mouseLeave(wrapper);
-    // Re-enter before 150ms — cancels close timer
-    fireEvent.mouseEnter(wrapper);
+    // Leave trigger — starts close timer
+    fireEvent.mouseLeave(trigger);
+    // Cursor enters the flyout panel before timer fires — cancels close
+    const flyoutPanel = document.getElementById("doctor-sidebar-flyout-library");
+    if (flyoutPanel) fireEvent.mouseEnter(flyoutPanel);
     act(() => { vi.advanceTimersByTime(200); });
 
-    // Should still be open (close timer was cancelled)
+    // Should still be open (close timer was cancelled by flyout mouseenter)
     expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
+
+    // Now leave the flyout panel too — should close
+    if (flyoutPanel) fireEvent.mouseLeave(flyoutPanel);
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(screen.queryByRole("menuitem", { name: "Упражнения" })).not.toBeInTheDocument();
   });
 
   it("sidebar: Каталог ЛФК trigger has aria-haspopup=menu", () => {

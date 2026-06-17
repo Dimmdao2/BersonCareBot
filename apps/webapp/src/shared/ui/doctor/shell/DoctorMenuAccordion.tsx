@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen } from "lucide-react";
 import type { ElementType } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
@@ -99,16 +99,18 @@ export type DoctorMenuAccordionProps = {
  * Sidebar: hover-flyout to the right.
  *
  * FIX for Q-C1 flicker: the previous implementation used @base-ui/react/popover which renders
- * into a portal (outside the trigger's DOM subtree). A 4px gap between trigger and portal content
- * caused onMouseLeave to fire on the trigger before onMouseEnter fired on the content, racing
- * against base-ui's own click-outside close logic. Even with a 120ms debounce the Popover's
- * internal state machine would fire synchronously and win the race.
+ * into a portal (outside the trigger's DOM subtree). A 4px gap between trigger and portal
+ * content caused onMouseLeave to fire on the trigger before onMouseEnter fired on the content,
+ * racing against base-ui's own click-outside close logic.
  *
- * Solution: render the flyout panel as a CHILD of a wrapper div that spans both the trigger and
- * the panel. The wrapper is `position: relative; overflow: visible`. The panel is
- * `position: absolute; left: 100%`. Mouse movement from trigger→panel never fires a mouseleave
- * on the wrapper — it's all within the same DOM subtree. The wrapper's onMouseEnter/onMouseLeave
- * control open/close with a small delay to handle fast movements cleanly.
+ * Root cause of the approach that used absolute positioning: the sidebar nav has `overflow-y: auto`,
+ * which causes browsers to implicitly set `overflow-x: auto` too, clipping the absolutely-positioned
+ * flyout. Moving to `position: fixed` with viewport-relative coordinates computed via
+ * getBoundingClientRect() bypasses ALL overflow clipping.
+ *
+ * Solution: `position: fixed` flyout panel. Coordinates are computed synchronously via
+ * useLayoutEffect when the panel opens. Mouse events on both trigger and panel share a close-
+ * timer ref. Zero gap ensures cursor always reaches the panel before the timer fires.
  */
 function SidebarGroupFlyout({
   item,
@@ -122,33 +124,33 @@ function SidebarGroupFlyout({
   onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const Icon = getIconForMenuId(item.id);
   const iconSize = 16;
 
-  const cancelTimers = useCallback(() => {
+  const cancelClose = useCallback(() => {
     if (closeTimerRef.current !== null) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    if (openTimerRef.current !== null) {
-      clearTimeout(openTimerRef.current);
-      openTimerRef.current = null;
-    }
   }, []);
 
-  const handleWrapperEnter = useCallback(() => {
-    cancelTimers();
-    // Small open delay (80ms) acts as hover-intent — prevents accidental open on fast cursor sweeps.
-    openTimerRef.current = setTimeout(() => setOpen(true), 80);
-  }, [cancelTimers]);
-
-  const handleWrapperLeave = useCallback(() => {
-    cancelTimers();
-    // Close delay (150ms) gives the user time to correct their trajectory.
+  const scheduleClose = useCallback(() => {
+    cancelClose();
     closeTimerRef.current = setTimeout(() => setOpen(false), 150);
-  }, [cancelTimers]);
+  }, [cancelClose]);
+
+  // Compute fixed position synchronously before paint so there's no layout flash.
+  useLayoutEffect(() => {
+    if (open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setFlyoutPos({ top: rect.top, left: rect.right });
+    } else if (!open) {
+      setFlyoutPos(null);
+    }
+  }, [open]);
 
   // Check if any sub-item is active (to highlight the group trigger)
   const anySubActive = useMemo(
@@ -157,29 +159,27 @@ function SidebarGroupFlyout({
   );
 
   return (
-    // Wrapper spans both trigger and flyout panel.
-    // overflow-visible is important so the absolutely-positioned panel is not clipped.
-    // The negative right margin (-mr-2) compensates for the sidebar's pr-2 so the panel
-    // appears flush to the sidebar's right edge.
-    <div
-      className="relative"
-      onMouseEnter={handleWrapperEnter}
-      onMouseLeave={handleWrapperLeave}
-    >
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         id={`doctor-sidebar-group-${item.id}`}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={open ? `doctor-sidebar-flyout-${item.id}` : undefined}
+        onMouseEnter={() => {
+          cancelClose();
+          setOpen(true);
+        }}
+        onMouseLeave={scheduleClose}
         onFocus={() => {
-          cancelTimers();
+          cancelClose();
           setOpen(true);
         }}
         onBlur={(e) => {
-          // Only close on blur if focus leaves the whole flyout tree
-          if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node | null)) {
-            closeTimerRef.current = setTimeout(() => setOpen(false), 150);
+          const wrapper = e.currentTarget.parentElement;
+          if (!wrapper?.contains(e.relatedTarget as Node | null)) {
+            scheduleClose();
           }
         }}
         className={cn(
@@ -206,16 +206,19 @@ function SidebarGroupFlyout({
         />
       </button>
 
-      {/* Flyout panel — absolutely positioned to the right of the trigger, same top.
-          Rendered in-tree (no portal) so mouse movement between trigger and panel
-          stays within the wrapper and never triggers a close. */}
-      {open && (
+      {/* Flyout panel: `position: fixed` with viewport-relative coordinates bypasses the
+          sidebar's overflow:auto clipping. Mouse events cancel the same close timer as the
+          trigger. The flyout left edge == trigger right edge (zero gap). */}
+      {open && flyoutPos && (
         <div
           id={`doctor-sidebar-flyout-${item.id}`}
           role="menu"
           aria-label={item.label}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          style={{ top: flyoutPos.top, left: flyoutPos.left }}
           className={cn(
-            "absolute top-0 left-full z-50 ml-1",
+            "fixed z-50",
             "min-w-[12rem] w-52 rounded-lg bg-popover p-1.5 text-sm text-popover-foreground",
             "shadow-md ring-1 ring-foreground/10",
             "flex flex-col gap-0.5",
