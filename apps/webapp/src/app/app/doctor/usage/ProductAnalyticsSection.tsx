@@ -157,7 +157,7 @@ export function ProductAnalyticsSection() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <DoctorStatCard
               id="usage-kpi-active-users"
-              title="Активных клиентов"
+              title="Активных пользователей"
               value={data.summary.uniqueActiveUsers}
               onClick={() => setClientsDialogOpen(true)}
             />
@@ -256,7 +256,7 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Клиенты</CardTitle>
+              <CardTitle className="text-sm">Пользователи приложения</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <StatTable
