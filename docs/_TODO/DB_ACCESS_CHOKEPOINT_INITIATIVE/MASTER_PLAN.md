@@ -5,6 +5,10 @@
 > clean-architecture/изоляция слоёв через DI, system_settings mirror, host-psql).
 > Поведение-сохраняющая инициатива → полный adversarial-loop как у SAAS НЕ нужен; достаточно
 > per-этап код-аудита (§4A) + приёмки по тестам/рендеру.
+> **Prior art (держим в `docs/` ради этой инициативы — обязательно читать):** `docs/INTEGRATOR_DRIZZLE_MIGRATION/`
+> (ADR «постоянных pg-зон» Class A/B/C + `RAW_SQL_INVENTORY.md`; 17 фаз закрыты) + наш `RAW_SQL_RULING.md`
+> (свод 2 Opus: оставить сырой SQL, достроить chokepoint, legacy → couple-with-lifecycle). НЕ перезапускать
+> закрытую миграцию; эта инициатива = только chokepoint, не переписывание SQL.
 
 ## Цель (результат, который должен быть получен)
 **Каждый доступ к БД в монорепо идёт через единый, защищённый guard'ами, перехватываемый ствол
@@ -15,10 +19,17 @@
 ## Этапы (какие действия должны быть выполнены)
 
 ### S0 — Базлайн + чтение правил (research)  [исполнитель + Opus-сверка]
-- Прочитать `AGENTS.md` + `.cursor/rules/*` + аудит `../SAAS_FOUNDATION/RAW_SQL_AUDIT.md` (+ `.tsv`).
+- Прочитать `AGENTS.md` + `.cursor/rules/*` + аудит `../SAAS_FOUNDATION/RAW_SQL_AUDIT.md` (+ `.tsv`) + наш `RAW_SQL_RULING.md`.
+- **Прочитать `docs/INTEGRATOR_DRIZZLE_MIGRATION/`** (`DRIZZLE_TRANSITION_PLAN.md` + `RAW_SQL_INVENTORY.md` + `LOG.md`) —
+  это **ADR постоянных pg-зон** и решения phase-08; **постоянные зоны** (раннер миграций, `SKIP LOCKED`-очереди,
+  ops-скрипты, кросс-схемные `public.*`-чтения) оставляем КАК ЕСТЬ; **legacy** (`rubitime_*`/`patient_bookings`/
+  `appointment_records`) — couple-with-lifecycle, не мигрировать ради ORM.
 - Построить «карту доступа к БД» (по процессам): все каналы (getDrizzle/runWebappSql/runWebappPgText;
-  runIntegratorSql; media-worker pool; packages с инъекцией клиента) + полный список «беглецов».
-- **DoD:** doc `db-access-map.md` со 100%-инвентаризацией каналов; кода не трогаем.
+  runIntegratorSql; media-worker pool; packages с инъекцией клиента) + полный список «беглецов»;
+  пометить постоянные pg-зоны как **KEEP (по ADR)**, а не как кандидатов на правку.
+- **DoD:** doc `db-access-map.md` со 100%-инвентаризацией каналов (KEEP-зоны помечены); кода не трогаем.
+- **Поправка к аудиту (от ревьюера B):** в `RAW_SQL_AUDIT.md` §2.2 завышен счёт прямых `db.query` интегратора
+  (~19 заявлено vs ~4 реально) — сверить/поправить при инвентаризации; выводы §4 верны.
 
 ### S1 — Убрать port-байпассы (сырой SQL → `infra/repos` + порты)  [параллельно по disjoint-файлам]
 - Перенести сырой SQL из `modules/**` (10), `app-layer/**` (~8), routes/pages (4) в `infra/repos`
