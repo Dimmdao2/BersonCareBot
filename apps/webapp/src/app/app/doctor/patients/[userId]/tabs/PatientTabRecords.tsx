@@ -155,19 +155,27 @@ type Props = {
   userId: string;
   header?: PatientCardHeader;
   onCreateVisitFromAppointment?: (appointmentId: string) => void;
+  initialAppointments?: PatientAppointmentItem[] | null;
 };
 
-export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment }: Props) {
+export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment, initialAppointments }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
   // can derive «loading» when the prop changes — instead of resetting state
   // synchronously inside the effect (which triggers cascading renders).
-  const [allAppointments, setAllAppointments] = useState<DisplayAppointment[] | null>(null);
+  const [allAppointments, setAllAppointments] = useState<DisplayAppointment[] | null>(
+    () => initialAppointments != null ? initialAppointments.map(mapRealToDisplay) : null,
+  );
   const [fetchError, setFetchError] = useState(false);
-  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(
+    () => initialAppointments != null ? userId : null,
+  );
 
   useEffect(() => {
+    if (initialAppointments != null && loadedUserId === userId) {
+      return;
+    }
     let active = true;
     fetch(`/api/doctor/patients/${userId}/appointments`)
       .then((r) => {
@@ -188,6 +196,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
     return () => {
       active = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // Stale = loaded state belongs to a previous userId → treat as loading.

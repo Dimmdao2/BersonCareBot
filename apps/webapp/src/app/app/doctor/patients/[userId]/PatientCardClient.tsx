@@ -7,7 +7,12 @@
  * Header: FIO display with inline edit. All other editing lives in the «Учётка» tab.
  */
 import { use, useState, useEffect, type ReactNode } from "react";
-import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
+import type { ClinicalState, Visit } from "@/modules/patient-clinical/ports";
+import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
+import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
+import type { DoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -35,6 +40,13 @@ type Props = {
   initialPhysicalData?: { heightCm: number | null; weightKg: number | null } | null;
   /** When set, renders this node in place of PatientTabProgram in the Программа tab. */
   embeddedProgramContent?: ReactNode;
+  initialClinicalState?: ClinicalState | null;
+  initialVisits?: Visit[] | null;
+  initialNotes?: DoctorNoteRow[] | null;
+  initialTasks?: SpecialistTaskRow[] | null;
+  initialSignals?: ProactiveInsightRow[] | null;
+  initialProgramActivity?: DoctorPatientProgramActivity | null;
+  initialAppointments?: PatientAppointmentItem[] | null;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms";
@@ -82,7 +94,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent }: Props) {
+export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments }: Props) {
   const header = use(cardHeaderPromise);
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -729,6 +741,13 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
           userId={identity.userId}
           header={header}
           onTabSwitch={(tab) => setActiveTab(tab as TabId)}
+          initialClinicalState={initialClinicalState}
+          initialVisits={initialVisits}
+          initialNotes={initialNotes}
+          initialTasks={initialTasks}
+          initialSignals={initialSignals}
+          initialProgramActivity={initialProgramActivity}
+          initialAppointments={initialAppointments}
         />
       </div>
       <div className={cn(activeTab !== "karta" && "hidden")}>
@@ -741,6 +760,8 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
             setPendingAppointmentId(null);
             setPendingVisitDate(null);
           }}
+          initialClinicalState={initialClinicalState}
+          initialVisits={initialVisits}
         />
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>
@@ -756,6 +777,7 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
             setPendingAppointmentId(apptId);
             setActiveTab("karta");
           }}
+          initialAppointments={initialAppointments}
         />
       </div>
       <div className={cn(activeTab !== "files" && "hidden")}>
