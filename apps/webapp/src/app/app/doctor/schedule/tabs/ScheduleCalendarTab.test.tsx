@@ -866,6 +866,76 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
   });
 
+  // ─── deriveSlotTimes helper (CAL-01) ─────────────────────────────────────
+
+  describe("deriveSlotTimes helper — CAL-01 window start", () => {
+    it("08:00 working start → slotMinTime is 08:00:00, not 07:00:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, [], "UTC");
+      expect(result.slotMinTime).toBe("08:00:00");
+    });
+
+    it("09:00 working start → slotMinTime is 09:00:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const result = deriveSlotTimes({ minMinute: 540, maxMinute: 1080 }, [], "UTC");
+      expect(result.slotMinTime).toBe("09:00:00");
+    });
+
+    it("event before working hours extends lo with 30 min buffer", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // Working period 08:00–18:00, but one appointment at 07:30 (450 min)
+      const events = [
+        {
+          kind: "appointment" as const,
+          id: "e1",
+          startAt: "2026-06-13T07:30:00Z",
+          endAt: "2026-06-13T08:00:00Z",
+          status: "confirmed",
+          patientName: "Test",
+          source: "test",
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
+        },
+      ];
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, events, "UTC");
+      // 450 - 30 = 420 → floor to hour → 420 = 07:00
+      expect(result.slotMinTime).toBe("07:00:00");
+    });
+
+    it("no working bounds and no events → default slot times", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const result = deriveSlotTimes(null, [], "UTC");
+      // Should return defaults, not crash
+      expect(result.slotMinTime).toBeTruthy();
+      expect(result.slotMaxTime).toBeTruthy();
+    });
+
+    it("08:30 working start (non-hour-aligned) → slotMinTime rounds down to 08:00:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const result = deriveSlotTimes({ minMinute: 510, maxMinute: 1080 }, [], "UTC");
+      // 510 = 8h30m → floor(510/60)*60 = 8*60 = 480 = 08:00
+      expect(result.slotMinTime).toBe("08:00:00");
+    });
+  });
+
   // ─── visibleRange helper ──────────────────────────────────────────────────
 
   describe("visibleRange helper", () => {
