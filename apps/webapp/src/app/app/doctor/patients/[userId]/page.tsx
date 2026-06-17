@@ -74,7 +74,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     <DoctorAppShell title="Карточка пациента" user={session.user} backHref={routePaths.doctorPatients}>
       <section className={doctorPageStackClass}>
         <PatientCardClient
-          cardHeaderPromise={Promise.resolve(cardHeaderPromise)}
+          cardHeader={cardHeaderPromise}
           initialTab={initialTab}
           createVisitFrom={createVisitFrom}
           visitDate={visitDate}

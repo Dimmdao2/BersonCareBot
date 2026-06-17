@@ -127,7 +127,7 @@ export function ProductAnalyticsSection() {
       .join(" · ") ?? "—";
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={String(windowHours)}

@@ -14,7 +14,7 @@ import { MaterialContentStatsClient } from "@/app/app/doctor/material-ratings/Ma
  */
 export function AnalyticsContentTab() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto w-full max-w-6xl flex flex-col gap-6">
       <MaterialContentStatsClient />
       <p className="text-sm">
         <Link

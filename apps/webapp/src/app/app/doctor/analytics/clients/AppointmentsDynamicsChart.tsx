@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -19,13 +20,27 @@ const STROKE_VISITS = "hsl(215 65% 38%)";
 const STROKE_BOOKINGS = "hsl(142 55% 36%)";
 const STROKE_CANCELS = "hsl(22 82% 46%)";
 
+type LineKey = "pastVisits" | "bookingsCreated" | "cancellationActions";
+
 function chartPeriodForPointCount(n: number): StatsPeriod {
   if (n <= 7) return "week";
   if (n <= 31) return "month";
   return "all";
 }
 
+const LINE_LABELS: Record<LineKey, string> = {
+  pastVisits: "Визиты",
+  bookingsCreated: "Записались",
+  cancellationActions: "Отмены",
+};
+
 export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPoint[] }) {
+  const [visible, setVisible] = useState<Record<LineKey, boolean>>({
+    pastVisits: true,
+    bookingsCreated: true,
+    cancellationActions: true,
+  });
+
   const period = chartPeriodForPointCount(series.length);
   const data = series.map((p) => ({
     full: p.day,
@@ -37,6 +52,13 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
     1,
     ...series.flatMap((s) => [s.pastVisits, s.bookingsCreated, s.cancellationActions]),
   );
+
+  function handleLegendClick(e: { dataKey?: unknown }) {
+    const key = e.dataKey as LineKey;
+    if (key in visible) {
+      setVisible((prev) => ({ ...prev, [key]: !prev[key] }));
+    }
+  }
 
   return (
     <div className="h-[260px] w-full min-w-0 pb-2">
@@ -64,12 +86,7 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
           <DoctorRechartsTooltip
             formatter={(value, name) => {
               const v = typeof value === "number" ? value : Number(value);
-              const label =
-                name === "pastVisits"
-                  ? "Визиты"
-                  : name === "bookingsCreated"
-                    ? "Записались"
-                    : "Отмены";
+              const label = LINE_LABELS[name as LineKey] ?? String(name);
               return [`${Number.isFinite(v) ? v : "—"}`, label];
             }}
             labelFormatter={(_, payload) => {
@@ -79,14 +96,16 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
           />
           <Legend
             verticalAlign="bottom"
-            wrapperStyle={{ paddingTop: 8 }}
-            formatter={(value) =>
-              value === "pastVisits"
-                ? "Визиты"
-                : value === "bookingsCreated"
-                  ? "Записались"
-                  : "Отмены"
-            }
+            wrapperStyle={{ paddingTop: 8, cursor: "pointer" }}
+            formatter={(value) => {
+              const key = value as LineKey;
+              return (
+                <span style={{ opacity: visible[key] ? 1 : 0.35 }}>
+                  {LINE_LABELS[key] ?? value}
+                </span>
+              );
+            }}
+            onClick={handleLegendClick}
           />
           <Line
             type="monotone"
@@ -97,6 +116,7 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
             dot={{ r: 3, fill: STROKE_VISITS, strokeWidth: 0 }}
             activeDot={{ r: 4 }}
             isAnimationActive={false}
+            hide={!visible.pastVisits}
           />
           <Line
             type="monotone"
@@ -107,6 +127,7 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
             dot={{ r: 3, fill: STROKE_BOOKINGS, strokeWidth: 0 }}
             activeDot={{ r: 4 }}
             isAnimationActive={false}
+            hide={!visible.bookingsCreated}
           />
           <Line
             type="monotone"
@@ -117,6 +138,7 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
             dot={{ r: 3, fill: STROKE_CANCELS, strokeWidth: 0 }}
             activeDot={{ r: 4 }}
             isAnimationActive={false}
+            hide={!visible.cancellationActions}
           />
         </LineChart>
       </ResponsiveContainer>

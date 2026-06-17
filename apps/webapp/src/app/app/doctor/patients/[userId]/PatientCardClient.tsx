@@ -6,7 +6,7 @@
  *
  * Header: FIO display with inline edit. All other editing lives in the «Учётка» tab.
  */
-import { use, useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import type { ClinicalState, Visit } from "@/modules/patient-clinical/ports";
 import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
@@ -34,7 +34,7 @@ import { PatientTabComms } from "./tabs/PatientTabComms";
 import { PatientTabFinances } from "./tabs/PatientTabFinances";
 
 type Props = {
-  cardHeaderPromise: Promise<PatientCardHeader | null>;
+  cardHeader: PatientCardHeader | null;
   initialTab?: string;
   createVisitFrom?: string;
   visitDate?: string;
@@ -98,8 +98,8 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances }: Props) {
-  const header = use(cardHeaderPromise);
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances }: Props) {
+  const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
   const [activeTab, setActiveTab] = useState<TabId>(resolvedInitialTab);

@@ -136,7 +136,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     <DoctorAppShell title="Карточка пациента" user={session.user} backHref={routePaths.doctorPatients}>
       <section className={doctorPageStackClass}>
         <PatientCardClient
-          cardHeaderPromise={Promise.resolve(cardHeader)}
+          cardHeader={cardHeader}
           initialTab="program"
           initialPhysicalData={physicalData}
           embeddedProgramContent={embeddedEditor}
