@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
 import type { AnalyticsPeriodValue } from "./analyticsPeriodUi";
 
@@ -65,24 +66,14 @@ export function AnalyticsPeriodToolbar({
 
       {period.preset === "custom" ? (
         <div className="flex flex-wrap items-end gap-2">
-          <label className="flex flex-col gap-1 text-sm">
-            С
-            <input
-              className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-              type="date"
-              value={period.customFrom}
-              onChange={(e) => onCustomFromChange(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            По
-            <input
-              className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-              type="date"
-              value={period.customTo}
-              onChange={(e) => onCustomToChange(e.target.value)}
-            />
-          </label>
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">С</span>
+            <DoctorDatePicker value={period.customFrom} onChange={onCustomFromChange} />
+          </div>
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">По</span>
+            <DoctorDatePicker value={period.customTo} onChange={onCustomToChange} />
+          </div>
           <Button type="button" size="sm" onClick={onApplyCustom}>
             Показать
           </Button>
