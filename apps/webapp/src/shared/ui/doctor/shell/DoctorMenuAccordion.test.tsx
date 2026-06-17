@@ -1,9 +1,8 @@
 /** @vitest-environment jsdom */
 
 import type { MouseEventHandler, ReactNode } from "react";
-import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import { DoctorMenuAccordion, formatNavBadgeCount } from "./DoctorMenuAccordion";
 
 const menuAccess = { role: "doctor" as const, adminMode: false };
@@ -67,18 +66,6 @@ vi.mock("next/link", () => ({
   },
 }));
 
-// Mock popover to render content inline (no portal in jsdom)
-vi.mock("@/shared/ui/doctor/primitives/popover", () => ({
-  Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
-    <div data-popover-open={open}>{children}</div>
-  ),
-  PopoverTrigger: ({ render: renderProp }: { render?: ReactNode; children?: ReactNode }) =>
-    renderProp ?? null,
-  PopoverContent: ({ children }: { children: ReactNode }) => (
-    <div data-popover-content>{children}</div>
-  ),
-}));
-
 describe("formatNavBadgeCount", () => {
   it("returns null for non-positive", () => {
     expect(formatNavBadgeCount(0)).toBeNull();
@@ -103,151 +90,183 @@ describe("DoctorMenuAccordion", () => {
     intakeCountRef.value = 0;
     pendingProgramTestsCountRef.value = 0;
     proactiveInsightsCountRef.value = 0;
+    vi.useFakeTimers();
   });
 
-  it("renders top-level sidebar links including Каталог ЛФК group trigger", async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders top-level sidebar links including Каталог ЛФК group trigger", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
-    });
+    expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
     // Каталог ЛФК is a group trigger button
     expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toBeInTheDocument();
   });
 
-  it("sidebar renders sub-items inside flyout content (always visible via popover mock)", async () => {
+  it("sidebar: flyout is closed by default", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      // sub-items are rendered inside popover content (which is always visible in jsdom mock)
-      expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
-      expect(screen.getByRole("menuitem", { name: "Комплексы ЛФК" })).toBeInTheDocument();
-    });
+    expect(screen.queryByRole("menuitem", { name: "Упражнения" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Комплексы ЛФК" })).not.toBeInTheDocument();
   });
 
-  it("sidebar: Каталог ЛФК trigger has aria-haspopup=menu", async () => {
+  it("sidebar: flyout opens on mouseenter and shows sub-items after delay", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: /Каталог ЛФК/ }));
+    const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
+    const wrapper = trigger.parentElement!;
+
+    // Before hover — closed
+    expect(screen.queryByRole("menuitem", { name: "Упражнения" })).not.toBeInTheDocument();
+
+    // Hover over wrapper
+    fireEvent.mouseEnter(wrapper);
+    // Advance past the 80ms open delay
+    act(() => { vi.advanceTimersByTime(100); });
+
+    // Flyout should be open
+    expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Комплексы ЛФК" })).toBeInTheDocument();
+  });
+
+  it("sidebar: flyout closes after mouse leaves wrapper", () => {
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
+    const wrapper = trigger.parentElement!;
+
+    // Open
+    fireEvent.mouseEnter(wrapper);
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
+
+    // Leave
+    fireEvent.mouseLeave(wrapper);
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(screen.queryByRole("menuitem", { name: "Упражнения" })).not.toBeInTheDocument();
+  });
+
+  it("sidebar: re-entering wrapper cancels close timer (no flicker)", () => {
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
+    const wrapper = trigger.parentElement!;
+
+    // Open
+    fireEvent.mouseEnter(wrapper);
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
+
+    // Leave — starts close timer
+    fireEvent.mouseLeave(wrapper);
+    // Re-enter before 150ms — cancels close timer
+    fireEvent.mouseEnter(wrapper);
+    act(() => { vi.advanceTimersByTime(200); });
+
+    // Should still be open (close timer was cancelled)
+    expect(screen.getByRole("menuitem", { name: "Упражнения" })).toBeInTheDocument();
+  });
+
+  it("sidebar: Каталог ЛФК trigger has aria-haspopup=menu", () => {
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toHaveAttribute("aria-haspopup", "menu");
   });
 
-  it("top-level direct links are always visible regardless of groups", async () => {
+  it("top-level direct links are always visible regardless of groups", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
     expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Расписание/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Коммуникации/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Контент/ })).toBeInTheDocument();
   });
 
-  it("hides settings and system for doctor role", async () => {
+  it("hides settings and system for doctor role", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
     expect(screen.queryByRole("button", { name: /Настройки/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
-  it("shows settings and system for admin role", async () => {
+  it("shows settings and system for admin role", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: /Настройки/ }));
+    expect(screen.getByRole("button", { name: /Настройки/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Система/ })).toBeInTheDocument();
   });
 
   // Sheet (mobile) tests
 
-  it("sheet: renders top-level including Каталог ЛФК group trigger", async () => {
+  it("sheet: renders top-level including Каталог ЛФК group trigger", () => {
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
+    expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toBeInTheDocument();
   });
 
-  it("sheet: tapping Каталог ЛФК shows sub-items and back button", async () => {
-    const user = userEvent.setup();
+  it("sheet: tapping Каталог ЛФК shows sub-items and back button", () => {
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: /Каталог ЛФК/ }));
-    await user.click(screen.getByRole("button", { name: /Каталог ЛФК/ }));
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Комплексы ЛФК" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Клинические тесты" })).toBeInTheDocument();
-    });
+    fireEvent.click(screen.getByRole("button", { name: /Каталог ЛФК/ }));
+    expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Комплексы ЛФК" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Клинические тесты" })).toBeInTheDocument();
     // Back button present
     expect(screen.getByRole("button", { name: /Назад|Каталог ЛФК/ })).toBeInTheDocument();
   });
 
-  it("sheet: back button from second level returns to top level", async () => {
-    const user = userEvent.setup();
+  it("sheet: back button from second level returns to top level", () => {
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: /Каталог ЛФК/ }));
-    await user.click(screen.getByRole("button", { name: /Каталог ЛФК/ }));
-    await waitFor(() => screen.getByRole("link", { name: "Упражнения" }));
+    fireEvent.click(screen.getByRole("button", { name: /Каталог ЛФК/ }));
+    expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     // Click the first button in second level view (back button)
     const backBtn = screen.getAllByRole("button")[0]!;
-    await user.click(backBtn);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
-    });
+    fireEvent.click(backBtn);
+    expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Упражнения" })).not.toBeInTheDocument();
   });
 
-  it("calls onNavigate when link clicked", async () => {
-    const user = userEvent.setup();
+  it("calls onNavigate when link clicked", () => {
     const onNavigate = vi.fn();
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} onNavigate={onNavigate} />);
-    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
-    await user.click(screen.getByRole("link", { name: /Сегодня/ }));
+    fireEvent.click(screen.getByRole("link", { name: /Сегодня/ }));
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
-  it("shows communicationsTotal badge on Коммуникации link when counts > 0", async () => {
+  it("shows communicationsTotal badge on Коммуникации link when counts > 0", () => {
     intakeCountRef.value = 4;
     unreadCountRef.value = 2;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      const comms = screen.getByRole("link", { name: /Коммуникации/ });
-      expect(comms).toHaveTextContent("6");
-      expect(comms).toHaveAttribute("aria-label", "Коммуникации. Непрочитанных: 6.");
-    });
+    const comms = screen.getByRole("link", { name: /Коммуникации/ });
+    expect(comms).toHaveTextContent("6");
+    expect(comms).toHaveAttribute("aria-label", "Коммуникации. Непрочитанных: 6.");
   });
 
-  it("shows communicationsTotal badge in sheet variant", async () => {
+  it("shows communicationsTotal badge in sheet variant", () => {
     intakeCountRef.value = 1;
     unreadCountRef.value = 5;
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: /Коммуникации/ })).toHaveAttribute(
-        "id",
-        "doctor-menu-link-communications",
-      );
-    });
+    expect(screen.getByRole("link", { name: /Коммуникации/ })).toHaveAttribute(
+      "id",
+      "doctor-menu-link-communications",
+    );
   });
 
-  it("hides communications badge when counts are zero", async () => {
+  it("hides communications badge when counts are zero", () => {
     intakeCountRef.value = 0;
     unreadCountRef.value = 0;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: /Коммуникации/ }));
     expect(
       screen.getByRole("link", { name: /Коммуникации/ }).querySelector("[aria-label^='Непрочитанных']"),
     ).toBeNull();
   });
 
-  it("shows 99+ when communicationsTotal is at least 100", async () => {
+  it("shows 99+ when communicationsTotal is at least 100", () => {
     intakeCountRef.value = 80;
     unreadCountRef.value = 25;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: /Коммуникации/ })).toHaveTextContent("99+");
-    });
+    expect(screen.getByRole("link", { name: /Коммуникации/ })).toHaveTextContent("99+");
   });
 
-  it("shows combined today attention badge when pending tests or proactive signals > 0", async () => {
+  it("shows combined today attention badge when pending tests or proactive signals > 0", () => {
     pendingProgramTestsCountRef.value = 5;
     proactiveInsightsCountRef.value = 2;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor/clients" menuAccess={menuAccess} />);
-    await waitFor(() => {
-      const today = screen.getByRole("link", { name: /Сегодня/ });
-      expect(today).toHaveTextContent("7");
-      expect(today).toHaveAttribute("aria-label", "Сегодня. Требует внимания: 7.");
-    });
+    const today = screen.getByRole("link", { name: /Сегодня/ });
+    expect(today).toHaveTextContent("7");
+    expect(today).toHaveAttribute("aria-label", "Сегодня. Требует внимания: 7.");
   });
 });
