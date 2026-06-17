@@ -82,16 +82,13 @@ export function splitByBreak(
 
 export type BusyInterval = { startAt: string; endAt: string };
 
-const DEFAULT_WORKING: WorkingHoursRow[] = [
-  { weekday: 1, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 2, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 3, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 4, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 5, startMinute: 9 * 60, endMinute: 18 * 60 },
-];
-
+/**
+ * Returns the provided working-hours rows as-is.
+ * Empty input yields empty output — callers must handle the no-schedule case explicitly
+ * (no phantom Mon–Fri 09:00–18:00 default).
+ */
 export function pickWorkingHours(rows: WorkingHoursRow[]): WorkingHoursRow[] {
-  return rows.length > 0 ? rows : DEFAULT_WORKING;
+  return rows;
 }
 
 /** Local calendar date YYYY-MM-DD in IANA timezone. */
