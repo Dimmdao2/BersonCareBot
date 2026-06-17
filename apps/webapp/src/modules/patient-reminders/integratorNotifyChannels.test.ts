@@ -15,12 +15,16 @@ vi.mock("@/modules/web-push/sendWebPushToSubscriptions", () => ({
   sendWebPushToSubscriptions: sendWebPushMock,
 }));
 
-const sendTransactionalSmtpEmailMock = vi.hoisted(() => vi.fn());
+// S10: email send now goes through relayOutbound; smtpInnerFromValueJson moved to smtpOutboundPatch.
+const relayOutboundMock = vi.hoisted(() => vi.fn());
+vi.mock("@/modules/messaging/relayOutbound", () => ({
+  relayOutbound: relayOutboundMock,
+}));
+
 const smtpInnerFromValueJsonMock = vi.hoisted(() =>
   vi.fn(() => ({ success: true as const, data: { from: "noreply@example.com" } })),
 );
-vi.mock("@/modules/outbound-email/sendTransactionalSmtp", () => ({
-  sendTransactionalSmtpEmail: sendTransactionalSmtpEmailMock,
+vi.mock("@/modules/system-settings/smtpOutboundPatch", () => ({
   smtpInnerFromValueJson: smtpInnerFromValueJsonMock,
 }));
 
@@ -101,7 +105,8 @@ describe("runPatientReminderIntegratorNotify", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendWebPushMock.mockResolvedValue({ delivered: 1, errors: 0, deactivated: 0 });
-    sendTransactionalSmtpEmailMock.mockResolvedValue({ ok: true });
+    // S10: relayOutbound used for email now
+    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
     getWebPushVapidKeyPairMock.mockResolvedValue({ publicKey: "pub", privateKey: "priv" });
     smtpInnerFromValueJsonMock.mockReturnValue({
       success: true,
@@ -190,11 +195,14 @@ describe("runPatientReminderIntegratorNotify", () => {
     expect(result.webPushDeactivated).toBe(1);
   });
 
-  it("sends email when selected and not rate limited", async () => {
+  it("sends email when selected and not rate limited (via relayOutbound)", async () => {
     const result = await runPatientReminderIntegratorNotify(baseBody, buildDeps());
     expect(result.selectedChannels).toContain("email");
     expect(result.emailOk).toBe(true);
-    expect(sendTransactionalSmtpEmailMock).toHaveBeenCalledTimes(1);
+    // S10: relay-outbound used instead of sendTransactionalSmtpEmail
+    expect(relayOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "email", metadata: expect.objectContaining({ subject: expect.any(String) }) }),
+    );
   });
 
   it("skips email with rate_limited in skippedChannels", async () => {
@@ -205,7 +213,7 @@ describe("runPatientReminderIntegratorNotify", () => {
       },
     }));
     expect(result.emailSkipped).toBe("rate_limited");
-    expect(sendTransactionalSmtpEmailMock).not.toHaveBeenCalled();
+    expect(relayOutboundMock).not.toHaveBeenCalled();
     const skipped = result.skippedChannels as Array<{ channel: string; reason: string }>;
     expect(skipped.find((s) => s.channel === "email" && s.reason === "rate_limited")).toBeDefined();
   });

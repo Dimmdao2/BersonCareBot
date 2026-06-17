@@ -18,7 +18,8 @@ vi.mock("@/modules/web-push/sendWebPushToSubscriptions", () => ({
   sendWebPushToSubscriptions: sendPushMock,
 }));
 
-vi.mock("@/modules/outbound-email/sendTransactionalSmtp", () => ({
+// S10: smtpInnerFromValueJson relocated to smtpOutboundPatch
+vi.mock("@/modules/system-settings/smtpOutboundPatch", () => ({
   smtpInnerFromValueJson: vi.fn().mockReturnValue({ success: false }),
 }));
 

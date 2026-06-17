@@ -140,7 +140,7 @@ export async function notifySpecialistTaskReminder(
       const subs = await deps.webPushSubscriptions.listActiveByUserId(ownerId);
       if (subs.length > 0) {
         const { sendWebPushToSubscriptions } = await import("@/modules/web-push/sendWebPushToSubscriptions");
-        const { smtpInnerFromValueJson } = await import("@/modules/outbound-email/sendTransactionalSmtp");
+        const { smtpInnerFromValueJson } = await import("@/modules/system-settings/smtpOutboundPatch");
         const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
         const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
         const vapidSubject =

@@ -1,7 +1,7 @@
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import { logger } from "@/infra/logging/logger";
-import { smtpInnerFromValueJson, sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
 import { NOTIFICATION_TOPIC_SPECIALIST_MESSAGES } from "@/modules/patient-notifications/notificationTopicCodes";
 import {
   resolvePatientNotificationChannels,
@@ -196,16 +196,23 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
           smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
             `<mailto:${smtpParsed.data.from.trim()}?subject=unsubscribe>`
           : null;
+        // S10: relay email through integrator dispatchPort (redirect-covered) instead of direct SMTP.
         tasks.push(
-          sendTransactionalSmtpEmail({
-            smtpValueJson: smtp?.valueJson,
-            to,
-            subject: EMAIL_SUBJECT,
-            text: `${previewText(trimmed, 2000)}\n\n${openUrl}`,
-            listUnsubscribe,
-          }).then((res) => {
+          relayOutbound(
+            {
+              messageId: `${messageId}:email`,
+              channel: "email",
+              recipient: to,
+              text: `${previewText(trimmed, 2000)}\n\n${openUrl}`,
+              metadata: {
+                subject: EMAIL_SUBJECT,
+                ...(listUnsubscribe ? { listUnsubscribe } : {}),
+              },
+            },
+            deps,
+          ).then((res) => {
             if (!res.ok) {
-              logger.warn({ platformUserId, error: res.error }, "doctor reply email failed");
+              logger.warn({ platformUserId, error: res.reason }, "doctor reply email failed");
             }
           }),
         );

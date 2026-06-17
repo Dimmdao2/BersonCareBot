@@ -177,4 +177,31 @@ describe("relayOutbound", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalled();
   });
+
+  // S10: email channel — metadata.subject in body; no replyMarkup
+  it("email channel — sends metadata.subject in request body (D-S10)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, status: "accepted" }),
+    });
+
+    const { relayOutbound } = await importRelay();
+    const result = await relayOutbound(
+      {
+        ...baseParams,
+        channel: "email",
+        recipient: "user@example.com",
+        metadata: { subject: "Тест рассылки", listUnsubscribe: "<mailto:x@y.com>" },
+      },
+      { retryDelaysMs: INSTANT_DELAYS },
+    );
+
+    expect(result).toEqual({ ok: true, status: "accepted" });
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(call[1].body as string) as Record<string, unknown>;
+    expect(body.channel).toBe("email");
+    expect(body.recipient).toBe("user@example.com");
+    expect((body.metadata as Record<string, unknown>).subject).toBe("Тест рассылки");
+    expect((body.metadata as Record<string, unknown>).listUnsubscribe).toBe("<mailto:x@y.com>");
+  });
 });

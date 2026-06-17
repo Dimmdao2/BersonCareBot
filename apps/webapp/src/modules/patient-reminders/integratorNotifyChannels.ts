@@ -2,7 +2,8 @@ import { z } from "zod";
 import { logger } from "@/infra/logging/logger";
 import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { smtpInnerFromValueJson, sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
+import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import {
   attachResolutionIdentity,
   logNotificationChannelsResolved,
@@ -487,17 +488,21 @@ export async function runPatientReminderIntegratorNotify(
       const subject = stripHtmlLight(body.title).slice(0, 200) || "Напоминание";
       const text =
         `${stripHtmlLight(body.bodyText ?? "")}\n\n${body.openUrl}`.trim().slice(0, 8000);
-      const res = await sendTransactionalSmtpEmail({
-        smtpValueJson: smtp?.valueJson,
-        to: emailFields.email.trim(),
-        subject,
+      // S10: relay email through integrator dispatchPort (redirect-covered) instead of direct SMTP.
+      const res = await relayOutbound({
+        messageId: `prn:${body.occurrenceId}:email`,
+        channel: "email",
+        recipient: emailFields.email.trim(),
         text: text || body.openUrl,
-        listUnsubscribe,
+        metadata: {
+          subject,
+          ...(listUnsubscribe ? { listUnsubscribe } : {}),
+        },
       });
       out.emailOk = res.ok;
       if (!res.ok) {
-        out.emailError = res.error;
-        const mapped = mapEmailSendError(res.error);
+        out.emailError = res.reason;
+        const mapped = mapEmailSendError(res.reason);
         await deps.recordDeliveryAttempt?.({
           userId: uid,
           integratorUserId: body.integratorUserId,

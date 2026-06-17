@@ -82,7 +82,27 @@ function buildIntent(parsed: RelayPayload) {
     };
   }
 
-  // email — not yet implemented; return null to signal skip
+  if (parsed.channel === 'email') {
+    // D-S10: extend relay-outbound to carry email intents (N4 APPROVED §5b).
+    // subject comes from optional metadata.subject; falls back to 'BersonCare'.
+    // payload shape matches EmailDeliveryAdapter expectations (S8):
+    //   payload.recipient.email, payload.subject, payload.message.text, payload.delivery.channels.
+    const subject =
+      typeof parsed.metadata?.subject === 'string' && parsed.metadata.subject.trim() ?
+        parsed.metadata.subject.trim()
+      : 'BersonCare';
+    return {
+      type: 'message.send' as const,
+      meta,
+      payload: {
+        recipient: { email: parsed.recipient },
+        subject,
+        message: { text: parsed.text },
+        delivery: { channels: ['email'] },
+      },
+    };
+  }
+
   return null;
 }
 

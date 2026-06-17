@@ -22,6 +22,11 @@ export type RelayOutboundParams = {
   userId?: string;
   /** Inline-клавиатура (Telegram / MAX) через integrator relay-outbound `metadata.replyMarkup`. */
   replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
+  /**
+   * Дополнительные метаданные канала (например, subject для email, listUnsubscribe для email).
+   * Передаются в integrator relay-outbound в поле `metadata`.
+   */
+  metadata?: Record<string, unknown>;
 };
 
 export type RelayOutboundDeps = {
@@ -111,8 +116,15 @@ export async function relayOutbound(
   const url = `${integratorUrl.replace(/\/$/, "")}/api/bersoncare/relay-outbound`;
 
   const bodyObj: Record<string, unknown> = { messageId, channel, recipient, text, idempotencyKey };
+  const mergedMetadata: Record<string, unknown> = {};
+  if (params.metadata) {
+    Object.assign(mergedMetadata, params.metadata);
+  }
   if (params.replyMarkup) {
-    bodyObj.metadata = { replyMarkup: params.replyMarkup };
+    mergedMetadata.replyMarkup = params.replyMarkup;
+  }
+  if (Object.keys(mergedMetadata).length > 0) {
+    bodyObj.metadata = mergedMetadata;
   }
   const rawBody = JSON.stringify(bodyObj);
 

@@ -1,6 +1,6 @@
 import { logger } from "@/infra/logging/logger";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { smtpInnerFromValueJson } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
 import type { NotificationDeliveryService } from "@/modules/notification-delivery/service";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import {

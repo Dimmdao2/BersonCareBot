@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { fanOutBroadcastEmail } from "./fanOutBroadcastEmail";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 
-vi.mock("@/modules/outbound-email/sendTransactionalSmtp", () => ({
-  sendTransactionalSmtpEmail: vi.fn().mockResolvedValue({ ok: true }),
+// S10: email now goes through relayOutbound instead of sendTransactionalSmtpEmail
+const relayOutboundMock = vi.hoisted(() => vi.fn());
+vi.mock("@/modules/messaging/relayOutbound", () => ({
+  relayOutbound: relayOutboundMock,
 }));
-
-import { sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
 
 function cl(partial: Partial<ClientListItem> & Pick<ClientListItem, "userId">): ClientListItem {
   return {
@@ -23,6 +23,8 @@ function cl(partial: Partial<ClientListItem> & Pick<ClientListItem, "userId">): 
 
 describe("fanOutBroadcastEmail", () => {
   it("sends email to each client with verified email", async () => {
+    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
+
     const emailMap = new Map([
       ["u1", "u1@example.com"],
       ["u2", "u2@example.com"],
@@ -31,7 +33,6 @@ describe("fanOutBroadcastEmail", () => {
       emailRecipientsPort: {
         getVerifiedEmailsForUserIds: vi.fn().mockResolvedValue(emailMap),
       },
-      getSmtpValueJson: vi.fn().mockResolvedValue({ value: { host: "localhost", port: 587, secure: false, user: "test", password: "pass", from: "noreply@test.com" } }),
     };
 
     const result = await fanOutBroadcastEmail(
@@ -49,16 +50,26 @@ describe("fanOutBroadcastEmail", () => {
     expect(result.delivered).toBe(2);
     expect(result.errors).toBe(0);
     expect(result.skipped).toBe(0);
-    expect(vi.mocked(sendTransactionalSmtpEmail)).toHaveBeenCalledTimes(2);
+    expect(relayOutboundMock).toHaveBeenCalledTimes(2);
+    // Verify relay is called with email channel and subject metadata
+    // Note: second arg is the deps object passed through from fanOutBroadcastEmail
+    expect(relayOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "email",
+        metadata: expect.objectContaining({ subject: "Test title" }),
+      }),
+      expect.anything(),
+    );
   });
 
   it("skips clients without verified email", async () => {
+    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
+
     const emailMap = new Map([["u1", "u1@example.com"]]);
     const deps = {
       emailRecipientsPort: {
         getVerifiedEmailsForUserIds: vi.fn().mockResolvedValue(emailMap),
       },
-      getSmtpValueJson: vi.fn().mockResolvedValue({}),
     };
 
     const result = await fanOutBroadcastEmail(
@@ -76,14 +87,13 @@ describe("fanOutBroadcastEmail", () => {
     expect(result.skipped).toBe(1);
   });
 
-  it("counts errors when smtp fails", async () => {
-    vi.mocked(sendTransactionalSmtpEmail).mockResolvedValueOnce({ ok: false, error: "smtp_error" });
+  it("counts errors when relay fails", async () => {
+    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: "dispatch_failed" });
     const emailMap = new Map([["u1", "u1@example.com"]]);
     const deps = {
       emailRecipientsPort: {
         getVerifiedEmailsForUserIds: vi.fn().mockResolvedValue(emailMap),
       },
-      getSmtpValueJson: vi.fn().mockResolvedValue({}),
     };
 
     const result = await fanOutBroadcastEmail(
@@ -106,7 +116,6 @@ describe("fanOutBroadcastEmail", () => {
       emailRecipientsPort: {
         getVerifiedEmailsForUserIds: vi.fn().mockRejectedValue(new Error("db error")),
       },
-      getSmtpValueJson: vi.fn().mockResolvedValue({}),
     };
 
     const result = await fanOutBroadcastEmail(

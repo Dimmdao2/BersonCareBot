@@ -1,16 +1,17 @@
 /**
  * Email fan-out для рассылки врача.
- * Этап 4a (2026-06-13).
+ * Этап 4a (2026-06-13) → S10 refactor (2026-06-17).
  *
- * Отправляет письмо каждому eligible-клиенту через SMTP (`sendTransactionalSmtpEmail`).
+ * Отправляет письмо каждому eligible-клиенту через integrator relay-outbound (channel:'email').
  * Eligibility: подтверждённый email (resolverPort.getVerifiedEmailsForUserIds).
  *
- * ⚠️ GUARDED: отправка активна только при наличии порта `resolverPort` и непустого SMTP.
- * Если порт не подключён — фанаут возвращает { attempted: 0, ... } без ошибки.
+ * ⚠️ GUARDED: relay-outbound → integrator dispatchPort (redirect-covered). No direct SMTP.
+ * Если relay недоступен — результат `errors++` (не скрывает сбои).
  */
 
+import { randomUUID } from "node:crypto";
 import { logger } from "@/infra/logging/logger";
-import { sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { relayOutbound, type RelayOutboundDeps } from "@/modules/messaging/relayOutbound";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import type { BroadcastCategory } from "./ports";
 
@@ -31,14 +32,14 @@ export type FanOutBroadcastEmailInput = {
   eligibleClients: readonly ClientListItem[];
 };
 
-export type FanOutBroadcastEmailDeps = {
+export type FanOutBroadcastEmailDeps = RelayOutboundDeps & {
   /** Порт для получения email-адресов. Если не задан — фанаут отключён. */
   emailRecipientsPort: BroadcastEmailRecipientsPort;
   /**
-   * Async-геттер, возвращающий `value_json` из system_settings (ключ smtp_outbound).
-   * Вызывается один раз перед фанаутом. Lazy — позволяет не ждать при инициализации DI.
+   * @deprecated Не используется с S10: SMTP-конфиг читается в integrator EmailDeliveryAdapter.
+   * Оставлен для совместимости DI-слоя; будет удалён в S15.
    */
-  getSmtpValueJson: () => Promise<unknown>;
+  getSmtpValueJson?: () => Promise<unknown>;
 };
 
 export type FanOutBroadcastEmailResult = {
@@ -53,7 +54,6 @@ export async function fanOutBroadcastEmail(
   deps: FanOutBroadcastEmailDeps,
 ): Promise<FanOutBroadcastEmailResult> {
   const { emailRecipientsPort } = deps;
-  const smtpValueJson = await deps.getSmtpValueJson();
 
   const userIds = input.eligibleClients.map((c) => c.userId);
   let emailMap: Map<string, string>;
@@ -85,12 +85,17 @@ export async function fanOutBroadcastEmail(
 
     attempted += 1;
     try {
-      const result = await sendTransactionalSmtpEmail({
-        smtpValueJson,
-        to: emailAddress,
-        subject: input.broadcastTitle,
-        text: `${input.broadcastTitle}\n\n${input.broadcastBody}`,
-      });
+      const messageId = `broadcast:${input.auditId}:${client.userId}`;
+      const result = await relayOutbound(
+        {
+          messageId,
+          channel: "email",
+          recipient: emailAddress,
+          text: `${input.broadcastTitle}\n\n${input.broadcastBody}`,
+          metadata: { subject: input.broadcastTitle },
+        },
+        deps,
+      );
 
       if (result.ok) {
         delivered += 1;
@@ -101,7 +106,7 @@ export async function fanOutBroadcastEmail(
             event: "doctor_broadcast.email.send_failed",
             auditId: input.auditId,
             platformUserId: client.userId,
-            error: result.error,
+            error: result.reason,
           },
           "doctor broadcast email send failed",
         );

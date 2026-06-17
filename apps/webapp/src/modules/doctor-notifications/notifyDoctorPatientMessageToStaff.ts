@@ -57,7 +57,7 @@ export async function notifyDoctorPatientMessageToStaff(
   const { sendWebPushToSubscriptions } = vapid
     ? await import("@/modules/web-push/sendWebPushToSubscriptions")
     : { sendWebPushToSubscriptions: null };
-  const { smtpInnerFromValueJson } = await import("@/modules/outbound-email/sendTransactionalSmtp");
+  const { smtpInnerFromValueJson } = await import("@/modules/system-settings/smtpOutboundPatch");
   const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
   const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
   const vapidSubject =
