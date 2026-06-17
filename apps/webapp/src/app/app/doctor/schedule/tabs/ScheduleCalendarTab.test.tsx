@@ -10,13 +10,43 @@ import userEvent from "@testing-library/user-event";
 
 // FullCalendar — тяжёлый, мокаем stub
 vi.mock("@fullcalendar/react", () => ({
-  default: ({ navLinkDayClick }: { navLinkDayClick?: (date: Date) => void }) => (
+  default: ({
+    navLinkDayClick,
+    dateClick,
+    select,
+  }: {
+    navLinkDayClick?: (date: Date) => void;
+    dateClick?: (arg: { date: Date; allDay: boolean }) => void;
+    select?: (arg: { start: Date }) => void;
+  }) => (
     <div data-testid="fullcalendar">
       <button
         data-testid="fc-day-header-click"
         onClick={() => navLinkDayClick?.(new Date("2026-06-15T00:00:00Z"))}
       >
         день-header
+      </button>
+      <button
+        data-testid="fc-timegrid-click"
+        onClick={() =>
+          dateClick?.({ date: new Date("2026-06-17T11:00:00Z"), allDay: false })
+        }
+      >
+        timegrid-click
+      </button>
+      <button
+        data-testid="fc-allday-click"
+        onClick={() =>
+          dateClick?.({ date: new Date("2026-06-17T00:00:00Z"), allDay: true })
+        }
+      >
+        allday-click
+      </button>
+      <button
+        data-testid="fc-select"
+        onClick={() => select?.({ start: new Date("2026-06-17T14:00:00Z") })}
+      >
+        select
       </button>
     </div>
   ),
@@ -32,12 +62,18 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
     selected,
     onClose,
     startInCreate,
+    createInitialStart,
   }: {
     selected: unknown;
     onClose: () => void;
     startInCreate?: boolean;
+    createInitialStart?: string | null;
   }) => (
-    <div data-testid="event-panel" data-start-in-create={startInCreate ? "true" : "false"}>
+    <div
+      data-testid="event-panel"
+      data-start-in-create={startInCreate ? "true" : "false"}
+      data-create-initial-start={createInitialStart ?? ""}
+    >
       {selected ? (
         <button data-testid="panel-close" onClick={onClose}>
           close
@@ -769,6 +805,64 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await user.click(screen.getByTestId("period-next"));
 
       expect(onDeepLinkChange).toHaveBeenCalledWith("date", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    });
+  });
+
+  // ─── C7: dateClick prefills start time ───────────────────────────────────
+
+  describe("C7 — dateClick prefills start time in create form", () => {
+    it("clicking time-grid slot opens create panel with ISO start time", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-timegrid-click"));
+
+      await waitFor(() => {
+        const panel = screen.getByTestId("event-panel");
+        expect(panel).toBeInTheDocument();
+        // startInCreate=true
+        expect(panel.getAttribute("data-start-in-create")).toBe("true");
+        // createInitialStart prefilled as "2026-06-17T11:00" (UTC wall-clock)
+        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T11:00");
+      });
+    });
+
+    it("clicking month all-day slot opens create panel with 09:00 default time", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ view: "month" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-allday-click"));
+
+      await waitFor(() => {
+        const panel = screen.getByTestId("event-panel");
+        expect(panel).toBeInTheDocument();
+        expect(panel.getAttribute("data-start-in-create")).toBe("true");
+        // allDay click → date part correct, time defaults to 09:00
+        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T09:00");
+      });
+    });
+
+    it("select (drag) also opens create panel with start time (existing R32 behaviour)", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-select"));
+
+      await waitFor(() => {
+        const panel = screen.getByTestId("event-panel");
+        expect(panel).toBeInTheDocument();
+        expect(panel.getAttribute("data-start-in-create")).toBe("true");
+        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T14:00");
+      });
     });
   });
 
