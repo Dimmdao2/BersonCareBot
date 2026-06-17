@@ -25,6 +25,7 @@ import { PatientTabRecords } from "./tabs/PatientTabRecords";
 import { PatientTabFiles } from "./tabs/PatientTabFiles";
 import { PatientTabAccount } from "./tabs/PatientTabAccount";
 import { PatientTabComms } from "./tabs/PatientTabComms";
+import { PatientTabFinances } from "./tabs/PatientTabFinances";
 
 type Props = {
   cardHeaderPromise: Promise<PatientCardHeader | null>;
@@ -37,7 +38,7 @@ type Props = {
   embeddedProgramContent?: ReactNode;
 };
 
-type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms";
+type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
 
 const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "overview", label: "Обзор" },
@@ -47,6 +48,7 @@ const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "files", label: "Файлы" },
   { id: "comms", label: "Коммуникации" },
   { id: "account", label: "Учётка" },
+  { id: "finances", label: "Финансы" },
 ];
 
 /** Format ISO date → DD.MM.YYYY */
@@ -766,6 +768,10 @@ export function PatientCardClient({ cardHeaderPromise, initialTab, createVisitFr
       </div>
       <div className={cn(activeTab !== "comms" && "hidden")}>
         <PatientTabComms userId={identity.userId} />
+      </div>
+      {/* BIG-07: Финансы tab — mounts lazy (null when not active) */}
+      <div className={cn(activeTab !== "finances" && "hidden")}>
+        <PatientTabFinances userId={identity.userId} active={activeTab === "finances"} />
       </div>
     </div>
   );
