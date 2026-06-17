@@ -1,11 +1,14 @@
 # SAAS_FOUNDATION — initiative index
 
-**Status:** ⛔ **BLOCKED — REWORK REQUIRED before F0.1** (fresh review 2026-06-17). Planning only, no code started. **C1 RESOLVED** → verified **66-table** must-scope list ([`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md), 3 independent methods + DB arbiter + completeness gate; EHR core recovered). **Direction converged: shared-DB + RLS** (silo dropped — patient↔patient isolation needs row-level anyway, which RLS gives and schemas can't). Remaining before F0.1: C2 (D7 config redesign), C3 (headless runtimes), + ~4 borderline owner-decisions (telemetry / content catalogs / system_settings / legacy-confirm).
+**Status:** ✅ **PLAN READY** ([`CORRECTED_PLAN.md`](CORRECTED_PLAN.md)) — planning only, no code yet. Scope **LOCKED at 84 tables** (`scope-derivation/VERIFIED_SCOPE.md`); direction **shared-DB + RLS**; fail-safe **default-deny + explicit PUBLIC allowlist** (owner-approved). C1 ✅ / C2 ✅ / C3 ✅ in plan (P0.7). **Awaiting go to execute Phase 0** (Sonnet per stage). Gates: prod-parity confirm for P0.5/P0.8; default-deny flip only at T0 after shadow-run.
 **Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.
 
-## Documents (read in order)
+## Documents
+**LIVE (read these):** [`CORRECTED_PLAN.md`](CORRECTED_PLAN.md) — **canonical plan** · [`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md) — verified 84-table scope · [`LOG.md`](LOG.md) — execution log.
+
+**History / rationale (superseded by CORRECTED_PLAN where they conflict):**
 1. [`00_DECISIONS_AND_SCHEMA.md`](00_DECISIONS_AND_SCHEMA.md) — settled decisions + target schema (Drizzle).
 2. [`01_MASTER_PLAN.md`](01_MASTER_PLAN.md) — phases, **Phase 0 stage spine**, critical sizing, **rules-compliance matrix**.
 3. [`02_PHASED_BRIEF.md`](02_PHASED_BRIEF.md) — per-stage brief **template** (§12 + §24 compliant) + stage stubs.
