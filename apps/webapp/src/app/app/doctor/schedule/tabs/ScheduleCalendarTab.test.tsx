@@ -890,7 +890,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           id: "e1",
           startAt: "2026-06-13T07:30:00Z",
           endAt: "2026-06-13T08:00:00Z",
-          status: "confirmed",
+          status: "confirmed" as const,
           patientName: "Test",
           source: "test",
           specialistId: null,
