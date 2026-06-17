@@ -10,3 +10,8 @@
 2026-06-17T16:33:23+02:00 | step-3: implementing card wrapping - converting sections to DoctorSection
 2026-06-17T16:34:18+02:00 | step-4: running tsc check
 2026-06-17T16:38:13+02:00 | step-5: committing and pushing
+2026-06-17T18:53:24+02:00 | ORCHESTRATOR: restarting :5200 (turbopack stuck on API routes)
+2026-06-17T19:05:44+02:00 | ORCHESTRATOR: clearing 22GB .next/dev/ cache to fix turbopack compilation hang
+2026-06-17T19:12:09+02:00 | ORCHESTRATOR: FIN-01/02/03/04/05 all VERIFIED. Turbopack cache cleared (was 22GB). Starting D-ANALYTICS decomposition.
+2026-06-17T19:20:48+02:00 | ANL-12 line toggle, ANL-14 max-width, PAT-05 prop cleanup — tsc clean, committing
+2026-06-17T19:25:03+02:00 | PASS: ANL-12 line toggle + ANL-14 max-width + PAT-05 prop cleanup — all MERGED to feat 40eaffed + RENDER-VERIFIED. Blocked: ANL-10/11/13/CAL-02/Q-F5 NEEDS-OWNER. Next: client-side booking reminder (D-SETTINGS-REMINDERS Phase 3)
