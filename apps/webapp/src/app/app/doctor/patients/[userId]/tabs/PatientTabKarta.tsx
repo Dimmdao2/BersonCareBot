@@ -47,6 +47,7 @@ import type {
   AnamnesisLifestyleEntry,
   AnamnesisState,
   AnamnesisTraumaEntry,
+  ClinicalState,
   DiagnosisClinicalStatus,
   DiagnosisStatusHistoryEntry,
   Visit,
@@ -67,6 +68,8 @@ type Props = {
   /** When set, pre-fill the new-visit date (ISO YYYY-MM-DD) from the appointment. */
   pendingVisitDate?: string | null;
   onPendingConsumed?: () => void;
+  initialClinicalState?: ClinicalState | null;
+  initialVisits?: Visit[] | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -1327,17 +1330,18 @@ function AddLifestyleForm({
 
 const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
-export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, onPendingConsumed }: Props) {
+export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, onPendingConsumed, initialClinicalState, initialVisits }: Props) {
+  const hasSsrClinical = initialClinicalState != null && initialVisits != null;
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
 
   // Clinical data — loaded from /api/doctor/patients/[userId]/clinical
-  const [complaints, setComplaints] = useState<ActiveComplaint[]>([]);
-  const [diagnoses, setDiagnoses] = useState<ActiveDiagnosis[]>([]);
-  const [visits, setVisits] = useState<Visit[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [complaints, setComplaints] = useState<ActiveComplaint[]>(() => hasSsrClinical ? initialClinicalState!.complaints : []);
+  const [diagnoses, setDiagnoses] = useState<ActiveDiagnosis[]>(() => hasSsrClinical ? initialClinicalState!.diagnoses : []);
+  const [visits, setVisits] = useState<Visit[]>(() => hasSsrClinical ? initialVisits! : []);
+  const [isLoading, setIsLoading] = useState(!hasSsrClinical);
   const [fetchError, setFetchError] = useState(false);
-  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(() => hasSsrClinical ? userId : null);
 
   // Anamnesis data — loaded from /api/doctor/patients/[userId]/anamnesis
   const [anamnesis, setAnamnesis] = useState<AnamnesisState>(EMPTY_ANAMNESIS);
@@ -1386,10 +1390,15 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
   }, [userId]);
 
   useEffect(() => {
-    // Fetch on mount / userId change. Stale flash is prevented by the isStale
-    // derivation below (loadedUserId !== userId) — no synchronous reset needed.
+    // Skip clinical fetch on mount when SSR data covers this userId.
+    // fetchClinical() remains callable after mutations (onSaved callbacks).
+    if (hasSsrClinical && loadedUserId === userId) {
+      fetchAnamnesis();
+      return;
+    }
     fetchClinical();
     fetchAnamnesis();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchClinical, fetchAnamnesis]);
 
   // Auto-open new visit panel when navigated via URL param or in-page tab switch from Визиты

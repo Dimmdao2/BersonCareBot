@@ -11,11 +11,11 @@
  * Pattern mirrors PatientTabRecords.tsx / PatientTabKarta.tsx.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import { DoctorClientSupportPanel } from "@/app/app/doctor/clients/DoctorClientSupportPanel";
-import type { ActiveComplaint } from "@/modules/patient-clinical/ports";
+import type { ActiveComplaint, ClinicalState, Visit } from "@/modules/patient-clinical/ports";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
@@ -452,13 +452,134 @@ type Props = {
   userId: string;
   header?: PatientCardHeader;
   onTabSwitch?: (tab: string) => void;
+  initialClinicalState?: ClinicalState | null;
+  initialVisits?: Visit[] | null;
+  initialNotes?: DoctorNoteRow[] | null;
+  initialTasks?: SpecialistTaskRow[] | null;
+  initialSignals?: ProactiveInsightRow[] | null;
+  initialProgramActivity?: DoctorPatientProgramActivity | null;
+  initialAppointments?: PatientAppointmentItem[] | null;
 };
 
-export function PatientTabOverview({ userId, onTabSwitch }: Props) {
+/** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
+function buildSsrSeedData(
+  clinicalState: ClinicalState,
+  visits: Visit[],
+  notes: DoctorNoteRow[],
+  tasks: SpecialistTaskRow[],
+  signals: ProactiveInsightRow[],
+  programActivity: DoctorPatientProgramActivity,
+  appointments: PatientAppointmentItem[],
+): OverviewData {
+  const complaints = clinicalState.complaints;
+  const clinicalStatus: WidgetStatus = complaints.length === 0 ? "empty" : "ok";
+  const symptomSeries = buildSymptomSeries(complaints, visits.map((v) => ({
+    id: v.id,
+    date: v.date,
+    type: v.type,
+    dynamics: v.dynamics?.map((d) => ({ id: d.id, label: d.label, from: d.from, to: d.to, note: d.note, priority: d.priority })),
+  })));
+
+  const upcomingAppts = appointments.filter((a) => a.status === "upcoming");
+  upcomingAppts.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  const nearestUpcoming = upcomingAppts[0] ?? null;
+  const controlDays = nearestUpcoming ? daysFromNow(nearestUpcoming.dateTime) : null;
+  const controlDate = nearestUpcoming ? fmtDateShort(nearestUpcoming.dateTime) : null;
+  const appointmentsStatus: WidgetStatus = nearestUpcoming === null ? "empty" : "ok";
+
+  const notesList = notes;
+  const notesStatus: WidgetStatus = "ok";
+
+  const tasksList = tasks.filter((t) => !t.completedAt);
+  tasksList.sort((a, b) => {
+    if (!a.dueAt && !b.dueAt) return 0;
+    if (!a.dueAt) return 1;
+    if (!b.dueAt) return -1;
+    return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+  });
+  const tasksStatus: WidgetStatus = "ok";
+
+  const signalsList = signals;
+  const signalsStatus: WidgetStatus = signalsList.length === 0 ? "empty" : "ok";
+
+  return {
+    clinicalStatus,
+    complaints,
+    symptomSeries,
+    appointmentsStatus,
+    controlDays,
+    controlDate,
+    packageStatus: "loading" as WidgetStatus,
+    activePackage: null,
+    programStatus: "loading" as WidgetStatus,
+    programTitle: null,
+    programStages: [],
+    programCurrentStage: null,
+    programCurrentStageIndex: 0,
+    programActivity,
+    notesStatus,
+    notes: notesList,
+    tasksStatus,
+    tasks: tasksList,
+    signalsStatus,
+    signals: signalsList,
+    calendarStatus: "loading" as WidgetStatus,
+    calendarDays: [],
+    messagesStatus: "loading" as WidgetStatus,
+    messages: [],
+    unreadFromUserCount: 0,
+  };
+}
+
+export function PatientTabOverview({
+  userId,
+  onTabSwitch,
+  initialClinicalState,
+  initialVisits,
+  initialNotes,
+  initialTasks,
+  initialSignals,
+  initialProgramActivity,
+  initialAppointments,
+}: Props) {
   const [calView, setCalView] = useState<"month" | "week">("month");
   const [programStageOffset, setProgramStageOffset] = useState(0);
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+  const [data, setData] = useState<OverviewData | null>(() => {
+    if (
+      initialClinicalState != null &&
+      initialVisits != null &&
+      initialNotes != null &&
+      initialTasks != null &&
+      initialSignals != null &&
+      initialProgramActivity != null &&
+      initialAppointments != null
+    ) {
+      return buildSsrSeedData(
+        initialClinicalState,
+        initialVisits,
+        initialNotes,
+        initialTasks,
+        initialSignals,
+        initialProgramActivity,
+        initialAppointments,
+      );
+    }
+    return null;
+  });
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(() => {
+    if (
+      initialClinicalState != null &&
+      initialVisits != null &&
+      initialNotes != null &&
+      initialTasks != null &&
+      initialSignals != null &&
+      initialProgramActivity != null &&
+      initialAppointments != null
+    ) {
+      return userId;
+    }
+    return null;
+  });
 
   // Note inline form
   const [addingNote, setAddingNote] = useState(false);
@@ -470,19 +591,24 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskSaving, setTaskSaving] = useState(false);
 
+  const hasSsrData =
+    initialClinicalState != null &&
+    initialVisits != null &&
+    initialNotes != null &&
+    initialTasks != null &&
+    initialSignals != null &&
+    initialProgramActivity != null &&
+    initialAppointments != null;
+
+  // Track whether we've seeded SSR data for the current userId to avoid
+  // overwriting mutation-triggered setData calls on re-render.
+  const ssrSeedRef = useRef<string | null>(hasSsrData ? userId : null);
+
   useEffect(() => {
     let active = true;
     const { from, to } = currentMonthRange();
 
-    // --- All fetches in parallel ---
-    const fetchClinical = fetch(`/api/doctor/patients/${userId}/clinical`, { credentials: "include" })
-      .then((r) => r.ok ? (r.json() as Promise<ClinicalApiResponse>) : null)
-      .catch(() => null);
-
-    const fetchAppointments = fetch(`/api/doctor/patients/${userId}/appointments`, { credentials: "include" })
-      .then((r) => r.ok ? (r.json() as Promise<AppointmentsApiResponse>) : null)
-      .catch(() => null);
-
+    // Fetches not covered by SSR (always client-side)
     const fetchPackages = fetch(
       `/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`,
       { credentials: "include" },
@@ -490,24 +616,8 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
       .then((r) => r.ok ? (r.json() as Promise<PackagesApiResponse>) : null)
       .catch(() => null);
 
-    const fetchNotes = fetch(`/api/doctor/clients/${userId}/notes`, { credentials: "include" })
-      .then((r) => r.ok ? (r.json() as Promise<NotesApiResponse>) : null)
-      .catch(() => null);
-
-    const fetchTasks = fetch(`/api/doctor/clients/${userId}/tasks`, { credentials: "include" })
-      .then((r) => r.ok ? (r.json() as Promise<TasksApiResponse>) : null)
-      .catch(() => null);
-
     const fetchProgram = fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, { credentials: "include" })
       .then((r) => r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null)
-      .catch(() => null);
-
-    const fetchSignals = fetch(`/api/doctor/patients/${userId}/proactive-insights`, { credentials: "include" })
-      .then((r) => r.ok ? (r.json() as Promise<SignalsApiResponse>) : null)
-      .catch(() => null);
-
-    const fetchProgramActivity = fetch(`/api/doctor/patients/${userId}/program-activity`, { credentials: "include" })
-      .then((r) => r.ok ? (r.json() as Promise<ProgramActivityApiResponse>) : null)
       .catch(() => null);
 
     const fetchCalendar = fetch(
@@ -528,6 +638,43 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
     )
       .then((r) => r.ok ? (r.json() as Promise<MessagesApiResponse>) : null)
       .catch(() => null);
+
+    // Conditionally fetch SSR-covered data only when SSR props were not provided
+    const fetchClinical = hasSsrData && ssrSeedRef.current === userId
+      ? Promise.resolve(null as ClinicalApiResponse | null)
+      : fetch(`/api/doctor/patients/${userId}/clinical`, { credentials: "include" })
+          .then((r) => r.ok ? (r.json() as Promise<ClinicalApiResponse>) : null)
+          .catch(() => null);
+
+    const fetchAppointments = hasSsrData && ssrSeedRef.current === userId
+      ? Promise.resolve(null as AppointmentsApiResponse | null)
+      : fetch(`/api/doctor/patients/${userId}/appointments`, { credentials: "include" })
+          .then((r) => r.ok ? (r.json() as Promise<AppointmentsApiResponse>) : null)
+          .catch(() => null);
+
+    const fetchNotes = hasSsrData && ssrSeedRef.current === userId
+      ? Promise.resolve(null as NotesApiResponse | null)
+      : fetch(`/api/doctor/clients/${userId}/notes`, { credentials: "include" })
+          .then((r) => r.ok ? (r.json() as Promise<NotesApiResponse>) : null)
+          .catch(() => null);
+
+    const fetchTasks = hasSsrData && ssrSeedRef.current === userId
+      ? Promise.resolve(null as TasksApiResponse | null)
+      : fetch(`/api/doctor/clients/${userId}/tasks`, { credentials: "include" })
+          .then((r) => r.ok ? (r.json() as Promise<TasksApiResponse>) : null)
+          .catch(() => null);
+
+    const fetchSignals = hasSsrData && ssrSeedRef.current === userId
+      ? Promise.resolve(null as SignalsApiResponse | null)
+      : fetch(`/api/doctor/patients/${userId}/proactive-insights`, { credentials: "include" })
+          .then((r) => r.ok ? (r.json() as Promise<SignalsApiResponse>) : null)
+          .catch(() => null);
+
+    const fetchProgramActivity = hasSsrData && ssrSeedRef.current === userId
+      ? Promise.resolve(null as ProgramActivityApiResponse | null)
+      : fetch(`/api/doctor/patients/${userId}/program-activity`, { credentials: "include" })
+          .then((r) => r.ok ? (r.json() as Promise<ProgramActivityApiResponse>) : null)
+          .catch(() => null);
 
     Promise.all([
       fetchClinical,
@@ -554,22 +701,46 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
     ]) => {
       if (!active) return;
 
-      // --- Clinical ---
-      const complaints = clinical?.state?.complaints ?? [];
-      const clinicalStatus: WidgetStatus = !clinical ? "error" : complaints.length === 0 ? "empty" : "ok";
-      const symptomSeries = clinical
-        ? buildSymptomSeries(complaints, clinical.visits ?? [])
-        : [];
+      const usingSsrForClinical = hasSsrData && ssrSeedRef.current === userId;
 
-      // --- Appointments → Control KPI ---
-      const upcomingAppts = (appointments?.appointments ?? []).filter(
-        (a) => a.status === "upcoming",
-      );
-      upcomingAppts.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-      const nearestUpcoming = upcomingAppts[0] ?? null;
-      const controlDays = nearestUpcoming ? daysFromNow(nearestUpcoming.dateTime) : null;
-      const controlDate = nearestUpcoming ? fmtDateShort(nearestUpcoming.dateTime) : null;
-      const appointmentsStatus: WidgetStatus = !appointments ? "error" : nearestUpcoming === null ? "empty" : "ok";
+      // --- Clinical (from SSR or fetch) ---
+      let complaints: ActiveComplaint[];
+      let clinicalStatus: WidgetStatus;
+      let symptomSeries: SymptomSeries[];
+      if (usingSsrForClinical && initialClinicalState != null && initialVisits != null) {
+        complaints = initialClinicalState.complaints;
+        clinicalStatus = complaints.length === 0 ? "empty" : "ok";
+        symptomSeries = buildSymptomSeries(complaints, initialVisits.map((v) => ({
+          id: v.id,
+          date: v.date,
+          type: v.type,
+          dynamics: v.dynamics?.map((d) => ({ id: d.id, label: d.label, from: d.from, to: d.to, note: d.note, priority: d.priority })),
+        })));
+      } else {
+        complaints = clinical?.state?.complaints ?? [];
+        clinicalStatus = !clinical ? "error" : complaints.length === 0 ? "empty" : "ok";
+        symptomSeries = clinical ? buildSymptomSeries(complaints, clinical.visits ?? []) : [];
+      }
+
+      // --- Appointments → Control KPI (from SSR or fetch) ---
+      let controlDays: number | null;
+      let controlDate: string | null;
+      let appointmentsStatus: WidgetStatus;
+      if (usingSsrForClinical && initialAppointments != null) {
+        const upcomingAppts = initialAppointments.filter((a) => a.status === "upcoming");
+        upcomingAppts.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+        const nearestUpcoming = upcomingAppts[0] ?? null;
+        controlDays = nearestUpcoming ? daysFromNow(nearestUpcoming.dateTime) : null;
+        controlDate = nearestUpcoming ? fmtDateShort(nearestUpcoming.dateTime) : null;
+        appointmentsStatus = nearestUpcoming === null ? "empty" : "ok";
+      } else {
+        const upcomingAppts = (appointments?.appointments ?? []).filter((a) => a.status === "upcoming");
+        upcomingAppts.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+        const nearestUpcoming = upcomingAppts[0] ?? null;
+        controlDays = nearestUpcoming ? daysFromNow(nearestUpcoming.dateTime) : null;
+        controlDate = nearestUpcoming ? fmtDateShort(nearestUpcoming.dateTime) : null;
+        appointmentsStatus = !appointments ? "error" : nearestUpcoming === null ? "empty" : "ok";
+      }
 
       // --- Packages ---
       const activePackages = (packages?.packages ?? []).filter(
@@ -590,19 +761,33 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
         : null;
       const packageStatus: WidgetStatus = !packages ? "error" : activePackage === null ? "empty" : "ok";
 
-      // --- Notes ---
-      const notesList = notes?.notes ?? [];
-      const notesStatus: WidgetStatus = !notes ? "error" : "ok";
+      // --- Notes (from SSR or fetch) ---
+      let notesList: DoctorNoteRow[];
+      let notesStatus: WidgetStatus;
+      if (usingSsrForClinical && initialNotes != null) {
+        notesList = initialNotes;
+        notesStatus = "ok";
+      } else {
+        notesList = notes?.notes ?? [];
+        notesStatus = !notes ? "error" : "ok";
+      }
 
-      // --- Tasks ---
-      const tasksList = (tasks?.tasks ?? []).filter((t) => !t.completedAt);
+      // --- Tasks (from SSR or fetch) ---
+      let tasksList: SpecialistTaskRow[];
+      let tasksStatus: WidgetStatus;
+      if (usingSsrForClinical && initialTasks != null) {
+        tasksList = initialTasks.filter((t) => !t.completedAt);
+        tasksStatus = "ok";
+      } else {
+        tasksList = (tasks?.tasks ?? []).filter((t) => !t.completedAt);
+        tasksStatus = !tasks ? "error" : "ok";
+      }
       tasksList.sort((a, b) => {
         if (!a.dueAt && !b.dueAt) return 0;
         if (!a.dueAt) return 1;
         if (!b.dueAt) return -1;
         return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
       });
-      const tasksStatus: WidgetStatus = !tasks ? "error" : "ok";
 
       // --- Program — fetch active instance detail if available ---
       let programStatus: WidgetStatus = "ok";
@@ -648,12 +833,24 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
         }
       }
 
-      // --- Signals ---
-      const signalsList = signals?.signals ?? [];
-      const signalsStatus: WidgetStatus = !signals ? "error" : signalsList.length === 0 ? "empty" : "ok";
+      // --- Signals (from SSR or fetch) ---
+      let signalsList: ProactiveInsightRow[];
+      let signalsStatus: WidgetStatus;
+      if (usingSsrForClinical && initialSignals != null) {
+        signalsList = initialSignals;
+        signalsStatus = signalsList.length === 0 ? "empty" : "ok";
+      } else {
+        signalsList = signals?.signals ?? [];
+        signalsStatus = !signals ? "error" : signalsList.length === 0 ? "empty" : "ok";
+      }
 
-      // --- Program activity (last mark / unread) ---
-      const programActivity = programActivityRes?.activity ?? null;
+      // --- Program activity (from SSR or fetch) ---
+      let programActivity: DoctorPatientProgramActivity | null;
+      if (usingSsrForClinical && initialProgramActivity != null) {
+        programActivity = initialProgramActivity;
+      } else {
+        programActivity = programActivityRes?.activity ?? null;
+      }
 
       // --- Calendar ---
       const calendarDays = calendar?.days ?? [];
@@ -697,6 +894,7 @@ export function PatientTabOverview({ userId, onTabSwitch }: Props) {
     return () => {
       active = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const isStale = loadedUserId !== userId;

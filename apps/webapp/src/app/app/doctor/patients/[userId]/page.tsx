@@ -10,6 +10,8 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { routePaths } from "@/app-layer/routes/paths";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { loadDoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
 import { PatientCardClient } from "./PatientCardClient";
 
 type PageProps = {
@@ -28,12 +30,34 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
 
-  const [cardHeaderPromise, physicalRow] = await Promise.all([
+  const displayIana = await getAppDisplayTimeZone();
+
+  const [
+    cardHeaderPromise,
+    physicalRow,
+    clinicalState,
+    visits,
+    notes,
+    tasks,
+    signals,
+    programActivity,
+    appointments,
+  ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
     runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
       `SELECT height_cm, weight_kg FROM platform_users WHERE id = $1::uuid AND role = 'client'`,
       [userId],
     ),
+    deps.patientClinical.getClinicalState(userId),
+    deps.patientClinical.listVisits(userId),
+    deps.doctorNotes.listForUser(userId),
+    deps.specialistTasks.listPatientTasks(session.user.userId, userId, false),
+    deps.doctorProactiveInsights.listForPatient({ patientUserId: userId, displayIana }),
+    loadDoctorPatientProgramActivity(
+      { programItemDiscussion: deps.programItemDiscussion },
+      { patientUserId: userId, viewerUserId: session.user.userId },
+    ),
+    deps.doctorClientsPort.listPatientAppointments(userId),
   ]);
 
   const physicalData = physicalRow.rows[0]
@@ -53,6 +77,13 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           createVisitFrom={createVisitFrom}
           visitDate={visitDate}
           initialPhysicalData={physicalData}
+          initialClinicalState={clinicalState}
+          initialVisits={visits}
+          initialNotes={notes}
+          initialTasks={tasks}
+          initialSignals={signals}
+          initialProgramActivity={programActivity}
+          initialAppointments={appointments}
         />
       </section>
     </DoctorAppShell>
