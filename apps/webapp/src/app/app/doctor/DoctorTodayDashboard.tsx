@@ -1,3 +1,6 @@
+"use client";
+
+import { useCallback, useState } from "react";
 import { CircleHelp, Dumbbell, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { DateTime } from "luxon";
@@ -53,6 +56,16 @@ export function DoctorTodayDashboard({
   const todayIso = nowDt.toISODate() ?? new Date().toISOString().slice(0, 10);
   const todayDateLabel = nowDt.setLocale("ru").toFormat("EEE, d MMMM");
 
+  // SEG-07: Общий счётчик комментариев к упражнениям — синхронизирует KPI-тайл
+  // (DoctorTodayLeftKpiRow) и диалог «Сигналы пациентов» (DoctorTodaySignalsSection).
+  const [exerciseCommentTotal, setExerciseCommentTotal] = useState(
+    data.exerciseCommentAttentionTotal,
+  );
+  // stageItemId is passed by the dialog but we only need to decrement the counter
+  const handleExerciseCommentResolved = useCallback((_stageItemId: string) => {
+    setExerciseCommentTotal((prev) => Math.max(0, prev - 1));
+  }, []);
+
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
       {/* Per-page шапка (S1/D2): заголовок + важное (здоровье системы) + ссылка на аналитику */}
@@ -103,6 +116,7 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
+            exerciseCommentsTotalOverride={exerciseCommentTotal}
           />
 
           {/* §1.3: Задачи — поднять над «На сопровождении» */}
@@ -234,6 +248,7 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
+            onExerciseCommentResolved={handleExerciseCommentResolved}
           />
         </div>
 

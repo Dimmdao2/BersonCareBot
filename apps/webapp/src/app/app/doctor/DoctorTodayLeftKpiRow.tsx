@@ -28,6 +28,12 @@ type Props = Pick<
 > & {
   intakeCount: number;
   pendingTestsTotal: number;
+  /**
+   * SEG-07: Переопределяет локальный счётчик комментариев.
+   * Управляется из DoctorTodayLeftPaneBridge (client) в DoctorTodayDashboard.tsx,
+   * чтобы декремент из DoctorTodaySignalsSection синхронно обновлял KPI-тайл.
+   */
+  exerciseCommentsTotalOverride?: number;
 };
 
 type KpiModal = "messages" | "comments" | "intake" | "tests" | null;
@@ -116,14 +122,14 @@ export function DoctorTodayLeftKpiRow({
   pendingProgramTestsTotal,
   exerciseCommentAttentionItems,
   exerciseCommentAttentionTotal,
-  exerciseCommentAttentionTruncated,
+  exerciseCommentsTotalOverride,
 }: Props) {
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
-  const [exerciseCommentsState, setExerciseCommentsState] = useState({
-    items: exerciseCommentAttentionItems,
-    total: exerciseCommentAttentionTotal,
-    truncated: exerciseCommentAttentionTruncated,
-  });
+  // SEG-07: items сохраняем локально (список в KpiPreviewModal);
+  // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
+  // чтобы синхронизировать с декрементом из DoctorTodaySignalsSection.
+  const [exerciseCommentItems] = useState(exerciseCommentAttentionItems);
+  const displayTotal = exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal;
 
   return (
     <>
@@ -144,8 +150,8 @@ export function DoctorTodayLeftKpiRow({
         <DoctorStatCard
           id="doctor-today-left-kpi-comments"
           title="Комментарии"
-          value={exerciseCommentsState.total}
-          tone={exerciseCommentsState.total > 0 ? "warning" : "neutral"}
+          value={displayTotal}
+          tone={displayTotal > 0 ? "warning" : "neutral"}
           onClick={() => setKpiModal("comments")}
         />
         {/* Онлайн-заявки → KpiPreviewModal (S2.8) */}
@@ -171,8 +177,8 @@ export function DoctorTodayLeftKpiRow({
         open={kpiModal === "comments"}
         onClose={() => setKpiModal(null)}
         title="Комментарии"
-        count={exerciseCommentsState.total}
-        items={exerciseCommentsState.items}
+        count={displayTotal}
+        items={exerciseCommentItems}
         renderItem={(item) => <ExerciseCommentModalItem item={item} />}
         searchPlaceholder="Поиск по пациенту…"
         searchPredicate={(item, q) =>
