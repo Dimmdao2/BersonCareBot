@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen } from "lucide-react";
 import type { ElementType } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
@@ -206,60 +207,66 @@ function SidebarGroupFlyout({
         />
       </button>
 
-      {/* Flyout panel: `position: fixed` with viewport-relative coordinates bypasses the
-          sidebar's overflow:auto clipping. Mouse events cancel the same close timer as the
-          trigger. The flyout left edge == trigger right edge (zero gap). */}
-      {open && flyoutPos && (
-        <div
-          id={`doctor-sidebar-flyout-${item.id}`}
-          role="menu"
-          aria-label={item.label}
-          onMouseEnter={cancelClose}
-          onMouseLeave={scheduleClose}
-          style={{ top: flyoutPos.top, left: flyoutPos.left }}
-          className={cn(
-            "fixed z-[10000]",
-            "min-w-[12rem] w-52 rounded-lg bg-popover p-1.5 text-sm text-popover-foreground",
-            "shadow-md ring-1 ring-foreground/10",
-            "flex flex-col gap-0.5",
-          )}
-        >
-          {item.items?.map((sub) => {
-            if (!sub.href) return null;
-            const rawCount = sub.badgeKey ? badgeCounts[sub.badgeKey] : 0;
-            const badgeText = sub.badgeKey ? formatNavBadgeCount(rawCount) : null;
-            const aria = badgeText ? linkAriaLabelWhenBadged(sub, badgeText) : undefined;
-            return (
-              <Link
-                key={sub.id}
-                id={`doctor-sidebar-link-${sub.id}`}
-                href={sub.href}
-                prefetch={false}
-                role="menuitem"
-                onClick={onNavigate}
-                aria-label={aria}
-                className={cn(
-                  FLYOUT_LINK_CLASS,
-                  isDoctorNavItemActive(sub.href, pathname) &&
-                    "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
-                )}
-              >
-                <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                  <span className="min-w-0 flex-1 truncate">{sub.label}</span>
-                  {badgeText && sub.badgeKey ? (
-                    <span
-                      className={navBadgeClassName(sub.badgeKey)}
-                      aria-label={badgeSpanAriaLabel(sub.badgeKey, badgeText)}
-                    >
-                      {badgeText}
-                    </span>
-                  ) : null}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      {/* Flyout panel: rendered via React portal into document.body to escape the sidebar's
+          stacking context. Without a portal the sidebar stacking context sits below the
+          FullCalendar context, so z-index:10000 loses cross-context hit-testing even though
+          the element visually overlaps. Mounting into document.body (root stacking context)
+          guarantees pointer-events reach the flyout. `position: fixed` coordinates are
+          viewport-relative from getBoundingClientRect(), so they are unaffected by the portal. */}
+      {open && flyoutPos && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            id={`doctor-sidebar-flyout-${item.id}`}
+            role="menu"
+            aria-label={item.label}
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
+            style={{ top: flyoutPos.top, left: flyoutPos.left }}
+            className={cn(
+              "fixed z-[10000] pointer-events-auto",
+              "min-w-[12rem] w-52 rounded-lg bg-popover p-1.5 text-sm text-popover-foreground",
+              "shadow-md ring-1 ring-foreground/10",
+              "flex flex-col gap-0.5",
+            )}
+          >
+            {item.items?.map((sub) => {
+              if (!sub.href) return null;
+              const rawCount = sub.badgeKey ? badgeCounts[sub.badgeKey] : 0;
+              const badgeText = sub.badgeKey ? formatNavBadgeCount(rawCount) : null;
+              const aria = badgeText ? linkAriaLabelWhenBadged(sub, badgeText) : undefined;
+              return (
+                <Link
+                  key={sub.id}
+                  id={`doctor-sidebar-link-${sub.id}`}
+                  href={sub.href}
+                  prefetch={false}
+                  role="menuitem"
+                  onClick={onNavigate}
+                  aria-label={aria}
+                  className={cn(
+                    FLYOUT_LINK_CLASS,
+                    isDoctorNavItemActive(sub.href, pathname) &&
+                      "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+                  )}
+                >
+                  <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate">{sub.label}</span>
+                    {badgeText && sub.badgeKey ? (
+                      <span
+                        className={navBadgeClassName(sub.badgeKey)}
+                        aria-label={badgeSpanAriaLabel(sub.badgeKey, badgeText)}
+                      >
+                        {badgeText}
+                      </span>
+                    ) : null}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>,
+          document.body,
+        )
+      }
     </div>
   );
 }
