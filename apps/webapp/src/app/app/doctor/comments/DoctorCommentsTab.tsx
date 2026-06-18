@@ -77,6 +77,8 @@ export type DoctorCommentsTabProps = {
   initialCursor: DoctorExerciseCommentCursor | null;
   hasMoreInitial: boolean;
   initialPatients: CommentPatientRow[];
+  /** IANA timezone string for displaying dates in clinic's local time. */
+  displayIana?: string;
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -435,6 +437,7 @@ export function DoctorCommentsTab({
   initialCursor,
   hasMoreInitial,
   initialPatients,
+  displayIana,
 }: DoctorCommentsTabProps) {
   // ── Feed state (state A) ──
   const [allItems, setAllItems] = useState<TodayExerciseCommentAttentionItem[]>(
@@ -1077,6 +1080,7 @@ export function DoctorCommentsTab({
                     dayBars={dayBars}
                     windowDays={chartWindowDays}
                     onWindowChange={setChartWindowDays}
+                    displayIana={displayIana}
                   />
                 </div>
               )}

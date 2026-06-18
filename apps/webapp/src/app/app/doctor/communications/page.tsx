@@ -7,6 +7,7 @@ import { loadDoctorCommunicationsBadges } from "./loadDoctorCommunicationsBadges
 import { loadDoctorExerciseCommentsForTab } from "../comments/loadDoctorExerciseCommentsForTab";
 import { loadDoctorCommentPatients } from "../comments/loadDoctorCommentPatients";
 import { DoctorCommunicationsShell } from "./DoctorCommunicationsShell";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
 type Props = {
   searchParams: Promise<{ tab?: string; id?: string; archive?: string }>;
@@ -19,9 +20,10 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
 
   const deps = buildAppDeps();
 
-  const [badges, audience] = await Promise.all([
+  const [badges, audience, displayIana] = await Promise.all([
     loadDoctorCommunicationsBadges(deps, getOnlineIntakeService()),
     loadDoctorAnalyticsAudience(),
+    getAppDisplayTimeZone(),
   ]);
 
   const excludedUserIds = audience?.excludedUserIds ?? [];
@@ -49,6 +51,7 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
         comments: {
           feed: commentsData,
           patients,
+          displayIana,
         },
       }}
     />
