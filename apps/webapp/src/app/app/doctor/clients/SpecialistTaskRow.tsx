@@ -11,14 +11,14 @@ import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority
 import { patientCardHref } from "@/app/app/doctor/patients/patientCardHref";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/calendarIana";
 
-function formatWhen(iso: string | null): string | null {
+function formatWhen(iso: string | null, displayIana?: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleString("ru-RU", {
     dateStyle: "short",
     timeStyle: "short",
-    timeZone: DEFAULT_APP_DISPLAY_TIMEZONE,
+    timeZone: displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE,
   });
 }
 
@@ -27,11 +27,12 @@ type Props = {
   onComplete: (taskId: string) => void;
   onEdit: (task: Task) => void;
   busy?: boolean;
+  displayIana?: string;
 };
 
-export function SpecialistTaskRow({ task, onComplete, onEdit, busy }: Props) {
+export function SpecialistTaskRow({ task, onComplete, onEdit, busy, displayIana }: Props) {
   const overdue = isSpecialistTaskOverdue(task);
-  const dueLabel = formatWhen(task.dueAt);
+  const dueLabel = formatWhen(task.dueAt, displayIana);
 
   return (
     <li
@@ -64,8 +65,8 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy }: Props) {
             </Link>
           </p>
         ) : null}
-        {formatWhen(task.createdAt) ? (
-          <p className="text-xs text-muted-foreground">Поставлена: {formatWhen(task.createdAt)}</p>
+        {formatWhen(task.createdAt, displayIana) ? (
+          <p className="text-xs text-muted-foreground">Поставлена: {formatWhen(task.createdAt, displayIana)}</p>
         ) : null}
         {dueLabel ? <p className="text-xs text-muted-foreground">Срок: {dueLabel}</p> : null}
         {task.description?.trim() ? (

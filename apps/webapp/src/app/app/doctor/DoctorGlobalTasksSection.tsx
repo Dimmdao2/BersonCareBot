@@ -156,6 +156,7 @@ export function DoctorGlobalTasksSection({
                   key={task.id}
                   task={task}
                   busy={isPending}
+                  displayIana={displayIana}
                   onComplete={handleComplete}
                   onEdit={(t) => {
                     setEditing(t);
@@ -199,6 +200,7 @@ export function DoctorGlobalTasksSection({
           <TaskRow
             task={task}
             busy={isPending}
+            displayIana={displayIana}
             onComplete={(id) => {
               handleComplete(id);
               setTaskModalOpen(false);
