@@ -129,9 +129,11 @@ export type BookingSchedulingPort = {
   }): Promise<{ startAt: string; endAt: string }[]>;
   listWorkingHours(input: {
     organizationId: string;
-    specialistId: string | null;
-    branchId: string | null;
-    roomId: string | null;
+    /** undefined = no filter (return all specialists); null = global-only (IS NULL) */
+    specialistId?: string | null;
+    /** undefined = no filter (return all branches); null = global-only (IS NULL) */
+    branchId?: string | null;
+    roomId?: string | null;
   }): Promise<{ weekday: number; startMinute: number; endMinute: number }[]>;
   getBufferMinutes(organizationId: string, specialistId: string | null): Promise<number>;
   upsertBufferMinutes(input: {

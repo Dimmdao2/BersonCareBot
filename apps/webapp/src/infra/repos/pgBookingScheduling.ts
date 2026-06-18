@@ -203,6 +203,30 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async listWorkingHours({ organizationId, specialistId, branchId, roomId }) {
       const db = getDrizzle();
+      // undefined = no scope filter (return rows for all specialists/branches);
+      // null     = global-only (IS NULL);
+      // string   = specific id OR global (id OR IS NULL).
+      // This mirrors the listWorkingDays ternary and fixes the СИМПТОМ-2 root cause:
+      // when specialistId is undefined (multi-specialist, no filter selected), all
+      // per-specialist working-hours rows are returned instead of only IS-NULL globals.
+      const specialistCond =
+        specialistId === undefined
+          ? undefined
+          : specialistId
+            ? or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId))
+            : isNull(beWh.specialistId);
+      const branchCond =
+        branchId === undefined
+          ? undefined
+          : branchId
+            ? or(eq(beWh.branchId, branchId), isNull(beWh.branchId))
+            : isNull(beWh.branchId);
+      const roomCond =
+        roomId === undefined
+          ? undefined
+          : roomId
+            ? or(eq(beWh.roomId, roomId), isNull(beWh.roomId))
+            : isNull(beWh.roomId);
       const rows = await db
         .select({
           weekday: beWh.weekday,
@@ -214,11 +238,9 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
           and(
             eq(beWh.organizationId, organizationId),
             eq(beWh.isActive, true),
-            specialistId
-              ? or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId))
-              : isNull(beWh.specialistId),
-            branchId ? or(eq(beWh.branchId, branchId), isNull(beWh.branchId)) : isNull(beWh.branchId),
-            roomId ? or(eq(beWh.roomId, roomId), isNull(beWh.roomId)) : isNull(beWh.roomId),
+            specialistCond,
+            branchCond,
+            roomCond,
           ),
         );
       if (rows.length > 0) return rows;

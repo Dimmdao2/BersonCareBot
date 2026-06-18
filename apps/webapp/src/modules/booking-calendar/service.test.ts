@@ -194,6 +194,30 @@ describe("booking-calendar service", () => {
     expect(working.some((e) => e.startAt === "2026-05-30T06:00:00.000Z")).toBe(true);
   });
 
+  it("CR5-FIX: specialistId=null (multi-specialist org) → listWorkingHours получает undefined → working[] не пуст", async () => {
+    // Воспроизводит СИМПТОМ-2: орг с ≥2 специалистами → resolvedSpecialistId=null
+    // (route.ts:40-45 не разрешает его), filters.specialistId=null передаётся в
+    // listWorkingAndBreakEvents. До фикса: null ?? null = null → listWorkingHours
+    // c specialistId=null → WHERE specialistId IS NULL → per-specialist строки
+    // не возвращались → working=[] → workingBounds=null → нет серого фона.
+    // После фикса: null ?? undefined = undefined → listWorkingHours без фильтра
+    // по специалисту → все строки (включая per-specialist) → working не пуст.
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: null, // ← как при multi-specialist org (resolvedSpecialistId=null)
+    });
+    // listWorkingHours должен быть вызван с specialistId: undefined, не null
+    expect(schedulingPort.listWorkingHours).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: undefined }),
+    );
+    // working[] не пуст — weekday 6 (суббота) есть рабочее время из мока
+    const working = result.events.filter((e) => e.kind === "working");
+    expect(working.length).toBeGreaterThan(0);
+  });
+
   it("R18: календарь врача без specialistId читает per-date по ВСЕМ специалистам (specialistId=undefined, не null)", async () => {
     // Регресс: ScheduleWorkTab сохраняет график ПО СПЕЦИАЛИСТУ (specialist_id=uuid),
     // а календарь ребилда обычно без specialistId. Раньше сервис передавал

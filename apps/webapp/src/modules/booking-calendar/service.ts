@@ -136,9 +136,16 @@ async function listWorkingAndBreakEvents(
   const [rows, perDayRows] = await Promise.all([
     schedulingPort.listWorkingHours({
       organizationId: filters.organizationId,
-      specialistId: filters.specialistId ?? null,
-      branchId: filters.branchId ?? null,
-      roomId: filters.roomId ?? null,
+      // CR5-FIX (СИМПТОМ-2): mirrors R18 fix for listWorkingDays.
+      // undefined = no filter → returns all per-specialist + global rows.
+      // null (explicit specialistId=null in filters) would mean "global-only".
+      // Since filters.specialistId is string | null | undefined, using ?? undefined:
+      // when caller omits specialistId (undefined) or resolvedSpecialistId is null
+      // (multi-specialist org), we pass undefined → all working-hours rows are
+      // returned, not just IS-NULL globals. Fixes empty workingBounds → gray fill.
+      specialistId: filters.specialistId ?? undefined,
+      branchId: filters.branchId ?? undefined,
+      roomId: filters.roomId ?? undefined,
     }),
     // §3.13: per-date be_working_days override the weekday schedule for that date.
     // Absent date → undefined → weekday fallback (backward-compatible).
