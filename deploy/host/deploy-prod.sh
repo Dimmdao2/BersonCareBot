@@ -12,6 +12,11 @@ SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 
+# Branch to deploy. Defaults to main (production). The thin wrapper deploy-test.sh
+# sets DEPLOY_BRANCH=test so the SAME script serves the test host without duplication.
+# Exported so the value survives the self re-exec below.
+export DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+
 fail() {
   echo "deploy-prod: $*" >&2
   exit 1
@@ -44,7 +49,7 @@ require_sudo_rule() {
 cd "${PROJECT_ROOT}"
 # Discard local changes to auto-generated file so pull never conflicts (Next.js overwrites it on build).
 git checkout -- apps/webapp/next-env.d.ts 2>/dev/null || true
-git pull origin main
+git pull origin "${DEPLOY_BRANCH}"
 
 # Re-exec self so we run the updated script (current process was started before pull).
 if [ -z "${DEPLOY_PROD_RERUN:-}" ]; then
