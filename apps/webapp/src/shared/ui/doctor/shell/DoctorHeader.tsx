@@ -122,9 +122,9 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, patientLa
 
           <div className="flex shrink-0 items-center gap-1">
             <Link
-              href="/app/doctor/clients?scope=all"
+              href={routePaths.doctorPatients}
               prefetch={false}
-              aria-label="Пациенты"
+              aria-label={patientLabel ?? "Пациенты"}
               className={HEADER_ICON_CLASS}
             >
               <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />

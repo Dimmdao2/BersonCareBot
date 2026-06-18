@@ -318,8 +318,18 @@ export function ContentHubShell({
       );
     }
 
+    // Stub: media moved to Library (top-level sidebar item)
     if (activePaneKey === "media") {
-      return null;
+      return (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
+          <p className="text-sm text-muted-foreground">
+            Файлы и медиа перенесены в раздел <strong>Библиотека</strong>.
+          </p>
+          <Link href="/app/doctor/content/library" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            → Перейти в Библиотеку
+          </Link>
+        </div>
+      );
     }
 
     // Stub: lessons moved to Courses
