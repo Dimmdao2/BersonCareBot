@@ -57,3 +57,4 @@ _old/logs/
 
 # Git
 .git/
+/.r3-heartbeat
