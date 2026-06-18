@@ -267,6 +267,7 @@ function ClientProfileCardInner({
               programInbox={programInbox}
               activeProgramTree={activeProgramTree}
               focusPendingProgramAttemptId={focusPendingProgramAttemptId}
+              displayIana={displayTimeZone}
             />
           </TabsContent>
 

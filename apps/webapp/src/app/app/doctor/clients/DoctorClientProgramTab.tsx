@@ -37,6 +37,8 @@ type Props = {
   focusPendingProgramAttemptId?: string;
   /** ID активного экземпляра программы для режима «Обзор». Опционально. */
   activeInstanceId?: string;
+  /** IANA timezone string for displaying dates in clinic's local time. */
+  displayIana?: string;
 };
 
 export function DoctorClientProgramTab({
@@ -50,6 +52,7 @@ export function DoctorClientProgramTab({
   activeProgramTree,
   focusPendingProgramAttemptId,
   activeInstanceId,
+  displayIana,
 }: Props) {
   const pendingGroups = groupPendingProgramTestEvaluations(pendingProgramTestEvaluations);
   const inboxCount = programInbox.length;
@@ -109,6 +112,7 @@ export function DoctorClientProgramTab({
           userId={userId}
           instanceId={resolvedActiveInstanceId}
           profileListScope={profileListScope}
+          displayIana={displayIana}
         />
       ) : (
         /* Correction mode (or no active instance → always show existing content) */
