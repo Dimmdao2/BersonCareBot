@@ -132,7 +132,11 @@ jobs:
         build-webapp,
         audit,
       ]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Auto-deploy DISABLED 2026-06-18 — production control moved to MANUAL.
+    # This repo (Dimmdao2) becomes dev/backup; prod deploys are owner-triggered
+    # from the production repo. A push to main here must never deploy. Was:
+    #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: false
     steps:
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.1
