@@ -12,6 +12,21 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 
 import { DoctorAnalyticsClientsPageClient } from "./DoctorAnalyticsClientsPageClient";
 
+function getValueJson<T>(v: unknown, fallback: T): T {
+  if (v !== null && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
+    return (v as Record<string, unknown>).value as T;
+  }
+  return fallback;
+}
+
+function resolvePatientLabels(singular: string) {
+  const isKlient = singular === "клиент";
+  return {
+    patientPluralLabel: isKlient ? "Клиенты" : "Пациенты",
+    patientGenPlural: isKlient ? "клиентов" : "пациентов",
+  };
+}
+
 export default async function DoctorAnalyticsClientsPage() {
   const session = await requireDoctorAccess();
   if (session.user.role !== "admin") {
@@ -21,15 +36,25 @@ export default async function DoctorAnalyticsClientsPage() {
   const displayIana = await getAppDisplayTimeZone();
   const calendarTodayYmd = DateTime.now().setZone(displayIana).toFormat("yyyy-LL-dd");
   const audience = await loadDoctorAnalyticsAudience();
-  const contactBreakdown = await deps.doctorClientsPort.getClientContactBreakdown({
-    excludedUserIds: audience.excludedUserIds,
-  });
+
+  const [doctorSettings, contactBreakdown] = await Promise.all([
+    deps.systemSettings.listSettingsByScope("doctor"),
+    deps.doctorClientsPort.getClientContactBreakdown({ excludedUserIds: audience.excludedUserIds }),
+  ]);
+
+  const patientSingular = getValueJson(
+    doctorSettings.find((x) => x.key === "patient_label")?.valueJson,
+    "пациент",
+  );
+  const { patientPluralLabel, patientGenPlural } = resolvePatientLabels(String(patientSingular));
 
   return (
-    <DoctorAppShell title="По клиентам" user={session.user}>
+    <DoctorAppShell title={patientPluralLabel} user={session.user}>
       <DoctorAnalyticsClientsPageClient
         calendarTodayYmd={calendarTodayYmd}
         displayIana={displayIana}
+        patientPluralLabel={patientPluralLabel}
+        patientGenPlural={patientGenPlural}
         clients={{
           total: contactBreakdown.total,
           phoneOnly: contactBreakdown.phoneOnly,

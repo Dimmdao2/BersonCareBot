@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { DateTime } from "luxon";
 
 import type {
   ClientContactBreakdown,
@@ -104,7 +105,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
     (next: AdminStatsTimePreset) => {
       setPreset(next);
       if (next === "custom") {
-        const t = calendarTodayYmd.trim() || new Date().toISOString().slice(0, 10);
+        const t = calendarTodayYmd.trim() || DateTime.now().setZone(displayIana).toISODate() || "";
         const from = ymdMinusDays(t, 6);
         const to = t;
         setCustomFrom(from);

@@ -46,7 +46,7 @@ export function DoctorWorkspaceShell({
       </Suspense>
       <StaffPwaBootstrap />
       <StaffWebPushBootstrap />
-      <div className="flex min-h-screen flex-col bg-white">
+      <div className="flex min-h-screen flex-col bg-background">
         <DoctorHeader
           userDisplayName={userDisplayName}
           adminMode={adminMode}
