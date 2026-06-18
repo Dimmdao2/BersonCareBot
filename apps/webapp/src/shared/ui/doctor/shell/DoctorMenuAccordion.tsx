@@ -218,7 +218,7 @@ function SidebarGroupFlyout({
           onMouseLeave={scheduleClose}
           style={{ top: flyoutPos.top, left: flyoutPos.left }}
           className={cn(
-            "fixed z-[100]",
+            "fixed z-[10000]",
             "min-w-[12rem] w-52 rounded-lg bg-popover p-1.5 text-sm text-popover-foreground",
             "shadow-md ring-1 ring-foreground/10",
             "flex flex-col gap-0.5",
