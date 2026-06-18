@@ -1540,6 +1540,7 @@ export function PatientTabOverview({
             <button
               type="button"
               className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+              onClick={() => onTabSwitch?.("comms")}
             >
               вся переписка →
             </button>

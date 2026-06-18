@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
-import { Phone, Send, Smartphone, Mail, Key, Monitor } from "lucide-react";
+import { Phone, Send, Smartphone, Mail, Key } from "lucide-react";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -722,20 +722,7 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
             {/* Смена email — только админ, применяется после подтверждения кодом пациентом */}
             <EmailChange userId={userId} />
 
-            {/* PWA / App — TODO(backend) */}
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5">
-              <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
-                <Monitor className="h-3.5 w-3.5" />
-              </span>
-              <div className="flex-1 min-w-0">
-                {/* TODO(backend): PWA install / push status not tracked in current schema */}
-                <div className="text-xs text-muted-foreground leading-tight">данные недоступны</div>
-                <div className={cn(doctorSectionSubtitleClass, "text-[11px]")}>приложение пациента</div>
-              </div>
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
-                нет данных
-              </span>
-            </div>
+            {/* PWA / App — скрыто до реализации backend (push/install status не отслеживается в текущей схеме) */}
           </div>
           <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
             <span className="text-primary font-medium">подключён</span> → иконка активна и кликабельна ·{" "}

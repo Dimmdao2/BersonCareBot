@@ -118,7 +118,7 @@ function ProgramInstanceRow({
   inst: TreatmentProgramInstanceSummary;
   userId: string;
 }) {
-  const href = `/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(inst.id)}`;
+  const href = `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(inst.id)}`;
   return (
     <li className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/10 px-3 py-2 text-sm">
       <div className="min-w-0 flex-1">
