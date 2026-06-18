@@ -266,19 +266,6 @@ export function ContentNav({
         Медиа
       </p>
 
-      {/* Файлы и медиа — external link */}
-      <div className="group relative flex items-center">
-        <Link
-          href={`${CONTENT_BASE}/library`}
-          className={cn(
-            "flex flex-1 min-w-0 items-center rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal transition-colors",
-            "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-          )}
-        >
-          Файлы и медиа
-        </Link>
-      </div>
-
       {/* ── Hint blurb (#11) ── */}
       <p className="mt-2 px-2.5 text-xs text-muted-foreground leading-relaxed">
         Системные разделы не удаляются. «Статьи и страницы» — ваши собственные.

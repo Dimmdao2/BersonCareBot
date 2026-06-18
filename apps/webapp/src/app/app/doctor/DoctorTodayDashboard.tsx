@@ -110,6 +110,7 @@ export function DoctorTodayDashboard({
             initialTasks={data.globalOpenTasks}
             initialTasksTotal={data.globalOpenTasksTotal}
             todayIso={todayIso}
+            displayIana={displayIana}
             className="flex-1"
           />
 
