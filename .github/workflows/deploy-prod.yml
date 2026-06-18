@@ -1,0 +1,70 @@
+name: Deploy (production)
+
+# Production deploy is MANUAL ONLY. A push to `main` never deploys (see ci.yml —
+# there is no auto-deploy job for main). Deploy is triggered here by hand:
+# Actions → "Deploy (production)" → Run workflow, then approve the `production`
+# environment. Two guards stand between a click and prod:
+#   1. verify-ci  — the chosen commit must already have a green CI run.
+#   2. environment: production — requires a human approval (configured in repo
+#      Settings → Environments → production → required reviewers).
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm a PRODUCTION deploy'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-ci:
+    name: Verify CI is green for this commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require confirmation + successful CI for this SHA
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const confirm = (context.payload.inputs && context.payload.inputs.confirm) || '';
+            if (confirm.trim() !== 'deploy') {
+              core.setFailed('Confirmation text did not match "deploy". Aborting.');
+              return;
+            }
+            const sha = context.sha;
+            const res = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head_sha: sha,
+              per_page: 50,
+            });
+            const ciRuns = res.data.workflow_runs.filter((r) => r.name === 'CI');
+            const green = ciRuns.some(
+              (r) => r.status === 'completed' && r.conclusion === 'success',
+            );
+            if (!green) {
+              core.setFailed(
+                `No successful CI run found for ${sha}. Push to main, wait for a green CI, then deploy.`,
+              );
+              return;
+            }
+            core.info(`CI is green for ${sha}. Proceeding to production deploy.`);
+
+  deploy:
+    name: Deploy to production host
+    needs: verify-ci
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Deploy to host
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "bash ${{ secrets.DEPLOY_PATH }}/deploy/host/deploy-prod.sh"
