@@ -15,6 +15,8 @@ import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/record
 import { registerRubitimeAdminM2mRoutes } from '../integrations/rubitime/adminM2mRoute.js';
 import { getAppBaseUrl } from '../config/appBaseUrl.js';
 import { integratorWebhookSecret } from '../config/env.js';
+import { telegramConfig } from '../integrations/telegram/config.js';
+import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
 
 /** Public response shape for the health endpoint. */
@@ -134,15 +136,22 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const resolveMessengerStaffAdmin = createMessengerStaffIdsResolver(webhookRouteDb);
   const getAppBaseUrlForWebhooks = (): Promise<string> => getAppBaseUrl(webhookRouteDb);
 
-  if (deps.registerTelegramWebhookRoutes) {
-    app.register(async (instance) => {
-      await deps.registerTelegramWebhookRoutes?.(instance, {
-        eventGateway: deps.eventGateway,
-        resolveIntegratorUserIdForMessenger,
-        getAppBaseUrl: getAppBaseUrlForWebhooks,
-        resolveMessengerStaffAdmin,
+  const telegramWebhookDeps = {
+    eventGateway: deps.eventGateway,
+    resolveIntegratorUserIdForMessenger,
+    getAppBaseUrl: getAppBaseUrlForWebhooks,
+    resolveMessengerStaffAdmin,
+  };
+  if (telegramConfig.botToken) {
+    if (telegramConfig.mode === 'long_polling') {
+      // RU-isolated host: Telegram cannot reach us inbound — pull updates via
+      // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
+      startTelegramLongPolling(telegramWebhookDeps);
+    } else if (deps.registerTelegramWebhookRoutes) {
+      app.register(async (instance) => {
+        await deps.registerTelegramWebhookRoutes?.(instance, telegramWebhookDeps);
       });
-    });
+    }
   }
 
   if (deps.registerRubitimeWebhookRoutes) {
