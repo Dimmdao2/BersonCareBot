@@ -13,6 +13,8 @@ export type WebPushClientPayload = {
   intentType?: string | null;
   pushKind?: string | null;
   warmupSloganKey?: string | null;
+  /** Reminder occurrence id — enables snooze/skip action buttons in the service worker. */
+  occurrenceId?: string | null;
 };
 
 /**
@@ -104,6 +106,7 @@ export async function sendWebPushToSubscriptions(params: {
     ...(payload.intentType ? { intentType: payload.intentType } : {}),
     ...(payload.pushKind ? { pushKind: payload.pushKind } : {}),
     ...(payload.warmupSloganKey ? { warmupSloganKey: payload.warmupSloganKey } : {}),
+    ...(payload.occurrenceId ? { occurrenceId: payload.occurrenceId } : {}),
   });
 
   let delivered = 0;

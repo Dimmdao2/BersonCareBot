@@ -413,6 +413,7 @@ export async function runPatientReminderIntegratorNotify(
             intentType: PATIENT_REMINDER_INTENT_TYPE,
             ...(trackedPayload.pushKind != null ? { pushKind: trackedPayload.pushKind } : {}),
             ...(trackedPayload.warmupSloganKey != null ? { warmupSloganKey: trackedPayload.warmupSloganKey } : {}),
+            ...(body.occurrenceId ? { occurrenceId: body.occurrenceId } : {}),
           },
         },
       }).catch((err: unknown) => {

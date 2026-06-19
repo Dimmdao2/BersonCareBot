@@ -84,6 +84,8 @@ export type UnifiedContent = {
     pushKind?: string | null;
     /** Matches WebPushClientPayload.warmupSloganKey?: string | null */
     warmupSloganKey?: string | null;
+    /** Reminder occurrence id — enables snooze/skip action buttons in the service worker. */
+    occurrenceId?: string | null;
   };
 };
 
