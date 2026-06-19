@@ -246,6 +246,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         specialistId: input.specialistId,
         branchId: input.branchId,
         roomId: input.roomId,
+        weekday: input.weekday,
       });
     },
 
@@ -260,6 +261,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         weekday: input.weekday,
         startMinute: input.startMinute,
         endMinute: input.endMinute,
+        replace: input.replace,
       });
     },
 
