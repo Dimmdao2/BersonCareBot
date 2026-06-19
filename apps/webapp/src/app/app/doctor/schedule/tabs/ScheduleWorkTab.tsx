@@ -522,13 +522,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     startTransition(async () => {
       try {
         const qs = new URLSearchParams({ specialistId });
+        if (gridBranchFilter !== "all") qs.set("branchId", gridBranchFilter);
         const json = await apiJson<{ ok: boolean; rows: WorkingHoursRow[] }>(`${WH_BASE}?${qs.toString()}`);
         setWorkingHours(json.rows ?? []);
       } catch {
         // non-fatal
       }
     });
-  }, [specialistId]);
+  }, [specialistId, gridBranchFilter]);
 
   // ── Bootstrap (specialist + overview) ────────────────────────────────────
 

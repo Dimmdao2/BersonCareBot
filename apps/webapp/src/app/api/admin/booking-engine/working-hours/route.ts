@@ -30,7 +30,13 @@ export async function GET(request: Request) {
   const branchId = url.searchParams.get("branchId");
   const roomId = url.searchParams.get("roomId");
   const weekdayRaw = url.searchParams.get("weekday");
-  const weekdayFilter = weekdayRaw != null ? parseInt(weekdayRaw, 10) : undefined;
+  const weekdayParsed = weekdayRaw !== null
+    ? z.coerce.number().int().min(0).max(6).safeParse(weekdayRaw)
+    : { success: true as const, data: undefined };
+  if (!weekdayParsed.success) {
+    return NextResponse.json({ ok: false, error: "Invalid weekday" }, { status: 400 });
+  }
+  const weekdayFilter = weekdayParsed.data;
   const [rows, usesFallback] = await Promise.all([
     deps.bookingScheduling.listWorkingHoursAdmin({
       organizationId: gate.ctx.organizationId,
