@@ -46,13 +46,12 @@ export type SoloOverview = {
 };
 
 export async function fetchSoloOverview(): Promise<SoloOverview | null> {
-  const res = await fetch(`${BASE}/overview`);
-  const json = (await res.json()) as { ok?: boolean; error?: string } & Partial<SoloOverview>;
-  if (!res.ok || json.ok === false) {
-    if (json.error === "booking_engine_unavailable") return null;
-    throw new Error(json.error ?? `http_${res.status}`);
+  try {
+    return await apiJson<SoloOverview>(`${BASE}/overview`);
+  } catch (e) {
+    if (e instanceof Error && e.message === "booking_engine_unavailable") return null;
+    throw e;
   }
-  return json as SoloOverview;
 }
 
 export function rublesToMinor(rubles: number): number {
