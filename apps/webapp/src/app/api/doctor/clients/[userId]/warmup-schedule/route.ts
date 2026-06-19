@@ -44,12 +44,7 @@ export async function GET(
       ? {
           id: warmupRule.id,
           scheduleType: warmupRule.scheduleType,
-          scheduleData: warmupRule.scheduleData
-            ? {
-                timesLocal: warmupRule.scheduleData.timesLocal,
-                dayFilter: warmupRule.scheduleData.dayFilter ?? "weekdays",
-              }
-            : null,
+          scheduleData: warmupRule.scheduleData ?? null,
           enabled: warmupRule.enabled,
         }
       : null,
@@ -97,8 +92,10 @@ export async function PATCH(
       windowEndMinute: warmupRule.windowEndMinute,
       daysMask: warmupRule.daysMask,
       scheduleData: {
+        // Preserve existing dayFilter + dependent fields; only override what the request explicitly provides
+        ...(warmupRule.scheduleData ?? {}),
         timesLocal: parsed.data.timesLocal,
-        dayFilter: parsed.data.dayFilter ?? "weekdays",
+        ...(parsed.data.dayFilter !== undefined && { dayFilter: parsed.data.dayFilter }),
       },
       quietHoursStartMinute: warmupRule.quietHoursStartMinute,
       quietHoursEndMinute: warmupRule.quietHoursEndMinute,
