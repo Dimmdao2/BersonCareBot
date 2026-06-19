@@ -25,7 +25,6 @@ import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { cn } from "@/lib/utils";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
-import { BookingSoloScheduleSection } from "@/app/app/settings/BookingSoloScheduleSection";
 
 // ---------------------------------------------------------------------------
 // API base paths
@@ -423,7 +422,6 @@ function BreakRowField({ index, row, onChange, onRemove }: BreakRowFieldProps) {
 export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: ScheduleTabProps) {
   // ── State ─────────────────────────────────────────────────────────────────
 
-  const [mode, setMode] = useState<"per-date" | "weekly">("per-date");
   const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates");
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
   const [weekdayPermanent, setWeekdayPermanent] = useState(true);
@@ -889,33 +887,10 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   return (
     <DoctorSection data-testid="schedule-work-tab">
-      {/* Sticky top bar: mode toggle + filter (E3) + month nav */}
+      {/* Sticky top bar: filter (E3) + month nav */}
       <div className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}>
-        {/* CAL-02: Mode switcher — «По датам» / «Недельный шаблон» */}
-        <div className="flex rounded-md border border-border overflow-hidden" role="tablist" data-testid="mode-switcher">
-          <button
-            role="tab"
-            aria-selected={mode === "per-date"}
-            className={cn("px-3 py-1 text-xs font-medium transition-colors", mode === "per-date" ? "bg-foreground/90 text-background" : "text-muted-foreground hover:bg-muted/60")}
-            onClick={() => setMode("per-date")}
-            data-testid="mode-btn-per-date"
-          >
-            По датам
-          </button>
-          <button
-            role="tab"
-            aria-selected={mode === "weekly"}
-            className={cn("px-3 py-1 text-xs font-medium transition-colors border-l border-border", mode === "weekly" ? "bg-foreground/90 text-background" : "text-muted-foreground hover:bg-muted/60")}
-            onClick={() => setMode("weekly")}
-            data-testid="mode-btn-weekly"
-          >
-            Недельный шаблон
-          </button>
-        </div>
-
-        {/* E3: Branch filter switcher (Все + individual branches) — only in per-date mode */}
-        {mode === "per-date" && (
-          <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
+        {/* E3: Branch filter switcher (Все + individual branches) */}
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
             <button
               type="button"
               onClick={() => setGridBranchFilter("all")}
@@ -948,30 +923,24 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               );
             })}
           </div>
-        )}
 
-        {/* Month nav — only in per-date mode */}
-        {mode === "per-date" && (
-          <div className="ml-auto flex items-center gap-1">
+        {/* Month nav */}
+        <div className="ml-auto flex items-center gap-1">
             <Button type="button" size="sm" variant="outline" onClick={() => navigateMonth(-1)} aria-label="Предыдущий месяц" data-testid="month-prev">◀</Button>
             <span className="min-w-[120px] text-center text-sm font-semibold" data-testid="month-label">
               {RU_MONTHS[viewMonth]} {viewYear}
             </span>
             <Button type="button" size="sm" variant="outline" onClick={() => navigateMonth(1)} aria-label="Следующий месяц" data-testid="month-next">▶</Button>
           </div>
-        )}
       </div>
 
-      {/* CAL-02: Weekly mode — show BookingSoloScheduleSection */}
-      {mode === "weekly" && <BookingSoloScheduleSection />}
+      {/* Errors / feedback */}
+      {loadError ? <p className="text-sm text-destructive" data-testid="load-error">{loadError}</p> : null}
+      {actionError ? <p className="text-sm text-destructive" data-testid="action-error">{actionError}</p> : null}
+      {actionOk ? <p className="text-sm text-green-700 dark:text-green-400" data-testid="action-ok">{actionOk}</p> : null}
 
-      {/* Errors / feedback — per-date mode only */}
-      {mode === "per-date" && loadError ? <p className="text-sm text-destructive" data-testid="load-error">{loadError}</p> : null}
-      {mode === "per-date" && actionError ? <p className="text-sm text-destructive" data-testid="action-error">{actionError}</p> : null}
-      {mode === "per-date" && actionOk ? <p className="text-sm text-green-700 dark:text-green-400" data-testid="action-ok">{actionOk}</p> : null}
-
-      {/* E1: Two-column layout on large screens — per-date mode only */}
-      {mode === "per-date" && <>
+      {/* E1: Two-column layout on large screens */}
+      <>
       <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
         {/* LEFT: month grid */}
         <div className="flex flex-col gap-2">
@@ -1329,7 +1298,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </>}
+      </>
     </DoctorSection>
   );
 }
