@@ -350,3 +350,55 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
     expect(updateMediaFolderMock).toHaveBeenCalledWith(mediaId, anotherPatientFolderId);
   });
 });
+
+describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient folder", () => {
+  beforeEach(() => {
+    getSessionMock.mockReset();
+    getByIdMock.mockReset();
+    updateDisplayNameMock.mockReset();
+    isInSubtreeMock.mockReset();
+
+    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    updateDisplayNameMock.mockResolvedValue(true);
+  });
+
+  it("renames video in patient folder — returns 200, not blocked by any folder guard", async () => {
+    // File lives in a patient subtree folder (isInSubtree would return true if called)
+    // but displayName-only PATCH must never invoke pgIsFolderInClientSubtree
+    getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
+
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/media/${mediaId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName: "Видео ЛФК для плеча" }),
+      }),
+      { params: Promise.resolve({ id: mediaId }) },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; displayName: string };
+    expect(body.ok).toBe(true);
+    expect(body.displayName).toBe("Видео ЛФК для плеча");
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, "Видео ЛФК для плеча");
+    // The move-out guard must NOT have been consulted for a displayName-only change
+    expect(isInSubtreeMock).not.toHaveBeenCalled();
+  });
+
+  it("rename in patient folder with null clears displayName — not blocked", async () => {
+    getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
+
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/media/${mediaId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName: null }),
+      }),
+      { params: Promise.resolve({ id: mediaId }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, null);
+    expect(isInSubtreeMock).not.toHaveBeenCalled();
+  });
+});
