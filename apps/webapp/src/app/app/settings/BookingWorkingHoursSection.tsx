@@ -161,9 +161,10 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
   function deactivate(id: string) {
     startTransition(async () => {
       try {
-        await fetch(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      } catch {
-        // ignore delete errors
+        await apiJson(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "delete_failed");
+        return;
       }
       await load();
     });

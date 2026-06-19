@@ -1,3 +1,6 @@
+import { apiJson } from "@/shared/lib/apiJson";
+export { apiJson } from "@/shared/lib/apiJson";
+
 const BASE = "/api/admin/booking-engine";
 
 export const SOLO_BOOKING_UNAVAILABLE_MESSAGE =
@@ -41,25 +44,6 @@ export type SoloOverview = {
   }[];
   locationAvailability: { id: string; serviceId: string; branchId: string; isActive: boolean }[];
 };
-
-export async function apiJson<T extends { ok?: boolean; error?: string; message?: string }>(
-  url: string,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(url, init);
-  const text = await res.text();
-  let body: T;
-  try {
-    body = JSON.parse(text) as T;
-  } catch {
-    throw new Error(res.ok ? "invalid_json" : `http_${res.status}`);
-  }
-  if (!res.ok || body.ok === false) {
-    const detail = typeof body.message === "string" ? body.message : body.error;
-    throw new Error(detail ?? `http_${res.status}`);
-  }
-  return body;
-}
 
 export async function fetchSoloOverview(): Promise<SoloOverview | null> {
   const res = await fetch(`${BASE}/overview`);
