@@ -39,6 +39,7 @@ describe("GET /api/doctor/messages/conversations", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listMock.mockReset();
+    listClientsMock.mockReset();
     listClientsMock.mockResolvedValue([]);
   });
 
@@ -130,7 +131,8 @@ describe("GET /api/doctor/messages/conversations", () => {
         unreadFromUserCount: 0,
       },
     ]);
-    listClientsMock.mockResolvedValue([{ userId: supportUserId }]);
+    // isOnSupport must be included in the mock — the route reads it from the client object.
+    listClientsMock.mockResolvedValue([{ userId: supportUserId, isOnSupport: true }]);
 
     const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
     expect(res.status).toBe(200);
