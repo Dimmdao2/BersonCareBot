@@ -55,10 +55,10 @@ describe("BookingPoliciesSection", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     fetchMock
-      .mockResolvedValueOnce({ json: async () => policiesResponse })
-      .mockResolvedValueOnce({ json: async () => ({ ok: true, specialists: [], services: [] }) })
-      .mockResolvedValueOnce({ json: async () => ({ ok: true, products: [] }) })
-      .mockResolvedValue({ json: async () => ({ ok: true }) });
+      .mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify(policiesResponse) })
+      .mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ ok: true, specialists: [], services: [] }) })
+      .mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ ok: true, products: [] }) })
+      .mockResolvedValue({ ok: true, text: async () => JSON.stringify({ ok: true }) });
     vi.stubGlobal("fetch", fetchMock);
   });
 
