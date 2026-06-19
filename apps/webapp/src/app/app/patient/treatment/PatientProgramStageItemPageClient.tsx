@@ -59,7 +59,7 @@ import {
 import { PatientStageCompositionList } from "@/app/app/patient/treatment/PatientStageCompositionList";
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
-import { ProgramItemDiscussionDialog } from "@/app/app/patient/treatment/ProgramItemDiscussionDialog";
+import { ProgramItemDiscussionInline } from "@/app/app/patient/treatment/ProgramItemDiscussionInline";
 import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
@@ -310,7 +310,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
   const [doneTodayCountByActivityKey, setDoneTodayCountByActivityKey] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
-  const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
   const mediaPickerRef = useRef<ProgramItemSubmissionSourceDialogHandle>(null);
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [repsRaw, setRepsRaw] = useState("");
@@ -508,20 +507,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     }
   }, [commentsInteraction.visible, contentBlocked, instanceId, item]);
 
-  const markDiscussionRead = useCallback(async () => {
-    if (!commentsInteraction.visible || !item || contentBlocked) return;
-    await fetch(
-      `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/discussion/read`,
-      { method: "POST" },
-    );
-    await loadDiscussionPreview();
-  }, [commentsInteraction.visible, contentBlocked, instanceId, item, loadDiscussionPreview]);
-
-  const openDiscussionDialog = useCallback(async () => {
-    await markDiscussionRead();
-    setDiscussionDialogOpen(true);
-  }, [markDiscussionRead]);
-
   useEffect(() => {
     void loadDiscussionPreview();
   }, [loadDiscussionPreview]);
@@ -535,7 +520,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [discussionPreview.lastDoneSummary]);
 
   useEffect(() => {
-    setDiscussionDialogOpen(false);
     setRepsRaw("");
     setWeightRaw("");
     setDifficulty("medium");
@@ -926,39 +910,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           ) : null}
 
           {commentsInteraction.visible ? (
-            <div className="my-4 flex flex-col gap-2 rounded-lg border border-[var(--patient-border)]/60 bg-muted/10 px-3 py-2.5">
-              {discussionPreview.unreadCount > 0 ? (
-                <span className={cn(patientMutedTextClass, "text-xs font-medium text-[#c0392b]")}>
-                  новых: {discussionPreview.unreadCount}
-                </span>
-              ) : null}
-              {discussionPreview.lastMessage ? (
-                <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap text-sm leading-relaxed")}>
-                  <span className={cn(patientMutedTextClass, "mr-1 text-xs")}>
-                    {discussionPreview.lastMessage.senderRole === "patient" ? "Вы:" : "Специалист:"}
-                  </span>
-                  {discussionPreview.lastMessage.body?.trim() || "Медиафайл"}
-                </p>
-              ) : null}
-              <button
-                type="button"
-                className={cn(
-                  "inline-flex w-full items-center justify-start rounded-md px-1 py-1 text-left text-sm font-medium text-[var(--patient-color-primary,#284da0)] underline-offset-2 transition-colors",
-                  commentsInteraction.enabled
-                    ? "cursor-pointer hover:underline"
-                    : "cursor-not-allowed opacity-60",
-                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
-                )}
-                disabled={!commentsInteraction.enabled}
-                aria-disabled={!commentsInteraction.enabled}
-                onClick={() => {
-                  if (!commentsInteraction.enabled) return;
-                  void openDiscussionDialog();
-                }}
-              >
-                {discussionPreview.lastMessage ? "Открыть комментарии" : "Оставить комментарий к выполнению"}
-              </button>
-            </div>
+            <ProgramItemDiscussionInline
+              instanceId={instanceId}
+              itemId={item.id}
+              disabled={!commentsInteraction.enabled}
+              onRead={loadDiscussionPreview}
+              mediaSubmissionEnabled={mediaPickerEnabled}
+            />
           ) : null}
 
           {!(item.itemType === "clinical_test" && navMode === "tests") ? <ModalDescriptionSection item={item} /> : null}
@@ -980,17 +938,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             />
           ) : null}
 
-          <ProgramItemDiscussionDialog
-            instanceId={instanceId}
-            itemId={item.id}
-            open={discussionDialogOpen}
-            onOpenChange={(open) => {
-              setDiscussionDialogOpen(open);
-              if (!open) void loadDiscussionPreview();
-            }}
-            onRead={loadDiscussionPreview}
-            mediaSubmissionEnabled={mediaPickerEnabled}
-          />
           {mediaPickerVisible ? (
             <ProgramItemSubmissionSourceDialog
               ref={mediaPickerRef}
