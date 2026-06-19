@@ -37,6 +37,7 @@ type WebPushDeliveryPayload = {
     intentType?: string | null;
     pushKind?: string | null;
     warmupSloganKey?: string | null;
+    occurrenceId?: string | null;
   };
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
@@ -108,6 +109,7 @@ export function createWebPushDeliveryAdapter(deps: {
           ...(extras.intentType !== undefined ? { intentType: extras.intentType } : {}),
           ...(extras.pushKind !== undefined ? { pushKind: extras.pushKind } : {}),
           ...(extras.warmupSloganKey !== undefined ? { warmupSloganKey: extras.warmupSloganKey } : {}),
+          ...(extras.occurrenceId !== undefined ? { occurrenceId: extras.occurrenceId } : {}),
         },
         onSubscriptionDead: async (endpoint) => {
           const deleted = await webPushAccessPort.deleteSubscriptionByEndpoint(endpoint);
