@@ -76,11 +76,15 @@ export function BookingPatientPackagesSection({
 
   function loadRefs() {
     startTransition(async () => {
-      const [svcRes, pkgRes] = await Promise.all([fetch(servicesApi), fetch(packagesApi)]);
-      const svcJson = await readJsonSafe<{ ok?: boolean; services?: Array<{ id: string; title: string }> }>(svcRes);
-      const pkgJson = await readJsonSafe<{ ok?: boolean; packages?: Array<{ id: string; title: string }> }>(pkgRes);
-      if (svcJson?.ok && svcJson.services) setServices(svcJson.services);
-      if (pkgJson?.ok && pkgJson.packages) setCatalog(pkgJson.packages);
+      try {
+        const [svcRes, pkgRes] = await Promise.all([fetch(servicesApi), fetch(packagesApi)]);
+        const svcJson = await readJsonSafe<{ ok?: boolean; services?: Array<{ id: string; title: string }> }>(svcRes);
+        const pkgJson = await readJsonSafe<{ ok?: boolean; packages?: Array<{ id: string; title: string }> }>(pkgRes);
+        if (svcJson?.ok && svcJson.services) setServices(svcJson.services);
+        if (pkgJson?.ok && pkgJson.packages) setCatalog(pkgJson.packages);
+      } catch {
+        // refs load failure is non-critical
+      }
     });
   }
 
@@ -98,26 +102,30 @@ export function BookingPatientPackagesSection({
       return;
     }
     startTransition(async () => {
-      const res = await fetch(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`);
-      const json = await readJsonSafe<{
-        ok?: boolean;
-        packages?: Array<{
-          id: string;
-          title: string;
-          status: string;
-          balance: { items: Array<{ remaining: number }> };
-        }>;
-        error?: string;
-      }>(res);
-      if (!json) {
-        setError("response_parse_failed");
-        return;
+      try {
+        const res = await fetch(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`);
+        const json = await readJsonSafe<{
+          ok?: boolean;
+          packages?: Array<{
+            id: string;
+            title: string;
+            status: string;
+            balance: { items: Array<{ remaining: number }> };
+          }>;
+          error?: string;
+        }>(res);
+        if (!json) {
+          setError("response_parse_failed");
+          return;
+        }
+        if (!json.ok) {
+          setError(json.error ?? "failed");
+          return;
+        }
+        setListed(json.packages ?? []);
+      } catch {
+        setError("Ошибка сети");
       }
-      if (!json.ok) {
-        setError(json.error ?? "failed");
-        return;
-      }
-      setListed(json.packages ?? []);
     });
   }
 
@@ -132,26 +140,30 @@ export function BookingPatientPackagesSection({
       return;
     }
     startTransition(async () => {
-      const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "catalog",
-          platformUserId: platformUserId.trim(),
-          subscriptionPackageId: catalogId,
-          notes: catalogNotes.trim() || undefined,
-        }),
-      });
-      const json = await readJsonSafe<{ ok?: boolean; package?: { id: string }; error?: string }>(res);
-      if (!json) {
-        setError("response_parse_failed");
-        return;
+      try {
+        const res = await fetch(apiBase, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "catalog",
+            platformUserId: platformUserId.trim(),
+            subscriptionPackageId: catalogId,
+            notes: catalogNotes.trim() || undefined,
+          }),
+        });
+        const json = await readJsonSafe<{ ok?: boolean; package?: { id: string }; error?: string }>(res);
+        if (!json) {
+          setError("response_parse_failed");
+          return;
+        }
+        if (!json.ok) {
+          setError(json.error ?? "failed");
+          return;
+        }
+        setResultId(json.package?.id ?? null);
+      } catch {
+        setError("Ошибка сети");
       }
-      if (!json.ok) {
-        setError(json.error ?? "failed");
-        return;
-      }
-      setResultId(json.package?.id ?? null);
     });
   }
 
@@ -163,31 +175,35 @@ export function BookingPatientPackagesSection({
       return;
     }
     startTransition(async () => {
-      const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "manual",
-          platformUserId: platformUserId.trim(),
-          notes: manualNotes.trim() || undefined,
-          priceMinor,
-          items,
-        }),
-      });
-      const json = await readJsonSafe<{
-        ok?: boolean;
-        package?: { id: string; paymentIntentId?: string };
-        error?: string;
-      }>(res);
-      if (!json) {
-        setError("response_parse_failed");
-        return;
+      try {
+        const res = await fetch(apiBase, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "manual",
+            platformUserId: platformUserId.trim(),
+            notes: manualNotes.trim() || undefined,
+            priceMinor,
+            items,
+          }),
+        });
+        const json = await readJsonSafe<{
+          ok?: boolean;
+          package?: { id: string; paymentIntentId?: string };
+          error?: string;
+        }>(res);
+        if (!json) {
+          setError("response_parse_failed");
+          return;
+        }
+        if (!json.ok) {
+          setError(json.error ?? "failed");
+          return;
+        }
+        setResultId(json.package?.id ?? null);
+      } catch {
+        setError("Ошибка сети");
       }
-      if (!json.ok) {
-        setError(json.error ?? "failed");
-        return;
-      }
-      setResultId(json.package?.id ?? null);
     });
   }
 

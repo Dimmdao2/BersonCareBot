@@ -43,19 +43,23 @@ export function BookingPublicWidgetSection() {
 
   useEffect(() => {
     startTransition(async () => {
-      const res = await fetch(OVERVIEW);
-      const json = (await res.json()) as {
-        ok?: boolean;
-        branches?: BranchRow[];
-        services?: ServiceRow[];
-      };
-      if (json.ok && json.branches && json.services) {
-        const activeBranches = json.branches.filter((b) => b.isActive);
-        const visibleServices = json.services.filter((s) => s.isActive && s.publicWidgetVisible);
-        setBranches(activeBranches);
-        setServices(visibleServices);
-        if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
-        if (visibleServices[0]) setServiceId((prev) => prev || visibleServices[0]!.id);
+      try {
+        const res = await fetch(OVERVIEW);
+        const json = (await res.json()) as {
+          ok?: boolean;
+          branches?: BranchRow[];
+          services?: ServiceRow[];
+        };
+        if (json.ok && json.branches && json.services) {
+          const activeBranches = json.branches.filter((b) => b.isActive);
+          const visibleServices = json.services.filter((s) => s.isActive && s.publicWidgetVisible);
+          setBranches(activeBranches);
+          setServices(visibleServices);
+          if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
+          if (visibleServices[0]) setServiceId((prev) => prev || visibleServices[0]!.id);
+        }
+      } catch {
+        // overview load failure is non-critical; selects stay empty
       }
     });
   }, []);

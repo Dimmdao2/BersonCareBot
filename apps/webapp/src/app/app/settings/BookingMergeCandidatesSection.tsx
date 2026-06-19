@@ -47,10 +47,14 @@ export function BookingMergeCandidatesSection() {
   }, [load]);
 
   async function dismiss(id: string) {
-    const res = await fetch(`${BASE}/${id}/dismiss`, { method: "POST" });
-    if (res.ok) {
-      if (expandedRowId === id) setExpandedRowId(null);
-      void load();
+    try {
+      const res = await fetch(`${BASE}/${id}/dismiss`, { method: "POST" });
+      if (res.ok) {
+        if (expandedRowId === id) setExpandedRowId(null);
+        void load();
+      }
+    } catch {
+      setError("Ошибка сети");
     }
   }
 

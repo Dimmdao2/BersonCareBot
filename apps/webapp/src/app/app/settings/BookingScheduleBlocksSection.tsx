@@ -14,6 +14,7 @@ import {
 } from "@/shared/ui/doctor/primitives/select";
 
 import { pickDefaultSpecialist } from "@/app/app/settings/bookingSoloAdminApi";
+import { apiJson } from "@/shared/lib/apiJson";
 const BASE = "/api/admin/booking-engine/schedule-blocks";
 const OVERVIEW = "/api/admin/booking-engine/overview";
 
@@ -83,28 +84,31 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
   const roomLabel = useMemo(() => catalog?.rooms.find((r) => r.id === roomId)?.title, [catalog, roomId]);
 
   const loadCatalog = useCallback(async () => {
-    const res = await fetch(OVERVIEW);
-    const json = (await res.json()) as {
-      ok?: boolean;
-      specialists?: (Catalog["specialists"][0] & { isActive?: boolean })[];
-      branches?: Catalog["branches"];
-      rooms?: Catalog["rooms"];
-    };
-    if (json.ok && json.specialists && json.branches && json.rooms) {
-      setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
-      if (soloUx) {
-        const specialist = pickDefaultSpecialist(
-          json.specialists.map((s) => ({
-            id: s.id,
-            fullName: s.fullName,
-            isActive: s.isActive ?? true,
-          })),
-        );
-        if (specialist) {
-          setSpecialistId(specialist.id);
-          setFilterSpecialistId(specialist.id);
+    try {
+      const json = await apiJson<{
+        ok?: boolean;
+        specialists?: (Catalog["specialists"][0] & { isActive?: boolean })[];
+        branches?: Catalog["branches"];
+        rooms?: Catalog["rooms"];
+      }>(OVERVIEW);
+      if (json.specialists && json.branches && json.rooms) {
+        setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
+        if (soloUx) {
+          const specialist = pickDefaultSpecialist(
+            json.specialists.map((s) => ({
+              id: s.id,
+              fullName: s.fullName,
+              isActive: s.isActive ?? true,
+            })),
+          );
+          if (specialist) {
+            setSpecialistId(specialist.id);
+            setFilterSpecialistId(specialist.id);
+          }
         }
       }
+    } catch {
+      // catalog load failure is non-critical; selects simply stay empty
     }
   }, [soloUx]);
 
@@ -113,14 +117,17 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
     if (filterSpecialistId) qs.set("specialistId", filterSpecialistId);
     if (filterBranchId) qs.set("branchId", filterBranchId);
     if (filterRoomId) qs.set("roomId", filterRoomId);
-    const res = await fetch(`${BASE}?${qs.toString()}`);
-    const json = (await res.json()) as { ok?: boolean; blocks?: Block[]; error?: string };
-    if (!json.ok || !json.blocks) {
-      setError(json.error ?? "load_failed");
-      return;
+    try {
+      const json = await apiJson<{ ok?: boolean; blocks?: Block[]; error?: string }>(`${BASE}?${qs.toString()}`);
+      if (!json.blocks) {
+        setError("load_failed");
+        return;
+      }
+      setBlocks(json.blocks);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "load_failed");
     }
-    setBlocks(json.blocks);
-    setError(null);
   }, [filterBranchId, filterRoomId, filterSpecialistId]);
 
   useEffect(() => {
@@ -138,34 +145,37 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
   function createBlock() {
     if (!startAt || !endAt) return;
     startTransition(async () => {
-      const res = await fetch(BASE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startAt: new Date(startAt).toISOString(),
-          endAt: new Date(endAt).toISOString(),
-          blockType,
-          title: title.trim() || undefined,
-          specialistId: specialistId || null,
-          branchId: branchId || null,
-          roomId: roomId || null,
-        }),
-      });
-      const json = (await res.json()) as { ok?: boolean };
-      if (!json.ok) {
-        setError("create_failed");
-        return;
+      try {
+        await apiJson(BASE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            startAt: new Date(startAt).toISOString(),
+            endAt: new Date(endAt).toISOString(),
+            blockType,
+            title: title.trim() || undefined,
+            specialistId: specialistId || null,
+            branchId: branchId || null,
+            roomId: roomId || null,
+          }),
+        });
+        setStartAt("");
+        setEndAt("");
+        setTitle("");
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "create_failed");
       }
-      setStartAt("");
-      setEndAt("");
-      setTitle("");
-      await load();
     });
   }
 
   function removeBlock(id: string) {
     startTransition(async () => {
-      await fetch(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      try {
+        await fetch(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch {
+        // ignore delete errors
+      }
       await load();
     });
   }
