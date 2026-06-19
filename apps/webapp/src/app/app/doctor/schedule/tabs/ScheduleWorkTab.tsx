@@ -420,6 +420,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [mode, setMode] = useState<"per-date" | "weekly">("per-date");
   const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates");
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
+  const [permanentSchedule, setPermanentSchedule] = useState(true);
 
   const { year, month } = parseMonth(deepLinkParams.month);
   const [viewYear, setViewYear] = useState(year);
@@ -635,6 +636,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setSelected(matching);
       setSelectionMode("weekday");
       setSelectedWeekday(wd);
+      setPermanentSchedule(true);
       lastClickedRef.current = null;
     },
     [selectedWeekday, selectionMode, viewYear, viewMonth],
@@ -726,6 +728,60 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       });
       setSelected(new Set());
     }, `Расписание очищено: ${dates.length} дн.`);
+  }
+
+  function handleSaveWeekdayTemplate() {
+    if (selectedWeekday === null) return;
+    let startMinute: number;
+    let endMinute: number;
+    try {
+      startMinute = timeLabelToMinute(panelStart);
+      endMinute = timeLabelToMinute(panelEnd);
+    } catch {
+      setActionError("Неверный формат времени");
+      return;
+    }
+    run(async () => {
+      await apiJson(WH_BASE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekday: selectedWeekday,
+          startMinute,
+          endMinute,
+          specialistId: specialistId || undefined,
+          branchId: panelBranchId || undefined,
+          replace: true,
+        }),
+      });
+      await loadWorkingHours();
+      setSelected(new Set());
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
+    }, "Постоянное расписание сохранено");
+  }
+
+  // «Очистить» in weekday mode: deactivate all be_working_hours rows for this weekday
+  function handleClearWeekdayTemplate() {
+    if (selectedWeekday === null) return;
+    run(async () => {
+      // Fetch active rows for this weekday + specialist scope
+      const qs = new URLSearchParams({ specialistId });
+      if (gridBranchFilter !== "all") qs.set("branchId", gridBranchFilter);
+      qs.set("weekday", String(selectedWeekday));
+      const json = await apiJson<{ ok: boolean; rows: WorkingHoursRow[] }>(`${WH_BASE}?${qs.toString()}`);
+      const activeRows = (json.rows ?? []).filter((r) => r.isActive);
+      // Deactivate each by id
+      await Promise.all(
+        activeRows.map((r) =>
+          apiJson(`${WH_BASE}?id=${encodeURIComponent(r.id)}`, { method: "DELETE" }),
+        ),
+      );
+      await loadWorkingHours();
+      setSelected(new Set());
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
+    }, "Постоянное расписание удалено");
   }
 
   function handleClearSelection() {
@@ -949,15 +1005,35 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               data-testid="hours-panel"
             >
               <h3 className={cn(doctorSectionTitleClass, "text-primary")}>
-                Задать расписание для {selectedCount} {selectedCount === 1 ? "дня" : "дней"} ({
-                  selectedDates.length <= 3
-                    ? selectedDates.map((d) => {
-                        const dt = DateTime.fromISO(d);
-                        return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
-                      }).join(", ")
-                    : `${DateTime.fromISO(selectedDates[0] ?? "").day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? "").day} …`
-                })
+                {selectionMode === "weekday" && selectedWeekday !== null
+                  ? `Расписание для ${["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][selectedWeekday] ?? ""}`
+                  : `Задать расписание для ${selectedCount} ${selectedCount === 1 ? "дня" : "дней"} (${
+                      selectedDates.length <= 3
+                        ? selectedDates.map((d) => {
+                            const dt = DateTime.fromISO(d);
+                            return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
+                          }).join(", ")
+                        : `${DateTime.fromISO(selectedDates[0] ?? "").day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? "").day} …`
+                    })`
+                }
               </h3>
+
+              {/* SCH-R-04: «Постоянное расписание» checkbox — only in weekday mode */}
+              {selectionMode === "weekday" && (
+                <label
+                  className="flex items-center gap-2 text-sm cursor-pointer select-none"
+                  data-testid="permanent-schedule-label"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border border-border accent-primary"
+                    checked={permanentSchedule}
+                    onChange={(e) => setPermanentSchedule(e.target.checked)}
+                    data-testid="permanent-schedule-checkbox"
+                  />
+                  Постоянное расписание
+                </label>
+              )}
 
               {/* E4 — строчная раскладка */}
               <div className="flex flex-col gap-2">
@@ -987,28 +1063,30 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   </div>
                 </div>
 
-                {/* E4 — Break rows */}
-                <div className="flex flex-col gap-1.5" data-testid="panel-breaks">
-                  {panelBreaks.map((row, i) => (
-                    <BreakRowField
-                      key={i}
-                      index={i}
-                      row={row}
-                      onChange={(idx, field, val) => setPanelBreaks(updateBreakRow(panelBreaks, idx, field, val))}
-                      onRemove={(idx) => setPanelBreaks(removeBreakRow(panelBreaks, idx))}
-                    />
-                  ))}
-                  {panelBreaks.length < 6 && (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
-                      onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
-                      data-testid="btn-add-break"
-                    >
-                      + перерыв
-                    </button>
-                  )}
-                </div>
+                {/* E4 — Break rows (not shown in weekday permanent-schedule mode — single interval only) */}
+                {!(selectionMode === "weekday" && permanentSchedule) && (
+                  <div className="flex flex-col gap-1.5" data-testid="panel-breaks">
+                    {panelBreaks.map((row, i) => (
+                      <BreakRowField
+                        key={i}
+                        index={i}
+                        row={row}
+                        onChange={(idx, field, val) => setPanelBreaks(updateBreakRow(panelBreaks, idx, field, val))}
+                        onRemove={(idx) => setPanelBreaks(removeBreakRow(panelBreaks, idx))}
+                      />
+                    ))}
+                    {panelBreaks.length < 6 && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
+                        onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
+                        data-testid="btn-add-break"
+                      >
+                        + перерыв
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Location selector (E3 — in right panel, not filter bar) */}
                 <div className="flex flex-col gap-1">
@@ -1034,21 +1112,34 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   type="button"
                   size="sm"
                   disabled={pending}
-                  onClick={handleSave}
+                  onClick={selectionMode === "weekday" && permanentSchedule ? handleSaveWeekdayTemplate : handleSave}
                   data-testid="btn-save"
                 >
                   Сохранить
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={handleClearSchedule}
-                  data-testid="btn-clear-schedule"
-                >
-                  Очистить расписание
-                </Button>
+                {selectionMode === "weekday" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={handleClearWeekdayTemplate}
+                    data-testid="btn-clear-schedule"
+                  >
+                    Очистить шаблон
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={handleClearSchedule}
+                    data-testid="btn-clear-schedule"
+                  >
+                    Очистить дату
+                  </Button>
+                )}
                 <Button
                   type="button"
                   size="sm"
