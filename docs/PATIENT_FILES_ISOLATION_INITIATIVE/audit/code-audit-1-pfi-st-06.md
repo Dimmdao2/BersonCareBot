@@ -1,141 +1,98 @@
 # Code Audit 1 — PFI-ST-06 (Sonnet, independent)
-Auditor: code-auditor-1-pfi-st-06 (Sonnet)
-Date: 2026-06-19
+date: 2026-06-19T14:25Z UTC
+branch: auto/pfi-st-06 @ b117a136 vs feat @ 258500e6
+auditor: CODE-AUDITOR #1 (Sonnet)
 
-## Finding summary
-| # | Clause | Result | Notes |
-|---|---|---|---|
-| C1 | pgValidatePatientFolderRename kind check | PASS | client_patient → void (allow); anything else → throws 409 system_folder_readonly |
-| C2 | Error object: statusCode + message | PASS | `Object.assign(new Error("system_folder_readonly"), { statusCode: 409 })` |
-| C3 | Route: client_files_root name change → 409 system_folder_readonly | PASS | Line 51–53 |
-| C4 | Route: client_files_root parentId change → 409 system_folder_readonly | PASS | Lines 61–63 (unreachable for root via C3 if both fields sent, but guarded independently) |
-| C5 | Route: client_patient name change → calls pgValidatePatientFolderRename (allows) | PASS | Lines 54–60; mock resolved undefined → 200 in test |
-| C6 | Route: client_patient parentId change → 409 patient_folder_move_out | PASS | Lines 64–66 |
-| C7 | standard kind: no regression, passes through | PASS | Guards are kind-specific; existing "returns 200 on rename" test uses standard folder |
-| C8 | Thin route (no business logic beyond kind-gate) | PASS | Gate is 4 if-blocks; all execution delegated to deps.media.renameFolder / moveFolder |
-| C9 | Drizzle-only query in pgValidatePatientFolderRename | PASS | db.select().from().where(eq()).limit(1); no raw SQL |
-| C10 | pgValidatePatientFolderRename exported from app-layer | PASS | clientMediaFolders.ts line 6 |
-| C11 | All tests pass | PASS | 14/14 (all 3 new + 11 existing) — verified via run-tests.sh mutex |
-| C12 | TypeScript clean | PASS | `pnpm exec tsc --noEmit` produced no output (zero errors) |
-| C13 | Scope — only expected files in b117a136 | PASS | 4 files, 101 insertions, 5 deletions; no unrelated edits |
+## Checklist
 
----
+### Clause 1: client_patient rename allowed (200)
+verdict: PASS
+how-verified:
+- route.ts lines 54–60: guard fires only when `parsed.data.name !== undefined && existing.kind === "client_patient"`. Calls `pgValidatePatientFolderRename(id, parsed.data.name)`. On success (no throw) → falls through to `deps.media.renameFolder(id, parsed.data.name)` at line 97.
+- `pgValidatePatientFolderRename` (pgClientMediaFolders.ts lines 198–220): fetches `row.kind`; if `row.kind === "client_patient"` → returns void (no throw). Route catch block is not triggered, so rename proceeds.
+- Test "returns 200 when renaming client_patient folder (rule 2: allowed)": mock `pgGetByIdMock` returns `kind: "client_patient"`, `validatePatientFolderRenameMock.mockResolvedValue(undefined)`, `renameFolderMock.mockResolvedValue(true)`. Response is 200, `renameFolderMock` called with correct args `(FOLDER_ID, "Иван Иванов")`. Test passes.
+- Edge case — `name` only (no `parentId`): parentId gate at line 64 does not fire (parentId is undefined). Rename executes.
 
-## Detail
+### Clause 2: client_files_root rename → 409 system_folder_readonly
+verdict: PASS
+how-verified:
+- route.ts line 51: `if (parsed.data.name !== undefined && existing.kind === "client_files_root")` → returns 409 with `error: "system_folder_readonly"` immediately. No further execution.
+- Also covers parentId change for client_files_root: route.ts line 61: `if (parsed.data.parentId !== undefined && existing.kind === "client_files_root")` → 409 `system_folder_readonly`. This guard is independent and correctly fires for parentId changes even when no name is sent.
+- Test "returns 409 when renaming client_files_root folder": mock returns `kind: "client_files_root"`, body `{name: "Hack"}`. Asserts `status === 409`, `j.error === "system_folder_readonly"`, `renameFolderMock` not called. Test passes.
+- Note: no separate test for parentId change on client_files_root, but that branch (line 61) is parallel to the name branch and structurally correct. The required test for "root rename 409" covers the main required case.
 
-### C1 — pgValidatePatientFolderRename kind check
-**File:** `apps/webapp/src/infra/repos/pgClientMediaFolders.ts` lines 198–220
+### Clause 3: client_patient reparent → 409 patient_folder_move_out
+verdict: PASS
+how-verified:
+- route.ts line 64: `if (parsed.data.parentId !== undefined && existing.kind === "client_patient")` → returns 409 `patient_folder_move_out` immediately.
+- Critical edge case `parentId: null` (move to root): `null !== undefined` is TRUE, so line 64 fires. A `client_patient` folder cannot be moved to root either. Correct.
+- Combined request with both `name` and `parentId` for `client_patient`: line 54 name check fires first — `pgValidatePatientFolderRename` resolves (returns void for client_patient) → no early return. Then line 64 parentId check fires → 409 `patient_folder_move_out`. Correct: rename side is never reached when parentId is also requested.
+- Test "returns 409 patient_folder_move_out when reparenting client_patient folder (rule 4: forbidden)": body `{parentId: PARENT_ID}`, mock returns `kind: "client_patient"`. Asserts `status === 409`, `j.error === "patient_folder_move_out"`, `moveFolderMock` not called. Test passes.
 
-The function queries `mediaFolders.kind` for the given `folderId`. Two rejection branches:
-1. `!row` (folder not found) → throws `system_folder_readonly` 409
-2. `row.kind !== "client_patient"` → throws `system_folder_readonly` 409
+### Clause 4: pgValidatePatientFolderRename helper correct
+verdict: PASS
+how-verified:
+- Function signature: `pgValidatePatientFolderRename(folderId: string, _newName: string): Promise<void>` (pgClientMediaFolders.ts lines 198–220). `_newName` is accepted but unused (correct: validation is kind-based, not content-based).
+- Logic: fetches `mediaFolders.kind` for `folderId`. Three outcomes:
+  1. `!row` → throws `Object.assign(new Error("system_folder_readonly"), { statusCode: 409 })`
+  2. `row.kind !== "client_patient"` → throws same error
+  3. `row.kind === "client_patient"` → returns void (allow)
+- Exported correctly through app-layer barrel `apps/webapp/src/app-layer/media/clientMediaFolders.ts` (line 6 adds `pgValidatePatientFolderRename` to re-exports).
+- Route imports from `@/app-layer/media/clientMediaFolders`, not from `@/infra/repos/...` directly — correct Clean Architecture path. No ESLint violation.
+- Advisory (non-blocking): function does a redundant DB round-trip. The route already fetches `existing` (including `kind`) via `pgGetMediaFolderById` before calling this. The gate at line 54 only fires when `existing.kind === "client_patient"` is already confirmed. The inner SELECT will always return `client_patient` (barring a concurrent delete/update race), making it a no-op validation that costs one extra query per rename. Not a correctness or security issue; DoD does not require query minimization.
+- `pgValidateManualFolderParent` (lines 232–240): unchanged from the feat branch. Requirement says "extend/verify" — existing function already prevents moving any folder INTO a system-managed parent. No modification was needed; the requirement's `client_patient` parentId gate was instead implemented directly in the route (line 64). This is an acceptable implementation choice.
 
-Only if `row.kind === "client_patient"` does the function return `void` (allow). The kind guard matches the DoD requirement.
+### Clause 5: Tests cover all 3 required cases
+verdict: PASS
+how-verified:
+- Required case 1 — client_patient rename succeeds (200): test at line 120–137 of route.test.ts. PRESENT. Asserts 200, `renameFolderMock` called.
+- Required case 2 — root rename 409: test at line 100–118. PRESENT. Asserts 409, `error === "system_folder_readonly"`, `renameFolderMock` not called.
+- Required case 3 — reparent patient folder out → 409: test at line 139–157. PRESENT. Asserts 409, `error === "patient_folder_move_out"`, `moveFolderMock` not called.
+- `validatePatientFolderRenameMock` is declared at file top (line 35), hoisted in `vi.mock` factory (line 41), and reset + configured in `beforeEach` at lines 70–71. Reset is correct: `validatePatientFolderRenameMock.mockReset()` at line 70, then `mockResolvedValue(undefined)` at line 71. Resets happen before every test — correct.
+- All 14 tests pass (2 test files, 14 tests).
 
-**Minor observation (advisory, not a defect):** The function re-fetches the folder's kind from the DB even though the route already resolved the folder via `pgGetMediaFolderById` before calling this function. The kind is therefore known at the call site (`existing.kind === "client_patient"` is the guard that reaches this call), making the inner DB query redundant for the current caller. The function is correct and safe; the redundant query just costs one extra DB round-trip per client_patient rename. The DoD does not specify query minimization, so this does not affect the verdict.
+### Clause 6: §6 compliance (drizzle-only, no raw SQL, DI, route thin, no dup)
+verdict: PASS
+how-verified:
+- Drizzle only: `pgValidatePatientFolderRename` uses `db.select({kind:...}).from(mediaFolders).where(eq(...)).limit(1)`. No `sql.raw()`, no `pool.query()`, no raw SQL strings.
+- DI: `pgValidatePatientFolderRename` imported via `@/app-layer/media/clientMediaFolders` barrel. Route does NOT import from `@/infra/repos/` directly (confirmed by grep — no such import in route.ts). Correct architecture.
+- Route thin: PATCH handler does parse → auth → fetch → 4 if-gate blocks → delegate to `deps.media.*`. No business logic in route. PASS.
+- `isSystemManagedMediaFolder` import at route.ts line 5: NOT dead. Still used by the DELETE handler at line 125 (correct — DELETE remains blanket-blocked for all system-managed folders). No dead import.
+- No duplication: `client_patient` parentId gate implemented once (route.ts line 64), not duplicated in the helper. Helper solely validates the rename case.
 
-### C2 — Error object: statusCode + message
-Both throw sites in `pgValidatePatientFolderRename` use:
-```ts
-const err = Object.assign(new Error("system_folder_readonly"), { statusCode: 409 });
-throw err;
+### Clause 7: Edge cases / security
+verdict: PASS
+how-verified:
+- IDOR: route requires session (line 24) and `canAccessDoctor` role check (line 26) before any folder access. Folder-level ownership is not checked (pre-existing limitation noted in IDOR memory — deferred to SaaS, not in scope for PFI-ST-06).
+- UUID injection: route validates `id` via UUID_RE regex (line 11, 31–33) before use in DB query. Safe.
+- `parentId: null` for client_patient: correctly caught by line 64 (`null !== undefined === true`). Cannot move to root.
+- `parentId: null` for client_files_root: correctly caught by line 61. Cannot move to root.
+- Combined `name + parentId` for `client_patient`: name validation passes (returns void), then parentId gate fires → 409 `patient_folder_move_out`. Rename is NOT executed. Correct.
+- Combined `name + parentId` for `client_files_root`: name check at line 51 fires first → 409 `system_folder_readonly`. Never reaches parentId check. Correct — both are blocked.
+- No `"standard"` kind regression: guards are kind-specific, standard folders bypass all gates. Existing "returns 200 on rename" test confirms.
+- Concurrent delete race (minor, non-blocking): if folder is deleted between `pgGetMediaFolderById` and `pgValidatePatientFolderRename`, the inner function throws → route returns 409 `system_folder_readonly` instead of 404. This is a benign race condition (false 409 vs correct 404) and is not a security concern.
+
+## Tests
+
 ```
-`statusCode: 409` and message `"system_folder_readonly"` are present. PASS.
+RUN  v4.1.6 /home/dev/dev-projects/BersonCareBot/apps/webapp
 
-Note: the route's catch block (line 57–59) does not read `err.message` — it always returns `{ error: "system_folder_readonly" }` on any throw. So the error message on the thrown object is informational only, but it is still correct.
-
-### C3 — client_files_root name change → 409 system_folder_readonly
-Route lines 51–53:
-```ts
-if (parsed.data.name !== undefined && existing.kind === "client_files_root") {
-  return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
-}
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  14:25:08
+   Duration  3.87s (transform 64ms, setup 161ms, import 770ms, tests 30ms, environment 0ms)
 ```
-Test "returns 409 when renaming client_files_root folder" verifies `status === 409` and `j.error === "system_folder_readonly"`, and that `renameFolderMock` was not called. PASS.
 
-### C4 — client_files_root parentId change → 409 system_folder_readonly
-Route lines 61–63:
-```ts
-if (parsed.data.parentId !== undefined && existing.kind === "client_files_root") {
-  return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
-}
-```
-The root rename test (C3) sends only `name`, so this branch is not covered by the new tests. However the logic is a direct parallel of C3 and is structurally correct. No dedicated test for root parentId change exists, but this is not a DoD test requirement. PASS (logic correct).
+Ran via `/home/dev/orch/run-tests.sh` flock mutex. All 14 tests pass including all 3 new tests and all 11 pre-existing tests. No regressions.
 
-### C5 — client_patient name change → calls pgValidatePatientFolderRename (allows)
-Route lines 54–60:
-```ts
-if (parsed.data.name !== undefined && existing.kind === "client_patient") {
-  try {
-    await pgValidatePatientFolderRename(id, parsed.data.name);
-  } catch {
-    return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
-  }
-}
-```
-Test "returns 200 when renaming client_patient folder (rule 2: allowed)": `validatePatientFolderRenameMock` resolves `undefined`; `renameFolderMock` resolves `true`; response is 200 and `renameFolderMock` called with the new name. PASS.
+## Overall verdict: PASS
 
-### C6 — client_patient parentId change → 409 patient_folder_move_out
-Route lines 64–66:
-```ts
-if (parsed.data.parentId !== undefined && existing.kind === "client_patient") {
-  return NextResponse.json({ ok: false, error: "patient_folder_move_out" }, { status: 409 });
-}
-```
-Test "returns 409 patient_folder_move_out when reparenting client_patient folder (rule 4: forbidden)": verifies `status === 409`, `j.error === "patient_folder_move_out"`, and `moveFolderMock` not called. PASS.
+All 7 clauses pass. The implementation correctly:
+- Allows `client_patient` folder renames (200)
+- Blocks `client_files_root` any change (409 `system_folder_readonly`)
+- Blocks `client_patient` reparenting including move-to-root via `parentId: null` (409 `patient_folder_move_out`)
+- Guards combined `name + parentId` requests correctly
+- Uses Drizzle-only queries, correct DI path, thin route
+- Covers all 3 required test cases with proper mock reset in `beforeEach`
 
-**Combined field edge case:** If a request sends both `name` and `parentId` for a `client_patient` folder, the name check (C5) passes first (pgValidatePatientFolderRename allows), then the parentId check (C6) fires and returns 409 `patient_folder_move_out`. This is correct — reparenting is always blocked regardless of whether a name change is also requested.
-
-### C7 — standard folder: no regression
-The existing "returns 200 on rename" test uses `standardFolder` (kind `"standard"`). None of the four new gates trigger for `standard` kind. `renameFolderMock` is called normally. PASS.
-
-### C8 — Thin route
-The PATCH handler's gate is 4 conditional early-return blocks (C3–C6). After the gate, all mutation is delegated to `deps.media.moveFolder` and `deps.media.renameFolder` (the domain layer). No business logic beyond the kind-gate is embedded in the route. PASS.
-
-### C9 — Drizzle-only query
-`pgValidatePatientFolderRename` uses:
-```ts
-const [row] = await db
-  .select({ kind: mediaFolders.kind })
-  .from(mediaFolders)
-  .where(eq(mediaFolders.id, folderId))
-  .limit(1);
-```
-This is pure Drizzle query builder with `eq()` — no `sql.raw()`, no `db.execute(string)`. PASS.
-
-### C10 — Export from app-layer
-`apps/webapp/src/app-layer/media/clientMediaFolders.ts` line 6 explicitly re-exports `pgValidatePatientFolderRename`. PASS.
-
-### C11 — Tests
-Ran via `/home/dev/orch/run-tests.sh` mutex. Result: 14/14 tests pass (2 test files). Output:
-```
-✓ PATCH /api/admin/media/folders/[id] > returns 409 when renaming client_files_root folder
-✓ PATCH /api/admin/media/folders/[id] > returns 200 when renaming client_patient folder (rule 2: allowed)
-✓ PATCH /api/admin/media/folders/[id] > returns 409 patient_folder_move_out when reparenting client_patient folder (rule 4: forbidden)
-✓ PATCH /api/admin/media/folders/[id] > returns 200 on rename   ← existing, not broken
-```
-All 3 new tests + all pre-existing tests green. PASS.
-
-### C12 — TypeScript
-`pnpm -C apps/webapp exec tsc --noEmit` produced no output — zero errors. PASS.
-
-### C13 — Scope
-`git show b117a136 --stat` confirms exactly 4 files, 101 insertions, 5 deletions:
-- `apps/webapp/src/app-layer/media/clientMediaFolders.ts` (+1 export line)
-- `apps/webapp/src/app/api/admin/media/folders/[id]/route.test.ts` (+49 / -3)
-- `apps/webapp/src/app/api/admin/media/folders/[id]/route.ts` (+22 / -2)
-- `apps/webapp/src/infra/repos/pgClientMediaFolders.ts` (+32)
-
-No unrelated files touched. PASS.
-
----
-
-## Advisory (non-blocking)
-
-**Redundant DB query in pgValidatePatientFolderRename:** The route fetches `existing` (including its `kind`) via `pgGetMediaFolderById` before entering the gate. The gate only calls `pgValidatePatientFolderRename` when `existing.kind === "client_patient"` is already confirmed. The function then re-queries the same kind from the DB. This costs one extra SELECT per client_patient rename. A future refactor could accept the already-resolved `kind` as a parameter (or be simplified to a no-op guard) to eliminate the round-trip. Not a correctness issue; the current behavior is safe and the DoD is silent on this.
-
----
-
-## Verdict: PASS
-
-All 13 checklist clauses pass. No correctness defects found. One advisory (redundant DB query) noted for future consideration but does not affect correctness, security, or the DoD requirements.
+One advisory (non-blocking): `pgValidatePatientFolderRename` performs a redundant DB SELECT since the route already has `existing.kind` confirmed before calling it. This is a minor inefficiency, not a correctness issue.
