@@ -51,6 +51,8 @@ type FileRecord = {
   mimeType: string;
   sizeBytes: number;
   visitId: string | null;
+  /** Non-null when this file is backed by a media library entry (PFI-ST-04/05). */
+  mediaFileId: string | null;
   uploadedByUserId: string;
   createdAt: string; // ISO
   previewUrl: string | null; // presigned GET from API
@@ -457,6 +459,11 @@ function FileListRow({
               из визита
             </span>
           )}
+          {file.mediaFileId && (
+            <span className="ml-1.5 inline-flex items-center rounded bg-emerald-50 px-1 py-px text-[10px] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+              В библиотеке
+            </span>
+          )}
         </div>
       </div>
       <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
@@ -588,11 +595,18 @@ function FileCardTile({
         </div>
         <div className="text-[10px] text-muted-foreground">{formatBytes(file.sizeBytes)}</div>
       </div>
-      {file.visitId && (
-        <span className="self-start inline-flex items-center rounded bg-primary/8 px-1 py-px text-[10px] text-primary/70">
-          из визита
-        </span>
-      )}
+      <div className="flex flex-wrap gap-1">
+        {file.visitId && (
+          <span className="inline-flex items-center rounded bg-primary/8 px-1 py-px text-[10px] text-primary/70">
+            из визита
+          </span>
+        )}
+        {file.mediaFileId && (
+          <span className="inline-flex items-center rounded bg-emerald-50 px-1 py-px text-[10px] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+            В библиотеке
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -835,6 +849,14 @@ function FilePreviewPanel({
           {" · "}
           {formatBytes(file.sizeBytes)}
         </p>
+        {file.mediaFileId && (
+          <p className="mt-1 flex items-center gap-1.5 text-[10px] text-emerald-700 dark:text-emerald-400">
+            <span className="inline-flex items-center rounded bg-emerald-50 px-1 py-px dark:bg-emerald-950/40">
+              В библиотеке
+            </span>
+            <span className="text-muted-foreground/70">— файл сохранён в медиатеке пациента</span>
+          </p>
+        )}
         <p className="mt-1 text-[10px] text-muted-foreground/70">
           Файлы из визитов отображаются здесь — единый источник с вкладкой «Карта».
         </p>
