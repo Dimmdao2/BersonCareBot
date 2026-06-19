@@ -26,6 +26,7 @@ type DiscussionPageResponse = {
     nextCursor?: string | null;
   };
   peerLastReadAt?: string | null;
+  unreadCount?: number;
 };
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
@@ -50,6 +51,7 @@ export function ProgramItemDiscussionInline(props: {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
+  const [unreadBadge, setUnreadBadge] = useState<number | null>(null);
 
   const basePath = useMemo(
     () =>
@@ -60,6 +62,7 @@ export function ProgramItemDiscussionInline(props: {
   const markRead = useCallback(async () => {
     const res = await fetch(`${basePath}/read`, { method: "POST" });
     if (!res.ok) return false;
+    setUnreadBadge(null);
     notifyPatientSupportUnreadCountChanged();
     await onRead?.();
     return true;
@@ -75,6 +78,9 @@ export function ProgramItemDiscussionInline(props: {
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
         throw new Error(data?.error ?? "Не удалось загрузить комментарии");
+      }
+      if (!appendOlder && (data.unreadCount ?? 0) > 0) {
+        setUnreadBadge(data.unreadCount ?? 0);
       }
       const loaded = data.messages;
       setMessages((prev) => {
@@ -190,6 +196,12 @@ export function ProgramItemDiscussionInline(props: {
           {loadingOlder ? "Загрузка..." : "Показать предыдущие"}
         </Button>
       : null}
+
+      {unreadBadge !== null && unreadBadge > 0 && (
+        <p className={cn("text-center text-xs py-1 px-3", patientMutedTextClass)}>
+          {unreadBadge} {unreadBadge === 1 ? "новое сообщение" : "новых сообщения"}
+        </p>
+      )}
 
       <div className="flex flex-col gap-3 pb-2">
         {sortedMessages.length === 0 ?
