@@ -305,6 +305,12 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle, effec
     cellClass += "bg-emerald-500/10 border-emerald-500/40 ";
   } else if (color) {
     cellClass += branchCellClass(color) + " ";
+  } else if (effectiveHours?.source === "override") {
+    // SCH-R-06: override = light blue tint
+    cellClass += "bg-primary/10 border-primary/30 hover:bg-primary/15 ";
+  } else if (effectiveHours?.source === "closed") {
+    // SCH-R-06: closed/выходной = light red tint
+    cellClass += "bg-destructive/5 border-destructive/20 hover:bg-destructive/10 ";
   } else {
     cellClass += "bg-card border-border hover:bg-muted/30 ";
   }
@@ -337,7 +343,7 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle, effec
         </div>
       )}
       {effectiveHours?.source === "template" && (
-        <div className="mt-0.5 text-[11px] leading-none italic text-muted-foreground">
+        <div className="mt-0.5 text-[10px] leading-none italic text-muted-foreground">
           ~{formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
         </div>
       )}
