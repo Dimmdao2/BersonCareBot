@@ -172,9 +172,9 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
   function removeBlock(id: string) {
     startTransition(async () => {
       try {
-        await fetch(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      } catch {
-        // ignore delete errors
+        await apiJson(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "delete_failed");
       }
       await load();
     });

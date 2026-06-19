@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { AdminMergeAccountsPanel } from "@/app/app/doctor/clients/AdminMergeAccountsPanel";
 import type { PatientMergeCandidateRecord } from "@/modules/patient-merge-candidate/ports";
+import { apiJson } from "@/shared/lib/apiJson";
 
 const BASE = "/api/admin/booking-engine/merge-candidates";
 
@@ -18,24 +19,18 @@ export function BookingMergeCandidatesSection() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(BASE, { cache: "no-store" });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        candidates?: PatientMergeCandidateRecord[];
-      };
-      if (!res.ok || !json.ok) {
-        if (res.status === 403) {
-          setError("Нужна роль admin и включённый режим администратора.");
-        } else {
-          setError("Не удалось загрузить кандидатов");
-        }
-        setItems([]);
-        return;
-      }
+      const json = await apiJson<{ ok?: boolean; error?: string; candidates?: PatientMergeCandidateRecord[] }>(
+        BASE,
+        { cache: "no-store" },
+      );
       setItems(json.candidates ?? []);
-    } catch {
-      setError("Ошибка сети");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("http_403")) {
+        setError("Нужна роль admin и включённый режим администратора.");
+      } else {
+        setError("Не удалось загрузить кандидатов");
+      }
       setItems([]);
     } finally {
       setLoading(false);
@@ -48,13 +43,11 @@ export function BookingMergeCandidatesSection() {
 
   async function dismiss(id: string) {
     try {
-      const res = await fetch(`${BASE}/${id}/dismiss`, { method: "POST" });
-      if (res.ok) {
-        if (expandedRowId === id) setExpandedRowId(null);
-        void load();
-      }
-    } catch {
-      setError("Ошибка сети");
+      await apiJson(`${BASE}/${id}/dismiss`, { method: "POST" });
+      if (expandedRowId === id) setExpandedRowId(null);
+      void load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка сети");
     }
   }
 

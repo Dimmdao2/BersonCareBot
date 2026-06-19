@@ -6,6 +6,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { apiJson } from "@/shared/lib/apiJson";
 import {
   Select,
   SelectContent,
@@ -44,13 +45,8 @@ export function BookingPublicWidgetSection() {
   useEffect(() => {
     startTransition(async () => {
       try {
-        const res = await fetch(OVERVIEW);
-        const json = (await res.json()) as {
-          ok?: boolean;
-          branches?: BranchRow[];
-          services?: ServiceRow[];
-        };
-        if (json.ok && json.branches && json.services) {
+        const json = await apiJson<{ ok?: boolean; branches?: BranchRow[]; services?: ServiceRow[] }>(OVERVIEW);
+        if (json.branches && json.services) {
           const activeBranches = json.branches.filter((b) => b.isActive);
           const visibleServices = json.services.filter((s) => s.isActive && s.publicWidgetVisible);
           setBranches(activeBranches);
@@ -76,26 +72,25 @@ export function BookingPublicWidgetSection() {
     startTransition(async () => {
       try {
         const qs = new URLSearchParams({ branchId, serviceId });
-        const res = await fetch(`${RESOLVE}?${qs.toString()}`);
-        const json = (await res.json()) as {
+        const json = await apiJson<{
           ok?: boolean;
           error?: string;
           branchServiceId?: string;
           cityCode?: string;
-        };
-        if (!json.ok || !json.branchServiceId) {
+        }>(`${RESOLVE}?${qs.toString()}`);
+        if (!json.branchServiceId) {
           setBranchServiceId("");
           setCityCode("");
-          setResolveError(json.error ?? "branch_service_mapping_missing");
+          setResolveError("branch_service_mapping_missing");
           return;
         }
         setBranchServiceId(json.branchServiceId);
         setCityCode(json.cityCode ?? "");
         setResolveError(null);
-      } catch {
+      } catch (e) {
         setBranchServiceId("");
         setCityCode("");
-        setResolveError("resolve_failed");
+        setResolveError(e instanceof Error ? e.message : "resolve_failed");
       }
     });
   }, [branchId, serviceId]);
