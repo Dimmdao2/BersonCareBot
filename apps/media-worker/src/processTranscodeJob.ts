@@ -19,6 +19,7 @@ import {
   posterObjectKeyFromMediaRoot,
 } from "./hlsStorageLayout.js";
 import { runMediaWorkerPgText } from "./runMediaWorkerSql.js";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import {
   contentTypeForKey,
   downloadObjectToFile,
@@ -34,7 +35,7 @@ import { probeAndPersistVideoDurationSeconds } from "./persistVideoDurationSecon
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
 function compactTranscodeLogErrorCode(message: string): string {
   const oneLine = message.trim().replace(/\s+/g, " ");
-  const ffmpegExit = /^ffmpeg_(720p|480p|poster)_exit_\d+/.exec(oneLine);
+  const ffmpegExit = /^ffmpeg_(720p|480p|360p|poster)_exit_\d+/.exec(oneLine);
   if (ffmpegExit) return ffmpegExit[0];
   if (oneLine.startsWith("master_head_missing")) return "master_head_missing_after_upload";
   const colon = oneLine.indexOf(":");
@@ -220,7 +221,8 @@ async function uploadDirRecursive(
 }
 
 /**
- * End-to-end transcode (FFmpeg + S3). Source MP4 at `s3_key` is never deleted. Never throws.
+ * End-to-end transcode (FFmpeg + S3). Source MP4 at `s3_key` is deleted after a successful
+ * HLS transcode (best-effort; failure to delete is logged but does not fail the job). Never throws.
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
   const media = await loadMedia(ctx.pool, job.mediaId);
@@ -323,12 +325,14 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
   const hlsDir = join(tmpRoot, "hls");
   const dir720 = join(hlsDir, "720p");
   const dir480 = join(hlsDir, "480p");
+  const dir360 = join(hlsDir, "360p");
   const posterDir = join(tmpRoot, "poster");
   const posterLocal = join(posterDir, "poster.jpg");
 
   try {
     await mkdir(dir720, { recursive: true });
     await mkdir(dir480, { recursive: true });
+    await mkdir(dir360, { recursive: true });
     await mkdir(posterDir, { recursive: true });
     await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key, src);
     const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, 60_000);
@@ -345,6 +349,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
 
     const vf720 = composeHlsVideoFilter("scale=1280:-2,format=yuv420p", wmDrawtext);
     const vf480 = composeHlsVideoFilter("scale=854:-2,format=yuv420p", wmDrawtext);
+    const vf360 = composeHlsVideoFilter("scale=640:-2,format=yuv420p", wmDrawtext);
 
     const run720 = await runFfmpeg(
       ctx.ffmpegBin,
@@ -402,9 +407,38 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
       return;
     }
 
+    const run360 = await runFfmpeg(
+      ctx.ffmpegBin,
+      buildHlsSingleVariantArgs({
+        inputFile: src,
+        outputM3u8: "index.m3u8",
+        segmentFilename: "seg_%03d.ts",
+        videoFilter: vf360,
+        videoBitrate: "400k",
+        audioBitrate: "64k",
+      }),
+      {
+        cwd: dir360,
+        timeoutMs: transcodeTimeoutMs,
+        collectStderrMaxBytes: 32768,
+      },
+    );
+    if (run360.code !== 0) {
+      await retryableFail(
+        ctx,
+        job.id,
+        job.mediaId,
+        job.attempts,
+        ctx.maxAttempts,
+        `ffmpeg_360p_exit_${run360.code}: ${run360.stderrTail}`,
+      );
+      return;
+    }
+
     const masterBody = buildVodMasterPlaylistBody([
       { uri: "720p/index.m3u8", bandwidth: 2_800_000, width: 1280, height: 720 },
       { uri: "480p/index.m3u8", bandwidth: 900_000, width: 854, height: 480 },
+      { uri: "360p/index.m3u8", bandwidth: 450_000, width: 640, height: 360 },
     ]);
     await writeFile(join(hlsDir, "master.m3u8"), masterBody, "utf8");
 
@@ -457,6 +491,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     const qualitiesJson = JSON.stringify([
       { label: "720p", height: 720, path: "720p/index.m3u8", bandwidth: 2_800_000 },
       { label: "480p", height: 480, path: "480p/index.m3u8", bandwidth: 900_000 },
+      { label: "360p", height: 360, path: "360p/index.m3u8", bandwidth: 450_000 },
     ]);
     await runMediaWorkerPgText(
       ctx.pool,
@@ -484,6 +519,20 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
       },
       "transcode completed",
     );
+
+    // Best-effort: delete the original uploaded source file now that HLS renditions are live.
+    const sourceKey = media.s3_key;
+    try {
+      await ctx.s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: ctx.bucket,
+          Key: sourceKey,
+        }),
+      );
+      ctx.log.info({ mediaId: job.mediaId, sourceKey }, "source_deleted_after_transcode");
+    } catch (e) {
+      ctx.log.warn({ err: e, mediaId: job.mediaId, sourceKey }, "source_delete_failed_nonfatal");
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.log.error({ err: e, jobId: job.id }, "transcode unexpected error");
