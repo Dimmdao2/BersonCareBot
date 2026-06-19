@@ -81,7 +81,9 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
   return mapFolderRow(created);
 }
 
-async function resolvePatientDisplayName(patientUserId: string): Promise<string> {
+async function resolvePatientDisplayNameAndPhone(
+  patientUserId: string,
+): Promise<{ displayName: string; phoneNormalized: string | null }> {
   const db = getDrizzle();
   const [row] = await db
     .select({
@@ -89,14 +91,15 @@ async function resolvePatientDisplayName(patientUserId: string): Promise<string>
       lastName: platformUsers.lastName,
       patronymic: platformUsers.patronymic,
       displayName: platformUsers.displayName,
+      phoneNormalized: platformUsers.phoneNormalized,
     })
     .from(platformUsers)
     .where(eq(platformUsers.id, patientUserId))
     .limit(1);
-  if (!row) return "Клиент";
+  if (!row) return { displayName: "Клиент", phoneNormalized: null };
   const fio = clientPatientFolderFioName(row.lastName, row.firstName, row.patronymic);
-  if (fio !== "Клиент") return fio;
-  return row.displayName?.trim() || "Клиент";
+  const displayName = fio !== "Клиент" ? fio : row.displayName?.trim() || "Клиент";
+  return { displayName, phoneNormalized: row.phoneNormalized ?? null };
 }
 
 async function insertClientPatientFolder(
@@ -126,9 +129,9 @@ export async function pgEnsureClientPatientFolder(patientUserId: string): Promis
   if (existing) return mapFolderRow(existing);
 
   const root = await pgEnsureClientFilesRootFolder();
-  const displayName = await resolvePatientDisplayName(patientUserId);
+  const { displayName, phoneNormalized } = await resolvePatientDisplayNameAndPhone(patientUserId);
   const primaryName = clientPatientFolderBaseName(displayName);
-  const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId);
+  const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId, phoneNormalized);
 
   try {
     return await insertClientPatientFolder(db, {

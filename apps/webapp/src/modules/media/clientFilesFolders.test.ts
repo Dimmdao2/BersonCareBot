@@ -40,9 +40,35 @@ describe("clientFilesFolders", () => {
   });
 
   it("adds suffix only as fallback on name collision", () => {
-    expect(clientPatientFolderFallbackName("Иван Петров", "abcd1234-0000-4000-8000-000000000001")).toBe(
+    expect(clientPatientFolderFallbackName("Иван Петров", "abcd1234-0000-4000-8000-000000000001", null)).toBe(
       "Иван Петров · abcd1234",
     );
+  });
+
+  describe("clientPatientFolderFallbackName — last4 vs uuid8 suffix", () => {
+    it("uses last 4 phone digits when phone has ≥4 digits", () => {
+      expect(clientPatientFolderFallbackName("Иванов Иван", "uuid-abc123", "+79991234567")).toBe(
+        "Иванов Иван · 4567",
+      );
+    });
+
+    it("falls back to uuid8 when phone is null", () => {
+      expect(clientPatientFolderFallbackName("Иванов Иван", "uuid-abc123", null)).toBe(
+        "Иванов Иван · uuid-abc",
+      );
+    });
+
+    it("falls back to uuid8 when phone has fewer than 4 digits", () => {
+      expect(clientPatientFolderFallbackName("Иванов Иван", "uuid-abc123", "+799")).toBe(
+        "Иванов Иван · uuid-abc",
+      );
+    });
+
+    it("falls back to uuid8 when phone string has no digits", () => {
+      expect(clientPatientFolderFallbackName("Иванов Иван", "uuid-abc123", "abc")).toBe(
+        "Иванов Иван · uuid-abc",
+      );
+    });
   });
 
   describe("clientPatientFolderFioName", () => {

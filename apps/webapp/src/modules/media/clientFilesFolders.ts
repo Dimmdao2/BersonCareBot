@@ -39,14 +39,20 @@ export function clientPatientFolderFioName(
 }
 
 /** Fallback when plain display name collides under the same parent. */
-export function clientPatientFolderFallbackName(displayName: string, patientUserId: string): string {
+export function clientPatientFolderFallbackName(
+  displayName: string,
+  patientUserId: string,
+  phoneNormalized: string | null,
+): string {
   const base = clientPatientFolderBaseName(displayName);
-  const suffix = patientUserId.slice(0, 8);
+  const last4Raw = phoneNormalized ? phoneNormalized.replace(/\D/g, "").slice(-4) : null;
+  const last4 = last4Raw && last4Raw.length === 4 ? last4Raw : null;
+  const suffix = last4 ?? patientUserId.slice(0, 8);
   const candidate = `${base} · ${suffix}`;
   return candidate.length <= 180 ? candidate : candidate.slice(0, 180);
 }
 
 /** @deprecated Use clientPatientFolderBaseName / clientPatientFolderFallbackName */
 export function formatClientPatientFolderName(displayName: string, patientUserId: string): string {
-  return clientPatientFolderFallbackName(displayName, patientUserId);
+  return clientPatientFolderFallbackName(displayName, patientUserId, null);
 }
