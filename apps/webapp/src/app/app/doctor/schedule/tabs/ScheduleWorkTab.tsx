@@ -79,6 +79,12 @@ type WorkingHoursRow = {
   branchId: string | null;
 };
 
+type EffectiveHours =
+  | { source: "template"; startMinute: number; endMinute: number }
+  | { source: "override"; startMinute: number; endMinute: number }
+  | { source: "closed" }
+  | null;
+
 /** A single break row state in the hours panel or template form. */
 type BreakRow = { from: string; to: string };
 
@@ -133,6 +139,26 @@ function buildMonthGrid(year: number, month: number): Array<string | null> {
   }
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
+}
+
+function resolveEffectiveHours(
+  dateKey: string,
+  dayMap: Map<string, WorkingDayRecord>,
+  workingHours: WorkingHoursRow[],
+): EffectiveHours {
+  const record = dayMap.get(dateKey);
+  if (record) {
+    if (record.isClosed) return { source: "closed" };
+    if (record.startMinute != null && record.endMinute != null) {
+      return { source: "override", startMinute: record.startMinute, endMinute: record.endMinute };
+    }
+  }
+  // Luxon weekday: 1=Mon..7=Sun. be_working_hours: 0=Sun, 1=Mon..6=Sat → (luxon % 7)
+  const luxonWd = DateTime.fromISO(dateKey).weekday;
+  const wd = luxonWd % 7;
+  const match = workingHours.find((wh) => wh.weekday === wd && wh.isActive);
+  if (match) return { source: "template", startMinute: match.startMinute, endMinute: match.endMinute };
+  return null;
 }
 
 function formatHourRange(start: number | null, end: number | null): string {
@@ -251,9 +277,10 @@ type DayCellProps = {
   branches: Branch[];
   isSelected: boolean;
   onToggle: (date: string, shift: boolean, meta: boolean) => void;
+  effectiveHours?: EffectiveHours;
 };
 
-function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: DayCellProps) {
+function DayCell({ dateKey, today, record, branches, isSelected, onToggle, effectiveHours }: DayCellProps) {
   if (!dateKey) {
     return <div className="min-h-[52px]" />;
   }
@@ -304,7 +331,21 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: Day
       <div className={cn("text-[11px] font-semibold leading-none", isSelected ? "text-primary" : isToday ? "text-emerald-700 dark:text-emerald-300" : "text-foreground")}>
         {isSelected ? `${day} ●` : day}
       </div>
-      {hasSchedule && record?.startMinute != null && record?.endMinute != null && (
+      {effectiveHours?.source === "override" && effectiveHours.startMinute != null && (
+        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
+          {formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
+        </div>
+      )}
+      {effectiveHours?.source === "template" && (
+        <div className="mt-0.5 text-[11px] leading-none italic text-muted-foreground">
+          ~{formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
+        </div>
+      )}
+      {effectiveHours?.source === "closed" && (
+        <div className="mt-0.5 text-[10px] leading-none text-destructive/70">выходной</div>
+      )}
+      {/* Keep existing block for backward compat when effectiveHours not passed */}
+      {!effectiveHours && hasSchedule && record?.startMinute != null && record?.endMinute != null && (
         <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
           {formatHourRange(record.startMinute, record.endMinute)}
         </div>
@@ -842,6 +883,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   branches={branches}
                   isSelected={dateKey ? selected.has(dateKey) : false}
                   onToggle={toggleDay}
+                  effectiveHours={dateKey ? resolveEffectiveHours(dateKey, dayMap, workingHours) : undefined}
                 />
               ))}
             </div>
