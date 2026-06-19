@@ -35,8 +35,9 @@ export default async function PatientCardTabRedirectPage({ params }: PageProps) 
     notFound();
   }
 
-  const tab = tabSlug[0];
-  if (!tab || !VALID_TABS.has(tab)) {
+  // tabSlug may be ["karta"] or ["tabs", "karta"] — find first valid segment
+  const tab = tabSlug.find((seg) => VALID_TABS.has(seg));
+  if (!tab) {
     notFound();
   }
 
