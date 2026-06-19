@@ -181,17 +181,109 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
 }
 
 /**
+ * Processes ONE validated Telegram update through the event pipeline.
+ * Shared by the webhook route AND the long-polling runner so both transports feed
+ * the SAME mapBodyToIncoming -> eventGateway flow. Returns the pipeline outcome; the
+ * caller decides the transport response (HTTP reply vs. continue polling).
+ */
+export async function processTelegramUpdate(
+  body: TelegramWebhookBodyValidated,
+  deps: TelegramWebhookDeps,
+  ctx: { correlationId: string; eventId: string; logger: ReturnType<typeof getRequestLogger> },
+): Promise<{ status: 'ok' | 'ignored' | 'rejected'; reason?: string }> {
+  const { correlationId, eventId, logger: reqLogger } = ctx;
+
+  const incoming = mapBodyToIncoming(body);
+  if (!incoming) {
+    if (body.callback_query) {
+      const cq = body.callback_query;
+      reqLogger.warn(
+        {
+          reason: 'telegram_callback_mapper_null',
+          updateId: typeof body.update_id === 'number' ? body.update_id : undefined,
+          hasChatId: typeof cq.message?.chat?.id === 'number',
+          hasMessageId: typeof cq.message?.message_id === 'number',
+          hasFromId: typeof cq.from?.id === 'number',
+          callbackDataLength: typeof cq.data === 'string' ? cq.data.length : 0,
+        },
+        'telegram update: callback_query dropped (mapBodyToIncoming returned null)',
+      );
+    }
+    void recordIntegrationWebhookOutcome({
+      source: 'telegram',
+      processedOk: true,
+      httpStatusReturned: 200,
+    });
+    return { status: 'ignored' };
+  }
+
+  if (incoming.kind === 'message') {
+    const trimmed = incoming.text?.trim() ?? '';
+    if (trimmed.startsWith('/start')) {
+      reqLogger.debug(
+        {
+          telegramStart: {
+            action: incoming.action ?? '',
+            recordIdPresent: typeof incoming.recordId === 'string' && incoming.recordId.length > 0,
+            linkSecretPresent: typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
+            phoneFromDeepLink: incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
+          },
+        },
+        '[telegram] /start classified',
+      );
+    }
+  }
+
+  // Убрать кнопку меню у пользователя в личном чате (не админ)
+  const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
+  const chatType = body.callback_query?.message?.chat?.type ?? body.message?.chat?.type;
+  if (typeof chatId === 'number' && chatType === 'private') {
+    void ensureNoMenuButtonForUser(chatId);
+  }
+
+  const event = telegramIncomingToEvent({
+    incoming,
+    correlationId,
+    eventId,
+    facts: await buildTelegramFacts(
+      body,
+      deps.resolveIntegratorUserIdForMessenger,
+      deps.getAppBaseUrl,
+      deps.resolveMessengerStaffAdmin,
+    ),
+    ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
+  });
+  const result = await deps.eventGateway.handleIncomingEvent(event);
+  if (result.status === 'rejected') {
+    reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram update pipeline rejected');
+    void recordIntegrationWebhookOutcome({
+      source: 'telegram',
+      processedOk: false,
+      httpStatusReturned: 200,
+      errorClass: 'webhook_dispatch_failed',
+      detail: result.reason,
+    });
+    return { status: 'rejected', ...(result.reason !== undefined ? { reason: result.reason } : {}) };
+  }
+  void recordIntegrationWebhookOutcome({
+    source: 'telegram',
+    processedOk: true,
+    httpStatusReturned: 200,
+  });
+  return { status: 'ok' };
+}
+
+/**
  * Registers Telegram webhook route in integrations layer.
- * Flow: auth -> validate -> map -> eventGateway.
+ * Flow: auth -> validate -> processTelegramUpdate (shared with long-polling).
  */
 export async function registerTelegramWebhookRoutes(
   app: FastifyInstance,
   deps: TelegramWebhookDeps,
 ): Promise<void> {
-  const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
-  const getAppBaseUrl = deps.getAppBaseUrl;
-  const resolveMessengerStaffAdmin = deps.resolveMessengerStaffAdmin;
-  await setupTelegramMenuButton();
+  // Best-effort, NON-blocking: Telegram API calls here must not stall plugin
+  // registration (without egress they used to hang -> Fastify plugin timeout crash).
+  void setupTelegramMenuButton();
 
   app.post('/webhook/telegram', async (request, reply) => {
     const correlationId = request.id;
@@ -231,84 +323,14 @@ export async function registerTelegramWebhookRoutes(
         return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
       }
 
-      const body = parseResult.data;
-      const incoming = mapBodyToIncoming(body);
-      if (!incoming) {
-        if (body.callback_query) {
-          const cq = body.callback_query;
-          reqLogger.warn(
-            {
-              reason: 'telegram_callback_mapper_null',
-              updateId: typeof body.update_id === 'number' ? body.update_id : undefined,
-              hasChatId: typeof cq.message?.chat?.id === 'number',
-              hasMessageId: typeof cq.message?.message_id === 'number',
-              hasFromId: typeof cq.from?.id === 'number',
-              callbackDataLength: typeof cq.data === 'string' ? cq.data.length : 0,
-            },
-            'telegram webhook: callback_query dropped (mapBodyToIncoming returned null)',
-          );
-        }
-        void recordIntegrationWebhookOutcome({
-          source: 'telegram',
-          processedOk: true,
-          httpStatusReturned: 200,
-        });
-        return reply.code(200).send({ ok: true });
-      }
-
-      if (incoming.kind === 'message') {
-        const trimmed = incoming.text?.trim() ?? '';
-        if (trimmed.startsWith('/start')) {
-          reqLogger.debug(
-            {
-              telegramStart: {
-                action: incoming.action ?? '',
-                recordIdPresent: typeof incoming.recordId === 'string' && incoming.recordId.length > 0,
-                linkSecretPresent: typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
-                phoneFromDeepLink: incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
-              },
-            },
-            '[telegram] /start classified',
-          );
-        }
-      }
-
-      // Убрать кнопку меню у пользователя в личном чате (не админ)
-      const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
-      const chatType = body.callback_query?.message?.chat?.type ?? body.message?.chat?.type;
-      if (typeof chatId === 'number' && chatType === 'private') {
-        void ensureNoMenuButtonForUser(chatId);
-      }
-
-      const event = telegramIncomingToEvent({
-        incoming,
+      const outcome = await processTelegramUpdate(parseResult.data, deps, {
         correlationId,
         eventId,
-        facts: await buildTelegramFacts(
-          body,
-          resolveIntegratorUserIdForMessenger,
-          getAppBaseUrl,
-          resolveMessengerStaffAdmin,
-        ),
-        ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
+        logger: reqLogger,
       });
-      const result = await deps.eventGateway.handleIncomingEvent(event);
-      if (result.status === 'rejected') {
-        reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram webhook pipeline rejected');
-        void recordIntegrationWebhookOutcome({
-          source: 'telegram',
-          processedOk: false,
-          httpStatusReturned: 200,
-          errorClass: 'webhook_dispatch_failed',
-          detail: result.reason,
-        });
+      if (outcome.status === 'rejected') {
         return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
-      void recordIntegrationWebhookOutcome({
-        source: 'telegram',
-        processedOk: true,
-        httpStatusReturned: 200,
-      });
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'telegram webhook failed');
