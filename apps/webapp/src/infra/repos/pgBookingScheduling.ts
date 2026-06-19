@@ -436,13 +436,16 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
     async createWorkingHours(input) {
       const db = getDrizzle();
       if (input.replace) {
+        if (input.specialistId === undefined) {
+          throw new Error("replace=true requires specialistId for scope safety");
+        }
         const deactConds = [
           eq(beWh.organizationId, input.organizationId),
           eq(beWh.weekday, input.weekday),
           eq(beWh.isActive, true),
         ];
         if (input.specialistId === null) deactConds.push(isNull(beWh.specialistId));
-        else if (input.specialistId) deactConds.push(eq(beWh.specialistId, input.specialistId));
+        else deactConds.push(eq(beWh.specialistId, input.specialistId));
         if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
         else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
         const inserted = await db.transaction(async (tx) => {
