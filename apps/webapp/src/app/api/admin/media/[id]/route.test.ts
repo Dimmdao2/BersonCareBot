@@ -5,27 +5,40 @@ const {
   findUsageMock,
   deleteHardMock,
   updateDisplayNameMock,
+  updateMediaFolderMock,
   getByIdMock,
   buildAppDepsMock,
+  validateFolderMock,
+  folderExistsMock,
+  isInSubtreeMock,
 } = vi.hoisted(() => {
   const findUsageMockInner = vi.fn().mockResolvedValue([]);
   const deleteHardMockInner = vi.fn().mockResolvedValue(true);
   const updateDisplayNameMockInner = vi.fn().mockResolvedValue(true);
+  const updateMediaFolderMockInner = vi.fn().mockResolvedValue(true);
   const getByIdMockInner = vi.fn();
+  const validateFolderMockInner = vi.fn().mockResolvedValue({ ok: true });
+  const folderExistsMockInner = vi.fn().mockResolvedValue(true);
+  const isInSubtreeMockInner = vi.fn();
   return {
     getSessionMock: vi.fn(),
     findUsageMock: findUsageMockInner,
     deleteHardMock: deleteHardMockInner,
     updateDisplayNameMock: updateDisplayNameMockInner,
+    updateMediaFolderMock: updateMediaFolderMockInner,
     getByIdMock: getByIdMockInner,
     buildAppDepsMock: vi.fn(() => ({
       media: {
         findUsage: findUsageMockInner,
         deleteHard: deleteHardMockInner,
         updateDisplayName: updateDisplayNameMockInner,
+        updateMediaFolder: updateMediaFolderMockInner,
         getById: getByIdMockInner,
       },
     })),
+    validateFolderMock: validateFolderMockInner,
+    folderExistsMock: folderExistsMockInner,
+    isInSubtreeMock: isInSubtreeMockInner,
   };
 });
 
@@ -35,6 +48,15 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
+}));
+
+vi.mock("@/app-layer/media/clientMediaFolders", () => ({
+  pgValidateUserAssignableMediaFolder: (...a: unknown[]) => validateFolderMock(...a),
+  pgIsFolderInClientSubtree: (...a: unknown[]) => isInSubtreeMock(...a),
+}));
+
+vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
+  pgFolderExists: (...a: unknown[]) => folderExistsMock(...a),
 }));
 
 import { DELETE, GET, PATCH } from "./route";
@@ -240,5 +262,91 @@ describe("DELETE /api/admin/media/[id]", () => {
     );
     expect(res.status).toBe(200);
     expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, null);
+  });
+});
+
+const patientFolderId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const standardFolderId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const anotherPatientFolderId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
+  beforeEach(() => {
+    getSessionMock.mockReset();
+    getByIdMock.mockReset();
+    updateMediaFolderMock.mockReset();
+    validateFolderMock.mockReset();
+    folderExistsMock.mockReset();
+    isInSubtreeMock.mockReset();
+
+    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    validateFolderMock.mockResolvedValue({ ok: true });
+    folderExistsMock.mockResolvedValue(true);
+    updateMediaFolderMock.mockResolvedValue(true);
+  });
+
+  it("returns 409 patient_folder_move_out when moving from client_patient folder to standard folder", async () => {
+    // File lives in a patient subtree folder
+    getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
+    // Source folder is in subtree, target is not
+    isInSubtreeMock.mockImplementation((folderId: string) => {
+      if (folderId === patientFolderId) return Promise.resolve(true);
+      if (folderId === standardFolderId) return Promise.resolve(false);
+      return Promise.resolve(false);
+    });
+
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/media/${mediaId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folderId: standardFolderId }),
+      }),
+      { params: Promise.resolve({ id: mediaId }) },
+    );
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { ok: boolean; error: string };
+    expect(body.error).toBe("patient_folder_move_out");
+    expect(updateMediaFolderMock).not.toHaveBeenCalled();
+  });
+
+  it("allows intra-subtree move from one client_patient folder to another", async () => {
+    // File lives in a patient subtree folder
+    getByIdMock.mockResolvedValue({ id: mediaId, folderId: patientFolderId });
+    // Both source and target are in the subtree
+    isInSubtreeMock.mockResolvedValue(true);
+
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/media/${mediaId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folderId: anotherPatientFolderId }),
+      }),
+      { params: Promise.resolve({ id: mediaId }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(updateMediaFolderMock).toHaveBeenCalledWith(mediaId, anotherPatientFolderId);
+  });
+
+  it("does not trigger ST-07 gate when file is in a standard folder", async () => {
+    // File lives in a standard (non-subtree) folder
+    getByIdMock.mockResolvedValue({ id: mediaId, folderId: standardFolderId });
+    // Source folder is not in subtree → gate must not block
+    isInSubtreeMock.mockImplementation((folderId: string) => {
+      if (folderId === standardFolderId) return Promise.resolve(false);
+      return Promise.resolve(false);
+    });
+
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/media/${mediaId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folderId: anotherPatientFolderId }),
+      }),
+      { params: Promise.resolve({ id: mediaId }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(updateMediaFolderMock).toHaveBeenCalledWith(mediaId, anotherPatientFolderId);
   });
 });

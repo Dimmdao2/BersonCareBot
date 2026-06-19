@@ -2,6 +2,7 @@ export {
   isSystemManagedMediaFolder,
   pgEnsureClientFilesRootFolder,
   pgEnsureClientPatientFolder,
+  pgIsFolderInClientSubtree,
   pgValidateManualFolderParent,
   pgValidatePatientFolderRename,
   pgValidateUserAssignableMediaFolder,

@@ -238,3 +238,15 @@ export async function pgValidateManualFolderParent(
   if (isSystemManagedMediaFolder(parent.kind)) return { ok: false, error: "system_folder_readonly" };
   return { ok: true };
 }
+
+/**
+ * Returns true if folderId is inside the client-files subtree (client_files_root or client_patient).
+ * Uses the existing recursive CTE (clientFilesSubtreeFolderIdsSql).
+ */
+export async function pgIsFolderInClientSubtree(folderId: string): Promise<boolean> {
+  const db = getDrizzle();
+  const result = await db.execute(
+    sql`SELECT EXISTS(SELECT 1 FROM (${clientFilesSubtreeFolderIdsSql()}) AS sub WHERE sub.id = ${folderId}::uuid) AS in_subtree`
+  );
+  return (result.rows[0] as { in_subtree: boolean } | undefined)?.in_subtree === true;
+}

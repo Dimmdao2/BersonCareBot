@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
-import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
+import { pgIsFolderInClientSubtree, pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import type { MediaUsageRef } from "@/modules/media/types";
@@ -133,6 +133,26 @@ export async function PATCH(
       const exists = await pgFolderExists(parsedBody.data.folderId);
       if (!exists) {
         return NextResponse.json({ ok: false, error: "folder_not_found" }, { status: 404 });
+      }
+    }
+    // ST-07: block moving patient-subtree files out of their subtree
+    const existingForMove = await deps.media.getById(id);
+    if (!existingForMove) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    if (existingForMove.folderId) {
+      const sourceInSubtree = await pgIsFolderInClientSubtree(existingForMove.folderId);
+      if (sourceInSubtree) {
+        const targetInSubtree =
+          parsedBody.data.folderId !== null &&
+          parsedBody.data.folderId !== undefined &&
+          (await pgIsFolderInClientSubtree(parsedBody.data.folderId));
+        if (!targetInSubtree) {
+          return NextResponse.json(
+            { ok: false, error: "patient_folder_move_out" },
+            { status: 409 },
+          );
+        }
       }
     }
     const moved = await deps.media.updateMediaFolder(id, parsedBody.data.folderId);
