@@ -445,7 +445,34 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         else if (input.specialistId) deactConds.push(eq(beWh.specialistId, input.specialistId));
         if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
         else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
-        await db.update(beWh).set({ isActive: false, updatedAt: new Date().toISOString() }).where(and(...deactConds));
+        const inserted = await db.transaction(async (tx) => {
+          await tx.update(beWh).set({ isActive: false, updatedAt: new Date().toISOString() }).where(and(...deactConds));
+          return tx
+            .insert(beWh)
+            .values({
+              organizationId: input.organizationId,
+              specialistId: input.specialistId ?? null,
+              branchId: input.branchId ?? null,
+              roomId: input.roomId ?? null,
+              weekday: input.weekday,
+              startMinute: input.startMinute,
+              endMinute: input.endMinute,
+              isActive: true,
+            })
+            .returning();
+        });
+        const row = inserted[0]!;
+        return {
+          id: row.id,
+          organizationId: row.organizationId,
+          specialistId: row.specialistId,
+          branchId: row.branchId,
+          roomId: row.roomId,
+          weekday: row.weekday,
+          startMinute: row.startMinute,
+          endMinute: row.endMinute,
+          isActive: row.isActive,
+        };
       }
       const inserted = await db
         .insert(beWh)
