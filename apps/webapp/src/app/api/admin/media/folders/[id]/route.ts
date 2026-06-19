@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
-import { isSystemManagedMediaFolder, pgValidateManualFolderParent } from "@/app-layer/media/clientMediaFolders";
+import { isSystemManagedMediaFolder, pgValidateManualFolderParent, pgValidatePatientFolderRename } from "@/app-layer/media/clientMediaFolders";
 import { pgGetMediaFolderById } from "@/app-layer/media/mediaFoldersRepo";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
@@ -43,8 +43,26 @@ export async function PATCH(
   if (!existing) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  if (isSystemManagedMediaFolder(existing.kind)) {
+
+  // Granular system-folder gate (rules 2 + 4):
+  // - client_files_root: all changes forbidden
+  // - client_patient: name change allowed; parentId change always forbidden
+  // - standard: no gate
+  if (parsed.data.name !== undefined && existing.kind === "client_files_root") {
     return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+  }
+  if (parsed.data.name !== undefined && existing.kind === "client_patient") {
+    try {
+      await pgValidatePatientFolderRename(id, parsed.data.name);
+    } catch {
+      return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+    }
+  }
+  if (parsed.data.parentId !== undefined && existing.kind === "client_files_root") {
+    return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+  }
+  if (parsed.data.parentId !== undefined && existing.kind === "client_patient") {
+    return NextResponse.json({ ok: false, error: "patient_folder_move_out" }, { status: 409 });
   }
 
   if (parsed.data.parentId !== undefined) {

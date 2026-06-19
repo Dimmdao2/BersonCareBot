@@ -32,11 +32,13 @@ vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
 }));
 
 const validateParentMock = vi.fn();
+const validatePatientFolderRenameMock = vi.fn();
 vi.mock("@/app-layer/media/clientMediaFolders", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app-layer/media/clientMediaFolders")>();
   return {
     ...actual,
     pgValidateManualFolderParent: (...a: unknown[]) => validateParentMock(...a),
+    pgValidatePatientFolderRename: (...a: unknown[]) => validatePatientFolderRenameMock(...a),
   };
 });
 
@@ -65,6 +67,8 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     pgGetByIdMock.mockResolvedValue(standardFolder);
     validateParentMock.mockReset();
     validateParentMock.mockResolvedValue({ ok: true });
+    validatePatientFolderRenameMock.mockReset();
+    validatePatientFolderRenameMock.mockResolvedValue(undefined);
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
   });
 
@@ -93,11 +97,11 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 409 for system-managed folder", async () => {
+  it("returns 409 when renaming client_files_root folder", async () => {
     pgGetByIdMock.mockResolvedValue({
       ...standardFolder,
-      kind: "client_patient",
-      name: "Иван · abcd1234",
+      kind: "client_files_root",
+      name: "Пациенты",
     });
     const res = await PATCH(
       new Request("http://localhost/api/admin/media/folders/x", {
@@ -108,7 +112,48 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
       { params: Promise.resolve({ id: FOLDER_ID }) },
     );
     expect(res.status).toBe(409);
+    const j = (await res.json()) as { error?: string };
+    expect(j.error).toBe("system_folder_readonly");
     expect(renameFolderMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 when renaming client_patient folder (rule 2: allowed)", async () => {
+    pgGetByIdMock.mockResolvedValue({
+      ...standardFolder,
+      kind: "client_patient",
+      name: "Иван · abcd1234",
+    });
+    renameFolderMock.mockResolvedValue(true);
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/media/folders/x", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Иван Иванов" }),
+      }),
+      { params: Promise.resolve({ id: FOLDER_ID }) },
+    );
+    expect(res.status).toBe(200);
+    expect(renameFolderMock).toHaveBeenCalledWith(FOLDER_ID, "Иван Иванов");
+  });
+
+  it("returns 409 patient_folder_move_out when reparenting client_patient folder (rule 4: forbidden)", async () => {
+    pgGetByIdMock.mockResolvedValue({
+      ...standardFolder,
+      kind: "client_patient",
+      name: "Иван · abcd1234",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/media/folders/x", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ parentId: PARENT_ID }),
+      }),
+      { params: Promise.resolve({ id: FOLDER_ID }) },
+    );
+    expect(res.status).toBe(409);
+    const j = (await res.json()) as { error?: string };
+    expect(j.error).toBe("patient_folder_move_out");
+    expect(moveFolderMock).not.toHaveBeenCalled();
   });
 
   it("returns 200 on rename", async () => {

@@ -3,6 +3,7 @@ export {
   pgEnsureClientFilesRootFolder,
   pgEnsureClientPatientFolder,
   pgValidateManualFolderParent,
+  pgValidatePatientFolderRename,
   pgValidateUserAssignableMediaFolder,
 } from "@/infra/repos/pgClientMediaFolders";
 

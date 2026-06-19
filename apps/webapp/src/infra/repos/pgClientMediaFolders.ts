@@ -187,6 +187,38 @@ export type MediaFolderAssignmentError =
   | "client_folder_requires_patient"
   | "system_folder_readonly";
 
+/**
+ * Validates that a name-change PATCH on a system-managed folder is permitted.
+ *
+ * Rules:
+ * - `client_files_root`: name changes are never allowed → throws 409 system_folder_readonly
+ * - `client_patient`: name changes are allowed (returns void)
+ * - `standard`: not covered here; callers should skip this for standard folders
+ */
+export async function pgValidatePatientFolderRename(
+  folderId: string,
+  _newName: string,
+): Promise<void> {
+  const db = getDrizzle();
+  const [row] = await db
+    .select({ kind: mediaFolders.kind })
+    .from(mediaFolders)
+    .where(eq(mediaFolders.id, folderId))
+    .limit(1);
+
+  if (!row) {
+    // not_found is handled upstream; treat as readonly here to be safe
+    const err = Object.assign(new Error("system_folder_readonly"), { statusCode: 409 });
+    throw err;
+  }
+
+  if (row.kind !== "client_patient") {
+    const err = Object.assign(new Error("system_folder_readonly"), { statusCode: 409 });
+    throw err;
+  }
+  // client_patient rename is allowed — nothing more to check
+}
+
 export async function pgValidateUserAssignableMediaFolder(
   folderId: string | null,
 ): Promise<{ ok: true } | { ok: false; error: MediaFolderAssignmentError }> {
