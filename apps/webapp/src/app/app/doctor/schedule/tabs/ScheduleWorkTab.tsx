@@ -418,6 +418,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // ── State ─────────────────────────────────────────────────────────────────
 
   const [mode, setMode] = useState<"per-date" | "weekly">("per-date");
+  const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates");
+  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
 
   const { year, month } = parseMonth(deepLinkParams.month);
   const [viewYear, setViewYear] = useState(year);
@@ -603,8 +605,38 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         return next;
       });
       lastClickedRef.current = date;
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
     },
     [gridDates],
+  );
+
+  const handleWeekdayHeaderClick = useCallback(
+    (colIndex: number) => {
+      const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
+      if (selectedWeekday === wd && selectionMode === "weekday") {
+        // Re-click same weekday → deselect
+        setSelectionMode("dates");
+        setSelectedWeekday(null);
+        setSelected(new Set());
+        return;
+      }
+      // Select all dates of this weekday in current month view
+      const allDates = buildMonthGrid(viewYear, viewMonth).filter((d): d is string => d !== null);
+      const matching = new Set(
+        allDates.filter((d) => {
+          // Luxon weekday: 1=Mon..7=Sun → map to [1,2,3,4,5,6,0] using (luxonWd % 7)
+          const luxonWd = DateTime.fromISO(d).weekday;
+          const bwHoursWd = luxonWd % 7;
+          return bwHoursWd === wd;
+        }),
+      );
+      setSelected(matching);
+      setSelectionMode("weekday");
+      setSelectedWeekday(wd);
+      lastClickedRef.current = null;
+    },
+    [selectedWeekday, selectionMode, viewYear, viewMonth],
   );
 
   // ── Break rows helpers ────────────────────────────────────────────────────
@@ -866,11 +898,29 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         {/* LEFT: month grid */}
         <div className="flex flex-col gap-2">
           <div className={cn(doctorSectionCardClass, "p-0 overflow-hidden")} data-testid="month-grid">
-            {/* Weekday header */}
-            <div className="grid grid-cols-7 gap-0.5 px-1.5 pb-0.5 pt-1.5 text-[10px] font-medium text-muted-foreground text-center">
-              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
-                <div key={d}>{d}</div>
-              ))}
+            {/* Weekday header — click selects entire weekday column (SCH-R-03) */}
+            <div className="grid grid-cols-7 gap-0.5 px-1.5 pb-0.5 pt-1.5 text-center">
+              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d, colIndex) => {
+                const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
+                const isActiveWd = selectionMode === "weekday" && selectedWeekday === wd;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => handleWeekdayHeaderClick(colIndex)}
+                    className={cn(
+                      "text-[10px] font-medium rounded px-0.5 py-0.5 transition-colors cursor-pointer",
+                      isActiveWd
+                        ? "text-primary font-semibold bg-primary/10"
+                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                    )}
+                    aria-label={`Выбрать все ${d} месяца`}
+                    aria-pressed={isActiveWd}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
             </div>
             {/* Day cells (E2 — компактнее, время крупнее) */}
             <div className="grid grid-cols-7 gap-0.5 p-1.5">
