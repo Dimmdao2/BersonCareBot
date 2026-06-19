@@ -6,10 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
-import {
-  isPersistentRecommendation,
-  patientStageItemShowsNewBadge,
-} from "@/modules/treatment-program/stage-semantics";
+import { patientStageItemShowsNewBadge } from "@/modules/treatment-program/stage-semantics";
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import {
@@ -52,8 +49,8 @@ export function PatientInstanceStageItemCard(props: {
   lastDoneAtIsoByItemId?: Readonly<Record<string, string>>;
   /** Ссылка на страницу детального просмотра пункта (вместо модалки). */
   itemDetailHref: string;
-  /** Пауза перед повторным «Выполнено» (мин), из `system_settings`. */
-  planItemDoneRepeatCooldownMinutes: number;
+  /** @deprecated Unused after button removal; kept for backward-compat with callers. */
+  planItemDoneRepeatCooldownMinutes?: number;
 }) {
   const {
     instanceId,
