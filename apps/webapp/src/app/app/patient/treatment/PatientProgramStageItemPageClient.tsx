@@ -64,10 +64,6 @@ import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
 } from "@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog";
-import {
-  ProgramItemCompleteDialog,
-  type ProgramItemCompleteDialogPayload,
-} from "@/app/app/patient/treatment/ProgramItemCompleteDialog";
 import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
 import { postProgramItemComplete } from "@/app/app/patient/treatment/postProgramItemComplete";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
@@ -108,6 +104,21 @@ type ItemDiscussionPreview = {
   lastMessage: ProgramItemDiscussionMessage | null;
   lastDoneSummary: ItemDiscussionLastDoneSummary | null;
 };
+
+function parseOptionalPositiveInt(raw: string): number | undefined {
+  const t = raw.trim();
+  if (!t) return undefined;
+  if (!/^\d+$/.test(t)) return undefined;
+  const n = Number.parseInt(t, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+function parseOptionalNonNegativeNumber(raw: string): number | undefined {
+  const t = raw.trim();
+  if (!t) return undefined;
+  const n = Number.parseFloat(t.replace(",", "."));
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
 
 function modalSnapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -301,7 +312,9 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
   const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
   const mediaPickerRef = useRef<ProgramItemSubmissionSourceDialogHandle>(null);
-  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [repsRaw, setRepsRaw] = useState("");
+  const [weightRaw, setWeightRaw] = useState("");
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
     unreadCount: 0,
@@ -514,11 +527,18 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [loadDiscussionPreview]);
 
   useEffect(() => {
+    const lds = discussionPreview.lastDoneSummary;
+    if (!lds) return;
+    if (lds.reps != null) setRepsRaw(String(lds.reps));
+    if (lds.weightKg != null) setWeightRaw(String(lds.weightKg));
+    if (lds.perceivedDifficulty) setDifficulty(lds.perceivedDifficulty);
+  }, [discussionPreview.lastDoneSummary]);
+
+  useEffect(() => {
     setDiscussionDialogOpen(false);
-    setCompleteDialogOpen(false);
   }, [itemId]);
 
-  const handleComplete = async (completion: ProgramItemCompleteDialogPayload) => {
+  const handleComplete = async () => {
     if (!item || simpleCompleteDoneFrozen) return;
     setBusy(item.id);
     setError(null);
@@ -526,13 +546,16 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
       const result = await postProgramItemComplete({
         base,
         itemId: item.id,
-        payload: completion,
+        payload: {
+          perceivedDifficulty: difficulty,
+          reps: parseOptionalPositiveInt(repsRaw),
+          weightKg: parseOptionalNonNegativeNumber(weightRaw),
+        },
       });
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setCompleteDialogOpen(false);
       await refresh();
       await loadDiscussionPreview();
     } finally {
@@ -789,8 +812,28 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                     </Link>
                   )
                 ) : (
-                  <div className="flex w-full min-w-0 flex-col gap-1">
-                    <div className="flex min-w-0 flex-nowrap items-stretch gap-2">
+                  <div className="flex w-full min-w-0 flex-col gap-2">
+                    {/* Difficulty selector */}
+                    <div className="flex gap-1.5">
+                      {(["easy", "medium", "hard"] as const).map((d, i) => (
+                        <button
+                          key={d}
+                          type="button"
+                          disabled={busy !== null || simpleCompleteDoneFrozen}
+                          onClick={() => setDifficulty(d)}
+                          className={cn(
+                            "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+                            difficulty === d
+                              ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary,#284da0)] text-white"
+                              : "border-[var(--patient-border)] bg-transparent text-[var(--patient-muted-text,#888)]",
+                          )}
+                        >
+                          {(["Легко", "Нормально", "Тяжело"] as const)[i]}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Reps + Weight fields */}
+                    <div className="flex gap-2">
                       {mediaPickerVisible ? (
                         <button
                           type="button"
@@ -812,43 +855,45 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           <Camera className="size-4" aria-hidden />
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        className={cn(
-                          patientButtonPrimaryClass,
-                          "min-h-9 min-w-0 shrink basis-0 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
-                          mediaPickerVisible ? "flex-[1.45]" : "flex-1",
-                          simpleCompleteDoneFrozen &&
-                            cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
-                          !simpleCompleteDoneFrozen && "gap-0",
-                        )}
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={repsRaw}
+                        onChange={(e) => setRepsRaw(e.target.value)}
+                        placeholder="Повторения"
                         disabled={busy !== null || simpleCompleteDoneFrozen}
-                        onClick={() => setCompleteDialogOpen(true)}
-                      >
-                        {simpleCompleteDoneFrozen ? (
-                          <>
-                            <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-                            <span className="min-w-0 flex-1 text-center font-semibold leading-tight">
-                              Выполнено
-                            </span>
-                          </>
-                        ) : (
-                          <span className="w-full text-center leading-tight">Отметить выполнение</span>
-                        )}
-                      </button>
+                        className="h-9 flex-1 rounded-md border border-[var(--patient-border)] bg-white px-2.5 text-sm placeholder-[var(--patient-muted-text,#888)] focus:outline-none focus:ring-1 focus:ring-[var(--patient-color-primary,#284da0)] disabled:opacity-60"
+                      />
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={weightRaw}
+                        onChange={(e) => setWeightRaw(e.target.value)}
+                        placeholder="Вес, кг"
+                        disabled={busy !== null || simpleCompleteDoneFrozen}
+                        className="h-9 flex-1 rounded-md border border-[var(--patient-border)] bg-white px-2.5 text-sm placeholder-[var(--patient-muted-text,#888)] focus:outline-none focus:ring-1 focus:ring-[var(--patient-color-primary,#284da0)] disabled:opacity-60"
+                      />
                     </div>
-                    {/* Скрыто: строка «Можно отметить повторно…» — см. закомментированный simpleCompleteCooldownMinutes выше.
-                    {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
-                      <p
-                        className={cn(
-                          patientMutedTextClass,
-                          "w-full text-center text-[11px] leading-tight",
-                        )}
-                      >
-                        {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
-                      </p>
-                    ) : null}
-                    */}
+                    {/* Submit */}
+                    <button
+                      type="button"
+                      className={cn(
+                        patientButtonPrimaryClass,
+                        "min-h-9 w-full py-2.5 text-xs font-medium leading-tight sm:min-h-10",
+                        simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
+                      )}
+                      disabled={busy !== null || simpleCompleteDoneFrozen}
+                      onClick={() => void handleComplete()}
+                    >
+                      {simpleCompleteDoneFrozen ? (
+                        <>
+                          <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
+                          <span className="min-w-0 flex-1 text-center font-semibold leading-tight">Выполнено</span>
+                        </>
+                      ) : (
+                        <span className="w-full text-center leading-tight">Записать</span>
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
@@ -955,14 +1000,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               onError={() => setError("Не удалось загрузить файл")}
             />
           ) : null}
-          <ProgramItemCompleteDialog
-            key={completeDialogOpen ? "complete-dialog-open" : "complete-dialog-closed"}
-            open={completeDialogOpen}
-            onOpenChange={setCompleteDialogOpen}
-            submitting={busy === item.id}
-            onSubmit={handleComplete}
-          />
-
           {navMode === "program" || navMode === "exec" ? (
             <PatientStageCompositionList
               instanceId={instanceId}
