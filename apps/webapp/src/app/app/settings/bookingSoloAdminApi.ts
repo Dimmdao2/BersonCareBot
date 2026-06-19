@@ -47,7 +47,7 @@ export type SoloOverview = {
 
 export async function fetchSoloOverview(): Promise<SoloOverview | null> {
   try {
-    return await apiJson<SoloOverview>(`${BASE}/overview`);
+    return await apiJson<SoloOverview & { ok?: boolean }>(`${BASE}/overview`);
   } catch (e) {
     if (e instanceof Error && e.message === "booking_engine_unavailable") return null;
     throw e;
