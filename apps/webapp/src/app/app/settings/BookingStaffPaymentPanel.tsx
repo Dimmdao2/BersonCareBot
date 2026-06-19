@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { paymentStatusLabel, timelineEventTitle } from "@/modules/client-history/labels";
@@ -31,14 +32,20 @@ export function BookingStaffPaymentPanel({ apiBase, appointmentId }: Props) {
     if (!appointmentId.trim()) return;
     setError(null);
     startTransition(async () => {
-      const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(appointmentId.trim())}/payment`);
-      const json = (await res.json()) as { ok?: boolean; summary?: PaymentSummary; error?: string };
-      if (!json.ok || !json.summary) {
+      try {
+        const json = await apiJson<{ ok?: boolean; summary?: PaymentSummary; error?: string }>(
+          `${apiBase}/appointments/${encodeURIComponent(appointmentId.trim())}/payment`,
+        );
+        if (!json.summary) {
+          setSummary(null);
+          setError("not_found");
+          return;
+        }
+        setSummary(json.summary);
+      } catch (e) {
         setSummary(null);
-        setError(json.error ?? "not_found");
-        return;
+        setError(e instanceof Error ? e.message : "not_found");
       }
-      setSummary(json.summary);
     });
   }
 

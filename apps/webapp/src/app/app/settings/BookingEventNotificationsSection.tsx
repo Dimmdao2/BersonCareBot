@@ -11,6 +11,7 @@ import {
   type BookingLifecycleNotificationsSettings,
 } from "@/modules/booking-notifications/settings";
 import { patchAdminSetting } from "./patchAdminSetting";
+import { apiJson } from "@/shared/lib/apiJson";
 
 const EVENT_LABELS: Record<BookingLifecycleNotificationEventKey, string> = {
   "booking.created": "Новая запись",
@@ -27,25 +28,24 @@ export function BookingEventNotificationsSection({ layout = "cards" }: { layout?
   const [pending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/settings");
-    const json = (await res.json()) as {
-      ok?: boolean;
-      settings?: Array<{ key: string; valueJson: unknown }>;
-    };
-    if (!json.ok) {
-      setError("load_failed");
-      return;
+    try {
+      const json = await apiJson<{
+        ok?: boolean;
+        settings?: Array<{ key: string; valueJson: unknown }>;
+      }>("/api/admin/settings");
+      const row = json.settings?.find((s) => s.key === "booking_lifecycle_notifications");
+      const inner =
+        row?.valueJson && typeof row.valueJson === "object" && "value" in (row.valueJson as object)
+          ? (row.valueJson as { value: unknown }).value
+          : row?.valueJson;
+      const { parseBookingLifecycleNotificationsSettings } = await import(
+        "@/modules/booking-notifications/settings"
+      );
+      setSettings(parseBookingLifecycleNotificationsSettings(inner ?? null));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "load_failed");
     }
-    const row = json.settings?.find((s) => s.key === "booking_lifecycle_notifications");
-    const inner =
-      row?.valueJson && typeof row.valueJson === "object" && "value" in (row.valueJson as object)
-        ? (row.valueJson as { value: unknown }).value
-        : row?.valueJson;
-    const { parseBookingLifecycleNotificationsSettings } = await import(
-      "@/modules/booking-notifications/settings"
-    );
-    setSettings(parseBookingLifecycleNotificationsSettings(inner ?? null));
-    setError(null);
   }, []);
 
   useEffect(() => {
