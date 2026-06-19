@@ -56,6 +56,7 @@ export type PatientsPageClientProps = {
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   initialFilters: InitialFilters;
   patientPluralLabel?: string;
+  displayIana?: string;
 };
 
 type TriFilterState = "off" | "positive" | "negative";
@@ -439,19 +440,19 @@ function PatientListSkeleton() {
 // ---------------------------------------------------------------------------
 
 /** Format ISO date string → DD.MM.YYYY */
-function fmtDate(iso: string | null | undefined): string {
+function fmtDate(iso: string | null | undefined, tz = "Europe/Moscow"): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /** Format ISO date+time → DD.MM.YYYY HH:MM */
-function fmtDateTime(date: string | null | undefined, time?: string | null): string {
+function fmtDateTime(date: string | null | undefined, time?: string | null, tz = "Europe/Moscow"): string {
   if (!date) return "—";
   const d = new Date(date);
   if (isNaN(d.getTime())) return "—";
-  const dateStr = d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
+  const dateStr = d.toLocaleDateString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric" });
   return time ? `${dateStr} ${time}` : dateStr;
 }
 
@@ -467,9 +468,10 @@ type PatientPreviewPaneProps = {
   userId: string;
   item: ClientListItem;
   onClose: () => void;
+  displayIana?: string;
 };
 
-function PatientPreviewPane({ userId, item, onClose }: PatientPreviewPaneProps) {
+function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Moscow" }: PatientPreviewPaneProps) {
   const [header, setHeader] = useState<PatientCardHeader | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -622,11 +624,11 @@ function PatientPreviewPane({ userId, item, onClose }: PatientPreviewPaneProps) 
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
           <div className="flex gap-1">
             <span className="font-medium text-foreground">Прошлый визит:</span>
-            <span>{fmtDate(header.lastVisit?.date)}</span>
+            <span>{fmtDate(header.lastVisit?.date, displayIana)}</span>
           </div>
           <div className="flex gap-1">
             <span className="font-medium text-foreground">Следующая запись:</span>
-            <span>{fmtDateTime(header.nextAppointment?.date, header.nextAppointment?.time)}</span>
+            <span>{fmtDateTime(header.nextAppointment?.date, header.nextAppointment?.time, displayIana)}</span>
           </div>
           <div className="flex gap-1">
             <span className="font-medium text-foreground">Визитов:</span>
@@ -666,6 +668,7 @@ type PatientsContentProps = {
   isListPending: boolean;
   selectedUserId: string | null;
   activeCategory: ClientCategory;
+  displayIana?: string;
   onSegmentChange: (value: string | null) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onToggleLegacyFilter: (key: keyof LegacyFiltersState) => void;
@@ -691,6 +694,7 @@ function PatientsContent({
   isListPending,
   selectedUserId,
   activeCategory,
+  displayIana,
   onSegmentChange,
   onChannelChange,
   onToggleLegacyFilter,
@@ -1189,6 +1193,7 @@ function PatientsContent({
             userId={selectedUserId}
             item={selectedItem}
             onClose={() => onSelectPatient(null)}
+            displayIana={displayIana}
           />
         ) : null}
       </div>
@@ -1208,6 +1213,7 @@ export function PatientsPageClient({
   metricsPromise,
   initialFilters,
   patientPluralLabel = "Пациенты",
+  displayIana,
 }: PatientsPageClientProps) {
   const [isListPending, startListTransition] = useTransition();
 
@@ -1347,6 +1353,7 @@ export function PatientsPageClient({
         isListPending={isListPending}
         selectedUserId={selectedUserId}
         activeCategory={activeCategory}
+        displayIana={displayIana}
         onSegmentChange={handleSegmentChange}
         onChannelChange={handleChannelChange}
         onToggleLegacyFilter={handleToggleLegacyFilter}

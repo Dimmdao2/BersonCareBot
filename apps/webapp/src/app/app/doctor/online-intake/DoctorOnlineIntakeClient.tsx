@@ -114,7 +114,7 @@ const STATS_DAYS_LABELS: Record<StatsDays, string> = {
   365: "Год",
 };
 
-function formatIntakeDate(iso: string): string {
+function formatIntakeDate(iso: string, tz = "Europe/Moscow"): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   const now = new Date();
@@ -123,9 +123,9 @@ function formatIntakeDate(iso: string): string {
     d.getMonth() === now.getMonth() &&
     d.getFullYear() === now.getFullYear();
   if (isToday) {
-    return `сегодня · ${d.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" })}`;
+    return `сегодня · ${d.toLocaleString("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit" })}`;
   }
-  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit" });
+  return d.toLocaleDateString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit" });
 }
 
 // ── Detail body ─────────────────────────────────────────────────────────────
@@ -282,11 +282,13 @@ function IntakeStatsCard({
 export type DoctorOnlineIntakeClientProps = {
   initialOpenRequestId?: string | null;
   onDetailChange?: (id: string | null) => void;
+  displayIana?: string;
 };
 
 export function DoctorOnlineIntakeClient({
   initialOpenRequestId = null,
   onDetailChange,
+  displayIana = "Europe/Moscow",
 }: DoctorOnlineIntakeClientProps) {
   const [allItems, setAllItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -562,7 +564,7 @@ export function DoctorOnlineIntakeClient({
                     item.status === "new" ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
-                  {item.status === "new" ? "Новая" : formatIntakeDate(item.createdAt)}
+                  {item.status === "new" ? "Новая" : formatIntakeDate(item.createdAt, displayIana)}
                 </span>
               </div>
               <div className="min-w-0 truncate text-xs text-muted-foreground">
@@ -625,7 +627,7 @@ export function DoctorOnlineIntakeClient({
                     <div className="text-xs text-muted-foreground">{detail.patientName}</div>
                   )}
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    Заявка · {formatIntakeDate(detail.createdAt)}
+                    Заявка · {formatIntakeDate(detail.createdAt, displayIana)}
                   </div>
                 </div>
                 <span
@@ -675,7 +677,7 @@ export function DoctorOnlineIntakeClient({
                     {detail.statusHistory.map((h, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs">
                         <span className="shrink-0 text-muted-foreground tabular-nums">
-                          {formatIntakeDate(h.changedAt)}
+                          {formatIntakeDate(h.changedAt, displayIana)}
                         </span>
                         <span className="shrink-0 text-muted-foreground">→</span>
                         <span className="font-medium">

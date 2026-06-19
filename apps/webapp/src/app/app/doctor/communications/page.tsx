@@ -47,6 +47,7 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
     <DoctorCommunicationsShell
       initialTab={initialTab}
       badges={badges}
+      displayIana={displayIana}
       initialTabData={{
         comments: {
           feed: commentsData,

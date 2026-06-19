@@ -5,6 +5,7 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { PatientsPageClient } from "./PatientsPageClient";
 
 function getValueJson<T>(v: unknown, fallback: T): T {
@@ -36,6 +37,8 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   const archivedOnly = sp.archived === "true";
 
   const deps = buildAppDeps();
+
+  const displayIana = await getAppDisplayTimeZone();
 
   const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
   const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
@@ -73,6 +76,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
         metricsPromise={metricsPromise}
         initialFilters={{ q, segment, channel, archivedOnly }}
         patientPluralLabel={patientPluralLabel}
+        displayIana={displayIana}
       />
     </DoctorAppShell>
   );
