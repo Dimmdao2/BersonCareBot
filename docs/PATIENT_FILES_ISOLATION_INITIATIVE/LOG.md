@@ -44,3 +44,52 @@ All 9 implementation stages closed. Root folder renamed «Пациенты»; pe
 | ST-09 | displayName rename not blocked | CLOSED-backend (e5197755) |
 
 Open: O3 (doctor-side presign UI) — deferred, helper + wiring point in place (see above).
+
+---
+
+## ST-10 — Final regression suite + docs sync
+
+Date: 2026-06-19
+Status: CLOSED
+
+### Test results (step-level, all pass)
+
+| Owner DoD area | Test file | Tests |
+|----------------|-----------|-------|
+| 1. Exclusion from general scope/visibility | `src/infra/repos/mockMediaStorage.test.ts` | 5 pass |
+| 2. Upload routes into patient folder (G3 dual-record) | `src/infra/repos/pgPatientFiles.g3.test.ts` | 5 pass |
+| 3. ФИО dedup naming (last4 vs uuid8, ordering) | `src/modules/media/clientFilesFolders.test.ts` | 16 pass |
+| 4. Move-out denied (file + folder level) | `src/app/api/admin/media/[id]/route.test.ts` + `src/app/api/admin/media/folders/[id]/route.test.ts` | 19 + 8 = 27 pass |
+| 5. Individual-exercise routing (doctor helper) | `src/app-layer/media/clientMediaFolders.test.ts` | 6 pass |
+| Upload smoke (patient presign → patient folder) | `src/app/api/patient/media/program-submission/presign/route.test.ts` | 4 pass |
+
+Total: **63 tests across 6 files — all pass.**
+
+### tsc
+
+`pnpm --dir apps/webapp exec tsc --noEmit` — PASS (exit 0).
+
+### Docs sync
+
+`apps/webapp/src/modules/media/media.md` line 12 updated: «Файлы клиентов» → «Пациенты» (added `client_files_root`/`client_patient` kind labels for clarity).
+
+### Open-question resolutions
+
+**O1 (folder name):** `CLIENT_FILES_ROOT_FOLDER_NAME` renamed to «Пациенты» (ST-01). Legacy promote: `pgEnsureClientFilesRootFolder` still matches by `nameNormalized`, so existing prod folders named «Файлы клиентов» are reused without duplication. No data migration needed.
+
+**O2 (dual-record link):** `patient_files.mediaFileId` nullable FK to `media_files.id` with `onDelete: set null` (ST-04). Deleting a `patient_files` row does NOT delete the `media_files` record. G3 test asserts both directions.
+
+**O3 (doctor individual-exercise route):** Gap documented. Helper landed in ST-08; full doctor UI route is out of scope for PFI. Connection point: future route must call `pgEnsureClientPatientFolder(patientUserId)` (not doctor userId) from `apps/webapp/src/app-layer/media/clientMediaFolders.ts`.
+
+**O4 (dedup suffix):** last4 of `phoneNormalized` when phone has ≥ 4 digits; otherwise falls back to first 8 chars of `patientUserId`. Full phone never written. Tested in `clientFilesFolders.test.ts` (4 cases).
+
+### Dev seed note
+
+Patient file `edd8ab66` in dev DB has `media_file_id` set — suitable for manual verification of the dual-record wiring in a live dev session.
+
+### What was deliberately NOT done
+
+- Full migration of `patient_files` into `media_files` (O2 option b) — out of scope per owner default.
+- Doctor UI for individual-exercise video capture — out of scope (O3; helper + wiring point landed).
+- Automated prod rename of existing «Файлы клиентов» folders — not needed (promote logic handles legacy).
+- Forced `displayName` rename on upload — rule 6 requires capability, not forced rename; capability exists via `PATCH /api/admin/media/[id]`.
