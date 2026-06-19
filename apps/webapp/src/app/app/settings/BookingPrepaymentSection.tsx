@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -50,20 +51,25 @@ export function BookingPrepaymentSection() {
   const [pending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    const [svcRes, polRes] = await Promise.all([fetch(SERVICES_API), fetch(POLICY_API)]);
-    const svcJson = (await svcRes.json()) as { ok?: boolean; services?: ServiceRow[] };
-    const polJson = (await polRes.json()) as { ok?: boolean; policies?: PolicyRow[] };
-    if (svcJson.ok && svcJson.services) setServices(svcJson.services);
-    if (polJson.ok && polJson.policies) {
-      setPolicies(
-        polJson.policies.map((p) => ({
-          serviceId: p.serviceId,
-          onlineCategory: p.onlineCategory,
-          mode: p.mode,
-          amountMinor: p.amountMinor,
-          percentBps: p.percentBps,
-        })),
-      );
+    try {
+      const [svcJson, polJson] = await Promise.all([
+        apiJson<{ ok?: boolean; services?: ServiceRow[] }>(SERVICES_API),
+        apiJson<{ ok?: boolean; policies?: PolicyRow[] }>(POLICY_API),
+      ]);
+      if (svcJson.services) setServices(svcJson.services);
+      if (polJson.policies) {
+        setPolicies(
+          polJson.policies.map((p) => ({
+            serviceId: p.serviceId,
+            onlineCategory: p.onlineCategory,
+            mode: p.mode,
+            amountMinor: p.amountMinor,
+            percentBps: p.percentBps,
+          })),
+        );
+      }
+    } catch {
+      // load errors are non-critical; selects simply stay empty
     }
   }, []);
 
@@ -127,17 +133,16 @@ export function BookingPrepaymentSection() {
               isActive: mode !== "disabled",
             };
       if (scope === "service" && !serviceId) return;
-      const res = await fetch(POLICY_API, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
-        setError(json.error ?? "save_failed");
-        return;
+      try {
+        await apiJson(POLICY_API, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "save_failed");
       }
-      await load();
     });
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -30,11 +31,16 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
   const [pending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    const [svcRes, pkgRes] = await Promise.all([fetch(SERVICES_API), fetch(apiBase)]);
-    const svcJson = (await svcRes.json()) as { ok?: boolean; services?: ServiceRow[] };
-    const pkgJson = (await pkgRes.json()) as { ok?: boolean; packages?: PackageRow[] };
-    if (svcJson.ok && svcJson.services) setServices(svcJson.services);
-    if (pkgJson.ok && pkgJson.packages) setPackages(pkgJson.packages);
+    try {
+      const [svcJson, pkgJson] = await Promise.all([
+        apiJson<{ ok?: boolean; services?: ServiceRow[] }>(SERVICES_API),
+        apiJson<{ ok?: boolean; packages?: PackageRow[] }>(apiBase),
+      ]);
+      if (svcJson.services) setServices(svcJson.services);
+      if (pkgJson.packages) setPackages(pkgJson.packages);
+    } catch {
+      // load errors are non-critical; lists simply stay empty
+    }
   }, [apiBase]);
 
   useEffect(() => {
@@ -60,20 +66,19 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
       return;
     }
     startTransition(async () => {
-      const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), priceMinor, currency: "RUB", items }),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
-        setError(json.error ?? "save_failed");
-        return;
+      try {
+        await apiJson(apiBase, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: title.trim(), priceMinor, currency: "RUB", items }),
+        });
+        setTitle("");
+        setPriceRub("");
+        setItems([]);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "save_failed");
       }
-      setTitle("");
-      setPriceRub("");
-      setItems([]);
-      await load();
     });
   }
 
