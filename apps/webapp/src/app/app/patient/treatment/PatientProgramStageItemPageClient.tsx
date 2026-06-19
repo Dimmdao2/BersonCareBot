@@ -536,6 +536,9 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
   useEffect(() => {
     setDiscussionDialogOpen(false);
+    setRepsRaw("");
+    setWeightRaw("");
+    setDifficulty("medium");
   }, [itemId]);
 
   const handleComplete = async () => {
