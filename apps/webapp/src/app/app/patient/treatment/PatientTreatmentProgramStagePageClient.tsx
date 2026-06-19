@@ -438,6 +438,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           heading={<h3 className={patientSectionTitleClass}>Назначения этапа</h3>}
           itemLinksPlanTab={itemLinksPlanTab ?? null}
           planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+          appDisplayTimeZone={appDisplayTimeZone}
         />
       </div>
     );

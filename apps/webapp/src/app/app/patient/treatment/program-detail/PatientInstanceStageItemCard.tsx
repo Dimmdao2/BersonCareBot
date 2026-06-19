@@ -15,6 +15,7 @@ import {
   recommendationBodyMdPreviewPlain,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
+import { AlertTriangle, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   patientMutedTextClass,
@@ -25,6 +26,7 @@ import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patien
 import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
 import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
 import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
+import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
 
 export function PatientInstanceStageItemCard(props: {
   instanceId: string;
@@ -51,6 +53,10 @@ export function PatientInstanceStageItemCard(props: {
   itemDetailHref: string;
   /** @deprecated Unused after button removal; kept for backward-compat with callers. */
   planItemDoneRepeatCooldownMinutes?: number;
+  /** QW-A3: summary of discussion comments for this item (count badge + unread dot). */
+  discussionSummary?: { totalCount: number; unreadCount: number };
+  /** QW-A3: IANA timezone for PatientProgramItemExecutionRow execution dots. */
+  appDisplayTimeZone?: string;
 }) {
   const {
     instanceId,
@@ -68,7 +74,10 @@ export function PatientInstanceStageItemCard(props: {
     onDoneItemIds,
     todayChecklistDoneCount,
     neutralItemChrome = false,
+    lastDoneAtIsoByItemId,
     itemDetailHref,
+    discussionSummary,
+    appDisplayTimeZone,
   } = props;
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
@@ -266,14 +275,30 @@ export function PatientInstanceStageItemCard(props: {
               )}
             </p>
           ) : null}
-          {!readOnly &&
-          todayChecklistDoneCount != null &&
-          todayChecklistDoneCount > 0 &&
-          item.itemType !== "recommendation" ? (
-            <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px] leading-snug")}>
-              Отметок в журнале за сегодня:{" "}
-              <span className="font-medium text-foreground">{todayChecklistDoneCount}</span>
-            </p>
+          {/* QW-A3: icon row — comments · contraindications · execution dots */}
+          {item.itemType !== "recommendation" ? (
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+              {(discussionSummary?.totalCount ?? 0) > 0 ? (
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <MessageCircle className="size-3.5 shrink-0" aria-hidden />
+                  <span className="tabular-nums">{discussionSummary!.totalCount}</span>
+                  {(discussionSummary?.unreadCount ?? 0) > 0 ? (
+                    <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-label="непрочитанные" />
+                  ) : null}
+                </span>
+              ) : null}
+              {Boolean((item.snapshot as Record<string, unknown>)?.contraindications) ? (
+                <AlertTriangle className="size-3.5 shrink-0 text-amber-500" aria-label="Противопоказания" />
+              ) : null}
+              {appDisplayTimeZone ? (
+                <PatientProgramItemExecutionRow
+                  lastIso={lastDoneAtIsoByItemId?.[item.id] ?? null}
+                  todayCount={todayChecklistDoneCount ?? 0}
+                  appDisplayTimeZone={appDisplayTimeZone}
+                  variant="tile"
+                />
+              ) : null}
+            </div>
           ) : null}
 
           {(() => {
