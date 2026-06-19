@@ -196,6 +196,7 @@ export function PatientInstanceStageBody(props: {
                   )}
                   planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
                   appDisplayTimeZone={appDisplayTimeZone}
+                  lastDoneAtIsoByItemId={lastDoneAtIsoByItemId}
                 />
               ))}
             </ul>
