@@ -39,6 +39,8 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
       mimeType: params.mimeType,
       sizeBytes: params.sizeBytes,
       visitId: null,
+      // Simulate the dual-insert: generate a fake mediaFileId when folderId is provided.
+      mediaFileId: params.folderId ? randomUUID() : null,
       uploadedByUserId: params.uploadedByUserId,
       createdAt: new Date().toISOString(),
     };

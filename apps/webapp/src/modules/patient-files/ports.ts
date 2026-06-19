@@ -29,6 +29,8 @@ export type PatientFileRecord = {
   sizeBytes: number;
   /** Null until explicitly linked via linkFileToVisit. */
   visitId: string | null;
+  /** Null when uploaded without routing through the media library folder. onDelete set null means this can become null if the media_files row is removed. */
+  mediaFileId: string | null;
   uploadedByUserId: string;
   createdAt: string; // ISO string
 };
@@ -42,6 +44,8 @@ export type CreatePatientFileParams = {
   mimeType: string;
   sizeBytes: number;
   uploadedByUserId: string;
+  /** When provided, a media_files row is co-created in this folder and linked via mediaFileId. */
+  folderId?: string | null;
 };
 
 export interface PatientFilesPort {

@@ -12,6 +12,7 @@ import type {
   PatientFilesPort,
 } from "@/modules/patient-files/ports";
 import { patientFiles } from "../../../db/schema/patientFiles";
+import { mediaFiles } from "../../../db/schema/schema";
 
 function mapRow(row: typeof patientFiles.$inferSelect): PatientFileRecord {
   return {
@@ -24,6 +25,7 @@ function mapRow(row: typeof patientFiles.$inferSelect): PatientFileRecord {
     mimeType: row.mimeType,
     sizeBytes: Number(row.sizeBytes),
     visitId: row.visitId ?? null,
+    mediaFileId: row.mediaFileId ?? null,
     uploadedByUserId: row.uploadedByUserId,
     createdAt: row.createdAt,
   };
@@ -57,6 +59,24 @@ export function createPgPatientFilesPort(): PatientFilesPort {
 
     async createFile(params: CreatePatientFileParams): Promise<PatientFileRecord> {
       const db = getDrizzle();
+      // When a folderId is provided, co-create a media_files entry so the upload
+      // appears in the patient's «Пациенты» media library folder (PFI-ST-04).
+      let mediaFileId: string | null = null;
+      if (params.folderId) {
+        const [mf] = await db.insert(mediaFiles).values({
+          displayName: params.fileName,
+          originalName: params.fileName,
+          storedPath: params.s3Key,
+          s3Key: params.s3Key,
+          mimeType: params.mimeType,
+          sizeBytes: params.sizeBytes,
+          uploadedBy: params.uploadedByUserId,
+          folderId: params.folderId,
+          status: "ready",
+          previewStatus: "pending",
+        }).returning({ id: mediaFiles.id });
+        mediaFileId = mf?.id ?? null;
+      }
       const inserted = await db
         .insert(patientFiles)
         .values({
@@ -68,6 +88,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
           mimeType: params.mimeType,
           sizeBytes: params.sizeBytes,
           uploadedByUserId: params.uploadedByUserId,
+          mediaFileId,
         })
         .returning();
       const row = inserted[0];
