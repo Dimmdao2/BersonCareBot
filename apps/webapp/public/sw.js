@@ -48,11 +48,20 @@ self.addEventListener("push", (event) => {
   if (typeof data.warmupSloganKey === "string" && data.warmupSloganKey) {
     notificationData.warmupSloganKey = data.warmupSloganKey;
   }
+  if (typeof data.occurrenceId === "string" && data.occurrenceId) {
+    notificationData.occurrenceId = data.occurrenceId;
+  }
   event.waitUntil(
     self.registration.showNotification(title || "BersonCare", {
       body,
       tag,
       data: notificationData,
+      ...(notificationData.occurrenceId ? {
+        actions: [
+          { action: "snooze", title: "Позже" },
+          { action: "skip", title: "Пропустить" },
+        ],
+      } : {}),
     }),
   );
 });
@@ -89,7 +98,29 @@ function postPushOpenBestEffort(data) {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const action = event.action;
   const notifData = event.notification.data || {};
+
+  if (action === "snooze" && notifData.occurrenceId) {
+    event.waitUntil(
+      fetch(`/api/patient/reminders/occurrences/${encodeURIComponent(notifData.occurrenceId)}/snooze`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {}),
+    );
+    return;
+  }
+
+  if (action === "skip" && notifData.occurrenceId) {
+    event.waitUntil(
+      fetch(`/api/patient/reminders/occurrences/${encodeURIComponent(notifData.occurrenceId)}/skip`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {}),
+    );
+    return;
+  }
+
   const raw = notifData.url;
   const openPath = safeOpenPathFromNotificationUrl(raw);
   postPushOpenBestEffort(notifData);
