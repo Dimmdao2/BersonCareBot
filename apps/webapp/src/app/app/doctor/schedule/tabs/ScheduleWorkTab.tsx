@@ -420,6 +420,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [mode, setMode] = useState<"per-date" | "weekly">("per-date");
   const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates");
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
+  const [weekdayPermanent, setWeekdayPermanent] = useState(true);
 
   const { year, month } = parseMonth(deepLinkParams.month);
   const [viewYear, setViewYear] = useState(year);
@@ -635,6 +636,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setSelected(matching);
       setSelectionMode("weekday");
       setSelectedWeekday(wd);
+      setWeekdayPermanent(true); // reset permanent toggle for new weekday selection
       lastClickedRef.current = null;
     },
     [selectedWeekday, selectionMode, viewYear, viewMonth],
@@ -656,6 +658,9 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
+  // ── Weekday label lookup (0=Вс,1=Пн..6=Сб) ──────────────────────────────
+  const WD_LABEL: Record<number, string> = {0:"Вс",1:"Пн",2:"Вт",3:"Ср",4:"Чт",5:"Пт",6:"Сб"};
+
   function run(fn: () => Promise<void>, successMsg: string) {
     setActionError(null);
     setActionOk(null);
@@ -664,6 +669,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         await fn();
         await loadMonth();
         loadTemplates();
+        loadWorkingHours(); // SCH-R-08: reload template state after every save
         setActionOk(successMsg);
       } catch (e) {
         setActionError(e instanceof Error ? e.message : "action_failed");
@@ -671,7 +677,67 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     });
   }
 
+  // SCH-R-04: save weekday template → POST /working-hours replace=true
+  function handleSaveWeekdayTemplate() {
+    if (selectedWeekday === null) return;
+    let startMinute: number;
+    let endMinute: number;
+    try {
+      startMinute = timeLabelToMinute(panelStart);
+      endMinute = timeLabelToMinute(panelEnd);
+    } catch {
+      setActionError("Неверный формат времени");
+      return;
+    }
+    if (panelBreaks.length > 0) {
+      const err = validateBreakRows(panelBreaks, startMinute, endMinute);
+      if (err) { setActionError(err); return; }
+    }
+    const breaks: BreakInterval[] = panelBreaks.map((r) => ({
+      startMinute: timeLabelToMinute(r.from),
+      endMinute: timeLabelToMinute(r.to),
+    }));
+    run(async () => {
+      await apiJson(WH_BASE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekday: selectedWeekday,
+          startMinute,
+          endMinute,
+          specialistId,
+          branchId: panelBranchId || undefined,
+          replace: true,
+        }),
+      });
+    }, `Постоянное расписание для ${WD_LABEL[selectedWeekday] ?? ""} сохранено`);
+  }
+
+  // SCH-R-04: clear weekday template → DELETE each active be_working_hours row for this weekday
+  function handleClearWeekdayTemplate() {
+    if (selectedWeekday === null) return;
+    const toDeactivate = workingHours.filter(
+      (r) => r.weekday === selectedWeekday && r.isActive,
+    );
+    if (toDeactivate.length === 0) {
+      setActionOk(`Шаблон ${WD_LABEL[selectedWeekday] ?? ""} уже не установлен`);
+      return;
+    }
+    run(async () => {
+      await Promise.all(
+        toDeactivate.map((r) =>
+          apiJson(`${WH_BASE}?id=${encodeURIComponent(r.id)}`, { method: "DELETE" }),
+        ),
+      );
+    }, `Шаблон ${WD_LABEL[selectedWeekday] ?? ""} удалён`);
+  }
+
   function handleSave() {
+    // SCH-R-04: weekday mode + permanent checkbox ON → save template
+    if (selectionMode === "weekday" && weekdayPermanent) {
+      handleSaveWeekdayTemplate();
+      return;
+    }
     const dates = [...selected];
     if (!dates.length) return;
     let startMinute: number;
@@ -716,6 +782,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // (action:"clear" → DELETE be_working_days). После удаления день падает на
   // weekday-fallback (а не остаётся «закрытым»).
   function handleClearSchedule() {
+    // SCH-R-04: weekday mode → deactivate the weekday template
+    if (selectionMode === "weekday") {
+      handleClearWeekdayTemplate();
+      return;
+    }
     const dates = [...selected];
     if (!dates.length) return;
     run(async () => {
@@ -949,15 +1020,41 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               data-testid="hours-panel"
             >
               <h3 className={cn(doctorSectionTitleClass, "text-primary")}>
-                Задать расписание для {selectedCount} {selectedCount === 1 ? "дня" : "дней"} ({
-                  selectedDates.length <= 3
-                    ? selectedDates.map((d) => {
-                        const dt = DateTime.fromISO(d);
-                        return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
-                      }).join(", ")
-                    : `${DateTime.fromISO(selectedDates[0] ?? "").day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? "").day} …`
-                })
+                {selectionMode === "weekday" && selectedWeekday !== null
+                  ? `Расписание для всех ${WD_LABEL[selectedWeekday] ?? ""} (${selectedCount} дн.)`
+                  : `Задать расписание для ${selectedCount} ${selectedCount === 1 ? "дня" : "дней"} (${
+                      selectedDates.length <= 3
+                        ? selectedDates.map((d) => {
+                            const dt = DateTime.fromISO(d);
+                            return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
+                          }).join(", ")
+                        : `${DateTime.fromISO(selectedDates[0] ?? "").day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? "").day} …`
+                    })`}
               </h3>
+
+              {/* SCH-R-04: weekday mode → permanent schedule checkbox */}
+              {selectionMode === "weekday" && (
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="weekday-permanent"
+                      checked={weekdayPermanent}
+                      onChange={(e) => setWeekdayPermanent(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-primary cursor-pointer"
+                      data-testid="weekday-permanent"
+                    />
+                    <Label htmlFor="weekday-permanent" className="text-xs cursor-pointer font-normal">
+                      Постоянное расписание
+                    </Label>
+                  </div>
+                  {!weekdayPermanent && (
+                    <p className="text-[10px] text-muted-foreground pl-5">
+                      Сохранится как исключение для каждой выбранной даты
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* E4 — строчная раскладка */}
               <div className="flex flex-col gap-2">
@@ -1047,7 +1144,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   onClick={handleClearSchedule}
                   data-testid="btn-clear-schedule"
                 >
-                  Очистить расписание
+                  {selectionMode === "weekday" ? "Очистить шаблон" : "Очистить расписание"}
                 </Button>
                 <Button
                   type="button"
