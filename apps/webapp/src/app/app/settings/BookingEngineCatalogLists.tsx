@@ -9,13 +9,9 @@ import {
   parseRublesInput,
   rublesToMinor,
 } from "@/app/app/settings/bookingSoloAdminApi";
+import { apiJson } from "@/shared/lib/apiJson";
 
 const BASE = "/api/admin/booking-engine";
-
-async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  return res.json() as Promise<T>;
-}
 
 type RowActionsProps = {
   isPending: boolean;

@@ -22,6 +22,7 @@ import {
 import { BookingAvailabilityMatrixTable } from "./BookingAvailabilityMatrixTable";
 import { parseRublesInput, rublesToMinor } from "@/app/app/settings/bookingSoloAdminApi";
 import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { apiJson } from "@/shared/lib/apiJson";
 
 const BASE = "/api/admin/booking-engine";
 
@@ -63,25 +64,6 @@ type Overview = {
     appointments: number;
   };
 };
-
-async function apiJson<T extends { ok?: boolean; error?: string; message?: string }>(
-  url: string,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(url, init);
-  const text = await res.text();
-  let body: T;
-  try {
-    body = JSON.parse(text) as T;
-  } catch {
-    throw new Error(res.ok ? "invalid_json" : `http_${res.status}`);
-  }
-  if (!res.ok || body.ok === false) {
-    const detail = typeof body.message === "string" ? body.message : body.error;
-    throw new Error(detail ?? `http_${res.status}`);
-  }
-  return body;
-}
 
 const READ_SOURCE_ITEMS: { value: DoctorAppointmentsReadSource; label: string }[] = [
   { value: "rubitime_legacy", label: "Rubitime" },
@@ -133,43 +115,36 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
   const load = useCallback(async () => {
     setLoadError(null);
     setUnavailable(false);
-    const httpRes = await fetch(`${BASE}/overview`);
-    const text = await httpRes.text();
-    let res: { ok?: boolean; error?: string; message?: string } & Partial<Overview>;
     try {
-      res = JSON.parse(text) as typeof res;
-    } catch {
-      setLoadError(httpRes.ok ? "invalid_json" : `http_${httpRes.status}`);
-      return;
-    }
-    if (!httpRes.ok || res.ok === false) {
-      if (res.error === "booking_engine_unavailable") {
+      const res = await apiJson<{ ok: boolean; error?: string } & Partial<Overview>>(`${BASE}/overview`);
+      setData({
+        ...(res as Overview),
+        doctorAppointmentsReadSource:
+          res.doctorAppointmentsReadSource === "canonical" ? "canonical" : "rubitime_legacy",
+        bookingSlotsReadSource: res.bookingSlotsReadSource === "rubitime" ? "rubitime" : "canonical",
+      });
+      setOrgTitle(res.organization?.title ?? "");
+      if (res.branches?.[0]) {
+        setRoomBranchId((prev) => prev || res.branches![0]!.id);
+        setSpecialistBranchId((prev) => prev || res.branches![0]!.id);
+        setAvailBranchId((prev) => prev || res.branches![0]!.id);
+      }
+      if (res.specialists?.[0]) setAvailSpecialistId((prev) => prev || res.specialists![0]!.id);
+      if (res.services?.[0]) {
+        setAvailServiceId((prev) => prev || res.services![0]!.id);
+        setLocServiceId((prev) => prev || res.services![0]!.id);
+      }
+      if (res.specialists?.[0]) setLinkSpecId((prev) => prev || res.specialists![0]!.id);
+      if (res.rooms?.[0]) setLinkRoomId((prev) => prev || res.rooms![0]!.id);
+      if (res.branches?.[0]) setLocBranchId((prev) => prev || res.branches![0]!.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "load_failed";
+      if (msg === "booking_engine_unavailable") {
         setUnavailable(true);
         return;
       }
-      setLoadError(res.error ?? res.message ?? `http_${httpRes.status}`);
-      return;
+      setLoadError(msg);
     }
-    setData({
-      ...(res as Overview),
-      doctorAppointmentsReadSource:
-        res.doctorAppointmentsReadSource === "canonical" ? "canonical" : "rubitime_legacy",
-      bookingSlotsReadSource: res.bookingSlotsReadSource === "rubitime" ? "rubitime" : "canonical",
-    });
-    setOrgTitle(res.organization?.title ?? "");
-    if (res.branches?.[0]) {
-      setRoomBranchId((prev) => prev || res.branches![0]!.id);
-      setSpecialistBranchId((prev) => prev || res.branches![0]!.id);
-      setAvailBranchId((prev) => prev || res.branches![0]!.id);
-    }
-    if (res.specialists?.[0]) setAvailSpecialistId((prev) => prev || res.specialists![0]!.id);
-    if (res.services?.[0]) {
-      setAvailServiceId((prev) => prev || res.services![0]!.id);
-      setLocServiceId((prev) => prev || res.services![0]!.id);
-    }
-    if (res.specialists?.[0]) setLinkSpecId((prev) => prev || res.specialists![0]!.id);
-    if (res.rooms?.[0]) setLinkRoomId((prev) => prev || res.rooms![0]!.id);
-    if (res.branches?.[0]) setLocBranchId((prev) => prev || res.branches![0]!.id);
   }, []);
 
   useEffect(() => {

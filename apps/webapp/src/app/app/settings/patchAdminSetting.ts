@@ -1,13 +1,19 @@
+import { apiJson } from "@/shared/lib/apiJson";
+
 /**
  * PATCH ключей scope=admin через `/api/admin/settings`.
  */
 export async function patchAdminSetting(key: string, value: unknown): Promise<boolean> {
-  const res = await fetch("/api/admin/settings", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value: { value } }),
-  });
-  return res.ok;
+  try {
+    await apiJson<{ ok: boolean }>("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: { value } }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export type AdminModesBatchItem = { key: string; value: unknown };
@@ -20,22 +26,19 @@ export type PatchAdminSettingsBatchResult =
  * Один PATCH со списком ключей формы «Режимы» (`items`), атомарная запись в БД.
  */
 export async function patchAdminSettingsBatch(items: AdminModesBatchItem[]): Promise<PatchAdminSettingsBatchResult> {
-  const res = await fetch("/api/admin/settings", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      items: items.map((it) => ({
-        key: it.key,
-        value: { value: it.value },
-      })),
-    }),
-  });
-  const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  if (res.ok) return { ok: true };
-  return {
-    ok: false,
-    error: typeof data?.error === "string" ? data.error : undefined,
-    atIndex: typeof data?.atIndex === "number" ? data.atIndex : undefined,
-    key: typeof data?.key === "string" ? data.key : undefined,
-  };
+  try {
+    await apiJson<{ ok: boolean }>("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: items.map((it) => ({
+          key: it.key,
+          value: { value: it.value },
+        })),
+      }),
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : undefined };
+  }
 }

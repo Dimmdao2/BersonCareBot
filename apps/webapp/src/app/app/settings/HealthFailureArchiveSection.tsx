@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import {
@@ -66,25 +67,14 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
         if (probe !== "all") qs.set("probe", probe);
         if (cursor) qs.set("cursor", cursor);
         qs.set("limit", "50");
-        const res = await fetch(`/api/admin/health-failure-archive?${qs.toString()}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const body = (await res.json().catch(() => null)) as
-          | { ok?: boolean; items?: ArchiveItem[]; nextCursor?: string | null; error?: string }
-          | null;
-        if (!res.ok || !body?.ok || !Array.isArray(body.items)) {
-          setError(body?.error ?? "request_failed");
-          if (!append) {
-            setItems([]);
-            setNextCursor(null);
-          }
-          return;
-        }
-        setItems((prev) => (append ? [...prev, ...body.items!] : body.items!));
+        const body = await apiJson<{ ok: boolean; items: ArchiveItem[]; nextCursor?: string | null }>(
+          `/api/admin/health-failure-archive?${qs.toString()}`,
+          { credentials: "include", cache: "no-store" },
+        );
+        setItems((prev) => (append ? [...prev, ...body.items] : body.items));
         setNextCursor(typeof body.nextCursor === "string" ? body.nextCursor : null);
-      } catch {
-        setError("network");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "network");
         if (!append) {
           setItems([]);
           setNextCursor(null);
