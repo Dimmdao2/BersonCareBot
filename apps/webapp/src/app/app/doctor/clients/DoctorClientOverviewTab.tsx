@@ -6,6 +6,7 @@ import { DoctorClientOverviewRecentProgramChanges } from "./DoctorClientOverview
 import { DoctorClientOverviewWellbeing } from "./DoctorClientOverviewWellbeing";
 import { DoctorClientOverviewProactiveSignals } from "./DoctorClientOverviewProactiveSignals";
 import { PatientSpecialistTasksSection } from "./PatientSpecialistTasksSection";
+import { DoctorClientWarmupSchedulePanel } from "./DoctorClientWarmupSchedulePanel";
 import {
   doctorClientOverviewGridClass,
   doctorClientOverviewPrimaryCardClass,
@@ -66,6 +67,7 @@ export function DoctorClientOverviewTab({
       <DoctorClientOverviewProactiveSignals insights={proactiveInsights} />
       <DoctorClientOverviewWellbeing chartModel={wellbeingModel} displayTimeZone={displayTimeZone} />
       <PatientSpecialistTasksSection patientUserId={userId} />
+      <DoctorClientWarmupSchedulePanel userId={userId} />
       <details id="doctor-client-section-notes" className={`md:col-span-2 ${doctorClientOverviewPrimaryCardClass}`}>
         <summary className={`mb-0 cursor-pointer list-none ${doctorClientSectionTitleClass} [&::-webkit-details-marker]:hidden`}>
           Заметки

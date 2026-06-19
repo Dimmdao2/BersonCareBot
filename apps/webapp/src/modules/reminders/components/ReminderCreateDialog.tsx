@@ -114,7 +114,7 @@ export function ReminderCreateDialog({
   const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE));
   const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE));
   const [daysMask, setDaysMask] = useState(DEFAULT_REMINDER_FORM_DAYS_MASK);
-  const [scheduleMode, setScheduleMode] = useState<"interval_window" | "slots_v1">("interval_window");
+  const [scheduleMode, setScheduleMode] = useState<"interval_window" | "slots_v1">("slots_v1");
   const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
   const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>("weekdays");
   const [quietStart, setQuietStart] = useState("");
@@ -165,7 +165,7 @@ export function ReminderCreateDialog({
         setQuietEnd("");
       }
     } else {
-      setScheduleMode(linkedObjectType === "rehab_program" ? "slots_v1" : "interval_window");
+      setScheduleMode("slots_v1");
       setIntervalMinutes(DEFAULT_REMINDER_FORM_INTERVAL_MINUTES);
       setStartTime(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE));
       setEndTime(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE));
