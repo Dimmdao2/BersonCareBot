@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { apiJson } from "@/shared/lib/apiJson";
 
 type Row = {
   id: string;
@@ -39,16 +40,10 @@ export function BookingPublicAttributionSection() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BASE}?limit=20`, { cache: "no-store" });
-      const json = (await res.json()) as { ok?: boolean; items?: Row[] };
-      if (!res.ok || !json.ok) {
-        setError("Не удалось загрузить");
-        setItems([]);
-        return;
-      }
+      const json = await apiJson<{ ok: boolean; items?: Row[] }>(`${BASE}?limit=20`, { cache: "no-store" });
       setItems(json.items ?? []);
-    } catch {
-      setError("Ошибка сети");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка сети");
       setItems([]);
     } finally {
       setLoading(false);

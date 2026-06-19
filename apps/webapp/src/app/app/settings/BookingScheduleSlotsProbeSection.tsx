@@ -11,22 +11,13 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
+import { apiJson } from "@/shared/lib/apiJson";
 
 const OVERVIEW = "/api/admin/booking-engine/overview";
 const SLOTS_PROBE = "/api/admin/booking-engine/slots-probe";
 
 type BranchRow = { id: string; title: string; isActive: boolean };
 type ServiceRow = { id: string; title: string; isActive: boolean };
-
-async function readJsonSafe<T>(res: Response): Promise<T | null> {
-  const raw = await res.text();
-  if (!raw.trim()) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
 
 export function BookingScheduleSlotsProbeSection() {
   const [branches, setBranches] = useState<BranchRow[]>([]);
@@ -41,26 +32,23 @@ export function BookingScheduleSlotsProbeSection() {
 
   const loadCatalog = useCallback(async () => {
     try {
-      const res = await fetch(OVERVIEW);
-      const json = await readJsonSafe<{
-        ok?: boolean;
+      const json = await apiJson<{
+        ok: boolean;
         branches?: BranchRow[];
         services?: ServiceRow[];
         bookingSlotsReadSource?: "canonical" | "rubitime";
-      }>(res);
-      if (json?.ok && json.branches && json.services) {
-        const activeBranches = json.branches.filter((b) => b.isActive);
-        const activeServices = json.services.filter((s) => s.isActive);
-        setBranches(activeBranches);
-        setServices(activeServices);
-        if (json.bookingSlotsReadSource === "canonical" || json.bookingSlotsReadSource === "rubitime") {
-          setSlotsReadSource(json.bookingSlotsReadSource);
-        }
-        if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
-        if (activeServices[0]) setServiceId((prev) => prev || activeServices[0]!.id);
+      }>(OVERVIEW);
+      const activeBranches = (json.branches ?? []).filter((b) => b.isActive);
+      const activeServices = (json.services ?? []).filter((s) => s.isActive);
+      setBranches(activeBranches);
+      setServices(activeServices);
+      if (json.bookingSlotsReadSource === "canonical" || json.bookingSlotsReadSource === "rubitime") {
+        setSlotsReadSource(json.bookingSlotsReadSource);
       }
-    } catch {
-      setError("overview_load_failed");
+      if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
+      if (activeServices[0]) setServiceId((prev) => prev || activeServices[0]!.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "overview_load_failed");
     }
   }, []);
 
@@ -79,24 +67,17 @@ export function BookingScheduleSlotsProbeSection() {
     startTransition(async () => {
       try {
         const qs = new URLSearchParams({ branchId, serviceId, date });
-        const res = await fetch(`${SLOTS_PROBE}?${qs.toString()}`);
-        const json = await readJsonSafe<{
-          ok?: boolean;
-          error?: string;
+        const json = await apiJson<{
+          ok: boolean;
           slots?: string[];
           bookingSlotsReadSource?: "canonical" | "rubitime";
-        }>(res);
-        if (!json || !json.ok) {
-          setError(json?.error ?? `probe_failed_${res.status}`);
-          setSlots([]);
-          return;
-        }
+        }>(`${SLOTS_PROBE}?${qs.toString()}`);
         if (json.bookingSlotsReadSource === "canonical" || json.bookingSlotsReadSource === "rubitime") {
           setSlotsReadSource(json.bookingSlotsReadSource);
         }
         setSlots(json.slots ?? []);
-      } catch {
-        setError("probe_failed");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "probe_failed");
         setSlots([]);
       }
     });
