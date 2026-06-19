@@ -14,6 +14,11 @@ import { DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS } from "@/modules/reminders/sc
 const patchSchema = z.object({
   timesLocal: z.array(z.string().regex(/^\d{2}:\d{2}$/)).min(1).max(10),
   dayFilter: z.enum(["weekdays", "weekly_mask", "every_n_days"]).optional(),
+  /** Required when dayFilter === 'weekly_mask' */
+  daysMask: z.string().regex(/^[01]{7}$/).optional(),
+  /** Required when dayFilter === 'every_n_days' */
+  everyNDays: z.number().int().min(1).optional(),
+  anchorDate: z.string().optional(),
 });
 
 export async function GET(
@@ -45,7 +50,22 @@ export async function GET(
       ? {
           id: warmupRule.id,
           scheduleType: warmupRule.scheduleType,
-          scheduleData: warmupRule.scheduleData ?? null,
+          // Return full scheduleData so panel can round-trip any dayFilter variant
+          scheduleData: warmupRule.scheduleData
+            ? {
+                timesLocal: warmupRule.scheduleData.timesLocal,
+                dayFilter: warmupRule.scheduleData.dayFilter ?? "weekdays",
+                ...(warmupRule.scheduleData.daysMask
+                  ? { daysMask: warmupRule.scheduleData.daysMask }
+                  : {}),
+                ...(warmupRule.scheduleData.everyNDays
+                  ? { everyNDays: warmupRule.scheduleData.everyNDays }
+                  : {}),
+                ...(warmupRule.scheduleData.anchorDate
+                  ? { anchorDate: warmupRule.scheduleData.anchorDate }
+                  : {}),
+              }
+            : null,
           enabled: warmupRule.enabled,
         }
       : null,
@@ -85,6 +105,16 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
+  // Merge incoming fields over the existing scheduleData (or onboarding defaults for pre-slots_v1 rules).
+  // Pass full parsed.data so daysMask/everyNDays/anchorDate are preserved when the panel sends them,
+  // and the existing rule's own values are not silently overwritten.
+  const existingBase = warmupRule.scheduleData ?? DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS;
+  const scheduleData = {
+    ...existingBase,
+    ...parsed.data,
+    dayFilter: parsed.data.dayFilter ?? existingBase.dayFilter,
+  };
+
   const result = await deps.reminders.updateRule(userId, warmupRule.id, {
     schedule: {
       scheduleType: "slots_v1",
@@ -92,12 +122,7 @@ export async function PATCH(
       windowStartMinute: warmupRule.windowStartMinute,
       windowEndMinute: warmupRule.windowEndMinute,
       daysMask: warmupRule.daysMask,
-      scheduleData: {
-        // Fall back to onboarding defaults when scheduleData is null (pre-slots_v1 rule)
-        ...(warmupRule.scheduleData ?? DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS),
-        timesLocal: parsed.data.timesLocal,
-        dayFilter: parsed.data.dayFilter ?? warmupRule.scheduleData?.dayFilter ?? DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS.dayFilter,
-      },
+      scheduleData,
       quietHoursStartMinute: warmupRule.quietHoursStartMinute,
       quietHoursEndMinute: warmupRule.quietHoursEndMinute,
     },
