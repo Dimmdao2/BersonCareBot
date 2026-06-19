@@ -33,6 +33,7 @@ import { BookingSoloScheduleSection } from "@/app/app/settings/BookingSoloSchedu
 
 const WD_BASE = "/api/admin/booking-engine/working-days";
 const TPL_BASE = "/api/admin/booking-engine/working-schedule-templates";
+const WH_BASE = "/api/admin/booking-engine/working-hours";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,6 +68,15 @@ type ScheduleTemplateRecord = {
   branchId: string | null;
   sortOrder: number;
   isActive: boolean;
+};
+
+type WorkingHoursRow = {
+  id: string;
+  weekday: number;
+  startMinute: number;
+  endMinute: number;
+  isActive: boolean;
+  branchId: string | null;
 };
 
 /** A single break row state in the hours panel or template form. */
@@ -379,6 +389,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   const [dayRecords, setDayRecords] = useState<WorkingDayRecord[]>([]);
   const [templates, setTemplates] = useState<ScheduleTemplateRecord[]>([]);
+  const [workingHours, setWorkingHours] = useState<WorkingHoursRow[]>([]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const lastClickedRef = useRef<string | null>(null);
@@ -463,6 +474,19 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     });
   }, []);
 
+  const loadWorkingHours = useCallback(() => {
+    if (!specialistId) return;
+    startTransition(async () => {
+      try {
+        const qs = new URLSearchParams({ specialistId });
+        const json = await apiJson<{ ok: boolean; rows: WorkingHoursRow[] }>(`${WH_BASE}?${qs.toString()}`);
+        setWorkingHours(json.rows ?? []);
+      } catch {
+        // non-fatal
+      }
+    });
+  }, [specialistId]);
+
   // ── Bootstrap (specialist + overview) ────────────────────────────────────
 
   useEffect(() => {
@@ -494,13 +518,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { if (specialistId) { loadMonth(); loadTemplates(); } }, [specialistId, loadMonth, loadTemplates]);
+  useEffect(() => { if (specialistId) { loadMonth(); loadTemplates(); loadWorkingHours(); } }, [specialistId, loadMonth, loadTemplates, loadWorkingHours]);
 
   // Refresh on re-activation
   useEffect(() => {
     if (!isActive || !specialistId) return;
     loadMonth();
     loadTemplates();
+    loadWorkingHours();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
 
@@ -508,6 +533,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   useEffect(() => {
     if (!specialistId) return;
     loadMonth();
+    loadWorkingHours();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridBranchFilter]);
 
