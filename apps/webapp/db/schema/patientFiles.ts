@@ -9,7 +9,7 @@ import {
   foreignKey,
   check,
 } from "drizzle-orm/pg-core";
-import { platformUsers } from "./schema";
+import { mediaFiles, platformUsers } from "./schema";
 import { clinicalVisit } from "./patientClinical";
 
 /**
@@ -30,6 +30,9 @@ export const patientFiles = pgTable(
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
     /** Nullable: присваивается через PATCH «Привязать к визиту» */
     visitId: uuid("visit_id"),
+    /** Nullable FK → media_files.id; linked when upload is routed through patient library folder.
+     *  onDelete: set null — media_files row survives patient_files deletion. */
+    mediaFileId: uuid("media_file_id"),
     uploadedByUserId: uuid("uploaded_by_user_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
@@ -39,6 +42,9 @@ export const patientFiles = pgTable(
     index("idx_patient_files_visit_id")
       .on(table.visitId)
       .where(sql`visit_id IS NOT NULL`),
+    index("idx_patient_files_media_file_id")
+      .on(table.mediaFileId)
+      .where(sql`media_file_id IS NOT NULL`),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],
@@ -53,6 +59,11 @@ export const patientFiles = pgTable(
       columns: [table.visitId],
       foreignColumns: [clinicalVisit.id],
       name: "patient_files_visit_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.mediaFileId],
+      foreignColumns: [mediaFiles.id],
+      name: "patient_files_media_file_id_fkey",
     }).onDelete("set null"),
     check(
       "patient_files_category_check",
