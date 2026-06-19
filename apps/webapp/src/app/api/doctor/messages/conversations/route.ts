@@ -22,15 +22,28 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const unreadOnly = doctorSupportUnreadOnlyFromQuery(url.searchParams.get("unread"));
 
-  const [list, allClients] = await Promise.all([
-    deps.messaging.doctorSupport.listOpenConversations({ limit: 50, unreadOnly }),
-    deps.doctorClients.listClients({}),
-  ]);
+  // Step 1: fetch conversations first to know which patient userIds we actually need.
+  const list = await deps.messaging.doctorSupport.listOpenConversations({ limit: 50, unreadOnly });
 
-  // Build userId → { firstName, lastName, isOnSupport } map from the full client list.
-  // listClients({}) always populates isOnSupport for every row (joined from doctor_patient_support).
+  // Step 2: extract unique patient userIds from the conversation list.
+  const patientUserIds = Array.from(
+    new Set(
+      list.flatMap((c) => {
+        const uid = parsePlatformUserIdFromWebappConversationId(c.integratorConversationId);
+        return uid ? [uid] : [];
+      }),
+    ),
+  );
+
+  // Step 3: look up only the specific clients we need (≤50), not the full patient list.
+  const scopedClients =
+    patientUserIds.length > 0
+      ? await deps.doctorClients.listClients({ userIds: patientUserIds })
+      : [];
+
+  // Build userId → { firstName, lastName, isOnSupport } map.
   const clientInfoMap = new Map<string, { firstName: string | null; lastName: string | null; isOnSupport: boolean }>();
-  for (const c of allClients) {
+  for (const c of scopedClients) {
     clientInfoMap.set(c.userId, {
       firstName: c.firstName ?? null,
       lastName: c.lastName ?? null,

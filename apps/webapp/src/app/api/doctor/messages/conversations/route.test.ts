@@ -171,4 +171,78 @@ describe("GET /api/doctor/messages/conversations", () => {
     };
     expect(data.conversations[0]?.onSupport).toBe(false);
   });
+
+  it("calls listClients with scoped userIds extracted from conversations (EXTRA-02)", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { userId: "d1", role: "doctor", bindings: {} },
+    });
+    const p1 = "aaaaaaaa-0000-4000-8000-000000000001";
+    const p2 = "bbbbbbbb-0000-4000-8000-000000000002";
+    listMock.mockResolvedValue([
+      {
+        conversationId: "ccc1",
+        integratorConversationId: `webapp:platform:${p1}`,
+        source: "webapp",
+        status: "open",
+        openedAt: "2025-01-01T00:00:00.000Z",
+        lastMessageAt: "2025-01-02T00:00:00.000Z",
+        displayName: "Пациент 1",
+        phoneNormalized: null,
+        lastMessageText: null,
+        lastSenderRole: null,
+        unreadFromUserCount: 0,
+      },
+      {
+        conversationId: "ccc2",
+        integratorConversationId: `webapp:platform:${p2}`,
+        source: "webapp",
+        status: "open",
+        openedAt: "2025-01-01T00:00:00.000Z",
+        lastMessageAt: "2025-01-02T00:00:00.000Z",
+        displayName: "Пациент 2",
+        phoneNormalized: null,
+        lastMessageText: null,
+        lastSenderRole: null,
+        unreadFromUserCount: 1,
+      },
+    ]);
+    listClientsMock.mockResolvedValue([
+      { userId: p1, firstName: "Иван", lastName: "Иванов", isOnSupport: true },
+      { userId: p2, firstName: "Мария", lastName: "Петрова", isOnSupport: false },
+    ]);
+
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    expect(res.status).toBe(200);
+
+    // Verify listClients was called with exactly the two patient userIds, not an empty filter.
+    expect(listClientsMock).toHaveBeenCalledTimes(1);
+    const callArgs = listClientsMock.mock.calls[0]?.[0] as { userIds?: string[] };
+    expect(callArgs.userIds).toBeDefined();
+    expect(callArgs.userIds?.sort()).toEqual([p1, p2].sort());
+
+    const data = (await res.json()) as {
+      ok: boolean;
+      conversations: { displayName: string; firstName: string | null; onSupport: boolean }[];
+    };
+    expect(data.ok).toBe(true);
+    expect(data.conversations).toHaveLength(2);
+    const conv1 = data.conversations.find((c) => c.displayName === "Пациент 1");
+    expect(conv1?.firstName).toBe("Иван");
+    expect(conv1?.onSupport).toBe(true);
+  });
+
+  it("skips listClients when conversation list is empty (EXTRA-02)", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { userId: "d1", role: "doctor", bindings: {} },
+    });
+    listMock.mockResolvedValue([]);
+
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    expect(res.status).toBe(200);
+
+    // No patient userIds → listClients must NOT be called at all.
+    expect(listClientsMock).not.toHaveBeenCalled();
+    const data = (await res.json()) as { ok: boolean; conversations: unknown[] };
+    expect(data.conversations).toHaveLength(0);
+  });
 });

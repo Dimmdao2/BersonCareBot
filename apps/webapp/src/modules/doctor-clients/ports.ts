@@ -7,6 +7,12 @@ export type DoctorClientsFilters = {
   search?: string;
   /** Viewer user id for per-doctor read cursors (discussion unread badges). */
   viewerUserId?: string;
+  /**
+   * Ограничить выборку конкретными userId (для точечных запросов без полного скана).
+   * Пустой массив → немедленно вернуть [] без запроса к БД.
+   * Undefined → без ограничений (все клиенты).
+   */
+  userIds?: string[];
   hasUpcomingAppointment?: boolean;
   /** Есть хотя бы одна активная назначенная программа лечения (`treatment_program_instances.status = 'active'`). */
   hasActiveTreatmentProgram?: boolean;

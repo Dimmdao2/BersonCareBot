@@ -151,6 +151,30 @@ describe("pgDoctorClients repo", () => {
     expect(list[0]?.userId).toBe("u2");
   });
 
+  it("listClients returns [] immediately when userIds is empty array (EXTRA-02 short-circuit)", async () => {
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({ userIds: [] });
+    expect(list).toEqual([]);
+    // No DB query should be issued.
+    expect(runWebappPgTextMock).not.toHaveBeenCalled();
+  });
+
+  it("listClients adds AND pu.id = ANY(...) clause when userIds provided (EXTRA-02)", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgDoctorClientsPort();
+    await port.listClients({ userIds: ["uid-1", "uid-2"] });
+
+    // First call is the platform_users SELECT — its SQL must include the uuid[] filter.
+    const firstSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(firstSql).toContain("ANY");
+    expect(firstSql).toContain("uuid[]");
+    // The params must include the userIds array.
+    const firstParams = runWebappPgTextMock.mock.calls[0]?.[1] as unknown[][];
+    const allParams = firstParams?.flat() ?? [];
+    expect(allParams).toContain("uid-1");
+    expect(allParams).toContain("uid-2");
+  });
+
   it("getDashboardPatientMetrics runs six count queries in parallel", async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [{ c: "3" }] });
     const port = createPgDoctorClientsPort();

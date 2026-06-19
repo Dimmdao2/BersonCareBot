@@ -91,6 +91,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       filters: DoctorClientsFilters,
       audience?: { excludedUserIds?: string[] },
     ): Promise<ClientListItem[]> {
+      // Short-circuit: empty userIds means caller wants specific users but there are none.
+      if (filters.userIds !== undefined && filters.userIds.length === 0) return [];
+
       const excluded = audience?.excludedUserIds ?? [];
       const archivedClause =
         filters.archivedOnly === true
@@ -99,7 +102,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const listBase = `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, created_at, email, email_verified_at
          FROM platform_users pu
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
-      const listQ = appendSqlExcludeUserIds(listBase, "pu.id", excluded, []);
+      // Apply userIds restriction when caller provides a specific set (e.g. conversations route).
+      const userIdsParams: unknown[] = [];
+      let listBaseWithUserIds = listBase;
+      if (filters.userIds !== undefined && filters.userIds.length > 0) {
+        userIdsParams.push(filters.userIds);
+        listBaseWithUserIds = `${listBase} AND pu.id = ANY($1::uuid[])`;
+      }
+      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, "pu.id", excluded, userIdsParams);
       const clientRows = await runWebappPgText<{
         id: string;
         display_name: string | null;
