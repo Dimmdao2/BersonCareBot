@@ -535,7 +535,13 @@ export async function handleReminders(
         const hasResolvedTopicBindings =
           bindings &&
           (Boolean(bindings.telegramId?.trim()) || Boolean(bindings.maxId?.trim()));
-        if (hasResolvedTopicBindings) {
+        if (fetched?.resolution?.selectedChannels) {
+          // Apply selectedChannels filter unconditionally when a resolution exists.
+          // If selectedChannels is empty for messenger channels, sendChannels becomes [] for those channels
+          // (channel OFF = no message sent), regardless of whether bindings are present.
+          const selectedSet = new Set(fetched.resolution.selectedChannels);
+          sendChannels = channelsToSend.filter((ch) => selectedSet.has(ch.channel));
+        } else if (hasResolvedTopicBindings) {
           sendChannels = channelsToSend.filter((ch) => {
             if (ch.channel === 'telegram') return Boolean(bindings.telegramId?.trim());
             if (ch.channel === 'max') return Boolean(bindings.maxId?.trim());

@@ -16,19 +16,12 @@ import {
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
   recommendationBodyMdPreviewPlain,
-  mergeLastActivityDisplayedIso,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
-import {
-  isItemDoneCooldownActive,
-  planItemDoneRepeatCooldownMsFromMinutes,
-} from "@/modules/treatment-program/itemDoneCooldown";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { cn } from "@/lib/utils";
 import {
-  patientCompactActionClass,
   patientMutedTextClass,
   patientPillClass,
-  patientSimpleCompleteDoneButtonToneClass,
 } from "@/shared/ui/patient/patientVisual";
 import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
@@ -79,18 +72,7 @@ export function PatientInstanceStageItemCard(props: {
     todayChecklistDoneCount,
     neutralItemChrome = false,
     itemDetailHref,
-    lastDoneAtIsoByItemId = {},
-    planItemDoneRepeatCooldownMinutes,
   } = props;
-  const planItemDoneRepeatCooldownMs = useMemo(
-    () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),
-    [planItemDoneRepeatCooldownMinutes],
-  );
-  const mergedDoneIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(mergedDoneIso, planItemDoneRepeatCooldownMs);
-  /* Скрыто: подпись cooldown — при возврате раскомментировать и импорт formatPlanItemDoneCooldownCaption + itemDoneCooldownMinutesRemaining.
-  const simpleCooldownMinutes = itemDoneCooldownMinutesRemaining(mergedDoneIso, planItemDoneRepeatCooldownMs);
-  */
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
@@ -340,45 +322,6 @@ export function PatientInstanceStageItemCard(props: {
                     serverSnapshot={clinicalTestSnap}
                   />
                 )}
-              </div>
-            ) : !isPersistentRecommendation(item) ? (
-              <div className="mt-2 flex flex-col gap-0.5">
-                <button
-                  type="button"
-                  className={cn(
-                    patientCompactActionClass,
-                    "h-9 w-auto text-sm",
-                    simpleCompleteDoneFrozen && patientSimpleCompleteDoneButtonToneClass,
-                  )}
-                  disabled={busy !== null || simpleCompleteDoneFrozen}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setBusy(item.id);
-                    setError(null);
-                    try {
-                      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-                        method: "POST",
-                      });
-                      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                      if (!res.ok || !data.ok) {
-                        setError(data.error ?? "Ошибка");
-                        return;
-                      }
-                      await refresh();
-                    } finally {
-                      setBusy(null);
-                    }
-                  }}
-                >
-                  {simpleCompleteDoneFrozen ? "Выполнено" : "Отметить выполненным"}
-                </button>
-                {/* Скрыто: строка «Можно отметить повторно…» — см. simpleCooldownMinutes выше.
-                {simpleCompleteDoneFrozen && simpleCooldownMinutes != null ? (
-                  <p className={cn(patientMutedTextClass, "text-[10px] leading-tight")}>
-                    {formatPlanItemDoneCooldownCaption(simpleCooldownMinutes)}
-                  </p>
-                ) : null}
-                */}
               </div>
             ) : null
           ) : null}
