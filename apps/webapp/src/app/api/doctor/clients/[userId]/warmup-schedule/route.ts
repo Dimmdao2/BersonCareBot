@@ -9,6 +9,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
+import { DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS } from "@/modules/reminders/scheduleSlots";
 
 const patchSchema = z.object({
   timesLocal: z.array(z.string().regex(/^\d{2}:\d{2}$/)).min(1).max(10),
@@ -92,10 +93,10 @@ export async function PATCH(
       windowEndMinute: warmupRule.windowEndMinute,
       daysMask: warmupRule.daysMask,
       scheduleData: {
-        // Preserve existing dayFilter + dependent fields; only override what the request explicitly provides
-        ...(warmupRule.scheduleData ?? {}),
+        // Fall back to onboarding defaults when scheduleData is null (pre-slots_v1 rule)
+        ...(warmupRule.scheduleData ?? DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS),
         timesLocal: parsed.data.timesLocal,
-        ...(parsed.data.dayFilter !== undefined && { dayFilter: parsed.data.dayFilter }),
+        dayFilter: parsed.data.dayFilter ?? warmupRule.scheduleData?.dayFilter ?? DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS.dayFilter,
       },
       quietHoursStartMinute: warmupRule.quietHoursStartMinute,
       quietHoursEndMinute: warmupRule.quietHoursEndMinute,
