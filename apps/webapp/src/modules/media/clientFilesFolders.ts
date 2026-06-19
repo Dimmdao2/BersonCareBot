@@ -1,6 +1,9 @@
 import type { MediaFolderKind, MediaFolderRecord } from "./types";
 
-export const CLIENT_FILES_ROOT_FOLDER_NAME = "Файлы клиентов";
+export const CLIENT_FILES_ROOT_FOLDER_NAME = "Пациенты";
+
+/** Legacy name used before rename — kept for promoteLegacy matching. */
+export const CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY = "Файлы клиентов";
 
 export function isClientFilesFolderKind(kind: MediaFolderKind | undefined): boolean {
   return kind === "client_files_root" || kind === "client_patient";
@@ -17,6 +20,21 @@ export function foldersForLibraryScopeSelect(folders: MediaFolderRecord[]): Medi
 
 export function clientPatientFolderBaseName(displayName: string): string {
   const base = displayName.trim() || "Клиент";
+  return base.length <= 180 ? base : base.slice(0, 180);
+}
+
+/**
+ * Build the default subfolder name for a patient in «Фамилия Имя Отчество» order.
+ * Null/empty parts are omitted; result is trimmed and capped at 180 chars.
+ */
+export function clientPatientFolderFioName(
+  lastName: string | null,
+  firstName: string | null,
+  patronymic: string | null,
+): string {
+  const parts = [lastName, firstName, patronymic].filter((p): p is string => Boolean(p?.trim())).map((p) => p.trim());
+  const full = parts.join(" ");
+  const base = full || "Клиент";
   return base.length <= 180 ? base : base.slice(0, 180);
 }
 

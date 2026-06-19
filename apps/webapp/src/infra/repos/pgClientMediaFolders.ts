@@ -3,7 +3,9 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { mediaFolders, platformUsers } from "../../../db/schema/schema";
 import {
   CLIENT_FILES_ROOT_FOLDER_NAME,
+  CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY,
   clientPatientFolderBaseName,
+  clientPatientFolderFioName,
   clientPatientFolderFallbackName,
 } from "@/modules/media/clientFilesFolders";
 import type { MediaFolderKind, MediaFolderRecord } from "@/modules/media/types";
@@ -35,6 +37,8 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
     .limit(1);
   if (hasRoot) return;
 
+  // Match either the current name ("Пациенты") or the legacy name ("Файлы клиентов")
+  // so existing root folders are recognised and promoted rather than duplicated.
   await db
     .update(mediaFolders)
     .set({ kind: "client_files_root", updatedAt: sql`now()` })
@@ -42,7 +46,7 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
       and(
         sql`${mediaFolders.parentId} IS NULL`,
         eq(mediaFolders.kind, "standard"),
-        eq(mediaFolders.nameNormalized, CLIENT_FILES_ROOT_FOLDER_NAME.toLowerCase()),
+        sql`${mediaFolders.nameNormalized} IN (${CLIENT_FILES_ROOT_FOLDER_NAME.toLowerCase()}, ${CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY.toLowerCase()})`,
       ),
     );
 }
@@ -83,14 +87,16 @@ async function resolvePatientDisplayName(patientUserId: string): Promise<string>
     .select({
       firstName: platformUsers.firstName,
       lastName: platformUsers.lastName,
+      patronymic: platformUsers.patronymic,
       displayName: platformUsers.displayName,
     })
     .from(platformUsers)
     .where(eq(platformUsers.id, patientUserId))
     .limit(1);
   if (!row) return "Клиент";
-  const full = [row.firstName, row.lastName].filter(Boolean).join(" ").trim();
-  return full || row.displayName?.trim() || "Клиент";
+  const fio = clientPatientFolderFioName(row.lastName, row.firstName, row.patronymic);
+  if (fio !== "Клиент") return fio;
+  return row.displayName?.trim() || "Клиент";
 }
 
 async function insertClientPatientFolder(
