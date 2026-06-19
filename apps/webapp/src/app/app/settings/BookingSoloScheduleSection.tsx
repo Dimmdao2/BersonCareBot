@@ -11,8 +11,8 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
+import { apiJson } from "@/shared/lib/apiJson";
 import {
-  apiJson,
   ensureDefaultSpecialist,
   fetchSoloOverview,
   minuteToTimeLabel,
@@ -84,9 +84,7 @@ export function BookingSoloScheduleSection() {
     const qs = new URLSearchParams();
     if (specId) qs.set("specialistId", specId);
     if (brId) qs.set("branchId", brId);
-    const res = await fetch(`${WH_BASE}?${qs.toString()}`);
-    const json = (await res.json()) as { ok?: boolean; rows?: HourRow[]; usesFallback?: boolean; error?: string };
-    if (!json.ok || !json.rows) throw new Error(json.error ?? "hours_load_failed");
+    const json = await apiJson<{ ok: boolean; rows: HourRow[]; usesFallback?: boolean }>(`${WH_BASE}?${qs.toString()}`);
     setRows(json.rows);
     setUsesFallback(json.usesFallback === true);
   }, []);

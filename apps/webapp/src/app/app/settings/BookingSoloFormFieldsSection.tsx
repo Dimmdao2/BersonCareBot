@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
-import { apiJson, slugFieldKey } from "@/app/app/settings/bookingSoloAdminApi";
+import { apiJson } from "@/shared/lib/apiJson";
+import { slugFieldKey } from "@/app/app/settings/bookingSoloAdminApi";
 
 const BASE = "/api/admin/booking-engine/form-fields";
 
@@ -48,14 +49,13 @@ export function BookingSoloFormFieldsSection() {
   const sorted = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
 
   const load = useCallback(async () => {
-    const res = await fetch(BASE);
-    const json = (await res.json()) as { ok?: boolean; fields?: Field[]; error?: string };
-    if (!json.ok || !json.fields) {
-      setError(json.error ?? "load_failed");
-      return;
+    try {
+      const json = await apiJson<{ ok: boolean; fields: Field[] }>(BASE);
+      setFields(json.fields);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "load_failed");
     }
-    setFields(json.fields);
-    setError(null);
   }, []);
 
   useEffect(() => {

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
@@ -56,18 +57,14 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
           setError("Выберите валидную зону IANA из списка");
           return;
         }
-        const res = await fetch("/api/doctor/account/timezone", {
+        await apiJson<{ ok: boolean }>("/api/doctor/account/timezone", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ timezone: tzRaw }),
         });
-        if (!res.ok) {
-          setError("Не удалось сохранить часовой пояс");
-          return;
-        }
         setSaved(true);
-      } catch {
-        setError("Ошибка при сохранении");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ошибка при сохранении");
       }
     });
   }
