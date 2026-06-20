@@ -281,7 +281,7 @@ describe("SystemHealthSection primary-layer invariants", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => fetchHealthJson(),
+        text: async () => JSON.stringify(fetchHealthJson()),
       }),
     );
     render(<SystemHealthSection />);

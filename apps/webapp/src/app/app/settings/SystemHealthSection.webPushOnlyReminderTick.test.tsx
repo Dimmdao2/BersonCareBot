@@ -11,7 +11,7 @@ describe("SystemHealthSection webPushOnlyReminderTick", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({
+        text: async () => JSON.stringify({
           webappDb: "up",
           integratorApi: { status: "ok" },
           projection: { status: "ok", snapshot: { pendingCount: 0, processingCount: 0 } },
