@@ -86,11 +86,11 @@ describe("SystemHealthSection operator health digest", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () =>
-          Promise.resolve({
+        text: () =>
+          Promise.resolve(JSON.stringify({
             ...healthShell,
             operatorHealthDigest: { lastSentAt: "2026-06-09T06:00:00.000Z" },
-          }),
+          })),
       }),
     );
 

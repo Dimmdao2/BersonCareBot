@@ -134,7 +134,7 @@ describe("SystemHealthSection integrations", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(healthJson()),
+        text: () => Promise.resolve(JSON.stringify(healthJson())),
       }),
     );
 
