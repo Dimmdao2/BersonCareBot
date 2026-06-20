@@ -68,11 +68,11 @@ export function AnalyticsPeriodToolbar({
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1 text-sm">
             <span className="text-muted-foreground">С</span>
-            <DoctorDatePicker value={period.customFrom} onChange={onCustomFromChange} />
+            <DoctorDatePicker value={period.customFrom} onChange={onCustomFromChange} testId="custom-from" />
           </div>
           <div className="flex flex-col gap-1 text-sm">
             <span className="text-muted-foreground">По</span>
-            <DoctorDatePicker value={period.customTo} onChange={onCustomToChange} />
+            <DoctorDatePicker value={period.customTo} onChange={onCustomToChange} testId="custom-to" />
           </div>
           <Button type="button" size="sm" onClick={onApplyCustom}>
             Показать
