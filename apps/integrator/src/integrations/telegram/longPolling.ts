@@ -37,7 +37,9 @@ function sleep(ms: number): Promise<void> {
 export function startTelegramLongPolling(deps: TelegramWebhookDeps): void {
   if (running) return;
   running = true;
-  void runLoop(deps);
+  void runLoop(deps).catch((err) => {
+    logger.error({ err }, 'Telegram long-polling: runner crashed unexpectedly (non-fatal guard)');
+  });
 }
 
 async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
