@@ -71,8 +71,14 @@ export type DoctorExerciseCommentCursor = {
 
 /** Входные данные для doctor-wide запросов непрочитанных / истории комментариев. */
 export type ListDoctorExerciseCommentsInput = {
-  /** Список patient_user_id пациентов на сопровождении (резолвит загрузчик, не порт). */
+  /** Список patient_user_id — для запросов с явным списком пациентов. */
   patientUserIds: string[];
+  /**
+   * Альтернативный скоуп: UUID врача для фильтра по treatment_program_instances.assigned_by.
+   * Когда задан — patientUserIds игнорируется; запрос охватывает всех пациентов врача
+   * без предварительного фан-аута по ID пациентов.
+   */
+  assignedByUserId?: string;
   /** User id врача-viewer'а для чтения lastReadAt из _reads. */
   viewerUserId: string;
   limit: number;

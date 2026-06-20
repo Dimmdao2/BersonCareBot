@@ -60,10 +60,13 @@ function authedSession() {
 function defaultDeps(rows: DoctorExerciseCommentRow[]) {
   return {
     doctorClientsPort: {
+      // listClients used for name resolution in all-mode (returns matching patient)
       listClients: vi.fn(async () => [{ userId: P1, displayName: "Иванов И." }]),
     },
     programItemDiscussion: {
       listExerciseCommentsForDoctor: vi.fn(async () => rows),
+      // all-mode uses listAllExerciseCommentsForDoctor (default mode=all)
+      listAllExerciseCommentsForDoctor: vi.fn(async () => rows),
     },
   };
 }
@@ -84,11 +87,14 @@ describe("GET /api/doctor/exercise-comments", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns empty list when no on-support patients", async () => {
+  it("returns empty list when no patients have comments (all-mode default)", async () => {
     requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: { listClients: vi.fn(async () => []) },
-      programItemDiscussion: { listExerciseCommentsForDoctor: vi.fn(async () => []) },
+      programItemDiscussion: {
+        listExerciseCommentsForDoctor: vi.fn(async () => []),
+        listAllExerciseCommentsForDoctor: vi.fn(async () => []),
+      },
     });
 
     const res = await GET(new Request("http://localhost/api/doctor/exercise-comments"));
@@ -134,7 +140,8 @@ describe("GET /api/doctor/exercise-comments", () => {
       ),
     );
 
-    expect(deps.programItemDiscussion.listExerciseCommentsForDoctor).toHaveBeenCalledWith(
+    // default mode=all uses listAllExerciseCommentsForDoctor
+    expect(deps.programItemDiscussion.listAllExerciseCommentsForDoctor).toHaveBeenCalledWith(
       expect.objectContaining({ cursor }),
     );
   });
@@ -169,7 +176,8 @@ describe("GET /api/doctor/exercise-comments", () => {
         ]),
       },
       programItemDiscussion: {
-        listExerciseCommentsForDoctor: vi.fn(async () => [
+        listExerciseCommentsForDoctor: vi.fn(async () => []),
+        listAllExerciseCommentsForDoctor: vi.fn(async () => [
           makeRow(P1, ITEM1, "2026-06-11T10:00:00.000Z", MSG1, "Болит спина"),
           makeRow(
             "00000000-0000-4000-8000-000000000002",

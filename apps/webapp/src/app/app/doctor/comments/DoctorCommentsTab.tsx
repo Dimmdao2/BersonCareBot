@@ -154,6 +154,7 @@ function PatientRow({
   isSelected: boolean;
   onClick: () => void;
 }) {
+  const hasUnread = patient.unreadCount > 0;
   return (
     <button
       type="button"
@@ -166,11 +167,15 @@ function PatientRow({
     >
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="flex items-baseline justify-between gap-1.5">
-          <span className="truncate text-sm font-semibold">
+          {/* Имя: жирное если есть непрочитанные, обычное если всё прочитано */}
+          <span className={cn("truncate text-sm", hasUnread ? "font-bold" : "font-normal")}>
             {patient.displayName}
-            <span className="ml-1 text-[10px] font-semibold text-primary">★</span>
+            {/* ★ = на сопровождении (визуальный маркер, НЕ фильтр) */}
+            {patient.isOnSupport && (
+              <span className="ml-1 text-[10px] font-semibold text-primary" title="На сопровождении">★</span>
+            )}
           </span>
-          {patient.unreadCount > 0 && (
+          {hasUnread && (
             <span className="shrink-0 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
               {patient.unreadCount}
             </span>
@@ -204,7 +209,10 @@ function ExerciseRow({
       {/* Превью первого медиа упражнения (канон-миниатюра 36×36). */}
       <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
       <div className="min-w-0 flex-1 overflow-hidden">
-        <p className="truncate text-sm font-medium">{item.title}</p>
+        {/* Название упражнения: жирное если есть непрочитанные, обычное если всё прочитано */}
+        <p className={cn("truncate text-sm", item.unreadComments > 0 ? "font-bold" : "font-normal")}>
+          {item.title}
+        </p>
         {item.latestCommentAt && (
           <p className="truncate text-xs text-muted-foreground">
             {formatRelativeTime(item.latestCommentAt)}
@@ -451,11 +459,12 @@ export function DoctorCommentsTab({
   const [historyError, setHistoryError] = useState<string | null>(null);
 
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
-  const [viewMode, setViewMode] = useState<"unread" | "all">("unread");
+  // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
+  const [viewMode, setViewMode] = useState<"unread" | "all">("all");
 
   // ── Search / filter state ──
   const [query, setQuery] = useState("");
-  const [onSupportOnly, setOnSupportOnly] = useState(false);
+  // onSupportOnly toggle removed: on-support is now ★ visual marker only (per spec), not a filter.
 
   // ── All-mode: lazy-loaded patients + feed (fetched on first toggle to «Все») ──
   const [allModePatients, setAllModePatients] = useState<CommentPatientRow[] | null>(null);
@@ -550,11 +559,11 @@ export function DoctorCommentsTab({
       setAllModePatientsLoading(false);
     }
 
-    // Feed (all mode uses the existing /api/doctor/exercise-comments endpoint = unreadOnly:false)
+    // Feed (all mode: full history, no on-support gate, answered threads included)
     setAllModeFeedLoading(true);
     setAllModeFeedError(null);
     try {
-      const res = await fetch("/api/doctor/exercise-comments");
+      const res = await fetch("/api/doctor/exercise-comments?mode=all");
       if (!res.ok) throw new Error("fetch_failed");
       const data = (await res.json()) as HistoryPage;
       if (!data.ok) throw new Error("response_error");
@@ -595,11 +604,8 @@ export function DoctorCommentsTab({
   // In "all" mode: lazy-fetched allModePatients (all on-support with any comment).
   const activePatients = viewMode === "all" ? (allModePatients ?? []) : patients;
   const filteredPatients = filterPatients(activePatients, query);
-  // onSupportOnly filter: all patients are already on-support (isOnSupport always true);
-  // toggle controls visibility of the chip badge only, so filter is a no-op but preserved.
-  const patientsToShowRaw = onSupportOnly
-    ? filteredPatients.filter((p) => p.isOnSupport)
-    : filteredPatients;
+  // on-support is now a visual ★ marker only (not a filter); show all filtered patients.
+  const patientsToShowRaw = filteredPatients;
   // «Непрочитанные» mode: keep only patients with unread, but always keep selected patient
   // so it doesn't disappear from under the cursor while the doctor is reading.
   // «Все» mode: show all patients that have any comment (unreadCount may be 0).
@@ -612,9 +618,9 @@ export function DoctorCommentsTab({
         )
       : patientsToShowRaw;
 
-  // Ids of patients visible in left pane (for filtering feed)
+  // Ids of patients visible in left pane (for filtering feed) — only filter when search query active
   const visiblePatientIds: ReadonlySet<string> | null =
-    query.trim() || onSupportOnly
+    query.trim()
       ? new Set(patientsToShow.map((p) => p.patientUserId))
       : null;
 
@@ -856,7 +862,9 @@ export function DoctorCommentsTab({
     try {
       const params = new URLSearchParams();
       if (allModeCursor) params.set("cursor", JSON.stringify(allModeCursor));
-      const res = await fetch(`/api/doctor/exercise-comments?${params.toString()}`);
+      const params2 = new URLSearchParams(params.toString());
+      params2.set("mode", "all");
+      const res = await fetch(`/api/doctor/exercise-comments?${params2.toString()}`);
       if (!res.ok) throw new Error("fetch_failed");
       const data = (await res.json()) as HistoryPage;
       if (!data.ok) throw new Error("response_error");
@@ -911,7 +919,7 @@ export function DoctorCommentsTab({
   // Handle view mode switch: reset navigation + query, then switch mode.
   function handleSwitchViewMode(mode: "unread" | "all") {
     if (mode === viewMode) return;
-    // Reset drill-down state so we don't leave a stale patient/exercise selected.
+    // Reset drill-down + search so we don't leave stale state.
     setSelectedPatient(null);
     setSelectedExercise(null);
     setThreadMessages([]);
@@ -966,19 +974,10 @@ export function DoctorCommentsTab({
           >
             Все
           </button>
-          <button
-            type="button"
-            onClick={() => setOnSupportOnly((v) => !v)}
-            className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              onSupportOnly
-                ? "bg-primary/15 text-primary"
-                : "border border-border text-muted-foreground hover:bg-muted/40",
-            )}
-            aria-pressed={onSupportOnly}
-          >
-            ★ На сопровождении · {activePatients.length}
-          </button>
+          {/* ★ На сопровождении — пассивный бейдж (маркер, не фильтр) */}
+          <span className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground">
+            ★ На сопровождении · {activePatients.filter((p) => p.isOnSupport).length}
+          </span>
           {totalUnread > 0 && (
             <span className="rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">
               Непрочитанных · {totalUnread}
@@ -1064,7 +1063,10 @@ export function DoctorCommentsTab({
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-sm font-semibold truncate">
                     {item.patientDisplayName}
-                    <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
+                    {/* ★ маркер: пациент на сопровождении (ищем в activePatients) */}
+                    {activePatients.find((p) => p.patientUserId === item.patientUserId)?.isOnSupport && (
+                      <span className="ml-1.5 text-[10px] font-semibold text-primary" title="На сопровождении">★</span>
+                    )}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {item.latestMessageAtLabel}
@@ -1122,7 +1124,9 @@ export function DoctorCommentsTab({
                 >
                   {selectedPatient.displayName}
                 </Link>
-                <span className="text-[10px] font-semibold text-primary">★ на сопровождении</span>
+                {selectedPatient.isOnSupport && (
+                  <span className="text-[10px] font-semibold text-primary">★ на сопровождении</span>
+                )}
               </div>
               {exercisesData && (
                 <p className="mt-0.5 text-xs text-muted-foreground">

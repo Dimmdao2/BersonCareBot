@@ -1,5 +1,6 @@
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import type {
+  DoctorExerciseCommentCursor,
   DoctorExerciseCommentRow,
   ListDoctorExerciseCommentsInput,
   ProgramItemDiscussionLegacyMergeInput,
@@ -299,6 +300,19 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       input: ListDoctorExerciseCommentsInput,
     ): Promise<DoctorExerciseCommentRow[]> {
       return inMemoryDoctorExerciseComments(input, reads, rows, { unreadOnly: false });
+    },
+
+    async listAllExerciseCommentsForDoctor(
+      input: { viewerUserId: string; limit: number; cursor?: DoctorExerciseCommentCursor | null },
+    ): Promise<DoctorExerciseCommentRow[]> {
+      // inMemory stub: collect all unique patientUserIds from in-memory messages.
+      const allPatientIds = [...new Set([...rows.values()].map((m) => m.patientUserId))];
+      return inMemoryDoctorExerciseComments(
+        { patientUserIds: allPatientIds, viewerUserId: input.viewerUserId, limit: input.limit, cursor: input.cursor },
+        reads,
+        rows,
+        { unreadOnly: false },
+      );
     },
   };
 }

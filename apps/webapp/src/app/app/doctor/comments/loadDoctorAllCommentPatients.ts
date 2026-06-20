@@ -1,18 +1,15 @@
 /**
- * Загрузчик «все пациенты с комментариями» — симметричный ALL-вариант для
- * загрузчика `loadDoctorCommentPatients` (который возвращает только пациентов с непрочитанными).
+ * Загрузчик «все пациенты с комментариями по упражнениям».
  *
  * Используется в левом пейне режима «Все» вкладки «Комментарии».
- * Возвращает всех пациентов на сопровождении у которых есть хотя бы один комментарий
- * по упражнениям (прочитанные + непрочитанные). unreadCount = 0 означает «всё прочитано».
+ * Отличия от `loadDoctorCommentPatients` (unread-режим):
+ *   - Убран on-support гейт: показывает ВСЕХ пациентов врача с хоть одним комментарием.
+ *   - isOnSupport берётся из ClientListItem.isOnSupport (поле уже есть в listClients).
+ *   - Использует listExerciseCommentsForDoctor с assignedByUserId — без фан-аута по patient_user_id.
+ *   - unreadCount может быть 0 (все прочитаны).
+ *   - Сортировка: сначала с непрочитанными (по убыванию), затем по displayName.
  *
- * Отличие от `loadDoctorCommentPatients`:
- *   - использует `listExerciseCommentsForDoctor` (unreadOnly:false) вместо unread-варианта;
- *   - НЕ пропускает пациентов с unreadCount=0;
- *   - сортировка: сначала с непрочитанными (по убыванию), затем по displayName.
- *
- * unreadCount считается точно так же: через `listUnreadCountsForViewerByStageItems`,
- * что обеспечивает консистентность бейджей с unread-режимом.
+ * Безопасность: только пациенты этого врача (listClients скоупирован на doctor-сессию).
  */
 import type { DoctorClientsFilters } from "@/modules/doctor-clients/ports";
 import type { ListDoctorExerciseCommentsInput } from "@/modules/program-item-discussion/types";
@@ -29,12 +26,16 @@ export type LoadDoctorAllCommentPatientsDeps = {
         displayName: string;
         phone: string | null;
         bindings: { telegramId?: string | null; maxId?: string | null };
+        isOnSupport?: boolean;
       }>
     >;
   };
   programItemDiscussion: {
     listExerciseCommentsForDoctor(
       input: ListDoctorExerciseCommentsInput,
+    ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
+    listAllExerciseCommentsForDoctor(
+      input: { viewerUserId: string; limit: number },
     ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
@@ -44,8 +45,8 @@ export type LoadDoctorAllCommentPatientsDeps = {
 };
 
 /**
- * Загружает всех пациентов на сопровождении с хотя бы одним комментарием по упражнениям
- * (включая уже прочитанные треды). unreadCount может быть 0.
+ * Загружает ВСЕХ пациентов врача с хотя бы одним комментарием по упражнениям
+ * (без on-support гейта). isOnSupport — визуальный маркер ★, не фильтр.
  */
 export async function loadDoctorAllCommentPatients(
   deps: LoadDoctorAllCommentPatientsDeps,
@@ -56,33 +57,16 @@ export async function loadDoctorAllCommentPatients(
     ? { excludedUserIds: options.excludedUserIds }
     : undefined;
 
-  const onSupport = await deps.doctorClientsPort.listClients({ supportStatus: "on" }, audience);
-  if (onSupport.length === 0) return [];
-
-  const clientById = new Map(
-    onSupport.map((c) => [
-      c.userId.trim(),
-      {
-        displayName: c.displayName.trim() || "—",
-        phone: c.phone ?? null,
-        telegramId: c.bindings?.telegramId ?? null,
-        maxId: c.bindings?.maxId ?? null,
-      },
-    ]),
-  );
-  const patientUserIds = [...clientById.keys()];
-
-  // Step 1: all exercises with any patient comment (unreadOnly:false).
-  // Limit высокий — врач ведёт десятки пациентов, каждый имеет десятки упражнений.
-  const allRows = await deps.programItemDiscussion.listExerciseCommentsForDoctor({
-    patientUserIds,
+  // Step 1: doctor-wide query — all exercises with any patient comment, no patient-ID fanout.
+  // assignedByUserId scopes to this doctor's instances directly.
+  const allRows = await deps.programItemDiscussion.listAllExerciseCommentsForDoctor({
     viewerUserId: context.viewerUserId,
     limit: 2000,
   });
 
   if (allRows.length === 0) return [];
 
-  // Map stageItem → patient, collect unique patients that have any comment.
+  // Collect unique patient IDs that have any comment.
   const patientByStageItem = new Map<string, string>();
   const patientsWithComments = new Set<string>();
   for (const row of allRows) {
@@ -91,7 +75,7 @@ export async function loadDoctorAllCommentPatients(
   }
   const allStageItemIds = [...patientByStageItem.keys()];
 
-  // Step 2: exact unread count per stageItem, summed per patient.
+  // Step 2: unread counts per stageItem, summed per patient.
   const unreadCountById = new Map<string, number>();
   if (allStageItemIds.length > 0) {
     const counts = await deps.programItemDiscussion.listUnreadCountsForViewerByStageItems({
@@ -105,13 +89,30 @@ export async function loadDoctorAllCommentPatients(
     }
   }
 
-  // Include ALL patients with at least one comment (unreadCount may be 0).
+  // Step 3: resolve patient display info — fetch ALL clients (no supportStatus filter)
+  // so we include patients not on support. isOnSupport used as visual ★ marker only.
+  const allClients = await deps.doctorClientsPort.listClients({}, audience);
+  const clientById = new Map(
+    allClients.map((c) => [
+      c.userId.trim(),
+      {
+        displayName: c.displayName.trim() || "—",
+        phone: c.phone ?? null,
+        telegramId: c.bindings?.telegramId ?? null,
+        maxId: c.bindings?.maxId ?? null,
+        isOnSupport: c.isOnSupport ?? false,
+      },
+    ]),
+  );
+
+  // Include only patients with at least one comment (unreadCount may be 0).
   const result: CommentPatientRow[] = [];
-  for (const [patientUserId, fields] of clientById.entries()) {
-    if (!patientsWithComments.has(patientUserId)) continue;
+  for (const patientUserId of patientsWithComments) {
+    const fields = clientById.get(patientUserId);
+    if (!fields) continue; // patient not in this doctor's client list (safety)
     result.push({
       patientUserId,
-      isOnSupport: true,
+      isOnSupport: fields.isOnSupport,
       unreadCount: unreadCountById.get(patientUserId) ?? 0,
       displayName: fields.displayName,
       phone: fields.phone,
