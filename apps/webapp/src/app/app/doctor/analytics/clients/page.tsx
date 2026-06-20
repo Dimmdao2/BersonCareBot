@@ -8,6 +8,7 @@ import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalytics
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { resolvePatientTerms } from "@/modules/system-settings/patientTerms";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 
 import { DoctorAnalyticsClientsPageClient } from "./DoctorAnalyticsClientsPageClient";
@@ -17,14 +18,6 @@ function getValueJson<T>(v: unknown, fallback: T): T {
     return (v as Record<string, unknown>).value as T;
   }
   return fallback;
-}
-
-function resolvePatientLabels(singular: string) {
-  const isKlient = singular === "клиент";
-  return {
-    patientPluralLabel: isKlient ? "Клиенты" : "Пациенты",
-    patientGenPlural: isKlient ? "клиентов" : "пациентов",
-  };
 }
 
 export default async function DoctorAnalyticsClientsPage() {
@@ -46,7 +39,7 @@ export default async function DoctorAnalyticsClientsPage() {
     doctorSettings.find((x) => x.key === "patient_label")?.valueJson,
     "пациент",
   );
-  const { patientPluralLabel, patientGenPlural } = resolvePatientLabels(String(patientSingular));
+  const { patientPluralLabel, patientGenPlural } = resolvePatientTerms(String(patientSingular));
 
   return (
     <DoctorAppShell title={patientPluralLabel} user={session.user}>

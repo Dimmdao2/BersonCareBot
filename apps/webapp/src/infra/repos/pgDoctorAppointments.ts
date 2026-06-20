@@ -415,7 +415,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         runWebappPgText<{ day: string; past_visits: string; cancellation_actions: string }>(
           `SELECT
             to_char(record_at AT TIME ZONE $3, 'YYYY-MM-DD') AS day,
-            COUNT(*) FILTER (WHERE status <> 'canceled')::text AS past_visits,
+            COUNT(*) FILTER (WHERE record_at < NOW() AND status <> 'canceled')::text AS past_visits,
             COUNT(*) FILTER (
               WHERE status = 'canceled'
                 AND updated_at >= $1::timestamptz AND updated_at < $2::timestamptz
@@ -442,7 +442,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           `SELECT
             COALESCE(b.name, 'Без филиала') AS branch_name,
             COUNT(*) FILTER (WHERE ar.record_at < NOW() AND ar.status <> 'canceled')::text AS past_visits,
-            COUNT(*) FILTER (WHERE ar.status = 'canceled')::text AS cancelled_visits
+            COUNT(*) FILTER (WHERE ar.status = 'canceled' AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL})::text AS cancelled_visits
           FROM appointment_records ar
           LEFT JOIN branches b ON ar.branch_id = b.id
           WHERE ar.deleted_at IS NULL
