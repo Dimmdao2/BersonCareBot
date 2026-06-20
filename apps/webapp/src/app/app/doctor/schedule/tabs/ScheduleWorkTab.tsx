@@ -14,11 +14,10 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
 import {
   apiJson,
-  ensureDefaultSpecialist,
-  fetchSoloOverview,
   minuteToTimeLabel,
   timeLabelToMinute,
 } from "@/app/app/settings/bookingSoloAdminApi";
+import { fetchDoctorScheduleBootstrap } from "../doctorScheduleApi";
 import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
@@ -30,9 +29,13 @@ import type { ScheduleTabProps } from "../scheduleTabRegistry";
 // API base paths
 // ---------------------------------------------------------------------------
 
-const WD_BASE = "/api/admin/booking-engine/working-days";
-const TPL_BASE = "/api/admin/booking-engine/working-schedule-templates";
-const WH_BASE = "/api/admin/booking-engine/working-hours";
+// Doctor-self-scoped routes: the server resolves the doctor's own specialist and forces
+// it on every read/write, so the editor works for the `doctor` role (solo owner) and
+// reads/writes the SAME specialist-scoped rows the calendar paints. (Admin mirrors at
+// /api/admin/booking-engine/* still serve the admin Settings flows.)
+const WD_BASE = "/api/doctor/booking-engine/working-days";
+const TPL_BASE = "/api/doctor/booking-engine/working-schedule-templates";
+const WH_BASE = "/api/doctor/booking-engine/working-hours";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -541,22 +544,19 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   useEffect(() => {
     startTransition(async () => {
       try {
-        const overview = await fetchSoloOverview();
-        if (!overview) { setLoadError("booking_engine_unavailable"); return; }
-        const activeBranches = overview.branches
-          .filter((b) => b.isActive)
-          .map((b) => ({ id: b.id, title: b.title, shortTitle: b.shortTitle, isActive: b.isActive }));
-        setBranches(activeBranches);
-        const specId = await ensureDefaultSpecialist(overview.organization?.title);
-        setSpecialistId(specId);
+        const bootstrap = await fetchDoctorScheduleBootstrap();
+        if (!bootstrap) { setLoadError("booking_engine_unavailable"); return; }
+        setBranches(bootstrap.branches);
+        if (!bootstrap.specialistId) { setLoadError("specialist_not_configured"); return; }
+        setSpecialistId(bootstrap.specialistId);
         // E3: default filter from deep-link or "all"
         const savedId = deepLinkParams.location ?? "";
-        const resolvedBranch = activeBranches.find((b) => b.id === savedId);
+        const resolvedBranch = bootstrap.branches.find((b) => b.id === savedId);
         if (resolvedBranch) {
           setGridBranchFilterState(resolvedBranch.id);
         }
         // Panel branch default: from deep-link or first active
-        const panelDefault = resolvedBranch ?? activeBranches[0];
+        const panelDefault = resolvedBranch ?? bootstrap.branches[0];
         if (panelDefault) {
           setPanelBranchId(panelDefault.id);
         }

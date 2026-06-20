@@ -991,8 +991,10 @@ export function ScheduleCalendarTab({
       // Рабочее время — не рендерим (фон белый).
       if (event.kind === "working") return null;
 
-      // SCH-10: перерывы рендерим как фоновые события с более тёмным серым,
-      // чтобы их можно было отличить от нерабочего времени (до/после смены).
+      // SCH-10 / owner-feedback: перерыв («обед») рисуем тем же ЛЁГКИМ прозрачным
+      // фоном, что и нерабочее время (#eee/0.6), а не плотной тёмной плашкой —
+      // владельцу нужен «обед как лёгкий фон». Отличает его подпись «Перерыв» и то,
+      // что он лежит внутри рабочей (белой) полосы, а не по краям смены.
       if (event.kind === "break" && isTimeGrid) {
         return {
           id: `break:${event.id}`,
@@ -1000,7 +1002,7 @@ export function ScheduleCalendarTab({
           end: toFcDate(event.endAt, currentTimeZone),
           title: "Перерыв",
           display: "background" as const,
-          classNames: ["!bg-[#d1d5db]", "!opacity-80"],
+          classNames: ["!bg-[#eeeeee]", "!opacity-60"],
           editable: false,
           extendedProps: { kind: "break" as const },
         };
@@ -1474,17 +1476,24 @@ export function ScheduleCalendarTab({
                    --fc-bg-event-color to transparent on the .fc root means the very first
                    paint is transparent (not green); the Tailwind bg utilities apply in the
                    same frame and set the final colour normally.
-                   CR-8: non-working = #eee/0.6 (visible grey); break = #d1d5db/0.8 (darker). */
+                   CR-8: non-working = #eee/0.6, break = #eee/0.6 (both light, owner pref). */
                 .fc {
                   --fc-bg-event-color: transparent;
                 }
 
                 .fc-timegrid-event-harness { margin-inline: 1px; }
+                /* Pointer only on real (interactive) events. Background events —
+                   non-working fill + breaks — are not clickable (dateClick is
+                   suppressed over them), so they keep the default cursor instead of
+                   the misleading «hand». */
+                .fc-event:not(.fc-bg-event) {
+                  cursor: pointer !important;
+                }
                 .fc-event {
                   box-shadow: none !important;
-                  cursor: pointer !important;
                   --fc-event-text-color: var(--foreground) !important;
                 }
+                .fc-bg-event { cursor: default !important; }
                 .fc-event .fc-event-main { color: var(--foreground) !important; }
                 /* R10 — прошедшие записи приглушаем, будущие/актуальные ярче */
                 .fc-event.fc-event-past { opacity: 0.6; }
