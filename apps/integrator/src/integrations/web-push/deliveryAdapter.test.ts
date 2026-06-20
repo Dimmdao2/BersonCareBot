@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-secrets/no-secrets -- class name in JSDoc, not a secret
 /**
  * Tests for WebPushDeliveryAdapter (PLAN S14a DoD).
  *
@@ -111,6 +112,7 @@ function restoreTestEnv() {
 
 // ─── THE SAFETY TEST: per-channel dev-redirect, real pushUserId replaced ──────
 
+// eslint-disable-next-line no-secrets/no-secrets -- test name string, not a secret
 describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: per-channel dev redirect (Q-A rework)', () => {
   /**
    * Q-A rework: web_push intent stays as web_push (channel preserved).
@@ -182,6 +184,7 @@ describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: per-channel dev redire
 
 // ─── canHandle tests ──────────────────────────────────────────────────────────
 
+// eslint-disable-next-line no-secrets/no-secrets -- test name string, not a secret
 describe('WebPushDeliveryAdapter.canHandle', () => {
   let adapter: DeliveryAdapter;
 

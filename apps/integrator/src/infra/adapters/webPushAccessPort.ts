@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifiers, not secrets
 /**
  * Integrator read port for web-push subscriptions + VAPID (PLAN S13 Model β).
  *

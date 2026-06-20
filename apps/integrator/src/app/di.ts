@@ -145,6 +145,7 @@ export type AppDeps = {
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
   webappEventsPort: WebappEventsPort;
+  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
   /**
    * Read port for web-push subscriptions + VAPID (PLAN S13 Model β).
    * Used by `WebPushDeliveryAdapter` (S14a) to fetch subscriptions + VAPID at send time

@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-secrets/no-secrets -- function name in JSDoc, not a secret
 /**
  * Маршрут приёма запросов от webapp (bersoncare): отправка email с OTP-кодом.
  * Контракт: webapp/INTEGRATOR_CONTRACT.md, раздел «Flow 5: send-email».
