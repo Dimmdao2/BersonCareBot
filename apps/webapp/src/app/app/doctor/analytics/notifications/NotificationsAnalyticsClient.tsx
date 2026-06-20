@@ -27,7 +27,7 @@ function formatPct(rate: number): string {
 
 type MetricDialogState = { metric: DoctorAnalyticsMetricKey; title: string } | null;
 
-export function NotificationsAnalyticsClient() {
+export function NotificationsAnalyticsClient({ isActive = true }: { isActive?: boolean }) {
   const [windowHours, setWindowHours] = useState<number>(168);
   const [data, setData] = useState<ContentEngagementStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +55,8 @@ export function NotificationsAnalyticsClient() {
   }, []);
 
   useEffect(() => {
-    void load(windowHours);
-  }, [load, windowHours]);
+    if (isActive) void load(windowHours);
+  }, [isActive, load, windowHours]);
 
   const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
 
