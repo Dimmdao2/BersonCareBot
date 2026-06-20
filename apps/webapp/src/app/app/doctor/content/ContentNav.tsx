@@ -180,13 +180,14 @@ export function ContentNav({
 
   const handleVisibilityToggle = useCallback(
     (slug: string, nextIsVisible: boolean) => {
-      // Optimistic update
       setVisibilityOverrides((prev) => ({ ...prev, [slug]: nextIsVisible }));
-
       startTransition(async () => {
-        const result = await setSectionVisibility(slug, nextIsVisible);
-        if (!result.ok) {
-          // Revert on failure
+        try {
+          const result = await setSectionVisibility(slug, nextIsVisible);
+          if (!result.ok) {
+            setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
+          }
+        } catch {
           setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
         }
       });

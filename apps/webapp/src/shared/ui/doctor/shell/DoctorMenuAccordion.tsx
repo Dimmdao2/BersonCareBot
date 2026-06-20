@@ -405,8 +405,8 @@ function SheetTwoLevelMenu({
 }
 
 export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabel, onNavigate }: DoctorMenuAccordionProps) {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess.role, menuAccess.adminMode, patientLabel]);
+  const { role, adminMode } = menuAccess;
+  const items = useMemo(() => getDoctorMenuItems({ role, adminMode }, patientLabel), [role, adminMode, patientLabel]);
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
