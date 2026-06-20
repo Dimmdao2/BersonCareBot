@@ -41,8 +41,12 @@ export type CommentPatientSearchFields = {
 /** Строка пациента в левом пейне drill-down комментариев. */
 export type CommentPatientRow = CommentPatientSearchFields & {
   patientUserId: string;
-  /** Всегда true: список фильтруется по `supportStatus: "on"`. */
-  isOnSupport: true;
+  /**
+   * true = пациент на сопровождении (★ маркер в UI), false = нет.
+   * В режиме «Непрочитанные» — всегда true (список фильтруется по supportStatus:"on").
+   * В режиме «Все» — отражает реальный статус (не является гейтом списка).
+   */
+  isOnSupport: boolean;
   /** Точное число непрочитанных сообщений пациента (по всем упражнениям, требующим внимания). */
   unreadCount: number;
 };

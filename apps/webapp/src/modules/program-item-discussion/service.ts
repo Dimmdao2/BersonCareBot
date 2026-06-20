@@ -276,6 +276,20 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
       });
     },
 
+    async listAllExerciseCommentsForDoctor(input: {
+      viewerUserId: string;
+      limit: number;
+      cursor?: DoctorExerciseCommentCursor | null;
+    }): Promise<DoctorExerciseCommentRow[]> {
+      const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      const safeLimit = Math.max(1, Math.trunc(input.limit));
+      return port.listAllExerciseCommentsForDoctor({
+        viewerUserId,
+        limit: safeLimit,
+        cursor: input.cursor ?? null,
+      });
+    },
+
     async listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
       viewerUserId: string;

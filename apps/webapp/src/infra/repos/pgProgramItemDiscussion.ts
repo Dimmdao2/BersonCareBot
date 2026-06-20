@@ -13,6 +13,7 @@ import {
 import { extractPatientExerciseCommentReplyBody } from "@/modules/messaging/programNoteReplyContext";
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import type {
+  DoctorExerciseCommentCursor,
   DoctorExerciseCommentRow,
   ListDoctorExerciseCommentsInput,
   ProgramItemDiscussionLegacyMergeInput,
@@ -69,16 +70,39 @@ function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
   return "Упражнение";
 }
 
+/**
+ * Единый doctor-wide запрос комментариев по упражнениям.
+ *
+ * Два варианта скоупа пациентов:
+ *   - assignedByUserId (doctor-wide без фан-аута): фильтрует по treatment_program_instances.assigned_by
+ *   - patientUserIds (явный список): используется unread-режимом и тестами
+ *
+ * opts.unreadOnly: true → только непрочитанные (latest patient message > lastReadAt)
+ * opts.showAnswered: true → снимаем фильтр «последнее сообщение = от пациента» из OUTER WHERE;
+ *   CTE уже выбирает latest patient message per stageItem, поэтому отвеченные треды
+ *   (где врач ответил после) всё равно попадают — мы видим последний комментарий пациента.
+ */
 async function queryDoctorExerciseComments(
   input: ListDoctorExerciseCommentsInput,
-  opts: { unreadOnly: boolean },
+  opts: { unreadOnly: boolean; showAnswered?: boolean },
 ): Promise<DoctorExerciseCommentRow[]> {
-  const { patientUserIds, viewerUserId, limit, cursor } = input;
-  if (patientUserIds.length === 0) return [];
+  const { patientUserIds, assignedByUserId, viewerUserId, limit, cursor } = input;
+  // Need at least one scope method.
+  if (!assignedByUserId && patientUserIds.length === 0) return [];
   const safeLimit = Math.max(1, Math.trunc(limit));
   const db = getDrizzle();
 
-  // CTE: latest patient text-message per exercise stage-item (DISTINCT ON = one row per item)
+  // Patient scope: either by doctor's assignedBy (efficient, no fanout) or explicit list.
+  const patientScopeCondition = assignedByUserId
+    ? sql`${treatmentProgramInstances.assignedBy} = ${assignedByUserId}::uuid`
+    : inArray(treatmentProgramInstances.patientUserId, patientUserIds);
+
+  // CTE: latest PATIENT TEXT message per exercise stage-item (DISTINCT ON = one row per item).
+  // senderRole='patient' + mediaFileId IS NULL are now INSIDE the CTE WHERE so:
+  //   - The CTE always yields the latest patient text comment per stageItem.
+  //   - Answered threads (doctor replied after) still surface: we look at the latest
+  //     patient message, not the latest overall. No outer senderRole check needed.
+  //   - unreadOnly uses createdAt > lastReadAt on the latest patient comment.
   const latestCte = db.$with("latest").as(
     db
       .selectDistinctOn([programItemDiscussionMessages.instanceStageItemId], {
@@ -129,11 +153,14 @@ async function queryDoctorExerciseComments(
       )
       .where(
         and(
-          inArray(treatmentProgramInstances.patientUserId, patientUserIds),
+          patientScopeCondition,
           eq(treatmentProgramInstances.status, "active"),
           sql`${treatmentProgramInstances.assignmentSource} = ANY(ARRAY['doctor','course']::text[])`,
           eq(treatmentProgramInstanceStageItems.itemType, "exercise"),
           eq(treatmentProgramInstanceStageItems.status, "active"),
+          // Only patient text messages inside CTE — so DISTINCT ON picks latest patient comment.
+          eq(programItemDiscussionMessages.senderRole, "patient"),
+          sql`${programItemDiscussionMessages.mediaFileId} IS NULL`,
         ),
       )
       .orderBy(
@@ -143,11 +170,8 @@ async function queryDoctorExerciseComments(
       ),
   );
 
-  // outer: keep only items where latest message is a patient text; apply unread + cursor filters
-  const outerConditions: ReturnType<typeof sql>[] = [
-    sql`${latestCte.senderRole} = 'patient'`,
-    sql`${latestCte.mediaFileId} IS NULL`,
-  ];
+  // Outer: apply unread + cursor filters. No senderRole check needed (CTE guarantees patient msgs).
+  const outerConditions: ReturnType<typeof sql>[] = [];
   if (opts.unreadOnly) {
     outerConditions.push(
       sql`${latestCte.createdAt} > COALESCE(${latestCte.lastReadAt}, '-infinity'::timestamptz)`,
@@ -163,7 +187,7 @@ async function queryDoctorExerciseComments(
     .with(latestCte)
     .select()
     .from(latestCte)
-    .where(and(...outerConditions))
+    .where(outerConditions.length > 0 ? and(...outerConditions) : undefined)
     .orderBy(desc(latestCte.createdAt), desc(latestCte.id))
     .limit(safeLimit);
 
@@ -623,6 +647,22 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       input: ListDoctorExerciseCommentsInput,
     ): Promise<DoctorExerciseCommentRow[]> {
       return queryDoctorExerciseComments(input, { unreadOnly: false });
+    },
+
+    async listAllExerciseCommentsForDoctor(
+      input: { viewerUserId: string; limit: number; cursor?: DoctorExerciseCommentCursor | null },
+    ): Promise<DoctorExerciseCommentRow[]> {
+      // Doctor-wide all-comments: no patient-ID fanout, shows answered threads.
+      return queryDoctorExerciseComments(
+        {
+          patientUserIds: [],
+          assignedByUserId: input.viewerUserId,
+          viewerUserId: input.viewerUserId,
+          limit: input.limit,
+          cursor: input.cursor,
+        },
+        { unreadOnly: false, showAnswered: true },
+      );
     },
 
     async listUnreadCountsForViewerByStageItems(input: {

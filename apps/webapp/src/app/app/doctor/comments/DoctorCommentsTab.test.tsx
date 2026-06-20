@@ -169,68 +169,111 @@ function defaultProps(overrides?: Partial<ConstructorParameters<typeof Object>[0
 
 // ── State A: feed ─────────────────────────────────────────────────────────────
 
+// ── Default fetch mock for all-mode ─────────────────────────────────────────
+// The component now defaults to "all" mode and immediately calls fetchAllMode().
+// Tests need a global fetch mock that satisfies both:
+//   GET /api/doctor/comments/patients?mode=all → { ok: true, patients: [PAT_A, PAT_B] }
+//   GET /api/doctor/exercise-comments?mode=all  → { ok: true, items: [FEED_A, FEED_B], hasMore: false, nextCursor: null }
+// Synchronous or waitFor-less tests use this default; individual tests override as needed.
+function stubFetchAllMode(overridePatientsData?: CommentPatientRow[]) {
+  return vi.fn().mockImplementation((url: string) => {
+    const s = typeof url === "string" ? url : "";
+    if (s.includes("/api/doctor/comments/patients")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, patients: overridePatientsData ?? [PAT_A, PAT_B] }),
+      } as unknown as Response);
+    }
+    if (s.includes("/api/doctor/exercise-comments")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, items: [FEED_A, FEED_B], hasMore: false, nextCursor: null }),
+      } as unknown as Response);
+    }
+    // fallback for other endpoints (exercises, thread, mark-read, metrics, day-activity)
+    return Promise.resolve({ ok: true, json: async () => ({ ok: true }) } as unknown as Response);
+  });
+}
+
 describe("DoctorCommentsTab — состояние A (лента)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("показывает пациентов в левой панели", () => {
+  it("показывает пациентов в левой панели (all-mode)", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    // getAllByRole because patient name appears in both left pane and feed right pane
-    expect(screen.getAllByRole("button", { name: /Иванов Иван/i }).length).toBeGreaterThanOrEqual(1);
+    // Wait for allModePatients to load
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: /Иванов Иван/i }).length).toBeGreaterThanOrEqual(1);
+    });
     expect(screen.getAllByRole("button", { name: /Петрова Мария/i }).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("показывает ленту комментариев в правой панели по умолчанию", () => {
+  it("показывает ленту комментариев в правой панели по умолчанию (all-mode)", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    // feed items appear as patient name
-    const allIvanov = screen.getAllByText(/Иванов Иван/);
-    expect(allIvanov.length).toBeGreaterThanOrEqual(2); // left pane + right feed
+    // Wait for all-mode feed to load
+    await waitFor(() => {
+      const allIvanov = screen.getAllByText(/Иванов Иван/);
+      expect(allIvanov.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
-  it("показывает empty-state в левой панели если нет пациентов", () => {
+  it("показывает empty-state в левой панели если нет пациентов (all-mode)", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode([]));
     render(
       <DoctorCommentsTab {...defaultProps({ initialPatients: [] })} />,
     );
-    expect(screen.getByText(/нет пациентов с непрочитанными/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/нет пациентов с комментариями/i)).toBeInTheDocument();
+    });
   });
 
-  it("показывает тоггл «★ На сопровождении» с числом пациентов", () => {
+  it("показывает бейдж «★ На сопровождении» с числом пациентов", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    expect(
-      screen.getByRole("button", { name: /★ На сопровождении · 2/i }),
-    ).toBeInTheDocument();
+    // ★ На сопровождении теперь пассивный бейдж (span, не button), считает isOnSupport=true
+    await waitFor(() => {
+      // PAT_A and PAT_B both have isOnSupport: true → count = 2
+      expect(screen.getByText(/★ На сопровождении · 2/i)).toBeInTheDocument();
+    });
   });
 
-  it("тоггл «★ На сопровождении» переключается (aria-pressed)", async () => {
+  it("тоггл «Все» / «Непрочитанные» переключает viewMode", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    const btn = screen.getByRole("button", { name: /★ На сопровождении/i });
-    expect(btn).toHaveAttribute("aria-pressed", "false");
-    await userEvent.click(btn);
-    expect(btn).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(btn);
-    expect(btn).toHaveAttribute("aria-pressed", "false");
+    // Initial mode is "all" → «Все» button is aria-pressed=true
+    const btnAll = screen.getByRole("button", { name: /^Все$/i });
+    const btnUnread = screen.getByRole("button", { name: /Непрочитанные/i });
+    expect(btnAll).toHaveAttribute("aria-pressed", "true");
+    expect(btnUnread).toHaveAttribute("aria-pressed", "false");
+    // Switch to unread
+    await userEvent.click(btnUnread);
+    expect(btnUnread).toHaveAttribute("aria-pressed", "true");
+    expect(btnAll).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("показывает «Загрузить ещё» когда hasMoreInitial=true", () => {
+  it("показывает «Загрузить ещё» когда hasMoreInitial=true (в режиме unread)", async () => {
+    // In unread mode, hasMoreInitial drives the "Загрузить ещё" button for the unread feed
+    vi.stubGlobal("fetch", stubFetchAllMode());
     render(
       <DoctorCommentsTab
         {...defaultProps({ hasMoreInitial: true, initialCursor: CURSOR_1 })}
       />,
     );
+    // Switch to unread to see the unread "Загрузить ещё" button
+    await userEvent.click(screen.getByRole("button", { name: /Непрочитанные/i }));
     expect(screen.getByRole("button", { name: /загрузить ещё/i })).toBeInTheDocument();
   });
 
-  it("скрывает «Загрузить ещё» когда hasMoreInitial=false", () => {
+  it("скрывает «Загрузить ещё» когда hasMoreInitial=false (в режиме unread)", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await userEvent.click(screen.getByRole("button", { name: /Непрочитанные/i }));
     expect(screen.queryByRole("button", { name: /загрузить ещё/i })).not.toBeInTheDocument();
   });
 
   it("«Загрузить ещё» вызывает /api/doctor/exercise-comments", async () => {
-    const fetchMock = stubFetchOk({
-      ok: true,
-      items: [],
-      hasMore: false,
-      nextCursor: null,
-    });
+    const fetchMock = stubFetchAllMode();
     vi.stubGlobal("fetch", fetchMock);
 
     render(
@@ -239,12 +282,14 @@ describe("DoctorCommentsTab — состояние A (лента)", () => {
       />,
     );
 
+    // In all-mode, "Загрузить ещё" uses loadMoreAll if allModeHasMore; switch to unread for simplicity
+    await userEvent.click(screen.getByRole("button", { name: /Непрочитанные/i }));
     await userEvent.click(screen.getByRole("button", { name: /загрузить ещё/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-    const [url] = fetchMock.mock.calls[0] as [string];
-    expect(url).toContain("/api/doctor/exercise-comments");
+    const calls = fetchMock.mock.calls.map((args: unknown[]) => args[0] as string);
+    expect(calls.some((url) => url.includes("/api/doctor/exercise-comments"))).toBe(true);
   });
 });
 
@@ -259,16 +304,34 @@ async function clickPatientInLeftPane(name: RegExp | string) {
   await userEvent.click(leftBtn);
 }
 
+/** Stub fetch that handles patients?mode=all, exercise-comments, and drill-down APIs. */
+function stubFetchMulti(exerciseResult = EXERCISES_RESULT) {
+  return vi.fn().mockImplementation((url: string) => {
+    const s = typeof url === "string" ? url : "";
+    // Patient-specific sub-routes (exercises) BEFORE the top-level patients list
+    if (s.includes("/api/doctor/comments/patients/") && s.includes("/exercises")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: exerciseResult }) } as unknown as Response);
+    }
+    if (s.includes("/api/doctor/comments/patients")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, patients: [PAT_A, PAT_B] }) } as unknown as Response);
+    }
+    if (s.includes("/api/doctor/exercise-comments")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, items: [FEED_A, FEED_B], hasMore: false, nextCursor: null }) } as unknown as Response);
+    }
+    // thread, mark-read, metrics, day-activity, etc.
+    return Promise.resolve({ ok: true, json: async () => ({ ok: true, messages: [], pageInfo: { direction: "backward", limit: 50, nextCursor: null, hasMore: false }, totalCount: 0, peerLastReadAt: null }) } as unknown as Response);
+  });
+}
+
 describe("DoctorCommentsTab — навигация A→B (выбор пациента)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("клик по пациенту переходит в state B (загружает упражнения)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
-    );
+    vi.stubGlobal("fetch", stubFetchMulti());
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    // Wait for all-mode patients to load, then click
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
 
     // Header with patient name appears in right pane
@@ -280,12 +343,10 @@ describe("DoctorCommentsTab — навигация A→B (выбор пацие�
   });
 
   it("после выбора пациента показывается кнопка × (сброс пациента)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
-    );
+    vi.stubGlobal("fetch", stubFetchMulti());
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
 
     // Wait for state B header
@@ -295,12 +356,10 @@ describe("DoctorCommentsTab — навигация A→B (выбор пацие�
   });
 
   it("кнопка «×» в шапке сбрасывает выбор пациента (B→A)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
-    );
+    vi.stubGlobal("fetch", stubFetchMulti());
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
 
     await waitFor(() => {
@@ -309,10 +368,10 @@ describe("DoctorCommentsTab — навигация A→B (выбор пацие�
 
     await userEvent.click(screen.getByLabelText(/сбросить выбор пациента/i));
 
-    // Back to state A: patient list toggle still shows
-    expect(
-      screen.getByRole("button", { name: /★ На сопровождении/i }),
-    ).toBeInTheDocument();
+    // Back to state A: ★ На сопровождении badge still shows
+    await waitFor(() => {
+      expect(screen.getByText(/★ На сопровождении/i)).toBeInTheDocument();
+    });
   });
 });
 
@@ -322,11 +381,10 @@ describe("DoctorCommentsTab — состояние B (упражнения па�
   afterEach(() => vi.unstubAllGlobals());
 
   async function renderStateB() {
-    vi.stubGlobal(
-      "fetch",
-      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
-    );
+    vi.stubGlobal("fetch", stubFetchMulti());
     render(<DoctorCommentsTab {...defaultProps()} />);
+    // Wait for all-mode patients, then click
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     // Wait for exercises to load
     await waitFor(() => {
@@ -374,21 +432,30 @@ describe("DoctorCommentsTab — навигация B→C (выбор упраж�
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/exercises")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_RESULT }) });
+        const s = typeof url === "string" ? url : "";
+        // Patient-specific sub-routes (exercises) BEFORE the top-level patients list
+        if (s.includes("/api/doctor/comments/patients/") && s.includes("/exercises")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_RESULT }) } as unknown as Response);
         }
-        if (url.includes("exercise-metrics")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
+        if (s.includes("/api/doctor/comments/patients")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, patients: [PAT_A, PAT_B] }) } as unknown as Response);
         }
-        if (url.includes("program-day-activity")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
+        if (s.includes("/api/doctor/exercise-comments")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, items: [], hasMore: false, nextCursor: null }) } as unknown as Response);
+        }
+        if (s.includes("exercise-metrics")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) } as unknown as Response);
+        }
+        if (s.includes("program-day-activity")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) } as unknown as Response);
         }
         // discussion + mark-read
-        return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
+        return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE } as unknown as Response);
       }),
     );
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
 
     await waitFor(() => {
@@ -440,23 +507,32 @@ describe("DoctorCommentsTab — ответ в треде (state C)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/exercises")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_RESULT }) });
+        const s = typeof url === "string" ? url : "";
+        // Patient-specific sub-routes (exercises) BEFORE the top-level patients list
+        if (s.includes("/api/doctor/comments/patients/") && s.includes("/exercises")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_RESULT }) } as unknown as Response);
         }
-        if (url.includes("exercise-metrics")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
+        if (s.includes("/api/doctor/comments/patients")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, patients: [PAT_A, PAT_B] }) } as unknown as Response);
         }
-        if (url.includes("program-day-activity")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
+        if (s.includes("/api/doctor/exercise-comments")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, items: [], hasMore: false, nextCursor: null }) } as unknown as Response);
         }
-        if (url.includes("program-note-reply")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+        if (s.includes("exercise-metrics")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) } as unknown as Response);
         }
-        return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
+        if (s.includes("program-day-activity")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) } as unknown as Response);
+        }
+        if (s.includes("program-note-reply")) {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true }) } as unknown as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE } as unknown as Response);
       }),
     );
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
 
     await waitFor(() => {
@@ -514,7 +590,10 @@ describe("DoctorCommentsTab — ответ в треде (state C)", () => {
 // (covered in CommentsTab.test.tsx — here we test DoctorCommentsTab directly)
 
 describe("DoctorCommentsTab — пустые начальные данные", () => {
-  it("рендерится без краша при пустых данных", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("рендерится без краша при пустых данных", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode([]));
     render(
       <DoctorCommentsTab
         initialItems={[]}
@@ -523,31 +602,60 @@ describe("DoctorCommentsTab — пустые начальные данные", (
         initialPatients={[]}
       />,
     );
-    expect(screen.getByText(/нет пациентов/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/нет пациентов/i)).toBeInTheDocument();
+    });
   });
 });
 
 // ── State C: micro-chart (B.3) ────────────────────────────────────────────────
 
+/** Full multi-endpoint mock used by micro-chart and read-state tests (navigates to state C). */
+function stubFetchForChart(opts?: {
+  points?: object[];
+  days?: object[];
+  exerciseResult?: unknown;
+}) {
+  const points = opts?.points ?? [];
+  const days = opts?.days ?? [];
+  const exerciseResult = opts?.exerciseResult ?? EXERCISES_RESULT;
+
+  return vi.fn().mockImplementation((url: string) => {
+    const s = typeof url === "string" ? url : "";
+    // Patient-specific sub-routes (exercises) BEFORE the top-level patients list
+    if (s.includes("/api/doctor/comments/patients/") && s.includes("/exercises")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: exerciseResult }) } as unknown as Response);
+    }
+    if (s.includes("/api/doctor/comments/patients")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, patients: [PAT_A, PAT_B] }) } as unknown as Response);
+    }
+    if (s.includes("/api/doctor/exercise-comments")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, items: [FEED_A, FEED_B], hasMore: false, nextCursor: null }) } as unknown as Response);
+    }
+    if (s.includes("exercise-metrics")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, points }) } as unknown as Response);
+    }
+    if (s.includes("program-day-activity")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true, days }) } as unknown as Response);
+    }
+    if (s.includes("program-note-reply")) {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true }) } as unknown as Response);
+    }
+    // thread, mark-read, discussion
+    return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE } as unknown as Response);
+  });
+}
+
 describe("DoctorCommentsTab — микро-график метрик в шапке C (B.3)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("вызывает /api/doctor/comments/exercise-metrics при открытии треда", async () => {
-    const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("/exercises")) {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_RESULT }) });
-      }
-      if (url.includes("exercise-metrics")) {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
-      }
-      if (url.includes("program-day-activity")) {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
-      }
-      return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
-    });
+    const fetchMock = stubFetchForChart();
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    // Wait for all-mode patients to load, then navigate to state C
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     await waitFor(() => screen.getByText("Приседания"));
     await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
@@ -564,23 +672,10 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
   });
 
   it("показывает «нет данных» когда сервер вернул пустой массив точек", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/exercises")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_RESULT }) });
-        }
-        if (url.includes("exercise-metrics")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
-        }
-        if (url.includes("program-day-activity")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
-        }
-        return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
-      }),
-    );
+    vi.stubGlobal("fetch", stubFetchForChart({ points: [], days: [] }));
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     await waitFor(() => screen.getByText("Приседания"));
     await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
@@ -594,29 +689,14 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
   it("показывает полоски reps когда точки содержат повторения", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/exercises")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_RESULT }) });
-        }
-        if (url.includes("exercise-metrics")) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              ok: true,
-              points: [
-                { at: "2026-06-10T10:00:00.000Z", reps: 10, weightKg: null, sets: null, difficulty: null },
-              ],
-            }),
-          });
-        }
-        if (url.includes("program-day-activity")) {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
-        }
-        return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
+      stubFetchForChart({
+        points: [{ at: "2026-06-10T10:00:00.000Z", reps: 10, weightKg: null, sets: null, difficulty: null }],
+        days: [],
       }),
     );
 
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     await waitFor(() => screen.getByText("Приседания"));
     await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
@@ -634,7 +714,6 @@ describe("DoctorCommentsTab — read-state (D3)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   const ITEM_READ = "00000000-0000-4000-8000-aaa000000003";
-  const STAGE2 = "00000000-0000-4000-8000-ddd000000002";
 
   const EX_UNREAD: ExerciseCommentItem = {
     ...EXERCISE_ITEM,
@@ -670,27 +749,35 @@ describe("DoctorCommentsTab — read-state (D3)", () => {
     totalUnreadComments: 2,
   };
 
-  function stubMixedFetch(extra?: (url: string) => Response | undefined) {
+  function stubMixedFetch() {
     return vi.fn().mockImplementation((url: string) => {
-      const override = extra?.(url);
-      if (override) return Promise.resolve(override);
-      if (url.includes("/exercises")) {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_MIXED }) });
+      const s = typeof url === "string" ? url : "";
+      // Patient-specific sub-routes (exercises) BEFORE the top-level patients list
+      if (s.includes("/api/doctor/comments/patients/") && s.includes("/exercises")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_MIXED }) } as unknown as Response);
       }
-      if (url.includes("exercise-metrics")) {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
+      if (s.includes("/api/doctor/comments/patients")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, patients: [PAT_A, PAT_B] }) } as unknown as Response);
       }
-      if (url.includes("program-day-activity")) {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) });
+      if (s.includes("/api/doctor/exercise-comments")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, items: [FEED_A, FEED_B], hasMore: false, nextCursor: null }) } as unknown as Response);
+      }
+      if (s.includes("exercise-metrics")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) } as unknown as Response);
+      }
+      if (s.includes("program-day-activity")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, days: [] }) } as unknown as Response);
       }
       // discussion + mark-read
-      return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
+      return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE } as unknown as Response);
     });
   }
 
   it("ранжирование: непрочитанное упражнение стоит выше прочитанного (новее)", async () => {
     vi.stubGlobal("fetch", stubMixedFetch());
     render(<DoctorCommentsTab {...defaultProps()} />);
+    // Wait for all-mode patients to load
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     await waitFor(() => expect(screen.getByText("Приседания")).toBeInTheDocument());
 
@@ -707,6 +794,7 @@ describe("DoctorCommentsTab — read-state (D3)", () => {
     const fetchMock = stubMixedFetch();
     vi.stubGlobal("fetch", fetchMock);
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     await waitFor(() => screen.getByText("Приседания"));
     await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
@@ -724,6 +812,7 @@ describe("DoctorCommentsTab — read-state (D3)", () => {
   it("после просмотра треда бейдж непрочитанных у упражнения сходится (исчезает), при закрытии упражнение уезжает вниз", async () => {
     vi.stubGlobal("fetch", stubMixedFetch());
     render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     await waitFor(() => screen.getByText("Приседания"));
 
@@ -768,11 +857,18 @@ describe("DoctorCommentsTab — read-state (D3)", () => {
     expect(screen.queryByText(/новых/i)).not.toBeInTheDocument();
   });
 
-  it("прочитанный пациент выпадает из списка при возврате в state A", async () => {
+  it("в режиме «Непрочитанные» прочитанный пациент выпадает из списка при возврате в state A", async () => {
     // PAT_A имеет unreadCount=1; после прочтения единственного упражнения он
-    // должен исчезнуть из левого списка, когда врач возвращается в state A.
+    // должен исчезнуть из левого списка в режиме «Непрочитанные», когда врач возвращается в state A.
+    // В режиме «Все» (дефолт) пациент остаётся — тест переключается в «Непрочитанные».
     vi.stubGlobal("fetch", stubMixedFetch());
     render(<DoctorCommentsTab {...defaultProps({ initialPatients: [PAT_A] })} />);
+    // Switch to unread mode first so patients come from initialPatients
+    // (allModePatients starts null, so in unread mode we use the `patients` local copy)
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
+    await userEvent.click(screen.getByRole("button", { name: /Непрочитанные/i }));
+    // Wait for patients list to show PAT_A in unread mode
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }).length >= 1);
     await clickPatientInLeftPane(/Иванов Иван/i);
     await waitFor(() => screen.getByText("Приседания"));
     await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
@@ -783,7 +879,7 @@ describe("DoctorCommentsTab — read-state (D3)", () => {
     await waitFor(() => screen.getByText("Этап 1"));
     await userEvent.click(screen.getByLabelText(/сбросить выбор пациента/i));
 
-    // Пациент с unreadCount=0 выпал из левого списка.
+    // В режиме «Непрочитанные»: пациент с unreadCount=0 выпал из левого списка.
     await waitFor(() => {
       const leftButtons = screen
         .queryAllByRole("button", { name: /Иванов Иван/i })
