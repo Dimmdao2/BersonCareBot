@@ -1028,10 +1028,13 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     <div className="flex flex-col gap-4">
       <InstanceEditorToolbar
         programTitle={detail.title}
+        patientProfileHref={patientProfileHref}
+        patientDisplayName={patientDisplayName}
         programStatus={detail.status}
         pipelineStageCount={pipelineStages.length}
         onAddStageClick={() => setAddStageDialogOpen(true)}
         onChangeStageOrderClick={() => setStageOrderDialogOpen(true)}
+        onCommentsClick={() => setInstanceDiscussionOpen(true)}
       />
       <InstanceEditorAddStageDialog
         open={addStageDialogOpen}
@@ -1124,7 +1127,37 @@ function TreatmentProgramInstanceDetailClientBody(props: {
             </div>
           </section>
 
-          {/* «Журнал выполнения» скрыт из основного UI (данные не удаляем — см. action-log fetch выше) */}
+          {/* Action log: per-item observation rows — render buttons so discussions are reachable */}
+          {actionLog.filter(isPatientObservationActionRow).map((row) => (
+            <div key={row.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/40 bg-muted/5 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                {itemTitles.get(row.instanceStageItemId) ?? formatProgramActionLogSummaryRu(row)}
+                {row.note?.trim() ? ` — ${row.note.trim()}` : ""}
+              </span>
+              <div className="flex shrink-0 gap-2">
+                {doctorReplyFromLogEnabled ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => openProgramNoteReplyDialog(row)}
+                  >
+                    Ответить
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => openDiscussionDialog(row)}
+                >
+                  Обсуждение
+                </Button>
+              </div>
+            </div>
+          ))}
 
           <div id="doctor-program-instance-events-trigger">
             <Button
