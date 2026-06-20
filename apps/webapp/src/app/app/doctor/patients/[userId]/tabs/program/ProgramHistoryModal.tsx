@@ -35,6 +35,7 @@ export function ProgramHistoryModal({ open, onOpenChange, userId }: Props) {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync reset to loading state when dialog opens
     setInstances(null);
     setError(false);
     fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`)

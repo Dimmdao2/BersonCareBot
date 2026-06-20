@@ -49,6 +49,7 @@ export function PatientTabComms({ userId, initialProgramInstances }: Props) {
   useEffect(() => {
     if (initialProgramInstances != null) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading indicator set synchronously before async fetch
     setInstanceLoading(true);
     fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`, {
       credentials: "include",

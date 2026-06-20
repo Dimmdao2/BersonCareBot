@@ -12,7 +12,7 @@
  */
 import { NextResponse } from "next/server";
 import { assertIntegratorGetRequest } from "@/app-layer/integrator/assertIntegratorGetRequest";
-import { createPgWebPushSubscriptionsPort } from "@/infra/repos/pgWebPushSubscriptions";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export async function GET(request: Request) {
   const authError = assertIntegratorGetRequest(request);
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
   }
 
-  const port = createPgWebPushSubscriptionsPort();
-  const subscriptions = await port.listActiveByUserId(userId);
+  const { webPushSubscriptions } = buildAppDeps();
+  const subscriptions = await webPushSubscriptions.listActiveByUserId(userId);
   return NextResponse.json({ ok: true, subscriptions }, { status: 200 });
 }

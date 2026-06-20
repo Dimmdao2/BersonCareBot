@@ -38,6 +38,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
         );
         return;
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync completion of SSR-data path: no program found in preloaded data
       setProgramCheckDone(true);
       return;
     }

@@ -478,7 +478,6 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
 
   useEffect(() => {
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset fetch state when userId changes
     setLoading(true);
     setError(false);
     setHeader(null);
