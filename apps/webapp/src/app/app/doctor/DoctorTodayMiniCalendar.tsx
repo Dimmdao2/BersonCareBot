@@ -136,7 +136,7 @@ export function DoctorTodayMiniCalendar({
         <span className={doctorSectionSubtitleClass}>{todayDateLabel}</span>
       </div>
 
-      {/* R1: подсказка «нет записей» + ссылка на расписание, но сам FC-день всегда виден */}
+      {/* R1: empty-state hint + link to schedule; the FC day stays visible regardless */}
       {appointments.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           Записей на сегодня нет —{" "}
