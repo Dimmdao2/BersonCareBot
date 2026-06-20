@@ -6,6 +6,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { resolvePatientTerms } from "@/modules/system-settings/patientTerms";
 import { PatientsPageClient } from "./PatientsPageClient";
 
 function getValueJson<T>(v: unknown, fallback: T): T {
@@ -13,10 +14,6 @@ function getValueJson<T>(v: unknown, fallback: T): T {
     return (v as Record<string, unknown>).value as T;
   }
   return fallback;
-}
-
-function resolvePatientPluralLabel(singular: string): string {
-  return singular === "клиент" ? "Клиенты" : "Пациенты";
 }
 
 type PageProps = {
@@ -42,7 +39,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
 
   const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
   const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
-  const patientPluralLabel = resolvePatientPluralLabel(String(patientSingular));
+  const { patientPluralLabel } = resolvePatientTerms(String(patientSingular));
 
   const listPromise = deps.doctorClients.listClients(
     {

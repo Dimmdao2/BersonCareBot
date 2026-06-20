@@ -218,7 +218,7 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
       ) : null}
       {mountedTabs.has("soprovozhdenie") ? (
         <div hidden={activeTab !== "soprovozhdenie"} data-testid="tab-panel-soprovozhdenie">
-          <SoprovozhdeniePage />
+          <SoprovozhdeniePage patientGenPlural={patientGenPlural} />
         </div>
       ) : null}
     </DoctorAppShell>
