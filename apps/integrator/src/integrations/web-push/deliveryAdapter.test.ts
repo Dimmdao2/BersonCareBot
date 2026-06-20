@@ -1,9 +1,11 @@
 /**
  * Tests for WebPushDeliveryAdapter (PLAN S14a DoD).
  *
- * KEY SAFETY TEST: with DEV_DELIVERY_REDIRECT=1, a web_push intent dispatched through
- * `dispatchOutgoing` collapses to the telegram test chat and makes ZERO real
- * `webpush.sendNotification` calls. This is the primary evidence for the safety gate.
+ * KEY SAFETY TEST (Q-A rework): with DEV_DELIVERY_REDIRECT=1, a web_push intent
+ * dispatched through `dispatchOutgoing` is redirected PER-CHANNEL to the dev test
+ * user's pushUserId (channel preserved, NOT collapsed to telegram). The web_push
+ * adapter IS reached but with the test user's pushUserId, never the real client's.
+ * This is the primary evidence for the per-channel safety gate.
  *
  * Also verifies:
  * - canHandle: returns true only for 'message.send' + channel 'web_push'
@@ -107,16 +109,23 @@ function restoreTestEnv() {
   _resetDevRedirectActiveCache();
 }
 
-// ─── THE SAFETY TEST: dev-collapse + ZERO real webpush.sendNotification ───────
+// ─── THE SAFETY TEST: per-channel dev-redirect, real pushUserId replaced ──────
 
-describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: dev collapse + zero real webpush calls', () => {
+describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: per-channel dev redirect (Q-A rework)', () => {
+  /**
+   * Q-A rework: web_push intent stays as web_push (channel preserved).
+   * The redirect rewrites the pushUserId to the test user's pushUserId
+   * (DMITRY default: 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0).
+   * webpush.sendNotification IS called, but only to the test user, never real client.
+   */
+  const DEV_PUSH_USER_ID = '1c312a64-fab8-4b75-b24e-88a1d6ebe4e0';
   let webpushMock: { sendNotification: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     activateDevRedirect();
     const webpush = await import('web-push');
     webpushMock = webpush.default as unknown as { sendNotification: ReturnType<typeof vi.fn> };
-    vi.mocked(webpushMock.sendNotification).mockReset();
+    vi.mocked(webpushMock.sendNotification).mockReset().mockResolvedValue({ statusCode: 201 });
   });
 
   afterEach(() => {
@@ -124,14 +133,13 @@ describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: dev collapse + zero re
     vi.restoreAllMocks();
   });
 
-  it('DEV SAFETY: web_push intent dispatched through dispatchOutgoing collapses to telegram — ZERO webpush.sendNotification calls', async () => {
+  it('DEV SAFETY: web_push intent through dispatchOutgoing → pushUserId replaced with dev user, NOT real client', async () => {
     const webPushAccessPort = makeWebPushAccessPort();
     const webPushAdapter = createWebPushDeliveryAdapter({ webPushAccessPort });
-    const { adapter: tgAdapter, captured } = buildTelegramCaptureAdapter();
 
-    // Register BOTH adapters — telegram (collapse target) and web_push (must NOT be called).
+    // Only the web_push adapter registered — channel is preserved, NOT collapsed to telegram.
     const port = createDefaultDispatchPort({
-      adapters: [tgAdapter, webPushAdapter],
+      adapters: [webPushAdapter],
     });
 
     const { logger } = await import('../../infra/observability/logger.js');
@@ -145,34 +153,21 @@ describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: dev collapse + zero re
     );
     expect(redirectLogs.length, 'Expected PRE_FORK_DEV_DELIVERY_REDIRECT log').toBeGreaterThan(0);
 
-    // (b) Telegram adapter captured it (not the web_push adapter).
-    expect(captured, 'Telegram adapter should have received the collapsed intent').toHaveLength(1);
+    // (b) The web_push adapter IS reached (channel preserved, not collapsed to telegram).
+    // Subscriptions fetched for the DEV push user, not the real recipient.
+    expect(webPushAccessPort.getSubscriptionsForUser, 'getSubscriptionsForUser called with dev pushUserId')
+      .toHaveBeenCalledWith(DEV_PUSH_USER_ID);
 
-    // (c) The outbound recipient is the test chat id.
-    const receivedPayload = captured[0]!.payload as { recipient: Record<string, unknown>; delivery: { channels: string[] } };
-    expect(receivedPayload.recipient.chatId, 'chatId must be TEST_CHAT_ID').toBe(TEST_CHAT_ID);
-    expect(receivedPayload.delivery.channels, 'channel must be telegram').toEqual(['telegram']);
-
-    // (d) No pushUserId survives into the telegram adapter.
-    expect(receivedPayload.recipient, 'pushUserId must be dropped by redirect').not.toHaveProperty('pushUserId');
-
-    // (e) THE KEY SAFETY ASSERTION: webpush.sendNotification was NEVER called.
-    expect(
-      webpushMock.sendNotification,
-      'webpush.sendNotification MUST be zero in dev — this is the primary safety gate',
-    ).not.toHaveBeenCalled();
-
-    // (f) Subscription access port was NOT invoked (redirect fires before adapter selection).
-    expect(webPushAccessPort.getSubscriptionsForUser).not.toHaveBeenCalled();
-    expect(webPushAccessPort.getVapidCredentials).not.toHaveBeenCalled();
+    // (c) The original real pushUserId must NOT have been passed to the access port.
+    const [firstCallArg] = webPushAccessPort.getSubscriptionsForUser.mock.calls[0]!;
+    expect(firstCallArg, 'real pushUserId must be replaced').not.toBe('user-123');
   });
 
   it('DEV SAFETY: redirect log message is emitted for web_push intent', async () => {
     const webPushAccessPort = makeWebPushAccessPort();
     const webPushAdapter = createWebPushDeliveryAdapter({ webPushAccessPort });
-    const { adapter: tgAdapter } = buildTelegramCaptureAdapter();
 
-    const port = createDefaultDispatchPort({ adapters: [tgAdapter, webPushAdapter] });
+    const port = createDefaultDispatchPort({ adapters: [webPushAdapter] });
 
     const { logger } = await import('../../infra/observability/logger.js');
     const warnSpy = vi.spyOn(logger, 'warn');
