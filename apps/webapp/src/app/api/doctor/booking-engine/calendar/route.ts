@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseCalendarQuery } from "@/app-layer/booking/parseCalendarQuery";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getDoctorEffectiveCalendarIana } from "@/modules/doctor-calendar-timezone/doctorCalendarTimezone";
-import { pgDoctorCalendarTimezonePort } from "@/infra/repos/pgDoctorCalendarTimezone";
+import { resolveDoctorCalendarIana } from "@/app-layer/booking/resolveDoctorCalendarIana";
 import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
 
 export async function GET(request: Request) {
@@ -14,10 +13,9 @@ export async function GET(request: Request) {
   }
 
   // Resolve effective doctor timezone: personal TZ ?? app_display_timezone
-  const timeZone = await getDoctorEffectiveCalendarIana(
-    gate.ctx.session.user.userId,
-    pgDoctorCalendarTimezonePort,
-  ).catch(() => "Europe/Moscow");
+  const timeZone = await resolveDoctorCalendarIana(gate.ctx.session.user.userId).catch(
+    () => "Europe/Moscow",
+  );
   const parsed = parseCalendarQuery(new URL(request.url).searchParams, timeZone);
   if ("error" in parsed) {
     return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });

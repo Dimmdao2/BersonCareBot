@@ -17,8 +17,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger, serializeError } from "@/infra/logging/logger";
-import { getDoctorEffectiveCalendarIana } from "@/modules/doctor-calendar-timezone/doctorCalendarTimezone";
-import { pgDoctorCalendarTimezonePort } from "@/infra/repos/pgDoctorCalendarTimezone";
+import { resolveDoctorCalendarIana } from "@/app-layer/booking/resolveDoctorCalendarIana";
 import { requireDoctorBookingEngine } from "../../booking-engine/_requireDoctorBookingEngine";
 
 const QuerySchema = z.object({
@@ -59,10 +58,9 @@ export async function GET(req: Request) {
   if (parsed.data.timeZone) {
     timeZone = parsed.data.timeZone;
   } else {
-    timeZone = await getDoctorEffectiveCalendarIana(
-      gate.ctx.session.user.userId,
-      pgDoctorCalendarTimezonePort,
-    ).catch(() => "Europe/Moscow");
+    timeZone = await resolveDoctorCalendarIana(gate.ctx.session.user.userId).catch(
+      () => "Europe/Moscow",
+    );
   }
 
   try {
