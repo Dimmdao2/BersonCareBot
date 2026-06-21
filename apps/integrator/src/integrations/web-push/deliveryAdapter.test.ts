@@ -161,7 +161,7 @@ describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: per-channel dev redire
       .toHaveBeenCalledWith(DEV_PUSH_USER_ID);
 
     // (c) The original real pushUserId must NOT have been passed to the access port.
-    const [firstCallArg] = webPushAccessPort.getSubscriptionsForUser.mock.calls[0]!;
+    const [firstCallArg] = vi.mocked(webPushAccessPort.getSubscriptionsForUser).mock.calls[0]!;
     expect(firstCallArg, 'real pushUserId must be replaced').not.toBe('user-123');
   });
 
