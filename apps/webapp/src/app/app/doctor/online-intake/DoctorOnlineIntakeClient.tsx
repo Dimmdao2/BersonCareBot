@@ -778,7 +778,9 @@ export function DoctorOnlineIntakeClient({
                 )}
                 {detail.status !== "closed" && (
                   <Link
-                    href={patientCardHref(detail.patientUserId)}
+                    href={doctorClientProfileHref(detail.patientUserId, {
+                      profileListScope: "appointments",
+                    })}
                     className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
                   >
                     Карточка клиента

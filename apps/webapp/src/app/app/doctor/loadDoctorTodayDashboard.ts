@@ -61,6 +61,8 @@ export type DoctorTodayDashboardDeps = {
       audience?: DoctorAppointmentsAudience,
     ): Promise<AppointmentRow[]>;
   };
+  /** Optional loader for calendar-month appointments (deferred to avoid extra audience-filtered call). */
+  loadMonthAppointments?: () => Promise<AppointmentRow[]>;
   doctorClients: {
     getDashboardPatientMetrics(audience?: {
       excludedUserIds?: string[];
@@ -217,7 +219,9 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     status: row.status,
     branchName: row.branchName,
     scheduleProvenancePrefix: row.scheduleProvenancePrefix ?? null,
-    href: hasClient ? patientCardHref(uid) : "/app/doctor/appointments",
+    href: hasClient
+      ? `/app/doctor/clients/${encodeURIComponent(uid)}?scope=appointments`
+      : "/app/doctor/appointments",
     ctaLabel: hasClient ? "Открыть карточку" : "Открыть записи",
   };
 }
@@ -244,7 +248,7 @@ export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSuppo
     displayName: row.displayName.trim() || "—",
     firstName: row.firstName ?? null,
     lastName: row.lastName ?? null,
-    href: patientCardHref(uid),
+    href: `/app/doctor/clients/${encodeURIComponent(uid)}?scope=appointments#doctor-client-section-treatment-programs`,
     unreadMessagesCount: 0,
     exerciseDoneTodayCount: 0,
     newExerciseCommentsCount: 0,
@@ -390,7 +394,9 @@ export async function loadDoctorTodayDashboard(
   ] = await Promise.all([
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }, audience),
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }, audience),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "recordsInCalendarMonth" }, audience),
+    deps.loadMonthAppointments
+      ? deps.loadMonthAppointments()
+      : Promise.resolve([] as AppointmentRow[]),
     intakeService.listForDoctor({ status: "new", limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),
