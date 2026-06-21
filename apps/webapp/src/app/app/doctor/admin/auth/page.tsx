@@ -1,17 +1,17 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData";
 import { AuthProvidersSection } from "@/app/app/settings/AuthProvidersSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 export default async function DoctorAdminAuthPage() {
   await requireAdminDoctorPage();
   const { authProvidersConfig } = await loadAdminSettingsPageData();
 
   return (
-    <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className={`mb-3 ${doctorPageTitleClass}`}>Авторизация</h1>
+    <DoctorAppShell title="Авторизация">
+      <DoctorPageHeader title="Авторизация" />
       <AuthProvidersSection {...authProvidersConfig} />
-    </div>
+    </DoctorAppShell>
   );
 }
