@@ -1,122 +1,172 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { StylesConfig } from "react-select";
+import TimezoneSelect, { type ITimezone, type ITimezoneOption } from "react-timezone-select";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import {
-  getCachedIanaTimezonesSorted,
-  isValidIanaTimeZoneId,
-  prioritizeMoscowFirst,
-} from "@/shared/timezone/ianaTimezonesForAdminUi";
+import { apiJson } from "@/shared/lib/apiJson";
+import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
+import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimezoneSelectLabels";
+
+/**
+ * Styles for react-timezone-select adapted to the doctor Shadcn theme.
+ * Uses standard Shadcn CSS custom properties so it matches the rest of the UI.
+ */
+const doctorTzSelectStyles: StylesConfig<ITimezone, false> = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 36,
+    borderRadius: "calc(var(--radius) - 2px)",
+    borderColor: state.isFocused ? "hsl(var(--ring))" : "hsl(var(--border))",
+    backgroundColor: "hsl(var(--background))",
+    boxShadow: state.isFocused ? "0 0 0 2px hsl(var(--ring) / 0.2)" : "none",
+    cursor: "pointer",
+    opacity: state.isDisabled ? 0.5 : 1,
+    "&:hover": { borderColor: "hsl(var(--border))" },
+    fontSize: "0.875rem",
+  }),
+  menuPortal: (base) => ({ ...base, zIndex: 60 }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: "calc(var(--radius) - 2px)",
+    border: "1px solid hsl(var(--border))",
+    overflow: "hidden",
+    backgroundColor: "hsl(var(--popover))",
+    boxShadow: "0 4px 16px rgb(0 0 0 / 0.12)",
+    fontSize: "0.875rem",
+  }),
+  menuList: (base) => ({ ...base, padding: 0 }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isFocused ? "hsl(var(--accent))" : "hsl(var(--popover))",
+    color: state.isFocused ? "hsl(var(--accent-foreground))" : "hsl(var(--popover-foreground))",
+    cursor: "pointer",
+    fontSize: "0.875rem",
+    lineHeight: 1.4,
+  }),
+  singleValue: (base) => ({
+    ...base,
+    color: "hsl(var(--foreground))",
+    fontSize: "0.875rem",
+  }),
+  placeholder: (base) => ({
+    ...base,
+    color: "hsl(var(--muted-foreground))",
+    fontSize: "0.875rem",
+  }),
+  input: (base) => ({
+    ...base,
+    color: "hsl(var(--foreground))",
+    fontSize: "0.875rem",
+  }),
+  indicatorSeparator: () => ({ display: "none" }),
+  dropdownIndicator: (base, state) => ({
+    ...base,
+    color: "hsl(var(--muted-foreground))",
+    transform: state.selectProps.menuIsOpen ? "rotate(180deg)" : undefined,
+    transition: "transform 0.15s ease",
+  }),
+};
 
 export type DoctorTimezoneSectionProps = {
   initialTimezone: string | null;
 };
 
 export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSectionProps) {
-  const [timezone, setTimezone] = useState(initialTimezone ?? "Europe/Moscow");
-  const [tzFilter, setTzFilter] = useState("");
+  const [iana, setIana] = useState<string>(initialTimezone ?? "Europe/Moscow");
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
 
-  const baseIanaIds = useMemo(() => {
-    const all = getCachedIanaTimezonesSorted();
-    const cur = timezone.trim() || "Europe/Moscow";
-    if (all.includes(cur)) return all;
-    return [cur, ...all];
-  }, [timezone]);
+  // Build timezone labels including any non-standard IANA from the doctor's saved value
+  const timezoneLabels = useMemo(() => mergePatientTimezoneSelectLabels(iana), [iana]);
 
-  const filteredIanaIds = useMemo(() => {
-    const cur = timezone.trim() || "Europe/Moscow";
-    const q = tzFilter.trim().toLowerCase();
-    if (q) {
-      return baseIanaIds.filter((z) => z.toLowerCase().includes(q));
-    }
-    const list = prioritizeMoscowFirst(baseIanaIds);
-    if (!list.includes(cur)) return [cur, ...list];
-    return list;
-  }, [baseIanaIds, tzFilter, timezone]);
+  // Dismiss the "Сохранено" flash after 3 s
+  useEffect(() => {
+    if (!saved) return;
+    const t = setTimeout(() => setSaved(false), 3000);
+    return () => clearTimeout(t);
+  }, [saved]);
 
-  function handleSave() {
+  const persistTimezone = useCallback(async (value: string): Promise<boolean> => {
+    setSaving(true);
     setSaved(false);
     setError(null);
-    startTransition(async () => {
-      try {
-        const tzRaw = timezone.trim() || "Europe/Moscow";
-        if (!isValidIanaTimeZoneId(tzRaw)) {
-          setError("Выберите валидную зону IANA из списка");
-          return;
-        }
-        await apiJson<{ ok: boolean }>("/api/doctor/account/timezone", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ timezone: tzRaw }),
-        });
-        setSaved(true);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Ошибка при сохранении");
-      }
-    });
-  }
+    try {
+      await apiJson<{ ok: boolean }>("/api/doctor/account/timezone", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: value }),
+      });
+      setSaved(true);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка при сохранении");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  const handleSave = () => {
+    void persistTimezone(iana);
+  };
+
+  const handleDetectFromBrowser = async () => {
+    const browserTz = getBrowserCalendarIanaForAuth();
+    if (!browserTz) {
+      setError("Не удалось определить пояс в браузере.");
+      return;
+    }
+    setIana(browserTz);
+    await persistTimezone(browserTz);
+  };
 
   return (
     <DoctorSection>
       <DoctorSectionHeader>
         <DoctorSectionTitle>Часовой пояс</DoctorSectionTitle>
+        <p className="text-xs text-muted-foreground">
+          Вручную в списке или «Определить автоматически» — из настроек браузера.
+        </p>
       </DoctorSectionHeader>
-      <div className="flex flex-col gap-3">
-        <Input
-          type="search"
-          placeholder="Поиск по названию зоны…"
-          value={tzFilter}
-          onChange={(e) => setTzFilter(e.target.value)}
-          disabled={isPending}
-          autoComplete="off"
-          className="max-w-lg"
-        />
-        <Select
-          value={timezone.trim() || "Europe/Moscow"}
-          onValueChange={(v) => {
-            if (v) {
-              setTimezone(v);
-              setTzFilter("");
-            }
+      <div className="flex flex-col gap-3 max-w-lg">
+        {/* react-timezone-select/react-select value types conflict at TS level; runtime is correct */}
+        <TimezoneSelect
+          instanceId="doctor-calendar-tz"
+          inputId="doctor-calendar-tz-input"
+          value={iana as never}
+          onChange={(tz: ITimezoneOption) => {
+            setIana(tz.value);
+            setSaved(false);
+            setError(null);
           }}
-          disabled={isPending}
-        >
-          <SelectTrigger id="doctor-calendar-timezone" className="w-full max-w-lg">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            {filteredIanaIds.length > 0 ? (
-              filteredIanaIds.map((id) => (
-                <SelectItem key={id} value={id}>
-                  {id}
-                </SelectItem>
-              ))
-            ) : (
-              <div className="px-2 py-2 text-xs text-muted-foreground">Нет результатов</div>
-            )}
-          </SelectContent>
-        </Select>
-        <span className="text-xs text-muted-foreground">Найдено зон: {filteredIanaIds.length}</span>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Сохранение…" : "Сохранить"}
+          timezones={timezoneLabels}
+          labelStyle="original"
+          displayValue="UTC"
+          isDisabled={saving}
+          isSearchable
+          styles={doctorTzSelectStyles as never}
+          menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+          menuPosition="fixed"
+          maxMenuHeight={280}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Сохранение…" : "Сохранить"}
           </Button>
-          {saved && <span className="text-sm text-green-600">Сохранено</span>}
-          {error && <span className="text-sm text-destructive">{error}</span>}
+          <button
+            type="button"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:pointer-events-none disabled:opacity-50"
+            disabled={saving}
+            onClick={() => void handleDetectFromBrowser()}
+          >
+            Определить автоматически
+          </button>
         </div>
+        {saved && <span className="text-xs text-green-600">Сохранено</span>}
+        {error && <span className="text-xs text-destructive">{error}</span>}
       </div>
     </DoctorSection>
   );
