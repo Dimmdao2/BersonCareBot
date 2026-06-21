@@ -25,6 +25,7 @@ import {
   ContentEditorRightPane,
 } from "./ContentEditorRightPane";
 import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
+import { ContentSectionsListClient, type SectionListRow } from "./sections/ContentSectionsListClient";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -292,6 +293,25 @@ export function ContentHubShell({
 
   const { activePaneKey, setActivePaneKey } = useContentNavState(articleSectionEntries);
 
+  // Sections-management pane: derive SectionListRow[] from already-loaded data
+  const sectionsForManagementPane = useMemo((): SectionListRow[] => {
+    return fullSections
+      .filter((s) => s.kind === "article")
+      .map((s) => ({
+        id: s.id,
+        slug: s.slug,
+        title: s.title,
+        sortOrder: s.sortOrder,
+        isVisible: s.isVisible,
+        requiresAuth: s.requiresAuth,
+        coverImageUrl: s.coverImageUrl ?? null,
+        iconImageUrl: s.iconImageUrl ?? null,
+        kind: s.kind,
+        systemParentCode: s.systemParentCode ?? null,
+        pagesInSection: pagesBySectionSlug[s.slug]?.length ?? 0,
+      }));
+  }, [fullSections, pagesBySectionSlug]);
+
   const renderRightPanel = () => {
     if (loadError) {
       return (
@@ -299,6 +319,23 @@ export function ContentHubShell({
           digest={loadError.digest}
           devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
         />
+      );
+    }
+
+    if (activePaneKey === "sections") {
+      return (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="m-0 text-base font-semibold">Разделы</h2>
+            <Link
+              href="/app/doctor/content/sections/new"
+              className={buttonVariants({ variant: "default", size: "sm" })}
+            >
+              + Создать раздел
+            </Link>
+          </div>
+          <ContentSectionsListClient initialSections={sectionsForManagementPane} />
+        </div>
       );
     }
 
@@ -409,14 +446,6 @@ export function ContentHubShell({
       <DoctorPageHeader
         id="doctor-content-header"
         title="Контент"
-        info={
-          <Link
-            href="/app/doctor/content/sections"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            Разделы
-          </Link>
-        }
       />
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
         <ContentNav

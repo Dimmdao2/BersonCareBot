@@ -24,7 +24,8 @@ export type ContentNavPaneKey =
   | "situations"
   | "lessons"
   | `section:${string}`
-  | "media";
+  | "media"
+  | "sections";
 
 export type ContentNavSectionEntry = {
   slug: string;
@@ -260,6 +261,13 @@ export function ContentNav({
         ))
       )}
 
+      {/* ── Разделы (управление) — в левом меню, открывает правую панель ── */}
+      <NavRow
+        label="Разделы"
+        active={activePaneKey === "sections"}
+        onClick={() => onPaneChange("sections")}
+      />
+
       <Separator className="my-1.5" />
 
       {/* ── Медиа ── */}
@@ -301,7 +309,8 @@ function urlParamToPaneKey(raw: string | null, articleSlugs: string[]): ContentN
     raw === "sos" ||
     raw === "situations" ||
     raw === "lessons" ||
-    raw === "media"
+    raw === "media" ||
+    raw === "sections"
   ) {
     return raw;
   }
