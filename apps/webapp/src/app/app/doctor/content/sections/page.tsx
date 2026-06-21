@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { PageSection } from "@/components/common/layout/PageSection";
-import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { cn } from "@/lib/utils";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import { ContentSectionsListClient } from "./ContentSectionsListClient";
 
@@ -49,25 +49,25 @@ export default async function DoctorContentSectionsPage() {
 
   return (
     <DoctorAppShell title="Разделы контента" user={session.user} backHref="/app/doctor/content">
-      <PageSection id="doctor-content-sections-section" as="section" className="flex flex-col gap-4">
+      <DoctorPageHeader
+        title="Разделы контента"
+        info={
+          <Link href="/app/doctor/content/sections/new" className={cn(buttonVariants({ size: "sm" }))}>
+            Создать раздел
+          </Link>
+        }
+      />
+      <DoctorSection id="doctor-content-sections-section">
         {loadError ? (
           <DataLoadFailureNotice
             digest={loadError.digest}
             devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
           />
         ) : null}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <SectionHeading level="subsection" className="m-0">
-            Разделы
-          </SectionHeading>
-          <Link href="/app/doctor/content/sections/new" className={cn(buttonVariants({ size: "sm" }))}>
-            Создать раздел
-          </Link>
-        </div>
         <div id="doctor-content-sections-list">
           <ContentSectionsListClient initialSections={initialSections} />
         </div>
-      </PageSection>
+      </DoctorSection>
     </DoctorAppShell>
   );
 }

@@ -1,5 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import {
   clinicalTestListArchiveScopeFromRecommendationFilter,
@@ -78,6 +79,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
 
   return (
     <DoctorAppShell title="Клинические тесты" user={session.user} backHref="/app/doctor">
+      <DoctorPageHeader title="Клинические тесты" />
       <ClinicalTestsPageClient
         initialItems={items}
         initialSelectedId={initialSelectedId}
