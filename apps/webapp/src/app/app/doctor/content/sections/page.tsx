@@ -51,7 +51,7 @@ export default async function DoctorContentSectionsPage() {
     <DoctorAppShell title="Разделы контента" user={session.user} backHref="/app/doctor/content">
       <DoctorPageHeader
         title="Разделы контента"
-        end={
+        info={
           <Link href="/app/doctor/content/sections/new" className={cn(buttonVariants({ size: "sm" }))}>
             Создать раздел
           </Link>
