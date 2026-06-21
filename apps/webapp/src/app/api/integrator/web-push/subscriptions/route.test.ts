@@ -9,9 +9,13 @@ vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
 }));
 
 const mockListActiveByUserId = vi.hoisted(() => vi.fn().mockResolvedValue([]));
-vi.mock("@/infra/repos/pgWebPushSubscriptions", () => ({
-  createPgWebPushSubscriptionsPort: () => ({
-    listActiveByUserId: mockListActiveByUserId,
+// buildAppDeps creates the port at module level, so we must mock the whole thing
+// rather than just the factory function.
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    webPushSubscriptions: {
+      listActiveByUserId: mockListActiveByUserId,
+    },
   }),
 }));
 
