@@ -58,7 +58,19 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
     .from(mediaFolders)
     .where(eq(mediaFolders.kind, "client_files_root"))
     .limit(1);
-  if (existing) return mapFolderRow(existing);
+  if (existing) {
+    // If the folder exists but still carries the legacy name, rename it in-place.
+    // This handles environments where the 0133 migration has not yet been applied.
+    if (existing.nameNormalized === CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY.toLowerCase()) {
+      const [renamed] = await db
+        .update(mediaFolders)
+        .set({ name: CLIENT_FILES_ROOT_FOLDER_NAME, updatedAt: sql`now()` })
+        .where(eq(mediaFolders.id, existing.id))
+        .returning();
+      if (renamed) return mapFolderRow(renamed);
+    }
+    return mapFolderRow(existing);
+  }
 
   await promoteLegacyClientFilesRootFolder(db);
 
