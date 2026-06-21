@@ -19,7 +19,9 @@ import {
   timeLabelToMinute,
 } from "@/app/app/settings/bookingSoloAdminApi";
 
-const WH_BASE = "/api/admin/booking-engine/working-hours";
+// Doctor-scoped route: server resolves and forces the doctor's own specialist;
+// a client-supplied specialistId in POST/PATCH bodies is ignored server-side.
+const WH_BASE = "/api/doctor/booking-engine/working-hours";
 const SETTINGS_BASE = "/api/admin/booking-engine/scheduling-settings";
 
 const WEEKDAYS = [
