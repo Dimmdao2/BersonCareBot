@@ -144,7 +144,7 @@ describe('webPushAccessPort', () => {
 
       await port.getSubscriptionsForUser('user-uuid');
       const [, options] = fetchMock.mock.calls[0]!;
-      const headers = (options as RequestInit).headers as Record<string, string>;
+      const headers = (options as { headers?: Record<string, string> }).headers as Record<string, string>;
       expect(headers['X-Bersoncare-Timestamp']).toBeDefined();
       expect(headers['X-Bersoncare-Signature']).toBeDefined();
     });
@@ -230,7 +230,7 @@ describe('webPushAccessPort', () => {
 
       await port.getVapidCredentials();
       const [, options] = fetchMock.mock.calls[0]!;
-      const headers = (options as RequestInit).headers as Record<string, string>;
+      const headers = (options as { headers?: Record<string, string> }).headers as Record<string, string>;
       expect(headers['X-Bersoncare-Timestamp']).toBeDefined();
       expect(headers['X-Bersoncare-Signature']).toBeDefined();
     });

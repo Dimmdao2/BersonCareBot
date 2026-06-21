@@ -59,7 +59,10 @@ import {
 import { PatientStageCompositionList } from "@/app/app/patient/treatment/PatientStageCompositionList";
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
-import { ProgramItemDiscussionInline } from "@/app/app/patient/treatment/ProgramItemDiscussionInline";
+import {
+  ProgramItemCompleteDialog,
+  type ProgramItemCompleteDialogPayload,
+} from "@/app/app/patient/treatment/ProgramItemCompleteDialog";
 import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
@@ -320,6 +323,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     lastMessage: null,
     lastDoneSummary: null,
   });
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
   const commentsInteraction = programCommentsInteraction;
   const mediaInteraction = programMediaInteraction;
@@ -511,6 +515,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     void loadDiscussionPreview();
   }, [loadDiscussionPreview]);
 
+  const markDiscussionRead = useCallback(async () => {
+    if (!item) return;
+    const readUrl = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/discussion/read`;
+    await fetch(readUrl, { method: "POST" });
+    await loadDiscussionPreview();
+  }, [instanceId, item, loadDiscussionPreview]);
+
   useEffect(() => {
     const lds = discussionPreview.lastDoneSummary;
     if (!lds) return;
@@ -525,7 +536,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     setDifficulty("medium");
   }, [itemId]);
 
-  const handleComplete = async () => {
+  const handleComplete = async (payload?: ProgramItemCompleteDialogPayload) => {
     if (!item || simpleCompleteDoneFrozen) return;
     setBusy(item.id);
     setError(null);
@@ -533,7 +544,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
       const result = await postProgramItemComplete({
         base,
         itemId: item.id,
-        payload: {
+        payload: payload ?? {
           perceivedDifficulty: difficulty,
           reps: parseOptionalPositiveInt(repsRaw),
           weightKg: parseOptionalNonNegativeNumber(weightRaw),
@@ -543,6 +554,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         setError(result.error);
         return;
       }
+      setCompleteDialogOpen(false);
       await refresh();
       await loadDiscussionPreview();
     } finally {
@@ -800,68 +812,27 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                   )
                 ) : (
                   <div className="flex w-full min-w-0 flex-col gap-2">
-                    {/* Difficulty selector */}
-                    <div className="flex gap-1.5">
-                      {(["easy", "medium", "hard"] as const).map((d, i) => (
-                        <button
-                          key={d}
-                          type="button"
-                          disabled={busy !== null || simpleCompleteDoneFrozen}
-                          onClick={() => setDifficulty(d)}
-                          className={cn(
-                            "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
-                            difficulty === d
-                              ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary,#284da0)] text-white"
-                              : "border-[var(--patient-border)] bg-transparent text-[var(--patient-muted-text,#888)]",
-                          )}
-                        >
-                          {(["Легко", "Нормально", "Тяжело"] as const)[i]}
-                        </button>
-                      ))}
-                    </div>
-                    {/* Reps + Weight fields */}
-                    <div className="flex gap-2">
-                      {mediaPickerVisible ? (
-                        <button
-                          type="button"
-                          className={cn(
-                            "inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 p-0 text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10 sm:min-w-10",
-                            mediaPickerEnabled
-                              ? "cursor-pointer hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]"
-                              : "cursor-not-allowed opacity-60",
-                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
-                          )}
-                          disabled={busy !== null || !mediaPickerEnabled}
-                          aria-disabled={!mediaPickerEnabled}
-                          aria-label="Камера"
-                          onClick={() => {
-                            if (!mediaPickerEnabled) return;
-                            queueMicrotask(() => mediaPickerRef.current?.open());
-                          }}
-                        >
-                          <Camera className="size-4" aria-hidden />
-                        </button>
-                      ) : null}
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={repsRaw}
-                        onChange={(e) => setRepsRaw(e.target.value)}
-                        placeholder="Повторения"
-                        disabled={busy !== null || simpleCompleteDoneFrozen}
-                        className="h-9 flex-1 rounded-md border border-[var(--patient-border)] bg-white px-2.5 text-sm placeholder-[var(--patient-muted-text,#888)] focus:outline-none focus:ring-1 focus:ring-[var(--patient-color-primary,#284da0)] disabled:opacity-60"
-                      />
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={weightRaw}
-                        onChange={(e) => setWeightRaw(e.target.value)}
-                        placeholder="Вес, кг"
-                        disabled={busy !== null || simpleCompleteDoneFrozen}
-                        className="h-9 flex-1 rounded-md border border-[var(--patient-border)] bg-white px-2.5 text-sm placeholder-[var(--patient-muted-text,#888)] focus:outline-none focus:ring-1 focus:ring-[var(--patient-color-primary,#284da0)] disabled:opacity-60"
-                      />
-                    </div>
-                    {/* Submit */}
+                    {mediaPickerVisible ? (
+                      <button
+                        type="button"
+                        className={cn(
+                          "inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 p-0 text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10 sm:min-w-10",
+                          mediaPickerEnabled
+                            ? "cursor-pointer hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]"
+                            : "cursor-not-allowed opacity-60",
+                          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+                        )}
+                        disabled={busy !== null || !mediaPickerEnabled}
+                        aria-disabled={!mediaPickerEnabled}
+                        aria-label="Камера"
+                        onClick={() => {
+                          if (!mediaPickerEnabled) return;
+                          queueMicrotask(() => mediaPickerRef.current?.open());
+                        }}
+                      >
+                        <Camera className="size-4" aria-hidden />
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className={cn(
@@ -870,7 +841,10 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                       )}
                       disabled={busy !== null || simpleCompleteDoneFrozen}
-                      onClick={() => void handleComplete()}
+                      onClick={() => {
+                        if (simpleCompleteDoneFrozen) return;
+                        setCompleteDialogOpen(true);
+                      }}
                     >
                       {simpleCompleteDoneFrozen ? (
                         <>
@@ -878,9 +852,15 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           <span className="min-w-0 flex-1 text-center font-semibold leading-tight">Выполнено</span>
                         </>
                       ) : (
-                        <span className="w-full text-center leading-tight">Записать</span>
+                        <span className="w-full text-center leading-tight">Отметить выполнение</span>
                       )}
                     </button>
+                    <ProgramItemCompleteDialog
+                      open={completeDialogOpen}
+                      onOpenChange={setCompleteDialogOpen}
+                      submitting={busy !== null}
+                      onSubmit={async (payload) => { await handleComplete(payload); }}
+                    />
                   </div>
                 )}
               </div>
@@ -910,13 +890,32 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           ) : null}
 
           {commentsInteraction.visible ? (
-            <ProgramItemDiscussionInline
-              instanceId={instanceId}
-              itemId={item.id}
-              disabled={!commentsInteraction.enabled}
-              onRead={loadDiscussionPreview}
-              mediaSubmissionEnabled={mediaPickerEnabled}
-            />
+            <div className="my-2 flex flex-col gap-2">
+              {discussionPreview.unreadCount > 0 ? (
+                <>
+                  <p className={cn(patientMutedTextClass, "text-xs")}>новых: {discussionPreview.unreadCount}</p>
+                  <button
+                    type="button"
+                    disabled={!commentsInteraction.enabled}
+                    aria-disabled={!commentsInteraction.enabled}
+                    className={cn(patientButtonPrimaryClass, "w-full py-2 text-sm")}
+                    onClick={() => { void markDiscussionRead(); }}
+                  >
+                    Открыть комментарии
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!commentsInteraction.enabled}
+                  aria-disabled={!commentsInteraction.enabled}
+                  className={cn(patientButtonPrimaryClass, "w-full py-2 text-sm")}
+                  onClick={() => { void markDiscussionRead(); }}
+                >
+                  Оставить комментарий к выполнению
+                </button>
+              )}
+            </div>
           ) : null}
 
           {!(item.itemType === "clinical_test" && navMode === "tests") ? <ModalDescriptionSection item={item} /> : null}

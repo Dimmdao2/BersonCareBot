@@ -460,7 +460,7 @@ describe("DoctorTodayDashboard", () => {
       patientUserId: null,
       title: "Задача на другой день",
       description: null,
-      dueAt: "2026-06-20T09:00:00.000Z",
+      dueAt: "2099-12-31T09:00:00.000Z",
       remindAt: null,
       isImportant: false,
       completedAt: null,

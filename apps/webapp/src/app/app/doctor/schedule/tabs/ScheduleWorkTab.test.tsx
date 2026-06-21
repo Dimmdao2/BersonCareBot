@@ -7,13 +7,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // Mocks (webapp-tests-lean: тяжёлые импорты в beforeAll)
 // ---------------------------------------------------------------------------
 
-// BookingSoloScheduleSection — мокаем stub (тяжёлый, не нужен в этих тестах)
-vi.mock("@/app/app/settings/BookingSoloScheduleSection", () => ({
-  BookingSoloScheduleSection: () => (
-    <div data-testid="booking-solo-schedule-section">weekly-schedule-stub</div>
-  ),
-}));
-
 vi.mock("@/app/app/settings/bookingSoloAdminApi", () => ({
   apiJson: vi.fn(),
   fetchSoloOverview: vi.fn(),
@@ -27,6 +20,11 @@ vi.mock("@/app/app/settings/bookingSoloAdminApi", () => ({
     const [h, m] = v.split(":").map(Number);
     return h * 60 + m;
   },
+}));
+
+// Bootstrap: the component uses fetchDoctorScheduleBootstrap (not fetchSoloOverview)
+vi.mock("../doctorScheduleApi", () => ({
+  fetchDoctorScheduleBootstrap: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -48,16 +46,6 @@ const BRANCHES: MockBranch[] = [
   { id: "branch-spb", title: "Санкт-Петербург", shortTitle: "СПб", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
   { id: "branch-msk", title: "Москва", shortTitle: "Мск", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
 ];
-
-const OVERVIEW = {
-  organizationId: "org-1",
-  organization: { id: "org-1", title: "Клиника" },
-  branches: BRANCHES,
-  specialists: [{ id: "spec-1", fullName: "Иванов", isActive: true }],
-  services: [],
-  specialistAvailability: [],
-  locationAvailability: [],
-};
 
 const WORKING_DAY_ROWS = [
   {
@@ -97,8 +85,14 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 
 async function renderWorkTab(deepLinkParams: Record<string, string> = {}) {
-  const { fetchSoloOverview, apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
-  (fetchSoloOverview as ReturnType<typeof vi.fn>).mockResolvedValue(OVERVIEW);
+  const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+  (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+    organizationTitle: "Клиника",
+    branches: BRANCHES.filter((b) => b.isActive),
+    specialistId: "spec-1",
+  });
+
+  const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
   (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
     if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
     if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
@@ -303,7 +297,7 @@ describe("ScheduleWorkTab", () => {
     // Reset mock
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-days") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-days") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -314,7 +308,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const putCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-days" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-days" &&
           (call[1] as RequestInit)?.method === "PUT",
       );
       expect(putCall).toBeTruthy();
@@ -345,7 +339,7 @@ describe("ScheduleWorkTab", () => {
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-days") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-days") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -356,7 +350,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const putCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-days" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-days" &&
           (call[1] as RequestInit)?.method === "PUT",
       );
       expect(putCall).toBeTruthy();
@@ -379,7 +373,7 @@ describe("ScheduleWorkTab", () => {
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-days") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-days") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -390,7 +384,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const putCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-days" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-days" &&
           (call[1] as RequestInit)?.method === "PUT",
       );
       expect(putCall).toBeTruthy();
@@ -486,7 +480,7 @@ describe("ScheduleWorkTab", () => {
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-schedule-templates") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-schedule-templates") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -497,7 +491,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const postCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-schedule-templates" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-schedule-templates" &&
           (call[1] as RequestInit)?.method === "POST",
       );
       expect(postCall).toBeTruthy();
@@ -530,64 +524,17 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => expect(screen.getByTestId("month-label")).toHaveTextContent("Январь 2027"));
   });
 
-  // ── CAL-02: Mode switcher ────────────────────────────────────────────────
+  // ── CAL-02: always per-date mode (mode switcher removed in SCH-R-05) ──────
 
-  it("CAL-02: renders mode switcher with «По датам» and «Недельный шаблон» buttons", async () => {
-    await renderWorkTab({ month: "2026-06" });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("mode-switcher")).toBeInTheDocument();
-      expect(screen.getByTestId("mode-btn-per-date")).toBeInTheDocument();
-      expect(screen.getByTestId("mode-btn-weekly")).toBeInTheDocument();
-    });
-    expect(screen.getByTestId("mode-btn-per-date")).toHaveTextContent("По датам");
-    expect(screen.getByTestId("mode-btn-weekly")).toHaveTextContent("Недельный шаблон");
-  });
-
-  it("CAL-02: defaults to per-date mode — month grid visible, weekly section absent", async () => {
+  it("CAL-02: month grid is always visible — mode switcher removed", async () => {
     await renderWorkTab({ month: "2026-06" });
 
     await waitFor(() => {
       expect(screen.getByTestId("month-grid")).toBeInTheDocument();
-      expect(screen.queryByTestId("booking-solo-schedule-section")).not.toBeInTheDocument();
     });
-  });
-
-  it("CAL-02: per-date button has aria-selected=true by default", async () => {
-    await renderWorkTab({ month: "2026-06" });
-
-    await waitFor(() => {
-      const btn = screen.getByTestId("mode-btn-per-date");
-      expect(btn).toHaveAttribute("aria-selected", "true");
-      expect(screen.getByTestId("mode-btn-weekly")).toHaveAttribute("aria-selected", "false");
-    });
-  });
-
-  it("CAL-02: clicking «Недельный шаблон» switches mode — shows weekly section, hides month grid", async () => {
-    await renderWorkTab({ month: "2026-06" });
-
-    await waitFor(() => expect(screen.getByTestId("mode-btn-weekly")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("mode-btn-weekly"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("booking-solo-schedule-section")).toBeInTheDocument();
-      expect(screen.queryByTestId("month-grid")).not.toBeInTheDocument();
-    });
-    expect(screen.getByTestId("mode-btn-weekly")).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("mode-btn-per-date")).toHaveAttribute("aria-selected", "false");
-  });
-
-  it("CAL-02: switching back to «По датам» restores month grid and hides weekly section", async () => {
-    await renderWorkTab({ month: "2026-06" });
-
-    await waitFor(() => expect(screen.getByTestId("mode-btn-weekly")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("mode-btn-weekly"));
-    await waitFor(() => expect(screen.getByTestId("booking-solo-schedule-section")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByTestId("mode-btn-per-date"));
-    await waitFor(() => {
-      expect(screen.getByTestId("month-grid")).toBeInTheDocument();
-      expect(screen.queryByTestId("booking-solo-schedule-section")).not.toBeInTheDocument();
-    });
+    // Mode-switcher was removed in feat(SCH-R-05) — assert it's absent
+    expect(screen.queryByTestId("mode-switcher")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mode-btn-per-date")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mode-btn-weekly")).not.toBeInTheDocument();
   });
 });

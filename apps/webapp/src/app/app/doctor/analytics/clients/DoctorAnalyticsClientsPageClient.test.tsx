@@ -11,6 +11,14 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { emptyClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
 
+// DoctorDatePicker — replace calendar popover with a plain input so tests can
+// interact via getByTestId / fireEvent.change without calendar UI.
+vi.mock("@/shared/ui/doctor/DoctorDatePicker", () => ({
+  DoctorDatePicker: ({ value, onChange, testId }: { value: string; onChange: (v: string) => void; testId?: string }) => (
+    <input data-testid={testId} type="date" value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
+}));
+
 vi.mock("./AdminPlatformRegistrationStatsClient", () => ({
   AdminPlatformRegistrationStatsClient: ({ period }: { period: unknown }) => (
     <div data-testid="registration-period">{JSON.stringify(period)}</div>
@@ -71,8 +79,8 @@ describe("DoctorAnalyticsClientsPageClient filters", () => {
       customTo: "2026-05-31",
     });
 
-    fireEvent.change(screen.getByLabelText("С"), { target: { value: "2026-05-20" } });
-    fireEvent.change(screen.getByLabelText("По"), { target: { value: "2026-05-27" } });
+    fireEvent.change(screen.getByTestId("custom-from"), { target: { value: "2026-05-20" } });
+    fireEvent.change(screen.getByTestId("custom-to"), { target: { value: "2026-05-27" } });
     // period not applied yet — still original custom
     expect(periodFrom("appointments-period")).toEqual({
       preset: "custom",

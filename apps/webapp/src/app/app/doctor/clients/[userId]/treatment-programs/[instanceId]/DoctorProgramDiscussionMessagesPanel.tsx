@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/doctor/primitives/dialog";
-import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { cn } from "@/lib/utils";
 import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
@@ -345,12 +345,14 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                 {fromPatient && onSendReply && activeReplyMessageId === m.id ? (
                   <div className="w-full max-w-[min(100%,26rem)]">
                     <div className={`mt-1 rounded-md border border-border bg-background p-2${replySending ? " pointer-events-none opacity-50" : ""}`}>
-                      <MarkdownEditor
-                        name={`reply-draft-${m.id}`}
+                      <Textarea
                         value={replyDraft}
-                        onChange={setReplyDraft}
+                        onChange={(e) => setReplyDraft(e.target.value)}
+                        placeholder="Введите ответ пациенту"
                         maxLength={4000}
-                        label="Ответ пациенту (Markdown)"
+                        rows={3}
+                        aria-label="Ответ пациенту"
+                        disabled={replySending}
                       />
                       <div className="mt-2 flex justify-end">
                         <Button

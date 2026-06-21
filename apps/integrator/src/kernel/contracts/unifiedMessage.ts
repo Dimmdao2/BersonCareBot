@@ -56,6 +56,7 @@ export type UnifiedContent = {
   replyMarkup?: unknown;
   /** Telegram/MAX parse mode. */
   parse_mode?: 'HTML' | 'Markdown';
+  // eslint-disable-next-line no-secrets/no-secrets -- type/field names in JSDoc, not secrets
   /**
    * web_push specific extras that map 1:1 to WebPushClientPayload fields
    * (apps/webapp/src/modules/web-push/sendWebPushToSubscriptions.ts).
@@ -82,6 +83,7 @@ export type UnifiedContent = {
     intentType?: string | null;
     /** Matches WebPushClientPayload.pushKind?: string | null */
     pushKind?: string | null;
+    // eslint-disable-next-line no-secrets/no-secrets -- field name in JSDoc, not a secret
     /** Matches WebPushClientPayload.warmupSloganKey?: string | null */
     warmupSloganKey?: string | null;
     /** Reminder occurrence id — enables snooze/skip action buttons in the service worker. */

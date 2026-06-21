@@ -19,6 +19,9 @@ vi.mock("./DoctorClientSupportPanel", () => ({ DoctorClientSupportPanel: () => n
 vi.mock("./DoctorClientSupportCareBar", () => ({
   DoctorClientSupportCareBar: () => <div id="doctor-client-section-support" />,
 }));
+vi.mock("./DoctorProgramOverviewPanel", () => ({
+  DoctorProgramOverviewPanel: () => <div data-testid="program-overview-panel" />,
+}));
 
 const minimalProfile: ClientProfile = {
   identity: {
@@ -100,7 +103,7 @@ describe("ClientProfileCard anchor routing", () => {
     });
   });
 
-  it("renders active program tree on program tab", async () => {
+  it("renders active program tree on program tab (correction mode)", async () => {
     window.location.hash = "#doctor-client-section-treatment-programs";
     render(
       <ClientProfileCard
@@ -133,6 +136,12 @@ describe("ClientProfileCard anchor routing", () => {
         }}
       />,
     );
+    // With activeProgramTree set, the "Программа" tab opens in "overview" mode by default.
+    // Switch to "Коррекция" mode to render the tree items via DoctorClientActiveProgramPanel.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Коррекция" })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Коррекция" }));
     await waitFor(() => {
       expect(screen.getByText("Разминка")).toBeInTheDocument();
     });

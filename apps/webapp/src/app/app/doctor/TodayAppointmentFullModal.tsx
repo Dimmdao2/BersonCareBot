@@ -51,6 +51,7 @@ export function TodayAppointmentFullModal({
 
   useEffect(() => {
     if (!apptId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guard reset: clears stale event synchronously when apptId becomes null
       setEvent(null);
       return;
     }

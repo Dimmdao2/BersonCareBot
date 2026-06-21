@@ -92,6 +92,8 @@ export default async function DoctorPage() {
         programItemDiscussion: deps.programItemDiscussion,
         programActionLog: deps.programActionLog,
         displayIana,
+        loadMonthAppointments: () =>
+          deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "recordsInCalendarMonth" }),
       },
       intakeService,
       audience,

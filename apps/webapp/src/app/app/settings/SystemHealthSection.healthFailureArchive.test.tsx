@@ -122,7 +122,7 @@ describe("SystemHealthSection health failure archive controls", () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(healthJsonWithDead(2, 0)),
+      text: () => Promise.resolve(JSON.stringify(healthJsonWithDead(2, 0))),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -141,7 +141,7 @@ describe("SystemHealthSection health failure archive controls", () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(healthJsonWithDead(0, 1)),
+      text: () => Promise.resolve(JSON.stringify(healthJsonWithDead(0, 1))),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -161,7 +161,7 @@ describe("SystemHealthSection health failure archive controls", () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(healthJsonWithDead(0, 0, 2, 0)),
+      text: () => Promise.resolve(JSON.stringify(healthJsonWithDead(0, 0, 2, 0))),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -180,7 +180,7 @@ describe("SystemHealthSection health failure archive controls", () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(healthJsonWithDead(0, 0, 0, 1)),
+      text: () => Promise.resolve(JSON.stringify(healthJsonWithDead(0, 0, 0, 1))),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -205,13 +205,13 @@ describe("SystemHealthSection health failure archive controls", () => {
         const projectionDead = healthLoads === 1 ? 2 : 0;
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(healthJsonWithDead(0, 0, projectionDead, 0)),
+          text: () => Promise.resolve(JSON.stringify(healthJsonWithDead(0, 0, projectionDead, 0))),
         });
       }
       if (url.includes("/api/admin/health-failure-archive/clear") && init?.method === "POST") {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ ok: true, inserted: 2, deleted: 2 }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true, inserted: 2, deleted: 2 })),
         });
       }
       return Promise.reject(new Error(`unexpected fetch: ${url}`));

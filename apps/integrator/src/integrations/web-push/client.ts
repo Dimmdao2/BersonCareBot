@@ -11,6 +11,7 @@
 import webpush from 'web-push';
 import type { WebPushSubscriptionPayload, VapidCredentials } from '../../kernel/contracts/index.js';
 
+// eslint-disable-next-line no-secrets/no-secrets -- type name in JSDoc, not a secret
 /** Mirrors webapp's `WebPushClientPayload` (superset — no data loss per PLAN S12). */
 export type WebPushSendPayload = {
   title: string;

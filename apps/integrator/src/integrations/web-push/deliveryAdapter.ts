@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-secrets/no-secrets -- method names in JSDoc, not secrets
 /**
  * Web-Push DeliveryAdapter — wires the integrator web-push sink into the dispatchPort
  * pipeline (PLAN S14).

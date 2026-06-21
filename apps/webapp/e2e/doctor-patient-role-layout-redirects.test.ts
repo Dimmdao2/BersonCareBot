@@ -18,9 +18,13 @@ vi.mock("next/navigation", () => ({
   redirect: redirectMock,
 }));
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getCurrentSessionMock,
-}));
+vi.mock("@/modules/auth/service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/auth/service")>();
+  return {
+    ...actual,
+    getCurrentSession: getCurrentSessionMock,
+  };
+});
 
 vi.mock("@/shared/ui/doctor/shell/DoctorWorkspaceShell", () => ({
   DoctorWorkspaceShell: ({ children }: { children: ReactNode }) => children,
