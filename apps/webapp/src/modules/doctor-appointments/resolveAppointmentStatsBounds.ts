@@ -26,10 +26,10 @@ export function resolveAppointmentStatsBounds(
     };
   }
 
-  if (filter.range === "week") {
-    return resolveAppointmentStatsBounds({ kind: "preset", preset: "week" }, iana);
-  }
-
+  // "week" uses the same localDayRangeBoundsIso("week") as listAppointmentsForSpecialist
+  // so the KPI card count and the modal list always show the same date window
+  // (today → today+6 days, inclusive). Previously this delegated to the admin-stats
+  // "week" preset (today-6 → today, backward) which diverged from the modal.
   const now = DateTime.now().setZone(iana);
   const today = now.startOf("day");
   let fromDay: string;
@@ -37,10 +37,14 @@ export function resolveAppointmentStatsBounds(
   if (filter.range === "today") {
     fromDay = today.toFormat("yyyy-LL-dd");
     toDay = fromDay;
-  } else {
+  } else if (filter.range === "tomorrow") {
     const t = today.plus({ days: 1 });
     fromDay = t.toFormat("yyyy-LL-dd");
     toDay = fromDay;
+  } else {
+    // week: today through today+6
+    fromDay = today.toFormat("yyyy-LL-dd");
+    toDay = today.plus({ days: 6 }).toFormat("yyyy-LL-dd");
   }
 
   const { from, to } = localDayRangeBoundsIso(filter.range, iana);
