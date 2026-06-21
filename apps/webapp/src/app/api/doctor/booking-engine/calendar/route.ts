@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { parseCalendarQuery } from "@/app-layer/booking/parseCalendarQuery";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getDoctorEffectiveCalendarIana } from "@/modules/doctor-calendar-timezone/doctorCalendarTimezone";
+import { pgDoctorCalendarTimezonePort } from "@/infra/repos/pgDoctorCalendarTimezone";
 import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
 
 export async function GET(request: Request) {
@@ -10,19 +12,12 @@ export async function GET(request: Request) {
   if (!deps.bookingCalendar) {
     return NextResponse.json({ ok: false, error: "booking_calendar_unavailable" }, { status: 503 });
   }
-  let timeZone = "Europe/Moscow";
-  try {
-    const tzRow = await deps.systemSettings.getSetting("app_display_timezone", "admin");
-    if (
-      tzRow?.valueJson &&
-      typeof tzRow.valueJson === "object" &&
-      typeof (tzRow.valueJson as { value?: unknown }).value === "string"
-    ) {
-      timeZone = (tzRow.valueJson as { value: string }).value;
-    }
-  } catch {
-    timeZone = "Europe/Moscow";
-  }
+
+  // Resolve effective doctor timezone: personal TZ ?? app_display_timezone
+  const timeZone = await getDoctorEffectiveCalendarIana(
+    gate.ctx.session.user.userId,
+    pgDoctorCalendarTimezonePort,
+  ).catch(() => "Europe/Moscow");
   const parsed = parseCalendarQuery(new URL(request.url).searchParams, timeZone);
   if ("error" in parsed) {
     return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
