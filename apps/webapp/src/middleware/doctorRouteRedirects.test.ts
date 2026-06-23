@@ -84,9 +84,46 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
   });
 
   it("returns null for paths that need no redirect", () => {
-    expect(doctorRouteRedirectResponse(req("/app/doctor/clients"))).toBeNull();
     expect(doctorRouteRedirectResponse(req("/app/doctor"))).toBeNull();
     expect(doctorRouteRedirectResponse(req("/app/patient"))).toBeNull();
+  });
+});
+
+describe("doctorRouteRedirectResponse — /clients/ → new /patients/ card (old card retired)", () => {
+  it("redirects /app/doctor/clients (list) to /patients", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/clients"));
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe("http://localhost/app/doctor/patients");
+  });
+
+  it("redirects /clients/:userId to /patients/:userId", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/clients/user-123"));
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe("http://localhost/app/doctor/patients/user-123");
+  });
+
+  it("redirects /clients/:userId/treatment-programs/:instanceId to /patients/:userId/programs/:instanceId", () => {
+    const res = doctorRouteRedirectResponse(
+      req("/app/doctor/clients/user-123/treatment-programs/inst-9"),
+    );
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe(
+      "http://localhost/app/doctor/patients/user-123/programs/inst-9",
+    );
+  });
+
+  it("preserves query (discussionItem) across the program redirect", () => {
+    const res = doctorRouteRedirectResponse(
+      req("/app/doctor/clients/u1/treatment-programs/i1?discussionItem=d1"),
+    );
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe(
+      "http://localhost/app/doctor/patients/u1/programs/i1?discussionItem=d1",
+    );
+  });
+
+  it("does NOT redirect /clients/name-match-hints (admin tool, no /patients/ equivalent)", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/clients/name-match-hints"))).toBeNull();
   });
 });
 
