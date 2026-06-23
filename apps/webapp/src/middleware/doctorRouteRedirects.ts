@@ -35,6 +35,8 @@ export function doctorRouteRedirectResponse(
   }
 
   const legacyRedirects: Record<string, string> = {
+    // Old /clients/ client-card list → new /patients/ card list (old client card removed).
+    "/app/doctor/clients": "/app/doctor/patients",
     "/app/doctor/messages": "/app/doctor/communications?tab=chats",
     "/app/doctor/online-intake": "/app/doctor/communications?tab=intake",
     "/app/doctor/comments": "/app/doctor/communications?tab=comments",
@@ -58,6 +60,25 @@ export function doctorRouteRedirectResponse(
     url.pathname = targetPath!;
     url.search = targetQuery ? `?${targetQuery}` : "";
     return NextResponse.redirect(url, 308);
+  }
+
+  // /app/doctor/clients/:userId[/treatment-programs/:instanceId] → новая карточка /patients/.
+  // (Старая карточка-клиента удаляется; здесь — сетка безопасности для любых оставшихся
+  // ссылок/закладок. name-match-hints — админ-инструмент слияния без /patients/-эквивалента,
+  // оставляем как есть.) Query сохраняется (clone) → discussionItem/focusItemId доезжают.
+  if (pathname.startsWith("/app/doctor/clients/") && pathname !== "/app/doctor/clients/name-match-hints") {
+    const clientProgram = pathname.match(/^\/app\/doctor\/clients\/([^/]+)\/treatment-programs\/([^/]+)$/);
+    if (clientProgram) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/app/doctor/patients/${clientProgram[1]}/programs/${clientProgram[2]}`;
+      return NextResponse.redirect(url, 308);
+    }
+    const clientProfile = pathname.match(/^\/app\/doctor\/clients\/([^/]+)$/);
+    if (clientProfile) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/app/doctor/patients/${clientProfile[1]}`;
+      return NextResponse.redirect(url, 308);
+    }
   }
 
   // /app/doctor/communications и /app/doctor/schedule — настоящие страницы-шеллы.
