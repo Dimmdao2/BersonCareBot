@@ -13,7 +13,6 @@ import {
   doctorMetricValueClass,
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
-import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { patientCardHref } from "../patients/patientCardHref";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
@@ -785,10 +784,7 @@ export function DoctorOnlineIntakeClient({
                   </Link>
                 )}
                 <Link
-                  href={doctorClientProfileHref(detail.patientUserId, {
-                    profileListScope: "appointments",
-                    openChat: true,
-                  })}
+                  href={patientCardHref(detail.patientUserId)}
                   className={cn(buttonVariants({ size: "sm" }))}
                 >
                   Открыть чат

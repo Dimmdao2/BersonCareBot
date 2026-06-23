@@ -1,6 +1,6 @@
 /**
- * Редиректы legacy /subscribers → /app/doctor/patients
- * и legacy /clients (list) → /app/doctor/patients.
+ * Редиректы legacy /subscribers → /app/doctor/patients.
+ * Legacy /clients/* → /patients/* теперь делает middleware doctorRouteRedirects (см. отдельные тесты).
  * Импорты `page.tsx` — один раз в `beforeAll` (проект `fast` с жёстким testTimeout; холодный граф не дублируем в каждом `it`).
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -30,15 +30,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 describe("doctor clients scope and subscribers redirects", () => {
   let SubscribersListPage: (typeof import("@/app/app/doctor/subscribers/page"))["default"];
   let SubscribersProfilePage: (typeof import("@/app/app/doctor/subscribers/[userId]/page"))["default"];
-  let DoctorClientsLegacyPage: (typeof import("@/app/app/doctor/clients/page"))["default"];
 
   beforeAll(async () => {
     const listMod = await import("@/app/app/doctor/subscribers/page");
     SubscribersListPage = listMod.default;
     const profileMod = await import("@/app/app/doctor/subscribers/[userId]/page");
     SubscribersProfilePage = profileMod.default;
-    const clientsMod = await import("@/app/app/doctor/clients/page");
-    DoctorClientsLegacyPage = clientsMod.default;
   }, 60_000);
 
   it("/app/doctor/subscribers redirects to /app/doctor/patients", async () => {
@@ -64,28 +61,5 @@ describe("doctor clients scope and subscribers redirects", () => {
     const uid = "550e8400-e29b-41d4-a716-446655440099";
     await expect(SubscribersProfilePage({ params: Promise.resolve({ userId: uid }) })).rejects.toThrow("redirect");
     expect(redirectMock).toHaveBeenCalledWith(`/app/doctor/clients/${encodeURIComponent(uid)}?scope=all`);
-  });
-
-  it("legacy /app/doctor/clients redirects to /app/doctor/patients", async () => {
-    redirectMock.mockClear();
-    await expect(
-      DoctorClientsLegacyPage({
-        searchParams: Promise.resolve({ scope: "all" }),
-      }),
-    ).rejects.toThrow("redirect");
-    const url = redirectMock.mock.calls[0]?.[0] as string;
-    expect(url).toContain("/app/doctor/patients");
-  });
-
-  it("legacy /app/doctor/clients with archived scope redirects with archived=true", async () => {
-    redirectMock.mockClear();
-    await expect(
-      DoctorClientsLegacyPage({
-        searchParams: Promise.resolve({ scope: "archived" }),
-      }),
-    ).rejects.toThrow("redirect");
-    const url = redirectMock.mock.calls[0]?.[0] as string;
-    expect(url).toContain("/app/doctor/patients");
-    expect(url).toContain("archived=true");
   });
 });

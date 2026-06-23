@@ -183,7 +183,7 @@ describe("DoctorOnlineIntakeClient — детальная панель", () => {
     );
     expect(screen.getByRole("link", { name: "Открыть чат" })).toHaveAttribute(
       "href",
-      `/app/doctor/clients/${PATIENT_ID}?scope=appointments&chat=1`,
+      `/app/doctor/patients/${PATIENT_ID}`,
     );
   });
 
