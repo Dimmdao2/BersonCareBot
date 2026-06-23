@@ -303,7 +303,7 @@ function currentMonthRange(): { from: string; to: string } {
 
 /** Month label in Russian for the current month. */
 function currentMonthLabel(): string {
-  return new Date().toLocaleDateString("ru-RU", { month: "long" });
+  return new Date().toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", month: "long" });
 }
 
 // ---------------------------------------------------------------------------
