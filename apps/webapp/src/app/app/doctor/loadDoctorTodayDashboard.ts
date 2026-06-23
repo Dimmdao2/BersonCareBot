@@ -392,8 +392,10 @@ export async function loadDoctorTodayDashboard(
     patientMetrics,
     onSupportListRaw,
   ] = await Promise.all([
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }, audience),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }, audience),
+    // #9: use statsRange so cancelled appointments are included in today/week lists
+    // (statsRange = same date window as range, but no status filter → includes cancelled)
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "today" }, audience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "week" }, audience),
     deps.loadMonthAppointments
       ? deps.loadMonthAppointments()
       : Promise.resolve([] as AppointmentRow[]),

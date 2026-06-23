@@ -26,6 +26,8 @@ type Props = {
   data: TodayDashboardData;
   kpiStats: DoctorStatsState;
   appointmentsTodayCount: number;
+  /** #9: explicit week count so it equals the modal list length (includes cancelled). */
+  weekAppointmentsCount?: number;
   monthAppointmentCount: number;
   displayIana: string;
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
@@ -43,6 +45,7 @@ export function DoctorTodayDashboard({
   data,
   kpiStats,
   appointmentsTodayCount,
+  weekAppointmentsCount,
   monthAppointmentCount,
   displayIana,
   adminHealthBanner,
@@ -257,7 +260,7 @@ export function DoctorTodayDashboard({
           {/* 3 KPI: Записи сегодня, Записи неделя, Записи месяц */}
           <DoctorTodayRightKpiRow
             appointmentsTodayCount={appointmentsTodayCount}
-            weekAppointmentsCount={kpiStats.appointments.total}
+            weekAppointmentsCount={weekAppointmentsCount ?? kpiStats.appointments.total}
             monthAppointmentCount={monthAppointmentCount}
             todayAppointments={data.todayAppointments}
             weekAppointments={data.weekAppointments}
