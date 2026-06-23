@@ -1791,10 +1791,6 @@ export function ScheduleCalendarTab({
         title={kpiModalTitle}
         count={kpiModalItems.length}
         items={kpiModalItems}
-        searchPlaceholder="Поиск по имени…"
-        searchPredicate={(item, q) =>
-          (item.patientName ?? "").toLowerCase().includes(q.toLowerCase())
-        }
         renderItem={(item) => (
           <div className="flex justify-between items-center py-1 text-sm">
             <span className="font-medium">{item.patientName ?? "Запись"}</span>
