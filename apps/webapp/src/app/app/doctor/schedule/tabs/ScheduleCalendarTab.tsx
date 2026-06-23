@@ -311,16 +311,20 @@ export function deriveSlotTimes(
  * per-date be_working_days with weekday fallback — §3.13) plus the visible slot
  * bounds. For each day that has working intervals we emit the complement within
  * `[slotMin, slotMax]`. Days without working intervals (closed / no schedule) get
- * NO gray fill — an all-gray column reads as noise; FullCalendar leaves it white.
+ * a full-column grey fill (slotMin..slotMax) — #6: empty/closed days must be grey.
+ *
+ * @param visibleDayKeys  All YYYY-MM-DD keys in the visible grid (used to detect
+ *   days that have no working-hours at all → fill the whole column grey).  When
+ *   not provided the old behaviour is preserved: only days with ≥1 working event
+ *   are filled.
  */
 function buildNonWorkingFillEvents(
   workingEvents: { startAt: string; endAt: string }[],
   timeZone: string,
   slotMinMinute: number,
   slotMaxMinute: number,
+  visibleDayKeys?: string[],
 ): { id: string; start: string; end: string }[] {
-  if (workingEvents.length === 0) return [];
-
   // Group working intervals by local calendar day.
   const byDay = new Map<string, { startMs: number; endMs: number }[]>();
   for (const ev of workingEvents) {
@@ -334,6 +338,18 @@ function buildNonWorkingFillEvents(
       endMs: DateTime.fromISO(ev.endAt).toMillis(),
     });
     byDay.set(dayKey, list);
+  }
+
+  // #6: days that exist in the visible grid but have NO working events at all
+  // must get a full-column grey fill so they render as non-working (not white).
+  if (visibleDayKeys) {
+    for (const dayKey of visibleDayKeys) {
+      if (!byDay.has(dayKey)) {
+        byDay.set(dayKey, []); // empty interval list → full fill below
+      }
+    }
+  } else if (workingEvents.length === 0) {
+    return [];
   }
 
   const out: { id: string; start: string; end: string }[] = [];
@@ -970,6 +986,21 @@ export function ScheduleCalendarTab({
     // gray; working time stays white. Only in hour-grid views (3 дня / Неделя /
     // День) — a month grid has no time axis to fill. Replaces the old per-break
     // background events; the complement fill subsumes them.
+    // #6: compute all visible day keys so days with no schedule get full-grey fill.
+    const visibleDayKeysForFill: string[] = (() => {
+      if (!isTimeGrid) return [];
+      const range = visibleRange(view, anchorDate, currentTimeZone);
+      const from = DateTime.fromISO(range.from, { zone: currentTimeZone });
+      const to = DateTime.fromISO(range.to, { zone: currentTimeZone });
+      const totalDays = Math.max(1, Math.ceil(to.diff(from, "days").days));
+      const keys: string[] = [];
+      for (let i = 0; i < totalDays; i++) {
+        const k = from.plus({ days: i }).toISODate();
+        if (k) keys.push(k);
+      }
+      return keys;
+    })();
+
     const grayFill =
       isTimeGrid && workingBounds
         ? buildNonWorkingFillEvents(
@@ -977,6 +1008,7 @@ export function ScheduleCalendarTab({
             currentTimeZone,
             loMinute,
             hiMinute,
+            visibleDayKeysForFill,
           ).map((f) => ({
             id: f.id,
             start: f.start,
@@ -1048,7 +1080,8 @@ export function ScheduleCalendarTab({
       };
     }).filter((x): x is NonNullable<typeof x> => x !== null);
     return [...grayFill, ...mapped] as FullCalendarOptions["events"];
-  }, [data, view, workingBounds, currentTimeZone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, view, anchorDate, workingBounds, currentTimeZone, loMinute, hiMinute]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
 
