@@ -48,12 +48,14 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
   ): Promise<ScheduleKpis> {
     // Stub: no in-memory appointment dataset; returns zeros for all 9 KPI.
     // Real KPIs come from pgDoctorCanonicalAppointments.
+    // firstVisitIds stub is an empty array — modal will be empty, matching count=0.
     return {
       recordsInPeriod: 0,
       pastInPeriod: 0,
       futureInPeriod: 0,
       bySubscriptionInPeriod: 0,
       firstVisitInPeriod: 0,
+      firstVisitIds: [],
       repeatVisitInPeriod: 0,
       uniquePatientsInPeriod: 0,
       cancellationsInPeriod: 0,

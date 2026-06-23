@@ -393,6 +393,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         futureInPeriod: 0,
         bySubscriptionInPeriod: 0,
         firstVisitInPeriod: 0,
+        firstVisitIds: [],
         repeatVisitInPeriod: 0,
         uniquePatientsInPeriod: 0,
         cancellationsInPeriod: 0,

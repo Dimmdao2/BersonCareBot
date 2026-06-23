@@ -96,6 +96,12 @@ export type ScheduleKpis = {
   bySubscriptionInPeriod: number;
   /** Записи в периоде, у пациента которых НЕТ более ранней неотменённой записи. */
   firstVisitInPeriod: number;
+  /**
+   * ID записей, вошедших в firstVisitInPeriod.
+   * Позволяет модалке отфильтровать фид точно так же, как SQL.
+   * Гарантирует tile == modal для «Первичных» и «Повторных».
+   */
+  firstVisitIds: string[];
   /** records − firstVisit. */
   repeatVisitInPeriod: number;
   /** COUNT(DISTINCT platformUserId) по записям в периоде. */

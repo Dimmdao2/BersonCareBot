@@ -1247,28 +1247,35 @@ export function ScheduleCalendarTab({
     );
   }, [data?.events, searchQuery]);
 
-  // KPI modal: predicate map + filtered items
-  const KPI_PREDICATES: Partial<Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>> = {
-    cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
-    firstVisitInPeriod: (_e) => false, // no isFirstVisit field on type; show nothing
-    repeatVisitInPeriod: (_e) => false, // same
-    bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
-    pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
-    futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
-    uniquePatientsInPeriod: (_e) => true,
-    recordsInPeriod: (_e) => true,
-    reschedulesInPeriod: (e) => e.rescheduleCount > 0,
-  };
-
+  // KPI modal: predicate map + filtered items.
+  // firstVisitInPeriod / repeatVisitInPeriod use the id-set returned by the API
+  // (kpis.firstVisitIds) so the modal shows exactly the same appointments as the
+  // tile counter — matching the SQL NOT EXISTS logic that looks across ALL time,
+  // not just the visible feed window.
   const kpiModalItems = useMemo<CalendarAppointmentEvent[]>(() => {
     if (!kpiModalFilter) return [];
+
+    const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
+
+    const KPI_PREDICATES: Partial<Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>> = {
+      cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
+      firstVisitInPeriod: (e) => firstVisitIdSet.has(e.id),
+      repeatVisitInPeriod: (e) => !isCancelledAppointmentStatus(e.status) && !firstVisitIdSet.has(e.id),
+      bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
+      pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
+      futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
+      uniquePatientsInPeriod: (_e) => true,
+      recordsInPeriod: (_e) => true,
+      reschedulesInPeriod: (e) => e.rescheduleCount > 0,
+    };
+
     const pred = KPI_PREDICATES[kpiModalFilter];
     if (!pred) return [];
     return (data?.events ?? []).filter(
       (e): e is CalendarAppointmentEvent => e.kind === "appointment" && pred(e),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kpiModalFilter, data?.events, currentTimeZone]);
+  }, [kpiModalFilter, data?.events, currentTimeZone, kpis?.firstVisitIds]);
 
   const kpiModalTitle = kpiModalFilter
     ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? "")

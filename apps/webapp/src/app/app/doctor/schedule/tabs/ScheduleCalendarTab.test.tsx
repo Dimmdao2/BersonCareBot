@@ -94,6 +94,33 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
   ),
 }));
 
+// DoctorCalendarRescheduleDialog — мокаем stub (тяжёлый, не нужен в этих тестах)
+vi.mock("../../calendar/DoctorCalendarRescheduleDialog", () => ({
+  DoctorCalendarRescheduleDialog: () => null,
+}));
+
+// KpiPreviewModal — мокаем stub с data-testid, чтобы проверять items в тестах
+vi.mock("@/shared/ui/doctor/KpiPreviewModal", () => ({
+  KpiPreviewModal: ({
+    open,
+    title,
+    count,
+    items,
+  }: {
+    open: boolean;
+    title: string;
+    count: number;
+    items: { id: string }[];
+  }) =>
+    open ? (
+      <div data-testid="kpi-modal" data-title={title} data-count={count}>
+        {items.map((item) => (
+          <div key={item.id} data-testid={`modal-item-${item.id}`} />
+        ))}
+      </div>
+    ) : null,
+}));
+
 // DoctorCalendarToolbarFilter
 vi.mock("../../calendar/DoctorCalendarToolbarFilter", () => ({
   DoctorCalendarToolbarFilter: ({
@@ -145,15 +172,16 @@ const makeCalendarResponse = (events: object[] = [], workingBounds?: object) => 
   workingBounds: workingBounds ?? null,
 });
 
-const makeKpisResponse = () => ({
+const makeKpisResponse = (firstVisitIds: string[] = []) => ({
   ok: true,
   kpis: {
     recordsInPeriod: 5,
     pastInPeriod: 2,
     futureInPeriod: 3,
     bySubscriptionInPeriod: 1,
-    firstVisitInPeriod: 4,
-    repeatVisitInPeriod: 1,
+    firstVisitInPeriod: firstVisitIds.length || 4,
+    firstVisitIds,
+    repeatVisitInPeriod: firstVisitIds.length ? 5 - firstVisitIds.length : 1,
     uniquePatientsInPeriod: 4,
     cancellationsInPeriod: 0,
     reschedulesInPeriod: 0,
@@ -610,6 +638,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           futureInPeriod: 0,
           bySubscriptionInPeriod: 0,
           firstVisitInPeriod: 0,
+          firstVisitIds: [],
           repeatVisitInPeriod: 0,
           uniquePatientsInPeriod: 0,
           cancellationsInPeriod: 0,
@@ -1004,6 +1033,131 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       const result = deriveSlotTimes({ minMinute: 510, maxMinute: 1080 }, [], "UTC");
       // 510 = 8h30m → floor(510/60)*60 = 8*60 = 480 = 08:00
       expect(result.slotMinTime).toBe("08:00:00");
+    });
+  });
+
+  // ─── KPI modal tile==modal invariant ─────────────────────────────────────
+  //
+  // Доказывает что число элементов в модалке для «Первичных» и «Повторных»
+  // совпадает с числом на плитке KPI.
+  //
+  // Сценарий: фид содержит 3 записи (appt-1, appt-2, appt-3).
+  // API возвращает firstVisitIds = ["appt-1", "appt-3"] (2 первичных).
+  // Ожидание:
+  //   - плитка «Первичных» = 2, модалка = {appt-1, appt-3}
+  //   - плитка «Повторных» = 1, модалка = {appt-2}
+
+  describe("KPI modal tile==modal invariant (firstVisit/repeatVisit)", () => {
+    const makeThreeAppointmentsCalResponse = () =>
+      makeCalendarResponse([
+        {
+          kind: "appointment",
+          id: "appt-1",
+          startAt: "2026-06-13T10:00:00+03:00",
+          endAt: "2026-06-13T11:00:00+03:00",
+          status: "confirmed",
+          patientName: "Иванов Иван",
+          platformUserId: "user-1",
+          rescheduleCount: 0,
+          packageUsageRef: null,
+          packageTitle: null,
+          branchTitle: null,
+        },
+        {
+          kind: "appointment",
+          id: "appt-2",
+          startAt: "2026-06-13T12:00:00+03:00",
+          endAt: "2026-06-13T13:00:00+03:00",
+          status: "confirmed",
+          patientName: "Петрова Анна",
+          platformUserId: "user-2",
+          rescheduleCount: 0,
+          packageUsageRef: null,
+          packageTitle: null,
+          branchTitle: null,
+        },
+        {
+          kind: "appointment",
+          id: "appt-3",
+          startAt: "2026-06-14T09:00:00+03:00",
+          endAt: "2026-06-14T10:00:00+03:00",
+          status: "confirmed",
+          patientName: "Сидоров Пётр",
+          platformUserId: "user-3",
+          rescheduleCount: 0,
+          packageUsageRef: null,
+          packageTitle: null,
+          branchTitle: null,
+        },
+      ]);
+
+    it("firstVisitInPeriod tile click: modal shows exactly the firstVisitIds from API", async () => {
+      // API says appt-1 and appt-3 are first visits
+      const firstVisitIds = ["appt-1", "appt-3"];
+      setupFetchMock(makeThreeAppointmentsCalResponse(), makeKpisResponse(firstVisitIds));
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("kpi-firstVisitInPeriod"));
+      await user.click(screen.getByTestId("kpi-firstVisitInPeriod"));
+
+      await waitFor(() => {
+        const modal = screen.getByTestId("kpi-modal");
+        expect(modal).toBeInTheDocument();
+        // count attr matches tile value
+        expect(modal.getAttribute("data-count")).toBe("2");
+        // exactly the two first-visit appointments are shown
+        expect(screen.getByTestId("modal-item-appt-1")).toBeInTheDocument();
+        expect(screen.getByTestId("modal-item-appt-3")).toBeInTheDocument();
+        // repeat-only appointment is NOT in the modal
+        expect(screen.queryByTestId("modal-item-appt-2")).not.toBeInTheDocument();
+      });
+    });
+
+    it("repeatVisitInPeriod tile click: modal shows appointments NOT in firstVisitIds", async () => {
+      const firstVisitIds = ["appt-1", "appt-3"];
+      setupFetchMock(makeThreeAppointmentsCalResponse(), makeKpisResponse(firstVisitIds));
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("kpi-repeatVisitInPeriod"));
+      await user.click(screen.getByTestId("kpi-repeatVisitInPeriod"));
+
+      await waitFor(() => {
+        const modal = screen.getByTestId("kpi-modal");
+        expect(modal).toBeInTheDocument();
+        // count attr matches tile value (records - firstVisit = 3 - 2 = 1)
+        expect(modal.getAttribute("data-count")).toBe("1");
+        // only appt-2 (repeat patient) is in the modal
+        expect(screen.getByTestId("modal-item-appt-2")).toBeInTheDocument();
+        // first-visit appointments are NOT shown
+        expect(screen.queryByTestId("modal-item-appt-1")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("modal-item-appt-3")).not.toBeInTheDocument();
+      });
+    });
+
+    it("firstVisitInPeriod modal count matches tile KPI value", async () => {
+      // Tile shows firstVisitInPeriod=2; modal must also show 2 items
+      const firstVisitIds = ["appt-1", "appt-3"];
+      setupFetchMock(makeThreeAppointmentsCalResponse(), makeKpisResponse(firstVisitIds));
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("kpi-firstVisitInPeriod"));
+      // Read tile value
+      const tileEl = screen.getByTestId("kpi-firstVisitInPeriod");
+      const tileValue = parseInt(tileEl.textContent?.replace(/\D/g, "") ?? "0", 10);
+
+      await user.click(tileEl);
+
+      await waitFor(() => {
+        const modal = screen.getByTestId("kpi-modal");
+        const modalCount = parseInt(modal.getAttribute("data-count") ?? "0", 10);
+        expect(modalCount).toBe(tileValue);
+      });
     });
   });
 
