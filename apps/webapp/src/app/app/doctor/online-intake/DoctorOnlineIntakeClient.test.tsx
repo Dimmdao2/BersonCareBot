@@ -172,7 +172,7 @@ describe("DoctorOnlineIntakeClient — детальная панель", () => {
     });
   });
 
-  it("показывает ссылки «Карточка клиента» и «Чат» в панели деталей", async () => {
+  it("показывает «Карточка клиента» (ссылка) и «Открыть чат» (кнопка-модалка) в панели деталей", async () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
     await userEvent.click(screen.getByRole("button", { name: /Список Имя/i }));
@@ -181,10 +181,8 @@ describe("DoctorOnlineIntakeClient — детальная панель", () => {
       "href",
       `/app/doctor/patients/${PATIENT_ID}`,
     );
-    expect(screen.getByRole("link", { name: "Открыть чат" })).toHaveAttribute(
-      "href",
-      `/app/doctor/patients/${PATIENT_ID}`,
-    );
+    // «Открыть чат» теперь открывает модалку с перепиской (не уводит со страницы) — это кнопка, не ссылка.
+    expect(screen.getByRole("button", { name: "Открыть чат" })).toBeInTheDocument();
   });
 
   it("вызывает onDetailChange(id) при открытии", async () => {

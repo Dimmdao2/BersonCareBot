@@ -14,6 +14,7 @@ import {
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { patientCardHref } from "../patients/patientCardHref";
+import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
@@ -783,12 +784,12 @@ export function DoctorOnlineIntakeClient({
                     Карточка клиента
                   </Link>
                 )}
-                <Link
-                  href={patientCardHref(detail.patientUserId)}
-                  className={cn(buttonVariants({ size: "sm" }))}
-                >
-                  Открыть чат
-                </Link>
+                <DoctorOpenChatButton
+                  patientUserId={detail.patientUserId}
+                  patientName={detail.patientName}
+                  size="sm"
+                  variant="default"
+                />
               </div>
             </div>
           </>

@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check, Scale } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { formatFioForDoctor } from "@/lib/parseFullName";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
@@ -602,7 +603,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
 
               {/* Channel icon buttons — lucide-react icons; active = colored, inactive = muted */}
               <span className="flex gap-1">
-                <Button
+                <DoctorOpenChatButton
+                  patientUserId={identity.userId}
+                  patientName={identity.displayName ?? undefined}
                   variant="ghost"
                   size="icon"
                   title="Открыть чат"
@@ -615,7 +618,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   )}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                </Button>
+                </DoctorOpenChatButton>
                 <Button
                   variant="ghost"
                   size="icon"
