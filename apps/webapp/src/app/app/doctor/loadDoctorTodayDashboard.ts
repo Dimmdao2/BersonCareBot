@@ -219,9 +219,7 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     status: row.status,
     branchName: row.branchName,
     scheduleProvenancePrefix: row.scheduleProvenancePrefix ?? null,
-    href: hasClient
-      ? `/app/doctor/clients/${encodeURIComponent(uid)}?scope=appointments`
-      : "/app/doctor/appointments",
+    href: hasClient ? patientCardHref(uid) : "/app/doctor/appointments",
     ctaLabel: hasClient ? "Открыть карточку" : "Открыть записи",
   };
 }
@@ -248,7 +246,7 @@ export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSuppo
     displayName: row.displayName.trim() || "—",
     firstName: row.firstName ?? null,
     lastName: row.lastName ?? null,
-    href: `/app/doctor/clients/${encodeURIComponent(uid)}?scope=appointments#doctor-client-section-treatment-programs`,
+    href: patientCardHref(uid),
     unreadMessagesCount: 0,
     exerciseDoneTodayCount: 0,
     newExerciseCommentsCount: 0,

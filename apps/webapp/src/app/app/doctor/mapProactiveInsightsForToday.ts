@@ -1,3 +1,4 @@
+import { patientCardHref } from "./patients/patientCardHref";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
 
 export type TodayProactiveInsightItem = ProactiveInsightRow & {
@@ -5,12 +6,9 @@ export type TodayProactiveInsightItem = ProactiveInsightRow & {
 };
 
 export function proactiveInsightHref(row: ProactiveInsightRow): string {
-  const uid = encodeURIComponent(row.patientUserId);
-  if (row.kind === "wellbeing_low_streak") {
-    return `/app/doctor/clients/${uid}#doctor-client-section-wellbeing`;
-  }
-  // program_inactivity and any future kinds → appointments tab, treatment program section
-  return `/app/doctor/clients/${uid}?scope=appointments#doctor-client-section-treatment-programs`;
+  // New patient card. (Regression fix: 90aa7f32 — a test-greening commit — had reverted
+  // these links back to the OLD /clients/ ClientProfileCard; restored to 968db341's intent.)
+  return patientCardHref(row.patientUserId);
 }
 
 export function mapProactiveInsightsForToday(rows: readonly ProactiveInsightRow[]): TodayProactiveInsightItem[] {

@@ -40,7 +40,7 @@ describe("loadDoctorTodayDashboard helpers", () => {
       status: "created",
     });
     const item = mapAppointmentToTodayItem(row);
-    expect(item.href).toBe("/app/doctor/clients/uuid-1?scope=appointments");
+    expect(item.href).toBe("/app/doctor/patients/uuid-1");
     expect(item.ctaLabel).toBe("Открыть карточку");
     expect(item.clientUserId).toBe("uuid-1");
   });
@@ -144,7 +144,7 @@ describe("loadDoctorTodayDashboard helpers", () => {
     expect(formatDateTimeRu("not-a-date")).toBe("not-a-date");
   });
 
-  it("mapOnSupportClientToTodayItem links to patient card program section when instance id present", () => {
+  it("mapOnSupportClientToTodayItem links to the new patient card when instance id present", () => {
     const item = mapOnSupportClientToTodayItem({
       userId: "  uuid-1  ",
       displayName: "  Иван  ",
@@ -155,14 +155,12 @@ describe("loadDoctorTodayDashboard helpers", () => {
       activeTreatmentProgramInstanceId: "inst-1",
       cancellationCount30d: 0,
     });
-    expect(item.href).toBe(
-      "/app/doctor/clients/uuid-1?scope=appointments#doctor-client-section-treatment-programs",
-    );
+    expect(item.href).toBe("/app/doctor/patients/uuid-1");
     expect(item.displayName).toBe("Иван");
     expect(item.userId).toBe("uuid-1");
   });
 
-  it("mapOnSupportClientToTodayItem links to patient card program section without instance id", () => {
+  it("mapOnSupportClientToTodayItem links to the new patient card without instance id", () => {
     const item = mapOnSupportClientToTodayItem({
       userId: "uuid-2",
       displayName: "Пётр",
@@ -173,9 +171,7 @@ describe("loadDoctorTodayDashboard helpers", () => {
       activeTreatmentProgramInstanceId: null,
       cancellationCount30d: 0,
     });
-    expect(item.href).toBe(
-      "/app/doctor/clients/uuid-2?scope=appointments#doctor-client-section-treatment-programs",
-    );
+    expect(item.href).toBe("/app/doctor/patients/uuid-2");
   });
 });
 
@@ -274,6 +270,6 @@ describe("loadDoctorTodayDashboard proactive", () => {
     expect(queryCalls).toBe(1);
     expect(data.proactiveInsightsTotal).toBe(3);
     expect(data.proactiveInsights).toHaveLength(1);
-    expect(data.proactiveInsights[0]?.href).toContain("#doctor-client-section-wellbeing");
+    expect(data.proactiveInsights[0]?.href).toBe("/app/doctor/patients/p1");
   });
 });

@@ -179,7 +179,7 @@ describe("DoctorOnlineIntakeClient — детальная панель", () => {
     await waitFor(() => screen.getByRole("link", { name: "Карточка клиента" }));
     expect(screen.getByRole("link", { name: "Карточка клиента" })).toHaveAttribute(
       "href",
-      `/app/doctor/clients/${PATIENT_ID}?scope=appointments`,
+      `/app/doctor/patients/${PATIENT_ID}`,
     );
     expect(screen.getByRole("link", { name: "Открыть чат" })).toHaveAttribute(
       "href",
