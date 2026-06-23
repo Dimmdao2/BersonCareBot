@@ -24,26 +24,51 @@ type ModalKind = "today" | "week" | "month";
 
 const SCHEDULE_HREF = "/app/doctor/schedule?tab=calendar";
 
+/** #9: statuses that represent a cancellation in the appointment lists. */
+const CANCELLED_STATUS_VALUES = [
+  "canceled",
+  "cancelled_by_patient",
+  "cancelled_by_specialist",
+  "late_cancellation",
+  "no_show",
+];
+
+function isCancelledItem(item: TodayAppointmentItem): boolean {
+  return CANCELLED_STATUS_VALUES.some(
+    (s) => item.status === s || item.status.toLowerCase().includes("отмен"),
+  );
+}
+
 function AppointmentModalItem({ item }: { item: TodayAppointmentItem }) {
+  const cancelled = isCancelledItem(item);
   return (
-    <div className={doctorSectionItemClass}>
+    <div className={cancelled ? "rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2" : doctorSectionItemClass}>
       <div className="flex items-baseline justify-between gap-2">
-        <p className="font-medium text-foreground">{item.clientLabel}</p>
+        <p className={`font-medium ${cancelled ? "text-destructive/80 line-through" : "text-foreground"}`}>
+          {item.clientLabel}
+        </p>
         <span className="shrink-0 text-xs text-muted-foreground">{item.time}</span>
       </div>
+      {cancelled ? (
+        <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-destructive">
+          Отмена
+        </p>
+      ) : null}
       {item.rubitimeNameIfDifferent ? (
         <p className="mt-0.5 text-xs text-muted-foreground">
           Имя в Rubitime: {item.rubitimeNameIfDifferent}
         </p>
       ) : null}
       <p className="mt-0.5 text-xs text-muted-foreground">
-        {[item.type, item.status, item.branchName].filter(Boolean).join(" · ")}
+        {[item.type, !cancelled ? item.status : null, item.branchName].filter(Boolean).join(" · ")}
       </p>
-      <p className="mt-2">
-        <Link href={item.href} className={doctorInlineLinkClass}>
-          {item.ctaLabel}
-        </Link>
-      </p>
+      {!cancelled ? (
+        <p className="mt-2">
+          <Link href={item.href} className={doctorInlineLinkClass}>
+            {item.ctaLabel}
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -92,7 +117,7 @@ export function DoctorTodayRightKpiRow({
         />
       </DoctorMetricList>
 
-      {/* Modal: Записи сегодня */}
+      {/* Modal: Записи сегодня — #8: patient-search removed */}
       <KpiPreviewModal<TodayAppointmentItem>
         open={openModal === "today"}
         onClose={() => setOpenModal(null)}
@@ -100,11 +125,6 @@ export function DoctorTodayRightKpiRow({
         count={appointmentsTodayCount}
         items={todayItems}
         renderItem={(item) => <AppointmentModalItem item={item} />}
-        searchPlaceholder="Поиск по пациенту…"
-        searchPredicate={(item, q) =>
-          item.clientLabel.toLowerCase().includes(q.toLowerCase()) ||
-          (item.rubitimeNameIfDifferent?.toLowerCase().includes(q.toLowerCase()) ?? false)
-        }
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Записей на сегодня нет.{" "}
@@ -115,7 +135,7 @@ export function DoctorTodayRightKpiRow({
         }
       />
 
-      {/* Modal: Записи неделя */}
+      {/* Modal: Записи неделя — #8: patient-search removed */}
       <KpiPreviewModal<TodayAppointmentItem>
         open={openModal === "week"}
         onClose={() => setOpenModal(null)}
@@ -123,11 +143,6 @@ export function DoctorTodayRightKpiRow({
         count={weekAppointmentsCount}
         items={weekItems}
         renderItem={(item) => <AppointmentModalItem item={item} />}
-        searchPlaceholder="Поиск по пациенту…"
-        searchPredicate={(item, q) =>
-          item.clientLabel.toLowerCase().includes(q.toLowerCase()) ||
-          (item.rubitimeNameIfDifferent?.toLowerCase().includes(q.toLowerCase()) ?? false)
-        }
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Записей на этой неделе нет.{" "}
@@ -138,7 +153,7 @@ export function DoctorTodayRightKpiRow({
         }
       />
 
-      {/* Modal: Записи месяц */}
+      {/* Modal: Записи месяц — #8: patient-search removed */}
       <KpiPreviewModal<TodayAppointmentItem>
         open={openModal === "month"}
         onClose={() => setOpenModal(null)}
@@ -146,11 +161,6 @@ export function DoctorTodayRightKpiRow({
         count={monthAppointmentCount}
         items={monthItems}
         renderItem={(item) => <AppointmentModalItem item={item} />}
-        searchPlaceholder="Поиск по пациенту…"
-        searchPredicate={(item, q) =>
-          item.clientLabel.toLowerCase().includes(q.toLowerCase()) ||
-          (item.rubitimeNameIfDifferent?.toLowerCase().includes(q.toLowerCase()) ?? false)
-        }
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Записей в этом месяце нет.{" "}
