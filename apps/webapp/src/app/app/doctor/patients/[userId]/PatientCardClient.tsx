@@ -22,6 +22,7 @@ import {
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check, Scale } from "lucide-react";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { formatFioForDoctor } from "@/lib/parseFullName";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
@@ -342,14 +343,15 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   <span className="text-base font-bold text-foreground leading-tight">
                     {hasFio ? fioDisplay : (identity.displayName || "—")}
                   </span>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     title="Редактировать ФИО"
                     onClick={openFioEdit}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+                    className="h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
                   >
                     <Pencil className="h-3 w-3" />
-                  </button>
+                  </Button>
                 </div>
 
                 {/* displayName as secondary label (отображаемое имя) */}
@@ -461,24 +463,24 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   <p className="text-xs text-destructive">{fioError}</p>
                 )}
                 <div className="flex gap-2 mt-0.5">
-                  <button
-                    type="button"
+                  <Button
+                    variant="default"
                     onClick={saveFio}
                     disabled={fioSaving}
-                    className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium disabled:opacity-60"
                   >
                     <Check className="h-3 w-3" />
                     {fioSaving ? "Сохранение…" : "Сохранить"}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={cancelFioEdit}
                     disabled={fioSaving}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60"
                   >
                     <X className="h-3 w-3" />
                     Отмена
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -514,14 +516,15 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     ? `${physicalWeightKg} кг`
                     : "Рост/вес: —"}
                 </span>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Редактировать рост и вес"
                   onClick={openPhysicalEdit}
-                  className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+                  className="h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
                 >
                   <Scale className="h-3 w-3" />
-                </button>
+                </Button>
               </div>
             )}
 
@@ -560,24 +563,24 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   <p className="text-xs text-destructive">{physicalError}</p>
                 )}
                 <div className="flex gap-2 mt-0.5">
-                  <button
-                    type="button"
+                  <Button
+                    variant="default"
                     onClick={savePhysical}
                     disabled={physicalSaving}
-                    className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium disabled:opacity-60"
                   >
                     <Check className="h-3 w-3" />
                     {physicalSaving ? "Сохранение…" : "Сохранить"}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={cancelPhysicalEdit}
                     disabled={physicalSaving}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60"
                   >
                     <X className="h-3 w-3" />
                     Отмена
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -599,59 +602,63 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
 
               {/* Channel icon buttons — lucide-react icons; active = colored, inactive = muted */}
               <span className="flex gap-1">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Открыть чат"
                   disabled={!hasChat}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasChat
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Telegram"
                   disabled={!hasTelegram}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasTelegram
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <Send className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="MAX"
                   disabled={!hasMax}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasMax
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <Smartphone className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Написать email"
                   disabled={!hasEmail}
                   onClick={() => hasEmail && (window.location.href = `mailto:${identity.email}`)}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasEmail
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <Mail className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </span>
             </div>
           </div>
@@ -707,12 +714,12 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         <div className="px-4 py-2 border-t border-border/60 bg-muted/20">
           <div className="flex gap-0.5 flex-wrap">
             {PATIENT_TABS.map((tab) => (
-              <button
+              <Button
                 key={tab.id}
-                type="button"
+                variant="ghost"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition-colors select-none cursor-pointer",
+                  "h-auto gap-1 rounded-md px-3 py-1 text-sm font-medium",
                   activeTab === tab.id
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -731,7 +738,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     {tab.badge}
                   </span>
                 )}
-              </button>
+              </Button>
             ))}
           </div>
         </div>

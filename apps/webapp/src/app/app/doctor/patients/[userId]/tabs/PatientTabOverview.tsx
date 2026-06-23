@@ -31,6 +31,7 @@ import {
   doctorMetricValueClass,
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -970,13 +971,13 @@ export function PatientTabOverview({
 
         {/* «+ Создать визит» entry point */}
         <div className="flex justify-end">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => onTabSwitch?.("karta")}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+            className="h-auto rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
           >
             + Создать визит
-          </button>
+          </Button>
         </div>
 
         {/* KPI row */}
@@ -1047,13 +1048,13 @@ export function PatientTabOverview({
         <div className={doctorSectionCardClass}>
           <div className="flex items-center justify-between mb-1">
             <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => onTabSwitch?.("karta")}
-              className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 transition-colors cursor-pointer"
+              className="h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
             >
               Открыть Карту →
-            </button>
+            </Button>
           </div>
 
           {isLoading && (
@@ -1140,30 +1141,30 @@ export function PatientTabOverview({
               )}
             </div>
             <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => setCalView("month")}
                 className={cn(
-                  "px-2.5 py-1 transition-colors",
+                  "h-auto rounded-none px-2.5 py-1",
                   calView === "month"
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:bg-muted/50",
                 )}
               >
                 Месяц
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => setCalView("week")}
                 className={cn(
-                  "px-2.5 py-1 border-l border-border transition-colors",
+                  "h-auto rounded-none border-l border-border px-2.5 py-1",
                   calView === "week"
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:bg-muted/50",
                 )}
               >
                 Неделя
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -1242,14 +1243,15 @@ export function PatientTabOverview({
         <div className={doctorSectionCardClass}>
           <div className="flex items-center gap-2 mb-1">
             <span className={doctorSectionTitleClass}>Заметки</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               title="Добавить заметку"
               onClick={() => { setAddingNote(true); setNoteText(""); }}
-              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
+              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
             >
               +
-            </button>
+            </Button>
           </div>
 
           {addingNote && (
@@ -1263,21 +1265,21 @@ export function PatientTabOverview({
                 className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="flex gap-1.5">
-                <button
-                  type="button"
+                <Button
+                  variant="default"
                   onClick={handleNoteSubmit}
                   disabled={noteSaving || !noteText.trim()}
-                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium"
                 >
                   {noteSaving ? "Сохранение…" : "Добавить"}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => { setAddingNote(false); setNoteText(""); }}
-                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
                 >
                   Отмена
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -1315,14 +1317,15 @@ export function PatientTabOverview({
         <div className={doctorSectionCardClass}>
           <div className="flex items-center gap-2 mb-1">
             <span className={doctorSectionTitleClass}>Задачи</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               title="Добавить задачу"
               onClick={() => { setAddingTask(true); setTaskTitle(""); }}
-              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
+              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
             >
               +
-            </button>
+            </Button>
           </div>
 
           {addingTask && (
@@ -1337,21 +1340,21 @@ export function PatientTabOverview({
                 className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="flex gap-1.5">
-                <button
-                  type="button"
+                <Button
+                  variant="default"
                   onClick={() => void handleTaskSubmit()}
                   disabled={taskSaving || !taskTitle.trim()}
-                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium"
                 >
                   {taskSaving ? "Сохранение…" : "Добавить"}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => { setAddingTask(false); setTaskTitle(""); }}
-                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
                 >
                   Отмена
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -1403,13 +1406,13 @@ export function PatientTabOverview({
                 {data!.programActivity!.unreadCount} непрочит.
               </span>
             )}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => onTabSwitch?.("program")}
-              className="ml-auto inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 transition-colors cursor-pointer"
+              className="ml-auto h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
             >
               Открыть программу →
-            </button>
+            </Button>
           </div>
 
           {!isLoading && data?.programActivity?.lastMark && (
@@ -1441,15 +1444,16 @@ export function PatientTabOverview({
               {data.programStages.length > 0 && displayStage && (
                 <>
                   <div className="flex items-center gap-2 border border-border rounded-lg px-2 py-1.5 bg-muted/10 mb-2">
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       title="Предыдущий этап"
                       onClick={() => setProgramStageOffset((o) => Math.max(o - 1, minStageOffset))}
                       disabled={programStageOffset <= minStageOffset}
-                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
+                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
                     >
                       ◀
-                    </button>
+                    </Button>
                     <div className="flex-1 text-center">
                       <div className="text-[12.5px] font-semibold text-foreground">
                         Этап {displayStageIndex + 1} из {data.programStages.length} · {displayStage.title}
@@ -1464,15 +1468,16 @@ export function PatientTabOverview({
                               : displayStage.status}
                       </div>
                     </div>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       title="Следующий этап"
                       onClick={() => setProgramStageOffset((o) => Math.min(o + 1, maxStageOffset))}
                       disabled={programStageOffset >= maxStageOffset}
-                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
+                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
                     >
                       ▶
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Exercise items in stage — exclude system-kind groups */}
@@ -1537,13 +1542,13 @@ export function PatientTabOverview({
                 {totalMessageUnread} новых
               </span>
             )}
-            <button
-              type="button"
-              className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+            <Button
+              variant="ghost"
               onClick={() => onTabSwitch?.("comms")}
+              className="ml-auto h-auto p-0 text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
             >
               вся переписка →
-            </button>
+            </Button>
           </div>
 
           {isLoading && (
