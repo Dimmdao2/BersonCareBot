@@ -22,7 +22,7 @@ import type {
 } from "@/modules/program-item-discussion/types";
 import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
 import { formatDateTimeRu } from "../doctorTodayFormat";
-import { doctorClientTreatmentProgramInstanceHref } from "../clients/doctorClientInstanceHref";
+import { patientProgramInstanceHref } from "../patients/patientProgramInstanceHref";
 
 export const DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE = 50;
 
@@ -83,8 +83,7 @@ export async function loadDoctorExerciseCommentsForTab(
     stageItemTitle: row.stageItemTitle || "Упражнение",
     latestMessage: row.latestMessage,
     latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt),
-    href: doctorClientTreatmentProgramInstanceHref(row.patientUserId, row.instanceId, {
-      profileListScope: "appointments",
+    href: patientProgramInstanceHref(row.patientUserId, row.instanceId, {
       discussionItemId: row.stageItemId,
     }),
   }));

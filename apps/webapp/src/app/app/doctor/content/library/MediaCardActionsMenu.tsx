@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { doctorClientProfileHref } from "../../clients/doctorClientProfileHref";
+import { patientCardHref } from "../../patients/patientCardHref";
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import {
@@ -140,7 +140,7 @@ export function MediaCardActionsMenu({
               {item.userId ? (
                 <Link
                   className="text-primary underline"
-                  href={doctorClientProfileHref(item.userId, { profileListScope: "appointments" })}
+                  href={patientCardHref(item.userId)}
                 >
                   {item.uploadedByName?.trim() || item.userId}
                 </Link>

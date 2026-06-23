@@ -21,8 +21,8 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
-import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
-import { doctorClientTreatmentProgramInstanceHref } from "../clients/doctorClientInstanceHref";
+import { patientCardHref } from "../patients/patientCardHref";
+import { patientProgramInstanceHref } from "../patients/patientProgramInstanceHref";
 import { useDoctorExerciseCommentsSearch } from "./useDoctorExerciseCommentsSearch";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
@@ -1117,9 +1117,7 @@ export function DoctorCommentsTab({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2 flex-wrap">
                 <Link
-                  href={doctorClientProfileHref(selectedPatient.patientUserId, {
-                    profileListScope: "appointments",
-                  })}
+                  href={patientCardHref(selectedPatient.patientUserId)}
                   className={cn(doctorInlineLinkClass, "text-sm font-semibold")}
                 >
                   {selectedPatient.displayName}
@@ -1184,10 +1182,9 @@ export function DoctorCommentsTab({
               {exercisesData.instanceTitle && (
                 <div className="shrink-0 border-t border-border px-3 py-2">
                   <Link
-                    href={doctorClientTreatmentProgramInstanceHref(
+                    href={patientProgramInstanceHref(
                       selectedPatient.patientUserId,
                       exercisesData.instanceId,
-                      { profileListScope: "appointments" },
                     )}
                     className={cn(doctorInlineLinkClass, "text-xs")}
                   >
@@ -1217,9 +1214,7 @@ export function DoctorCommentsTab({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-1.5 flex-wrap text-xs text-muted-foreground">
                 <Link
-                  href={doctorClientProfileHref(selectedPatient.patientUserId, {
-                    profileListScope: "appointments",
-                  })}
+                  href={patientCardHref(selectedPatient.patientUserId)}
                   className={cn(doctorInlineLinkClass, "text-xs")}
                 >
                   {selectedPatient.displayName}

@@ -21,7 +21,7 @@ import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalytics
 import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
 import type { TodayExerciseCommentAttentionItem } from "@/app/app/doctor/loadDoctorExerciseCommentAttention";
 import { formatDateTimeRu } from "@/app/app/doctor/doctorTodayFormat";
-import { doctorClientTreatmentProgramInstanceHref } from "@/app/app/doctor/clients/doctorClientInstanceHref";
+import { patientProgramInstanceHref } from "@/app/app/doctor/patients/patientProgramInstanceHref";
 
 const PAGE_SIZE = 30;
 
@@ -118,8 +118,7 @@ export async function GET(request: Request) {
     stageItemTitle: row.stageItemTitle || "Упражнение",
     latestMessage: row.latestMessage,
     latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt),
-    href: doctorClientTreatmentProgramInstanceHref(row.patientUserId, row.instanceId, {
-      profileListScope: "appointments",
+    href: patientProgramInstanceHref(row.patientUserId, row.instanceId, {
       discussionItemId: row.stageItemId,
     }),
   }));

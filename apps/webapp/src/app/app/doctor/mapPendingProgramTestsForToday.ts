@@ -1,9 +1,6 @@
 import type { PendingProgramTestEvaluationGlobalRow } from "@/modules/treatment-program/types";
 import { groupPendingProgramTestEvaluations } from "./clients/groupPendingProgramTestEvaluations";
-import {
-  DOCTOR_CLIENT_PENDING_TESTS_SECTION_ANCHOR,
-  doctorClientProfileHref,
-} from "./clients/doctorClientProfileHref";
+import { patientCardHref } from "./patients/patientCardHref";
 import { formatDateTimeRu } from "./loadDoctorTodayDashboard";
 
 export const DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT = 10;
@@ -47,11 +44,7 @@ export function mapPendingProgramTestsForToday(
       stageTitle: g.stageTitle,
       pendingCount: g.results.length,
       submittedAtLabel: formatDateTimeRu(g.attemptSubmittedAt),
-      href: doctorClientProfileHref(patientUserId, {
-        profileListScope: "appointments",
-        pendingAttemptId: g.attemptId,
-        hash: DOCTOR_CLIENT_PENDING_TESTS_SECTION_ANCHOR,
-      }),
+      href: patientCardHref(patientUserId),
     };
   });
 }

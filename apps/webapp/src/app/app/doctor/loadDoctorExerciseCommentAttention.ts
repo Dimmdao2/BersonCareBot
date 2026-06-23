@@ -16,7 +16,7 @@ import type {
 } from "@/modules/treatment-program/types";
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatDateTimeRu } from "./doctorTodayFormat";
-import { doctorClientTreatmentProgramInstanceHref } from "./clients/doctorClientInstanceHref";
+import { patientProgramInstanceHref } from "./patients/patientProgramInstanceHref";
 
 export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
 
@@ -159,8 +159,7 @@ export async function loadDoctorExerciseCommentAttention(
               stageItemTitle: stageItemSnapshotTitle(item.snapshot),
               latestMessage: latest,
               latestMessageAtLabel: formatDateTimeRu(latest.createdAt),
-              href: doctorClientTreatmentProgramInstanceHref(patientUserId, active.id, {
-                profileListScope: "appointments",
+              href: patientProgramInstanceHref(patientUserId, active.id, {
                 discussionItemId: stageItemId,
               }),
             } satisfies TodayExerciseCommentAttentionItem;

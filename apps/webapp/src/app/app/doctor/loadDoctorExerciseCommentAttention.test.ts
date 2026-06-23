@@ -187,7 +187,7 @@ describe("loadDoctorExerciseCommentAttention", () => {
       stageItemTitle: "Мостик",
       instanceId: "inst-p2",
     });
-    expect(result.items[0]!.href).toContain("/treatment-programs/inst-p2");
+    expect(result.items[0]!.href).toContain("/programs/inst-p2");
     expect(result.items[0]!.href).toContain("discussionItem=s-new");
   });
 
