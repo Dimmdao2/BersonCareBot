@@ -40,6 +40,38 @@ export type ExerciseVideoTopItemRow = {
   count: number;
 };
 
+const EXERCISE_VIDEO_TOP_LIMIT = 15;
+
+/**
+ * AN-11: split exercise-video opens into the promo slice (general content
+ * activity — every patient has the promo program) and the assigned slice
+ * (doctor/course programs — client-specific). Rows arrive ordered by count desc;
+ * each media is pre-bucketed (in_promo) so there is no double counting.
+ */
+export function buildExerciseVideoSplit(
+  rows: ReadonlyArray<{ media_id: string; title: string; in_promo: boolean; n: string }>,
+): {
+  promoExerciseVideoTopItems: ExerciseVideoTopItemRow[];
+  promoExerciseVideoCount: number;
+  assignedExerciseVideoTopItems: ExerciseVideoTopItemRow[];
+  assignedExerciseVideoCount: number;
+} {
+  const toItem = (r: { media_id: string; title: string; n: string }): ExerciseVideoTopItemRow => ({
+    mediaId: r.media_id ?? "",
+    title: r.title ?? "",
+    count: Number(r.n ?? 0),
+  });
+  const promo = rows.filter((r) => r.in_promo).map(toItem);
+  const assigned = rows.filter((r) => !r.in_promo).map(toItem);
+  const sum = (items: ExerciseVideoTopItemRow[]) => items.reduce((acc, r) => acc + r.count, 0);
+  return {
+    promoExerciseVideoTopItems: promo.slice(0, EXERCISE_VIDEO_TOP_LIMIT),
+    promoExerciseVideoCount: sum(promo),
+    assignedExerciseVideoTopItems: assigned.slice(0, EXERCISE_VIDEO_TOP_LIMIT),
+    assignedExerciseVideoCount: sum(assigned),
+  };
+}
+
 const DEFAULT_WINDOW_HOURS = 168;
 const MIN_WINDOW_HOURS = 1;
 const MAX_WINDOW_HOURS = 720;
@@ -88,10 +120,14 @@ export type ContentEngagementStatsResponse = {
   warmupVideoEstimatedWatchMinutes: number;
   /** Оценка минут просмотра всех видео: сумма длительностей по `media_playback_resolution_events`. */
   videoPlaybackEstimatedWatchMinutes: number;
-  /** Открытия видео упражнений из программ лечения — топ по названию упражнения. */
-  exerciseVideoTopItems: ExerciseVideoTopItemRow[];
-  /** Суммарное число открытий видео упражнений за период. */
-  exerciseVideoCount: number;
+  /** AN-11: открытия видео упражнений ПРОМО-программы (общая контент-активность) — топ. */
+  promoExerciseVideoTopItems: ExerciseVideoTopItemRow[];
+  /** Суммарные открытия видео упражнений промо-программы за период. */
+  promoExerciseVideoCount: number;
+  /** AN-11: открытия видео упражнений из назначенных программ (врач/курс) — топ. */
+  assignedExerciseVideoTopItems: ExerciseVideoTopItemRow[];
+  /** Суммарные открытия видео упражнений назначенных программ за период. */
+  assignedExerciseVideoCount: number;
   /** Same rolling window as other blocks; reuses `loadAdminPlaybackHealthMetrics`. */
   videoPlayback: AdminPlaybackHealthMetrics;
   /** Ошибки воспроизведения в браузере; тот же helper, что `GET /api/admin/system-health` → `videoPlaybackClient`. */
@@ -402,28 +438,45 @@ export async function loadContentEngagementStats(opts: {
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours, excludedUserIds }),
     loadAdminPlaybackClientHealthMetrics({ windowHours, excludedUserIds }),
-    db.execute<{ media_id: string; title: string; n: string }>(sql`
-      WITH exercise_media AS (
-        SELECT DISTINCT
+    // AN-11: split exercise-video opens by program type. Playback events carry
+    // only media_id (no program context), so we classify each video by membership:
+    // a video that appears in any promo program → promo (general/baseline content
+    // every patient gets); a video only in doctor/course programs → assigned
+    // (client-specific). bool_or keeps each media in exactly one bucket (no double
+    // count). Bucketing + top-15 per bucket happens in JS below.
+    db.execute<{ media_id: string; title: string; in_promo: boolean; n: string }>(sql`
+      WITH exercise_media_raw AS (
+        SELECT
           (regexp_match(elem->>'url', '/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'))[1]::uuid AS media_id,
-          tpisi.snapshot->>'title' AS title
-        FROM treatment_program_instance_stage_items tpisi,
-             jsonb_array_elements(tpisi.snapshot->'media') AS elem
+          tpisi.snapshot->>'title' AS title,
+          tpi.assignment_source AS assignment_source
+        FROM treatment_program_instance_stage_items tpisi
+        JOIN treatment_program_instance_stages tpis ON tpis.id = tpisi.stage_id
+        JOIN treatment_program_instances tpi ON tpi.id = tpis.instance_id
+        CROSS JOIN jsonb_array_elements(tpisi.snapshot->'media') AS elem
         WHERE tpisi.item_type = 'exercise'
           AND elem->>'type' = 'video'
           AND (regexp_match(elem->>'url', '/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'))[1] IS NOT NULL
+      ),
+      exercise_media AS (
+        SELECT
+          media_id,
+          (array_agg(title ORDER BY title) FILTER (WHERE title IS NOT NULL))[1] AS title,
+          bool_or(assignment_source = 'promo') AS in_promo
+        FROM exercise_media_raw
+        GROUP BY media_id
       )
       SELECT
         em.media_id::text AS media_id,
         em.title,
+        em.in_promo,
         COUNT(mpre.id)::text AS n
       FROM exercise_media em
       JOIN media_playback_resolution_events mpre ON mpre.media_id = em.media_id
       WHERE mpre.resolved_at >= ${windowCutoffSql}
         ${exerciseUserExcludeSql}
-      GROUP BY em.media_id, em.title
+      GROUP BY em.media_id, em.title, em.in_promo
       ORDER BY COUNT(mpre.id) DESC
-      LIMIT 15
     `),
   ]);
 
@@ -491,12 +544,7 @@ export async function loadContentEngagementStats(opts: {
     })),
     warmupVideoEstimatedWatchMinutes,
     videoPlaybackEstimatedWatchMinutes,
-    exerciseVideoTopItems: exerciseVideoRows.rows.map((r) => ({
-      mediaId: r.media_id ?? "",
-      title: r.title ?? "",
-      count: Number(r.n ?? 0),
-    })),
-    exerciseVideoCount: exerciseVideoRows.rows.reduce((sum, r) => sum + Number(r.n ?? 0), 0),
+    ...buildExerciseVideoSplit(exerciseVideoRows.rows),
     videoPlayback,
     videoPlaybackClient,
   };

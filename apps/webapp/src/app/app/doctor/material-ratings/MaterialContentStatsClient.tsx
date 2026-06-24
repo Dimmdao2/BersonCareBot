@@ -190,9 +190,13 @@ export function MaterialContentStatsClient() {
     [data?.warmupVideoTopPages],
   );
 
-  const exerciseVideoChartData = useMemo(
-    () => exerciseVideoToChartData(data?.exerciseVideoTopItems ?? []),
-    [data?.exerciseVideoTopItems],
+  const promoExerciseVideoChartData = useMemo(
+    () => exerciseVideoToChartData(data?.promoExerciseVideoTopItems ?? []),
+    [data?.promoExerciseVideoTopItems],
+  );
+  const assignedExerciseVideoChartData = useMemo(
+    () => exerciseVideoToChartData(data?.assignedExerciseVideoTopItems ?? []),
+    [data?.assignedExerciseVideoTopItems],
   );
 
   return (
@@ -250,19 +254,38 @@ export function MaterialContentStatsClient() {
             </CardContent>
           </Card>
 
-          <Card className="md:col-span-2">
+          <Card className="h-full">
             <CardHeader className="py-2">
-              <CardTitle className="text-sm">Открытия видео упражнений из программ (топ)</CardTitle>
+              <CardTitle className="text-sm">Видео упражнений: промо-программа (топ)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <DoctorStatCard
-                id="content-stats-exercise-video-count"
+                id="content-stats-exercise-video-count-promo"
                 title="Всего открытий"
-                value={data.exerciseVideoCount}
-                hint="за период"
+                value={data.promoExerciseVideoCount}
+                hint="общая контент-активность · промо-программа"
               />
               <TopPagesHorizontalBarChart
-                data={exerciseVideoChartData}
+                data={promoExerciseVideoChartData}
+                barName="Открытий"
+                fill={FILL_EXERCISE_VIDEO}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="h-full">
+            <CardHeader className="py-2">
+              <CardTitle className="text-sm">Видео упражнений: назначенные программы (топ)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <DoctorStatCard
+                id="content-stats-exercise-video-count-assigned"
+                title="Всего открытий"
+                value={data.assignedExerciseVideoCount}
+                hint="назначенные врачом / курсы (без промо)"
+              />
+              <TopPagesHorizontalBarChart
+                data={assignedExerciseVideoChartData}
                 barName="Открытий"
                 fill={FILL_EXERCISE_VIDEO}
               />
