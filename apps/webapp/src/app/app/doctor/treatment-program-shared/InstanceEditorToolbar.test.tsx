@@ -68,7 +68,8 @@ describe("InstanceEditorToolbar", () => {
 
     const toolbar = screen.getByTestId("instance-editor-toolbar");
     expect(toolbar).toHaveClass("sticky", "-mx-3");
-    expect(toolbar.className).toMatch(/top-\[calc\(3\.5rem/);
+    // Canonical context-aware sticky offset (0 on desktop, mobile-header height on <md) — task #49.
+    expect(toolbar.className).toMatch(/top-\[var\(--doctor-sticky-offset\)\]/);
 
     expect(screen.getByRole("heading", { name: /план реабилитации/i })).toBeInTheDocument();
     expect(screen.queryByTestId("instance-editor-comments")).not.toBeInTheDocument();
