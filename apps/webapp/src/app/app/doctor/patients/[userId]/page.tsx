@@ -14,6 +14,7 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { toDoctorSupplementaryContacts } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import { loadDoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
 import { PatientCardClient } from "./PatientCardClient";
+import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
 
 type PageProps = {
   params: Promise<{ userId: string }>;
@@ -47,7 +48,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     patientFileRecords,
     anamnesis,
     comorbidities,
-    patientPaymentRows,
+    paymentsSummary,
     rawContactRows,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
@@ -69,16 +70,27 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     deps.patientFiles.listFiles(userId),
     deps.patientClinical.getAnamnesis(userId),
     deps.patientComorbidities.listActive(userId),
-    deps.patientPayments.listPayments(userId),
+    deps.patientPayments.listPaymentsWithSummary(userId),
     deps.platformUserContacts.listForPlatformUser(userId),
   ]);
 
+  // Unpack payments summary — listPaymentsWithSummary returns { payments, totalPaidMinor }.
+  const patientPaymentRows = paymentsSummary.payments;
+
   // Assemble finances timeline (same logic as payment-timeline route).
   const orgId = await deps.bookingEngine?.organization.getDefaultOrganizationId().catch(() => null) ?? null;
-  const historyEvents =
+
+  // Parallel-fetch remaining SSR data that depends on orgId or is otherwise independent.
+  const [historyEvents, initialPackages, , initialSupportEffectivePolicy] = await Promise.all([
     deps.payments && orgId
-      ? await deps.payments.listPaymentHistoryForUser(userId, orgId).catch(() => [])
-      : [];
+      ? deps.payments.listPaymentHistoryForUser(userId, orgId).catch(() => [])
+      : Promise.resolve([] as Awaited<ReturnType<NonNullable<typeof deps.payments>["listPaymentHistoryForUser"]>>),
+    deps.memberships && orgId
+      ? deps.memberships.listPatientPackagesForUser(userId, orgId).catch(() => null)
+      : Promise.resolve(null),
+    deps.doctorClients.getClientSupport(userId).catch(() => null), // fetched but only effectivePolicy is surfaced to UI
+    deps.doctorClients.getPatientProgramInteractionPolicy(userId).catch((): PatientProgramInteractionPolicy | null => null),
+  ]);
 
   type TimelineEntry = {
     id: string; occurredAt: string;
@@ -109,6 +121,39 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     .filter((p) => p.kind === "acquiring" && p.status === "paid")
     .reduce((s, p) => s + p.amountMinor, 0);
   const initialFinancesData = { timeline: financesTimeline, totalCashMinor, totalAcquiringMinor };
+
+  // Shape payments summary for PatientTabRecords (PaymentsPanel).
+  const initialPaymentsSummary = {
+    payments: patientPaymentRows.map((p) => ({
+      id: p.id,
+      amountMinor: p.amountMinor,
+      currency: p.currency,
+      kind: p.kind as "cash" | "acquiring",
+      status: p.status,
+      comment: p.comment ?? null,
+      service: p.service ?? null,
+      visitId: p.visitId ?? null,
+      createdAt: p.createdAt,
+    })),
+    totalPaidMinor: paymentsSummary.totalPaidMinor,
+  };
+
+  // Shape packages for MembershipPanel (ApiPackage shape: { id, title, status, validUntil, balance.items }).
+  const initialPackagesForTabs = initialPackages
+    ? initialPackages.map((pkg) => ({
+        id: pkg.id,
+        title: pkg.title,
+        status: pkg.status,
+        validUntil: pkg.validUntil ?? null,
+        balance: {
+          items: pkg.balance.items.map((item) => ({
+            quantityInitial: item.quantityInitial,
+            remaining: item.remaining,
+            serviceTitle: item.serviceTitle ?? null,
+          })),
+        },
+      }))
+    : null;
 
   // Map file records to UI shape (previewUrl omitted — S3 presigning deferred to client).
   const initialFiles = patientFileRecords.map((f) => ({ ...f, previewUrl: null }));
@@ -151,6 +196,9 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialComorbidities={comorbidities}
           initialFinancesData={initialFinancesData}
           initialSupplementaryContacts={initialSupplementaryContacts}
+          initialPackages={initialPackagesForTabs}
+          initialPaymentsSummary={initialPaymentsSummary}
+          initialSupportEffectivePolicy={initialSupportEffectivePolicy}
         />
       </section>
     </DoctorAppShell>

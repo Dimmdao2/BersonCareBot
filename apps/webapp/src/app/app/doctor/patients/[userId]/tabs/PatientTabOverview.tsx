@@ -460,6 +460,10 @@ type Props = {
   initialSignals?: ProactiveInsightRow[] | null;
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
+  /** SSR-provided patient packages. When present, skips the client-side fetch. */
+  initialPackages?: PackageItem[] | null;
+  /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
+  initialSupportEffectivePolicy?: import("@/modules/doctor-clients/supportPolicy").PatientProgramInteractionPolicy | null;
 };
 
 /** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
@@ -510,6 +514,7 @@ function buildSsrSeedData(
     appointmentsStatus,
     controlDays,
     controlDate,
+    // packageStatus/activePackage seeded after SSR packages are applied (caller patches via setData)
     packageStatus: "loading" as WidgetStatus,
     activePackage: null,
     programStatus: "loading" as WidgetStatus,
@@ -542,6 +547,8 @@ export function PatientTabOverview({
   initialSignals,
   initialProgramActivity,
   initialAppointments,
+  initialPackages,
+  initialSupportEffectivePolicy,
 }: Props) {
   const [calView, setCalView] = useState<"month" | "week">("month");
   const [programStageOffset, setProgramStageOffset] = useState(0);
@@ -609,13 +616,15 @@ export function PatientTabOverview({
     let active = true;
     const { from, to } = currentMonthRange();
 
-    // Fetches not covered by SSR (always client-side)
-    const fetchPackages = fetch(
-      `/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`,
-      { credentials: "include" },
-    )
-      .then((r) => r.ok ? (r.json() as Promise<PackagesApiResponse>) : null)
-      .catch(() => null);
+    // patient-packages: skip when SSR data provided
+    const fetchPackages = initialPackages != null
+      ? Promise.resolve({ ok: true, packages: initialPackages } as PackagesApiResponse)
+      : fetch(
+          `/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`,
+          { credentials: "include" },
+        )
+          .then((r) => r.ok ? (r.json() as Promise<PackagesApiResponse>) : null)
+          .catch(() => null);
 
     const fetchProgram = fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, { credentials: "include" })
       .then((r) => r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null)
@@ -1530,7 +1539,10 @@ export function PatientTabOverview({
         {/* Сопровождение — moved here from Учётка (S2.5) */}
         <div className={doctorSectionCardClass}>
           <span className={doctorSectionTitleClass}>Сопровождение</span>
-          <DoctorClientSupportPanel patientUserId={userId} />
+          <DoctorClientSupportPanel
+            patientUserId={userId}
+            initialEffectivePolicy={initialSupportEffectivePolicy}
+          />
         </div>
 
         {/* Сообщения */}

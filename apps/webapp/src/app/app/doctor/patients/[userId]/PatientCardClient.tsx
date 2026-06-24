@@ -35,6 +35,8 @@ import { PatientTabFiles, type FileRecord } from "./tabs/PatientTabFiles";
 import { PatientTabAccount, type SupplementaryContact } from "./tabs/PatientTabAccount";
 import { PatientTabComms } from "./tabs/PatientTabComms";
 import { PatientTabFinances, type FinancesInitialData } from "./tabs/PatientTabFinances";
+import type { ApiPackage, PaymentItem } from "./tabs/PatientTabRecords";
+import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
 
 type Props = {
   cardHeader: PatientCardHeader | null;
@@ -63,6 +65,12 @@ type Props = {
   initialFinancesData?: FinancesInitialData | null;
   /** SSR-provided supplementary contacts for the Учётка tab (SecondaryPhones). */
   initialSupplementaryContacts?: SupplementaryContact[] | null;
+  /** SSR-provided patient packages for the Визиты tab (MembershipPanel) and Обзор tab. */
+  initialPackages?: ApiPackage[] | null;
+  /** SSR-provided payments summary for the Визиты tab (PaymentsPanel). */
+  initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
+  /** SSR-provided effective support policy for the Обзор tab (DoctorClientSupportPanel). */
+  initialSupportEffectivePolicy?: PatientProgramInteractionPolicy | null;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
@@ -111,7 +119,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -773,6 +781,8 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           initialSignals={initialSignals}
           initialProgramActivity={initialProgramActivity}
           initialAppointments={initialAppointments}
+          initialPackages={initialPackages}
+          initialSupportEffectivePolicy={initialSupportEffectivePolicy}
         />
       </div>
       <div className={cn(activeTab !== "karta" && "hidden")}>
@@ -805,6 +815,8 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
             setActiveTab("karta");
           }}
           initialAppointments={initialAppointments}
+          initialPackages={initialPackages}
+          initialPaymentsSummary={initialPaymentsSummary}
         />
       </div>
       <div className={cn(activeTab !== "files" && "hidden")}>
