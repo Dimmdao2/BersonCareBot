@@ -317,9 +317,13 @@ export function NewVisitPanel({
 
   const [location, setLocation] = useState(() => pendingLocation ?? "");
   const [service, setService] = useState(() => pendingService ?? "");
-  const [duration, setDuration] = useState(() =>
-    pendingDurationMin ? `${pendingDurationMin} мин` : "",
-  );
+  // Длительность: из поля записи, иначе выводим «N мин» из названия услуги («Сеанс 60 мин» → «60 мин»).
+  const prefillDuration = (dm?: number | null, svc?: string | null): string => {
+    if (dm) return `${dm} мин`;
+    const m = svc?.match(/(\d+)\s*мин/);
+    return m ? `${m[1]} мин` : "";
+  };
+  const [duration, setDuration] = useState(() => prefillDuration(pendingDurationMin, pendingService));
 
   // Catalog options populated from patient appointments history
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
@@ -335,7 +339,9 @@ export function NewVisitPanel({
   useEffect(() => {
     if (pendingLocation) setLocation(pendingLocation);
     if (pendingService) setService(pendingService);
-    if (pendingDurationMin) setDuration(`${pendingDurationMin} мин`);
+    const d = prefillDuration(pendingDurationMin, pendingService);
+    if (d) setDuration(d);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingLocation, pendingService, pendingDurationMin]);
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
