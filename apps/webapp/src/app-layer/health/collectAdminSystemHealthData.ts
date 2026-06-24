@@ -444,12 +444,18 @@ function initMediaPreviewCounters(): MediaPreviewCounters {
   return byMime;
 }
 
-function computeMediaPreviewStatus(counters: MediaPreviewCounters, stalePendingCount: number): MediaPreviewStatus {
+export function computeMediaPreviewStatus(
+  counters: MediaPreviewCounters,
+  stalePendingCount: number,
+): MediaPreviewStatus {
   const failedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].failed, 0);
-  const pendingCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].pending, 0);
-  const skippedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].skipped, 0);
+  // #53: «pending» (preview ещё генерируется) и «skipped» (генерация осознанно
+  // пропущена) — это НОРМАЛЬНАЯ асинхронная работа, не деградация. Деградацию даёт
+  // только ЗАСТРЯВШИЙ pending (> STALE_PENDING_MINUTES, отдельный запрос ниже);
+  // реальный сбой генерации (failed) — это error. Иначе любая свежезагруженная
+  // картинка с pending-превью ложно красила всю панель в «degraded».
   if (failedCount > 0) return "error";
-  if (pendingCount > 0 || skippedCount > 0 || stalePendingCount > 0) return "degraded";
+  if (stalePendingCount > 0) return "degraded";
   return "ok";
 }
 
