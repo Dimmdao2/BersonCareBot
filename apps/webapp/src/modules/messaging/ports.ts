@@ -12,5 +12,7 @@ export type PatientInboundChatPort = {
     text: string;
     source: string;
     createdAt: string;
+    mediaUrl?: string | null;
+    mediaType?: string | null;
   }): Promise<{ id: string; created: boolean }>;
 };

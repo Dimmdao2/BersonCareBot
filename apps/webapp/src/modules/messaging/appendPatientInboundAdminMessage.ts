@@ -10,6 +10,8 @@ export type AppendPatientInboundAdminMessageParams = {
   platformUserId: string;
   text: string;
   integratorMessageId: string;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
 };
 
 function truncateText(text: string): string {
@@ -23,7 +25,7 @@ export async function appendPatientInboundAdminMessage(
   params: AppendPatientInboundAdminMessageParams,
 ): Promise<{ conversationId: string; messageId: string } | null> {
   const text = truncateText(params.text);
-  if (!text) return null;
+  if (!text && !params.mediaUrl) return null;
 
   await port.mergeLegacySupportConversationsForPlatformUser?.(params.platformUserId).catch((err: unknown) => {
     console.error("[appendPatientInboundAdminMessage] merge legacy error:", err);
@@ -38,6 +40,8 @@ export async function appendPatientInboundAdminMessage(
     text,
     source: "webapp",
     createdAt: now,
+    mediaUrl: params.mediaUrl ?? null,
+    mediaType: params.mediaType ?? null,
   });
 
   if (!messageId) return null;

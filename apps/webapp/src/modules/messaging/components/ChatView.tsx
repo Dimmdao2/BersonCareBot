@@ -92,14 +92,24 @@ export function ChatView({
               <div key={m.id} className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
                 <div className={cn("flex max-w-[min(100%,22rem)]", mine ? "justify-end" : "justify-start")}>
                   <div className={mine ? patientBubbleMine : patientBubbleOther}>
-                    <p
-                      className={cn(
-                        "whitespace-pre-wrap break-words",
-                        mine ? undefined : patientRelative ? patientBodyTextClass : undefined,
-                      )}
-                    >
-                      {m.text}
-                    </p>
+                    {m.mediaUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.mediaUrl}
+                        alt=""
+                        className={cn("max-h-60 w-auto max-w-full rounded-lg", m.text ? "mb-1.5" : undefined)}
+                      />
+                    ) : null}
+                    {m.text ? (
+                      <p
+                        className={cn(
+                          "whitespace-pre-wrap break-words",
+                          mine ? undefined : patientRelative ? patientBodyTextClass : undefined,
+                        )}
+                      >
+                        {m.text}
+                      </p>
+                    ) : null}
                     {mine && deliveryStatus ?
                       <ChatBubbleOutgoingMeta
                         timeLabel={formatChatMessageTimeRu(m.createdAt)}
@@ -142,7 +152,15 @@ export function ChatView({
                             : "bg-muted text-foreground",
                         )}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                        {m.mediaUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={m.mediaUrl}
+                            alt=""
+                            className={cn("max-h-60 w-auto max-w-full rounded-lg", m.text ? "mb-1.5" : undefined)}
+                          />
+                        ) : null}
+                        {m.text ? <p className="whitespace-pre-wrap break-words">{m.text}</p> : null}
                         {mine && deliveryStatus ?
                           <ChatBubbleOutgoingMeta
                             timeLabel={formatChatMessageTimeRu(m.createdAt)}

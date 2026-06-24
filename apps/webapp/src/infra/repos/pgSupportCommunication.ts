@@ -201,6 +201,8 @@ export type SupportCommunicationPort = {
     text: string;
     source: string;
     createdAt: string;
+    mediaUrl?: string | null;
+    mediaType?: string | null;
   }): Promise<{ id: string; created: boolean }>;
   listMessagesSince(conversationId: string, params: { sinceCreatedAt?: string | null; limit: number }): Promise<SupportConversationMessageRow[]>;
   conversationExists(conversationId: string): Promise<boolean>;
@@ -959,8 +961,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversation_messages (
           integrator_message_id, conversation_id, sender_role, message_type, text, source,
-          external_chat_id, external_message_id, delivery_status, created_at, delivered_at
-        ) VALUES ($1, $2::uuid, $3, 'text', $4, $5, NULL, NULL, NULL, $6::timestamptz, $6::timestamptz)
+          external_chat_id, external_message_id, delivery_status, created_at, delivered_at,
+          media_url, media_type
+        ) VALUES ($1, $2::uuid, $3, 'text', $4, $5, NULL, NULL, NULL, $6::timestamptz, $6::timestamptz, $7, $8)
         ON CONFLICT (integrator_message_id) DO NOTHING
         RETURNING id`,
         [
@@ -970,6 +973,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           params.text,
           params.source,
           params.createdAt,
+          params.mediaUrl ?? null,
+          params.mediaType ?? null,
         ]
       );
       if (r.rows[0]?.id) {

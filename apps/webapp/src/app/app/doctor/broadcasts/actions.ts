@@ -46,6 +46,9 @@ const draftSchema = z.object({
     .max(10),
   title: z.string().max(200),
   body: z.string().max(4000),
+  // RASSL-06 phase 1: опц. прикреплённая картинка (round-trip черновика).
+  mediaUrl: z.string().url().nullable().optional(),
+  mediaType: z.string().nullable().optional(),
 });
 
 export async function previewBroadcastAction(

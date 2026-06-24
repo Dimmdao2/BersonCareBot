@@ -415,8 +415,8 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       createdAt: params.createdAt,
       readAt: null,
       deliveredAt: null,
-      mediaUrl: null,
-      mediaType: null,
+      mediaUrl: params.mediaUrl ?? null,
+      mediaType: params.mediaType ?? null,
     };
     messages.set(id, row);
     const conv = conversations.get(params.conversationId);

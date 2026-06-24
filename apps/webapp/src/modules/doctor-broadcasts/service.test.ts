@@ -258,6 +258,38 @@ describe("doctor-broadcasts service", () => {
     );
   });
 
+  it("execute threads message media into the in-app chat append", async () => {
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: makeResolve([client("u1")]),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: {
+        title: "Новость",
+        body: "Текст длиннее десяти символов",
+        mediaUrl: "https://cdn.example.com/promo.jpg",
+        mediaType: "image",
+      },
+      actorId: "doctor-1",
+      channels: ["bot_message"],
+    });
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        platformUserId: "u1",
+        mediaUrl: "https://cdn.example.com/promo.jpg",
+        mediaType: "image",
+      }),
+    );
+  });
+
   it("execute strips markdown markers from the in-app chat copy", async () => {
     vi.mocked(appendPatientInboundAdminMessage).mockClear();
     const svc = createDoctorBroadcastsService({
