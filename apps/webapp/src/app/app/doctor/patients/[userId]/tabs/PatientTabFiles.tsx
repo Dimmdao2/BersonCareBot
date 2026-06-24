@@ -41,7 +41,7 @@ import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
 // Types — match API response
 // ---------------------------------------------------------------------------
 
-type FileRecord = {
+export type FileRecord = {
   id: string;
   patientUserId: string;
   category: PatientFileCategory;
@@ -872,17 +872,22 @@ function FilePreviewPanel({
 export function PatientTabFiles({
   userId,
   header: _header,
+  initialFiles,
 }: {
   userId: string;
   header?: PatientCardHeader;
+  /** SSR-provided file list (no presigned URLs). When present, skips the initial client fetch. */
+  initialFiles?: FileRecord[];
 }) {
-  const [files, setFiles] = useState<FileRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<FileRecord[]>(() => initialFiles ?? []);
+  const [loading, setLoading] = useState(initialFiles == null);
   const [error, setError] = useState<string | null>(null);
 
   const [activeCategory, setActiveCategory] = useState<FileFilterCategory>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(
+    () => initialFiles?.[0]?.id ?? null,
+  );
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [showUpload, setShowUpload] = useState(false);
 
@@ -910,9 +915,12 @@ export function PatientTabFiles({
     }
   }, [userId]);
 
+  // Skip initial fetch when SSR data provided; loadFiles() is still called after uploads.
   useEffect(() => {
+    if (initialFiles != null) return;
     void loadFiles();
-  }, [loadFiles]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredFiles =
     activeCategory === "all"

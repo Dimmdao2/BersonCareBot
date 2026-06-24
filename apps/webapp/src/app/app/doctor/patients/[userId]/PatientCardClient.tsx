@@ -30,7 +30,7 @@ import { PatientTabOverview } from "./tabs/PatientTabOverview";
 import { PatientTabKarta } from "./tabs/PatientTabKarta";
 import { PatientTabProgram } from "./tabs/PatientTabProgram";
 import { PatientTabRecords } from "./tabs/PatientTabRecords";
-import { PatientTabFiles } from "./tabs/PatientTabFiles";
+import { PatientTabFiles, type FileRecord } from "./tabs/PatientTabFiles";
 import { PatientTabAccount } from "./tabs/PatientTabAccount";
 import { PatientTabComms } from "./tabs/PatientTabComms";
 import { PatientTabFinances } from "./tabs/PatientTabFinances";
@@ -52,6 +52,8 @@ type Props = {
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
   initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
+  /** SSR-provided files list (previewUrl will be null — presigning deferred to client). */
+  initialFiles?: FileRecord[] | null;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
@@ -100,7 +102,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -795,7 +797,11 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         />
       </div>
       <div className={cn(activeTab !== "files" && "hidden")}>
-        <PatientTabFiles userId={identity.userId} header={header} />
+        <PatientTabFiles
+          userId={identity.userId}
+          header={header}
+          initialFiles={initialFiles ?? undefined}
+        />
       </div>
       <div className={cn(activeTab !== "account" && "hidden")}>
         <PatientTabAccount userId={identity.userId} header={header} active={activeTab === "account"} />
