@@ -35,7 +35,7 @@ import { PatientTabFiles, type FileRecord } from "./tabs/PatientTabFiles";
 import { PatientTabAccount, type SupplementaryContact } from "./tabs/PatientTabAccount";
 import { PatientTabComms } from "./tabs/PatientTabComms";
 import { PatientTabFinances, type FinancesInitialData } from "./tabs/PatientTabFinances";
-import type { ApiPackage, PaymentItem } from "./tabs/PatientTabRecords";
+import type { ApiPackage, PaymentItem, AppointmentPrefill } from "./tabs/PatientTabRecords";
 import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
 
 type Props = {
@@ -128,6 +128,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     createVisitFrom ?? null,
   );
   const [pendingVisitDate, setPendingVisitDate] = useState<string | null>(visitDate ?? null);
+  const [pendingPrefillLocation, setPendingPrefillLocation] = useState<string | null>(null);
+  const [pendingPrefillService, setPendingPrefillService] = useState<string | null>(null);
+  const [pendingPrefillDurationMin, setPendingPrefillDurationMin] = useState<number | null>(null);
 
   // FIO inline edit state
   const [fioEditing, setFioEditing] = useState(false);
@@ -792,9 +795,15 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           header={header}
           pendingAppointmentId={pendingAppointmentId}
           pendingVisitDate={pendingVisitDate}
+          pendingPrefillLocation={pendingPrefillLocation}
+          pendingPrefillService={pendingPrefillService}
+          pendingPrefillDurationMin={pendingPrefillDurationMin}
           onPendingConsumed={() => {
             setPendingAppointmentId(null);
             setPendingVisitDate(null);
+            setPendingPrefillLocation(null);
+            setPendingPrefillService(null);
+            setPendingPrefillDurationMin(null);
           }}
           initialClinicalState={initialClinicalState}
           initialVisits={initialVisits}
@@ -811,8 +820,11 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         <PatientTabRecords
           userId={identity.userId}
           header={header}
-          onCreateVisitFromAppointment={(apptId) => {
-            setPendingAppointmentId(apptId);
+          onCreateVisitFromAppointment={(prefill: AppointmentPrefill) => {
+            setPendingAppointmentId(prefill.id);
+            setPendingPrefillLocation(prefill.location ?? null);
+            setPendingPrefillService(prefill.service ?? null);
+            setPendingPrefillDurationMin(prefill.durationMin ?? null);
             setActiveTab("karta");
           }}
           initialAppointments={initialAppointments}

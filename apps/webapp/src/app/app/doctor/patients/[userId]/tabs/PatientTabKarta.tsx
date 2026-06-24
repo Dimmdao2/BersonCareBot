@@ -67,6 +67,12 @@ type Props = {
   pendingAppointmentId?: string | null;
   /** When set, pre-fill the new-visit date (ISO YYYY-MM-DD) from the appointment. */
   pendingVisitDate?: string | null;
+  /** Location (branch name) from the source appointment — forwarded to NewVisitPanel. */
+  pendingPrefillLocation?: string | null;
+  /** Service name from the source appointment — forwarded to NewVisitPanel. */
+  pendingPrefillService?: string | null;
+  /** Duration in minutes from the source appointment — forwarded to NewVisitPanel. */
+  pendingPrefillDurationMin?: number | null;
   onPendingConsumed?: () => void;
   initialClinicalState?: ClinicalState | null;
   initialVisits?: Visit[] | null;
@@ -1345,7 +1351,7 @@ function AddLifestyleForm({
 
 const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
-export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, onPendingConsumed, initialClinicalState, initialVisits, initialAnamnesis, initialComorbidities }: Props) {
+export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, pendingPrefillLocation, pendingPrefillService, pendingPrefillDurationMin, onPendingConsumed, initialClinicalState, initialVisits, initialAnamnesis, initialComorbidities }: Props) {
   const hasSsrClinical = initialClinicalState != null && initialVisits != null;
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
@@ -1727,6 +1733,9 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
               activeComplaints={complaints}
               activeDiagnoses={diagnoses}
               pendingVisitDate={pendingVisitDate}
+              pendingLocation={pendingPrefillLocation}
+              pendingService={pendingPrefillService}
+              pendingDurationMin={pendingPrefillDurationMin}
               onClose={() => setPanelOpen(false)}
               onSaved={handleVisitSaved}
             />

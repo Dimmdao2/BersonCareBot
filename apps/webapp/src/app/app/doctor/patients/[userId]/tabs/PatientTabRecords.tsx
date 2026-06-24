@@ -150,10 +150,18 @@ function StatusChip({ status, rescheduledToDate }: { status: AppointmentStatus; 
 // Main component
 // ---------------------------------------------------------------------------
 
+/** Appointment prefill data passed to the visit creation callback. */
+export type AppointmentPrefill = {
+  id: string;
+  location?: string;
+  service?: string;
+  durationMin?: number;
+};
+
 type Props = {
   userId: string;
   header?: PatientCardHeader;
-  onCreateVisitFromAppointment?: (appointmentId: string) => void;
+  onCreateVisitFromAppointment?: (prefill: AppointmentPrefill) => void;
   initialAppointments?: PatientAppointmentItem[] | null;
   /** SSR-provided patient packages. When present, skips the MembershipPanel client fetch. */
   initialPackages?: ApiPackage[] | null;
@@ -364,7 +372,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                     type="button"
                     onClick={() => {
                       if (onCreateVisitFromAppointment) {
-                        onCreateVisitFromAppointment(appt.id);
+                        onCreateVisitFromAppointment({
+                          id: appt.id,
+                          location: appt.location || undefined,
+                          service: appt.service || undefined,
+                          durationMin: appt.durationMin,
+                        });
                       } else {
                         openTab("karta");
                       }
@@ -379,7 +392,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                     type="button"
                     onClick={() => {
                       if (onCreateVisitFromAppointment) {
-                        onCreateVisitFromAppointment(appt.id);
+                        onCreateVisitFromAppointment({
+                          id: appt.id,
+                          location: appt.location || undefined,
+                          service: appt.service || undefined,
+                          durationMin: appt.durationMin,
+                        });
                       } else {
                         openTab("karta");
                       }

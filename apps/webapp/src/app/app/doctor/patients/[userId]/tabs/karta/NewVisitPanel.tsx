@@ -35,6 +35,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActiveComplaint, ActiveDiagnosis, DiagnosisCatalogSuggestion } from "@/modules/patient-clinical/ports";
 import { cn } from "@/lib/utils";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/shared/ui/doctor/primitives/select";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -276,6 +282,9 @@ export function NewVisitPanel({
   activeComplaints,
   activeDiagnoses,
   pendingVisitDate,
+  pendingLocation,
+  pendingService,
+  pendingDurationMin,
   onClose,
   onSaved,
 }: {
@@ -284,6 +293,12 @@ export function NewVisitPanel({
   activeDiagnoses: ActiveDiagnosis[];
   /** ISO date string (YYYY-MM-DD) to pre-fill the visit date from the appointment. */
   pendingVisitDate?: string | null;
+  /** Location (branch name) from the source appointment — pre-fills location field. */
+  pendingLocation?: string | null;
+  /** Service name from the source appointment — pre-fills service field. */
+  pendingService?: string | null;
+  /** Duration in minutes from the source appointment — pre-fills duration field. */
+  pendingDurationMin?: number | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -299,9 +314,12 @@ export function NewVisitPanel({
       setSelectedDate(pendingVisitDate);
     }
   }, [pendingVisitDate]);
-  const [location, setLocation] = useState("");
-  const [service, setService] = useState("");
-  const [duration, setDuration] = useState("");
+
+  const [location, setLocation] = useState(() => pendingLocation ?? "");
+  const [service, setService] = useState(() => pendingService ?? "");
+  const [duration, setDuration] = useState(() =>
+    pendingDurationMin ? `${pendingDurationMin} мин` : "",
+  );
 
   // Catalog options populated from patient appointments history
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
@@ -311,6 +329,14 @@ export function NewVisitPanel({
   const [locationOther, setLocationOther] = useState(false);
   const [serviceOther, setServiceOther] = useState(false);
   const [durationOther, setDurationOther] = useState(false);
+
+  // Sync pending prefill fields if they change after initial render
+  // (e.g. user clicks «Оформить визит» on a different appointment without unmounting the form)
+  useEffect(() => {
+    if (pendingLocation) setLocation(pendingLocation);
+    if (pendingService) setService(pendingService);
+    if (pendingDurationMin) setDuration(`${pendingDurationMin} мин`);
+  }, [pendingLocation, pendingService, pendingDurationMin]);
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
@@ -386,6 +412,12 @@ export function NewVisitPanel({
 
   // Populate location/service/duration from patient appointments history + booking-engine catalog
   useEffect(() => {
+    // Snapshot pending prefill values at the time the effect runs so lint doesn't require
+    // them as dependencies (we deliberately run this only when userId changes).
+    const snapshotLocation = pendingLocation;
+    const snapshotService = pendingService;
+    const snapshotDurationMin = pendingDurationMin;
+
     const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
       .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string; durationMin?: number }> }>) : null))
       .catch(() => null);
@@ -419,14 +451,17 @@ export function NewVisitPanel({
       setServiceOptions(uniqueServices);
       setDurationOptions(uniqueDurations);
 
-      // Pre-fill from the most recent appointment
+      // Pre-fill from the most recent appointment — but don't overwrite values already
+      // pre-filled from the source appointment (snapshotted above to keep [userId] dep-only).
       const latest = appts[0];
       if (latest) {
-        if (latest.branchName ?? latest.location) setLocation(latest.branchName ?? latest.location ?? "");
-        if (latest.serviceName) setService(latest.serviceName);
-        if (latest.durationMin) setDuration(`${latest.durationMin} мин`);
+        if (!snapshotLocation && (latest.branchName ?? latest.location))
+          setLocation(latest.branchName ?? latest.location ?? "");
+        if (!snapshotService && latest.serviceName) setService(latest.serviceName);
+        if (!snapshotDurationMin && latest.durationMin) setDuration(`${latest.durationMin} мин`);
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -572,18 +607,23 @@ export function NewVisitPanel({
           {/* Date picker — DoctorDatePicker (shared project picker, ISO yyyy-MM-dd) */}
           <DoctorDatePicker value={selectedDate} onChange={setSelectedDate} />
           {locationOptions.length > 0 && !locationOther ? (
-            <select
+            <Select
               value={location}
-              onChange={(e) => {
-                if (e.target.value === "__other__") { setLocationOther(true); setLocation(""); }
-                else setLocation(e.target.value);
+              onValueChange={(v) => {
+                if (v === "__other__") { setLocationOther(true); setLocation(""); }
+                else setLocation(v ?? "");
               }}
-              className={cn(chipSelectClass, "w-32")}
             >
-              <option value="">— место приёма —</option>
-              {locationOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-              <option value="__other__">Другое...</option>
-            </select>
+              <SelectTrigger
+                displayLabel={location || "— место приёма —"}
+                className="h-[26px] min-w-[7.5rem] px-2 text-xs"
+              />
+              <SelectContent>
+                <SelectItem value="">— место приёма —</SelectItem>
+                {locationOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                <SelectItem value="__other__">Другое...</SelectItem>
+              </SelectContent>
+            </Select>
           ) : (
             <input
               type="text"
@@ -594,18 +634,23 @@ export function NewVisitPanel({
             />
           )}
           {serviceOptions.length > 0 && !serviceOther ? (
-            <select
+            <Select
               value={service}
-              onChange={(e) => {
-                if (e.target.value === "__other__") { setServiceOther(true); setService(""); }
-                else setService(e.target.value);
+              onValueChange={(v) => {
+                if (v === "__other__") { setServiceOther(true); setService(""); }
+                else setService(v ?? "");
               }}
-              className={cn(chipSelectClass, "w-28")}
             >
-              <option value="">— услуга —</option>
-              {serviceOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-              <option value="__other__">Другое...</option>
-            </select>
+              <SelectTrigger
+                displayLabel={service || "— услуга —"}
+                className="h-[26px] min-w-[7rem] px-2 text-xs"
+              />
+              <SelectContent>
+                <SelectItem value="">— услуга —</SelectItem>
+                {serviceOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                <SelectItem value="__other__">Другое...</SelectItem>
+              </SelectContent>
+            </Select>
           ) : (
             <input
               type="text"
@@ -616,18 +661,23 @@ export function NewVisitPanel({
             />
           )}
           {durationOptions.length > 0 && !durationOther ? (
-            <select
+            <Select
               value={duration}
-              onChange={(e) => {
-                if (e.target.value === "__other__") { setDurationOther(true); setDuration(""); }
-                else setDuration(e.target.value);
+              onValueChange={(v) => {
+                if (v === "__other__") { setDurationOther(true); setDuration(""); }
+                else setDuration(v ?? "");
               }}
-              className={cn(chipSelectClass, "w-24")}
             >
-              <option value="">— длит. —</option>
-              {durationOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-              <option value="__other__">Другое...</option>
-            </select>
+              <SelectTrigger
+                displayLabel={duration || "— длит. —"}
+                className="h-[26px] min-w-[6rem] px-2 text-xs"
+              />
+              <SelectContent>
+                <SelectItem value="">— длит. —</SelectItem>
+                {durationOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                <SelectItem value="__other__">Другое...</SelectItem>
+              </SelectContent>
+            </Select>
           ) : (
             <input
               type="text"
