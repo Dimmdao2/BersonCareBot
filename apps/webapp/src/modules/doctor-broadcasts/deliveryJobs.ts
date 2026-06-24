@@ -64,6 +64,27 @@ export function markdownToTelegramHtml(md: string): string {
   return t;
 }
 
+/**
+ * Strip simple Markdown to clean plain text for channels that have no markup
+ * (SMS, in-app chat copy, email): removes bold/italic/strike/code markers, keeps
+ * the text, bulletises "- item" / "* item" into "• item", preserves line breaks.
+ * Mirrors the patterns of markdownToTelegramHtml so the renditions stay in sync.
+ */
+export function stripMarkdownToPlain(md: string): string {
+  let t = md;
+  // Bullet list first (uses *) before bold strips **: "- item" / "* item" → "• item"
+  t = t.replace(/^[*-] (.+)$/gm, "• $1");
+  // Bold **text** → text
+  t = t.replace(/\*\*([^*\n]+)\*\*/g, "$1");
+  // Italic _text_ → text (not snake_case)
+  t = t.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, "$1");
+  // Strikethrough ~~text~~ → text
+  t = t.replace(/~~([^~\n]+)~~/g, "$1");
+  // Inline code `code` → code
+  t = t.replace(/`([^`\n]+)`/g, "$1");
+  return t;
+}
+
 /** Telegram/MAX HTML: bold title, Markdown body converted to Telegram HTML. */
 export function buildBroadcastMessengerHtml(title: string, body: string): string {
   const t = title.trim();
@@ -138,7 +159,8 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
   const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
   const { title: truncatedTitle, body: truncatedBody } = splitBroadcastPlainCombined(plainCombined);
   const messengerText = buildBroadcastMessengerHtml(truncatedTitle, truncatedBody);
-  const smsText = plainCombined;
+  // SMS has no markup → strip markdown markers (keep bullets/line breaks).
+  const smsText = stripMarkdownToPlain(plainCombined);
 
   for (const client of input.eligibleClients) {
     const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);

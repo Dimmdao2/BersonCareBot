@@ -5,6 +5,7 @@ import {
   buildDoctorBroadcastDeliveryJobs,
   markdownToTelegramHtml,
   splitBroadcastPlainCombined,
+  stripMarkdownToPlain,
 } from "./deliveryJobs";
 import type { BroadcastNotificationPrefsFlags } from "./ports";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
@@ -256,6 +257,38 @@ describe("markdownToTelegramHtml", () => {
   });
   it("converts bullet list", () => {
     expect(markdownToTelegramHtml("- item one\n- item two")).toBe("• item one\n• item two");
+  });
+});
+
+describe("stripMarkdownToPlain", () => {
+  it("removes bold markers, keeps text", () => {
+    expect(stripMarkdownToPlain("say **hello** now")).toBe("say hello now");
+  });
+  it("removes italic markers but not snake_case", () => {
+    expect(stripMarkdownToPlain("a _x_ my_var_name")).toBe("a x my_var_name");
+  });
+  it("removes strikethrough and inline code markers", () => {
+    expect(stripMarkdownToPlain("~~old~~ `GET /api`")).toBe("old GET /api");
+  });
+  it("bulletises lists and preserves line breaks", () => {
+    expect(stripMarkdownToPlain("- one\n- two")).toBe("• one\n• two");
+  });
+  it("strips bold inside a bullet line", () => {
+    expect(stripMarkdownToPlain("* **важно** тут")).toBe("• важно тут");
+  });
+});
+
+describe("sms plain rendition", () => {
+  it("sms job strips markdown markers from the body", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [cl({ userId: "u1", bindings: {}, phone: "+79990001122" })],
+      channels: ["sms"],
+      messageTitle: "Заголовок",
+      messageBodyPlain: "Текст **жирный** и\n- пункт",
+    });
+    const intent = jobs[0].payloadJson.intent as { payload: { message: { text: string } } };
+    expect(intent.payload.message.text).toBe("Заголовок\n\nТекст жирный и\n• пункт");
   });
 });
 

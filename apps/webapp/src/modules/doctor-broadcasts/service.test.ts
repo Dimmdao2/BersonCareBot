@@ -258,6 +258,31 @@ describe("doctor-broadcasts service", () => {
     );
   });
 
+  it("execute strips markdown markers from the in-app chat copy", async () => {
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: makeResolve([client("u1")]),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: { title: "Новость", body: "Текст **жирный** и\n- пункт" },
+      actorId: "doctor-1",
+      channels: ["bot_message"],
+    });
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        text: "Новость\n\nТекст жирный и\n• пункт",
+      }),
+    );
+  });
+
   it("execute with push channel calls fan-out after queue commit", async () => {
     const fanOut = vi.fn().mockResolvedValue({ attempted: 1, delivered: 1, errors: 0, skipped: 0 });
     const pushEligible = new Set(["u1"]);
