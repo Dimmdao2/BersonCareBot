@@ -328,6 +328,25 @@ describe("messenger delivery intent", () => {
     expect(intent.payload.message.text).toBe("Title\n\nBody");
   });
 
+  it("threads imageUrl into telegram intent payload but not sms", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [
+        cl({ userId: "u1", phone: "+79990001122", bindings: { telegramId: "111" } }),
+      ],
+      channels: ["telegram", "sms"],
+      messageTitle: "Title",
+      messageBodyPlain: "Body",
+      imageUrl: "https://x/y.jpg",
+    });
+    const tg = jobs.find((j) => j.channel === "telegram")!;
+    const sms = jobs.find((j) => j.channel === "sms")!;
+    const tgIntent = tg.payloadJson.intent as { payload: { imageUrl?: string } };
+    const smsIntent = sms.payloadJson.intent as { payload: { imageUrl?: string } };
+    expect(tgIntent.payload.imageUrl).toBe("https://x/y.jpg");
+    expect(smsIntent.payload.imageUrl).toBeUndefined();
+  });
+
   it("still enqueues telegram job when binding is marked bot-blocked", () => {
     const jobs = buildDoctorBroadcastDeliveryJobs({
       auditId,

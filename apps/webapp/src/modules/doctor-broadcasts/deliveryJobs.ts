@@ -107,6 +107,7 @@ function buildMessageSendIntent(input: {
   text: string;
   deliveryChannels: string[];
   parseMode?: "HTML";
+  imageUrl?: string;
 }): Record<string, unknown> {
   const occurredAt = new Date().toISOString();
   const source = input.channel === "sms" ? "sms" : input.channel;
@@ -124,6 +125,7 @@ function buildMessageSendIntent(input: {
       message: { text: input.text },
       delivery: { channels: input.deliveryChannels, maxAttempts: 1 },
       ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
+      ...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
     },
   };
 }
@@ -139,6 +141,8 @@ export type DoctorBroadcastDeliveryJobsParams = {
   notificationPrefsByUserId?: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
   attachMenu?: boolean;
+  /** URL картинки рассылки — пробрасывается ТОЛЬКО в telegram-intent (sendPhoto). */
+  imageUrl?: string | null;
 };
 
 /**
@@ -188,6 +192,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
               text: messengerText,
               deliveryChannels: ["telegram"],
               parseMode: "HTML",
+              imageUrl: input.imageUrl ?? undefined,
             }),
           },
         });

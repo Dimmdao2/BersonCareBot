@@ -156,7 +156,11 @@ describe("doctor-broadcasts service", () => {
     const { auditEntry } = await service.execute({
       category: "important_notice",
       audienceFilter: "all",
-      message: { title: "Важно", body: "Текст длиннее десяти символов" },
+      message: {
+        title: "Важно",
+        body: "Текст длиннее десяти символов",
+        mediaUrl: "https://x/y.jpg",
+      },
       actorId: "doctor-123",
       channels: ["bot_message"],
     });
@@ -167,6 +171,10 @@ describe("doctor-broadcasts service", () => {
     expect(committed[0].jobs.length).toBe(2);
     expect(committed[0].jobs[0].kind).toBe("doctor_broadcast_intent");
     expect(committed[0].recipientUserIds).toEqual(["u1", "u2"]);
+    // telegram job carries the broadcast image (sendPhoto), max does not.
+    const tgJob = committed[0].jobs.find((j) => j.channel === "telegram")!;
+    const tgIntent = tgJob.payloadJson.intent as { payload: { imageUrl?: string } };
+    expect(tgIntent.payload.imageUrl).toBe("https://x/y.jpg");
   });
 
   it("execute stores attachMenuAfterSend and sets attachMenu on queue jobs", async () => {

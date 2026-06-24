@@ -110,6 +110,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         attachMenu: command.attachMenuAfterSend === true,
         audienceFilter: command.audienceFilter,
         notificationPrefsByUserId,
+        imageUrl: command.message.mediaUrl ?? null,
       });
       const auditBase = {
         actorId: command.actorId,
