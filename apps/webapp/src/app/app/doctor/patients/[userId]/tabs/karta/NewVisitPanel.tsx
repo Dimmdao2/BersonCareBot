@@ -344,6 +344,18 @@ export function NewVisitPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingLocation, pendingService, pendingDurationMin]);
 
+  // Auto-derive duration «N мин» from a «… N мин» service title whenever the service is set and
+  // duration is still empty. This is the single place that keeps duration in sync with the service —
+  // it covers the «Оформить визит» prefill (where the appointment carries duration only inside the
+  // service title, durationMin=null) AND a manual service pick. A numeric duration already filled
+  // (e.g. from booking-engine) or a custom «Другое…» entry is never overwritten.
+  useEffect(() => {
+    if (durationOther || duration.trim()) return;
+    const d = prefillDuration(null, service);
+    if (d) setDuration(d);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service]);
+
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
     { id: "fc_init", priority: false, text: "", severity: 0 },
