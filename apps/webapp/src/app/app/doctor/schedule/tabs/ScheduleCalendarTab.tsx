@@ -1800,14 +1800,10 @@ export function ScheduleCalendarTab({
         title={kpiModalTitle}
         count={kpiModalItems.length}
         items={kpiModalItems}
-        searchPlaceholder="Поиск по пациенту…"
-        searchPredicate={(item, q) =>
-          (item.patientName ?? "").toLowerCase().includes(q.toLowerCase()) ||
-          (item.serviceTitle ?? "").toLowerCase().includes(q.toLowerCase())
-        }
         renderItem={(item) => {
           const dt = parseFeedInstant(item.startAt, currentTimeZone);
-          const timeLabel = dt.toFormat("d MMM HH:mm");
+          // Match the «Сегодня» etalon row format: «HH:mm DD.MM».
+          const timeLabel = dt.toFormat("HH:mm dd.MM");
           return (
             <AppointmentKpiItem
               item={{
