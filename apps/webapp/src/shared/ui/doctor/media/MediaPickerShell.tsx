@@ -1,22 +1,9 @@
 "use client";
 
-import { type ReactNode, useSyncExternalStore } from "react";
+import { type ReactNode } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/shared/ui/doctor/primitives/sheet";
-
-function subscribeMobileViewport(onStoreChange: () => void) {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return () => {};
-  }
-  const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
-  mq.addEventListener("change", onStoreChange);
-  return () => mq.removeEventListener("change", onStoreChange);
-}
-
-function getMobileViewportSnapshot(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
-}
+import { useIsMobileViewport } from "@/shared/ui/doctor/primitives/useIsMobileViewport";
 
 export type MediaPickerShellProps = {
   title: string;
@@ -29,7 +16,7 @@ export type MediaPickerShellProps = {
  * Единая обёртка модалки выбора медиа: desktop — широкий Dialog, mobile — Sheet снизу.
  */
 export function MediaPickerShell({ title, open, onOpenChange, children }: MediaPickerShellProps) {
-  const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
+  const isMobileViewport = useIsMobileViewport();
 
   if (isMobileViewport) {
     return (

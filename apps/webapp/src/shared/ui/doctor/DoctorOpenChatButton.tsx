@@ -52,7 +52,7 @@ export function DoctorOpenChatButton({
         open={open}
         onClose={() => setOpen(false)}
         title={patientName ? `Переписка · ${patientName}` : "Переписка"}
-        size="lg"
+        size="content"
       >
         {open ? <DoctorClientEmbeddedChat patientUserId={patientUserId} /> : null}
       </DoctorModal>
