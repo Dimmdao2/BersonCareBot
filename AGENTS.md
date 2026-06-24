@@ -68,6 +68,14 @@
 
 **Production-хост:** пользователь `deploy` **не имеет** произвольного `sudo` в SSH — только whitelist (systemctl bersoncarebot-*, backup). Не давать агенту `sudo rm/chown/cp` от `deploy`; root-операции — явно «от root». Подробно: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
 
+### Задачи — только через taskdb-порт, не сырой SQL
+
+Канон: [`.cursor/rules/unified-task-db.mdc`](.cursor/rules/unified-task-db.mdc) (`alwaysApply`) + памятка [`docs/SHARED_TASKDB.md`](docs/SHARED_TASKDB.md). Кратко:
+
+- Все задачи репозитория ведём в ОБЩЕЙ базе задач (проект `bcb`) **только** через утилиту-порт: `node /home/dev/brain/tools/taskdb.mjs <cmd>` (`list bcb` · `find bcb "…"` · `waiting` · `add "<title>" "<details>" bcb-lead bcb` · `set <id> status|note|question|owner_waiting|commit_ref|seal_test …`).
+- **НИКОГДА** не лезть в таблицу `plan_tasks` напрямую — ни `psql`, ни `INSERT/UPDATE/SELECT` из кода/ORM. Один порт = согласованные транзакции + единая точка контроля доступа. Не хватает операции — допиши утилиту (через ведущего/Нео), не обходи её.
+- Дисциплина статусов: начал → `status doing`; упёрся в решение владельца → `status blocked` + `owner_waiting true` + `question`; довёл и проверил → `status done` + `seal_test true` + `commit_ref <hash>`. **Сразу** фиксируй в порт ход работы и ЛЮБЫЕ ответы/решения владельца — база единственный источник правды, не держать в голове.
+
 ---
 
 ## 1a. Локальный dev и тестирование UI
