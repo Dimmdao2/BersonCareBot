@@ -20,6 +20,9 @@ export type RelayOutboundParams = {
   text: string;
   /** Опционально: platform user id для отладки/idempotency; не используется в dev_mode guard. */
   userId?: string;
+  /** Опц. HTML-тело письма (email): integrator relay-outbound кладёт в `content.html`,
+   * email-адаптер шлёт как HTML-часть (text остаётся plain-fallback). Только для email. */
+  html?: string;
   /** Inline-клавиатура (Telegram / MAX) через integrator relay-outbound `metadata.replyMarkup`. */
   replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
   /**
@@ -125,6 +128,9 @@ export async function relayOutbound(
   }
   if (Object.keys(mergedMetadata).length > 0) {
     bodyObj.metadata = mergedMetadata;
+  }
+  if (params.html) {
+    bodyObj.html = params.html;
   }
   const rawBody = JSON.stringify(bodyObj);
 

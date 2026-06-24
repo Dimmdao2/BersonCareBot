@@ -185,6 +185,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             broadcastCategory: command.category,
             broadcastTitle: command.message.title,
             broadcastBody: stripMarkdownToPlain(command.message.body),
+            mediaUrl: command.message.mediaUrl ?? null,
             eligibleClients: emailClients,
           },
           deps.fanOutBroadcastEmailDeps,

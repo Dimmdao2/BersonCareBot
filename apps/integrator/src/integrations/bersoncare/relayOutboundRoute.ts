@@ -20,6 +20,8 @@ const relayPayloadSchema = z.object({
   channel: z.enum(['telegram', 'max', 'email', 'sms', 'web_push'] as const),
   recipient: z.string().min(1),
   text: z.string().min(1),
+  /** Опц. HTML-тело письма (email-канал) — мапится в payload.html для email-адаптера. */
+  html: z.string().optional(),
   idempotencyKey: z.string().min(1),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -98,6 +100,7 @@ function buildIntent(parsed: RelayPayload) {
         recipient: { email: parsed.recipient },
         subject,
         message: { text: parsed.text },
+        ...(parsed.html ? { html: parsed.html } : {}),
         delivery: { channels: ['email'] },
       },
     };

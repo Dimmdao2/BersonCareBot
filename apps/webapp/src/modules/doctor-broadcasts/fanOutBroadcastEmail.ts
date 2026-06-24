@@ -12,8 +12,17 @@
 import { randomUUID } from "node:crypto";
 import { logger } from "@/infra/logging/logger";
 import { relayOutbound, type RelayOutboundDeps } from "@/modules/messaging/relayOutbound";
+import { escapeHtml } from "@/shared/lib/escapeHtml";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import type { BroadcastCategory } from "./ports";
+
+/** RASSL-06: HTML-тело письма с inline-картинкой сверху + заголовок + текст (всё HTML-escaped). */
+export function buildBroadcastEmailHtml(title: string, body: string, mediaUrl: string): string {
+  const img = `<img src="${escapeHtml(mediaUrl)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:12px" />`;
+  const head = title.trim() ? `<div style="font-weight:600;font-size:16px;margin-bottom:6px">${escapeHtml(title.trim())}</div>` : "";
+  const text = `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`;
+  return `${img}${head}${text}`;
+}
 
 /** Маппинг email-адресов по userId (только с подтверждённым email). */
 export type BroadcastEmailRecipientsPort = {
@@ -29,6 +38,8 @@ export type FanOutBroadcastEmailInput = {
   broadcastCategory: BroadcastCategory;
   broadcastTitle: string;
   broadcastBody: string;
+  /** RASSL-06: опц. URL картинки — рендерится inline в HTML-теле письма. */
+  mediaUrl?: string | null;
   eligibleClients: readonly ClientListItem[];
 };
 
@@ -93,6 +104,9 @@ export async function fanOutBroadcastEmail(
           recipient: emailAddress,
           text: `${input.broadcastTitle}\n\n${input.broadcastBody}`,
           metadata: { subject: input.broadcastTitle },
+          ...(input.mediaUrl
+            ? { html: buildBroadcastEmailHtml(input.broadcastTitle, input.broadcastBody, input.mediaUrl) }
+            : {}),
         },
         deps,
       );
