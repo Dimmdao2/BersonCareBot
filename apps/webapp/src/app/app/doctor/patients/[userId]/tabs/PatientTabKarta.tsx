@@ -70,6 +70,10 @@ type Props = {
   onPendingConsumed?: () => void;
   initialClinicalState?: ClinicalState | null;
   initialVisits?: Visit[] | null;
+  /** SSR-provided anamnesis — skips the initial client fetch when present. */
+  initialAnamnesis?: AnamnesisState | null;
+  /** SSR-provided active comorbidities — skips the Comorbidities component's initial fetch. */
+  initialComorbidities?: Comorbidity[] | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -583,9 +587,16 @@ type Comorbidity = {
   createdAt: string;
 };
 
-function Comorbidities({ userId }: { userId: string }) {
+function Comorbidities({
+  userId,
+  initialItems,
+}: {
+  userId: string;
+  /** SSR-provided active comorbidities. When present, skips the initial "active" tab fetch. */
+  initialItems?: Comorbidity[];
+}) {
   const [tab, setTab] = useState<"active" | "removed">("active");
-  const [items, setItems] = useState<Comorbidity[] | null>(null);
+  const [items, setItems] = useState<Comorbidity[] | null>(() => initialItems ?? null);
   const [error, setError] = useState(false);
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
@@ -617,7 +628,11 @@ function Comorbidities({ userId }: { userId: string }) {
   }, [base, tab]);
 
   useEffect(() => {
+    // Skip the initial "active" fetch when SSR data provided.
+    // On tab switch to "removed", always fetch (SSR only covers active).
+    if (tab === "active" && initialItems != null && items !== null) return;
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   const add = async () => {
@@ -1330,7 +1345,7 @@ function AddLifestyleForm({
 
 const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
-export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, onPendingConsumed, initialClinicalState, initialVisits }: Props) {
+export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, onPendingConsumed, initialClinicalState, initialVisits, initialAnamnesis, initialComorbidities }: Props) {
   const hasSsrClinical = initialClinicalState != null && initialVisits != null;
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
@@ -1344,8 +1359,9 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
   const [loadedUserId, setLoadedUserId] = useState<string | null>(() => hasSsrClinical ? userId : null);
 
   // Anamnesis data — loaded from /api/doctor/patients/[userId]/anamnesis
-  const [anamnesis, setAnamnesis] = useState<AnamnesisState>(EMPTY_ANAMNESIS);
-  const [anamnesisLoadedUserId, setAnamnesisLoadedUserId] = useState<string | null>(null);
+  const hasSsrAnamnesis = initialAnamnesis != null;
+  const [anamnesis, setAnamnesis] = useState<AnamnesisState>(() => initialAnamnesis ?? EMPTY_ANAMNESIS);
+  const [anamnesisLoadedUserId, setAnamnesisLoadedUserId] = useState<string | null>(() => hasSsrAnamnesis ? userId : null);
   const [anamnesisError, setAnamnesisError] = useState(false);
   // Which add-form is open: null | "trauma" | "illness" | "lifestyle"
   const [anamnesisAddOpen, setAnamnesisAddOpen] = useState<"trauma" | "illness" | "lifestyle" | null>(null);
@@ -1393,11 +1409,12 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
     // Skip clinical fetch on mount when SSR data covers this userId.
     // fetchClinical() remains callable after mutations (onSaved callbacks).
     if (hasSsrClinical && loadedUserId === userId) {
-      fetchAnamnesis();
+      // Skip anamnesis fetch too when SSR data provided.
+      if (!hasSsrAnamnesis) fetchAnamnesis();
       return;
     }
     fetchClinical();
-    fetchAnamnesis();
+    if (!hasSsrAnamnesis) fetchAnamnesis();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchClinical, fetchAnamnesis]);
 
@@ -1524,7 +1541,7 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
         </section>
 
         {/* Сопутствующие заболевания — реальные данные /api/doctor/patients/[id]/comorbidities */}
-        <Comorbidities userId={userId} />
+        <Comorbidities userId={userId} initialItems={initialComorbidities ?? undefined} />
 
         {/* Анамнез — real data from /api/doctor/patients/[userId]/anamnesis */}
         <section className={doctorSectionCardClass}>

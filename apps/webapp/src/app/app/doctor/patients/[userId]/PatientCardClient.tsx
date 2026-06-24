@@ -8,7 +8,8 @@
  */
 import { useState, useEffect, type ReactNode } from "react";
 import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
-import type { ClinicalState, Visit } from "@/modules/patient-clinical/ports";
+import type { AnamnesisState, ClinicalState, Visit } from "@/modules/patient-clinical/ports";
+import type { Comorbidity } from "@/modules/patient-comorbidities/ports";
 import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
@@ -54,6 +55,10 @@ type Props = {
   initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
   /** SSR-provided files list (previewUrl will be null — presigning deferred to client). */
   initialFiles?: FileRecord[] | null;
+  /** SSR-provided anamnesis for the Карта tab. */
+  initialAnamnesis?: AnamnesisState | null;
+  /** SSR-provided active comorbidities for the Карта tab. */
+  initialComorbidities?: Comorbidity[] | null;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
@@ -102,7 +107,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -778,6 +783,8 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           }}
           initialClinicalState={initialClinicalState}
           initialVisits={initialVisits}
+          initialAnamnesis={initialAnamnesis}
+          initialComorbidities={initialComorbidities}
         />
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>

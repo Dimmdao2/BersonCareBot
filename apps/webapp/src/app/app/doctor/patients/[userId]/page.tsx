@@ -44,6 +44,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     appointments,
     programInstances,
     patientFileRecords,
+    anamnesis,
+    comorbidities,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
     runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
@@ -62,6 +64,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     deps.doctorClientsPort.listPatientAppointments(userId),
     deps.treatmentProgramInstance.listForPatientClinicalView(userId),
     deps.patientFiles.listFiles(userId),
+    deps.patientClinical.getAnamnesis(userId),
+    deps.patientComorbidities.listActive(userId),
   ]);
 
   // Map file records to UI shape (previewUrl omitted — S3 presigning deferred to client).
@@ -93,6 +97,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialAppointments={appointments}
           initialProgramInstances={programInstances}
           initialFiles={initialFiles}
+          initialAnamnesis={anamnesis}
+          initialComorbidities={comorbidities}
         />
       </section>
     </DoctorAppShell>
