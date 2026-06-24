@@ -151,14 +151,24 @@ async function copyText(text: string) {
 // Main component
 // ---------------------------------------------------------------------------
 
-type Props = { userId: string };
+export type FinancesInitialData = {
+  timeline: PaymentTimelineEntry[];
+  totalCashMinor: number;
+  totalAcquiringMinor: number;
+};
 
-export function PatientTabFinances({ userId }: Props) {
+type Props = {
+  userId: string;
+  /** SSR-provided timeline data. When present, skips the initial client fetch. */
+  initialData?: FinancesInitialData | null;
+};
+
+export function PatientTabFinances({ userId, initialData }: Props) {
   // ---- Timeline state ----
-  const [loading, setLoading] = useState(true);
-  const [timeline, setTimeline] = useState<PaymentTimelineEntry[]>([]);
-  const [totalCashMinor, setTotalCashMinor] = useState(0);
-  const [totalAcquiringMinor, setTotalAcquiringMinor] = useState(0);
+  const [loading, setLoading] = useState(initialData == null);
+  const [timeline, setTimeline] = useState<PaymentTimelineEntry[]>(() => initialData?.timeline ?? []);
+  const [totalCashMinor, setTotalCashMinor] = useState(() => initialData?.totalCashMinor ?? 0);
+  const [totalAcquiringMinor, setTotalAcquiringMinor] = useState(() => initialData?.totalAcquiringMinor ?? 0);
   const [timelineError, setTimelineError] = useState<string | null>(null);
 
   // ---- Cash form state ----
@@ -204,9 +214,12 @@ export function PatientTabFinances({ userId }: Props) {
     }
   }, [userId]);
 
+  // Skip initial fetch when SSR data provided; fetchTimeline() is still called after payments.
   useEffect(() => {
+    if (initialData != null) return;
     void fetchTimeline();
-  }, [fetchTimeline]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- Submit cash payment ----
   async function submitCash(e: React.FormEvent) {

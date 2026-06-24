@@ -46,6 +46,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     patientFileRecords,
     anamnesis,
     comorbidities,
+    patientPaymentRows,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
     runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
@@ -66,7 +67,45 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     deps.patientFiles.listFiles(userId),
     deps.patientClinical.getAnamnesis(userId),
     deps.patientComorbidities.listActive(userId),
+    deps.patientPayments.listPayments(userId),
   ]);
+
+  // Assemble finances timeline (same logic as payment-timeline route).
+  const orgId = await deps.bookingEngine?.organization.getDefaultOrganizationId().catch(() => null) ?? null;
+  const historyEvents =
+    deps.payments && orgId
+      ? await deps.payments.listPaymentHistoryForUser(userId, orgId).catch(() => [])
+      : [];
+
+  type TimelineEntry = {
+    id: string; occurredAt: string;
+    kind: "cash" | "acquiring" | "booking_prepayment" | "booking_refund";
+    status: string; amountMinor: number | null; currency: string;
+    description: string | null; provider: string | null; appointmentId: string | null;
+  };
+  const financesTimeline: TimelineEntry[] = [
+    ...patientPaymentRows.map((p) => ({
+      id: p.id, occurredAt: p.createdAt,
+      kind: p.kind as "cash" | "acquiring",
+      status: p.status, amountMinor: p.amountMinor, currency: p.currency,
+      description: p.service ?? p.comment ?? null, provider: p.provider ?? null,
+      appointmentId: p.visitId ?? null,
+    })),
+    ...historyEvents.map((e) => ({
+      id: e.id, occurredAt: e.occurredAt,
+      kind: (e.eventType.toLowerCase().includes("refund") ? "booking_refund" : "booking_prepayment") as "booking_prepayment" | "booking_refund",
+      status: e.status ?? e.eventType, amountMinor: e.amountMinor, currency: e.currency ?? "RUB",
+      description: e.purpose ?? e.comment ?? null, provider: e.providerId ?? null,
+      appointmentId: e.appointmentId ?? null,
+    })),
+  ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+  const totalCashMinor = patientPaymentRows
+    .filter((p) => p.kind === "cash" && p.status === "paid")
+    .reduce((s, p) => s + p.amountMinor, 0);
+  const totalAcquiringMinor = patientPaymentRows
+    .filter((p) => p.kind === "acquiring" && p.status === "paid")
+    .reduce((s, p) => s + p.amountMinor, 0);
+  const initialFinancesData = { timeline: financesTimeline, totalCashMinor, totalAcquiringMinor };
 
   // Map file records to UI shape (previewUrl omitted — S3 presigning deferred to client).
   const initialFiles = patientFileRecords.map((f) => ({ ...f, previewUrl: null }));
@@ -99,6 +138,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialFiles={initialFiles}
           initialAnamnesis={anamnesis}
           initialComorbidities={comorbidities}
+          initialFinancesData={initialFinancesData}
         />
       </section>
     </DoctorAppShell>

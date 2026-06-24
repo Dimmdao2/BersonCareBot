@@ -34,7 +34,7 @@ import { PatientTabRecords } from "./tabs/PatientTabRecords";
 import { PatientTabFiles, type FileRecord } from "./tabs/PatientTabFiles";
 import { PatientTabAccount } from "./tabs/PatientTabAccount";
 import { PatientTabComms } from "./tabs/PatientTabComms";
-import { PatientTabFinances } from "./tabs/PatientTabFinances";
+import { PatientTabFinances, type FinancesInitialData } from "./tabs/PatientTabFinances";
 
 type Props = {
   cardHeader: PatientCardHeader | null;
@@ -59,6 +59,8 @@ type Props = {
   initialAnamnesis?: AnamnesisState | null;
   /** SSR-provided active comorbidities for the Карта tab. */
   initialComorbidities?: Comorbidity[] | null;
+  /** SSR-provided payment timeline data for the Финансы tab. */
+  initialFinancesData?: FinancesInitialData | null;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
@@ -107,7 +109,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -817,7 +819,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         <PatientTabComms userId={identity.userId} initialProgramInstances={initialProgramInstances} />
       </div>
       <div className={cn(activeTab !== "finances" && "hidden")}>
-        <PatientTabFinances userId={identity.userId} />
+        <PatientTabFinances userId={identity.userId} initialData={initialFinancesData} />
       </div>
     </div>
   );
