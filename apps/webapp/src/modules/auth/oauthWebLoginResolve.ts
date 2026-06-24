@@ -78,6 +78,20 @@ export async function resolveUserIdForWebOAuthLogin(
       }
     }
 
+    // The OAuth email is verified (emailNorm is only set when emailTrusted), but the active account
+    // that already owns this email_normalized may have it UNVERIFIED (e.g. created via phone/booking).
+    // `uq_platform_users_email_normalized_active` covers it regardless of verification, so link to
+    // that account instead of INSERTing a duplicate (the prod crash: db_error / unique violation).
+    if (!userId && emailNorm) {
+      const byAnyEmail = await db.findActiveUserIdsByEmail(emailNorm);
+      if (byAnyEmail.length > 1) {
+        return { ok: false, reason: "email_ambiguous" };
+      }
+      if (byAnyEmail.length === 1) {
+        userId = byAnyEmail[0]!;
+      }
+    }
+
     if (!userId) {
       accountOutcome = "created";
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || sub).slice(0, 500);

@@ -13,6 +13,7 @@ const oauthResolveMock: OAuthUserResolvePort = {
   resolveCanonicalUserId: vi.fn().mockImplementation(async (userId) => userId),
   applyVerifiedOAuthEmail: vi.fn().mockResolvedValue(undefined),
   findUserIdsByVerifiedEmail: vi.fn().mockResolvedValue([]),
+  findActiveUserIdsByEmail: vi.fn().mockResolvedValue([]),
   createOAuthPlatformUser: vi.fn().mockResolvedValue("new-yandex-id"),
   upsertOAuthBinding: vi.fn().mockResolvedValue({ inserted: true }),
 };
@@ -29,6 +30,7 @@ describe("resolveUserIdForYandexOAuth", () => {
     vi.mocked(oauthResolveMock.resolveCanonicalUserId).mockReset().mockImplementation(async (userId) => userId);
     vi.mocked(oauthResolveMock.applyVerifiedOAuthEmail).mockReset().mockResolvedValue(undefined);
     vi.mocked(oauthResolveMock.findUserIdsByVerifiedEmail).mockReset().mockResolvedValue([]);
+    vi.mocked(oauthResolveMock.findActiveUserIdsByEmail).mockReset().mockResolvedValue([]);
     vi.mocked(oauthResolveMock.createOAuthPlatformUser).mockReset().mockResolvedValue("new-yandex-id");
     vi.mocked(oauthResolveMock.upsertOAuthBinding).mockReset().mockResolvedValue({ inserted: true });
     vi.mocked(noOAuthPort.findUserByOAuthId).mockResolvedValue(null);
@@ -70,6 +72,25 @@ describe("resolveUserIdForYandexOAuth", () => {
     });
 
     expect(r).toEqual({ ok: false, reason: "email_ambiguous" });
+  });
+
+  // Bug 1 (prod): existing active account owns the email but UNVERIFIED (phone/booking-created).
+  it("links to an existing account whose email is UNVERIFIED instead of inserting a duplicate", async () => {
+    vi.mocked(oauthResolveMock.findUserIdsByVerifiedEmail).mockResolvedValue([]);
+    vi.mocked(oauthResolveMock.findActiveUserIdsByEmail).mockResolvedValue(["phone-created-user"]);
+
+    const r = await resolveUserIdForYandexOAuth(noOAuthPort, {
+      yandexId: "y9",
+      email: "existing@example.com",
+      displayName: "Existing",
+      phone: null,
+    });
+
+    expect(r).toEqual({ ok: true, userId: "phone-created-user", accountOutcome: "linked_existing" });
+    expect(oauthResolveMock.createOAuthPlatformUser).not.toHaveBeenCalled();
+    expect(oauthResolveMock.upsertOAuthBinding).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "phone-created-user", provider: "yandex" }),
+    );
   });
 
   it("links existing OAuth binding and applies verified email", async () => {
