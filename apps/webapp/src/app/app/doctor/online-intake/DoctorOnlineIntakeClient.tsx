@@ -196,16 +196,19 @@ function IntakeStatsCard({
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between border-b border-border bg-muted/20 px-3 py-2 text-left"
-      >
-        <span className="text-xs font-semibold">
+      {/* Header row is a div (NOT a button) so the period buttons below are
+          siblings, not nested inside a button — fixes the <button>-in-<button>
+          hydration warning (task #44). */}
+      <div className="flex w-full items-center justify-between border-b border-border bg-muted/20 px-3 py-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-left text-xs font-semibold"
+        >
           Статистика заявок {collapsed ? "▸" : "▾"}
-        </span>
+        </button>
         {!collapsed && (
-          <span className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <span className="flex gap-1">
             {STATS_DAYS_OPTIONS.map((d) => (
               <button
                 key={d}
@@ -223,7 +226,7 @@ function IntakeStatsCard({
             ))}
           </span>
         )}
-      </button>
+      </div>
 
       {!collapsed && (
         <>
