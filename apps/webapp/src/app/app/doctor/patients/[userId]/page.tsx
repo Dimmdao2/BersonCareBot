@@ -11,6 +11,7 @@ import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { routePaths } from "@/app-layer/routes/paths";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { toDoctorSupplementaryContacts } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import { loadDoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
 import { PatientCardClient } from "./PatientCardClient";
 
@@ -47,6 +48,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     anamnesis,
     comorbidities,
     patientPaymentRows,
+    rawContactRows,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
     runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
@@ -68,6 +70,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     deps.patientClinical.getAnamnesis(userId),
     deps.patientComorbidities.listActive(userId),
     deps.patientPayments.listPayments(userId),
+    deps.platformUserContacts.listForPlatformUser(userId),
   ]);
 
   // Assemble finances timeline (same logic as payment-timeline route).
@@ -110,6 +113,14 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   // Map file records to UI shape (previewUrl omitted — S3 presigning deferred to client).
   const initialFiles = patientFileRecords.map((f) => ({ ...f, previewUrl: null }));
 
+  // Filter supplementary contacts using the header's identity (same logic as the route handler).
+  const initialSupplementaryContacts = cardHeaderPromise
+    ? toDoctorSupplementaryContacts(rawContactRows, {
+        phone: cardHeaderPromise.identity.phone,
+        email: cardHeaderPromise.identity.email,
+      })
+    : rawContactRows.map((r) => ({ id: r.id, contactType: r.contactType, value: r.value, source: r.source }));
+
   const physicalData = physicalRow.rows[0]
     ? { heightCm: physicalRow.rows[0].height_cm, weightKg: physicalRow.rows[0].weight_kg }
     : { heightCm: null, weightKg: null };
@@ -139,6 +150,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialAnamnesis={anamnesis}
           initialComorbidities={comorbidities}
           initialFinancesData={initialFinancesData}
+          initialSupplementaryContacts={initialSupplementaryContacts}
         />
       </section>
     </DoctorAppShell>

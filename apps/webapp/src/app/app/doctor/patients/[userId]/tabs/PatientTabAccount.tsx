@@ -45,6 +45,8 @@ type Props = {
    * non-admin doctor sessions.
    */
   active?: boolean;
+  /** SSR-provided supplementary contacts. When present, skips SecondaryPhones initial fetch. */
+  initialSupplementaryContacts?: SupplementaryContact[] | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -173,8 +175,20 @@ function ChannelRow({
  */
 type SupplementaryContact = { id: string; contactType: string; value: string; source: string };
 
-function SecondaryPhones({ userId }: { userId: string }) {
-  const [phones, setPhones] = useState<SupplementaryContact[] | null>(null);
+export type { SupplementaryContact };
+
+function SecondaryPhones({
+  userId,
+  initialContacts,
+}: {
+  userId: string;
+  /** SSR-provided contacts (all types). When present, skips the initial client fetch. */
+  initialContacts?: SupplementaryContact[];
+}) {
+  // Filter to phones on init; client re-fetch returns all types so filter is applied there too.
+  const [phones, setPhones] = useState<SupplementaryContact[] | null>(
+    () => initialContacts != null ? initialContacts.filter((c) => c.contactType === "phone") : null,
+  );
   const [error, setError] = useState(false);
   const [adding, setAdding] = useState(false);
   const [input, setInput] = useState("");
@@ -202,9 +216,11 @@ function SecondaryPhones({ userId }: { userId: string }) {
   };
 
   useEffect(() => {
+    // Skip initial fetch when SSR data provided; load() is still called after add/remove.
+    if (initialContacts != null) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, []);
 
   const add = async () => {
     const value = input.trim();
@@ -480,7 +496,7 @@ function EmailChange({ userId }: { userId: string }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function PatientTabAccount({ userId, header, active = false }: Props) {
+export function PatientTabAccount({ userId, header, active = false, initialSupplementaryContacts }: Props) {
   const identity = header?.identity;
 
   // Derived channel info from header
@@ -677,7 +693,10 @@ export function PatientTabAccount({ userId, header, active = false }: Props) {
             />
 
             {/* Доп. телефоны (основной не меняется; только добавление вторичных) */}
-            <SecondaryPhones userId={userId} />
+            <SecondaryPhones
+              userId={userId}
+              initialContacts={initialSupplementaryContacts ?? undefined}
+            />
 
             {/* Telegram */}
             <ChannelRow
