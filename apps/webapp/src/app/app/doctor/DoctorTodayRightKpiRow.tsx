@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
-import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
+import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
+import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 
@@ -36,40 +37,6 @@ const CANCELLED_STATUS_VALUES = [
 function isCancelledItem(item: TodayAppointmentItem): boolean {
   return CANCELLED_STATUS_VALUES.some(
     (s) => item.status === s || item.status.toLowerCase().includes("отмен"),
-  );
-}
-
-function AppointmentModalItem({ item }: { item: TodayAppointmentItem }) {
-  const cancelled = isCancelledItem(item);
-  return (
-    <div className={cancelled ? "rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2" : doctorSectionItemClass}>
-      <div className="flex items-baseline justify-between gap-2">
-        <p className={`font-medium ${cancelled ? "text-destructive/80 line-through" : "text-foreground"}`}>
-          {item.clientLabel}
-        </p>
-        <span className="shrink-0 text-xs text-muted-foreground">{item.time}</span>
-      </div>
-      {cancelled ? (
-        <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-destructive">
-          Отмена
-        </p>
-      ) : null}
-      {item.rubitimeNameIfDifferent ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Имя в Rubitime: {item.rubitimeNameIfDifferent}
-        </p>
-      ) : null}
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        {[item.type, !cancelled ? item.status : null, item.branchName].filter(Boolean).join(" · ")}
-      </p>
-      {!cancelled ? (
-        <p className="mt-2">
-          <Link href={item.href} className={doctorInlineLinkClass}>
-            {item.ctaLabel}
-          </Link>
-        </p>
-      ) : null}
-    </div>
   );
 }
 
@@ -124,7 +91,23 @@ export function DoctorTodayRightKpiRow({
         title="Записи сегодня"
         count={appointmentsTodayCount}
         items={todayItems}
-        renderItem={(item) => <AppointmentModalItem item={item} />}
+        renderItem={(item) => (
+          <AppointmentKpiItem
+            item={{
+              clientLabel: item.clientLabel,
+              time: item.time,
+              typeLabel: item.type,
+              statusLabel: item.status,
+              branchName: item.branchName,
+              altNameNote: item.rubitimeNameIfDifferent
+                ? `Имя в Rubitime: ${item.rubitimeNameIfDifferent}`
+                : null,
+              cancelled: isCancelledItem(item),
+              href: item.href,
+              ctaLabel: item.ctaLabel,
+            }}
+          />
+        )}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Записей на сегодня нет.{" "}
@@ -142,7 +125,23 @@ export function DoctorTodayRightKpiRow({
         title="Записи на неделе"
         count={weekAppointmentsCount}
         items={weekItems}
-        renderItem={(item) => <AppointmentModalItem item={item} />}
+        renderItem={(item) => (
+          <AppointmentKpiItem
+            item={{
+              clientLabel: item.clientLabel,
+              time: item.time,
+              typeLabel: item.type,
+              statusLabel: item.status,
+              branchName: item.branchName,
+              altNameNote: item.rubitimeNameIfDifferent
+                ? `Имя в Rubitime: ${item.rubitimeNameIfDifferent}`
+                : null,
+              cancelled: isCancelledItem(item),
+              href: item.href,
+              ctaLabel: item.ctaLabel,
+            }}
+          />
+        )}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Записей на этой неделе нет.{" "}
@@ -160,7 +159,23 @@ export function DoctorTodayRightKpiRow({
         title="Записи в этом месяце"
         count={monthAppointmentCount}
         items={monthItems}
-        renderItem={(item) => <AppointmentModalItem item={item} />}
+        renderItem={(item) => (
+          <AppointmentKpiItem
+            item={{
+              clientLabel: item.clientLabel,
+              time: item.time,
+              typeLabel: item.type,
+              statusLabel: item.status,
+              branchName: item.branchName,
+              altNameNote: item.rubitimeNameIfDifferent
+                ? `Имя в Rubitime: ${item.rubitimeNameIfDifferent}`
+                : null,
+              cancelled: isCancelledItem(item),
+              href: item.href,
+              ctaLabel: item.ctaLabel,
+            }}
+          />
+        )}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Записей в этом месяце нет.{" "}

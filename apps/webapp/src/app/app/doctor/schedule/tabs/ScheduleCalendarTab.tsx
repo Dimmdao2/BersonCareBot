@@ -43,6 +43,8 @@ import type { WorkingBounds } from "@/modules/booking-calendar/types";
 import type { ScheduleKpis } from "@/modules/doctor-appointments/ports";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
+import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
+import { routePaths } from "@/app-layer/routes/paths";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1798,14 +1800,32 @@ export function ScheduleCalendarTab({
         title={kpiModalTitle}
         count={kpiModalItems.length}
         items={kpiModalItems}
-        renderItem={(item) => (
-          <div className="flex justify-between items-center py-1 text-sm">
-            <span className="font-medium">{item.patientName ?? "Запись"}</span>
-            <span className="text-xs text-muted-foreground">
-              {parseFeedInstant(item.startAt, currentTimeZone).toFormat("d MMM HH:mm")}
-            </span>
-          </div>
-        )}
+        searchPlaceholder="Поиск по пациенту…"
+        searchPredicate={(item, q) =>
+          (item.patientName ?? "").toLowerCase().includes(q.toLowerCase()) ||
+          (item.serviceTitle ?? "").toLowerCase().includes(q.toLowerCase())
+        }
+        renderItem={(item) => {
+          const dt = parseFeedInstant(item.startAt, currentTimeZone);
+          const timeLabel = dt.toFormat("d MMM HH:mm");
+          return (
+            <AppointmentKpiItem
+              item={{
+                clientLabel: item.patientName ?? "Запись",
+                time: timeLabel,
+                typeLabel: item.serviceTitle ?? null,
+                statusLabel: appointmentStatusLabel(item.status),
+                branchName: item.branchTitle ?? null,
+                altNameNote: null,
+                cancelled: isCancelledAppointmentStatus(item.status),
+                href: item.platformUserId
+                  ? routePaths.doctorPatientCard(item.platformUserId)
+                  : null,
+                ctaLabel: item.platformUserId ? "Открыть карточку" : null,
+              }}
+            />
+          );
+        }}
       />
     </div>
   );
