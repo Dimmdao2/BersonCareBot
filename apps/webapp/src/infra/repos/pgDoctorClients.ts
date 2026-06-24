@@ -523,6 +523,19 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
       const bindings = rowToBindings(bindingsRows.rows);
 
+      // Есть ли переписка: хотя бы одно сообщение в любой беседе пациента
+      // (даёт открыть чат даже без привязанного Telegram/MAX-канала).
+      const conversationRow = await runWebappPgText<{ has_conversation: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM support_conversations sc
+           JOIN support_conversation_messages m ON m.conversation_id = sc.id
+           WHERE sc.platform_user_id = $1::uuid
+         ) AS has_conversation`,
+        [canonicalId],
+      );
+      const hasConversation = conversationRow.rows[0]?.has_conversation ?? false;
+
       // Fetch support status
       const supportProfile = await getClientSupportProfile(canonicalId);
 
@@ -673,6 +686,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           phone: ur.phone_normalized,
           email: ur.email,
           bindings,
+          hasConversation,
           isArchived: ur.is_archived,
           isBlocked: ur.is_blocked,
           birthDate: birthDateIso,

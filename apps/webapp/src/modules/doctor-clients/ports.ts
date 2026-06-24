@@ -124,6 +124,9 @@ export type PatientCardHeader = {
     phone: string | null;
     email: string | null;
     bindings: import("@/shared/types/session").ChannelBindings;
+    /** Есть ли у пациента переписка (хотя бы одно сообщение в support_conversations),
+     * независимо от привязанного канала — чтобы открыть чат даже без Telegram/MAX. */
+    hasConversation: boolean;
     isArchived: boolean;
     isBlocked: boolean;
     /** Дата рождения из platform_users.birth_date (ISO yyyy-mm-dd), null если не задана. */

@@ -340,8 +340,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
   const hasEmail = Boolean(identity.email);
-  // Chat is available if any messaging channel is bound
-  const hasChat = hasTelegram || hasMax;
+  // Чат доступен, если привязан канал ИЛИ уже есть переписка (история сообщений):
+  // сообщение сохранится в любом случае, привязанному каналу уйдёт ещё и пуш.
+  const hasChat = hasTelegram || hasMax || identity.hasConversation;
 
   return (
     <div className="flex flex-col gap-3">
