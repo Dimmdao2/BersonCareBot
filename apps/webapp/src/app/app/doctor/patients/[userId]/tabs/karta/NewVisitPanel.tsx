@@ -317,18 +317,22 @@ export function NewVisitPanel({
 
   const [location, setLocation] = useState(() => pendingLocation ?? "");
   const [service, setService] = useState(() => pendingService ?? "");
-  // Длительность: из поля записи, иначе выводим «N мин» из названия услуги («Сеанс 60 мин» → «60 мин»).
-  const prefillDuration = (dm?: number | null, svc?: string | null): string => {
-    if (dm) return `${dm} мин`;
+  // Длительность сеанса берём ИЗ СПРАВОЧНИКА услуг (у каждой услуги своя durationMinutes) — надёжно
+  // для любой услуги («Маникюр», «Очный приём»…), а не парсингом «N мин» из названия.
+  // parseDurationFromTitle — последний fallback для услуг, которых нет в каталоге (легаси/Rubitime).
+  const parseDurationFromTitle = (svc?: string | null): string => {
     const m = svc?.match(/(\d+)\s*мин/);
     return m ? `${m[1]} мин` : "";
   };
-  const [duration, setDuration] = useState(() => prefillDuration(pendingDurationMin, pendingService));
+  const [duration, setDuration] = useState(() => (pendingDurationMin ? `${pendingDurationMin} мин` : ""));
 
   // Catalog options populated from patient appointments history
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [serviceOptions, setServiceOptions] = useState<string[]>([]);
   const [durationOptions, setDurationOptions] = useState<string[]>([]);
+  // Booking-engine service catalog (title → registered durationMinutes) — the source of truth for
+  // a visit's duration once a service is chosen/prefilled.
+  const [serviceCatalog, setServiceCatalog] = useState<{ title: string; durationMinutes: number }[]>([]);
   // "other" mode for each field when user selects "Другое..."
   const [locationOther, setLocationOther] = useState(false);
   const [serviceOther, setServiceOther] = useState(false);
@@ -339,22 +343,26 @@ export function NewVisitPanel({
   useEffect(() => {
     if (pendingLocation) setLocation(pendingLocation);
     if (pendingService) setService(pendingService);
-    const d = prefillDuration(pendingDurationMin, pendingService);
-    if (d) setDuration(d);
+    // Only a numeric duration carried by the appointment itself prefills directly; otherwise the
+    // duration is resolved from the service catalog by the effect below.
+    if (pendingDurationMin) setDuration(`${pendingDurationMin} мин`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingLocation, pendingService, pendingDurationMin]);
 
-  // Auto-derive duration «N мин» from a «… N мин» service title whenever the service is set and
-  // duration is still empty. This is the single place that keeps duration in sync with the service —
-  // it covers the «Оформить визит» prefill (where the appointment carries duration only inside the
-  // service title, durationMin=null) AND a manual service pick. A numeric duration already filled
-  // (e.g. from booking-engine) or a custom «Другое…» entry is never overwritten.
+  // Single source of a visit's duration once a service is set (prefilled OR manually picked) and the
+  // field is still empty: look it up in the booking-engine service catalog by title — robust for any
+  // service whose name carries no «N мин» («Маникюр», «Очный приём»). Falls back to parsing «N мин»
+  // from the title only for services absent from the catalog (legacy/Rubitime). A numeric duration
+  // already filled or a custom «Другое…» entry is never overwritten.
   useEffect(() => {
     if (durationOther || duration.trim()) return;
-    const d = prefillDuration(null, service);
-    if (d) setDuration(d);
+    const svc = service.trim();
+    if (!svc) return;
+    const fromCatalog = serviceCatalog.find((s) => s.title === svc)?.durationMinutes;
+    const value = fromCatalog ? `${fromCatalog} мин` : parseDurationFromTitle(svc);
+    if (value) setDuration(value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [service]);
+  }, [service, serviceCatalog]);
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
@@ -434,7 +442,6 @@ export function NewVisitPanel({
     // them as dependencies (we deliberately run this only when userId changes).
     const snapshotLocation = pendingLocation;
     const snapshotService = pendingService;
-    const snapshotDurationMin = pendingDurationMin;
 
     const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
       .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string; durationMin?: number }> }>) : null))
@@ -468,15 +475,21 @@ export function NewVisitPanel({
       setLocationOptions(uniqueLocations);
       setServiceOptions(uniqueServices);
       setDurationOptions(uniqueDurations);
+      // Include inactive services too — the dropdown can still offer an archived service via
+      // appointment history, and its registered duration is just as valid for lookup.
+      setServiceCatalog(
+        (servicesData?.services ?? []).map((s) => ({ title: s.title, durationMinutes: s.durationMinutes })),
+      );
 
-      // Pre-fill from the most recent appointment — but don't overwrite values already
-      // pre-filled from the source appointment (snapshotted above to keep [userId] dep-only).
+      // Pre-fill location/service from the most recent appointment — but don't overwrite values
+      // already pre-filled from the source appointment (snapshotted above to keep [userId] dep-only).
+      // Duration is intentionally NOT set here: it is resolved from the service catalog by the
+      // service-watching effect above, so it always matches the displayed service.
       const latest = appts[0];
       if (latest) {
         if (!snapshotLocation && (latest.branchName ?? latest.location))
           setLocation(latest.branchName ?? latest.location ?? "");
         if (!snapshotService && latest.serviceName) setService(latest.serviceName);
-        if (!snapshotDurationMin && latest.durationMin) setDuration(`${latest.durationMin} мин`);
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
