@@ -1424,13 +1424,15 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchClinical, fetchAnamnesis]);
 
-  // Auto-open new visit panel when navigated via URL param or in-page tab switch from Визиты
+  // Auto-open new visit panel when navigated via URL param or in-page tab switch from Визиты.
+  // onPendingConsumed is NOT called here — NewVisitPanel calls it after capturing the pending
+  // props via useState() initializers, preventing a race where parent resets prefill* before
+  // the panel even mounts.
   useEffect(() => {
     if (pendingAppointmentId) {
       setPanelOpen(true);
-      onPendingConsumed?.();
     }
-  }, [pendingAppointmentId, onPendingConsumed]);
+  }, [pendingAppointmentId]);
 
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;
@@ -1735,7 +1737,7 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
               pendingVisitDate={pendingVisitDate}
               pendingLocation={pendingPrefillLocation}
               pendingService={pendingPrefillService}
-              pendingDurationMin={pendingPrefillDurationMin}
+              onPendingConsumed={onPendingConsumed}
               onClose={() => setPanelOpen(false)}
               onSaved={handleVisitSaved}
             />

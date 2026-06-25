@@ -284,7 +284,7 @@ export function NewVisitPanel({
   pendingVisitDate,
   pendingLocation,
   pendingService,
-  pendingDurationMin,
+  onPendingConsumed,
   onClose,
   onSaved,
 }: {
@@ -297,8 +297,9 @@ export function NewVisitPanel({
   pendingLocation?: string | null;
   /** Service name from the source appointment — pre-fills service field. */
   pendingService?: string | null;
-  /** Duration in minutes from the source appointment — pre-fills duration field. */
-  pendingDurationMin?: number | null;
+  /** Called once after this component captures pending props into state, so the parent can
+   *  safely reset its pending* fields without racing the useState() initializers. */
+  onPendingConsumed?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -317,14 +318,14 @@ export function NewVisitPanel({
 
   const [location, setLocation] = useState(() => pendingLocation ?? "");
   const [service, setService] = useState(() => pendingService ?? "");
-  // Длительность сеанса берём ИЗ СПРАВОЧНИКА услуг (у каждой услуги своя durationMinutes) — надёжно
-  // для любой услуги («Маникюр», «Очный приём»…), а не парсингом «N мин» из названия.
-  // parseDurationFromTitle — последний fallback для услуг, которых нет в каталоге (легаси/Rubitime).
+  // Duration is always resolved from the service catalog (service-watching effect below), never
+  // copied from the source appointment — per owner decision 2026-06-24.
+  // parseDurationFromTitle — fallback for services absent from the catalog (legacy/Rubitime).
   const parseDurationFromTitle = (svc?: string | null): string => {
     const m = svc?.match(/(\d+)\s*мин/);
     return m ? `${m[1]} мин` : "";
   };
-  const [duration, setDuration] = useState(() => (pendingDurationMin ? `${pendingDurationMin} мин` : ""));
+  const [duration, setDuration] = useState("");
 
   // Catalog options populated from patient appointments history
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
@@ -338,16 +339,20 @@ export function NewVisitPanel({
   const [serviceOther, setServiceOther] = useState(false);
   const [durationOther, setDurationOther] = useState(false);
 
-  // Sync pending prefill fields if they change after initial render
-  // (e.g. user clicks «Оформить визит» on a different appointment without unmounting the form)
+  // Sync pending prefill fields if they change after initial render (e.g. user clicks
+  // «Оформить визит» on a different appointment while the panel is already open).
+  // Also fires on mount — that's intentional: the useState() initializers have already captured
+  // the values, so this is the safe moment to call onPendingConsumed and let the parent reset
+  // its pending* state without losing the prefilled location/service.
   useEffect(() => {
     if (pendingLocation) setLocation(pendingLocation);
     if (pendingService) setService(pendingService);
-    // Only a numeric duration carried by the appointment itself prefills directly; otherwise the
-    // duration is resolved from the service catalog by the effect below.
-    if (pendingDurationMin) setDuration(`${pendingDurationMin} мин`);
+    // Duration is NOT set here — the service-watching effect resolves it from the catalog.
+    if (pendingLocation || pendingService) {
+      onPendingConsumed?.();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingLocation, pendingService, pendingDurationMin]);
+  }, [pendingLocation, pendingService]);
 
   // Single source of a visit's duration once a service is set (prefilled OR manually picked) and the
   // field is still empty: look it up in the booking-engine service catalog by title — robust for any
