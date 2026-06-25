@@ -7,6 +7,7 @@ import type {
 } from '../../kernel/contracts/index.js';
 import {
   isDevRedirectActive,
+  isDevRedirectPassthrough,
   buildDevPrefix,
   hasDevPrefix,
   resolveDevRedirect,
@@ -119,6 +120,24 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
           'unknown';
 
   const intendedChannel = readChannel(intent);
+
+  // PASSTHROUGH: a recipient that is a KNOWN TEST ACCOUNT (env allowlist) is
+  // delivered UNCHANGED so multi-tester flows (doctor↔patient chat/comments/OTP)
+  // can be exercised in-vivo on a real-data test env. The allowlist is empty by
+  // default, so this never fires — and real clients stay redirected/suppressed —
+  // unless an operator explicitly opts in via DEV_REDIRECT_PASSTHROUGH_*.
+  if (isDevRedirectPassthrough(intendedChannel, origRecipient)) {
+    logger.warn(
+      {
+        passthroughRecipient: originalId,
+        intendedChannel,
+        intentType: intent.type,
+      },
+      'PRE_FORK_DEV_DELIVERY_PASSTHROUGH',
+    );
+    return intent;
+  }
+
   const outcome = resolveDevRedirect(intendedChannel);
 
   if (outcome.kind === 'suppress') {
