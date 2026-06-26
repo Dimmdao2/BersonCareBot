@@ -14,7 +14,7 @@ vi.mock('./client.js', async (importOriginal) => {
     deleteMaxMessage: (...args: unknown[]) => deleteMaxMessageMock(...args),
   };
 });
-vi.mock('./runtimeConfig.js', () => ({ getMaxApiKey: async () => 'test-key' }));
+vi.mock('./runtimeConfig.js', () => ({ getMaxApiKey: async () => 'test-key', getMaxBaseUrl: () => undefined }));
 
 import { createMaxDeliveryAdapter } from './deliveryAdapter.js';
 

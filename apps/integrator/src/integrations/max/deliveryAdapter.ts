@@ -5,7 +5,7 @@ import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
 import { MaxSendError } from './client.js';
 import { parseMaxPlatformUserId, readMaxOutboundRecipient } from './maxRecipient.js';
-import { getMaxApiKey } from './runtimeConfig.js';
+import { getMaxApiKey, getMaxBaseUrl } from './runtimeConfig.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 
 /**
@@ -126,7 +126,8 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
     async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
       const apiKey = await getMaxApiKey();
       if (!apiKey) throw new Error('max api key missing');
-      const config = { apiKey };
+      const baseUrl = getMaxBaseUrl();
+      const config = { apiKey, ...(baseUrl ? { baseUrl } : {}) };
       const payload = intent.payload as DeliveryPayload;
       const text = asNonEmptyString(payload.message?.text);
       const messageId = payload.messageId;

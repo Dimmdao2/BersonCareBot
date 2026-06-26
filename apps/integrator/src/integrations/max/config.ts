@@ -12,6 +12,7 @@ const MaxConfigSchema = z.object({
   botId: z.string(),
   adminChatId: z.number().int().optional(),
   adminUserId: z.number().int().optional(),
+  baseUrl: z.string().url().optional(),
 });
 
 function loadMaxConfigFromEnv(): z.input<typeof MaxConfigSchema> {
@@ -30,6 +31,7 @@ function loadMaxConfigFromEnv(): z.input<typeof MaxConfigSchema> {
     adminUserIdRaw !== undefined && adminUserIdRaw !== ''
       ? Number(adminUserIdRaw)
       : undefined;
+  const baseUrl = process.env.MAX_API_BASE_URL?.trim() || undefined;
 
   return {
     enabled,
@@ -38,6 +40,7 @@ function loadMaxConfigFromEnv(): z.input<typeof MaxConfigSchema> {
     botId,
     ...(Number.isFinite(adminChatId) ? { adminChatId: adminChatId as number } : {}),
     ...(Number.isFinite(adminUserId) ? { adminUserId: adminUserId as number } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
   };
 }
 
