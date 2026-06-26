@@ -3,6 +3,7 @@ import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+  ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED,
   loadAdminPlaybackHealthMetrics,
 } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import { loadAdminPlaybackClientHealthMetrics } from "@/app-layer/media/playbackClientEvents";
@@ -658,7 +659,8 @@ async function probeVideoPlaybackClient(): Promise<ProbeResult<VideoPlaybackClie
     const m = await loadAdminPlaybackClientHealthMetrics({
       windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
     });
-    const status: VideoPlaybackClientHealthStatus = m.totalErrorsLast1h > 0 ? "degraded" : "ok";
+    const status: VideoPlaybackClientHealthStatus =
+      m.totalErrorsLast1h >= ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED ? "degraded" : "ok";
     return {
       ok: true,
       value: {
