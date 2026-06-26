@@ -2,7 +2,7 @@
 export function patientCardHref(
   userId: string,
   options?: {
-    tab?: "overview" | "karta" | "program" | "records" | "files" | "account";
+    tab?: "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
     /** Open the new-visit panel pre-linked to this appointment ID. */
     createVisitFrom?: string;
     /** ISO date string (YYYY-MM-DD) of the appointment to pre-fill the visit date. */
