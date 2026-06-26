@@ -5,7 +5,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 import {
