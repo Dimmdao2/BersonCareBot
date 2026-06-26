@@ -41,6 +41,8 @@ import { REMINDER_DISPATCH_NOTIFY_LOG_EVENT } from '../../reminders/reminderDisp
 import {
   buildReminderDispatchInlineKeyboard,
   buildReminderSkipReasonInlineKeyboard,
+  buildReminderSnoozeMenuInlineKeyboard,
+  buildReminderNotifSettingsInlineKeyboard,
   reminderIntentPrimaryLabel,
   reminderLinkKeyboardButton,
 } from '../../reminders/reminderInlineKeyboard.js';
@@ -716,14 +718,10 @@ export async function handleReminders(
         const scheduleSpec: ReminderOpenLinkSpec = webUrls
           ? { kind: 'web_app', url: webUrls.scheduleWebAppUrl }
           : { kind: 'url', url: remindersEditUrl ?? openUrl };
-        const mobileSpec: ReminderOpenLinkSpec = webUrls
-          ? { kind: 'web_app', url: webUrls.mobileAppWebAppUrl }
-          : { kind: 'url', url: remindersEditUrl ?? openUrl };
         const replyMarkup = buildReminderDispatchInlineKeyboard({
           primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
           primary: primarySpec,
           schedule: scheduleSpec,
-          mobileInstall: mobileSpec,
           occurrenceId: occ.id,
         });
 
@@ -1399,6 +1397,184 @@ export async function handleReminders(
       status: 'success',
       intents,
     };
+  }
+
+  if (action.type === 'reminders.snoozeMenu.callback') {
+    if (!deps.readPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.snoozeMenu.callback: no readPort' };
+    }
+    const occurrenceId = asString(action.params.occurrenceId);
+    const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+    const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+    const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
+    if (!occurrenceId || !channelUserId || chatId === null) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.snoozeMenu.callback: missing params' };
+    }
+    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.snoozeMenu.callback: forbidden' };
+    }
+    const src = resource === 'max' ? 'max' : 'telegram';
+    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const snoozeKb = buildReminderSnoozeMenuInlineKeyboard(occurrenceId);
+    const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    if (callbackQueryId) {
+      intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+    }
+    if (messageId !== null) {
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          messageId,
+          message: { text: 'Когда напомнить?' },
+          ...(snoozeKb.inline_keyboard.length > 0 ? { replyMarkup: snoozeKb } : {}),
+          parse_mode: 'HTML',
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    } else {
+      intents.push({
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          message: { text: 'Когда напомнить?' },
+          ...(snoozeKb.inline_keyboard.length > 0 ? { replyMarkup: snoozeKb } : {}),
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    }
+    return { actionId: action.id, status: 'success', intents };
+  }
+
+  if (action.type === 'reminders.notifSettings.open.callback') {
+    if (!deps.readPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.open.callback: no readPort' };
+    }
+    if (!deps.remindersWebappWritesPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.open.callback: no remindersWebappWritesPort' };
+    }
+    const occurrenceId = asString(action.params.occurrenceId);
+    const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+    const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+    const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
+    if (!occurrenceId || !channelUserId || chatId === null) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.open.callback: missing params' };
+    }
+    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.open.callback: forbidden' };
+    }
+    const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
+    const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
+      integratorUserId: userId,
+      messengerChannel,
+    });
+    const topics = settingsResult.ok ? settingsResult.topics : [];
+    const notifKb = buildReminderNotifSettingsInlineKeyboard(topics);
+    const src = messengerChannel;
+    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const settingsText = 'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
+    const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    if (callbackQueryId) {
+      intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+    }
+    if (messageId !== null) {
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          messageId,
+          message: { text: settingsText },
+          ...(notifKb.inline_keyboard.length > 0 ? { replyMarkup: notifKb } : {}),
+          parse_mode: 'HTML',
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    } else {
+      intents.push({
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          message: { text: settingsText },
+          ...(notifKb.inline_keyboard.length > 0 ? { replyMarkup: notifKb } : {}),
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    }
+    return { actionId: action.id, status: 'success', intents };
+  }
+
+  if (action.type === 'reminders.notifSettings.toggle.callback') {
+    if (!deps.readPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.toggle.callback: no readPort' };
+    }
+    if (!deps.remindersWebappWritesPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.notifSettings.toggle.callback: no remindersWebappWritesPort' };
+    }
+    const topicCode = asString(action.params.topicCode);
+    const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+    const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+    const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
+    if (!topicCode || !channelUserId || chatId === null) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.toggle.callback: missing params' };
+    }
+    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.notifSettings.toggle.callback: user not found' };
+    }
+    const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
+    await deps.remindersWebappWritesPort.toggleNotificationTopic({
+      integratorUserId: userId,
+      topicCode,
+      messengerChannel,
+    });
+    const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
+      integratorUserId: userId,
+      messengerChannel,
+    });
+    const topics = settingsResult.ok ? settingsResult.topics : [];
+    const notifKb = buildReminderNotifSettingsInlineKeyboard(topics);
+    const src = messengerChannel;
+    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const settingsText = 'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
+    const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    if (callbackQueryId) {
+      intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+    }
+    if (messageId !== null) {
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          messageId,
+          message: { text: settingsText },
+          ...(notifKb.inline_keyboard.length > 0 ? { replyMarkup: notifKb } : {}),
+          parse_mode: 'HTML',
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    } else {
+      intents.push({
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          message: { text: settingsText },
+          ...(notifKb.inline_keyboard.length > 0 ? { replyMarkup: notifKb } : {}),
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    }
+    return { actionId: action.id, status: 'success', intents };
   }
 
   return { actionId: action.id, status: 'skipped', error: 'REMINDERS_HANDLER_UNKNOWN_TYPE' };

@@ -88,6 +88,9 @@ const REMINDER_TYPES = new Set<string>([
   'reminders.skip.applyPreset',
   'reminders.skip.applyFreeText',
   'reminders.messengerTopic.disable.callback',
+  'reminders.snoozeMenu.callback',
+  'reminders.notifSettings.open.callback',
+  'reminders.notifSettings.toggle.callback',
 ]);
 const DELIVERY_TYPES = new Set<string>([
   'callback.answer',

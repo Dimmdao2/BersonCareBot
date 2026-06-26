@@ -600,6 +600,17 @@ export type RemindersWebappWritesPort = {
     occurrenceId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<{ ok: true; paragraphs: string[] } | { ok: false; error: string }>;
+  /** Fetch per-channel notification topic settings for a user. */
+  getNotificationSettings(input: {
+    integratorUserId: string;
+    messengerChannel: 'telegram' | 'max';
+  }): Promise<{ ok: true; topics: Array<{ code: string; title: string; isEnabled: boolean }> } | { ok: false; error: string }>;
+  /** Toggle a notification topic on/off for a specific channel. Returns new state. */
+  toggleNotificationTopic(input: {
+    integratorUserId: string;
+    topicCode: string;
+    messengerChannel: 'telegram' | 'max';
+  }): Promise<{ ok: true; newState: boolean } | { ok: false; error: string }>;
 };
 
 /** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */
