@@ -718,6 +718,7 @@ function PatientsContent({
     (c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0,
   );
   if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasMemberships === true);
+  if (legacyFilters.reschedules) filtered = filtered.filter((c) => (c.rescheduleCount30d ?? 0) > 0);
 
   // PAT-09/10: client-side text search across all name fields
   if (searchQuery.trim()) {
@@ -747,6 +748,7 @@ function PatientsContent({
     legacyFilters.visitedMonth ||
     legacyFilters.withoutAppointments ||
     legacyFilters.memberships ||
+    legacyFilters.reschedules ||
     !!searchQuery.trim();
 
   // Segment tone: highlight active segment card
@@ -939,6 +941,7 @@ function PatientsContent({
                   <button
                     type="button"
                     id={`doctor-patients-card-${c.userId}`}
+                    aria-pressed={isSelected}
                     onClick={() => onSelectPatient(isSelected ? null : c.userId)}
                     className={cn(
                       doctorClientListRowLinkClass,
@@ -1071,7 +1074,7 @@ function PatientsContent({
                 key={seg.key}
                 id={`doctor-patients-segment-${seg.key}`}
                 title={seg.title}
-                value={seg.key === "all" ? allClients.length : (getSegmentCount(seg.key, metrics, contextBase) ?? "—")}
+                value={seg.key === "all" ? categoryBase.length : (getSegmentCount(seg.key, metrics, contextBase) ?? "—")}
                 tone={segmentTone(seg.key)}
                 onClick={() => onSegmentChange(seg.urlValue)}
               />
