@@ -815,7 +815,7 @@ export function DoctorOnlineIntakeClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => openDetail(selectedId!)}
+            onClick={() => setSelectedId(null)}
             className="mb-2"
           >
             ← К заявкам
