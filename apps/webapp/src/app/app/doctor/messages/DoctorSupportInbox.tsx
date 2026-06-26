@@ -200,10 +200,14 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
         ? allList.filter((c) => c.onSupport)
         : allList;
 
-  const filteredList = query.trim() && searchMode === "name"
+  const filteredList = query.trim()
     ? filteredByChip.filter((c) => {
-        const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
-        return searchable.includes(query.toLowerCase());
+        const q = query.toLowerCase();
+        if (searchMode === "name") {
+          const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
+          return searchable.includes(q);
+        }
+        return (c.lastMessageText ?? "").toLowerCase().includes(q);
       })
     : filteredByChip;
 
@@ -222,12 +226,11 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
         <div className="flex gap-1.5">
           <Input
             type="search"
-            placeholder={searchMode === "name" ? "Поиск по имени / телефону" : "Поиск по тексту сообщений (скоро)"}
+            placeholder={searchMode === "name" ? "Поиск по имени / телефону" : "Поиск по тексту последнего сообщения"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="h-8 min-w-0 flex-1"
-            disabled={searchMode === "text"}
-            aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту — недоступен"}
+            aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту последнего сообщения"}
           />
           <button
             type="button"
