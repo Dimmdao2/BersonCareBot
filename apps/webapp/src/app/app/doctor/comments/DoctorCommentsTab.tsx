@@ -1194,7 +1194,7 @@ export function DoctorCommentsTab({
               )}
             </>
           )}
-          {!exercisesLoading && !exercisesError && !exercisesData && !exercisesLoading && (
+          {!exercisesLoading && !exercisesError && !exercisesData && (
             <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
               Нет активной программы с комментариями
             </DoctorEmptyState>

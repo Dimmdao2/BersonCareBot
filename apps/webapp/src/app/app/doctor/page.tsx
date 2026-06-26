@@ -123,7 +123,6 @@ export default async function DoctorPage() {
         displayIana={displayIana}
         adminHealthBanner={adminHealthBanner}
         adminRegistrationFailureBanner={adminRegistrationFailureBanner}
-        showAnalyticsLink={session.user.role === "admin"}
         todayWorkingBounds={todayWorkingBounds}
       />
     </DoctorAppShell>

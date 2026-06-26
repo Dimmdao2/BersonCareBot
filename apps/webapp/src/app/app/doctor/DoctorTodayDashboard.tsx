@@ -32,7 +32,6 @@ type Props = {
   displayIana: string;
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
   adminRegistrationFailureBanner?: AdminRegistrationFailureAttention;
-  showAnalyticsLink?: boolean;
   /**
    * Рабочие границы дня (§1.2, S4): вычислены на сервере через deriveWorkingBounds.
    * Прокидываются в мини-календарь как базовое окно рабочего дня.
@@ -50,7 +49,6 @@ export function DoctorTodayDashboard({
   displayIana,
   adminHealthBanner,
   adminRegistrationFailureBanner,
-  // showAnalyticsLink убран из шапки «Сегодня» (R3) — проп больше не читается
   todayWorkingBounds,
 }: Props) {
   // Вычисляем серверное время в бизнес-таймзоне для mini-calendar и карточки приёма

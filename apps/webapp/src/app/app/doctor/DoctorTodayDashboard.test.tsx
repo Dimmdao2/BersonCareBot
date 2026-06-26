@@ -115,7 +115,6 @@ describe("DoctorTodayDashboard", () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
-        showAnalyticsLink
       />,
     );
     expect(screen.getByRole("heading", { level: 1, name: "Сегодня" })).toBeInTheDocument();
