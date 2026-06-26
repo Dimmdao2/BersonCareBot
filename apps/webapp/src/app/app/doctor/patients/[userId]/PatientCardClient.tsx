@@ -71,6 +71,8 @@ type Props = {
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
   /** SSR-provided effective support policy for the Обзор tab (DoctorClientSupportPanel). */
   initialSupportEffectivePolicy?: PatientProgramInteractionPolicy | null;
+  /** Whether the viewer is an admin — gates the «Администрирование» section in PatientTabAccount. */
+  isAdmin?: boolean;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
@@ -119,7 +121,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, isAdmin = false }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -845,6 +847,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           header={header}
           active={activeTab === "account"}
           initialSupplementaryContacts={initialSupplementaryContacts}
+          isAdmin={isAdmin}
         />
       </div>
       <div className={cn(activeTab !== "comms" && "hidden")}>

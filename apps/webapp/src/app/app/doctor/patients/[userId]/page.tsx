@@ -199,6 +199,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialPackages={initialPackagesForTabs}
           initialPaymentsSummary={initialPaymentsSummary}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
+          isAdmin={session.user.role === "admin"}
         />
       </section>
     </DoctorAppShell>

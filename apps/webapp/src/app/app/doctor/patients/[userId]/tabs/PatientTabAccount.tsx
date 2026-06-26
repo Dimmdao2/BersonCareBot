@@ -47,6 +47,8 @@ type Props = {
   active?: boolean;
   /** SSR-provided supplementary contacts. When present, skips SecondaryPhones initial fetch. */
   initialSupplementaryContacts?: SupplementaryContact[] | null;
+  /** Hides the «Администрирование» section (UUID, Telegram ID, merge, audit) for non-admin doctors. */
+  isAdmin?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -496,7 +498,7 @@ function EmailChange({ userId }: { userId: string }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function PatientTabAccount({ userId, header, active = false, initialSupplementaryContacts }: Props) {
+export function PatientTabAccount({ userId, header, active = false, initialSupplementaryContacts, isAdmin = false }: Props) {
   const identity = header?.identity;
 
   // Derived channel info from header
@@ -864,7 +866,7 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
         </SectionCard>
 
         {/* ── 4. Администрирование ─────────────────────────────────── */}
-        <SectionCard title="Администрирование">
+        {isAdmin && <SectionCard title="Администрирование">
           {/* Technical IDs */}
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Технические идентификаторы
@@ -933,7 +935,7 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             suspendLoad={!active}
           />
 
-        </SectionCard>
+        </SectionCard>}
       </div>
     </div>
   );
