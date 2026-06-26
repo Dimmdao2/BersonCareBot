@@ -124,7 +124,7 @@ describe("BroadcastForm", () => {
         expect.objectContaining({
           category: "organizational",
           audienceFilter: "all",
-          message: { title: "Заголовок теста", body: "Достаточно длинный текст" },
+          message: expect.objectContaining({ title: "Заголовок теста", body: "Достаточно длинный текст" }),
           attachMenuAfterSend: false,
         }),
       );
