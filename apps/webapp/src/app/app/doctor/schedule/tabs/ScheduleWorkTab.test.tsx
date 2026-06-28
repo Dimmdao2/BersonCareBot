@@ -537,4 +537,50 @@ describe("ScheduleWorkTab", () => {
     expect(screen.queryByTestId("mode-btn-per-date")).not.toBeInTheDocument();
     expect(screen.queryByTestId("mode-btn-weekly")).not.toBeInTheDocument();
   });
+
+  // ── #232: постоянное расписание чекбокс удалён ──────────────────────────
+
+  it("#232: permanent-schedule checkbox is absent (removed)", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    // Выбираем день недели (Пн)
+    fireEvent.click(screen.getAllByRole("button").find((b) => b.textContent === "Пн")!);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Чекбокс «Постоянное расписание» должен отсутствовать
+    expect(screen.queryByTestId("weekday-permanent")).not.toBeInTheDocument();
+    expect(screen.queryByText("Постоянное расписание")).not.toBeInTheDocument();
+  });
+
+  // ── #234: кнопка Очистить шаблон disabled если нет шаблона ─────────────
+
+  it("#234: 'Очистить шаблон' is disabled when no working-hours template for weekday", async () => {
+    const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+    (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+      organizationTitle: "Клиника",
+      branches: BRANCHES.filter((b) => b.isActive),
+      specialistId: "spec-1",
+    });
+    const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
+    // working-hours: нет активных строк
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.includes("working-hours")) return { ok: true, rows: [] };
+      if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
+    });
+    const { ScheduleWorkTab } = await import("./ScheduleWorkTab");
+    render(<ScheduleWorkTab deepLinkParams={{ month: "2026-06" }} onDeepLinkChange={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    // Выбираем день недели Пн
+    fireEvent.click(screen.getAllByRole("button").find((b) => b.textContent === "Пн")!);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Кнопка «Очистить шаблон» должна быть disabled (нет шаблона)
+    const clearBtn = screen.getByTestId("btn-clear-schedule");
+    expect(clearBtn).toBeDisabled();
+  });
 });

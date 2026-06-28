@@ -1105,7 +1105,12 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={pending}
+                  disabled={pending || (
+                    // #234: кнопка «Очистить шаблон» disabled если нет активного шаблона для этого дня
+                    selectionMode === "weekday" &&
+                    selectedWeekday !== null &&
+                    !workingHours.some((r) => r.weekday === selectedWeekday && r.isActive)
+                  )}
                   onClick={handleClearSchedule}
                   data-testid="btn-clear-schedule"
                 >
