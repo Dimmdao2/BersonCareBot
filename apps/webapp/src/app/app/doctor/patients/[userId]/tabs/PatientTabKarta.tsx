@@ -1138,6 +1138,7 @@ function CreateVisitModeModal({
   // Fetch unlinked appointments when modal opens
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- легитимный сброс состояния + fetch при открытии модалки
     setLoading(true);
     setAppointments(null);
     setSelected(null);

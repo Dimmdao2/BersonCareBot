@@ -49,7 +49,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
         router.push(programHref(activeInstance.id));
         return;
       }
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync completion of SSR-data path: no program found in preloaded data
+       
       setProgramCheckDone(true);
       return;
     }
@@ -73,6 +73,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- programHref не мемоизирован; добавление в deps дало бы перезапуск эффекта каждый рендер
   }, [userId, router, active, initialProgramInstances]);
 
   if (!programCheckDone) {

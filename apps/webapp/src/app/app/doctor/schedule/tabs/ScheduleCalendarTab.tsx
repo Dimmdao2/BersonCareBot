@@ -1082,7 +1082,7 @@ export function ScheduleCalendarTab({
       };
     }).filter((x): x is NonNullable<typeof x> => x !== null);
     return [...grayFill, ...mapped] as FullCalendarOptions["events"];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [data, view, anchorDate, workingBounds, currentTimeZone, loMinute, hiMinute]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
@@ -1276,7 +1276,7 @@ export function ScheduleCalendarTab({
     return (data?.events ?? []).filter(
       (e): e is CalendarAppointmentEvent => e.kind === "appointment" && pred(e),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [kpiModalFilter, data?.events, currentTimeZone, kpis?.firstVisitIds]);
 
   const kpiModalTitle = kpiModalFilter

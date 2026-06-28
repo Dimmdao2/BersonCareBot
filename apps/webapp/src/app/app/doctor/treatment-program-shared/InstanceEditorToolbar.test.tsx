@@ -29,7 +29,7 @@ vi.mock("./programInstanceMutationGuard", () => ({
   isProgramInstanceEditLocked: () => draftState.editLocked,
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>

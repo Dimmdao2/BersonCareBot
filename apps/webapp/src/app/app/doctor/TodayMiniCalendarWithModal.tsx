@@ -108,7 +108,7 @@ export function TodayMiniCalendarWithModal({
       })
       .catch(() => {/* silently ignore */});
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [todayIso]);
 
   function handleChanged() {

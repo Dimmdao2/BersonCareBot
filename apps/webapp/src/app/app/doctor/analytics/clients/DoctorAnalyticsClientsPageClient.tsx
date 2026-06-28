@@ -117,6 +117,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
       setCustomTo("");
       applyPeriod({ preset: next, customFrom: "", customTo: "" });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayIana стабилен в рамках сессии (TZ-проброс отложен владельцем)
     [applyPeriod, calendarTodayYmd],
   );
 
