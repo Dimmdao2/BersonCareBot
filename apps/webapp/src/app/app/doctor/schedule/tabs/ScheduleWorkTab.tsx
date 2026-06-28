@@ -982,10 +982,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     type="button"
                     onClick={() => handleWeekdayHeaderClick(colIndex)}
                     className={cn(
-                      "text-[10px] font-medium rounded px-0.5 py-0.5 transition-colors cursor-pointer",
+                      // #236: border как у DayCell — видно что кликабельна
+                      "text-[10px] font-medium rounded px-0.5 py-0.5 transition-colors cursor-pointer border",
                       isActiveWd
-                        ? "text-primary font-semibold bg-primary/10"
-                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                        ? "text-primary font-semibold bg-primary/10 border-primary/40"
+                        : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground hover:border-muted-foreground/40",
                     )}
                     aria-label={`Выбрать все ${d} месяца`}
                     aria-pressed={isActiveWd}
