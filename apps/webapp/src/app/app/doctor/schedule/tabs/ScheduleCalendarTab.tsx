@@ -752,8 +752,10 @@ export function ScheduleCalendarTab({
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [kpiModalFilter, setKpiModalFilter] = useState<keyof ScheduleKpis | null>(null);
-  // R32: время старта, подставляемое в форму создания при выделении области.
+  // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
+  // #225: время конца из drag-интервала → используется как начальная длительность в форме создания.
+  const [createInitialEnd, setCreateInitialEnd] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // R34: подтверждение переноса (drag/resize) перед применением.
@@ -1183,17 +1185,22 @@ export function ScheduleCalendarTab({
   const onSelect = useCallback(
     (arg: any) => {
       const start: Date | null = arg.start ?? null;
+      const end: Date | null = arg.end ?? null;
       if (!start) return;
-      // FC (без tz-плагина) хранит настенное время в UTC-полях даты — читаем их
-      // напрямую, без конверсии зоны, иначе datetime-local уезжает на смещение.
+      // luxon3 plugin + timeZone prop: FC passes proper UTC Date objects (not fake-UTC
+      // wall-clock), so we convert to the doctor's display timezone via setZone.
       const startLocal =
-        DateTime.fromJSDate(start, { zone: "utc" }).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+        DateTime.fromJSDate(start).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+      const endLocal = end
+        ? DateTime.fromJSDate(end).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null
+        : null;
       setSelected(null);
       setCreateInitialStart(startLocal);
+      setCreateInitialEnd(endLocal);
       setShowCreatePanel(true);
       onDeepLinkChange("appt", null);
     },
-    [onDeepLinkChange],
+    [onDeepLinkChange, currentTimeZone],
   );
 
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
@@ -1612,6 +1619,10 @@ export function ScheduleCalendarTab({
                 selectable={view !== "month"}
                 selectMirror
                 selectMinDistance={5}
+                // #225: keep FC visual slot selection while the create panel is open.
+                // Default unselectAuto=true clears the blue drag highlight on click-elsewhere,
+                // making it look like the slot choice was lost even though the form is prefilled.
+                unselectAuto={false}
                 select={onSelect}
                 nowIndicator
                 dayMaxEvents
@@ -1700,15 +1711,16 @@ export function ScheduleCalendarTab({
                   const isTimeGrid = !arg.allDay;
                   const startLocal = clicked
                     ? isTimeGrid
-                      ? DateTime.fromJSDate(clicked, { zone: "utc" }).toFormat(
+                      ? DateTime.fromJSDate(clicked).setZone(currentTimeZone).toFormat(
                           "yyyy-MM-dd'T'HH:mm",
                         )
-                      : DateTime.fromJSDate(clicked, { zone: "utc" }).toFormat(
+                      : DateTime.fromJSDate(clicked).setZone(currentTimeZone).toFormat(
                           "yyyy-MM-dd'T'09:00",
                         )
                     : null;
                   setSelected(null);
                   setCreateInitialStart(startLocal);
+                  setCreateInitialEnd(null);
                   setShowCreatePanel(true);
                   onDeepLinkChange("appt", null);
                 }}
@@ -1758,16 +1770,20 @@ export function ScheduleCalendarTab({
               startInCreate={showCreatePanel && !selected}
               // R32: подставленное время старта при выделении области
               createInitialStart={createInitialStart}
+              // #225: конец drag-интервала → длительность в форме создания
+              createInitialEnd={createInitialEnd}
               onClose={() => {
                 setSelected(null);
                 setShowCreatePanel(false);
                 setCreateInitialStart(null);
+                setCreateInitialEnd(null);
                 onDeepLinkChange("appt", null);
               }}
               onChanged={() => {
                 setSelected(null);
                 setShowCreatePanel(false);
                 setCreateInitialStart(null);
+                setCreateInitialEnd(null);
                 onDeepLinkChange("appt", null);
                 load();
               }}

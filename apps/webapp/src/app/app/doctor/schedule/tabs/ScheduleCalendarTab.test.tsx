@@ -863,8 +863,9 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         expect(panel).toBeInTheDocument();
         // startInCreate=true
         expect(panel.getAttribute("data-start-in-create")).toBe("true");
-        // createInitialStart prefilled as "2026-06-17T11:00" (UTC wall-clock)
-        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T11:00");
+        // createInitialStart prefilled as "2026-06-17T14:00" (11:00 UTC → 14:00 Moscow, UTC+3)
+        // Fixed by #225-TZ: with luxon3 plugin, FC dates are proper UTC → convert to displayTZ.
+        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T14:00");
       });
     });
 
@@ -899,7 +900,8 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         const panel = screen.getByTestId("event-panel");
         expect(panel).toBeInTheDocument();
         expect(panel.getAttribute("data-start-in-create")).toBe("true");
-        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T14:00");
+        // Fixed by #225-TZ: 14:00 UTC → 17:00 Moscow (UTC+3).
+        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T17:00");
       });
     });
   });

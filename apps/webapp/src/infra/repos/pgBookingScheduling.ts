@@ -408,8 +408,12 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
     async listWorkingHoursAdmin({ organizationId, specialistId, branchId, roomId, weekday }) {
       const db = getDrizzle();
       const conds = [eq(beWh.organizationId, organizationId)];
+      // null  = global-only (IS NULL); string = own specialist rows OR global (IS NULL) rows.
+      // The OR-IS-NULL fallback mirrors listWorkingHours so the schedule editor and
+      // the calendar show the same rows: a specialist-scoped query must also surface
+      // global (specialist_id IS NULL) org-level rows that act as the default schedule.
       if (specialistId === null) conds.push(isNull(beWh.specialistId));
-      else if (specialistId) conds.push(eq(beWh.specialistId, specialistId));
+      else if (specialistId) conds.push(or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId)));
       if (branchId === null) conds.push(isNull(beWh.branchId));
       else if (branchId) conds.push(eq(beWh.branchId, branchId));
       if (roomId === null) conds.push(isNull(beWh.roomId));

@@ -82,6 +82,8 @@ type Props = {
   startInCreate?: boolean;
   /** R32: подставить время старта (datetime-local) при выделении области в календаре */
   createInitialStart?: string | null;
+  /** #225: конец drag-интервала ("yyyy-MM-dd'T'HH:mm") → начальная длительность в форме */
+  createInitialEnd?: string | null;
 };
 
 type LifecycleResponse = {
@@ -127,6 +129,7 @@ function DoctorCalendarEventPanelInner({
   onChanged,
   startInCreate = false,
   createInitialStart = null,
+  createInitialEnd = null,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
   const [mode, setMode] = useState<"view" | "create" | "reschedule" | "cancel">(
@@ -189,10 +192,25 @@ function DoctorCalendarEventPanelInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startInCreate, createInitialStart]);
 
+  // #225: duration from drag-interval (end − start), used as fallback when no service
+  // is selected yet or the service has no configured duration.
+  const dragDurationMinutes = useMemo(() => {
+    if (!createInitialStart || !createInitialEnd) return null;
+    const startMs = new Date(createInitialStart).getTime();
+    const endMs = new Date(createInitialEnd).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return null;
+    return Math.round((endMs - startMs) / 60_000);
+  }, [createInitialStart, createInitialEnd]);
+
   const createDurationMinutes = useMemo(() => {
-    if (!createServiceId) return null;
-    return filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null;
-  }, [createServiceId, filterMeta.services]);
+    const serviceDuration = createServiceId
+      ? (filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null)
+      : null;
+    // #225: drag duration takes priority over service default so the slot size chosen
+    // by the doctor is honoured. Service duration is only the fallback when no drag
+    // interval is available (e.g. panel opened via «+ Создать запись» button).
+    return dragDurationMinutes ?? serviceDuration;
+  }, [createServiceId, filterMeta.services, dragDurationMinutes]);
 
   const openCreateForm = () => {
     const nextSpecialistId = resolveCalendarCreateFieldValue(
