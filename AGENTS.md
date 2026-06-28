@@ -72,9 +72,18 @@
 
 Канон: [`.cursor/rules/unified-task-db.mdc`](.cursor/rules/unified-task-db.mdc) (`alwaysApply`) + памятка [`docs/SHARED_TASKDB.md`](docs/SHARED_TASKDB.md). Кратко:
 
-- Все задачи репозитория ведём в ОБЩЕЙ базе задач (проект `bcb`) **только** через утилиту-порт: `node /home/dev/brain/tools/taskdb.mjs <cmd>` (`list bcb` · `find bcb "…"` · `waiting` · `add "<title>" "<details>" bcb-lead bcb` · `set <id> status|note|question|owner_waiting|commit_ref|seal_test …`).
+- Все задачи репозитория ведём в ОБЩЕЙ базе задач (проект `bcb`) **только** через утилиту-порт:
+  ```
+  node /home/dev/brain/tools/taskdb.mjs <cmd>
+  ```
+  Основные команды: `list bcb` · `find bcb "<подстрока>"` · `waiting` · `add "<title>" "<details>" bcb-lead bcb` · `set <id> <field> <value>`
+  Settable fields: `status` · `note` · `question` · `owner_waiting` · `commit_ref` · `seal_test` · `seal_audit` · `auto_ok` · `title` · `meta` · `category`
+
 - **НИКОГДА** не лезть в таблицу `plan_tasks` напрямую — ни `psql`, ни `INSERT/UPDATE/SELECT` из кода/ORM. Один порт = согласованные транзакции + единая точка контроля доступа. Не хватает операции — допиши утилиту (через ведущего/Нео), не обходи её.
-- Дисциплина статусов: начал → `status doing`; упёрся в решение владельца → `status blocked` + `owner_waiting true` + `question`; довёл и проверил → `status done` + `seal_test true` + `commit_ref <hash>`. **Сразу** фиксируй в порт ход работы и ЛЮБЫЕ ответы/решения владельца — база единственный источник правды, не держать в голове.
+
+- **`accepted` / `accepted_at`** — **только владелец**. Агент НЕ ставит `accepted`. «done» ≠ «accepted».
+
+- Дисциплина статусов: начал → `status doing`; упёрся в решение владельца → `status blocked` + `owner_waiting true` + `question "<вопрос>"`; довёл и проверил → `status done` + `seal_test true` + `commit_ref <hash>`. **Сразу** фиксируй в порт ход работы и ЛЮБЫЕ ответы/решения владельца — база единственный источник правды, не держать в голове.
 
 ---
 
@@ -82,8 +91,17 @@
 
 ### Прогон тестов и сборок — ТОЛЬКО через кап-враппер
 - ВСЕ тесты и тяжёлые сборки запускать через `bash /home/dev/orch/run-tests.sh "<команда>"`. Враппер даёт: (а) flock-мьютекс — один прогон за раз; (б) **жёсткий кап CPU** — `taskset` на 2 ядра (env `TEST_CPUSET`, дефолт `6,7`) + `nice 19` + `ionice idle`.
-- Зачем: прод и **МОЗГ** (embed-server/STT) co-resident на этой коробке (8 vCPU, без swap). Прямой `vitest`/`pnpm test`/`pnpm build`/`tsc` форкается на все ядра → вешает систему и голодит мозг (не разбирает голос). Враппер не допускает (тесты чуть медленнее — коробка жива).
+- Зачем: прод и **МОЗГ** (embed-server/STT) co-resident на этой коробке (8 vCPU, со swap). Прямой `vitest`/`pnpm test`/`pnpm build`/`tsc` форкается на все ядра → вешает систему и голодит мозг (не разбирает голос). Враппер не допускает (тесты чуть медленнее — коробка жива).
 - НЕ запускать тесты/сборки напрямую. **Исключение:** владелец может осознанно прогнать на полную — ТОЛЬКО по его явной команде («гони напрямую») или он сам. По умолчанию агент — всегда через враппер.
+
+### CI / lint / build / fix-warnings — делегировать Sonnet, не гнать в Opus
+- **Opus** = оркестрация + принятие решений. **Sonnet** = механический run+fix цикл.
+- Как только нужен зелёный CI / починить lint / build / предупреждения — **сразу** спаунить одного Sonnet-агента с промптом:
+  1. прогони `bash /home/dev/orch/run-tests.sh "pnpm run ci"`;
+  2. для НОВОГО кода → правь **тесты** (не регрессируй код под устаревшим тестом);
+  3. предупреждения и ошибки — чини;
+  4. сложное / неочевидное / нужно решение владельца → неси ведущему на выбор, не хачь.
+- Ведущий (Opus) **не расследует логи, не правит файлы, не читает ошибки сам** — только бридж для сложных решений, которые Sonnet вынес.
 
 ### Deploy / push
 - **`feat/doctor-ui-rebuild`** (dev): коммить и пушить свободно (авто-push ок).
