@@ -328,4 +328,10 @@ export interface PatientClinicalPort {
   appendAnamnesisIllness(input: AppendAnamnesisIllnessInput): Promise<AnamnesisIllnessEntry>;
   /** Добавить запись в секцию «Образ жизни». */
   appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry>;
+
+  /**
+   * Список appointment_record_id (uuid) уже привязанных к визитам пациента.
+   * Используется в «Создать из записи», чтобы отфильтровать уже использованные записи.
+   */
+  listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]>;
 }

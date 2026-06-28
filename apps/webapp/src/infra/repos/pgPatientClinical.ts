@@ -638,5 +638,21 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       if (!row) throw new Error("clinical_anamnesis_lifestyle insert failed");
       return { id: row.id, date: fmtDisplayDate(row.recordDate), text: row.text };
     },
+
+    async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ appointmentRecordId: clinicalVisit.appointmentRecordId })
+        .from(clinicalVisit)
+        .where(
+          and(
+            eq(clinicalVisit.patientUserId, patientUserId),
+            // Only non-null links
+          ),
+        );
+      return rows
+        .map((r) => r.appointmentRecordId)
+        .filter((id): id is string => id != null);
+    },
   };
 }

@@ -4,35 +4,24 @@
  * NewVisitPanel — «+ Новый визит» form wired to the real clinical backend.
  *
  * Props:
- *   userId         — patient user id (injected server-side at POST but needed for catalog API)
- *   activeComplaints — real ActiveComplaint[] from /clinical (used in repeat-visit dynamics)
- *   activeDiagnoses  — real ActiveDiagnosis[] from /clinical (used in repeat-visit refinements)
- *   onClose        — close without saving
- *   onSaved        — called after successful POST /visits; parent re-fetches /clinical
+ *   userId             — patient user id
+ *   activeComplaints   — real ActiveComplaint[] from /clinical
+ *   activeDiagnoses    — real ActiveDiagnosis[] from /clinical
+ *   sourceAppointment  — when created from a booking: appointment data for calendar-icon preview
+ *   onClose            — close without saving
+ *   onSaved            — called after successful POST /visits; parent re-fetches /clinical
  *
- * Visit types:
- *   first  — doctor-entered complaint rows + diagnosis rows (start empty).
- *   repeat — dynamics cards keyed by real complaint ids; diagnosis-refinement cards
- *            keyed by real diagnosis ids; captures complaintUpdates / diagnosisUpdates.
- *
- * Diagnosis autocomplete:
- *   Debounce-fetches GET /api/doctor/patients/{userId}/diagnosis-catalog?q=…
- *   «+ Создать в справочнике» calls POST /api/doctor/patients/{userId}/diagnosis-catalog
- *   then uses the returned entry (sets text + catalogId).
- *
- * Date:
- *   ISO date string derived from the selected human-label option (YYYY-MM-DD format)
- *   sent as visitedAt.  For the dropdown we generate today ± a few days; today is default.
- *   If needed the parent can later pass an appointmentDate prop to pre-fill.
- *
- * On save:
- *   POST /api/doctor/patients/{userId}/visits with the correct body for visit type.
- *   On success → onSaved() (parent re-fetches + closes panel).
- *   On error → inline error message (does not crash).
+ * Changes from prior version (#208):
+ *   - DURATION field fully removed (input, state, validation, API payload).
+ *   - Branch dropdown now filters services by location (booking-engine locationAvailability).
+ *   - Calendar icon (📅) appears next to branch/service when a source appointment is linked;
+ *     clicking it shows a read-only mini-modal with appointment details.
+ *   - appointmentRecordId sent on save when created from a booking.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActiveComplaint, ActiveDiagnosis, DiagnosisCatalogSuggestion } from "@/modules/patient-clinical/ports";
+import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import { cn } from "@/lib/utils";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 import {
@@ -56,35 +45,45 @@ import {
 
 type VisitType = "first" | "repeat";
 
-/** A doctor-entered complaint row for a first visit. */
 type FormComplaintEntry = {
-  id: string; // local UI id only
+  id: string;
   priority: boolean;
   text: string;
-  severity: number; // 0–10
+  severity: number;
 };
 
-/** A doctor-entered diagnosis row for a first visit. */
 type FormDiagnosisEntry = {
-  id: string; // local UI id only
+  id: string;
   priority: boolean;
   text: string;
   catalogId: string | null;
 };
 
-/** Per-complaint update state for a repeat visit. */
 type RepeatComplaintUpdate = {
   complaintId: string;
   note: string;
-  severity: number; // new severity 0–10
+  severity: number;
   resolved: boolean;
 };
 
-/** Per-diagnosis update state for a repeat visit. */
 type RepeatDiagnosisUpdate = {
   diagnosisId: string;
   refinement: string;
   removed: boolean;
+};
+
+/** Service from booking-engine catalog with optional branch filter data. */
+type ServiceOption = {
+  id: string;
+  title: string;
+  isActive: boolean;
+};
+
+/** Service-location link: which services are available in which branches. */
+type LocationAvailabilityEntry = {
+  serviceId: string;
+  branchId: string;
+  isActive: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -222,7 +221,7 @@ function DiagnosisAutocomplete({
       setDraft("");
       setSuggestions([]);
     } catch {
-      // silently ignore — user can retry
+      // silently ignore
     }
   };
 
@@ -282,6 +281,84 @@ function DiagnosisAutocomplete({
 }
 
 // ---------------------------------------------------------------------------
+// Booking info mini-modal (read-only, triggered by calendar icon)
+// ---------------------------------------------------------------------------
+
+function BookingInfoModal({
+  appointment,
+  open,
+  onClose,
+}: {
+  appointment: PatientAppointmentItem;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const dt = appointment.dateTime
+    ? new Date(appointment.dateTime).toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+
+  const statusLabel: Record<string, string> = {
+    upcoming: "Предстоящая",
+    completed: "Состоялась",
+    rescheduled: "Перенесена",
+    canceled: "Отменена",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Запись на приём</DialogTitle>
+          <DialogDescription>
+            <span className="flex flex-col gap-1.5 pt-1 text-sm text-foreground">
+              <span className="flex gap-2">
+                <span className="w-24 flex-none text-muted-foreground">Дата/время</span>
+                <span>{dt}</span>
+              </span>
+              <span className="flex gap-2">
+                <span className="w-24 flex-none text-muted-foreground">Статус</span>
+                <span>{statusLabel[appointment.status] ?? appointment.status}</span>
+              </span>
+              {appointment.location && (
+                <span className="flex gap-2">
+                  <span className="w-24 flex-none text-muted-foreground">Филиал</span>
+                  <span>{appointment.location}</span>
+                </span>
+              )}
+              {appointment.serviceName && (
+                <span className="flex gap-2">
+                  <span className="w-24 flex-none text-muted-foreground">Услуга</span>
+                  <span>{appointment.serviceName}</span>
+                </span>
+              )}
+              <span className="flex gap-2">
+                <span className="w-24 flex-none text-muted-foreground">ID записи</span>
+                <span className="break-all font-mono text-xs text-muted-foreground">{appointment.id}</span>
+              </span>
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
+          >
+            Закрыть
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -292,6 +369,7 @@ export function NewVisitPanel({
   pendingVisitDate,
   pendingLocation,
   pendingService,
+  sourceAppointment,
   onPendingConsumed,
   onClose,
   onSaved,
@@ -305,28 +383,41 @@ export function NewVisitPanel({
   pendingLocation?: string | null;
   /** Service name from the source appointment — pre-fills service field. */
   pendingService?: string | null;
-  /** Called once after this component captures pending props into state, so the parent can
-   *  safely reset its pending* fields without racing the useState() initializers. */
+  /**
+   * The booking this visit is being created from (optional).
+   * When set: appointment info is shown via calendar icon (📅).
+   * When saving: appointmentRecordId (internalId) is included in the POST body.
+   */
+  sourceAppointment?: PatientAppointmentItem | null;
+  /** Called once after this component captures pending props into state. */
   onPendingConsumed?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [visitType, setVisitType] = useState<VisitType>("repeat");
 
-  const [selectedDate, setSelectedDate] = useState(() =>
-    pendingVisitDate ? pendingVisitDate : toIsoDate(new Date()),
-  );
+  // Derive initial date from: pendingVisitDate prop > sourceAppointment.dateTime > today
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (pendingVisitDate) return pendingVisitDate;
+    if (sourceAppointment?.dateTime) {
+      const d = new Date(sourceAppointment.dateTime);
+      return toIsoDate(d);
+    }
+    return toIsoDate(new Date());
+  });
 
-  // Visit time (HH:MM) — stored as part of visitedAt timestamp.
-  // Defaults to the current time rounded to nearest 5 min.
+  // Derive initial time from: sourceAppointment.dateTime > current time
   const [selectedTime, setSelectedTime] = useState(() => {
+    if (sourceAppointment?.dateTime) {
+      const d = new Date(sourceAppointment.dateTime);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
     const now = new Date();
     const h = String(now.getHours()).padStart(2, "0");
     const m = String(Math.round(now.getMinutes() / 5) * 5 % 60).padStart(2, "0");
     return `${h}:${m}`;
   });
 
-  // If pendingVisitDate changes after initial render (e.g. parent updates), sync it in.
   useEffect(() => {
     if (pendingVisitDate) {
       setSelectedDate(pendingVisitDate);
@@ -335,63 +426,109 @@ export function NewVisitPanel({
 
   const [location, setLocation] = useState(() => pendingLocation ?? "");
   const [service, setService] = useState(() => pendingService ?? "");
-  // Duration is always resolved from the service catalog (service-watching effect below), never
-  // copied from the source appointment — per owner decision 2026-06-24.
-  // parseDurationFromTitle — fallback for services absent from the catalog (legacy/Rubitime).
-  const parseDurationFromTitle = (svc?: string | null): string => {
-    const m = svc?.match(/(\d+)\s*мин/);
-    return m ? `${m[1]} мин` : "";
-  };
-  const [duration, setDuration] = useState("");
 
-  // Catalog options populated from patient appointments history
+  // Booking-engine service catalog for branch-filtered dropdowns
+  const [allServices, setAllServices] = useState<ServiceOption[]>([]);
+  const [locationAvailability, setLocationAvailability] = useState<LocationAvailabilityEntry[]>([]);
+  // Historical locations from past appointments
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
-  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
-  const [durationOptions, setDurationOptions] = useState<string[]>([]);
-  // Booking-engine service catalog (title → registered durationMinutes) — the source of truth for
-  // a visit's duration once a service is chosen/prefilled.
-  const [serviceCatalog, setServiceCatalog] = useState<{ title: string; durationMinutes: number }[]>([]);
+  // Map from branch name → branch id (for filtering services)
+  const [branchNameToId, setBranchNameToId] = useState<Record<string, string>>({});
+
   // "other" mode for each field when user selects "Другое..."
   const [locationOther, setLocationOther] = useState(false);
   const [serviceOther, setServiceOther] = useState(false);
-  const [durationOther, setDurationOther] = useState(false);
 
-  // ── Draft persistence (#205) ───────────────────────────────────────────────
-  // localStorage key is per-patient so drafts don't bleed across patients.
-  const draftKey = `nvp_draft_${userId}`;
+  // Calendar icon modal state
+  const [bookingInfoOpen, setBookingInfoOpen] = useState(false);
 
-  // Close-confirm state: shows a dialog if user clicks ✕ with unsaved changes.
-  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
-
-  // Sync pending prefill fields if they change after initial render (e.g. user clicks
-  // «Оформить визит» on a different appointment while the panel is already open).
-  // Also fires on mount — that's intentional: the useState() initializers have already captured
-  // the values, so this is the safe moment to call onPendingConsumed and let the parent reset
-  // its pending* state without losing the prefilled location/service.
+  // Sync pending prefill fields if they change after initial render
   useEffect(() => {
     if (pendingLocation) setLocation(pendingLocation);
     if (pendingService) setService(pendingService);
-    // Duration is NOT set here — the service-watching effect resolves it from the catalog.
     if (pendingLocation || pendingService) {
       onPendingConsumed?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingLocation, pendingService]);
 
-  // Single source of a visit's duration once a service is set (prefilled OR manually picked) and the
-  // field is still empty: look it up in the booking-engine service catalog by title — robust for any
-  // service whose name carries no «N мин» («Маникюр», «Очный приём»). Falls back to parsing «N мин»
-  // from the title only for services absent from the catalog (legacy/Rubitime). A numeric duration
-  // already filled or a custom «Другое…» entry is never overwritten.
+  // Derive services available in the currently selected branch
+  const servicesForCurrentBranch = (() => {
+    const branchId = branchNameToId[location] ?? null;
+    if (!branchId || locationAvailability.length === 0) {
+      // No branch-service map available: show all active services
+      return allServices.filter((s) => s.isActive);
+    }
+    const serviceIdsInBranch = new Set(
+      locationAvailability
+        .filter((la) => la.branchId === branchId && la.isActive)
+        .map((la) => la.serviceId),
+    );
+    return allServices.filter((s) => s.isActive && serviceIdsInBranch.has(s.id));
+  })();
+
+  // Populate locations + service catalog from appointments history + booking-engine
   useEffect(() => {
-    if (durationOther || duration.trim()) return;
-    const svc = service.trim();
-    if (!svc) return;
-    const fromCatalog = serviceCatalog.find((s) => s.title === svc)?.durationMinutes;
-    const value = fromCatalog ? `${fromCatalog} мин` : parseDurationFromTitle(svc);
-    if (value) setDuration(value);
+    const snapshotLocation = pendingLocation;
+    const snapshotService = pendingService;
+
+    const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string }> }>) : null))
+      .catch(() => null);
+
+    const servicesFetch = fetch(`/api/doctor/booking-engine/services`)
+      .then((r) => (r.ok ? (r.json() as Promise<{
+        ok: boolean;
+        services?: Array<{ id: string; title: string; isActive: boolean }>;
+        locationAvailability?: Array<{ serviceId: string; branchId: string; isActive: boolean }>;
+      }>) : null))
+      .catch(() => null);
+
+    // Fetch branches to build name→id map
+    const overviewFetch = fetch(`/api/doctor/booking-engine/overview`)
+      .then((r) => (r.ok ? (r.json() as Promise<{
+        ok: boolean;
+        branches?: Array<{ id: string; title: string; shortTitle: string | null; isActive: boolean }>;
+      }>) : null))
+      .catch(() => null);
+
+    void Promise.all([apptsFetch, servicesFetch, overviewFetch]).then(([apptData, servicesData, overviewData]) => {
+      const appts = apptData?.appointments ?? [];
+
+      const uniqueLocations = [...new Set(
+        appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean),
+      )];
+      setLocationOptions(uniqueLocations);
+
+      setAllServices(
+        (servicesData?.services ?? []).map((s) => ({ id: s.id, title: s.title, isActive: s.isActive })),
+      );
+      setLocationAvailability(servicesData?.locationAvailability ?? []);
+
+      // Build branch name → id map from overview
+      const nameToId: Record<string, string> = {};
+      for (const b of (overviewData?.branches ?? [])) {
+        nameToId[b.title] = b.id;
+        if (b.shortTitle) nameToId[b.shortTitle] = b.id;
+      }
+      setBranchNameToId(nameToId);
+
+      // Pre-fill location from the most recent appointment (if not already set from source)
+      const latest = appts[0];
+      if (latest) {
+        if (!snapshotLocation && (latest.branchName ?? latest.location)) {
+          setLocation(latest.branchName ?? latest.location ?? "");
+        }
+        if (!snapshotService && latest.serviceName) setService(latest.serviceName);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [service, serviceCatalog]);
+  }, [userId]);
+
+  // ── Draft persistence (#205) ───────────────────────────────────────────────
+  const draftKey = `nvp_draft_${userId}`;
+
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
@@ -399,14 +536,12 @@ export function NewVisitPanel({
   ]);
   const [firstDiagnoses, setFirstDiagnoses] = useState<FormDiagnosisEntry[]>([]);
 
-  // Text section state (first visit)
   const [examFirst, setExamFirst] = useState("");
   const [manipulationsFirst, setManipulationsFirst] = useState("");
   const [trialResultsFirst, setTrialResultsFirst] = useState("");
   const [recommendationsFirst, setRecommendationsFirst] = useState("");
 
   // ── REPEAT VISIT state ────────────────────────────────────────────────────
-  // Keyed by real complaint id (from activeComplaints)
   const [complaintUpdates, setComplaintUpdates] = useState<Record<string, RepeatComplaintUpdate>>(
     () =>
       Object.fromEntries(
@@ -417,7 +552,6 @@ export function NewVisitPanel({
       ),
   );
 
-  // Keyed by real diagnosis id (from activeDiagnoses)
   const [diagnosisUpdates, setDiagnosisUpdates] = useState<Record<string, RepeatDiagnosisUpdate>>(
     () =>
       Object.fromEntries(
@@ -428,12 +562,10 @@ export function NewVisitPanel({
       ),
   );
 
-  // Text section state (repeat visit)
   const [examRepeat, setExamRepeat] = useState("");
   const [manipulationsRepeat, setManipulationsRepeat] = useState("");
   const [recommendationsRepeat, setRecommendationsRepeat] = useState("");
 
-  // Re-seed repeat state when activeComplaints/activeDiagnoses change (e.g. userId switch)
   useEffect(() => {
     setComplaintUpdates(
       Object.fromEntries(
@@ -456,7 +588,6 @@ export function NewVisitPanel({
     );
   }, [activeDiagnoses]);
 
-  // Auto-switch visitType based on whether patient has active complaints/diagnoses
   useEffect(() => {
     if (activeComplaints.length === 0 && activeDiagnoses.length === 0) {
       setVisitType("first");
@@ -465,73 +596,8 @@ export function NewVisitPanel({
     }
   }, [activeComplaints, activeDiagnoses]);
 
-  // Populate location/service/duration from patient appointments history + booking-engine catalog
-  useEffect(() => {
-    // Snapshot pending prefill values at the time the effect runs so lint doesn't require
-    // them as dependencies (we deliberately run this only when userId changes).
-    const snapshotLocation = pendingLocation;
-    const snapshotService = pendingService;
-
-    const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string; durationMin?: number }> }>) : null))
-      .catch(() => null);
-
-    const servicesFetch = fetch(`/api/doctor/booking-engine/services`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ ok: boolean; services?: Array<{ title: string; durationMinutes: number; isActive: boolean }> }>) : null))
-      .catch(() => null);
-
-    void Promise.all([apptsFetch, servicesFetch]).then(([apptData, servicesData]) => {
-      const appts = apptData?.appointments ?? [];
-
-      const uniqueLocations = [...new Set(
-        appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean)
-      )];
-
-      // Merge appointment history services with booking-engine active services
-      const apptServices = appts.map((a) => a.serviceName ?? "").filter(Boolean);
-      const catalogServices = (servicesData?.services ?? [])
-        .filter((s) => s.isActive)
-        .map((s) => s.title);
-      const uniqueServices = [...new Set([...apptServices, ...catalogServices])];
-
-      // Merge appointment history durations with booking-engine active durations
-      const apptDurations = appts.map((a) => (a.durationMin ? `${a.durationMin} мин` : "")).filter(Boolean);
-      const catalogDurations = (servicesData?.services ?? [])
-        .filter((s) => s.isActive)
-        .map((s) => `${s.durationMinutes} мин`);
-      const uniqueDurations = [...new Set([...apptDurations, ...catalogDurations])];
-
-      setLocationOptions(uniqueLocations);
-      setServiceOptions(uniqueServices);
-      setDurationOptions(uniqueDurations);
-      // Include inactive services too — the dropdown can still offer an archived service via
-      // appointment history, and its registered duration is just as valid for lookup.
-      setServiceCatalog(
-        (servicesData?.services ?? []).map((s) => ({ title: s.title, durationMinutes: s.durationMinutes })),
-      );
-
-      // Pre-fill location/service from the most recent appointment — but don't overwrite values
-      // already pre-filled from the source appointment (snapshotted above to keep [userId] dep-only).
-      // Duration is intentionally NOT set here: it is resolved from the service catalog by the
-      // service-watching effect above, so it always matches the displayed service.
-      const latest = appts[0];
-      if (latest) {
-        if (!snapshotLocation && (latest.branchName ?? latest.location))
-          setLocation(latest.branchName ?? latest.location ?? "");
-        if (!snapshotService && latest.serviceName) setService(latest.serviceName);
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
   // ── Draft persistence + isDirty (#205) ────────────────────────────────────
 
-  // Collect all user-editable text/select fields into a snapshot for the draft.
-  // We track: examFirst, manipulationsFirst, trialResultsFirst, recommendationsFirst,
-  // examRepeat, manipulationsRepeat, recommendationsRepeat (pure text content that the
-  // doctor types). location/service/duration are excluded — they come from appointment
-  // prefill and the catalog, so restoring them is noisy. visitType is included so the
-  // form reopens in the same mode.
   type VisitDraft = {
     visitType: VisitType;
     examFirst: string;
@@ -543,7 +609,6 @@ export function NewVisitPanel({
     recommendationsRepeat: string;
   };
 
-  // isDirty — true when any text field the doctor typed has content.
   const isDirty =
     examFirst.trim() !== "" ||
     manipulationsFirst.trim() !== "" ||
@@ -556,13 +621,10 @@ export function NewVisitPanel({
     firstDiagnoses.length > 0 ||
     Object.values(complaintUpdates).some((u) => u.note.trim() !== "");
 
-  // Restore draft on mount (only if there is no pending appointment prefill — prefer
-  // the appointment data over a stale draft).
   const draftRestoredRef = useRef(false);
   useEffect(() => {
     if (draftRestoredRef.current) return;
     draftRestoredRef.current = true;
-    // If an appointment is being pre-filled, skip draft restore to avoid conflicts.
     if (pendingVisitDate ?? pendingLocation ?? pendingService) return;
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
@@ -577,14 +639,13 @@ export function NewVisitPanel({
       if (d.manipulationsRepeat) setManipulationsRepeat(d.manipulationsRepeat);
       if (d.recommendationsRepeat) setRecommendationsRepeat(d.recommendationsRepeat);
     } catch {
-      // Malformed draft — ignore.
+      // Malformed draft
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist draft to localStorage whenever editable fields change.
   useEffect(() => {
-    if (!isDirty) return; // don't write empty drafts
+    if (!isDirty) return;
     try {
       const draft: VisitDraft = {
         visitType,
@@ -598,9 +659,9 @@ export function NewVisitPanel({
       };
       localStorage.setItem(draftKey, JSON.stringify(draft));
     } catch {
-      // localStorage unavailable — silently skip.
+      // localStorage unavailable
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isDirty,
     visitType,
@@ -608,7 +669,6 @@ export function NewVisitPanel({
     examRepeat, manipulationsRepeat, recommendationsRepeat,
   ]);
 
-  // Clear draft on successful save.
   const clearDraft = useCallback(() => {
     try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
   }, [draftKey]);
@@ -620,11 +680,10 @@ export function NewVisitPanel({
   const handleSave = async () => {
     setSaveError(null);
 
-    // Client-side validation — required fields (VIZ-13)
+    // Client-side validation — required fields
     const missing: string[] = [];
     if (!location.trim()) missing.push("Место приёма");
     if (!service.trim()) missing.push("Услуга");
-    if (!duration.trim()) missing.push("Длительность");
     if (missing.length > 0) {
       setSaveError(`Заполните обязательные поля: ${missing.join(", ")}`);
       return;
@@ -632,21 +691,20 @@ export function NewVisitPanel({
 
     setSaving(true);
 
-    // Build ISO visitedAt from selected date + time (interpreted as local Moscow time for
-    // consistency with the existing UI convention; the DB stores with TZ).
     const visitedAt = `${selectedDate}T${selectedTime}:00`;
 
-    // Build body — patientUserId + createdBy are injected server-side
     const body: Record<string, unknown> = {
       visitType,
-      date: visitedAt,      // API field name from task spec
+      date: visitedAt,
       location: location.trim() || undefined,
       service: service.trim() || undefined,
-      duration: duration.trim() || undefined,
+      // appointmentRecordId links the visit to the source booking (uses internalId = appointment_records.id uuid)
+      ...(sourceAppointment?.internalId
+        ? { appointmentRecordId: sourceAppointment.internalId }
+        : {}),
     };
 
     if (visitType === "first") {
-      // Filter out empty complaint rows
       const validComplaints = firstComplaints.filter((c) => c.text.trim());
       if (validComplaints.length > 0) {
         body.complaints = validComplaints.map((c) => ({
@@ -668,7 +726,6 @@ export function NewVisitPanel({
       if (trialResultsFirst.trim()) body.trialResults = trialResultsFirst;
       if (recommendationsFirst.trim()) body.recommendations = recommendationsFirst;
     } else {
-      // Repeat: only send updates that have content or changed severity
       const cuList = Object.values(complaintUpdates)
         .filter((u) => u.note.trim() || u.resolved || u.severity !== (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity))
         .map((u) => ({
@@ -703,7 +760,6 @@ export function NewVisitPanel({
         const text = await r.text().catch(() => "");
         throw new Error(`status ${r.status}${text ? `: ${text}` : ""}`);
       }
-      // Success — clear draft and let parent re-fetch /clinical and close panel
       clearDraft();
       onSaved();
     } catch (err) {
@@ -757,10 +813,10 @@ export function NewVisitPanel({
         >
           ✕
         </button>
-        <span className="flex flex-wrap gap-1.5">
-          {/* Date picker — DoctorDatePicker (shared project picker, ISO yyyy-MM-dd) */}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {/* Date picker */}
           <DoctorDatePicker value={selectedDate} onChange={setSelectedDate} />
-          {/* Time picker — plain input[type=time], value synced to selectedTime */}
+          {/* Time picker */}
           <input
             type="time"
             value={selectedTime}
@@ -768,12 +824,18 @@ export function NewVisitPanel({
             className={cn(chipSelectClass, "w-[6.5rem]")}
             title="Время визита"
           />
+          {/* Branch / location */}
           {locationOptions.length > 0 && !locationOther ? (
             <Select
               value={location}
               onValueChange={(v) => {
                 if (v === "__other__") { setLocationOther(true); setLocation(""); }
-                else setLocation(v ?? "");
+                else {
+                  setLocation(v ?? "");
+                  // When branch changes, reset service if it's no longer available
+                  setService("");
+                  setServiceOther(false);
+                }
               }}
             >
               <SelectTrigger
@@ -795,12 +857,13 @@ export function NewVisitPanel({
               className={cn(chipSelectClass, "w-32 placeholder:text-muted-foreground/60")}
             />
           )}
-          {serviceOptions.length > 0 && !serviceOther ? (
+          {/* Service — filtered by selected branch */}
+          {servicesForCurrentBranch.length > 0 && !serviceOther ? (
             <Select
               value={service}
               onValueChange={(v) => {
-                if (v === "__other__") { setServiceOther(true); setService(""); setDuration(""); setDurationOther(false); }
-                else { setService(v ?? ""); setDuration(""); setDurationOther(false); }
+                if (v === "__other__") { setServiceOther(true); setService(""); }
+                else setService(v ?? "");
               }}
             >
               <SelectTrigger
@@ -809,7 +872,7 @@ export function NewVisitPanel({
               />
               <SelectContent>
                 <SelectItem value="">— услуга —</SelectItem>
-                {serviceOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                {servicesForCurrentBranch.map((o) => <SelectItem key={o.id} value={o.title}>{o.title}</SelectItem>)}
                 <SelectItem value="__other__">Другое...</SelectItem>
               </SelectContent>
             </Select>
@@ -822,45 +885,40 @@ export function NewVisitPanel({
               className={cn(chipSelectClass, "w-28 placeholder:text-muted-foreground/60")}
             />
           )}
-          {durationOptions.length > 0 && !durationOther ? (
-            <Select
-              value={duration}
-              onValueChange={(v) => {
-                if (v === "__other__") { setDurationOther(true); setDuration(""); }
-                else setDuration(v ?? "");
-              }}
+          {/* Calendar icon — shows source appointment info when present */}
+          {sourceAppointment && (
+            <button
+              type="button"
+              onClick={() => setBookingInfoOpen(true)}
+              title="Информация о записи"
+              className="flex-none rounded-md border border-border bg-background px-1.5 py-1 text-sm hover:bg-primary/10"
+              aria-label="Просмотр записи"
             >
-              <SelectTrigger
-                displayLabel={duration || "— длит. —"}
-                className="h-[26px] min-w-[6rem] px-2 text-xs"
-              />
-              <SelectContent>
-                <SelectItem value="">— длит. —</SelectItem>
-                {durationOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                <SelectItem value="__other__">Другое...</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : (
-            <input
-              type="text"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="Длительность"
-              className={cn(chipSelectClass, "w-24 placeholder:text-muted-foreground/60")}
-            />
+              📅
+            </button>
           )}
         </span>
       </div>
-      <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
-        Если у пациента есть запись на сегодня — дата, локация, услуга и длительность подставляются из
-        неё автоматически
-      </p>
 
-      {/* body (independently scrollable) */}
+      {/* Hint: source booking label */}
+      {sourceAppointment ? (
+        <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
+          Визит создаётся из записи{sourceAppointment.dateTime
+            ? ` от ${new Date(sourceAppointment.dateTime).toLocaleDateString("ru-RU", { day: "2-digit", month: "long" })}`
+            : ""}
+          {" "}· нажмите 📅 для просмотра деталей записи
+        </p>
+      ) : (
+        <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
+          Визит без привязки к записи на приём
+        </p>
+      )}
+
+      {/* body */}
       <div className="flex flex-col gap-3 overflow-y-auto px-3.5 py-3">
         {visitType === "first" ? (
           <>
-            {/* Жалобы (first visit — doctor-entered, start with one blank row) */}
+            {/* Жалобы */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
                 <span className={fieldLabelClass}>Симптомы</span>
@@ -927,8 +985,7 @@ export function NewVisitPanel({
                 ))}
               </div>
               <p className={hintClass}>
-                Каждая строка — симптом с выраженностью 0–10: попадает в карту как
-                «актуальная». Значение обновляется на каждом визите → график динамики. ⚑ — приоритет
+                ⚑ — приоритет · 0–10 — выраженность
               </p>
             </div>
 
@@ -940,7 +997,7 @@ export function NewVisitPanel({
               onChange={setExamFirst}
             />
 
-            {/* Предварительный диагноз (first visit — doctor-entered via catalog) */}
+            {/* Предварительный диагноз */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
                 <span className={fieldLabelClass}>Предварительный диагноз</span>
@@ -972,12 +1029,10 @@ export function NewVisitPanel({
                     </button>
                   </div>
                 ))}
-                {/* Autocomplete input */}
                 <DiagnosisAutocomplete userId={userId} onSelect={addFirstDiagnosis} />
               </div>
               <p className={hintClass}>
-                Диагнозы — из справочника клинических диагнозов: автокомплит по вводу,
-                новый создаётся в справочнике и переиспользуется у других пациентов
+                Автокомплит по справочнику, «+ Создать» — добавляет в общий справочник
               </p>
             </div>
 
@@ -1002,11 +1057,11 @@ export function NewVisitPanel({
           </>
         ) : (
           <>
-            {/* Динамика симптомов — real active complaints, keyed by id */}
+            {/* Динамика симптомов */}
             <div className="flex flex-col gap-1.5">
-              <span className={fieldLabelClass}>Динамика симптомов — по актуальным симптомам</span>
+              <span className={fieldLabelClass}>Динамика симптомов</span>
               {activeComplaints.length === 0 && (
-                <p className={hintClass}>Нет активных симптомов — добавьте симптомы через первичный визит.</p>
+                <p className={hintClass}>Нет активных симптомов — добавьте через первичный визит.</p>
               )}
               <div className="flex flex-col gap-2">
                 {activeComplaints.map((c) => {
@@ -1070,9 +1125,9 @@ export function NewVisitPanel({
               onChange={setExamRepeat}
             />
 
-            {/* Уточнение диагноза — real active diagnoses, keyed by id */}
+            {/* Уточнение диагноза */}
             <div className="flex flex-col gap-1.5">
-              <span className={fieldLabelClass}>Уточнение диагноза — по текущим</span>
+              <span className={fieldLabelClass}>Уточнение диагноза</span>
               {activeDiagnoses.length === 0 && (
                 <p className={hintClass}>Нет активных диагнозов — добавьте через первичный визит.</p>
               )}
@@ -1098,7 +1153,7 @@ export function NewVisitPanel({
                       <input
                         value={upd.refinement}
                         onChange={(e) => setUpd({ refinement: e.target.value })}
-                        placeholder="Уточнение (из справочника)..."
+                        placeholder="Уточнение..."
                         className={cn(inputClass, "mt-1.5 w-full")}
                       />
                       <label className="mt-1.5 flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
@@ -1156,13 +1211,13 @@ export function NewVisitPanel({
           </button>
           {!saveError && (
             <span className={cn(hintClass, "ml-auto")}>
-              Ручное сохранение — данные не сохраняются до нажатия «Сохранить визит»
+              Ручное сохранение
             </span>
           )}
         </div>
       </div>
 
-      {/* Close-with-unsaved-changes confirm dialog (#205) */}
+      {/* Close-with-unsaved-changes confirm */}
       <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -1181,7 +1236,7 @@ export function NewVisitPanel({
               onClick={() => setCloseConfirmOpen(false)}
               className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
             >
-              Вернуться к редактированию
+              Вернуться
             </button>
             <button
               type="button"
@@ -1193,6 +1248,15 @@ export function NewVisitPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Booking info modal (calendar icon click) */}
+      {sourceAppointment && (
+        <BookingInfoModal
+          appointment={sourceAppointment}
+          open={bookingInfoOpen}
+          onClose={() => setBookingInfoOpen(false)}
+        />
+      )}
     </div>
   );
 }

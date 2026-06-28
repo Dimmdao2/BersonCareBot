@@ -546,4 +546,10 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         note: h.note,
       }));
   },
+
+  async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+    return visits
+      .filter((v) => v.patientUserId === patientUserId && v.appointmentRecordId != null)
+      .map((v) => v.appointmentRecordId as string);
+  },
 };

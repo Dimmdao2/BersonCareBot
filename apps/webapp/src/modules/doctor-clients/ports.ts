@@ -198,6 +198,12 @@ export type DoctorDashboardPatientMetrics = {
 /** Строка в списке записей пациента (Записи таб). */
 export type PatientAppointmentItem = {
   id: string;
+  /**
+   * Internal DB uuid of the appointment_records row. Used to link a clinical visit to this
+   * booking (clinical_visit.appointment_record_id → appointment_records.id). Optional because
+   * legacy/in-memory paths may not populate it.
+   */
+  internalId?: string | null;
   /** ISO timestamp момента записи. */
   dateTime: string;
   /**

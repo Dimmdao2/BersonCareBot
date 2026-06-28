@@ -38,7 +38,7 @@
  *   - Сопутствующие заболевания: MOCK (deferred).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 import type {
   ActiveComplaint,
@@ -59,6 +59,12 @@ import {
   doctorSectionSubtitleClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { NewVisitPanel } from "./karta/NewVisitPanel";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/doctor/primitives/dialog";
 
 type Props = {
   userId: string;
@@ -71,7 +77,10 @@ type Props = {
   pendingPrefillLocation?: string | null;
   /** Service name from the source appointment — forwarded to NewVisitPanel. */
   pendingPrefillService?: string | null;
-  /** Duration in minutes from the source appointment — forwarded to NewVisitPanel. */
+  /**
+   * @deprecated Duration is no longer stored on the visit (task #208). Field kept for
+   * backwards-compat with PatientCardClient which still passes it. Ignored internally.
+   */
   pendingPrefillDurationMin?: number | null;
   onPendingConsumed?: () => void;
   initialClinicalState?: ClinicalState | null;
@@ -993,7 +1002,7 @@ function VisitCard({
           {visit.type === "first" ? "Первичный" : "Повторный"}
         </span>
         <span className={doctorSectionSubtitleClass}>
-          {visit.location} · {visit.duration}
+          {visit.location}
           {visit.filesCount ? ` · 📎 ${visit.filesCount}` : ""}
         </span>
         <span className="ml-auto text-xs text-muted-foreground">
@@ -1098,6 +1107,161 @@ function VisitCard({
         </div>
       ) : null}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CreateVisitModeModal — выбор режима создания визита
+// ---------------------------------------------------------------------------
+
+/**
+ * Модалка выбора режима создания визита:
+ *   «Из записи» — выбор из списка записей пациента без привязанного визита
+ *   «Без записи» — новый визит (пациент пришёл без предварительной записи)
+ */
+function CreateVisitModeModal({
+  userId,
+  open,
+  onClose,
+  onSelectMode,
+}: {
+  userId: string;
+  open: boolean;
+  onClose: () => void;
+  /** onSelectMode(mode, appointment?) where appointment is the selected booking if mode='from_booking'. */
+  onSelectMode: (mode: "from_booking" | "walk_in", appointment?: PatientAppointmentItem) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [appointments, setAppointments] = useState<PatientAppointmentItem[] | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  // Fetch unlinked appointments when modal opens
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    setAppointments(null);
+    setSelected(null);
+    fetch(`/api/doctor/patients/${userId}/appointments/unlinked`)
+      .then((r) => (r.ok ? r.json() as Promise<{ ok: boolean; appointments: PatientAppointmentItem[] }> : null))
+      .then((data) => {
+        const appts = data?.appointments ?? [];
+        setAppointments(appts);
+        // Pre-select the most recent unlinked appointment (first in list)
+        if (appts.length > 0 && appts[0]) {
+          setSelected(appts[0].id);
+        }
+      })
+      .catch(() => setAppointments([]))
+      .finally(() => setLoading(false));
+  }, [open, userId]);
+
+  const selectedAppt = appointments?.find((a) => a.id === selected);
+
+  const formatDateTime = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent showCloseButton={false} className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Создать визит</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-3 pt-1">
+          {/* Option 1: From booking */}
+          <div
+            className={cn(
+              "flex flex-col gap-2 rounded-lg border p-3 cursor-pointer",
+              "border-primary/30 bg-primary/5 hover:bg-primary/10",
+            )}
+          >
+            <p className="text-sm font-semibold text-foreground">Из записи на приём</p>
+            <p className="text-xs text-muted-foreground">
+              Выберите запись пациента — дата, время, филиал и услуга подтянутся автоматически
+            </p>
+            {loading && (
+              <p className="animate-pulse text-xs text-muted-foreground">Загрузка записей…</p>
+            )}
+            {!loading && appointments !== null && appointments.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">
+                Нет записей без привязанного визита
+              </p>
+            )}
+            {!loading && appointments !== null && appointments.length > 0 && (
+              <div className="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto">
+                {appointments.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setSelected(a.id)}
+                    className={cn(
+                      "flex flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left text-xs",
+                      selected === a.id
+                        ? "border-primary bg-primary/10 font-medium"
+                        : "border-border hover:border-primary/40 hover:bg-muted/30",
+                    )}
+                  >
+                    <span className="font-medium text-foreground">
+                      {formatDateTime(a.dateTime)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {[a.location, a.serviceName].filter(Boolean).join(" · ") || "—"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {!loading && appointments !== null && appointments.length > 0 && (
+              <button
+                type="button"
+                disabled={!selectedAppt}
+                onClick={() => selectedAppt && onSelectMode("from_booking", selectedAppt)}
+                className="self-start rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                Создать из выбранной записи
+              </button>
+            )}
+          </div>
+
+          {/* Option 2: Walk-in (no booking) */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+            <p className="text-sm font-semibold text-foreground">Новый визит без записи</p>
+            <p className="text-xs text-muted-foreground">
+              Пациент пришёл без предварительной записи — дата=сегодня, время=сейчас,
+              филиал из последней записи (если была)
+            </p>
+            <button
+              type="button"
+              onClick={() => onSelectMode("walk_in")}
+              className="self-start rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/30"
+            >
+              Создать без записи
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Отмена
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1371,10 +1535,16 @@ function AddLifestyleForm({
 
 const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: [] };
 
-export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, pendingPrefillLocation, pendingPrefillService, pendingPrefillDurationMin, onPendingConsumed, initialClinicalState, initialVisits, initialAnamnesis, initialComorbidities }: Props) {
+export function PatientTabKarta({ userId, header: _header, pendingAppointmentId, pendingVisitDate, pendingPrefillLocation, pendingPrefillService, onPendingConsumed, initialClinicalState, initialVisits, initialAnamnesis, initialComorbidities }: Props) {
   const hasSsrClinical = initialClinicalState != null && initialVisits != null;
   const [panelOpen, setPanelOpen] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(true);
+
+  // Create-visit mode picker: null = closed; opens when user clicks «+ Новый визит»
+  // (but NOT when auto-opened via pendingAppointmentId, which bypasses the picker).
+  const [modePickerOpen, setModePickerOpen] = useState(false);
+  // The appointment this visit is being created from (null = walk-in without booking).
+  const [sourceAppointment, setSourceAppointment] = useState<PatientAppointmentItem | null>(null);
 
   // Clinical data — loaded from /api/doctor/patients/[userId]/clinical
   const [complaints, setComplaints] = useState<ActiveComplaint[]>(() => hasSsrClinical ? initialClinicalState!.complaints : []);
@@ -1482,10 +1652,12 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
   const handleVisitSaved = useCallback(() => {
     setPanelOpen(false);
     setHistoryVisible(true);
+    setSourceAppointment(null);
     fetchClinical();
   }, [fetchClinical]);
 
   return (
+    <>
     <div className={cn("grid items-start gap-2.5", gridCols)}>
       {/* ── LEFT: clinical state (Карта) ─────────────────────────────────── */}
       <div
@@ -1739,7 +1911,7 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
           {!panelOpen && (
             <button
               type="button"
-              onClick={() => setPanelOpen(true)}
+              onClick={() => setModePickerOpen(true)}
               className="ml-auto rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
             >
               + Новый визит
@@ -1755,10 +1927,11 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
               activeComplaints={complaints}
               activeDiagnoses={diagnoses}
               pendingVisitDate={pendingVisitDate}
-              pendingLocation={pendingPrefillLocation}
-              pendingService={pendingPrefillService}
+              pendingLocation={pendingPrefillLocation ?? (sourceAppointment?.location ?? null)}
+              pendingService={pendingPrefillService ?? (sourceAppointment?.serviceName ?? null)}
+              sourceAppointment={sourceAppointment}
               onPendingConsumed={onPendingConsumed}
-              onClose={() => setPanelOpen(false)}
+              onClose={() => { setPanelOpen(false); setSourceAppointment(null); }}
               onSaved={handleVisitSaved}
             />
           </div>
@@ -1799,5 +1972,22 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
         )}
       </div>
     </div>
+
+    {/* Mode picker modal — opens when doctor clicks «+ Новый визит» */}
+    <CreateVisitModeModal
+      userId={userId}
+      open={modePickerOpen}
+      onClose={() => setModePickerOpen(false)}
+      onSelectMode={(mode, appointment) => {
+        setModePickerOpen(false);
+        if (mode === "from_booking" && appointment) {
+          setSourceAppointment(appointment);
+        } else {
+          setSourceAppointment(null);
+        }
+        setPanelOpen(true);
+      }}
+    />
+    </>
   );
 }

@@ -423,6 +423,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       // Fetch appointment_records attributed to this user via the canonical join
       const rows = await runWebappPgText<{
+        internal_id: string;
         id: string;
         record_at: Date | null;
         status: string;
@@ -431,6 +432,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         branch_name: string | null;
       }>(
         `SELECT
+           ar.id AS internal_id,
            ar.integrator_record_id AS id,
            ar.record_at,
            ar.status,
@@ -474,6 +476,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
         return {
           id: row.id,
+          internalId: row.internal_id ?? null,
           dateTime: row.record_at ? new Date(row.record_at).toISOString() : "",
           status,
           serviceName: (payload.service_title && payload.service_title.trim()) || null,

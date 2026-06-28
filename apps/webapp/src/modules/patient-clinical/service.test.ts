@@ -30,6 +30,7 @@ function makePort(overrides: Partial<PatientClinicalPort> = {}): PatientClinical
       .mockImplementation(async (i) => ({ id: "l1", date: "18.01.2026", text: i.text })),
     setDiagnosisClinicalStatus: vi.fn().mockResolvedValue(true),
     getDiagnosisStatusHistory: vi.fn().mockResolvedValue([]),
+    listLinkedAppointmentRecordIds: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
