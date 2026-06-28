@@ -846,48 +846,29 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
   });
 
-  // ─── C7: dateClick prefills start time ───────────────────────────────────
+  // ─── #228: dateClick = сброс выбора (НЕ создание), создание только через drag ─
 
-  describe("C7 — dateClick prefills start time in create form", () => {
-    it("clicking time-grid slot opens create panel with ISO start time", async () => {
+  describe("#228 — dateClick resets selection (no longer opens create)", () => {
+    it("clicking time-grid slot closes the create panel (does NOT open it)", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
+      // Сначала открываем панель через + Создать запись
+      await waitFor(() => screen.getByTestId("create-appointment-btn"));
+      await user.click(screen.getByTestId("create-appointment-btn"));
+      await waitFor(() => screen.getByTestId("event-panel"));
+
+      // Клик по пустому месту — панель должна закрыться
       await user.click(screen.getByTestId("fc-timegrid-click"));
-
       await waitFor(() => {
-        const panel = screen.getByTestId("event-panel");
-        expect(panel).toBeInTheDocument();
-        // startInCreate=true
-        expect(panel.getAttribute("data-start-in-create")).toBe("true");
-        // createInitialStart prefilled as "2026-06-17T14:00" (11:00 UTC → 14:00 Moscow, UTC+3)
-        // Fixed by #225-TZ: with luxon3 plugin, FC dates are proper UTC → convert to displayTZ.
-        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T14:00");
+        expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
+        expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
       });
     });
 
-    it("clicking month all-day slot opens create panel with 09:00 default time", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ view: "month" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-allday-click"));
-
-      await waitFor(() => {
-        const panel = screen.getByTestId("event-panel");
-        expect(panel).toBeInTheDocument();
-        expect(panel.getAttribute("data-start-in-create")).toBe("true");
-        // allDay click → date part correct, time defaults to 09:00
-        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T09:00");
-      });
-    });
-
-    it("select (drag) also opens create panel with start time (existing R32 behaviour)", async () => {
+    it("select (drag) opens create panel with start time (#228: only drag creates)", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
@@ -904,67 +885,43 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T17:00");
       });
     });
+
+    it("dateClick calls onDeepLinkChange(appt, null) to reset deep-link", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const onDeepLinkChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-timegrid-click"));
+
+      expect(onDeepLinkChange).toHaveBeenCalledWith("appt", null);
+    });
   });
 
   // ─── CR-2: dateClick non-working zone guard ───────────────────────────────
 
-  describe("CR-2 — dateClick blocked in non-working zone", () => {
-    // Calendar response with a working period 10:00-18:00 Moscow (07:00-15:00 UTC)
-    // and workingBounds 10:00-18:00. Grid: lo=10:00 Moscow, hi=19:00 Moscow.
-    // This generates a nonworking fill from 18:00 to 19:00 Moscow (15:00-16:00 UTC).
-    // fc-timegrid-click fires at 11:00 UTC (14:00 Moscow) — inside working hours.
-    // fc-nonworking-click fires at 15:30 UTC (18:30 Moscow) — inside nonworking fill.
-    const makeWorkingCalResponse = () => ({
-      ok: true,
-      view: "3days",
-      anchorDate: "2026-06-17",
-      timeZone: "Europe/Moscow",
-      events: [
-        {
-          kind: "working",
-          id: "work-1",
-          startAt: "2026-06-17T07:00:00.000Z", // 10:00 Moscow
-          endAt: "2026-06-17T15:00:00.000Z",   // 18:00 Moscow
-        },
-      ],
-      filters: { specialists: [], branches: [], rooms: [], services: [] },
-      showWorkingHours: true,
-      workingBounds: { minMinute: 600, maxMinute: 1080 }, // 10:00-18:00
-    });
+  // ─── CR-2 / #228: dateClick всегда = сброс (никогда не открывает создание) ──
 
-    it("click in working area (11:00 UTC) opens create panel", async () => {
-      setupFetchMock(makeWorkingCalResponse());
+  describe("CR-2 / #228 — dateClick never opens create panel (only drag does)", () => {
+    it("click in any area (working or non-working) does NOT open create panel", async () => {
+      setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => screen.getByTestId("fullcalendar"));
-      // Wait for data to load so calendarEvents gets nonworking events
-      await waitFor(() => screen.queryByTestId("right-panel-empty") !== null);
 
+      // Both working and non-working clicks must NOT open the create panel
       await user.click(screen.getByTestId("fc-timegrid-click"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
-      });
-    });
-
-    it("click in non-working zone (15:30 UTC = 18:30 Moscow) does NOT open create panel", async () => {
-      setupFetchMock(makeWorkingCalResponse());
-      const Tab = await setup();
-      const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      // Wait for data to load so calendarEvents gets nonworking events
-      await waitFor(() => screen.queryByTestId("right-panel-empty") !== null);
-
-      await user.click(screen.getByTestId("fc-nonworking-click"));
-
-      // After click: create panel must NOT appear
       await new Promise((r) => setTimeout(r, 100));
       expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
       expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("fc-nonworking-click"));
+      await new Promise((r) => setTimeout(r, 100));
+      expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
     });
   });
 

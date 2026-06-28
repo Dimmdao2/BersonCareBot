@@ -1685,48 +1685,17 @@ export function ScheduleCalendarTab({
                   setShowCreatePanel(false);
                   onDeepLinkChange("appt", appointment.id);
                 }}
-                // C7: клик по свободному месту сетки → открыть форму создания с подставленным временем.
-                // В month-режиме allDay=true, время не определено — подставляем только дату.
-                // CR-2: клик по нерабочей (серой) зоне НЕ открывает панель создания.
-                dateClick={(arg) => {
-                  // CR-2: block create-panel when clicking inside a non-working background event.
-                  // CR-8: also block clicks on break («Перерыв») zones.
-                  const clickedMs = arg.date.getTime();
-                  const isNonWorkingOrBreak =
-                    Array.isArray(calendarEvents) &&
-                    (
-                      calendarEvents as Array<{
-                        start?: string;
-                        end?: string;
-                        extendedProps?: { kind?: string };
-                      }>
-                    ).some(
-                      (ev) =>
-                        (ev.extendedProps?.kind === "nonworking" ||
-                          ev.extendedProps?.kind === "break") &&
-                        ev.start &&
-                        ev.end &&
-                        new Date(ev.start).getTime() <= clickedMs &&
-                        clickedMs < new Date(ev.end).getTime(),
-                    );
-                  if (isNonWorkingOrBreak) return;
-
-                  const clicked: Date | null = arg.date ?? null;
-                  const isTimeGrid = !arg.allDay;
-                  const startLocal = clicked
-                    ? isTimeGrid
-                      ? DateTime.fromJSDate(clicked).setZone(currentTimeZone).toFormat(
-                          "yyyy-MM-dd'T'HH:mm",
-                        )
-                      : DateTime.fromJSDate(clicked).setZone(currentTimeZone).toFormat(
-                          "yyyy-MM-dd'T'09:00",
-                        )
-                    : null;
+                // #228: клик по пустому месту = СБРОС выбора (не создание).
+                // Создание — только через drag-протягивание (onSelect).
+                // CR-2: клик по нерабочей (серой) зоне также просто сбрасывает.
+                dateClick={(_arg) => {
+                  // Сбрасываем панель и выделение при клике в пустое место
                   setSelected(null);
-                  setCreateInitialStart(startLocal);
+                  setShowCreatePanel(false);
+                  setCreateInitialStart(null);
                   setCreateInitialEnd(null);
-                  setShowCreatePanel(true);
                   onDeepLinkChange("appt", null);
+                  calendarRef.current?.getApi().unselect();
                 }}
                 eventDrop={onDrop}
                 eventResize={onResize}
