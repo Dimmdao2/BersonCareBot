@@ -640,6 +640,21 @@ bash deploy/host/deploy-prod.sh
 - restart API / worker / webapp (и media-worker при наличии unit)
 - health check API
 
+### Тест-деплой на `151.x` (feat → test)
+
+**Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. CI (`ci.yml`) деплоит только `main`→прод (`on: push: branches: [main]`). Тест-сервер (`151.x`) держит **зеркало** текущей dev-ветки и обновляется **вручную одной командой**.
+
+```bash
+# от пользователя dev (скрипт сам делает sudo для deploy/systemctl):
+bash deploy/host/deploy-test.sh            # ветка по умолчанию feat/doctor-ui-rebuild
+bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
+```
+
+- **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
+- **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
+- **Что делает скрипт:** bundle ветки из dev-репо → force-align тест-checkout → `pnpm install --frozen-lockfile` → `pnpm build` + `pnpm build:webapp` + media-worker build + sync standalone assets → `pnpm migrate` (integrator + webapp Drizzle, env-файлы выбирают `bersoncarebot_test`) → restart 5 тест-юнитов → health + проверка, что `awg-quick@awg0` (прод-релей) жив. Бэкап БД не делает: тест-БД восстанавливается `restore-test-db.sh` из прод-дампа.
+- **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
+
 ### Отдельный webapp deploy
 
 ```bash
