@@ -240,6 +240,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           status: d.status === "refined" ? "refined" : "active",
           clinicalStatus: d.clinicalStatus ?? "предварительный",
           meta,
+          comment: null,
         };
       })
       .sort((a, b) => Number(b.priority) - Number(a.priority));

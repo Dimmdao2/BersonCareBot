@@ -244,6 +244,8 @@ function InlineFieldEditor({
   saving,
   error,
   placeholder,
+  comment,
+  onCommentChange,
 }: {
   priority: boolean;
   onTogglePriority: () => void;
@@ -254,6 +256,8 @@ function InlineFieldEditor({
   saving: boolean;
   error: boolean;
   placeholder: string;
+  comment?: string;
+  onCommentChange?: (v: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-primary/40 bg-background px-2.5 py-2 text-sm">
@@ -302,6 +306,14 @@ function InlineFieldEditor({
           Отмена
         </button>
       </div>
+      {onCommentChange !== undefined && (
+        <input
+          value={comment ?? ""}
+          onChange={(e) => onCommentChange(e.target.value)}
+          placeholder="Комментарий (напр. слева, L5-S1)"
+          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+        />
+      )}
       {error && <span className="text-xs text-destructive">Не удалось сохранить. Текст обязателен.</span>}
     </div>
   );
@@ -377,6 +389,7 @@ function DiagnosisRow({
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(d.text);
   const [priority, setPriority] = useState(d.priority);
+  const [comment, setComment] = useState(d.comment ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
 
@@ -393,6 +406,7 @@ function DiagnosisRow({
   const open = () => {
     setText(d.text);
     setPriority(d.priority);
+    setComment(d.comment ?? "");
     setError(false);
     setEditing(true);
   };
@@ -410,7 +424,7 @@ function DiagnosisRow({
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed, priority }),
+        body: JSON.stringify({ text: trimmed, priority, comment: comment.trim() || null }),
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
       setEditing(false);
@@ -481,6 +495,8 @@ function DiagnosisRow({
         onTogglePriority={() => setPriority((p) => !p)}
         value={text}
         onChange={setText}
+        comment={comment}
+        onCommentChange={setComment}
         onSave={save}
         onCancel={() => setEditing(false)}
         saving={saving}
@@ -518,6 +534,10 @@ function DiagnosisRow({
         </button>
         <span className={dateMetaClass}>{d.meta}</span>
       </div>
+
+      {d.comment && (
+        <p className="pl-4 text-xs text-muted-foreground italic">{d.comment}</p>
+      )}
 
       {/* Status action buttons */}
       <div className="flex items-center gap-1.5 pl-4">

@@ -181,6 +181,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           status: d.status === "refined" ? "refined" : "active",
           clinicalStatus: (d.clinicalStatus ?? "предварительный") as DiagnosisClinicalStatus,
           meta,
+          comment: d.comment ?? null,
         };
       });
 
@@ -424,9 +425,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     },
 
     async updateDiagnosisFields(input: UpdateDiagnosisFieldsInput): Promise<boolean> {
-      const set: Partial<{ text: string; priority: boolean }> = {};
+      const set: Partial<{ text: string; priority: boolean; comment: string | null }> = {};
       if (input.text !== undefined) set.text = input.text;
       if (input.priority !== undefined) set.priority = input.priority;
+      if (input.comment !== undefined) set.comment = input.comment;
       if (Object.keys(set).length === 0) return false;
       const db = getDrizzle();
       const updated = await db

@@ -184,6 +184,7 @@ export const clinicalDiagnosis = pgTable(
      * Независим от visit-based status (active/refined/resolved).
      */
     clinicalStatus: text("clinical_status").default("предварительный").notNull(),
+    comment: text("comment"),
     sourceVisitId: uuid("source_visit_id").notNull(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
