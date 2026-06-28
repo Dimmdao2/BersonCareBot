@@ -415,7 +415,7 @@ function HeaderIconButton({ label, title, state, onClick, children }: HeaderIcon
 
 function PatientListSkeleton() {
   return (
-    <div className="grid min-h-0 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+    <div className="grid gap-3 lg:min-h-0 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* List skeleton — left */}
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border/60 px-5 py-2">
@@ -769,12 +769,12 @@ function PatientsContent({
       id="doctor-patients-header"
       title={patientPluralLabel}
     />
-    <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+    <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* ===== LEFT: patient list ===== */}
       <section
         className={cn(
-          "flex min-h-0 flex-col rounded-lg border border-border bg-card",
-          "lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)] lg:overflow-hidden",
+          "flex flex-col rounded-lg border border-border bg-card",
+          "lg:min-h-0 lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)] lg:overflow-hidden",
         )}
       >
         {/* Search — above sticky header, non-sticky */}
@@ -829,7 +829,8 @@ function PatientsContent({
         </div>
 
         {/* Sticky header: count + icon filter rail */}
-        <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
+        {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
+        <div className="lg:sticky lg:top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
             {isAnyFilterActive
               ? <>найдено {filtered.length} / {categoryBase.length}</>
@@ -929,7 +930,7 @@ function PatientsContent({
               : "Нет пациентов по заданным фильтрам."}
           </p>
         ) : (
-          <ul id="doctor-patients-list" className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-2">
+          <ul id="doctor-patients-list" className="m-0 list-none space-y-1.5 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {filtered.map((c) => {
               const appointmentCount = c.activeAppointmentsCount ?? (c.nextAppointmentLabel ? 1 : 0);
               const unreadMessagesCount = c.unreadMessagesCount ?? 0;
@@ -1033,7 +1034,7 @@ function PatientsContent({
       </section>
 
       {/* ===== RIGHT: filter panel + preview pane ===== */}
-      <div className="flex flex-col gap-3 min-h-0">
+      <div className="flex flex-col gap-3 lg:min-h-0">
         {/* Filter panel */}
         <section
           className={cn(

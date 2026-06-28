@@ -863,11 +863,11 @@ export function NewVisitPanel({
             {/* Жалобы (first visit — doctor-entered, start with one blank row) */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
-                <span className={fieldLabelClass}>Жалобы</span>
+                <span className={fieldLabelClass}>Симптомы</span>
                 <button
                   type="button"
                   onClick={addFirstComplaint}
-                  title="Добавить жалобу"
+                  title="Добавить симптом"
                   className="grid h-[17px] w-[17px] place-items-center rounded-md border border-primary/40 text-xs text-primary"
                 >
                   +
@@ -891,7 +891,7 @@ export function NewVisitPanel({
                           prev.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x)),
                         )
                       }
-                      placeholder="Описание жалобы…"
+                      placeholder="Описание симптома…"
                       className={inputClass}
                     />
                     <span className="flex flex-none items-center gap-1 text-xs text-muted-foreground">
@@ -927,7 +927,7 @@ export function NewVisitPanel({
                 ))}
               </div>
               <p className={hintClass}>
-                Каждая строка — жалоба-сущность с выраженностью 0–10: попадает в карту как
+                Каждая строка — симптом с выраженностью 0–10: попадает в карту как
                 «актуальная». Значение обновляется на каждом визите → график динамики. ⚑ — приоритет
               </p>
             </div>
@@ -1004,9 +1004,9 @@ export function NewVisitPanel({
           <>
             {/* Динамика симптомов — real active complaints, keyed by id */}
             <div className="flex flex-col gap-1.5">
-              <span className={fieldLabelClass}>Динамика симптомов — по актуальным жалобам</span>
+              <span className={fieldLabelClass}>Динамика симптомов — по актуальным симптомам</span>
               {activeComplaints.length === 0 && (
-                <p className={hintClass}>Нет активных жалоб — добавьте жалобы через первичный визит.</p>
+                <p className={hintClass}>Нет активных симптомов — добавьте симптомы через первичный визит.</p>
               )}
               <div className="flex flex-col gap-2">
                 {activeComplaints.map((c) => {
@@ -1030,7 +1030,7 @@ export function NewVisitPanel({
                       </div>
                       <textarea
                         className={cn(textareaClass, "mt-1.5 min-h-[40px]")}
-                        placeholder="Динамика жалобы…"
+                        placeholder="Динамика симптома…"
                         value={upd.note}
                         onChange={(e) => setUpd({ note: e.target.value })}
                       />

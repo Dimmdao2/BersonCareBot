@@ -205,7 +205,7 @@ function ComplaintRow({
         onCancel={() => setEditing(false)}
         saving={saving}
         error={error}
-        placeholder="Текст жалобы"
+        placeholder="Текст симптома"
       />
     );
   }
@@ -1478,7 +1478,7 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
         <section className={doctorSectionCardClass}>
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5">
-              <h3 className={doctorSectionTitleClass}>Жалобы</h3>
+              <h3 className={doctorSectionTitleClass}>Симптомы</h3>
             </span>
             <span className={miniTabRowClass}>
               <MiniTab active>Актуальные</MiniTab>
@@ -1490,10 +1490,10 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
               <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
             )}
             {!loading && fetchError && (
-              <p className="py-1 text-xs text-destructive">Не удалось загрузить жалобы.</p>
+              <p className="py-1 text-xs text-destructive">Не удалось загрузить симптомы.</p>
             )}
             {!loading && !fetchError && complaints.length === 0 && (
-              <p className="py-2 text-xs text-muted-foreground">Жалоб пока нет.</p>
+              <p className="py-2 text-xs text-muted-foreground">Симптомов пока нет.</p>
             )}
             {!loading && complaints.map((c) => (
               <ComplaintRow key={c.id} c={c} userId={userId} onSaved={fetchClinical} />
