@@ -718,6 +718,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   }
 
   // SCH-R-04: clear weekday template → DELETE each active be_working_hours row for this weekday
+  // #233: после очистки сразу сбрасываем выделение и скрываем блок настроек
   function handleClearWeekdayTemplate() {
     if (selectedWeekday === null) return;
     const toDeactivate = workingHours.filter(
@@ -725,6 +726,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     );
     if (toDeactivate.length === 0) {
       setActionOk(`Шаблон ${WD_LABEL[selectedWeekday] ?? ""} уже не установлен`);
+      // #233: сбрасываем выделение даже если шаблон уже пуст
+      setSelected(new Set());
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
+      lastClickedRef.current = null;
       return;
     }
     run(async () => {
@@ -733,6 +739,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           apiJson(`${WH_BASE}?id=${encodeURIComponent(r.id)}`, { method: "DELETE" }),
         ),
       );
+      // #233: сбрасываем выделение после очистки
+      setSelected(new Set());
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
+      lastClickedRef.current = null;
     }, `Шаблон ${WD_LABEL[selectedWeekday] ?? ""} удалён`);
   }
 
