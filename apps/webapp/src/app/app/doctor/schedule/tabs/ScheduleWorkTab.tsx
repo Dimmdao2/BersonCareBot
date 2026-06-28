@@ -427,7 +427,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates");
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
-  const [weekdayPermanent, setWeekdayPermanent] = useState(true);
+  // #232: «постоянное расписание» чекбокс УДАЛЁН — weekday selection всегда сохраняет
+  // как постоянное (weekday template), а разовые исключения делаются через dates-режим.
 
   const { year, month } = parseMonth(deepLinkParams.month);
   const [viewYear, setViewYear] = useState(year);
@@ -640,7 +641,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setSelected(matching);
       setSelectionMode("weekday");
       setSelectedWeekday(wd);
-      setWeekdayPermanent(true); // reset permanent toggle for new weekday selection
       lastClickedRef.current = null;
     },
     [selectedWeekday, selectionMode, viewYear, viewMonth],
@@ -737,8 +737,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   }
 
   function handleSave() {
-    // SCH-R-04: weekday mode + permanent checkbox ON → save template
-    if (selectionMode === "weekday" && weekdayPermanent) {
+    // SCH-R-04: weekday mode → всегда сохраняем как постоянный шаблон (#232)
+    if (selectionMode === "weekday") {
       handleSaveWeekdayTemplate();
       return;
     }
@@ -1007,29 +1007,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     })`}
               </h3>
 
-              {/* SCH-R-04: weekday mode → permanent schedule checkbox */}
-              {selectionMode === "weekday" && (
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="weekday-permanent"
-                      checked={weekdayPermanent}
-                      onChange={(e) => setWeekdayPermanent(e.target.checked)}
-                      className="h-3.5 w-3.5 accent-primary cursor-pointer"
-                      data-testid="weekday-permanent"
-                    />
-                    <Label htmlFor="weekday-permanent" className="text-xs cursor-pointer font-normal">
-                      Постоянное расписание
-                    </Label>
-                  </div>
-                  {!weekdayPermanent && (
-                    <p className="text-[10px] text-muted-foreground pl-5">
-                      Сохранится как исключение для каждой выбранной даты
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* #232: чекбокс «постоянное расписание» УДАЛЁН. Выбор дня недели
+                  всегда сохраняется как постоянный шаблон weekday. */}
 
               {/* E4 — строчная раскладка */}
               <div className="flex flex-col gap-2">
