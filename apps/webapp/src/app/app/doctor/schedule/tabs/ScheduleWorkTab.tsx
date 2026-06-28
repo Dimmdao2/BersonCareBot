@@ -952,7 +952,22 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
       {/* E1: Two-column layout on large screens */}
       <>
-      <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
+      {/* #235: клик в стороне от активных элементов (за пределами month-grid и hours-panel)
+          сбрасывает выбор. Используем onMouseDown чтобы перехватить раньше дочерних onClick. */}
+      <div
+        className="grid gap-3 lg:grid-cols-[1fr_320px]"
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+          // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel
+          const inside = target.closest("[data-testid='month-grid'], [data-testid='hours-panel']");
+          if (!inside) {
+            setSelected(new Set());
+            setSelectionMode("dates");
+            setSelectedWeekday(null);
+            lastClickedRef.current = null;
+          }
+        }}
+      >
         {/* LEFT: month grid */}
         <div className="flex flex-col gap-2">
           <div className={cn(doctorSectionCardClass, "p-0 overflow-hidden")} data-testid="month-grid">
