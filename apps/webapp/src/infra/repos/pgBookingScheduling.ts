@@ -413,7 +413,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       // the calendar show the same rows: a specialist-scoped query must also surface
       // global (specialist_id IS NULL) org-level rows that act as the default schedule.
       if (specialistId === null) conds.push(isNull(beWh.specialistId));
-      else if (specialistId) conds.push(or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId)));
+      else if (specialistId) conds.push(or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId))!);
       if (branchId === null) conds.push(isNull(beWh.branchId));
       else if (branchId) conds.push(eq(beWh.branchId, branchId));
       if (roomId === null) conds.push(isNull(beWh.roomId));
