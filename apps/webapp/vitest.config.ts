@@ -17,7 +17,6 @@ export default defineConfig({
     // §owner 28.06: КАП ВОРКЕРОВ — тесты не форкаются на все ядра (вешали коробку и голодили мозг — инцидент #214).
     // Дефолт 2 (~25% от 8 vCPU). Полная мощность ОСОЗНАННО: VITEST_MAX_WORKERS=8 pnpm test.
     maxWorkers: Number(process.env.VITEST_MAX_WORKERS ?? 2),
-    minWorkers: 1,
     /** Кэш модулей между прогонами (путь по умолчанию: node_modules/.experimental-vitest-cache) */
     experimental: {
       fsModuleCache: true,
