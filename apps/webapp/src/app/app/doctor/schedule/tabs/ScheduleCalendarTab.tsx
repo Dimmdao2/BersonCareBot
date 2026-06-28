@@ -55,8 +55,16 @@ const API_BASE = "/api/doctor/booking-engine";
 const KPIS_API = "/api/doctor/schedule-kpis";
 const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 
-const DEFAULT_SLOT_MIN = "06:00:00";
-const DEFAULT_SLOT_MAX = "23:00:00";
+// #231: стандартное окно сетки 9:00–19:00.
+// Если записи/рабочие часы не укладываются — окно расширяется или смещается.
+// TODO(owner-decision): «настройка доктором» (хранение personalized window bounds)
+// не реализована — нет существующего хранилища настроек доктора для этого параметра.
+// Рекомендация: добавить поле default_slot_start_minute/default_slot_end_minute в
+// be_specialists или отдельную таблицу doctor_preferences. До реализации — дефолт 9–19.
+const DEFAULT_WINDOW_MIN = 9 * 60; // 540 мин = 9:00
+const DEFAULT_WINDOW_MAX = 19 * 60; // 1140 мин = 19:00
+const DEFAULT_SLOT_MIN = "09:00:00";
+const DEFAULT_SLOT_MAX = "19:00:00";
 
 // R34: понятные подписи ошибок переноса для диалога подтверждения.
 function rescheduleErrorLabel(error: string | undefined): string {
@@ -291,7 +299,13 @@ export function deriveSlotTimes(
     }
   }
   if (min == null || max == null) {
-    return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX, loMinute: 0, hiMinute: 24 * 60 };
+    // #231: дефолтное окно 9:00–19:00 (нет данных совсем)
+    return {
+      slotMinTime: DEFAULT_SLOT_MIN,
+      slotMaxTime: DEFAULT_SLOT_MAX,
+      loMinute: DEFAULT_WINDOW_MIN,
+      hiMinute: DEFAULT_WINDOW_MAX,
+    };
   }
   // Нижняя граница:
   // - если рабочий период задан и событие вышло раньше — 30 мин запас + округление вниз;
@@ -300,10 +314,16 @@ export function deriveSlotTimes(
   // Верхняя граница: 60 мин запаса + округление вверх.
   const hasEarlyEvent = workingFloor != null && min < workingFloor;
   const noWorkingBoundsMode = workingFloor == null;
-  const lo = Math.max(0, (hasEarlyEvent || noWorkingBoundsMode)
+  const rawLo = (hasEarlyEvent || noWorkingBoundsMode)
     ? Math.floor(Math.max(0, min - 30) / 60) * 60
-    : Math.floor(min / 60) * 60);
-  const hi = Math.min(24 * 60, Math.ceil((max + 60) / 60) * 60);
+    : Math.floor(min / 60) * 60;
+  const rawHi = Math.ceil((max + 60) / 60) * 60;
+
+  // #231: стандартное окно 9:00–19:00.
+  // Если данные выходят ЗА пределы дефолтного окна — расширяем (expand).
+  // Если данные УЛОЖИЛИСЬ В дефолтное окно — используем его без изменений.
+  const lo = Math.min(rawLo, DEFAULT_WINDOW_MIN);
+  const hi = Math.max(Math.min(24 * 60, rawHi), DEFAULT_WINDOW_MAX);
   return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
 }
 

@@ -979,12 +979,41 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       expect(result.slotMinTime).toBe("07:00:00");
     });
 
-    it("no working bounds and no events → default slot times", async () => {
+    it("no working bounds and no events → default window 09:00–19:00 (#231)", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
       const result = deriveSlotTimes(null, [], "UTC");
-      // Should return defaults, not crash
-      expect(result.slotMinTime).toBeTruthy();
-      expect(result.slotMaxTime).toBeTruthy();
+      // #231: стандартное окно 9:00–19:00
+      expect(result.slotMinTime).toBe("09:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
+    });
+
+    it("#231: workingBounds fits in default window → window stays 09:00–19:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // Working 10:00–17:00 — fits inside 9:00–19:00
+      const result = deriveSlotTimes({ minMinute: 600, maxMinute: 1020 }, [], "UTC");
+      expect(result.slotMinTime).toBe("09:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
+    });
+
+    it("#231: event at 07:00 extends window below default start", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // No workingBounds, appointment at 07:00
+      const events = [
+        { kind: "appointment" as const, id: "e1",
+          startAt: "2026-06-13T07:00:00Z", endAt: "2026-06-13T08:00:00Z",
+          status: "confirmed" as const, patientName: "T", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [] },
+      ];
+      const result = deriveSlotTimes(null, events, "UTC");
+      // 07:00 - 30min buffer = 06:30 → round down to 06:00
+      expect(result.slotMinTime).toBe("06:00:00");
+      // End stays at 19:00 (no event after 19:00)
+      expect(result.slotMaxTime).toBe("19:00:00");
     });
 
     it("08:30 working start (non-hour-aligned) → slotMinTime rounds down to 08:00:00", async () => {
