@@ -293,10 +293,16 @@ export function deriveSlotTimes(
   if (min == null || max == null) {
     return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX, loMinute: 0, hiMinute: 24 * 60 };
   }
-  // Нижняя граница: если событие вышло за рабочий период — 30 мин запас + округление вниз;
-  // иначе (min == workingFloor или нет рабочих границ) — без запаса, просто округление вниз.
+  // Нижняя граница:
+  // - если рабочий период задан и событие вышло раньше — 30 мин запас + округление вниз;
+  // - если рабочий период задан и событие в его рамках — без запаса, просто округление вниз;
+  // - если рабочего периода нет (only events) — 30 мин запас + округление вниз (#230).
+  // Верхняя граница: 60 мин запаса + округление вверх.
   const hasEarlyEvent = workingFloor != null && min < workingFloor;
-  const lo = Math.max(0, hasEarlyEvent ? Math.floor((min - 30) / 60) * 60 : Math.floor(min / 60) * 60);
+  const noWorkingBoundsMode = workingFloor == null;
+  const lo = Math.max(0, (hasEarlyEvent || noWorkingBoundsMode)
+    ? Math.floor(Math.max(0, min - 30) / 60) * 60
+    : Math.floor(min / 60) * 60);
   const hi = Math.min(24 * 60, Math.ceil((max + 60) / 60) * 60);
   return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
 }
