@@ -1008,8 +1008,11 @@ export function ScheduleCalendarTab({
       return keys;
     })();
 
+    // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
+    // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
+    // Используем loMinute/hiMinute из deriveSlotTimes (уже учитывает дефолт 06:00–23:00).
     const grayFill =
-      isTimeGrid && workingBounds
+      isTimeGrid
         ? buildNonWorkingFillEvents(
             data.events.filter((e) => e.kind === "working"),
             currentTimeZone,
