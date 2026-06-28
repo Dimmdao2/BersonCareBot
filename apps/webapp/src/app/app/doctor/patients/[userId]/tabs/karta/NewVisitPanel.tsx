@@ -41,6 +41,14 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/doctor/primitives/dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -309,6 +317,15 @@ export function NewVisitPanel({
     pendingVisitDate ? pendingVisitDate : toIsoDate(new Date()),
   );
 
+  // Visit time (HH:MM) — stored as part of visitedAt timestamp.
+  // Defaults to the current time rounded to nearest 5 min.
+  const [selectedTime, setSelectedTime] = useState(() => {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, "0");
+    const m = String(Math.round(now.getMinutes() / 5) * 5 % 60).padStart(2, "0");
+    return `${h}:${m}`;
+  });
+
   // If pendingVisitDate changes after initial render (e.g. parent updates), sync it in.
   useEffect(() => {
     if (pendingVisitDate) {
@@ -338,6 +355,13 @@ export function NewVisitPanel({
   const [locationOther, setLocationOther] = useState(false);
   const [serviceOther, setServiceOther] = useState(false);
   const [durationOther, setDurationOther] = useState(false);
+
+  // ── Draft persistence (#205) ───────────────────────────────────────────────
+  // localStorage key is per-patient so drafts don't bleed across patients.
+  const draftKey = `nvp_draft_${userId}`;
+
+  // Close-confirm state: shows a dialog if user clicks ✕ with unsaved changes.
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   // Sync pending prefill fields if they change after initial render (e.g. user clicks
   // «Оформить визит» on a different appointment while the panel is already open).
@@ -500,6 +524,95 @@ export function NewVisitPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // ── Draft persistence + isDirty (#205) ────────────────────────────────────
+
+  // Collect all user-editable text/select fields into a snapshot for the draft.
+  // We track: examFirst, manipulationsFirst, trialResultsFirst, recommendationsFirst,
+  // examRepeat, manipulationsRepeat, recommendationsRepeat (pure text content that the
+  // doctor types). location/service/duration are excluded — they come from appointment
+  // prefill and the catalog, so restoring them is noisy. visitType is included so the
+  // form reopens in the same mode.
+  type VisitDraft = {
+    visitType: VisitType;
+    examFirst: string;
+    manipulationsFirst: string;
+    trialResultsFirst: string;
+    recommendationsFirst: string;
+    examRepeat: string;
+    manipulationsRepeat: string;
+    recommendationsRepeat: string;
+  };
+
+  // isDirty — true when any text field the doctor typed has content.
+  const isDirty =
+    examFirst.trim() !== "" ||
+    manipulationsFirst.trim() !== "" ||
+    trialResultsFirst.trim() !== "" ||
+    recommendationsFirst.trim() !== "" ||
+    examRepeat.trim() !== "" ||
+    manipulationsRepeat.trim() !== "" ||
+    recommendationsRepeat.trim() !== "" ||
+    firstComplaints.some((c) => c.text.trim() !== "") ||
+    firstDiagnoses.length > 0 ||
+    Object.values(complaintUpdates).some((u) => u.note.trim() !== "");
+
+  // Restore draft on mount (only if there is no pending appointment prefill — prefer
+  // the appointment data over a stale draft).
+  const draftRestoredRef = useRef(false);
+  useEffect(() => {
+    if (draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    // If an appointment is being pre-filled, skip draft restore to avoid conflicts.
+    if (pendingVisitDate ?? pendingLocation ?? pendingService) return;
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+      if (!raw) return;
+      const d = JSON.parse(raw) as VisitDraft;
+      if (d.visitType) setVisitType(d.visitType);
+      if (d.examFirst) setExamFirst(d.examFirst);
+      if (d.manipulationsFirst) setManipulationsFirst(d.manipulationsFirst);
+      if (d.trialResultsFirst) setTrialResultsFirst(d.trialResultsFirst);
+      if (d.recommendationsFirst) setRecommendationsFirst(d.recommendationsFirst);
+      if (d.examRepeat) setExamRepeat(d.examRepeat);
+      if (d.manipulationsRepeat) setManipulationsRepeat(d.manipulationsRepeat);
+      if (d.recommendationsRepeat) setRecommendationsRepeat(d.recommendationsRepeat);
+    } catch {
+      // Malformed draft — ignore.
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist draft to localStorage whenever editable fields change.
+  useEffect(() => {
+    if (!isDirty) return; // don't write empty drafts
+    try {
+      const draft: VisitDraft = {
+        visitType,
+        examFirst,
+        manipulationsFirst,
+        trialResultsFirst,
+        recommendationsFirst,
+        examRepeat,
+        manipulationsRepeat,
+        recommendationsRepeat,
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {
+      // localStorage unavailable — silently skip.
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isDirty,
+    visitType,
+    examFirst, manipulationsFirst, trialResultsFirst, recommendationsFirst,
+    examRepeat, manipulationsRepeat, recommendationsRepeat,
+  ]);
+
+  // Clear draft on successful save.
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+  }, [draftKey]);
+
   // ── Save ──────────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -519,8 +632,9 @@ export function NewVisitPanel({
 
     setSaving(true);
 
-    // Build ISO visitedAt: selectedDate is already YYYY-MM-DD
-    const visitedAt = `${selectedDate}T12:00:00.000Z`;
+    // Build ISO visitedAt from selected date + time (interpreted as local Moscow time for
+    // consistency with the existing UI convention; the DB stores with TZ).
+    const visitedAt = `${selectedDate}T${selectedTime}:00`;
 
     // Build body — patientUserId + createdBy are injected server-side
     const body: Record<string, unknown> = {
@@ -589,7 +703,8 @@ export function NewVisitPanel({
         const text = await r.text().catch(() => "");
         throw new Error(`status ${r.status}${text ? `: ${text}` : ""}`);
       }
-      // Success — parent re-fetches /clinical and closes panel
+      // Success — clear draft and let parent re-fetch /clinical and close panel
+      clearDraft();
       onSaved();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Ошибка сохранения");
@@ -633,7 +748,10 @@ export function NewVisitPanel({
         </span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => {
+            if (isDirty) { setCloseConfirmOpen(true); return; }
+            onClose();
+          }}
           title="Закрыть"
           className="order-last ml-auto rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
         >
@@ -642,6 +760,14 @@ export function NewVisitPanel({
         <span className="flex flex-wrap gap-1.5">
           {/* Date picker — DoctorDatePicker (shared project picker, ISO yyyy-MM-dd) */}
           <DoctorDatePicker value={selectedDate} onChange={setSelectedDate} />
+          {/* Time picker — plain input[type=time], value synced to selectedTime */}
+          <input
+            type="time"
+            value={selectedTime}
+            onChange={(e) => setSelectedTime(e.target.value)}
+            className={cn(chipSelectClass, "w-[6.5rem]")}
+            title="Время визита"
+          />
           {locationOptions.length > 0 && !locationOther ? (
             <Select
               value={location}
@@ -673,8 +799,8 @@ export function NewVisitPanel({
             <Select
               value={service}
               onValueChange={(v) => {
-                if (v === "__other__") { setServiceOther(true); setService(""); }
-                else setService(v ?? "");
+                if (v === "__other__") { setServiceOther(true); setService(""); setDuration(""); setDurationOther(false); }
+                else { setService(v ?? ""); setDuration(""); setDurationOther(false); }
               }}
             >
               <SelectTrigger
@@ -1035,6 +1161,38 @@ export function NewVisitPanel({
           )}
         </div>
       </div>
+
+      {/* Close-with-unsaved-changes confirm dialog (#205) */}
+      <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Несохранённые изменения</DialogTitle>
+            <DialogDescription>
+              Введённые данные не сохранены. Закрыть форму и потерять изменения?
+              <br />
+              <span className="mt-1 block text-xs">
+                Черновик сохранён — он будет восстановлен при следующем открытии формы.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setCloseConfirmOpen(false)}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
+            >
+              Вернуться к редактированию
+            </button>
+            <button
+              type="button"
+              onClick={() => { setCloseConfirmOpen(false); onClose(); }}
+              className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
+            >
+              Закрыть без сохранения
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
