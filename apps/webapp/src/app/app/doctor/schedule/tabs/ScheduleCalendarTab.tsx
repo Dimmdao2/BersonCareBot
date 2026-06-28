@@ -28,6 +28,7 @@ import {
   isCancelledAppointmentStatus,
 } from "@/modules/booking-calendar/appointmentStatusLabels";
 import FullCalendar from "@fullcalendar/react";
+type FullCalendarInstance = InstanceType<typeof FullCalendar>;
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -750,6 +751,8 @@ export function ScheduleCalendarTab({
   const [kpis, setKpis] = useState<ScheduleKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  // #227: ref к FullCalendar для вызова unselect() при отмене создания
+  const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [kpiModalFilter, setKpiModalFilter] = useState<keyof ScheduleKpis | null>(null);
   // R32: время старта/конца, подставляемое в форму создания при выделении области.
@@ -1602,6 +1605,7 @@ export function ScheduleCalendarTab({
                 }
               `}</style>
               <FullCalendar
+                ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
                 locale={ruLocale}
                 key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}`}
@@ -1778,6 +1782,8 @@ export function ScheduleCalendarTab({
                 setCreateInitialStart(null);
                 setCreateInitialEnd(null);
                 onDeepLinkChange("appt", null);
+                // #227: очищаем синий блок выделения из сетки при закрытии панели создания
+                calendarRef.current?.getApi().unselect();
               }}
               onChanged={() => {
                 setSelected(null);
