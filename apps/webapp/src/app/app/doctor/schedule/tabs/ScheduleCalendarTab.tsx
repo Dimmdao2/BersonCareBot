@@ -1632,18 +1632,17 @@ export function ScheduleCalendarTab({
                   display: inline-flex;
                   align-items: center;
                   justify-content: center;
-                  min-width: 2.5rem;
-                  min-height: 2.5rem;
-                  padding: 0.3rem 0.45rem;
+                  min-width: 2.05rem;
+                  min-height: 2.05rem;
+                  padding: 0.2rem 0.2rem;
                   border-radius: 9999px;
-                  border: 1.5px solid color-mix(in oklab, var(--destructive) 78%, white);
-                  color: color-mix(in oklab, var(--destructive) 82%, black);
-                  background-color: transparent;
+                  background-color: rgba(219, 113, 93, 0.85);
+                  color: white;
                   font-weight: 600;
                 }
                 .fc-timegrid-header-link {
                   display: flex;
-                  min-height: 2.75rem;
+                  min-height: 2.05rem;
                   flex-direction: column;
                   align-items: center;
                   justify-content: center;
