@@ -160,13 +160,18 @@ describe("DoctorTodayDashboard", () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
-        data={{ ...emptyData(), unreadTotal: 3, newIntakeRequests: [], pendingProgramTestsTotal: 5, exerciseCommentAttentionTotal: 1 }}
+        data={{
+          ...emptyData(),
+          unreadTotal: 3,
+          pendingProgramTestsTotal: 5,
+          exerciseCommentAttentionTotal: 1,
+        }}
       />,
     );
-    // SEG-02: all 4 KPI cards open KpiPreviewModal (buttons, not links)
+    // SEG-02: non-zero KPI cards open KpiPreviewModal (buttons, not links)
     expect(screen.getByRole("button", { name: /Сообщения/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Заявки/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Заявки/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Тесты/i })).toBeInTheDocument();
   });
 
@@ -181,10 +186,10 @@ describe("DoctorTodayDashboard", () => {
         monthAppointmentCount={45}
       />,
     );
-    // SEG-04: all three open KpiPreviewModal, so they are buttons not links
+    // SEG-04: today opens KpiPreviewModal; week/month have separate segment buttons.
     expect(screen.getByRole("button", { name: /Записи сегодня/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Записи неделя/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}`, "i") })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Записи неделя: всего 12/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: всего 45`, "i") })).toBeInTheDocument();
   });
 
   it("splits week and month appointment KPI into total and future counters", () => {
@@ -192,14 +197,14 @@ describe("DoctorTodayDashboard", () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       weekAppointments: [
-        appointmentItem({ id: "week-future", recordAtIso: "2999-01-01T10:00:00.000Z" }),
-        appointmentItem({ id: "week-past", recordAtIso: "2000-01-01T10:00:00.000Z" }),
-        appointmentItem({ id: "week-cancelled", recordAtIso: "2999-01-02T10:00:00.000Z", status: "cancelled_by_patient" }),
+        appointmentItem({ id: "week-future", clientLabel: "Будущая неделя", recordAtIso: "2999-01-01T10:00:00.000Z" }),
+        appointmentItem({ id: "week-past", clientLabel: "Прошлая неделя", recordAtIso: "2000-01-01T10:00:00.000Z" }),
+        appointmentItem({ id: "week-cancelled", clientLabel: "Отмена неделя", recordAtIso: "2999-01-02T10:00:00.000Z", status: "cancelled_by_patient" }),
       ],
       monthAppointments: [
-        appointmentItem({ id: "month-future-1", recordAtIso: "2999-02-01T10:00:00.000Z" }),
-        appointmentItem({ id: "month-future-2", recordAtIso: "2999-02-02T10:00:00.000Z" }),
-        appointmentItem({ id: "month-past", recordAtIso: "2000-02-01T10:00:00.000Z" }),
+        appointmentItem({ id: "month-future-1", clientLabel: "Будущий месяц 1", recordAtIso: "2999-02-01T10:00:00.000Z" }),
+        appointmentItem({ id: "month-future-2", clientLabel: "Будущий месяц 2", recordAtIso: "2999-02-02T10:00:00.000Z" }),
+        appointmentItem({ id: "month-past", clientLabel: "Прошлый месяц", recordAtIso: "2000-02-01T10:00:00.000Z" }),
       ],
     };
 
@@ -212,15 +217,83 @@ describe("DoctorTodayDashboard", () => {
       />,
     );
 
-    const weekCard = screen.getByRole("button", { name: /Записи неделя: всего 3, будущие 1/i });
+    const weekTotalButton = screen.getByRole("button", { name: /Записи неделя: всего 3/i });
+    const weekFutureButton = screen.getByRole("button", { name: /Записи неделя: будущие 1/i });
     const monthCard = screen.getByRole("button", {
-      name: new RegExp(`Записи ${monthName}: всего 3, будущие 2`, "i"),
+      name: new RegExp(`Записи ${monthName}: всего 3`, "i"),
     });
 
-    expect(weekCard).toHaveTextContent("Всего");
-    expect(weekCard).toHaveTextContent("Будущие");
+    expect(weekTotalButton).toHaveTextContent("Всего");
+    expect(weekFutureButton).toHaveTextContent("Будущие");
     expect(monthCard).toHaveTextContent("Всего");
-    expect(monthCard).toHaveTextContent("Будущие");
+    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 2`, "i") })).toHaveTextContent("Будущие");
+  });
+
+  it("opens total and future appointment KPI segments with matching lists", async () => {
+    const user = userEvent.setup();
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      weekAppointments: [
+        appointmentItem({ id: "week-future", clientLabel: "Будущая неделя", recordAtIso: "2999-01-01T10:00:00.000Z" }),
+        appointmentItem({ id: "week-past", clientLabel: "Прошлая неделя", recordAtIso: "2000-01-01T10:00:00.000Z" }),
+        appointmentItem({ id: "week-cancelled", clientLabel: "Отмена неделя", recordAtIso: "2999-01-02T10:00:00.000Z", status: "cancelled_by_patient" }),
+      ],
+    };
+
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        data={data}
+        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 3 } }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Записи неделя: всего 3/i }));
+    expect(screen.getByRole("dialog", { name: /Все записи на неделе/i })).toBeInTheDocument();
+    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
+    expect(screen.getByText("Прошлая неделя")).toBeInTheDocument();
+    expect(screen.getByText("Отмена неделя")).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox", { name: "Поиск" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Close/i }));
+    await user.click(screen.getByRole("button", { name: /Записи неделя: будущие 1/i }));
+    expect(screen.getByRole("dialog", { name: /Будущие записи на неделе/i })).toBeInTheDocument();
+    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
+    expect(screen.queryByText("Прошлая неделя")).not.toBeInTheDocument();
+    expect(screen.queryByText("Отмена неделя")).not.toBeInTheDocument();
+  });
+
+  it("does not open empty KPI modals and removes search from today KPI modals", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        data={{
+          ...emptyData(),
+          unreadTotal: 1,
+          unreadConversations: [
+            {
+              conversationId: "c1",
+              patientUserId: "u1",
+              displayName: "Иванов Иван",
+              phoneNormalized: null,
+              lastMessagePreview: "Текст",
+              lastMessageAtLabel: "10:00",
+              unreadFromUserCount: 1,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /Записи сегодня/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Записи неделя: всего 0/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Сообщения/i }));
+    expect(screen.getByRole("dialog", { name: /Сообщения/i })).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox", { name: "Поиск" })).not.toBeInTheDocument();
   });
 
   it("shows empty states for on-support and mini-calendar when no data", () => {

@@ -144,7 +144,7 @@ export function DoctorTodayLeftKpiRow({
           title="Сообщения"
           value={unreadTotal}
           tone={unreadTotal > 0 ? "warning" : "neutral"}
-          onClick={() => setKpiModal("messages")}
+          onClick={unreadTotal > 0 ? () => setKpiModal("messages") : undefined}
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -152,7 +152,7 @@ export function DoctorTodayLeftKpiRow({
           title="Комментарии"
           value={displayTotal}
           tone={displayTotal > 0 ? "warning" : "neutral"}
-          onClick={() => setKpiModal("comments")}
+          onClick={displayTotal > 0 ? () => setKpiModal("comments") : undefined}
         />
         {/* Онлайн-заявки → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -160,7 +160,7 @@ export function DoctorTodayLeftKpiRow({
           title="Заявки"
           value={intakeCount}
           tone={intakeCount > 0 ? "warning" : "neutral"}
-          onClick={() => setKpiModal("intake")}
+          onClick={intakeCount > 0 ? () => setKpiModal("intake") : undefined}
         />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
@@ -168,7 +168,7 @@ export function DoctorTodayLeftKpiRow({
           title="Тесты"
           value={pendingTestsTotal}
           tone={pendingTestsTotal > 0 ? "warning" : "neutral"}
-          onClick={() => setKpiModal("tests")}
+          onClick={pendingTestsTotal > 0 ? () => setKpiModal("tests") : undefined}
         />
       </DoctorMetricList>
 
@@ -180,11 +180,6 @@ export function DoctorTodayLeftKpiRow({
         count={displayTotal}
         items={exerciseCommentItems}
         renderItem={(item) => <ExerciseCommentModalItem item={item} />}
-        searchPlaceholder="Поиск по пациенту…"
-        searchPredicate={(item, q) =>
-          item.patientDisplayName.toLowerCase().includes(q.toLowerCase()) ||
-          item.stageItemTitle.toLowerCase().includes(q.toLowerCase())
-        }
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет новых комментариев по упражнениям
@@ -200,11 +195,6 @@ export function DoctorTodayLeftKpiRow({
         count={intakeCount}
         items={newIntakeRequests}
         renderItem={(item) => <IntakeModalItem item={item} />}
-        searchPlaceholder="Поиск по пациенту…"
-        searchPredicate={(item, q) =>
-          item.patientName.toLowerCase().includes(q.toLowerCase()) ||
-          item.patientPhone.toLowerCase().includes(q.toLowerCase())
-        }
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Новых заявок нет.{" "}
@@ -223,11 +213,6 @@ export function DoctorTodayLeftKpiRow({
         count={unreadTotal}
         items={unreadConversations}
         renderItem={(item) => <UnreadConversationModalItem item={item} />}
-        searchPlaceholder="Поиск по имени…"
-        searchPredicate={(item, q) =>
-          item.displayName.toLowerCase().includes(q.toLowerCase()) ||
-          (item.phoneNormalized?.toLowerCase().includes(q.toLowerCase()) ?? false)
-        }
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет непрочитанных сообщений.{" "}
@@ -246,11 +231,6 @@ export function DoctorTodayLeftKpiRow({
         count={pendingProgramTestsTotal}
         items={pendingProgramTests}
         renderItem={(item) => <PendingTestModalItem item={item} />}
-        searchPlaceholder="Поиск по пациенту…"
-        searchPredicate={(item, q) =>
-          item.patientDisplayName.toLowerCase().includes(q.toLowerCase()) ||
-          item.instanceTitle.toLowerCase().includes(q.toLowerCase())
-        }
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет тестов, ожидающих проверки
