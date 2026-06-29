@@ -506,6 +506,90 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  // ── #233: сброс выделения/панели ДО async очистки шаблона ──────────────
+
+  it("#233: after clear-template click panel hides immediately (before async completes)", async () => {
+    // Setup: working-hours has an active row for Monday (weekday=1)
+    const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+    (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+      organizationTitle: "Клиника",
+      branches: BRANCHES.filter((b) => b.isActive),
+      specialistId: "spec-1",
+    });
+    const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
+
+    // DELETE never resolves in this test (simulates slow network)
+    let resolveDelete: (() => void) | undefined;
+    const neverResolves = new Promise<{ ok: true }>((resolve) => { resolveDelete = () => resolve({ ok: true }); });
+
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: RequestInit) => {
+      if (url.includes("working-hours") && opts?.method === "DELETE") return neverResolves;
+      if (url.includes("working-hours")) return { ok: true, rows: [{ id: "wh-mon", weekday: 1, startMinute: 540, endMinute: 1080, isActive: true, branchId: null }] };
+      if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
+    });
+
+    const { ScheduleWorkTab } = await import("./ScheduleWorkTab");
+    render(<ScheduleWorkTab deepLinkParams={{ month: "2026-06" }} onDeepLinkChange={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    // Select Monday weekday header
+    const monBtn = screen.getAllByRole("button").find((b) => b.textContent === "Пн");
+    expect(monBtn).toBeTruthy();
+    fireEvent.click(monBtn!);
+
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Click «Очистить шаблон» — DELETE hangs, but panel should hide immediately
+    // ждём загрузки working-hours, иначе кнопка disabled и клик — no-op (toDeactivate пуст → ранний выход)
+    await waitFor(() => expect(screen.getByTestId("btn-clear-schedule")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("btn-clear-schedule"));
+
+    // Panel must disappear immediately, without waiting for DELETE
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+
+    // Resolve the hanging DELETE so the component can cleanup
+    resolveDelete?.();
+  });
+
+  it("#233: after clear-template click selection is reset immediately", async () => {
+    const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+    (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+      organizationTitle: "Клиника",
+      branches: BRANCHES.filter((b) => b.isActive),
+      specialistId: "spec-1",
+    });
+    const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: RequestInit) => {
+      if (url.includes("working-hours") && opts?.method === "DELETE") return { ok: true };
+      if (url.includes("working-hours")) return { ok: true, rows: [{ id: "wh-mon", weekday: 1, startMinute: 540, endMinute: 1080, isActive: true, branchId: null }] };
+      if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
+    });
+
+    const { ScheduleWorkTab } = await import("./ScheduleWorkTab");
+    render(<ScheduleWorkTab deepLinkParams={{ month: "2026-06" }} onDeepLinkChange={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const monBtn = screen.getAllByRole("button").find((b) => b.textContent === "Пн");
+    fireEvent.click(monBtn!);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // ждём загрузки working-hours, иначе кнопка disabled и клик — no-op (toDeactivate пуст → ранний выход)
+    await waitFor(() => expect(screen.getByTestId("btn-clear-schedule")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("btn-clear-schedule"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
   // ── Navigation ──────────────────────────────────────────────────────────
 
   it("month nav prev calls onDeepLinkChange with correct month", async () => {

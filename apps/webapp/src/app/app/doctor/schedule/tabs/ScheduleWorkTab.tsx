@@ -733,17 +733,17 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       lastClickedRef.current = null;
       return;
     }
+    // #233: сбрасываем выделение СРАЗУ (до сетевого запроса), чтобы UI реагировал немедленно
+    setSelected(new Set());
+    setSelectionMode("dates");
+    setSelectedWeekday(null);
+    lastClickedRef.current = null;
     run(async () => {
       await Promise.all(
         toDeactivate.map((r) =>
           apiJson(`${WH_BASE}?id=${encodeURIComponent(r.id)}`, { method: "DELETE" }),
         ),
       );
-      // #233: сбрасываем выделение после очистки
-      setSelected(new Set());
-      setSelectionMode("dates");
-      setSelectedWeekday(null);
-      lastClickedRef.current = null;
     }, `Шаблон ${WD_LABEL[selectedWeekday] ?? ""} удалён`);
   }
 
