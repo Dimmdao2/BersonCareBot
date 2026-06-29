@@ -14,7 +14,7 @@
 import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, X, Ban, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
+import { Search, X, Ban, Bell, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
@@ -1133,12 +1133,12 @@ function PatientsContent({
               <Button
                 type="button"
                 size="sm"
-                variant={archivedOnly ? "default" : "outline"}
+                variant="outline"
                 className="h-7 px-2 text-xs"
-                onClick={() => onChannelChange(null, !archivedOnly)}
-                aria-pressed={archivedOnly}
+                disabled
               >
-                Архив
+                <Bell className="mr-1 size-3.5" aria-hidden />
+                Пуш-уведомления
               </Button>
             </div>
           </div>
