@@ -723,7 +723,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           replace: true,
         }),
       });
-    }, `Постоянное расписание для ${WD_LABEL[selectedWeekday] ?? ""} сохранено`);
+    });
   }
 
   // SCH-R-04: clear weekday template → DELETE each active be_working_hours row for this weekday

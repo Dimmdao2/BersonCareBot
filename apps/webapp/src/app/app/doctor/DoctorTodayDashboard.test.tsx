@@ -275,12 +275,13 @@ describe("DoctorTodayDashboard", () => {
           unreadConversations: [
             {
               conversationId: "c1",
-              patientUserId: "u1",
               displayName: "Иванов Иван",
               phoneNormalized: null,
+              lastMessageText: "Текст",
               lastMessagePreview: "Текст",
               lastMessageAtLabel: "10:00",
               unreadFromUserCount: 1,
+              href: "/app/doctor/messages",
             },
           ],
         }}

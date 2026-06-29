@@ -11,22 +11,20 @@ import userEvent from "@testing-library/user-event";
 // FullCalendar — тяжёлый, мокаем stub
 let lastFullCalendarProps: Record<string, unknown> | null = null;
 
+type FullCalendarMockProps = {
+  navLinkDayClick?: (date: Date) => void;
+  dateClick?: (arg: { date: Date; allDay: boolean }) => void;
+  select?: (arg: { start: Date; end?: Date }) => void;
+} & Record<string, unknown>;
+
 vi.mock("@fullcalendar/react", () => ({
-  default: (props: {
-    navLinkDayClick,
-    dateClick,
-    select,
-  } & Record<string, unknown>) => {
+  default: (props: FullCalendarMockProps) => {
     lastFullCalendarProps = props;
     const {
       navLinkDayClick,
       dateClick,
       select,
-    } = props as {
-      navLinkDayClick?: (date: Date) => void;
-      dateClick?: (arg: { date: Date; allDay: boolean }) => void;
-      select?: (arg: { start: Date; end?: Date }) => void;
-    };
+    } = props;
     return (
       <div data-testid="fullcalendar">
         <button
