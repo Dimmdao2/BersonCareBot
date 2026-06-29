@@ -314,10 +314,7 @@ function renderSegmentMetricValue(current: number | string, total: number | null
     <span className="inline-flex items-baseline gap-1.5">
       <span>{current}</span>
       <span className="text-sm font-medium text-muted-foreground/50">/</span>
-      <span className="inline-flex items-baseline gap-1 text-muted-foreground">
-        <span className="text-base font-semibold tabular-nums leading-none">{total}</span>
-        <span className="text-[10px] font-medium leading-none">всего</span>
-      </span>
+      <span className="text-base font-semibold tabular-nums leading-none text-muted-foreground">{total}</span>
     </span>
   );
 }
@@ -1079,9 +1076,9 @@ function PatientsContent({
             })}
           </DoctorMetricList>
 
-          {/* Additional filters */}
+          {/* Communication channels */}
           <div className="mt-3 border-t border-border/60 pt-3">
-            <p className="mb-2 text-xs text-muted-foreground">Дополнительные фильтры</p>
+            <p className="mb-2 text-xs text-muted-foreground">Каналы связи</p>
             <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
               <Button
                 type="button"
@@ -1126,52 +1123,12 @@ function PatientsContent({
               <Button
                 type="button"
                 size="sm"
-                variant={legacyFilters.visitedMonth ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onToggleLegacyFilter("visitedMonth")}
-                aria-pressed={legacyFilters.visitedMonth}
-              >
-                Приём в этом месяце
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={legacyFilters.cancellations ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onToggleLegacyFilter("cancellations")}
-                aria-pressed={legacyFilters.cancellations}
-              >
-                Есть отмены
-              </Button>
-              <Button
-                type="button"
-                size="sm"
                 variant={legacyFilters.reschedules ? "default" : "outline"}
                 className="h-7 px-2 text-xs"
                 onClick={() => onToggleLegacyFilter("reschedules")}
                 aria-pressed={legacyFilters.reschedules}
               >
                 Есть переносы
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={legacyFilters.withoutAppointments ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onToggleLegacyFilter("withoutAppointments")}
-                aria-pressed={legacyFilters.withoutAppointments}
-              >
-                Без записей
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={legacyFilters.memberships ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onToggleLegacyFilter("memberships")}
-                aria-pressed={legacyFilters.memberships}
-              >
-                С абонементами
               </Button>
               <Button
                 type="button"
