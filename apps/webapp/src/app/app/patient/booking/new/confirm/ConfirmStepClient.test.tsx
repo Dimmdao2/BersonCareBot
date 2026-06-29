@@ -7,7 +7,46 @@ import { ConfirmStepClient } from "./ConfirmStepClient";
 import { bookingNewHref } from "../../bookingNewHref";
 import type { RescheduleBookingResult } from "../../../cabinet/useRescheduleBooking";
 
-const createBooking = vi.fn(async () => true);
+const mockBooking = {
+  id: "booking-id-001",
+  slotStart: "2026-04-10T10:00:00.000Z",
+  slotEnd: "2026-04-10T11:00:00.000Z",
+  status: "confirmed" as const,
+  bookingType: "in_person" as const,
+  city: "msk",
+  category: "general" as const,
+  userId: "user-1",
+  cancelledAt: null,
+  cancelReason: null,
+  rubitimeId: null,
+  gcalEventId: null,
+  contactPhone: "+79990000000",
+  contactEmail: null,
+  contactName: "Иван",
+  reminder24hSent: false,
+  reminder2hSent: false,
+  createdAt: "2026-04-10T09:00:00.000Z",
+  updatedAt: "2026-04-10T09:00:00.000Z",
+  branchServiceId: null,
+  branchId: "550e8400-e29b-41d4-a716-446655440001",
+  serviceId: "550e8400-e29b-41d4-a716-446655440002",
+  cityCodeSnapshot: "msk",
+  branchTitleSnapshot: null,
+  serviceTitleSnapshot: "Сеанс",
+  durationMinutesSnapshot: null,
+  priceMinorSnapshot: null,
+  rubitimeBranchIdSnapshot: null,
+  rubitimeCooperatorIdSnapshot: null,
+  rubitimeServiceIdSnapshot: null,
+  rubitimeManageUrl: null,
+  canonicalAppointmentId: null,
+  bookingSource: "native" as const,
+  compatQuality: null,
+  provenanceCreatedBy: null,
+  provenanceUpdatedBy: null,
+};
+
+const createBooking = vi.fn(async () => mockBooking);
 const rescheduleBooking = vi.fn(async (): Promise<RescheduleBookingResult> => ({ ok: true }));
 const push = vi.fn();
 const partialToast = vi.fn();
@@ -93,7 +132,7 @@ describe("ConfirmStepClient", () => {
     expect(submit).toBeDisabled();
   });
 
-  it("calls createBooking with correct args and navigates to booking hub on success", async () => {
+  it("calls createBooking with correct args and navigates to done screen on success", async () => {
     const user = userEvent.setup();
     render(
       <ConfirmStepClient
@@ -133,8 +172,13 @@ describe("ConfirmStepClient", () => {
       }),
     );
 
+    // After successful booking, should navigate to the done (add-to-calendar) screen.
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith(bookingNewHref("msk"));
+      expect(push).toHaveBeenCalledTimes(1);
+      const dest: string = push.mock.calls[0]?.[0] ?? "";
+      expect(dest).toContain("/app/patient/booking/new/done");
+      expect(dest).toContain(`bookingId=${encodeURIComponent(mockBooking.id)}`);
+      expect(dest).toContain(`cityCode=msk`);
     });
   });
 

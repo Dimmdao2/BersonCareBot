@@ -33,6 +33,8 @@ export const routePaths = {
   bookingNewService: "/app/patient/booking/new/service",
   bookingNewSlot: "/app/patient/booking/new/slot",
   bookingNewConfirm: "/app/patient/booking/new/confirm",
+  /** Экран «Запись подтверждена» — добавить в календарь / скачать ICS. */
+  bookingNewDone: "/app/patient/booking/new/done",
   /** Адрес кабинета (iframe сайта специалиста). */
   patientAddress: "/app/patient/address",
   /** Кратко о специалисте + ссылка на полный сайт. */
