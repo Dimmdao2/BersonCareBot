@@ -254,10 +254,16 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         c.closedAt == null &&
         (source == null || c.source === source)
     );
+    const lastChatMessage = (conversationId: string) =>
+      Array.from(messages.values())
+        .filter((m) => m.conversationId === conversationId)
+        .filter((m) => !isSupportNotificationMessage(m))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     const unreadCount = (conversationId: string) =>
       Array.from(messages.values()).filter(
         (m) => m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null,
       ).length;
+    list = list.filter((c) => lastChatMessage(c.id) != null);
     if (params.unreadOnly) {
       list = list.filter((c) => unreadCount(c.id) > 0);
     }
@@ -266,14 +272,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         const aUnread = unreadCount(a.id) > 0;
         const bUnread = unreadCount(b.id) > 0;
         if (aUnread !== bUnread) return aUnread ? -1 : 1;
-        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        return (
+          new Date(lastChatMessage(b.id)?.createdAt ?? b.lastMessageAt).getTime() -
+          new Date(lastChatMessage(a.id)?.createdAt ?? a.lastMessageAt).getTime()
+        );
       })
       .slice(0, limit);
     return list.map((c) => {
-      const lastMsg = Array.from(messages.values())
-        .filter((m) => m.conversationId === c.id)
-        .filter((m) => !isSupportNotificationMessage(m))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      const lastMsg = lastChatMessage(c.id);
       return {
         conversationId: c.id,
         integratorConversationId: c.integratorConversationId,

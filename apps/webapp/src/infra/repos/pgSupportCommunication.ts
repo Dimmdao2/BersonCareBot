@@ -814,6 +814,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          ) unread ON true
          WHERE sc.status <> 'closed'
            AND sc.closed_at IS NULL
+           AND last_personal.personal_msg_at IS NOT NULL
            AND ($1::text IS NULL OR sc.source = $1)
            AND ($3::boolean = false OR COALESCE(unread.unread_from_user_count, 0) > 0)
          ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC,
