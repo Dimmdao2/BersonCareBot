@@ -27,6 +27,7 @@ describe("PatientShellTopChrome", () => {
       "href",
       "/app/patient/profile",
     );
+    expect(within(chrome).getAllByRole("button", { name: "Уведомления" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Назад" })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
