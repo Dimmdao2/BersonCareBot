@@ -4,13 +4,18 @@
  *
  * Exercise-completion calendar for the «Обзор» tab of the Patient card.
  * Defaults to the first..last day of the current calendar month when from/to
- * are absent. Aggregates LFK sessions per local calendar date.
+ * are absent. Aggregates completions per local calendar date from three sources:
+ *  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
+ *  2. patient_practice_completions (non-warmup) — standalone content-page completions
+ *  3. program_action_log (done) — treatment program exercise completions (main source)
  */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+
+const FALLBACK_IANA = "UTC";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 
@@ -70,16 +75,27 @@ export async function GET(
 
   const deps = buildAppDeps();
 
-  // Fetch both sources in parallel:
+  // Resolve patient's local timezone for program_action_log date bucketing.
+  // Falls back to UTC when the patient hasn't set a timezone yet.
+  const patientIana = (await deps.patientCalendarTimezone.getIanaForUser(userId)) ?? FALLBACK_IANA;
+
+  // Fetch all three sources in parallel:
   //  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
-  //  2. patient_practice_completions — treatment program exercise completions
-  const [sessions, practiceCompletions] = await Promise.all([
+  //  2. patient_practice_completions — standalone content-page completions (non-warmup)
+  //  3. program_action_log (done) — treatment program exercise completions (primary source)
+  const [sessions, practiceCompletions, programDoneItems] = await Promise.all([
     deps.diaries.listLfkSessionsInRange({
       userId,
       fromCompletedAt: fromDate,
       toCompletedAtExclusive,
     }),
     deps.patientPractice.listByUserInUtcRange(userId, fromDate, toCompletedAtExclusive),
+    deps.programActionLog.listDoneItemsByLocalDateInWindowForPatient({
+      patientUserId: userId,
+      windowStartUtcIso: fromDate,
+      windowEndUtcExclusiveIso: toCompletedAtExclusive,
+      displayIana: patientIana,
+    }),
   ]);
 
   // Aggregate: count per local calendar day
@@ -94,6 +110,11 @@ export async function GET(
     if (completion.source === "daily_warmup") continue;
     const day = completion.completedAt.slice(0, 10);
     counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  // Each row in programDoneItems is a unique (localDate, itemId) pair from program_action_log.
+  // Count unique items per day as the "completedCount" contribution.
+  for (const item of programDoneItems) {
+    counts.set(item.localDate, (counts.get(item.localDate) ?? 0) + 1);
   }
 
   const days = Array.from(counts.entries())
