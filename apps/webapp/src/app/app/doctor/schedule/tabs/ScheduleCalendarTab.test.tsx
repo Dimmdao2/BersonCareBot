@@ -773,6 +773,30 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await waitFor(() => expect(screen.getByTestId("fullcalendar")).toBeInTheDocument());
       expect(typeof lastFullCalendarProps?.dayCellContent).toBe("function");
     });
+
+    it("renders today header circle around weekday and day number together in time-grid views", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{ view: "weekgrid" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId("fullcalendar")).toBeInTheDocument());
+      const dayHeaderContent = lastFullCalendarProps?.dayHeaderContent as
+        | ((arg: { date: Date }) => unknown)
+        | undefined;
+      expect(typeof dayHeaderContent).toBe("function");
+
+      const headerNode = dayHeaderContent?.({ date: new Date() });
+      expect(headerNode).toBeTruthy();
+      if (!headerNode || typeof headerNode !== "object" || !("props" in headerNode)) {
+        throw new Error("dayHeaderContent did not return a React element");
+      }
+
+      const props = (headerNode as { props: { className?: string; children?: unknown[] } }).props;
+      expect(props.className).toContain("fc-timegrid-header-link");
+      expect(props.className).toContain("fc-today-circle");
+      expect(Array.isArray(props.children)).toBe(true);
+      expect(props.children).toHaveLength(2);
+    });
   });
 
   // ─── D5: Right panel ─────────────────────────────────────────────────────

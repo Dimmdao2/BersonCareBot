@@ -1632,9 +1632,9 @@ export function ScheduleCalendarTab({
                   display: inline-flex;
                   align-items: center;
                   justify-content: center;
-                  min-width: 1.75rem;
-                  height: 1.75rem;
-                  padding-inline: 0.35rem;
+                  min-width: 2.5rem;
+                  min-height: 2.5rem;
+                  padding: 0.3rem 0.45rem;
                   border-radius: 9999px;
                   border: 1.5px solid color-mix(in oklab, var(--destructive) 78%, white);
                   color: color-mix(in oklab, var(--destructive) 82%, black);
@@ -1643,13 +1643,17 @@ export function ScheduleCalendarTab({
                 }
                 .fc-timegrid-header-link {
                   display: flex;
-                  min-height: 2.6rem;
+                  min-height: 2.75rem;
                   flex-direction: column;
                   align-items: center;
                   justify-content: center;
                   gap: 0.125rem;
                   padding-block: 0.2rem;
                   text-decoration: none;
+                }
+                .fc-timegrid-header-link.fc-today-circle {
+                  gap: 0.1rem;
+                  margin-inline: auto;
                 }
                 .fc-timegrid-header-weekday {
                   font-size: 0.6875rem;
@@ -1661,6 +1665,10 @@ export function ScheduleCalendarTab({
                   font-size: 0.75rem;
                   line-height: 1;
                   color: var(--foreground);
+                }
+                .fc-timegrid-header-link.fc-today-circle .fc-timegrid-header-weekday,
+                .fc-timegrid-header-link.fc-today-circle .fc-timegrid-header-day {
+                  color: inherit;
                 }
 
                 /* §3.11 — мельче цифры дат в месячном виде */
@@ -1754,7 +1762,7 @@ export function ScheduleCalendarTab({
                         return (
                           <button
                             type="button"
-                            className="fc-timegrid-header-link"
+                            className={cn("fc-timegrid-header-link", isToday && "fc-today-circle")}
                             onClick={() => {
                               const dateKey = dt.toISODate() ?? anchorDate;
                               drillDownDay(dateKey);
@@ -1763,7 +1771,7 @@ export function ScheduleCalendarTab({
                             <span className="fc-timegrid-header-weekday">
                               {dt.setLocale("ru").toFormat("ccc")}
                             </span>
-                            <span className={cn("fc-timegrid-header-day", isToday && "fc-today-circle")}>
+                            <span className="fc-timegrid-header-day">
                               {dt.day}
                             </span>
                           </button>
