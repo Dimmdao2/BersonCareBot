@@ -142,6 +142,20 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  it("clears selected days when clicking an empty month cell", async () => {
+    await renderWorkTab({ month: "2026-08" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-08-03"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("day-cell-empty-0"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
   // ── E2: Карточки дней ───────────────────────────────────────────────────
 
   it("E2: renders branch filter buttons with short titles", async () => {

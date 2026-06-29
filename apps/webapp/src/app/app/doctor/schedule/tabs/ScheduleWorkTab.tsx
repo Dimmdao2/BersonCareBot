@@ -241,31 +241,31 @@ function getBranchColor(branches: Branch[], branchId: string): BranchColor {
 function branchColorActiveClass(color: BranchColor): string {
   // §3.17: приглушённые тинты вместо ядрёной заливки — мягкий фон /10 +
   // цветной текст + цветная граница (активный фильтр читается, но не «кричит»).
-  if (color === "blue") return "bg-blue-500/15 border-blue-500/50 text-blue-700 dark:text-blue-300";
-  if (color === "green") return "bg-green-600/15 border-green-600/50 text-green-700 dark:text-green-300";
-  if (color === "violet") return "bg-violet-600/15 border-violet-600/50 text-violet-700 dark:text-violet-300";
-  return "bg-orange-500/15 border-orange-500/50 text-orange-700 dark:text-orange-300";
+  if (color === "blue") return "bg-sky-500/10 border-sky-400/35 text-sky-800";
+  if (color === "green") return "bg-emerald-500/10 border-emerald-400/35 text-emerald-800";
+  if (color === "violet") return "bg-indigo-500/10 border-indigo-400/35 text-indigo-800";
+  return "bg-amber-500/10 border-amber-400/35 text-amber-800";
 }
 
 function branchColorInactiveClass(color: BranchColor): string {
-  if (color === "blue") return "border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30";
-  if (color === "green") return "border-green-600/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30";
-  if (color === "violet") return "border-violet-500/50 text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30";
-  return "border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30";
+  if (color === "blue") return "border-sky-300/60 text-sky-700 hover:bg-sky-50";
+  if (color === "green") return "border-emerald-300/60 text-emerald-700 hover:bg-emerald-50";
+  if (color === "violet") return "border-indigo-300/60 text-indigo-700 hover:bg-indigo-50";
+  return "border-amber-300/70 text-amber-700 hover:bg-amber-50";
 }
 
 function branchCellClass(color: BranchColor): string {
-  if (color === "blue") return "bg-blue-500/10 border-blue-500/50";
-  if (color === "green") return "bg-green-600/10 border-green-600/50";
-  if (color === "violet") return "bg-violet-500/10 border-violet-500/50";
-  return "bg-orange-500/10 border-orange-500/50";
+  if (color === "blue") return "bg-sky-500/10 border-sky-300/45";
+  if (color === "green") return "bg-emerald-500/10 border-emerald-300/45";
+  if (color === "violet") return "bg-indigo-500/10 border-indigo-300/45";
+  return "bg-amber-500/10 border-amber-300/50";
 }
 
 function branchDotClass(color: BranchColor): string {
-  if (color === "blue") return "text-blue-600";
-  if (color === "green") return "text-green-700";
-  if (color === "violet") return "text-violet-600";
-  return "text-orange-600";
+  if (color === "blue") return "text-sky-700";
+  if (color === "green") return "text-emerald-700";
+  if (color === "violet") return "text-indigo-700";
+  return "text-amber-700";
 }
 
 // ---------------------------------------------------------------------------
@@ -273,18 +273,28 @@ function branchDotClass(color: BranchColor): string {
 // ---------------------------------------------------------------------------
 
 type DayCellProps = {
+  cellIndex?: number;
   dateKey: string | null;
   today: string;
   record: WorkingDayRecord | undefined;
   branches: Branch[];
   isSelected: boolean;
   onToggle: (date: string, shift: boolean, meta: boolean) => void;
+  onClearSelection?: () => void;
   effectiveHours?: EffectiveHours;
 };
 
-function DayCell({ dateKey, today, record, branches, isSelected, onToggle, effectiveHours }: DayCellProps) {
+function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onToggle, onClearSelection, effectiveHours }: DayCellProps) {
   if (!dateKey) {
-    return <div className="min-h-[52px]" />;
+    return (
+      <button
+        type="button"
+        className="min-h-[52px] rounded-md border border-dashed border-transparent bg-transparent transition-colors hover:border-border/70 hover:bg-muted/20"
+        aria-label="Сбросить выбор дней"
+        onClick={() => onClearSelection?.()}
+        data-testid={cellIndex != null ? `day-cell-empty-${cellIndex}` : undefined}
+      />
+    );
   }
 
   const isToday = dateKey === today;
@@ -817,6 +827,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   function handleClearSelection() {
     setSelected(new Set());
     lastClickedRef.current = null;
+    setSelectionMode("dates");
+    setSelectedWeekday(null);
     setActionOk(null);
     setActionError(null);
   }
@@ -1001,12 +1013,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               {cells.map((dateKey, idx) => (
                 <DayCell
                   key={dateKey ?? `pad-${idx}`}
+                  cellIndex={idx}
                   dateKey={dateKey}
                   today={today}
                   record={dateKey ? dayMap.get(dateKey) : undefined}
                   branches={branches}
                   isSelected={dateKey ? selected.has(dateKey) : false}
                   onToggle={toggleDay}
+                  onClearSelection={handleClearSelection}
                   effectiveHours={dateKey ? resolveEffectiveHours(dateKey, dayMap, workingHours) : undefined}
                 />
               ))}
