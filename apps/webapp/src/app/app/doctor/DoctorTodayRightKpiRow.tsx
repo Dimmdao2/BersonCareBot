@@ -5,9 +5,16 @@ import { useState } from "react";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
-import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
+import {
+  doctorInlineLinkClass,
+  doctorMetricLabelClass,
+  doctorMetricValueClass,
+  doctorStatCardInteractiveClass,
+  doctorStatCardShellClass,
+} from "@/shared/ui/doctor/doctorVisual";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
+import { cn } from "@/lib/utils";
 
 type Props = {
   appointmentsTodayCount: number;
@@ -40,6 +47,57 @@ function isCancelledItem(item: TodayAppointmentItem): boolean {
   );
 }
 
+function futureAppointmentsCount(items: TodayAppointmentItem[]): number {
+  const now = Date.now();
+  return items.filter((item) => {
+    if (isCancelledItem(item) || !item.recordAtIso) return false;
+    const ts = new Date(item.recordAtIso).getTime();
+    return Number.isFinite(ts) && ts > now;
+  }).length;
+}
+
+type SplitAppointmentStatCardProps = {
+  id: string;
+  title: string;
+  total: number;
+  future: number;
+  onClick: () => void;
+};
+
+function SplitAppointmentStatCard({
+  id,
+  title,
+  total,
+  future,
+  onClick,
+}: SplitAppointmentStatCardProps) {
+  return (
+    <button
+      id={id}
+      type="button"
+      className={cn(doctorStatCardShellClass, doctorStatCardInteractiveClass, "w-full text-left")}
+      onClick={onClick}
+      aria-label={`${title}: всего ${total}, будущие ${future}`}
+    >
+      <p className={doctorMetricLabelClass}>{title}</p>
+      <div className="mt-1 grid grid-cols-2 divide-x divide-border/70">
+        <div className="min-w-0 pr-2">
+          <div className="flex items-baseline gap-1.5">
+            <span className={doctorMetricValueClass}>{total}</span>
+            <span className="text-[10px] leading-none text-muted-foreground">Всего</span>
+          </div>
+        </div>
+        <div className="min-w-0 pl-2">
+          <div className="flex items-baseline gap-1.5">
+            <span className={doctorMetricValueClass}>{future}</span>
+            <span className="text-[10px] leading-none text-muted-foreground">Будущие</span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export function DoctorTodayRightKpiRow({
   appointmentsTodayCount,
   weekAppointmentsCount,
@@ -53,6 +111,8 @@ export function DoctorTodayRightKpiRow({
   const todayItems = todayAppointments ?? [];
   const weekItems = weekAppointments ?? [];
   const monthItems = monthAppointments ?? [];
+  const weekFutureCount = futureAppointmentsCount(weekItems);
+  const monthFutureCount = futureAppointmentsCount(monthItems);
 
   return (
     <>
@@ -68,18 +128,18 @@ export function DoctorTodayRightKpiRow({
           value={appointmentsTodayCount}
           onClick={() => setOpenModal("today")}
         />
-        {/* Renamed: «Неделя» → «Записи неделя» */}
-        <DoctorStatCard
+        <SplitAppointmentStatCard
           id="doctor-today-right-kpi-week"
           title="Записи неделя"
-          value={weekAppointmentsCount}
+          total={weekAppointmentsCount}
+          future={weekFutureCount}
           onClick={() => setOpenModal("week")}
         />
-        {/* Renamed: «Месяц» → «Записи месяц» */}
-        <DoctorStatCard
+        <SplitAppointmentStatCard
           id="doctor-today-right-kpi-month"
           title="Записи месяц"
-          value={monthAppointmentCount}
+          total={monthAppointmentCount}
+          future={monthFutureCount}
           onClick={() => setOpenModal("month")}
         />
       </DoctorMetricList>

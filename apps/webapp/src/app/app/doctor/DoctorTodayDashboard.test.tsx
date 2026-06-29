@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
-import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
+import type { TodayAppointmentItem, TodayDashboardData } from "./loadDoctorTodayDashboard";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 
 // Мини-календарь «Сегодня» теперь на FullCalendar (R35) — мокаем его, чтобы
@@ -105,6 +105,23 @@ function defaultProps() {
   };
 }
 
+function appointmentItem(overrides: Partial<TodayAppointmentItem> = {}): TodayAppointmentItem {
+  return {
+    id: overrides.id ?? "appt-1",
+    time: overrides.time ?? "10:00 01.01",
+    recordAtIso: overrides.recordAtIso ?? "2999-01-01T10:00:00.000Z",
+    clientLabel: overrides.clientLabel ?? "Пациент",
+    rubitimeNameIfDifferent: overrides.rubitimeNameIfDifferent ?? null,
+    clientUserId: overrides.clientUserId ?? null,
+    type: overrides.type ?? "Приём",
+    status: overrides.status ?? "confirmed",
+    branchName: overrides.branchName ?? null,
+    scheduleProvenancePrefix: overrides.scheduleProvenancePrefix ?? null,
+    href: overrides.href ?? "/app/doctor/schedule",
+    ctaLabel: overrides.ctaLabel ?? "Открыть",
+  };
+}
+
 async function openLeftKpiDialog(label: RegExp) {
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: label }));
@@ -160,6 +177,39 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("button", { name: /Записи сегодня/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Записи неделя/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Записи месяц/i })).toBeInTheDocument();
+  });
+
+  it("splits week and month appointment KPI into total and future counters", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      weekAppointments: [
+        appointmentItem({ id: "week-future", recordAtIso: "2999-01-01T10:00:00.000Z" }),
+        appointmentItem({ id: "week-past", recordAtIso: "2000-01-01T10:00:00.000Z" }),
+        appointmentItem({ id: "week-cancelled", recordAtIso: "2999-01-02T10:00:00.000Z", status: "cancelled_by_patient" }),
+      ],
+      monthAppointments: [
+        appointmentItem({ id: "month-future-1", recordAtIso: "2999-02-01T10:00:00.000Z" }),
+        appointmentItem({ id: "month-future-2", recordAtIso: "2999-02-02T10:00:00.000Z" }),
+        appointmentItem({ id: "month-past", recordAtIso: "2000-02-01T10:00:00.000Z" }),
+      ],
+    };
+
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        data={data}
+        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 3 } }}
+        monthAppointmentCount={3}
+      />,
+    );
+
+    const weekCard = screen.getByRole("button", { name: /Записи неделя: всего 3, будущие 1/i });
+    const monthCard = screen.getByRole("button", { name: /Записи месяц: всего 3, будущие 2/i });
+
+    expect(weekCard).toHaveTextContent("Всего");
+    expect(weekCard).toHaveTextContent("Будущие");
+    expect(monthCard).toHaveTextContent("Всего");
+    expect(monthCard).toHaveTextContent("Будущие");
   });
 
   it("shows empty states for on-support and mini-calendar when no data", () => {
