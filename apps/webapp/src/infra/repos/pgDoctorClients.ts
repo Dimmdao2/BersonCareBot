@@ -294,7 +294,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             `SELECT DISTINCT s.user_id::text AS user_id
              FROM user_web_push_subscriptions s
              LEFT JOIN user_channel_preferences p
-               ON p.user_id = s.user_id
+               ON p.platform_user_id = s.user_id
               AND p.channel_code = 'web_push'
              WHERE s.user_id = ANY($1::uuid[])
                AND COALESCE(p.is_enabled_for_notifications, true) = true`,

@@ -181,6 +181,8 @@ describe("pgDoctorClients repo", () => {
     expect(list.find((item) => item.userId === "u1")?.hasWebPush).toBe(false);
     expect(list.find((item) => item.userId === "u2")?.hasApp).toBe(false);
     expect(list.find((item) => item.userId === "u2")?.hasWebPush).toBe(true);
+    const webPushSql = String(runWebappPgTextMock.mock.calls[8]?.[0] ?? "");
+    expect(webPushSql).toContain("p.platform_user_id = s.user_id");
   });
 
   it("listClients filters by hasApp and hasWebPush", async () => {

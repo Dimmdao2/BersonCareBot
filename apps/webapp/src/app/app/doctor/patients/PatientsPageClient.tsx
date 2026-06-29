@@ -1123,16 +1123,6 @@ function PatientsContent({
               <Button
                 type="button"
                 size="sm"
-                variant={legacyFilters.reschedules ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onToggleLegacyFilter("reschedules")}
-                aria-pressed={legacyFilters.reschedules}
-              >
-                Есть переносы
-              </Button>
-              <Button
-                type="button"
-                size="sm"
                 variant={activeChannel === "web_push" ? "default" : "outline"}
                 className="h-7 px-2 text-xs"
                 onClick={() => onChannelChange(activeChannel === "web_push" ? null : "web_push", false)}
