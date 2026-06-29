@@ -307,6 +307,21 @@ function getSegmentCount(
   return clients.filter((item) => clientSegmentPredicate(item, key)).length;
 }
 
+function renderSegmentMetricValue(current: number | string, total: number | null): ReactNode {
+  if (typeof current !== "number" || total === null || current === total) return current;
+
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span>{current}</span>
+      <span className="text-sm font-medium text-muted-foreground/50">/</span>
+      <span className="inline-flex items-baseline gap-1 text-muted-foreground">
+        <span className="text-base font-semibold tabular-nums leading-none">{total}</span>
+        <span className="text-[10px] font-medium leading-none">всего</span>
+      </span>
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // URL builder
 // ---------------------------------------------------------------------------
@@ -803,29 +818,6 @@ function PatientsContent({
               </button>
             )}
           </div>
-          {/* PAT-07: Пациенты / Все toggle */}
-          <div className="mt-2 flex gap-1" role="group" aria-label="Фильтр: пациенты или все">
-            {([
-              { cat: "client" as ClientCategory, label: patientPluralLabel, count: allClients.filter((c) => getClientCategory(c) === "client").length },
-              { cat: "all" as ClientCategory, label: "Все", count: allClients.length },
-            ]).map(({ cat, label, count }) => (
-              <button
-                key={cat}
-                type="button"
-                aria-pressed={activeCategory === cat}
-                onClick={() => onCategoryChange(cat)}
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                  activeCategory === cat
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {label}
-                <span className="tabular-nums opacity-70">{count}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Sticky header: count + icon filter rail */}
@@ -1070,16 +1062,21 @@ function PatientsContent({
 
           {/* Segment stat cards — 3 per row on mobile, 5 on lg+ */}
           <DoctorMetricList className="grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-1.5">
-            {SEGMENTS.map((seg) => (
-              <DoctorStatCard
-                key={seg.key}
-                id={`doctor-patients-segment-${seg.key}`}
-                title={seg.title}
-                value={seg.key === "all" ? categoryBase.length : (getSegmentCount(seg.key, metrics, contextBase) ?? "—")}
-                tone={segmentTone(seg.key)}
-                onClick={() => onSegmentChange(seg.urlValue)}
-              />
-            ))}
+            {SEGMENTS.map((seg) => {
+              const currentValue =
+                seg.key === "all" ? categoryBase.length : (getSegmentCount(seg.key, metrics, contextBase) ?? "—");
+              const totalValue = seg.key === "all" ? categoryBase.length : getSegmentCount(seg.key, metrics, categoryBase);
+              return (
+                <DoctorStatCard
+                  key={seg.key}
+                  id={`doctor-patients-segment-${seg.key}`}
+                  title={seg.title}
+                  value={renderSegmentMetricValue(currentValue, totalValue)}
+                  tone={segmentTone(seg.key)}
+                  onClick={() => onSegmentChange(seg.urlValue)}
+                />
+              );
+            })}
           </DoctorMetricList>
 
           {/* Additional filters */}
