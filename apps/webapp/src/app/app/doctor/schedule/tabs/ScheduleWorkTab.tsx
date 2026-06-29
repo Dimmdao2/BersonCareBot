@@ -22,6 +22,7 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doc
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { emitDoctorScheduleCalendarRefresh } from "../scheduleCalendarEvents";
 import { cn } from "@/lib/utils";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
 
@@ -682,6 +683,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         await loadMonth();
         loadTemplates();
         loadWorkingHours(); // SCH-R-08: reload template state after every save
+        emitDoctorScheduleCalendarRefresh();
       } catch (e) {
         setActionError(e instanceof Error ? e.message : "action_failed");
       }

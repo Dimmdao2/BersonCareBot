@@ -9,63 +9,73 @@ import userEvent from "@testing-library/user-event";
 // ---------------------------------------------------------------------------
 
 // FullCalendar — тяжёлый, мокаем stub
+let lastFullCalendarProps: Record<string, unknown> | null = null;
+
 vi.mock("@fullcalendar/react", () => ({
-  default: ({
+  default: (props: {
     navLinkDayClick,
     dateClick,
     select,
-  }: {
-    navLinkDayClick?: (date: Date) => void;
-    dateClick?: (arg: { date: Date; allDay: boolean }) => void;
-    select?: (arg: { start: Date; end?: Date }) => void;
-  }) => (
-    <div data-testid="fullcalendar">
-      <button
-        data-testid="fc-day-header-click"
-        onClick={() => navLinkDayClick?.(new Date("2026-06-15T00:00:00Z"))}
-      >
-        день-header
-      </button>
-      <button
-        data-testid="fc-timegrid-click"
-        onClick={() =>
-          dateClick?.({ date: new Date("2026-06-17T11:00:00Z"), allDay: false })
-        }
-      >
-        timegrid-click
-      </button>
-      <button
-        data-testid="fc-allday-click"
-        onClick={() =>
-          dateClick?.({ date: new Date("2026-06-17T00:00:00Z"), allDay: true })
-        }
-      >
-        allday-click
-      </button>
-      <button
-        data-testid="fc-select"
-        onClick={() => select?.({ start: new Date("2026-06-17T14:00:00Z"), end: new Date("2026-06-17T15:00:00Z") })}
-      >
-        select
-      </button>
-      {/* CR-2: click in post-shift nonworking zone (18:30 Moscow = 15:30 UTC) */}
-      <button
-        data-testid="fc-nonworking-click"
-        onClick={() =>
-          dateClick?.({ date: new Date("2026-06-17T15:30:00Z"), allDay: false })
-        }
-      >
-        nonworking-click
-      </button>
-      {/* #228: drag select in nonworking zone — start at 09:30 UTC (before working hours 10:00 UTC) */}
-      <button
-        data-testid="fc-select-nonworking"
-        onClick={() => select?.({ start: new Date("2026-06-17T09:30:00Z"), end: new Date("2026-06-17T10:00:00Z") })}
-      >
-        select-nonworking
-      </button>
-    </div>
-  ),
+  } & Record<string, unknown>) => {
+    lastFullCalendarProps = props;
+    const {
+      navLinkDayClick,
+      dateClick,
+      select,
+    } = props as {
+      navLinkDayClick?: (date: Date) => void;
+      dateClick?: (arg: { date: Date; allDay: boolean }) => void;
+      select?: (arg: { start: Date; end?: Date }) => void;
+    };
+    return (
+      <div data-testid="fullcalendar">
+        <button
+          data-testid="fc-day-header-click"
+          onClick={() => navLinkDayClick?.(new Date("2026-06-15T00:00:00Z"))}
+        >
+          день-header
+        </button>
+        <button
+          data-testid="fc-timegrid-click"
+          onClick={() =>
+            dateClick?.({ date: new Date("2026-06-17T11:00:00Z"), allDay: false })
+          }
+        >
+          timegrid-click
+        </button>
+        <button
+          data-testid="fc-allday-click"
+          onClick={() =>
+            dateClick?.({ date: new Date("2026-06-17T00:00:00Z"), allDay: true })
+          }
+        >
+          allday-click
+        </button>
+        <button
+          data-testid="fc-select"
+          onClick={() => select?.({ start: new Date("2026-06-17T14:00:00Z"), end: new Date("2026-06-17T15:00:00Z") })}
+        >
+          select
+        </button>
+        {/* CR-2: click in post-shift nonworking zone (18:30 Moscow = 15:30 UTC) */}
+        <button
+          data-testid="fc-nonworking-click"
+          onClick={() =>
+            dateClick?.({ date: new Date("2026-06-17T15:30:00Z"), allDay: false })
+          }
+        >
+          nonworking-click
+        </button>
+        {/* #228: drag select in nonworking zone — start at 09:30 UTC (before working hours 10:00 UTC) */}
+        <button
+          data-testid="fc-select-nonworking"
+          onClick={() => select?.({ start: new Date("2026-06-17T09:30:00Z"), end: new Date("2026-06-17T10:00:00Z") })}
+        >
+          select-nonworking
+        </button>
+      </div>
+    );
+  },
 }));
 vi.mock("@fullcalendar/daygrid", () => ({ default: {} }));
 vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
@@ -747,6 +757,22 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         unmount();
       }
     });
+
+    it("uses custom day header content in time-grid views and custom day cell content in month view", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const { unmount } = render(<Tab deepLinkParams={{ view: "3days" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId("fullcalendar")).toBeInTheDocument());
+      expect(typeof lastFullCalendarProps?.dayHeaderContent).toBe("function");
+      expect(lastFullCalendarProps?.dayCellContent).toBeUndefined();
+
+      unmount();
+      render(<Tab deepLinkParams={{ view: "month" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId("fullcalendar")).toBeInTheDocument());
+      expect(typeof lastFullCalendarProps?.dayCellContent).toBe("function");
+    });
   });
 
   // ─── D5: Right panel ─────────────────────────────────────────────────────
@@ -855,6 +881,27 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await user.click(screen.getByTestId("period-next"));
 
       expect(onDeepLinkChange).toHaveBeenCalledWith("date", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    });
+
+    it("reloads calendar feed when schedule refresh event is dispatched", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      const fetchMock = vi.mocked(global.fetch);
+      const initialCalendarCalls = fetchMock.mock.calls.filter(([input]) =>
+        String(input).includes("/api/doctor/booking-engine/calendar"),
+      ).length;
+
+      window.dispatchEvent(new Event("doctor:schedule-calendar-refresh"));
+
+      await waitFor(() => {
+        const nextCalendarCalls = fetchMock.mock.calls.filter(([input]) =>
+          String(input).includes("/api/doctor/booking-engine/calendar"),
+        ).length;
+        expect(nextCalendarCalls).toBeGreaterThan(initialCalendarCalls);
+      });
     });
   });
 
@@ -1052,7 +1099,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
 
     // Сценарий 2: одна запись 08:00–08:30 (ниже дефолта) → SHIFT вниз
-    it("single appointment at 08:00–08:30 → SHIFT down (lo=480, hi=1080)", async () => {
+    it("single appointment at 08:00–08:30 keeps default width and expands with ±1h buffer", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
       const events = [
         {
@@ -1067,17 +1114,15 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
-      // dataLo=480, dataHi=510, span=30 ≤ 600 → SHIFT вниз (480<540)
-      // lo=480, hi=480+600=1080
       const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("08:00:00");
-      expect(result.slotMaxTime).toBe("18:00:00");
-      expect(result.loMinute).toBe(480);
-      expect(result.hiMinute).toBe(1080);
+      expect(result.slotMinTime).toBe("07:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
+      expect(result.loMinute).toBe(420);
+      expect(result.hiMinute).toBe(1140);
     });
 
     // Сценарий 3: одна запись 20:00–21:00 (выше дефолта) → SHIFT вверх
-    it("single appointment at 20:00–21:00 → SHIFT up (lo=660, hi=1260)", async () => {
+    it("single appointment at 20:00–21:00 keeps default width and expands with ±1h buffer", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
       const events = [
         {
@@ -1092,17 +1137,15 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
-      // dataLo=1200, dataHi=1260, span=60 ≤ 600 → SHIFT вверх (1260>1140)
-      // hi=1260, lo=1260-600=660
       const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("11:00:00");
-      expect(result.slotMaxTime).toBe("21:00:00");
-      expect(result.loMinute).toBe(660);
-      expect(result.hiMinute).toBe(1260);
+      expect(result.slotMinTime).toBe("09:00:00");
+      expect(result.slotMaxTime).toBe("22:00:00");
+      expect(result.loMinute).toBe(540);
+      expect(result.hiMinute).toBe(1320);
     });
 
     // Сценарий 4: записи 07:00 и 21:00 (span=14ч=840>600) → EXPAND
-    it("appointments at 07:00 and 21:00 (span=840>600) → EXPAND", async () => {
+    it("appointments at 07:00 and 21:00 expand outward from the default window", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
       const events = [
         {
@@ -1128,13 +1171,11 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
-      // dataLo=420, dataHi=1290, span=870>600 → EXPAND
-      // lo=min(420,540)=420, hi=max(1290,1140)=1290
       const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("07:00:00");
-      expect(result.slotMaxTime).toBe("21:30:00");
-      expect(result.loMinute).toBe(420);
-      expect(result.hiMinute).toBe(1290);
+      expect(result.slotMinTime).toBe("06:00:00");
+      expect(result.slotMaxTime).toBe("22:30:00");
+      expect(result.loMinute).toBe(360);
+      expect(result.hiMinute).toBe(1350);
     });
 
     // Сценарий 5: рабочие часы 10:00–17:00 (уже дефолта) → SHIFT / остаётся 9–19
@@ -1147,10 +1188,8 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
 
     // Сценарий 6: рабочие часы 08:00–21:00 (span=780>600) → EXPAND
-    it("workingBounds 08:00–21:00 (span=780>600) → EXPAND", async () => {
+    it("workingBounds 08:00–21:00 expands outward from the default window", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      // dataLo=480, dataHi=1260, span=780>600 → EXPAND
-      // lo=min(480,540)=480, hi=max(1260,1140)=1260
       const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1260 }, [], "UTC");
       expect(result.slotMinTime).toBe("08:00:00");
       expect(result.slotMaxTime).toBe("21:00:00");
@@ -1180,14 +1219,11 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       expect(result.slotMaxTime).toBe("19:00:00");
     });
 
-    // CAL-01 (legacy): 08:00 рабочие — SHIFT вниз (span=600=DEFAULT_SIZE)
-    it("CAL-01: 08:00 working start (span==600) → SHIFT down → 08:00–18:00", async () => {
+    it("CAL-01: 08:00 working start expands only the lower edge", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      // dataLo=480, dataHi=1080, span=600=DEFAULT_SIZE → SHIFT (480<540)
-      // lo=480, hi=1080
       const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, [], "UTC");
       expect(result.slotMinTime).toBe("08:00:00");
-      expect(result.slotMaxTime).toBe("18:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
     });
 
     // CAL-01: 09:00 рабочие — внутри дефолта → 9–19
@@ -1200,10 +1236,8 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
 
     // CAL-01: запись до рабочего периода → EXPAND (span > DEFAULT_SIZE)
-    it("CAL-01: event at 07:30 before workingBounds 08:00–18:00 → EXPAND", async () => {
+    it("CAL-01: event at 07:30 before workingBounds 08:00–18:00 expands lower edge with extra hour", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      // workingBounds.min=480 + event at 07:30=450 → dataLo=450, dataHi=1080
-      // span=630 > 600 → EXPAND: lo=min(450,540)=450, hi=max(1080,1140)=1140
       const events = [
         {
           kind: "appointment" as const, id: "e1",
@@ -1218,14 +1252,13 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         },
       ];
       const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, events, "UTC");
-      expect(result.slotMinTime).toBe("07:30:00");
+      expect(result.slotMinTime).toBe("06:30:00");
       expect(result.slotMaxTime).toBe("19:00:00");
-      expect(result.loMinute).toBe(450);
+      expect(result.loMinute).toBe(390);
       expect(result.hiMinute).toBe(1140);
     });
 
-    // Дополнительно: event at 07:00 без рабочих часов → SHIFT вниз
-    it("event at 07:00–08:00 (no workingBounds) → SHIFT down (lo=420, hi=1020)", async () => {
+    it("event at 07:00–08:00 (no workingBounds) keeps 09:00–19:00 and expands lower edge by one hour", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
       const events = [
         {
@@ -1240,24 +1273,40 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
-      // dataLo=420, dataHi=480, span=60 ≤ 600 → SHIFT вниз (420<540)
-      // lo=420, hi=420+600=1020
       const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("07:00:00");
-      expect(result.slotMaxTime).toBe("17:00:00");
-      expect(result.loMinute).toBe(420);
-      expect(result.hiMinute).toBe(1020);
+      expect(result.slotMinTime).toBe("06:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
+      expect(result.loMinute).toBe(360);
+      expect(result.hiMinute).toBe(1140);
     });
 
-    // 08:30 рабочие → SHIFT вниз (без округления до часа в новой логике)
-    it("08:30 working start → SHIFT down (lo=510, hi=1110)", async () => {
+    it("08:30 working start expands only the lower edge", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      // dataLo=510, dataHi=1080, span=570 ≤ 600, 510<540 → SHIFT вниз
       const result = deriveSlotTimes({ minMinute: 510, maxMinute: 1080 }, [], "UTC");
       expect(result.slotMinTime).toBe("08:30:00");
-      expect(result.slotMaxTime).toBe("18:30:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
       expect(result.loMinute).toBe(510);
-      expect(result.hiMinute).toBe(1110);
+      expect(result.hiMinute).toBe(1140);
+    });
+
+    it("single centered appointment at 15:00–16:00 does not shrink the window", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const events = [
+        {
+          kind: "appointment" as const, id: "e6",
+          startAt: "2026-06-13T15:00:00Z", endAt: "2026-06-13T16:00:00Z",
+          status: "confirmed" as const, patientName: "T", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
+      ];
+      const result = deriveSlotTimes(null, events, "UTC");
+      expect(result.slotMinTime).toBe("09:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
     });
   });
 

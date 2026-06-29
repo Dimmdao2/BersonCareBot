@@ -46,6 +46,7 @@ import type { ScheduleTabProps } from "../scheduleTabRegistry";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
 import { routePaths } from "@/app-layer/routes/paths";
+import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from "../scheduleCalendarEvents";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -56,7 +57,7 @@ const KPIS_API = "/api/doctor/schedule-kpis";
 const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 
 // #231: стандартное окно сетки 9:00–19:00.
-// Если записи/рабочие часы не укладываются — окно расширяется или смещается.
+// Если записи/рабочие часы не укладываются — окно только РАСШИРЯЕТСЯ наружу.
 // TODO(owner-decision): «настройка доктором» (хранение personalized window bounds)
 // не реализована — нет существующего хранилища настроек доктора для этого параметра.
 // Рекомендация: добавить поле default_slot_start_minute/default_slot_end_minute в
@@ -265,50 +266,46 @@ function minuteToHHMM(minute: number): string {
 }
 
 /**
- * Диапазон часовой сетки = объединение рабочих границ И фактических записей,
- * чтобы ранние/поздние приёмы (7-8 утра и т.п.) НЕ обрезались.
+ * Диапазон часовой сетки = дефолтное окно 09:00–19:00, которое при необходимости
+ * расширяется по рабочим границам и по фактическим записям c буфером ±1 час.
  *
- * #231 — SHIFT vs EXPAND (заменяет старый «expand-only» + буфер #230):
- * - dataLo/dataHi = min/max по всем видимым записям и рабочим часам периода.
- * - Нет данных → дефолт 9:00–19:00.
- * - span = dataHi − dataLo:
- *   - span ≤ 600 → SHIFT: окно остаётся 600 мин, сдвигается чтобы захватить
- *     [dataLo, dataHi]. Если данные внутри 9–19 → окно 9–19 без изменений.
- *     Если данные ниже 540 → lo=dataLo, hi=lo+600 (клампинг в [0,1440]).
- *     Если данные выше 1140 → hi=dataHi, lo=hi−600 (клампинг в [0,1440]).
- *   - span > 600 → EXPAND: lo=min(dataLo,540), hi=max(dataHi,1140).
- *
- * #230 — отдельный буфер (30 мин снизу / 60 мин сверху из 7bdc87ea) УБРАН:
- * дефолтное 600-минутное окно само обеспечивает достаточные отступы вокруг
- * данных при SHIFT. Буфер добавлялся ДО расчёта span и искусственно увеличивал
- * его — SHIFT превращался в EXPAND даже для одной записи (исходная проблема).
- * Единственный источник границ теперь — эта функция.
+ * Правила:
+ * - Нет данных → 09:00–19:00.
+ * - Рабочие границы уже приходят с серверным буфером ±1 час.
+ * - Записи дополнительно расширяют окно на 60 минут до старта и 60 минут после конца.
+ * - Если всё внутри дефолтного окна, окно НЕ ужимается.
+ * - Если данные выходят за пределы дефолта, окно только расширяется наружу.
  */
 export function deriveSlotTimes(
   workingBounds: WorkingBounds | null | undefined,
   events: CalendarEvent[] | undefined,
   timeZone: string,
 ): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
-  // Собираем dataLo/dataHi по рабочим границам и событиям
-  let dataLo: number | null = workingBounds ? workingBounds.minMinute : null;
-  let dataHi: number | null = workingBounds ? workingBounds.maxMinute : null;
+  let lo = DEFAULT_WINDOW_MIN;
+  let hi = DEFAULT_WINDOW_MAX;
+  let hasAnyData = Boolean(workingBounds);
+  if (workingBounds) {
+    lo = Math.min(lo, workingBounds.minMinute);
+    hi = Math.max(hi, workingBounds.maxMinute);
+  }
   for (const e of events ?? []) {
     if (e.kind !== "appointment" && e.kind !== "block") continue;
     const s = parseFeedInstant(e.startAt, timeZone);
     const en = parseFeedInstant(e.endAt, timeZone);
     if (s.isValid) {
-      const sm = s.hour * 60 + s.minute;
-      dataLo = dataLo == null ? sm : Math.min(dataLo, sm);
+      const sm = Math.max(0, s.hour * 60 + s.minute - 60);
+      lo = Math.min(lo, sm);
+      hasAnyData = true;
     }
     if (en.isValid) {
-      let em = en.hour * 60 + en.minute;
+      let em = en.hour * 60 + en.minute + 60;
       if (em === 0) em = 24 * 60; // полночь конца = конец суток
-      dataHi = dataHi == null ? em : Math.max(dataHi, em);
+      hi = Math.max(hi, Math.min(24 * 60, em));
+      hasAnyData = true;
     }
   }
 
-  // Нет данных совсем → дефолт 9:00–19:00
-  if (dataLo == null || dataHi == null) {
+  if (!hasAnyData) {
     return {
       slotMinTime: DEFAULT_SLOT_MIN,
       slotMaxTime: DEFAULT_SLOT_MAX,
@@ -317,32 +314,8 @@ export function deriveSlotTimes(
     };
   }
 
-  const DEFAULT_SIZE = DEFAULT_WINDOW_MAX - DEFAULT_WINDOW_MIN; // 600 мин
-  const span = dataHi - dataLo;
-
-  let lo: number;
-  let hi: number;
-
-  if (span <= DEFAULT_SIZE) {
-    // SHIFT: окно 600 мин, сдвигаем чтобы захватить [dataLo, dataHi]
-    if (dataLo >= DEFAULT_WINDOW_MIN && dataHi <= DEFAULT_WINDOW_MAX) {
-      // Данные внутри 9–19 — остаёмся на 9–19
-      lo = DEFAULT_WINDOW_MIN;
-      hi = DEFAULT_WINDOW_MAX;
-    } else if (dataLo < DEFAULT_WINDOW_MIN) {
-      // Данные ниже дефолта — сдвиг вниз: lo=dataLo, hi=lo+600
-      lo = Math.max(0, dataLo);
-      hi = Math.min(24 * 60, lo + DEFAULT_SIZE);
-    } else {
-      // Данные выше дефолта (dataHi > DEFAULT_WINDOW_MAX) — сдвиг вверх
-      hi = Math.min(24 * 60, dataHi);
-      lo = Math.max(0, hi - DEFAULT_SIZE);
-    }
-  } else {
-    // EXPAND: разброс данных шире дефолтного окна
-    lo = Math.min(dataLo, DEFAULT_WINDOW_MIN);
-    hi = Math.min(24 * 60, Math.max(dataHi, DEFAULT_WINDOW_MAX));
-  }
+  lo = Math.max(0, lo);
+  hi = Math.min(24 * 60, hi);
 
   return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
 }
@@ -996,6 +969,14 @@ export function ScheduleCalendarTab({
     };
   }, [load, isActive]);
 
+  useEffect(() => {
+    const handleRefresh = () => load();
+    window.addEventListener(DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT, handleRefresh);
+    return () => {
+      window.removeEventListener(DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT, handleRefresh);
+    };
+  }, [load]);
+
   // ─── Period navigation ─────────────────────────────────────────────────────
 
   function shiftAnchor(delta: number) {
@@ -1373,8 +1354,7 @@ export function ScheduleCalendarTab({
 
   return (
     <div className={cn(
-      "flex flex-col gap-4",
-      renderMode === "list" && "overflow-hidden h-[calc(100dvh_-_3.5rem_-_9rem)]",
+      "flex flex-col gap-4 pb-4",
     )}>
       {/* KPI row (D2) — full width, hidden in day */}
       {showKpi ? (
@@ -1566,14 +1546,10 @@ export function ScheduleCalendarTab({
 
       {/* Main content row: calendar/list + aside panel */}
       <div className={cn(
-        "flex flex-col gap-4 lg:flex-row",
-        renderMode === "list" && "min-h-0 flex-1 overflow-hidden",
+        "flex flex-col gap-4 lg:flex-row lg:items-start",
       )}>
         {/* Content area */}
-        <div className={cn(
-          "min-w-0 flex-1",
-          renderMode === "list" && "overflow-y-auto",
-        )}>
+        <div className="min-w-0 flex-1">
           {renderMode === "list" ? (
             // List view — period-bound, grouped by day
             <ListView
@@ -1590,7 +1566,7 @@ export function ScheduleCalendarTab({
             />
           ) : (
             // FullCalendar
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-hidden rounded-xl border border-border bg-card pb-4">
               <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
                    (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
@@ -1629,15 +1605,20 @@ export function ScheduleCalendarTab({
                 .fc-event.fc-event-past { opacity: 0.6; }
 
                 /* §3.9 — мягкая типографика заголовков колонок/дней */
+                .fc-col-header-cell {
+                  font-size: 0.75rem !important;
+                  font-weight: 500 !important;
+                }
                 .fc-col-header-cell-cushion {
                   font-size: 0.75rem !important;
                   font-weight: 500 !important;
                   text-transform: none !important;
                   color: var(--muted-foreground, currentColor) !important;
+                  padding-block: 0.25rem !important;
                 }
-                .fc-col-header-cell {
-                  font-size: 0.75rem !important;
-                  font-weight: 500 !important;
+                .fc .fc-scrollgrid-section-header th {
+                  padding-top: 0.125rem;
+                  padding-bottom: 0.125rem;
                 }
 
                 /* §3.10 — убрать жёлтую заливку «сегодня» в месяце */
@@ -1646,20 +1627,40 @@ export function ScheduleCalendarTab({
                   background-color: transparent !important;
                 }
 
-                /* §3.10/(б) — кружок «сегодня»: приглушённый прозрачно-зелёный.
-                   ВАЖНО: тема в oklch, --primary вообще синий → используем emerald
-                   через color-mix(in oklab, var(--color-emerald-500) …), иначе цвет
-                   получался невалидным/прозрачным (today был не виден). */
-                .fc-daygrid-day-number.fc-today-circle {
+                /* Красный круг вокруг сегодняшней даты во всех режимах. */
+                .fc-today-circle {
                   display: inline-flex;
                   align-items: center;
                   justify-content: center;
-                  width: 1.5rem;
-                  height: 1.5rem;
+                  min-width: 1.75rem;
+                  height: 1.75rem;
+                  padding-inline: 0.35rem;
                   border-radius: 9999px;
-                  background-color: color-mix(in oklab, var(--color-emerald-500) 24%, transparent);
-                  color: var(--foreground);
+                  border: 1.5px solid color-mix(in oklab, var(--destructive) 78%, white);
+                  color: color-mix(in oklab, var(--destructive) 82%, black);
+                  background-color: transparent;
                   font-weight: 600;
+                }
+                .fc-timegrid-header-link {
+                  display: flex;
+                  min-height: 2.6rem;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 0.125rem;
+                  padding-block: 0.2rem;
+                  text-decoration: none;
+                }
+                .fc-timegrid-header-weekday {
+                  font-size: 0.6875rem;
+                  line-height: 1;
+                  color: var(--muted-foreground);
+                  text-transform: none;
+                }
+                .fc-timegrid-header-day {
+                  font-size: 0.75rem;
+                  line-height: 1;
+                  color: var(--foreground);
                 }
 
                 /* §3.11 — мельче цифры дат в месячном виде */
@@ -1669,24 +1670,17 @@ export function ScheduleCalendarTab({
                   line-height: 1.5 !important;
                 }
 
-                /* §3.12 / CR-3 — «сегодня» в Неделя/3 дня: синеватый фон заголовка (primary, 18%) */
-                .fc-col-header-cell.fc-day-today {
-                  background-color: oklch(from var(--primary) l c h / 0.18) !important;
-                }
-                .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
-                  display: inline;
-                  width: auto;
-                  height: auto;
-                  border-radius: 0;
-                  background-color: transparent;
-                  font-weight: 600;
+                .fc-timegrid-slot-label-cushion,
+                .fc-timegrid-axis-cushion {
+                  padding-top: 0.125rem;
+                  padding-bottom: 0.125rem;
                 }
               `}</style>
               <FullCalendar
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
                 locale={ruLocale}
-                key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}`}
+                key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}:${slotMinTime}:${slotMaxTime}`}
                 initialView={fcInitialView}
                 views={fcViews}
                 initialDate={anchorDate}
@@ -1753,7 +1747,29 @@ export function ScheduleCalendarTab({
                         );
                       },
                     }
-                  : {})}
+                  : {
+                      dayHeaderContent: (arg: { date: Date }) => {
+                        const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
+                        const isToday = dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
+                        return (
+                          <button
+                            type="button"
+                            className="fc-timegrid-header-link"
+                            onClick={() => {
+                              const dateKey = dt.toISODate() ?? anchorDate;
+                              drillDownDay(dateKey);
+                            }}
+                          >
+                            <span className="fc-timegrid-header-weekday">
+                              {dt.setLocale("ru").toFormat("ccc")}
+                            </span>
+                            <span className={cn("fc-timegrid-header-day", isToday && "fc-today-circle")}>
+                              {dt.day}
+                            </span>
+                          </button>
+                        );
+                      },
+                    })}
                 eventClick={(arg) => {
                   const appointment = arg.event.extendedProps?.appointment as
                     | CalendarAppointmentEvent
@@ -1809,7 +1825,7 @@ export function ScheduleCalendarTab({
         </div>
 
         {/* Right panel (D5) */}
-        <aside className="w-full shrink-0 lg:w-80">
+        <aside className="w-full shrink-0 self-start lg:w-80">
           {selected || showCreatePanel ? (
             <DoctorCalendarEventPanel
               apiBase={API_BASE}

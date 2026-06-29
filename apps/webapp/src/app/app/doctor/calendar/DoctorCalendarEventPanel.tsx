@@ -329,6 +329,8 @@ function DoctorCalendarEventPanelInner({
     );
   }
 
+  const statusLabel = appointmentStatusLabel(selected.status);
+
   return (
     <div className={doctorClientOverviewPrimaryCardClass}>
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -342,7 +344,8 @@ function DoctorCalendarEventPanelInner({
       </div>
 
       <div className="space-y-2 text-sm">
-        <Badge variant="outline">{appointmentStatusLabel(selected.status)}</Badge>
+        <Badge variant="outline">{statusLabel}</Badge>
+        <p className="text-xs text-muted-foreground">Статус записи: {statusLabel}</p>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
         {selected.serviceTitle ? <p>{selected.serviceTitle}</p> : null}
         {selected.specialistName ? <p>{selected.specialistName}</p> : null}
