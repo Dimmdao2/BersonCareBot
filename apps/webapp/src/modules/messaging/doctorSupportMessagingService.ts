@@ -3,6 +3,7 @@
  */
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import type { AdminConversationListRow, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
+import { isSupportChatMessage } from "@/shared/lib/supportMessageKinds";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
 import type { NotifyPatientDoctorReplyParams } from "./notifyPatientDoctorReply";
 
@@ -33,7 +34,7 @@ export function createDoctorSupportMessagingService(
       const { id } = await port.ensureWebappConversationForUser(platformUserId);
       const messages = await port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 });
       const unreadFromUserCount = await port.countUnreadUserMessagesForAdminByConversation(id);
-      return { conversationId: id, messages, unreadFromUserCount };
+      return { conversationId: id, messages: messages.filter(isSupportChatMessage), unreadFromUserCount };
     },
 
     async getMessages(
@@ -46,7 +47,7 @@ export function createDoctorSupportMessagingService(
         sinceCreatedAt: params.sinceCreatedAt ?? null,
         limit: params.limit ?? 100,
       });
-      return { messages };
+      return { messages: messages.filter(isSupportChatMessage) };
     },
 
     async sendAdminReply(

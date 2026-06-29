@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import {
-  Bell,
   CalendarCheck,
   CalendarPlus,
   ChartLine,
@@ -26,6 +25,7 @@ import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSuppo
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
 import { usePatientShellScrollCompact } from "@/shared/hooks/usePatientShellScrollCompact";
 import { PatientNavCountBadge } from "@/shared/ui/patient/PatientNavCountBadge";
+import { PatientNotificationInboxButton } from "@/shared/ui/patient/shell/PatientNotificationInboxButton";
 import {
   PATIENT_DESKTOP_INNER_MAX_CLASS,
   PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
@@ -253,14 +253,10 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           {PATIENT_PRIMARY_NAV_ITEMS.map(renderDesktopNavLink)}
         </nav>
         <div className="flex shrink-0 items-center gap-1">
-          <Link
-            href={routePaths.patientReminders}
-            prefetch={false}
-            aria-label="Напоминания"
-            className={cn(TOP_ICON_BTN, "relative")}
-          >
-            <Bell className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-          </Link>
+          <PatientNotificationInboxButton
+            className={TOP_ICON_BTN}
+            badgeClassName="ring-2 ring-[rgba(255,255,255,0.96)]"
+          />
           <Link
             href={routePaths.patientMessages}
             prefetch={false}

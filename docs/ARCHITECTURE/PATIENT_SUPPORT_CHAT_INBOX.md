@@ -1,6 +1,6 @@
-# PWA-чат пациента как inbox уведомлений
+# PWA-чат пациента и inbox уведомлений
 
-Канонический маршрут: **`/app/patient/messages`**. Отдельного «центра уведомлений» и списка прошлых рассылок в меню **нет** — история в одном thread `webapp:platform:{platformUserId}`.
+Канонический маршрут 1:1 чата: **`/app/patient/messages`**. Массовые рассылки и lifecycle-уведомления записи не показываются в чате пациента и врача; они читаются через колокольчик в верхнем меню пациента.
 
 Связанные документы: [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) (рассылки врача), [`RUBITIME_BOOKING_PIPELINE.md`](RUBITIME_BOOKING_PIPELINE.md) (запись), [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md) (**Web Push — основной канал**), [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §patient Web Push.
 
@@ -8,10 +8,17 @@
 
 | Событие | Текст в чате | Web Push `openUrl` | Telegram / MAX / SMS |
 |--------|--------------|-------------------|----------------------|
-| Массовая рассылка врача | Полный `title` + `body` (`buildBroadcastMessageText`) | `/app/patient/messages` | Полный HTML/plain в боте/SMS — **без изменений** |
-| Запись: создана / отменена (`appointment_lifecycle`) | Copy из `buildAppointmentLifecyclePushCopy` | `/app/patient/messages` | Как раньше (`sendLinkedChannelMessage` в integrator) |
 | Ответ врача в чате (1:1) | Текст ответа | `/app/patient/messages` (`notifyPatientDoctorReply`) | Preview + ссылка на чат |
 | Ответ врача на **наблюдение по упражнению** (program note) | `Ответ на ваш комментарий к упражнению «…»:` + текст | `/app/patient/messages` | То же (`notifyPatientDoctorReply`); кнопка в боте — `program_reply:{stageItemId}` |
+
+## Что попадает в колокольчик уведомлений
+
+| Событие | Хранение | Patient UI | Web Push `openUrl` |
+|--------|----------|------------|--------------------|
+| Массовая рассылка врача | `support_conversation_messages`, `source='doctor_broadcast'`, id `broadcast:{auditId}:{userId}` | Колокольчик в верхнем меню; Sheet без поля ответа | `/app/patient?notifications=1` |
+| Запись: создана / отменена / перенесена (`appointment_lifecycle`) | `support_conversation_messages`, `source='appointment_lifecycle'`, id `booking-{created|cancelled|rescheduled}:{bookingId}` | Колокольчик в верхнем меню; Sheet без поля ответа | `/app/patient?notifications=1` |
+
+Классификация работает по `source` и legacy-префиксам `integrator_message_id`, чтобы старые строки тоже не попадали в 1:1 чат.
 
 ## Уведомление врача (пациент → staff)
 
@@ -33,6 +40,8 @@
 
 ## Что не попадает в чат
 
+- Массовые рассылки врача (`doctor_broadcast`) — только notification inbox.
+- Lifecycle записи (`appointment_lifecycle`) — только notification inbox.
 - Напоминания о приёме (`appointment_reminder`, 24ч/2ч) — push ведёт на booking, в чат **не** дублируется.
 - Напоминания о разминке / занятии / rehab — deep link на занятие **без изменений**.
 - Дублирование рассылки через `notifyPatientDoctorReply` — **запрещено** (второе сообщение в TG/MAX).
@@ -43,19 +52,22 @@
 - **`/app/patient/broadcasts/[auditId]`** — `redirect` → `/app/patient/messages` (старые push на страницу рассылки).
 - Текст в чате только для рассылок **после выката**; backfill старых `broadcast_audit` **не** выполняется.
 
-## Непрочитанные (бейдж «Сегодня»)
+## Непрочитанные
 
-Входящие = `support_conversation_messages` с `sender_role <> 'user'` и `read_at IS NULL` по **всем** диалогам `platform_user_id`.
+Чатовые входящие = `support_conversation_messages` с `sender_role <> 'user'`, `read_at IS NULL` и **не** `doctor_broadcast` / `appointment_lifecycle` по **всем** диалогам `platform_user_id`.
 
 | UI | Источник |
 |----|----------|
 | Красная точка на вкладке «Сегодня» (mobile nav) | `usePatientSupportUnreadCount()` → `GET /api/patient/messages/unread-count` |
 | Подсказка на главной | SSR `deps.messaging.patient.unreadCount` (тот же подсчёт после merge legacy) |
 | Desktop: иконка «Сообщения» | тот же hook |
+| Desktop/header: колокольчик «Уведомления» | `usePatientNotificationUnreadCount()` → `GET /api/patient/notifications/inbox` |
 
 **Сброс прочитанного:** `POST /api/patient/messages/read` помечает входящие во **всех** диалогах пользователя (не только в текущем `conversationId`). Перед подсчётом — `mergeLegacySupportConversationsForPlatformUser`.
 
 **Мгновенное обновление UI:** после успешного read в [`PatientMessagesClient.tsx`](../../apps/webapp/src/app/app/patient/messages/PatientMessagesClient.tsx) (bootstrap и poll) — `notifyPatientSupportUnreadCountChanged()`; hook слушает событие `bersoncare:patient-support-unread-refresh`.
+
+**Сброс уведомлений:** `POST /api/patient/notifications/inbox/read` помечает непрочитанные notification-сообщения пользователя; hook слушает `bersoncare:patient-notification-unread-refresh`.
 
 ## Статусы доставки (✓ / ✓✓)
 
@@ -72,11 +84,12 @@
 | Push рассылки | [`fanOutBroadcastWebPush.ts`](../../apps/webapp/src/modules/doctor-broadcasts/fanOutBroadcastWebPush.ts) |
 | Lifecycle запись | [`patientWebPushNotify.ts`](../../apps/webapp/src/modules/patient-notifications/patientWebPushNotify.ts) при `intentType === appointment_lifecycle` |
 | Unread API | [`patientMessagingService.ts`](../../apps/webapp/src/modules/messaging/patientMessagingService.ts), [`pgSupportCommunication.ts`](../../apps/webapp/src/infra/repos/pgSupportCommunication.ts) |
+| Notification inbox | [`patientNotificationInboxService.ts`](../../apps/webapp/src/modules/messaging/patientNotificationInboxService.ts), [`PatientNotificationInboxButton.tsx`](../../apps/webapp/src/shared/ui/patient/shell/PatientNotificationInboxButton.tsx) |
 | Program note → ответ врача | [`notifyDoctorPatientProgramNote.ts`](../../apps/webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts), [`programNoteReplyContext.ts`](../../apps/webapp/src/modules/messaging/programNoteReplyContext.ts), [`integratorSupportBridge.ts`](../../apps/webapp/src/modules/messaging/integratorSupportBridge.ts) |
 
 ## Код (integrator)
 
-- [`recordM2mRoute.ts`](../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) — `sendBookingWebPush`: для `appointment_lifecycle` `openUrl` = `{appBase}/app/patient/messages`.
+- [`recordM2mRoute.ts`](../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) — webapp `runPatientWebPushNotify`: для `appointment_lifecycle` итоговый `openUrl` = `{appBase}/app/patient?notifications=1`.
 - Program note reply: `content/*/admin/scripts.json` (`program_reply`, `reply.message`), `handlers/supportRelay.ts`, `webapp.programNote.replyBegin` — см. [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Тесты (ориентир)

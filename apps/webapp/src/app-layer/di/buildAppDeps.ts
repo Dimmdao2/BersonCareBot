@@ -180,6 +180,7 @@ import { createPgContentSectionsPort, inMemoryContentSectionsPort } from "@/infr
 import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
 import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
+import { createPatientNotificationInboxService } from "@/modules/messaging/patientNotificationInboxService";
 import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
 import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
 import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
@@ -1064,6 +1065,7 @@ const patientMessagingService = createPatientMessagingService(supportCommunicati
   },
   resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
+const patientNotificationInboxService = createPatientNotificationInboxService(supportCommunicationPort);
 const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
@@ -1526,6 +1528,7 @@ function _buildAppDeps() {
     /** Поддержка: чат webapp ↔ админ (этап 8). */
     messaging: {
       patient: patientMessagingService,
+      patientNotifications: patientNotificationInboxService,
       doctorSupport: doctorSupportMessagingService,
     },
     reminders: remindersService,

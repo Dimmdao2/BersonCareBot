@@ -8,6 +8,7 @@ const pushMock = vi.fn();
 const backMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     push: pushMock,
     back: backMock,
@@ -37,6 +38,8 @@ const chatUnreadState = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
   usePatientSupportUnreadCount: () => chatUnreadState.count,
+  usePatientNotificationUnreadCount: () => 0,
+  notifyPatientNotificationUnreadCountChanged: vi.fn(),
 }));
 
 describe("PatientHeader", () => {

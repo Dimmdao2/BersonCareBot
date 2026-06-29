@@ -85,9 +85,9 @@ export type PatientWebPushNotifyDeps = {
   patientInboundChatPort?: PatientInboundChatPort;
 };
 
-function buildPatientMessagesOpenUrl(): string {
+function buildPatientNotificationsOpenUrl(): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
-  return `${base}${routePaths.patientMessages}`;
+  return `${base}${routePaths.patient}?notifications=1`;
 }
 
 function bookingIdFromLifecycleStableKey(stableKey: string): string | null {
@@ -160,6 +160,7 @@ export async function runPatientWebPushNotify(
           platformUserId: uid,
           text: chatText,
           integratorMessageId: bookingLifecycleChatIntegratorMessageId(body.variant, bookingId),
+          source: "appointment_lifecycle",
         });
       } catch (err) {
         logger.warn(
@@ -213,7 +214,7 @@ export async function runPatientWebPushNotify(
   }
 
   const pushOpenUrl =
-    body.intentType === "appointment_lifecycle" ? buildPatientMessagesOpenUrl() : body.openUrl;
+    body.intentType === "appointment_lifecycle" ? buildPatientNotificationsOpenUrl() : body.openUrl;
 
   const pushKind =
     body.intentType === "news" ? "news"

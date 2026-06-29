@@ -27,7 +27,7 @@ type ChatViewProps = {
   variant: Variant;
   messages: SerializedSupportMessage[];
   emptyText?: string;
-  composer: ReactNode;
+  composer?: ReactNode;
   /**
    * Пациент: подпись дата и время под пузырём (сегодня / вчера / 5 июня / … год),
    * без блоковых разделителей по дням.
@@ -180,7 +180,9 @@ export function ChatView({
           ))}
         <div ref={bottomRef} />
       </div>
-      <div className={cn("mt-auto shrink-0", variant === "doctor" && "px-3")}>{composer}</div>
+      {composer != null ? (
+        <div className={cn("mt-auto shrink-0", variant === "doctor" && "px-3")}>{composer}</div>
+      ) : null}
     </div>
   );
 }

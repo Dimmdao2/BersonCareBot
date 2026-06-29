@@ -6,6 +6,7 @@ import { PatientShellTopChrome } from "./PatientShellTopChrome";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/app/patient",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     back: vi.fn(),
     push: vi.fn(),
@@ -14,6 +15,8 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
   usePatientSupportUnreadCount: () => 0,
+  usePatientNotificationUnreadCount: () => 0,
+  notifyPatientNotificationUnreadCountChanged: vi.fn(),
 }));
 
 describe("PatientShellTopChrome", () => {

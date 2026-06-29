@@ -10,6 +10,7 @@ export type AppendPatientInboundAdminMessageParams = {
   platformUserId: string;
   text: string;
   integratorMessageId: string;
+  source?: string;
   mediaUrl?: string | null;
   mediaType?: string | null;
 };
@@ -38,7 +39,7 @@ export async function appendPatientInboundAdminMessage(
     integratorMessageId: params.integratorMessageId,
     senderRole: "admin",
     text,
-    source: "webapp",
+    source: params.source ?? "webapp",
     createdAt: now,
     mediaUrl: params.mediaUrl ?? null,
     mediaType: params.mediaType ?? null,

@@ -141,6 +141,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
               platformUserId: client.userId,
               text: messageBodyPlainText,
               integratorMessageId: broadcastChatIntegratorMessageId(auditId, client.userId),
+              source: "doctor_broadcast",
               mediaUrl: command.message.mediaUrl ?? null,
               mediaType: command.message.mediaType ?? null,
             });

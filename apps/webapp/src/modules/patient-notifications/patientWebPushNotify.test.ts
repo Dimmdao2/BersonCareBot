@@ -110,7 +110,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
     );
   });
 
-  it("uses /app/patient/messages openUrl for appointment_lifecycle (not the raw openUrl)", async () => {
+  it("uses patient notifications openUrl for appointment_lifecycle (not the raw openUrl)", async () => {
     const deps = baseDeps();
     await runPatientWebPushNotify(
       {
@@ -128,7 +128,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
     expect(relayOutboundMock).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({
-          url: expect.stringContaining("/app/patient/messages"),
+          url: expect.stringContaining("/app/patient?notifications=1"),
         }),
       }),
     );

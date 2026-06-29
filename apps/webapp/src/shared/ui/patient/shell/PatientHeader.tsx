@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import {
-  Bell,
   ChevronLeft,
   Home,
   Menu,
@@ -30,6 +29,7 @@ import { PATIENT_OVERLAY_PANEL_WIDTH_CLASS } from "@/shared/ui/patient/pwaLayout
 import { usePlatform } from "@/shared/hooks/usePlatform";
 import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import { PatientNavCountBadge } from "@/shared/ui/patient/PatientNavCountBadge";
+import { PatientNotificationInboxButton } from "@/shared/ui/patient/shell/PatientNotificationInboxButton";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
 import { shareCabinetLink } from "@/shared/lib/shareCabinetLink";
 
@@ -109,15 +109,10 @@ export function PatientHeader({
         );
       case "reminders":
         return (
-          <Link
+          <PatientNotificationInboxButton
             key="reminders"
-            href={routePaths.patientReminders}
-            prefetch={false}
-            aria-label="Напоминания"
             className={HEADER_ICON_CLASS}
-          >
-            <Bell className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-          </Link>
+          />
         );
       case "menu":
         return (
