@@ -1239,6 +1239,35 @@ export function ScheduleCalendarTab({
       const start: Date | null = arg.start ?? null;
       const end: Date | null = arg.end ?? null;
       if (!start) return;
+
+      // #228 / CR-2: guard против drag в нерабочую (серую) зону или перерыв.
+      // Проверяем, попадает ли начало drag-интервала в nonworking/break событие —
+      // симметрично прежнему guard в dateClick (проверка точки клика).
+      // Month-режим не трогаем (selectable={view !== "month"} → onSelect там не зовётся).
+      const startMs = start.getTime();
+      const isNonWorkingOrBreak =
+        Array.isArray(calendarEvents) &&
+        (
+          calendarEvents as Array<{
+            start?: string;
+            end?: string;
+            extendedProps?: { kind?: string };
+          }>
+        ).some(
+          (ev) =>
+            (ev.extendedProps?.kind === "nonworking" ||
+              ev.extendedProps?.kind === "break") &&
+            ev.start &&
+            ev.end &&
+            new Date(ev.start).getTime() <= startMs &&
+            startMs < new Date(ev.end).getTime(),
+        );
+      if (isNonWorkingOrBreak) {
+        // Снимаем выделение — не открываем панель
+        calendarRef.current?.getApi().unselect();
+        return;
+      }
+
       // luxon3 plugin + timeZone prop: FC passes proper UTC Date objects (not fake-UTC
       // wall-clock), so we convert to the doctor's display timezone via setZone.
       const startLocal =
@@ -1252,7 +1281,7 @@ export function ScheduleCalendarTab({
       setShowCreatePanel(true);
       onDeepLinkChange("appt", null);
     },
-    [onDeepLinkChange, currentTimeZone],
+    [onDeepLinkChange, currentTimeZone, calendarEvents],
   );
 
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
@@ -1809,6 +1838,8 @@ export function ScheduleCalendarTab({
                 setCreateInitialStart(null);
                 setCreateInitialEnd(null);
                 onDeepLinkChange("appt", null);
+                // #227: снимаем синее выделение при успешном создании (симметрично onClose)
+                calendarRef.current?.getApi().unselect();
                 load();
               }}
             />

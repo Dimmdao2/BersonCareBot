@@ -17,7 +17,7 @@ vi.mock("@fullcalendar/react", () => ({
   }: {
     navLinkDayClick?: (date: Date) => void;
     dateClick?: (arg: { date: Date; allDay: boolean }) => void;
-    select?: (arg: { start: Date }) => void;
+    select?: (arg: { start: Date; end?: Date }) => void;
   }) => (
     <div data-testid="fullcalendar">
       <button
@@ -44,7 +44,7 @@ vi.mock("@fullcalendar/react", () => ({
       </button>
       <button
         data-testid="fc-select"
-        onClick={() => select?.({ start: new Date("2026-06-17T14:00:00Z") })}
+        onClick={() => select?.({ start: new Date("2026-06-17T14:00:00Z"), end: new Date("2026-06-17T15:00:00Z") })}
       >
         select
       </button>
@@ -56,6 +56,13 @@ vi.mock("@fullcalendar/react", () => ({
         }
       >
         nonworking-click
+      </button>
+      {/* #228: drag select in nonworking zone — start at 09:30 UTC (before working hours 10:00 UTC) */}
+      <button
+        data-testid="fc-select-nonworking"
+        onClick={() => select?.({ start: new Date("2026-06-17T09:30:00Z"), end: new Date("2026-06-17T10:00:00Z") })}
+      >
+        select-nonworking
       </button>
     </div>
   ),
@@ -70,11 +77,13 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
   DoctorCalendarEventPanel: ({
     selected,
     onClose,
+    onChanged,
     startInCreate,
     createInitialStart,
   }: {
     selected: unknown;
     onClose: () => void;
+    onChanged?: () => void;
     startInCreate?: boolean;
     createInitialStart?: string | null;
   }) => (
@@ -90,6 +99,9 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
       ) : (
         <span data-testid="panel-empty">empty</span>
       )}
+      <button data-testid="panel-changed" onClick={onChanged}>
+        changed
+      </button>
     </div>
   ),
 }));
@@ -900,6 +912,47 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
   });
 
+  // ─── #227: onChanged снимает панель и выделение ──────────────────────────
+
+  describe("#227 — onChanged closes panel (unselect on successful create)", () => {
+    it("onChanged hides the event panel and shows empty stub", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      // Открываем панель создания через drag (onSelect)
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-select"));
+      await waitFor(() => screen.getByTestId("event-panel"));
+
+      // Симулируем успешное создание (onChanged)
+      await user.click(screen.getByTestId("panel-changed"));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
+        expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
+      });
+    });
+
+    it("onChanged calls onDeepLinkChange(appt, null)", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const onDeepLinkChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-select"));
+      await waitFor(() => screen.getByTestId("event-panel"));
+
+      onDeepLinkChange.mockClear();
+      await user.click(screen.getByTestId("panel-changed"));
+
+      expect(onDeepLinkChange).toHaveBeenCalledWith("appt", null);
+    });
+  });
+
   // ─── CR-2: dateClick non-working zone guard ───────────────────────────────
 
   // ─── CR-2 / #228: dateClick всегда = сброс (никогда не открывает создание) ──
@@ -922,6 +975,66 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await user.click(screen.getByTestId("fc-nonworking-click"));
       await new Promise((r) => setTimeout(r, 100));
       expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  // ─── #228: onSelect guard — нерабочая зона не открывает создание ─────────
+
+  describe("#228 — onSelect guard: drag in nonworking zone does not open create panel", () => {
+    // Helper: response with a working event 10:00-18:00 UTC on 2026-06-17.
+    // Non-working zone includes 09:00-10:00 UTC (before working hours).
+    // fc-select-nonworking fires at 09:30 UTC (before 10:00 UTC working start).
+    const makeResponseWithWorkingEvent = () => ({
+      ok: true,
+      view: "3days",
+      anchorDate: "2026-06-17",
+      timeZone: "UTC",
+      events: [
+        {
+          kind: "working",
+          id: "wk-1",
+          startAt: "2026-06-17T10:00:00Z",
+          endAt: "2026-06-17T18:00:00Z",
+        },
+      ],
+      filters: { specialists: [], branches: [], rooms: [], services: [] },
+      showWorkingHours: true,
+      workingBounds: { minMinute: 540, maxMinute: 1080 }, // 09:00-18:00 slot
+    });
+
+    it("drag in nonworking zone (09:30 UTC, before working 10:00 UTC) does NOT open create panel", async () => {
+      setupFetchMock(makeResponseWithWorkingEvent());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      // Wait for data to load (working events create nonworking fill)
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Click fc-select-nonworking (09:30 UTC = before working 10:00 UTC)
+      await user.click(screen.getByTestId("fc-select-nonworking"));
+
+      await new Promise((r) => setTimeout(r, 100));
+      // Panel must NOT be opened
+      expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
+      expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
+    });
+
+    it("drag in working zone (14:00 UTC, within 10:00-18:00) DOES open create panel", async () => {
+      setupFetchMock(makeResponseWithWorkingEvent());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+
+      // fc-select fires at 14:00 UTC (inside working hours 10:00-18:00)
+      await user.click(screen.getByTestId("fc-select"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+      });
     });
   });
 
