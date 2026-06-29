@@ -22,6 +22,10 @@ export type DoctorClientsFilters = {
   hasEmail?: boolean;
   /** Только клиенты с телефоном (phone_normalized не NULL). */
   hasPhone?: boolean;
+  /** Есть серверно зафиксированная активность из PWA (`product_analytics_user_hourly.entry_channel='pwa'`). */
+  hasApp?: boolean;
+  /** Есть активная web-push подписка и глобальный канал web_push не выключен. */
+  hasWebPush?: boolean;
   /** Только пользователи с хотя бы одной неотменённой строкой в `appointment_records` (JOIN по phone). Этап 9. */
   onlyWithAppointmentRecords?: boolean;
   /**
@@ -66,6 +70,7 @@ export type ClientListItem = {
   bindings: ChannelBindings;
   hasEmail?: boolean;
   hasApp?: boolean;
+  hasWebPush?: boolean;
   nextAppointmentLabel: string | null;
   /** Есть хотя бы одна неотменённая запись (`appointment_records.status IN ('created', 'updated')`). */
   hasAppointmentHistory?: boolean;

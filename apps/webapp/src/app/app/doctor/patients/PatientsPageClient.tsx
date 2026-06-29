@@ -1133,9 +1133,10 @@ function PatientsContent({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant={activeChannel === "web_push" ? "default" : "outline"}
                 className="h-7 px-2 text-xs"
-                disabled
+                onClick={() => onChannelChange(activeChannel === "web_push" ? null : "web_push", false)}
+                aria-pressed={activeChannel === "web_push"}
               >
                 <Bell className="mr-1 size-3.5" aria-hidden />
                 Пуш-уведомления

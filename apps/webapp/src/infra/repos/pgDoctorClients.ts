@@ -147,6 +147,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         unreadExerciseCommentRows,
         membershipRows,
         noShowRows,
+        pwaActivityRows,
+        webPushRows,
       ] = await Promise.all([
         runWebappPgText<{
             user_id: string;
@@ -281,6 +283,23 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              WHERE platform_user_id = ANY($1::uuid[])`,
             [userIds],
           ),
+          runWebappPgText<{ user_id: string }>(
+            `SELECT DISTINCT pah.user_id::text AS user_id
+             FROM product_analytics_user_hourly pah
+             WHERE pah.user_id = ANY($1::uuid[])
+               AND pah.entry_channel = 'pwa'`,
+            [userIds],
+          ),
+          runWebappPgText<{ user_id: string }>(
+            `SELECT DISTINCT s.user_id::text AS user_id
+             FROM user_web_push_subscriptions s
+             LEFT JOIN user_channel_preferences p
+               ON p.user_id = s.user_id
+              AND p.channel_code = 'web_push'
+             WHERE s.user_id = ANY($1::uuid[])
+               AND COALESCE(p.is_enabled_for_notifications, true) = true`,
+            [userIds],
+          ),
         ]);
 
       const appointmentAggByUserId = new Map(
@@ -316,6 +335,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const noShowByPatientId = new Map<string, number>(
         noShowRows.rows.map((row) => [row.user_id, Number(row.no_show_count ?? 0)]),
       );
+      const pwaActiveUserIds = new Set<string>(pwaActivityRows.rows.map((row) => row.user_id));
+      const webPushEnabledUserIds = new Set<string>(webPushRows.rows.map((row) => row.user_id));
 
       let list: ClientListItem[] = clientRows.rows.map((r) => {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
@@ -334,7 +355,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             phone,
             bindings,
             hasEmail: Boolean(email) || Boolean(r.email_verified_at),
-            hasApp: true,
+            hasApp: pwaActiveUserIds.has(r.id),
+            hasWebPush: webPushEnabledUserIds.has(r.id),
             nextAppointmentLabel: activeAppointmentsCount > 0 ? "Есть запись" : null,
             hasAppointmentHistory: appointmentAgg?.hasHistory ?? false,
             activeAppointmentsCount,
@@ -388,6 +410,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       }
       if (filters.hasPhone === true) {
         list = list.filter((item) => Boolean(item.phone?.trim()));
+      }
+      if (filters.hasApp === true) {
+        list = list.filter((item) => item.hasApp === true);
+      }
+      if (filters.hasWebPush === true) {
+        list = list.filter((item) => item.hasWebPush === true);
       }
       if (filters.hasMemberships === true) {
         list = list.filter((item) => item.hasMemberships === true);

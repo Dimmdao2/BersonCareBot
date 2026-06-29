@@ -61,6 +61,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
       hasMax: channel === "max" ? true : undefined,
       hasEmail: channel === "email" ? true : undefined,
       hasPhone: channel === "phone" ? true : undefined,
+      hasWebPush: channel === "web_push" ? true : undefined,
     },
   );
 

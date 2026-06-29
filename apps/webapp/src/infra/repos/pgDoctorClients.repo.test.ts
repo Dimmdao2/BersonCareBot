@@ -74,7 +74,9 @@ describe("pgDoctorClients repo", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] }); // no_show_count query
+      .mockResolvedValueOnce({ rows: [] }) // no_show_count query
+      .mockResolvedValueOnce({ rows: [] }) // pwa activity query
+      .mockResolvedValueOnce({ rows: [] }); // web push query
 
     const port = createPgDoctorClientsPort();
     const list = await port.listClients({ hasUpcomingAppointment: true });
@@ -116,7 +118,9 @@ describe("pgDoctorClients repo", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] }); // no_show_count query
+      .mockResolvedValueOnce({ rows: [] }) // no_show_count query
+      .mockResolvedValueOnce({ rows: [] }) // pwa activity query
+      .mockResolvedValueOnce({ rows: [] }); // web push query
 
     const port = createPgDoctorClientsPort();
     const list = await port.listClients({});
@@ -142,13 +146,87 @@ describe("pgDoctorClients repo", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] }); // no_show_count query
+      .mockResolvedValueOnce({ rows: [] }) // no_show_count query
+      .mockResolvedValueOnce({ rows: [] }) // pwa activity query
+      .mockResolvedValueOnce({ rows: [] }); // web push query
 
     const port = createPgDoctorClientsPort();
     const list = await port.listClients({ supportStatus: "on" });
 
     expect(list).toHaveLength(1);
     expect(list[0]?.userId).toBe("u2");
+  });
+
+  it("listClients derives hasApp from pwa activity and hasWebPush from active enabled subscriptions", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "u1", display_name: "App user", phone_normalized: null, created_at: "2026-01-01" },
+          { id: "u2", display_name: "Push user", phone_normalized: null, created_at: "2026-01-02" },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u1" }] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u2" }] });
+
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({});
+
+    expect(list.find((item) => item.userId === "u1")?.hasApp).toBe(true);
+    expect(list.find((item) => item.userId === "u1")?.hasWebPush).toBe(false);
+    expect(list.find((item) => item.userId === "u2")?.hasApp).toBe(false);
+    expect(list.find((item) => item.userId === "u2")?.hasWebPush).toBe(true);
+  });
+
+  it("listClients filters by hasApp and hasWebPush", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "u1", display_name: "App user", phone_normalized: null, created_at: "2026-01-01" },
+          { id: "u2", display_name: "Push user", phone_normalized: null, created_at: "2026-01-02" },
+          { id: "u3", display_name: "Both user", phone_normalized: null, created_at: "2026-01-03" },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u1" }, { user_id: "u3" }] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u2" }, { user_id: "u3" }] });
+
+    const port = createPgDoctorClientsPort();
+
+    const appList = await port.listClients({ hasApp: true });
+    expect(appList.map((item) => item.userId)).toEqual(["u1", "u3"]);
+
+    runWebappPgTextMock.mockClear();
+    listOnSupportPatientUserIdsMock.mockResolvedValue(new Set());
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "u1", display_name: "App user", phone_normalized: null, created_at: "2026-01-01" },
+          { id: "u2", display_name: "Push user", phone_normalized: null, created_at: "2026-01-02" },
+          { id: "u3", display_name: "Both user", phone_normalized: null, created_at: "2026-01-03" },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u1" }, { user_id: "u3" }] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u2" }, { user_id: "u3" }] });
+
+    const pushList = await port.listClients({ hasWebPush: true });
+    expect(pushList.map((item) => item.userId)).toEqual(["u2", "u3"]);
   });
 
   it("listClients returns [] immediately when userIds is empty array (EXTRA-02 short-circuit)", async () => {

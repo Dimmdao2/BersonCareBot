@@ -102,7 +102,7 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByRole("button", { name: "Без записей" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "С абонементами" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Архив" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
     expect(within(categoryGroup).getByRole("button", { name: /Все 4/i })).toBeInTheDocument();
