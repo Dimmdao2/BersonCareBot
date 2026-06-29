@@ -57,7 +57,7 @@ async function renderPatientsPage(clients: ClientListItem[]) {
       <PatientsPageClient
         listPromise={Promise.resolve(clients)}
         metricsPromise={Promise.resolve(metrics)}
-        initialFilters={{ q: "", segment: null, channel: null, archivedOnly: false }}
+        initialFilters={{ q: "", segment: null, archivedOnly: false }}
         patientPluralLabel="Клиенты"
         displayIana="Europe/Moscow"
       />,
@@ -120,6 +120,7 @@ describe("PatientsPageClient", () => {
 
   it("filters channel buttons client-side without reloading the list", async () => {
     const user = userEvent.setup();
+    window.history.pushState({}, "", "/app/doctor/patients?channel=max");
     await renderPatientsPage([
       client({ userId: "telegram", displayName: "Telegram client", bindings: { telegramId: "tg-1" } }),
       client({ userId: "push", displayName: "Push client", hasWebPush: true }),
@@ -129,11 +130,13 @@ describe("PatientsPageClient", () => {
     expect(await screen.findByText("Telegram client")).toBeInTheDocument();
     expect(screen.getByText("Push client")).toBeInTheDocument();
     expect(screen.getByText("Plain client")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
 
     await user.click(screen.getByRole("button", { name: "Пуш-уведомления" }));
 
     expect(screen.queryByText("Telegram client")).not.toBeInTheDocument();
     expect(screen.getByText("Push client")).toBeInTheDocument();
     expect(screen.queryByText("Plain client")).not.toBeInTheDocument();
+    expect(window.location.search).toBe("");
   });
 });

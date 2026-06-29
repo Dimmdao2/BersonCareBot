@@ -20,7 +20,6 @@ type PageProps = {
   searchParams?: Promise<{
     q?: string;
     segment?: string;
-    channel?: string;
     archived?: string;
   }>;
 };
@@ -30,7 +29,6 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const segment = typeof sp.segment === "string" ? sp.segment : null;
-  const channel = typeof sp.channel === "string" ? sp.channel : null;
   const archivedOnly = sp.archived === "true";
 
   const deps = buildAppDeps();
@@ -57,7 +55,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
       <PatientsPageClient
         listPromise={listPromise}
         metricsPromise={metricsPromise}
-        initialFilters={{ q, segment, channel, archivedOnly }}
+        initialFilters={{ q, segment, archivedOnly }}
         patientPluralLabel={patientPluralLabel}
         displayIana={displayIana}
       />

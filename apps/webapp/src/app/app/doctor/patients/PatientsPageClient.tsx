@@ -46,7 +46,6 @@ export type ClientCategory = "all" | "client" | "subscriber_only";
 type InitialFilters = {
   q: string;
   segment: string | null;
-  channel: string | null;
   archivedOnly: boolean;
 };
 
@@ -1176,9 +1175,7 @@ export function PatientsPageClient({
 
   // Segment / channel / archive state (sync to URL on change)
   const [activeSegment, setActiveSegment] = useState<string | null>(initialFilters.segment);
-  const [activeChannel, setActiveChannel] = useState<string | null>(
-    initialFilters.archivedOnly ? null : initialFilters.channel,
-  );
+  const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
 
   // Icon filter state (client-side only, not reflected in URL)
@@ -1192,6 +1189,13 @@ export function PatientsPageClient({
 
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("channel")) return;
+    url.searchParams.delete("channel");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   const handleSegmentChange = useCallback(
     (value: string | null) => {
@@ -1241,7 +1245,7 @@ export function PatientsPageClient({
     setListPromise(initialListPromise);
     setSearchInput(initialFilters.q);
     setActiveSegment(initialFilters.segment);
-    setActiveChannel(initialFilters.archivedOnly ? null : initialFilters.channel);
+    setActiveChannel(null);
     setArchivedOnly(initialFilters.archivedOnly);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialListPromise]);
