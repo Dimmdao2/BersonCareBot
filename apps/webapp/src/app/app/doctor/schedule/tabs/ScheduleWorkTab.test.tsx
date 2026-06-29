@@ -57,6 +57,15 @@ const WORKING_DAY_ROWS = [
     isClosed: false,
     branchId: "branch-spb",
   },
+  {
+    id: "wd-2",
+    workDate: "2026-06-03",
+    startMinute: 600,
+    endMinute: 1080,
+    breaks: [],
+    isClosed: false,
+    branchId: "branch-msk",
+  },
 ];
 
 const TEMPLATES = [
@@ -183,6 +192,22 @@ describe("ScheduleWorkTab", () => {
     expect(screen.getByTestId("branch-btn-branch-msk")).toHaveTextContent("Мск");
   });
 
+  it("keeps branch filter buttons colored in inactive and active states", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("branch-btn-branch-msk")).toBeInTheDocument());
+
+    const mskButton = screen.getByTestId("branch-btn-branch-msk");
+    expect(mskButton.className).toContain("text-green-700");
+    expect(mskButton.className).toContain("border-green-600/30");
+
+    fireEvent.click(mskButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("border-green-600/35");
+    });
+  });
+
   it("E2: day cell with schedule shows time", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => {
@@ -190,6 +215,14 @@ describe("ScheduleWorkTab", () => {
       const cell = screen.getByTestId("day-cell-2026-06-02");
       expect(cell).toBeInTheDocument();
       expect(cell.textContent).toContain("11–19");
+    });
+  });
+
+  it("colors scheduled day cells by branch palette", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => {
+      expect(screen.getByTestId("day-cell-2026-06-02").className).toContain("bg-blue-500/10");
+      expect(screen.getByTestId("day-cell-2026-06-03").className).toContain("bg-green-500/10");
     });
   });
 

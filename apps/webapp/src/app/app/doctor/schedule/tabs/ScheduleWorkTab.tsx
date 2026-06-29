@@ -242,31 +242,31 @@ function getBranchColor(branches: Branch[], branchId: string): BranchColor {
 function branchColorActiveClass(color: BranchColor): string {
   // §3.17: приглушённые тинты вместо ядрёной заливки — мягкий фон /10 +
   // цветной текст + цветная граница (активный фильтр читается, но не «кричит»).
-  if (color === "blue") return "bg-sky-500/10 border-sky-400/35 text-sky-800";
-  if (color === "green") return "bg-emerald-500/10 border-emerald-400/35 text-emerald-800";
-  if (color === "violet") return "bg-indigo-500/10 border-indigo-400/35 text-indigo-800";
-  return "bg-amber-500/10 border-amber-400/35 text-amber-800";
+  if (color === "blue") return "bg-blue-500/10 border-blue-500/35 text-blue-700";
+  if (color === "green") return "bg-green-500/10 border-green-600/35 text-green-700";
+  if (color === "violet") return "bg-violet-500/10 border-violet-500/35 text-violet-700";
+  return "bg-orange-500/10 border-orange-500/35 text-orange-700";
 }
 
 function branchColorInactiveClass(color: BranchColor): string {
-  if (color === "blue") return "border-sky-300/60 text-sky-700 hover:bg-sky-50";
-  if (color === "green") return "border-emerald-300/60 text-emerald-700 hover:bg-emerald-50";
-  if (color === "violet") return "border-indigo-300/60 text-indigo-700 hover:bg-indigo-50";
-  return "border-amber-300/70 text-amber-700 hover:bg-amber-50";
+  if (color === "blue") return "border-blue-500/30 text-blue-600 hover:bg-blue-500/5";
+  if (color === "green") return "border-green-600/30 text-green-700 hover:bg-green-500/5";
+  if (color === "violet") return "border-violet-500/30 text-violet-700 hover:bg-violet-500/5";
+  return "border-orange-500/30 text-orange-700 hover:bg-orange-500/5";
 }
 
 function branchCellClass(color: BranchColor): string {
-  if (color === "blue") return "bg-sky-500/10 border-sky-300/45";
-  if (color === "green") return "bg-emerald-500/10 border-emerald-300/45";
-  if (color === "violet") return "bg-indigo-500/10 border-indigo-300/45";
-  return "bg-amber-500/10 border-amber-300/50";
+  if (color === "blue") return "bg-blue-500/10 border-blue-500/35";
+  if (color === "green") return "bg-green-500/10 border-green-600/35";
+  if (color === "violet") return "bg-violet-500/10 border-violet-500/35";
+  return "bg-orange-500/10 border-orange-500/35";
 }
 
 function branchDotClass(color: BranchColor): string {
-  if (color === "blue") return "text-sky-700";
-  if (color === "green") return "text-emerald-700";
-  if (color === "violet") return "text-indigo-700";
-  return "text-amber-700";
+  if (color === "blue") return "text-blue-600";
+  if (color === "green") return "text-green-700";
+  if (color === "violet") return "text-violet-600";
+  return "text-orange-600";
 }
 
 // ---------------------------------------------------------------------------
