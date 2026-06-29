@@ -263,6 +263,7 @@ export function DoctorTodayDashboard({
             todayAppointments={data.todayAppointments}
             weekAppointments={data.weekAppointments}
             monthAppointments={data.monthAppointments}
+            displayIana={displayIana}
           />
 
           {/* §1.1: Мини-календарь — расписание на сегодня (выше «Следующей записи») */}

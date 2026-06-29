@@ -20,6 +20,7 @@ type Props = {
   appointmentsTodayCount: number;
   weekAppointmentsCount: number;
   monthAppointmentCount: number;
+  displayIana: string;
   /** Appointments for today (for preview modal) */
   todayAppointments?: TodayAppointmentItem[];
   /** Appointments this week (for week modal) */
@@ -54,6 +55,12 @@ function futureAppointmentsCount(items: TodayAppointmentItem[]): number {
     const ts = new Date(item.recordAtIso).getTime();
     return Number.isFinite(ts) && ts > now;
   }).length;
+}
+
+function currentMonthName(displayIana: string): string {
+  return new Intl.DateTimeFormat("ru-RU", { month: "long", timeZone: displayIana }).format(
+    new Date(),
+  );
 }
 
 type SplitAppointmentStatCardProps = {
@@ -102,6 +109,7 @@ export function DoctorTodayRightKpiRow({
   appointmentsTodayCount,
   weekAppointmentsCount,
   monthAppointmentCount,
+  displayIana,
   todayAppointments,
   weekAppointments,
   monthAppointments,
@@ -113,6 +121,7 @@ export function DoctorTodayRightKpiRow({
   const monthItems = monthAppointments ?? [];
   const weekFutureCount = futureAppointmentsCount(weekItems);
   const monthFutureCount = futureAppointmentsCount(monthItems);
+  const monthTitle = `Записи ${currentMonthName(displayIana)}`;
 
   return (
     <>
@@ -137,7 +146,7 @@ export function DoctorTodayRightKpiRow({
         />
         <SplitAppointmentStatCard
           id="doctor-today-right-kpi-month"
-          title="Записи месяц"
+          title={monthTitle}
           total={monthAppointmentCount}
           future={monthFutureCount}
           onClick={() => setOpenModal("month")}

@@ -35,6 +35,12 @@ vi.mock("next/link", () => ({
 
 const DEFAULT_DISPLAY_IANA = "Europe/Moscow";
 
+function currentMonthName(displayIana: string): string {
+  return new Intl.DateTimeFormat("ru-RU", { month: "long", timeZone: displayIana }).format(
+    new Date(),
+  );
+}
+
 function emptyData(): TodayDashboardData {
   return {
     todayAppointments: [],
@@ -165,6 +171,8 @@ describe("DoctorTodayDashboard", () => {
   });
 
   it("renders right KPI row with 3 appointment counters as modal-opening buttons", () => {
+    const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
+
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
@@ -176,10 +184,11 @@ describe("DoctorTodayDashboard", () => {
     // SEG-04: all three open KpiPreviewModal, so they are buttons not links
     expect(screen.getByRole("button", { name: /Записи сегодня/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Записи неделя/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Записи месяц/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}`, "i") })).toBeInTheDocument();
   });
 
   it("splits week and month appointment KPI into total and future counters", () => {
+    const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
     const data: TodayDashboardData = {
       ...emptyData(),
       weekAppointments: [
@@ -204,7 +213,9 @@ describe("DoctorTodayDashboard", () => {
     );
 
     const weekCard = screen.getByRole("button", { name: /Записи неделя: всего 3, будущие 1/i });
-    const monthCard = screen.getByRole("button", { name: /Записи месяц: всего 3, будущие 2/i });
+    const monthCard = screen.getByRole("button", {
+      name: new RegExp(`Записи ${monthName}: всего 3, будущие 2`, "i"),
+    });
 
     expect(weekCard).toHaveTextContent("Всего");
     expect(weekCard).toHaveTextContent("Будущие");
