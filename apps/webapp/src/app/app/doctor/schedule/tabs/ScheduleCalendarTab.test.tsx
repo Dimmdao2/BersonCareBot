@@ -925,81 +925,198 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
   });
 
-  // ─── deriveSlotTimes helper (CAL-01) ─────────────────────────────────────
+  // ─── deriveSlotTimes helper (#231 SHIFT/EXPAND) ──────────────────────────
 
-  describe("deriveSlotTimes helper — CAL-01 window start", () => {
-    it("08:00 working start → slotMinTime is 08:00:00, not 07:00:00", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, [], "UTC");
-      expect(result.slotMinTime).toBe("08:00:00");
-    });
-
-    it("09:00 working start → slotMinTime is 09:00:00", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      const result = deriveSlotTimes({ minMinute: 540, maxMinute: 1080 }, [], "UTC");
-      expect(result.slotMinTime).toBe("09:00:00");
-    });
-
-    it("event before working hours extends lo with 30 min buffer", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      // Working period 08:00–18:00, but one appointment at 07:30 (450 min)
-      const events = [
-        {
-          kind: "appointment" as const,
-          id: "e1",
-          startAt: "2026-06-13T07:30:00Z",
-          endAt: "2026-06-13T08:00:00Z",
-          status: "confirmed" as const,
-          patientName: "Test",
-          source: "test",
-          specialistId: null,
-          specialistName: null,
-          branchId: null,
-          branchTitle: null,
-          roomId: null,
-          roomTitle: null,
-          serviceId: null,
-          serviceTitle: null,
-          platformUserId: null,
-          patientPhone: null,
-          bookingStatus: null,
-          rubitimeId: null,
-          rubitimeManageUrl: null,
-          paymentStatus: null,
-          prepaymentPending: false,
-          packageUsageRef: null,
-          packageTitle: null,
-          rescheduleCount: 0,
-          originalStartAt: null,
-          formComments: [],
-        },
-      ];
-      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, events, "UTC");
-      // 450 - 30 = 420 → floor to hour → 420 = 07:00
-      expect(result.slotMinTime).toBe("07:00:00");
-    });
-
-    it("no working bounds and no events → default window 09:00–19:00 (#231)", async () => {
+  describe("deriveSlotTimes helper — #231 SHIFT/EXPAND window logic", () => {
+    // Сценарий 1: нет данных → 9:00–19:00
+    it("no data at all → default window 09:00–19:00", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
       const result = deriveSlotTimes(null, [], "UTC");
-      // #231: стандартное окно 9:00–19:00
       expect(result.slotMinTime).toBe("09:00:00");
       expect(result.slotMaxTime).toBe("19:00:00");
+      expect(result.loMinute).toBe(540);
+      expect(result.hiMinute).toBe(1140);
     });
 
-    it("#231: workingBounds fits in default window → window stays 09:00–19:00", async () => {
+    // Сценарий 2: одна запись 08:00–08:30 (ниже дефолта) → SHIFT вниз
+    it("single appointment at 08:00–08:30 → SHIFT down (lo=480, hi=1080)", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      // Working 10:00–17:00 — fits inside 9:00–19:00
+      const events = [
+        {
+          kind: "appointment" as const, id: "e1",
+          startAt: "2026-06-13T08:00:00Z", endAt: "2026-06-13T08:30:00Z",
+          status: "confirmed" as const, patientName: "T", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
+      ];
+      // dataLo=480, dataHi=510, span=30 ≤ 600 → SHIFT вниз (480<540)
+      // lo=480, hi=480+600=1080
+      const result = deriveSlotTimes(null, events, "UTC");
+      expect(result.slotMinTime).toBe("08:00:00");
+      expect(result.slotMaxTime).toBe("18:00:00");
+      expect(result.loMinute).toBe(480);
+      expect(result.hiMinute).toBe(1080);
+    });
+
+    // Сценарий 3: одна запись 20:00–21:00 (выше дефолта) → SHIFT вверх
+    it("single appointment at 20:00–21:00 → SHIFT up (lo=660, hi=1260)", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const events = [
+        {
+          kind: "appointment" as const, id: "e2",
+          startAt: "2026-06-13T20:00:00Z", endAt: "2026-06-13T21:00:00Z",
+          status: "confirmed" as const, patientName: "T", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
+      ];
+      // dataLo=1200, dataHi=1260, span=60 ≤ 600 → SHIFT вверх (1260>1140)
+      // hi=1260, lo=1260-600=660
+      const result = deriveSlotTimes(null, events, "UTC");
+      expect(result.slotMinTime).toBe("11:00:00");
+      expect(result.slotMaxTime).toBe("21:00:00");
+      expect(result.loMinute).toBe(660);
+      expect(result.hiMinute).toBe(1260);
+    });
+
+    // Сценарий 4: записи 07:00 и 21:00 (span=14ч=840>600) → EXPAND
+    it("appointments at 07:00 and 21:00 (span=840>600) → EXPAND", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const events = [
+        {
+          kind: "appointment" as const, id: "e3",
+          startAt: "2026-06-13T07:00:00Z", endAt: "2026-06-13T07:30:00Z",
+          status: "confirmed" as const, patientName: "T", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
+        {
+          kind: "appointment" as const, id: "e4",
+          startAt: "2026-06-13T21:00:00Z", endAt: "2026-06-13T21:30:00Z",
+          status: "confirmed" as const, patientName: "T2", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
+      ];
+      // dataLo=420, dataHi=1290, span=870>600 → EXPAND
+      // lo=min(420,540)=420, hi=max(1290,1140)=1290
+      const result = deriveSlotTimes(null, events, "UTC");
+      expect(result.slotMinTime).toBe("07:00:00");
+      expect(result.slotMaxTime).toBe("21:30:00");
+      expect(result.loMinute).toBe(420);
+      expect(result.hiMinute).toBe(1290);
+    });
+
+    // Сценарий 5: рабочие часы 10:00–17:00 (уже дефолта) → SHIFT / остаётся 9–19
+    it("workingBounds 10:00–17:00 (fits in default) → window stays 09:00–19:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // dataLo=600, dataHi=1020, span=420 ≤ 600; внутри 540..1140 → 9–19
       const result = deriveSlotTimes({ minMinute: 600, maxMinute: 1020 }, [], "UTC");
       expect(result.slotMinTime).toBe("09:00:00");
       expect(result.slotMaxTime).toBe("19:00:00");
     });
 
-    it("#231: event at 07:00 extends window below default start", async () => {
+    // Сценарий 6: рабочие часы 08:00–21:00 (span=780>600) → EXPAND
+    it("workingBounds 08:00–21:00 (span=780>600) → EXPAND", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      // No workingBounds, appointment at 07:00
+      // dataLo=480, dataHi=1260, span=780>600 → EXPAND
+      // lo=min(480,540)=480, hi=max(1260,1140)=1260
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1260 }, [], "UTC");
+      expect(result.slotMinTime).toBe("08:00:00");
+      expect(result.slotMaxTime).toBe("21:00:00");
+      expect(result.loMinute).toBe(480);
+      expect(result.hiMinute).toBe(1260);
+    });
+
+    // Сценарий 7: запись 10:00–18:00 (внутри дефолта) → ровно 9–19
+    it("appointment at 10:00–18:00 (inside default) → exactly 09:00–19:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
       const events = [
-        { kind: "appointment" as const, id: "e1",
+        {
+          kind: "appointment" as const, id: "e5",
+          startAt: "2026-06-13T10:00:00Z", endAt: "2026-06-13T18:00:00Z",
+          status: "confirmed" as const, patientName: "T", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
+      ];
+      // dataLo=600, dataHi=1080, span=480 ≤ 600; внутри 540..1140 → 9–19
+      const result = deriveSlotTimes(null, events, "UTC");
+      expect(result.slotMinTime).toBe("09:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
+    });
+
+    // CAL-01 (legacy): 08:00 рабочие — SHIFT вниз (span=600=DEFAULT_SIZE)
+    it("CAL-01: 08:00 working start (span==600) → SHIFT down → 08:00–18:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // dataLo=480, dataHi=1080, span=600=DEFAULT_SIZE → SHIFT (480<540)
+      // lo=480, hi=1080
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, [], "UTC");
+      expect(result.slotMinTime).toBe("08:00:00");
+      expect(result.slotMaxTime).toBe("18:00:00");
+    });
+
+    // CAL-01: 09:00 рабочие — внутри дефолта → 9–19
+    it("CAL-01: 09:00 working start → stays 09:00–19:00", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // dataLo=540, dataHi=1080, span=540 ≤ 600; внутри 540..1140 → 9–19
+      const result = deriveSlotTimes({ minMinute: 540, maxMinute: 1080 }, [], "UTC");
+      expect(result.slotMinTime).toBe("09:00:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
+    });
+
+    // CAL-01: запись до рабочего периода → EXPAND (span > DEFAULT_SIZE)
+    it("CAL-01: event at 07:30 before workingBounds 08:00–18:00 → EXPAND", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // workingBounds.min=480 + event at 07:30=450 → dataLo=450, dataHi=1080
+      // span=630 > 600 → EXPAND: lo=min(450,540)=450, hi=max(1080,1140)=1140
+      const events = [
+        {
+          kind: "appointment" as const, id: "e1",
+          startAt: "2026-06-13T07:30:00Z", endAt: "2026-06-13T08:00:00Z",
+          status: "confirmed" as const, patientName: "Test", source: "test",
+          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
+          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
+          platformUserId: null, patientPhone: null, bookingStatus: null,
+          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
+      ];
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, events, "UTC");
+      expect(result.slotMinTime).toBe("07:30:00");
+      expect(result.slotMaxTime).toBe("19:00:00");
+      expect(result.loMinute).toBe(450);
+      expect(result.hiMinute).toBe(1140);
+    });
+
+    // Дополнительно: event at 07:00 без рабочих часов → SHIFT вниз
+    it("event at 07:00–08:00 (no workingBounds) → SHIFT down (lo=420, hi=1020)", async () => {
+      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      const events = [
+        {
+          kind: "appointment" as const, id: "e1",
           startAt: "2026-06-13T07:00:00Z", endAt: "2026-06-13T08:00:00Z",
           status: "confirmed" as const, patientName: "T", source: "test",
           specialistId: null, specialistName: null, branchId: null, branchTitle: null,
@@ -1007,20 +1124,27 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
           prepaymentPending: false, packageUsageRef: null, packageTitle: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [] },
+          rescheduleCount: 0, originalStartAt: null, formComments: [],
+        },
       ];
+      // dataLo=420, dataHi=480, span=60 ≤ 600 → SHIFT вниз (420<540)
+      // lo=420, hi=420+600=1020
       const result = deriveSlotTimes(null, events, "UTC");
-      // 07:00 - 30min buffer = 06:30 → round down to 06:00
-      expect(result.slotMinTime).toBe("06:00:00");
-      // End stays at 19:00 (no event after 19:00)
-      expect(result.slotMaxTime).toBe("19:00:00");
+      expect(result.slotMinTime).toBe("07:00:00");
+      expect(result.slotMaxTime).toBe("17:00:00");
+      expect(result.loMinute).toBe(420);
+      expect(result.hiMinute).toBe(1020);
     });
 
-    it("08:30 working start (non-hour-aligned) → slotMinTime rounds down to 08:00:00", async () => {
+    // 08:30 рабочие → SHIFT вниз (без округления до часа в новой логике)
+    it("08:30 working start → SHIFT down (lo=510, hi=1110)", async () => {
       const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+      // dataLo=510, dataHi=1080, span=570 ≤ 600, 510<540 → SHIFT вниз
       const result = deriveSlotTimes({ minMinute: 510, maxMinute: 1080 }, [], "UTC");
-      // 510 = 8h30m → floor(510/60)*60 = 8*60 = 480 = 08:00
-      expect(result.slotMinTime).toBe("08:00:00");
+      expect(result.slotMinTime).toBe("08:30:00");
+      expect(result.slotMaxTime).toBe("18:30:00");
+      expect(result.loMinute).toBe(510);
+      expect(result.hiMinute).toBe(1110);
     });
   });
 

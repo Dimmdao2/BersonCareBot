@@ -268,38 +268,47 @@ function minuteToHHMM(minute: number): string {
  * Диапазон часовой сетки = объединение рабочих границ И фактических записей,
  * чтобы ранние/поздние приёмы (7-8 утра и т.п.) НЕ обрезались.
  *
- * Логика нижней границы (CAL-01):
- * - Если все записи укладываются в рабочий период, нижняя граница = начало
- *   рабочего периода, выровненное вниз до часа (без дополнительного запаса).
- * - Только если запись начинается ДО рабочего периода, добавляется буфер 30 мин
- *   и округление вниз до часа — чтобы ранняя запись не обрезалась.
- * Верхняя граница: 60 мин запаса + округление вверх до часа.
- * Если нет ни рабочих границ, ни записей — дефолт.
+ * #231 — SHIFT vs EXPAND (заменяет старый «expand-only» + буфер #230):
+ * - dataLo/dataHi = min/max по всем видимым записям и рабочим часам периода.
+ * - Нет данных → дефолт 9:00–19:00.
+ * - span = dataHi − dataLo:
+ *   - span ≤ 600 → SHIFT: окно остаётся 600 мин, сдвигается чтобы захватить
+ *     [dataLo, dataHi]. Если данные внутри 9–19 → окно 9–19 без изменений.
+ *     Если данные ниже 540 → lo=dataLo, hi=lo+600 (клампинг в [0,1440]).
+ *     Если данные выше 1140 → hi=dataHi, lo=hi−600 (клампинг в [0,1440]).
+ *   - span > 600 → EXPAND: lo=min(dataLo,540), hi=max(dataHi,1140).
+ *
+ * #230 — отдельный буфер (30 мин снизу / 60 мин сверху из 7bdc87ea) УБРАН:
+ * дефолтное 600-минутное окно само обеспечивает достаточные отступы вокруг
+ * данных при SHIFT. Буфер добавлялся ДО расчёта span и искусственно увеличивал
+ * его — SHIFT превращался в EXPAND даже для одной записи (исходная проблема).
+ * Единственный источник границ теперь — эта функция.
  */
 export function deriveSlotTimes(
   workingBounds: WorkingBounds | null | undefined,
   events: CalendarEvent[] | undefined,
   timeZone: string,
 ): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
-  const workingFloor: number | null = workingBounds ? workingBounds.minMinute : null;
-  let min: number | null = workingFloor;
-  let max: number | null = workingBounds ? workingBounds.maxMinute : null;
+  // Собираем dataLo/dataHi по рабочим границам и событиям
+  let dataLo: number | null = workingBounds ? workingBounds.minMinute : null;
+  let dataHi: number | null = workingBounds ? workingBounds.maxMinute : null;
   for (const e of events ?? []) {
     if (e.kind !== "appointment" && e.kind !== "block") continue;
     const s = parseFeedInstant(e.startAt, timeZone);
     const en = parseFeedInstant(e.endAt, timeZone);
     if (s.isValid) {
       const sm = s.hour * 60 + s.minute;
-      min = min == null ? sm : Math.min(min, sm);
+      dataLo = dataLo == null ? sm : Math.min(dataLo, sm);
     }
     if (en.isValid) {
       let em = en.hour * 60 + en.minute;
       if (em === 0) em = 24 * 60; // полночь конца = конец суток
-      max = max == null ? em : Math.max(max, em);
+      dataHi = dataHi == null ? em : Math.max(dataHi, em);
     }
   }
-  if (min == null || max == null) {
-    // #231: дефолтное окно 9:00–19:00 (нет данных совсем)
+
+  // Нет данных совсем → дефолт 9:00–19:00
+  if (dataLo == null || dataHi == null) {
     return {
       slotMinTime: DEFAULT_SLOT_MIN,
       slotMaxTime: DEFAULT_SLOT_MAX,
@@ -307,23 +316,34 @@ export function deriveSlotTimes(
       hiMinute: DEFAULT_WINDOW_MAX,
     };
   }
-  // Нижняя граница:
-  // - если рабочий период задан и событие вышло раньше — 30 мин запас + округление вниз;
-  // - если рабочий период задан и событие в его рамках — без запаса, просто округление вниз;
-  // - если рабочего периода нет (only events) — 30 мин запас + округление вниз (#230).
-  // Верхняя граница: 60 мин запаса + округление вверх.
-  const hasEarlyEvent = workingFloor != null && min < workingFloor;
-  const noWorkingBoundsMode = workingFloor == null;
-  const rawLo = (hasEarlyEvent || noWorkingBoundsMode)
-    ? Math.floor(Math.max(0, min - 30) / 60) * 60
-    : Math.floor(min / 60) * 60;
-  const rawHi = Math.ceil((max + 60) / 60) * 60;
 
-  // #231: стандартное окно 9:00–19:00.
-  // Если данные выходят ЗА пределы дефолтного окна — расширяем (expand).
-  // Если данные УЛОЖИЛИСЬ В дефолтное окно — используем его без изменений.
-  const lo = Math.min(rawLo, DEFAULT_WINDOW_MIN);
-  const hi = Math.max(Math.min(24 * 60, rawHi), DEFAULT_WINDOW_MAX);
+  const DEFAULT_SIZE = DEFAULT_WINDOW_MAX - DEFAULT_WINDOW_MIN; // 600 мин
+  const span = dataHi - dataLo;
+
+  let lo: number;
+  let hi: number;
+
+  if (span <= DEFAULT_SIZE) {
+    // SHIFT: окно 600 мин, сдвигаем чтобы захватить [dataLo, dataHi]
+    if (dataLo >= DEFAULT_WINDOW_MIN && dataHi <= DEFAULT_WINDOW_MAX) {
+      // Данные внутри 9–19 — остаёмся на 9–19
+      lo = DEFAULT_WINDOW_MIN;
+      hi = DEFAULT_WINDOW_MAX;
+    } else if (dataLo < DEFAULT_WINDOW_MIN) {
+      // Данные ниже дефолта — сдвиг вниз: lo=dataLo, hi=lo+600
+      lo = Math.max(0, dataLo);
+      hi = Math.min(24 * 60, lo + DEFAULT_SIZE);
+    } else {
+      // Данные выше дефолта (dataHi > DEFAULT_WINDOW_MAX) — сдвиг вверх
+      hi = Math.min(24 * 60, dataHi);
+      lo = Math.max(0, hi - DEFAULT_SIZE);
+    }
+  } else {
+    // EXPAND: разброс данных шире дефолтного окна
+    lo = Math.min(dataLo, DEFAULT_WINDOW_MIN);
+    hi = Math.min(24 * 60, Math.max(dataHi, DEFAULT_WINDOW_MAX));
+  }
+
   return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
 }
 
@@ -1036,7 +1056,7 @@ export function ScheduleCalendarTab({
 
     // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
     // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
-    // Используем loMinute/hiMinute из deriveSlotTimes (уже учитывает дефолт 06:00–23:00).
+    // Используем loMinute/hiMinute из deriveSlotTimes (дефолт 09:00–19:00, #231).
     const grayFill =
       isTimeGrid
         ? buildNonWorkingFillEvents(
@@ -1117,7 +1137,7 @@ export function ScheduleCalendarTab({
     }).filter((x): x is NonNullable<typeof x> => x !== null);
     return [...grayFill, ...mapped] as FullCalendarOptions["events"];
      
-  }, [data, view, anchorDate, workingBounds, currentTimeZone, loMinute, hiMinute]);
+  }, [data, view, anchorDate, currentTimeZone, loMinute, hiMinute]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
 
