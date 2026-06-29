@@ -11,9 +11,8 @@
  * Search logic: debounced API call (/api/doctor/patients?q=…), min 3 chars.
  */
 
-import { Suspense, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Search, X, Ban, Bell, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -206,6 +205,25 @@ function applyIconFilters(
   return list;
 }
 
+function applyChannelFilter(list: ClientListItem[], activeChannel: string | null): ClientListItem[] {
+  if (activeChannel === "telegram") {
+    return list.filter((c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked);
+  }
+  if (activeChannel === "max") {
+    return list.filter((c) => Boolean(c.bindings.maxId?.trim()) && !c.bindings.maxBotBlocked);
+  }
+  if (activeChannel === "email") {
+    return list.filter((c) => c.hasEmail === true);
+  }
+  if (activeChannel === "phone") {
+    return list.filter((c) => Boolean(c.phone?.trim()));
+  }
+  if (activeChannel === "web_push") {
+    return list.filter((c) => c.hasWebPush === true);
+  }
+  return list;
+}
+
 const DEFAULT_ICON_FILTERS: IconFiltersState = {
   appointments: "off",
   messages: "off",
@@ -317,23 +335,6 @@ function renderSegmentMetricValue(current: number | string, total: number | null
       <span className="text-base font-semibold tabular-nums leading-none text-muted-foreground">{total}</span>
     </span>
   );
-}
-
-// ---------------------------------------------------------------------------
-// URL builder
-// ---------------------------------------------------------------------------
-
-function buildUrl(filters: {
-  channel?: string | null;
-  archivedOnly?: boolean;
-}): string {
-  const sp = new URLSearchParams();
-  // q is intentionally omitted — text search is done client-side (PAT-10)
-  // segment is intentionally omitted — filtering is done client-side
-  if (filters.channel) sp.set("channel", filters.channel);
-  if (filters.archivedOnly) sp.set("archived", "true");
-  const qs = sp.toString();
-  return qs ? `${routePaths.doctorPatients}?${qs}` : routePaths.doctorPatients;
 }
 
 // ---------------------------------------------------------------------------
@@ -722,6 +723,7 @@ function PatientsContent({
   // Apply category filter first, then segment, then icon filters, then legacy filters
   let filtered = applyCategoryFilter(allClients, activeCategory);
   filtered = applySegmentFilter(filtered, activeSegment);
+  filtered = applyChannelFilter(filtered, activeChannel);
   filtered = applyIconFilters(filtered, iconFilters);
   // Legacy filters (AND-logic)
   if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationCount30d > 0);
@@ -755,6 +757,7 @@ function PatientsContent({
   const isAnyFilterActive =
     activeCategory !== "all" ||
     (activeSegment !== null && activeSegment !== "all") ||
+    activeChannel !== null ||
     Object.values(iconFilters).some((v) => v !== "off") ||
     legacyFilters.cancellations ||
     legacyFilters.visitedMonth ||
@@ -1163,7 +1166,7 @@ export function PatientsPageClient({
   patientPluralLabel = "Пациенты",
   displayIana,
 }: PatientsPageClientProps) {
-  const [isListPending, startListTransition] = useTransition();
+  const isListPending = false;
 
   // Search state (local, debounced)
   const [searchInput, setSearchInput] = useState(initialFilters.q);
@@ -1190,25 +1193,6 @@ export function PatientsPageClient({
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-  const router = useRouter();
-
-  /** Navigate to update server-side filters (channel, archive). Segment and search are client-side only. */
-  const navigateToFilters = useCallback(
-    (overrides: {
-      channel?: string | null;
-      archivedOnly?: boolean;
-    }) => {
-      const url = buildUrl({
-        channel: overrides.channel !== undefined ? overrides.channel : activeChannel,
-        archivedOnly: overrides.archivedOnly !== undefined ? overrides.archivedOnly : archivedOnly,
-      });
-      startListTransition(() => {
-        router.push(url, { scroll: false });
-      });
-    },
-    [router, activeChannel, archivedOnly],
-  );
-
   const handleSegmentChange = useCallback(
     (value: string | null) => {
       // Segment is client-side only — no server round-trip
@@ -1221,9 +1205,8 @@ export function PatientsPageClient({
     (channel: string | null, archived: boolean) => {
       setActiveChannel(channel);
       setArchivedOnly(archived);
-      navigateToFilters({ channel, archivedOnly: archived });
     },
-    [navigateToFilters],  // navigateToFilters is memoized and handles channel/archived
+    [],
   );
 
   const handleSearchInput = useCallback(

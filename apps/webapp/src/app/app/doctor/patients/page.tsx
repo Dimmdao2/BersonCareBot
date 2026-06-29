@@ -46,22 +46,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
       // PAT-10: search is done client-side — do not pass q to DB
       archivedOnly,
       viewerUserId: session.user.userId,
-      // Segment filters
-      supportStatus: segment === "on_support" ? "on" : undefined,
-      hasActiveTreatmentProgram: segment === "with_program" ? true : undefined,
-      visitedThisCalendarMonth: segment === "visited_month" ? true : undefined,
-      hasMemberships: segment === "memberships" ? true : undefined,
-      isNew: segment === "new" ? true : undefined,
-      isFormer: segment === "former" ? true : undefined,
-      isSubscriberOnly: segment === "subscriber" || segment === "without_appointments" ? true : undefined,
-      hasCancellations: segment === "cancellations" ? true : undefined,
-      hasUpcomingAppointment: segment === "appointments" ? true : undefined,
-      // Channel filters
-      hasTelegram: channel === "telegram" ? true : undefined,
-      hasMax: channel === "max" ? true : undefined,
-      hasEmail: channel === "email" ? true : undefined,
-      hasPhone: channel === "phone" ? true : undefined,
-      hasWebPush: channel === "web_push" ? true : undefined,
+      // Segment and channel filters are applied client-side so toggles do not reload the list.
     },
   );
 

@@ -21,6 +21,7 @@ function client(overrides: Partial<ClientListItem> = {}): ClientListItem {
     bindings: overrides.bindings ?? {},
     hasEmail: overrides.hasEmail ?? false,
     hasApp: overrides.hasApp ?? false,
+    hasWebPush: overrides.hasWebPush ?? false,
     nextAppointmentLabel: overrides.nextAppointmentLabel ?? null,
     hasAppointmentHistory: overrides.hasAppointmentHistory ?? false,
     activeAppointmentsCount: overrides.activeAppointmentsCount ?? 0,
@@ -115,5 +116,24 @@ describe("PatientsPageClient", () => {
     expect(within(supportCard as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(within(supportCard as HTMLElement).getByText("2")).toBeInTheDocument();
     expect(within(supportCard as HTMLElement).queryByText("всего")).not.toBeInTheDocument();
+  });
+
+  it("filters channel buttons client-side without reloading the list", async () => {
+    const user = userEvent.setup();
+    await renderPatientsPage([
+      client({ userId: "telegram", displayName: "Telegram client", bindings: { telegramId: "tg-1" } }),
+      client({ userId: "push", displayName: "Push client", hasWebPush: true }),
+      client({ userId: "plain", displayName: "Plain client" }),
+    ]);
+
+    expect(await screen.findByText("Telegram client")).toBeInTheDocument();
+    expect(screen.getByText("Push client")).toBeInTheDocument();
+    expect(screen.getByText("Plain client")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Пуш-уведомления" }));
+
+    expect(screen.queryByText("Telegram client")).not.toBeInTheDocument();
+    expect(screen.getByText("Push client")).toBeInTheDocument();
+    expect(screen.queryByText("Plain client")).not.toBeInTheDocument();
   });
 });
