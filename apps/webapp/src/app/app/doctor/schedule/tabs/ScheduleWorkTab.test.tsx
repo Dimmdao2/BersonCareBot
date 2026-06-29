@@ -156,6 +156,20 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  it("clears selected days when clicking the top bar above the calendar", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("schedule-work-topbar"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
   // ── E2: Карточки дней ───────────────────────────────────────────────────
 
   it("E2: renders branch filter buttons with short titles", async () => {
@@ -280,6 +294,28 @@ describe("ScheduleWorkTab", () => {
     fireEvent.click(screen.getByTestId("break-remove-0"));
     await waitFor(() => {
       expect(screen.queryByTestId("break-row-0")).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not show a success message after clearing schedule", async () => {
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: RequestInit) => {
+      if (typeof url === "string" && url.includes("working-days") && init?.method === "PUT") return { ok: true };
+      if (typeof url === "string" && url.includes("working-days")) return { ok: true, rows: [] };
+      if (typeof url === "string" && url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
+    });
+
+    fireEvent.click(screen.getByTestId("btn-clear-schedule"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("action-ok")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Расписание очищено/i)).not.toBeInTheDocument();
     });
   });
 

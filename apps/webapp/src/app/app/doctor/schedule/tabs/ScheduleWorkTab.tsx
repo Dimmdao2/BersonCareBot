@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, type MouseEvent } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -464,7 +464,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionOk, setActionOk] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // E5 — Create template dialog with N breaks
@@ -675,16 +674,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // ── Weekday label lookup (0=Вс,1=Пн..6=Сб) ──────────────────────────────
   const WD_LABEL: Record<number, string> = {0:"Вс",1:"Пн",2:"Вт",3:"Ср",4:"Чт",5:"Пт",6:"Сб"};
 
-  function run(fn: () => Promise<void>, successMsg: string) {
+  function run(fn: () => Promise<void>) {
     setActionError(null);
-    setActionOk(null);
     startTransition(async () => {
       try {
         await fn();
         await loadMonth();
         loadTemplates();
         loadWorkingHours(); // SCH-R-08: reload template state after every save
-        setActionOk(successMsg);
       } catch (e) {
         setActionError(e instanceof Error ? e.message : "action_failed");
       }
@@ -735,7 +732,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       (r) => r.weekday === selectedWeekday && r.isActive,
     );
     if (toDeactivate.length === 0) {
-      setActionOk(`Шаблон ${WD_LABEL[selectedWeekday] ?? ""} уже не установлен`);
       // #233: сбрасываем выделение даже если шаблон уже пуст
       setSelected(new Set());
       setSelectionMode("dates");
@@ -754,7 +750,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           apiJson(`${WH_BASE}?id=${encodeURIComponent(r.id)}`, { method: "DELETE" }),
         ),
       );
-    }, `Шаблон ${WD_LABEL[selectedWeekday] ?? ""} удалён`);
+    });
   }
 
   function handleSave() {
@@ -800,7 +796,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         }),
       });
       setSelected(new Set());
-    }, `Сохранено для ${dates.length} дн.`);
+    });
   }
 
   // §3.15: «Очистить расписание» — удалить сохранённые записи выбранных дней
@@ -821,7 +817,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ action: "clear", dates, specialistId }),
       });
       setSelected(new Set());
-    }, `Расписание очищено: ${dates.length} дн.`);
+    });
   }
 
   function handleClearSelection() {
@@ -829,7 +825,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     lastClickedRef.current = null;
     setSelectionMode("dates");
     setSelectedWeekday(null);
-    setActionOk(null);
     setActionError(null);
   }
 
@@ -846,13 +841,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ templateId, dates, specialistId }),
       });
       setSelected(new Set());
-    }, "Шаблон применён");
+    });
   }
 
   function handleDeleteTemplate(id: string) {
     run(async () => {
       await apiJson(`${TPL_BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    }, "Шаблон удалён");
+    });
   }
 
   function handleCreateTemplate() {
@@ -890,7 +885,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setTplDialogOpen(false);
       setTplName("");
       setTplBreaks([]);
-    }, "Шаблон создан");
+    });
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -906,12 +901,28 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     return b.shortTitle ?? b.title;
   }
 
+  function handleTopBarMouseDown(e: MouseEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    const interactive = target.closest("button,[role='button'],[role='combobox'],a,input,label");
+    if (!interactive) {
+      handleClearSelection();
+      return;
+    }
+    if (selected.size > 0 || selectedWeekday !== null) {
+      handleClearSelection();
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <DoctorSection data-testid="schedule-work-tab">
       {/* Sticky top bar: filter (E3) + month nav */}
-      <div className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}>
+      <div
+        className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}
+        onMouseDown={handleTopBarMouseDown}
+        data-testid="schedule-work-topbar"
+      >
         {/* E3: Branch filter switcher (Все + individual branches) */}
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
             <button
@@ -960,7 +971,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       {/* Errors / feedback */}
       {loadError ? <p className="text-sm text-destructive" data-testid="load-error">{loadError}</p> : null}
       {actionError ? <p className="text-sm text-destructive" data-testid="action-error">{actionError}</p> : null}
-      {actionOk ? <p className="text-sm text-green-700 dark:text-green-400" data-testid="action-ok">{actionOk}</p> : null}
 
       {/* E1: Two-column layout on large screens */}
       <>
