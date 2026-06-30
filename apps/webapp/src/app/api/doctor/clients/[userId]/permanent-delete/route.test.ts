@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const poolQueryMock = vi.fn();
 const purgeMock = vi.fn();
 
-const { getSessionMock, buildAppDepsMock, getClientIdentityMock } = vi.hoisted(() => {
+const { getSessionMock, buildAppDepsMock, getPlatformUserRoleMock, getClientIdentityMock } = vi.hoisted(() => {
+  const getPlatformUserRoleMockInner = vi.fn();
   const getClientIdentityMockInner = vi.fn();
   return {
     getSessionMock: vi.fn(),
+    getPlatformUserRoleMock: getPlatformUserRoleMockInner,
     getClientIdentityMock: getClientIdentityMockInner,
     buildAppDepsMock: vi.fn(() => ({
       doctorClientsPort: {
+        getPlatformUserRole: getPlatformUserRoleMockInner,
         getClientIdentity: getClientIdentityMockInner,
       },
     })),
@@ -19,11 +21,6 @@ const { getSessionMock, buildAppDepsMock, getClientIdentityMock } = vi.hoisted((
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
-}));
-vi.mock("@/app-layer/db/client", () => ({
-  getPool: () => ({
-    query: poolQueryMock,
-  }),
 }));
 vi.mock("@/app-layer/merge/strictPlatformUserPurge", () => ({
   runStrictPurgePlatformUser: (...args: unknown[]) => purgeMock(...args),
@@ -49,10 +46,10 @@ const adminModeOk = {
 describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
+    getPlatformUserRoleMock.mockReset();
     getClientIdentityMock.mockReset();
-    poolQueryMock.mockReset();
     purgeMock.mockReset();
-    poolQueryMock.mockResolvedValue({ rows: [{ role: "client" }] });
+    getPlatformUserRoleMock.mockResolvedValue("client");
     getSessionMock.mockResolvedValue(adminModeOk);
   });
 

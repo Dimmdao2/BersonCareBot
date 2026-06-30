@@ -5,7 +5,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/app-layer/db/client";
 import { runStrictPurgePlatformUser } from "@/app-layer/merge/strictPlatformUserPurge";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
@@ -34,15 +33,12 @@ export async function POST(request: Request, context: { params: Promise<{ userId
     return NextResponse.json({ ok: false, error: "confirmation_mismatch" }, { status: 400 });
   }
 
-  const roleRow = await getPool().query<{ role: string }>(
-    `SELECT role FROM platform_users WHERE id = $1::uuid`,
-    [userId],
-  );
-  if (roleRow.rows[0]?.role !== "client") {
+  const deps = buildAppDeps();
+  const role = await deps.doctorClientsPort.getPlatformUserRole(userId);
+  if (role !== "client") {
     return NextResponse.json({ ok: false, error: "not_client" }, { status: 404 });
   }
 
-  const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentity(userId);
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

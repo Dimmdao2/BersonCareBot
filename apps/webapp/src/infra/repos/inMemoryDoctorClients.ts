@@ -91,6 +91,10 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     return this.getClientIdentity(userId);
   },
 
+  async getPlatformUserRole(userId: string): Promise<string | null> {
+    return STUB_CLIENTS.some((c) => c.userId === userId) ? "client" : null;
+  },
+
   async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
     const found = STUB_CLIENTS.find((c) => c.userId === userId);
     if (!found) return null;

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const poolQueryMock = vi.fn();
-const { getSessionMock, getClientIdentityMock, setUserArchivedMock } = vi.hoisted(() => {
+const { getSessionMock, getPlatformUserRoleMock, getClientIdentityMock, setUserArchivedMock } = vi.hoisted(() => {
+  const getPlatformUserRoleMockInner = vi.fn();
   const getClientIdentityMockInner = vi.fn();
   const setUserArchivedMockInner = vi.fn();
   return {
     getSessionMock: vi.fn(),
+    getPlatformUserRoleMock: getPlatformUserRoleMockInner,
     getClientIdentityMock: getClientIdentityMockInner,
     setUserArchivedMock: setUserArchivedMockInner,
   };
@@ -13,13 +14,9 @@ const { getSessionMock, getClientIdentityMock, setUserArchivedMock } = vi.hoiste
 
 vi.mock("@/infra/repos/pgDoctorClients", () => ({
   createPgDoctorClientsPort: () => ({
+    getPlatformUserRole: getPlatformUserRoleMock,
     getClientIdentity: getClientIdentityMock,
     setUserArchived: setUserArchivedMock,
-  }),
-}));
-vi.mock("@/infra/db/client", () => ({
-  getPool: () => ({
-    query: poolQueryMock,
   }),
 }));
 vi.mock("@/modules/auth/service", () => ({
@@ -33,10 +30,10 @@ const uid = "00000000-0000-4000-8000-000000000001";
 describe("PATCH /api/doctor/clients/[userId]/archive", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
+    getPlatformUserRoleMock.mockReset();
     getClientIdentityMock.mockReset();
     setUserArchivedMock.mockReset();
-    poolQueryMock.mockReset();
-    poolQueryMock.mockResolvedValue({ rows: [{ role: "client" }] });
+    getPlatformUserRoleMock.mockResolvedValue("client");
     getClientIdentityMock.mockResolvedValue({
       userId: uid,
       displayName: "Test",
@@ -84,7 +81,7 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
     getSessionMock.mockResolvedValue({
       user: { userId: "d1", role: "doctor", bindings: {} },
     });
-    poolQueryMock.mockResolvedValueOnce({ rows: [{ role: "doctor" }] });
+    getPlatformUserRoleMock.mockResolvedValueOnce("doctor");
     const res = await PATCH(
       new Request(`http://localhost/api/doctor/clients/${uid}/archive`, {
         method: "PATCH",

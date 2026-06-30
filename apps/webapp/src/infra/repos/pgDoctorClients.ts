@@ -819,6 +819,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return this.getClientIdentity(userId);
     },
 
+    async getPlatformUserRole(userId: string): Promise<string | null> {
+      const roleRow = await runWebappPgText<{ role: string }>(
+        `SELECT role FROM platform_users WHERE id = $1::uuid`,
+        [userId],
+      );
+      return roleRow.rows[0]?.role ?? null;
+    },
+
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;

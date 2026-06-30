@@ -219,6 +219,8 @@ export type DoctorClientsPort = {
   getPatientCardHeader(userId: string): Promise<PatientCardHeader | null>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
   getClientContactBreakdown(audience?: { excludedUserIds?: string[] }): Promise<ClientContactBreakdown>;
+  /** Lightweight role lookup for routes that must distinguish missing users from non-clients. */
+  getPlatformUserRole(userId: string): Promise<string | null>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
