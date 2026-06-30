@@ -87,12 +87,7 @@ describe("BookingPoliciesSection", () => {
 
   it("saves reschedule policy with full flags model", async () => {
     const user = userEvent.setup();
-    render(<BookingPoliciesSection />);
-    await screen.findByRole("button", { name: "Сохранить отмену" });
-
-    const kindSelect = screen.getAllByRole("combobox")[1];
-    await user.click(kindSelect);
-    await user.click(screen.getByRole("option", { name: "Перенос" }));
+    render(<BookingPoliciesSection defaultKind="reschedule" />);
     await user.click(await screen.findByRole("button", { name: "Сохранить перенос" }));
 
     await waitFor(() => {

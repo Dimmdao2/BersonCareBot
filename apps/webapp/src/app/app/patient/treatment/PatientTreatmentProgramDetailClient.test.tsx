@@ -987,7 +987,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(recInBlockRow?.querySelector("svg")).toBeTruthy();
   });
 
-  it("program tile shows comments badge/unread dot, opens complete dialog, and opens discussion dialog", async () => {
+  it("program tile shows comments badge/unread dot, opens completion panel, and opens discussion dialog", async () => {
     const itemId = "aaaaaaaa-1111-4111-8111-111111111111";
     const fetchMock = vi.mocked(global.fetch);
     const baseImpl = fetchMock.getMockImplementation();
@@ -1003,6 +1003,9 @@ describe("PatientTreatmentProgramDetailClient", () => {
           }),
           { status: 200 },
         );
+      }
+      if (url.includes("/progress/complete/metrics")) {
+        return new Response(JSON.stringify({ ok: true, metrics: null }), { status: 200 });
       }
       if (url.includes("/progress/complete") && init?.method === "POST") {
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -1088,14 +1091,13 @@ describe("PatientTreatmentProgramDetailClient", () => {
 
     const completeButton = within(programPanel).getByRole("button", { name: /Отметить выполнение/i });
     fireEvent.click(completeButton);
-    const completeDialog = await screen.findByRole("dialog");
-    expect(within(completeDialog).getByText(/Сложность/i)).toBeInTheDocument();
-    fireEvent.click(within(completeDialog).getByRole("button", { name: "Записать" }));
+    const saveMetricsButton = await within(programPanel).findByRole("button", { name: "Записать" });
+    fireEvent.click(saveMetricsButton);
     await vi.waitFor(() => {
       expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/progress/complete"))).toBe(true);
     });
     await vi.waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(within(programPanel).queryByRole("button", { name: "Записать" })).not.toBeInTheDocument();
     });
 
     fireEvent.click(commentsButton);
