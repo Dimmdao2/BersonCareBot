@@ -37,6 +37,37 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       return { id, createdAt };
     },
 
+    async updateLatestSimpleDonePayload(params) {
+      const found = [...rows]
+        .filter(
+          (r) =>
+            r.instanceId === params.instanceId &&
+            r.patientUserId === params.patientUserId &&
+            r.instanceStageItemId === params.instanceStageItemId &&
+            r.actionType === "done" &&
+            isSimpleDonePayload(r.payload ?? null),
+        )
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))[0];
+      if (!found) return false;
+      found.payload = { ...(found.payload ?? {}), ...params.payloadPatch };
+      return true;
+    },
+
+    async getLatestSimpleDonePayload(params) {
+      const found = [...rows]
+        .filter(
+          (r) =>
+            r.instanceId === params.instanceId &&
+            r.patientUserId === params.patientUserId &&
+            r.instanceStageItemId === params.instanceStageItemId &&
+            r.actionType === "done" &&
+            isSimpleDonePayload(r.payload ?? null),
+        )
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))[0];
+      if (!found) return null;
+      return { createdAt: found.createdAt, payload: found.payload ?? null };
+    },
+
     async deleteSimpleDoneInWindow(params) {
       for (let i = rows.length - 1; i >= 0; i--) {
         const r = rows[i]!;

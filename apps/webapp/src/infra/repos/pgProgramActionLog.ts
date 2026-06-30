@@ -26,6 +26,58 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       return { id: row.id, createdAt: row.createdAt };
     },
 
+    async updateLatestSimpleDonePayload(params) {
+      const db = getDrizzle();
+      const [row] = await db
+        .update(logTable)
+        .set({
+          payload: sql<Record<string, unknown>>`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.payloadPatch)}::jsonb`,
+        })
+        .where(
+          eq(
+            logTable.id,
+            sql`(
+              select id
+              from program_action_log
+              where instance_id = ${params.instanceId}
+                and patient_user_id = ${params.patientUserId}
+                and instance_stage_item_id = ${params.instanceStageItemId}
+                and action_type = 'done'
+                and (
+                  payload is null
+                  or coalesce(payload->>'source', '') not in ('test_submitted', 'lfk_exercise_done')
+                )
+              order by created_at desc
+              limit 1
+            )`,
+          ),
+        )
+        .returning({ id: logTable.id });
+      return Boolean(row);
+    },
+
+    async getLatestSimpleDonePayload(params) {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ createdAt: logTable.createdAt, payload: logTable.payload })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.instanceId, params.instanceId),
+            eq(logTable.patientUserId, params.patientUserId),
+            eq(logTable.instanceStageItemId, params.instanceStageItemId),
+            eq(logTable.actionType, "done"),
+            or(
+              isNull(logTable.payload),
+              sql`coalesce(${logTable.payload}->>'source', '') not in ('test_submitted', 'lfk_exercise_done')`,
+            ),
+          ),
+        )
+        .orderBy(desc(logTable.createdAt))
+        .limit(1);
+      return row ? { createdAt: row.createdAt, payload: row.payload ?? null } : null;
+    },
+
     async deleteSimpleDoneInWindow(params) {
       const db = getDrizzle();
       await db

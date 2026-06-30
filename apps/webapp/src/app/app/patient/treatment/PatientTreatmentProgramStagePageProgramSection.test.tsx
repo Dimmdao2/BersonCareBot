@@ -3,6 +3,7 @@
 import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { PatientTreatmentProgramStagePageProgramSection } from "./PatientTreatmentProgramStagePageProgramSection";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 
@@ -115,5 +116,42 @@ describe("PatientTreatmentProgramStagePageProgramSection tile footer", () => {
     const section = screen.getByRole("heading", { name: "Программа этапа" }).closest("section")!;
     expect(within(section).getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
     expect(within(section).getByRole("button", { name: /Отметить выполнение/i })).toBeInTheDocument();
+  });
+
+  it("marks complete immediately and opens inline metrics panel with previous values", async () => {
+    const user = userEvent.setup();
+    const stage = makeStage();
+    stage.items[0] = { ...stage.items[0]!, completedAt: null };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/progress/complete/metrics") && !init?.method) {
+        return new Response(JSON.stringify({
+          ok: true,
+          metrics: {
+            difficulty: "hard",
+            reps: 12,
+            sets: 3,
+            weightKg: 4.5,
+          },
+        }));
+      }
+      if (url.endsWith("/progress/complete") && init?.method === "POST") {
+        return new Response(JSON.stringify({ ok: true }));
+      }
+      return new Response(JSON.stringify({ ok: true, summaryByItemId: {} }));
+    });
+    renderProgramSection({ stage });
+    global.fetch = fetchMock as typeof fetch;
+    await user.click(screen.getByRole("button", { name: /Отметить выполнение/i }));
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/progress\/complete$/), {
+      method: "POST",
+      headers: undefined,
+      body: undefined,
+    });
+    expect(screen.getByRole("button", { name: "Тяжело" })).toBeInTheDocument();
+    expect(screen.getByLabelText("повторы")).toHaveValue("12");
+    expect(screen.getByLabelText("подходы")).toHaveValue("3");
+    expect(screen.getByLabelText("вес, кг")).toHaveValue("4.5");
   });
 });
