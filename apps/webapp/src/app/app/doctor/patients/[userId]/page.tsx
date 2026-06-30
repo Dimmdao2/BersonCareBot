@@ -9,7 +9,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { routePaths } from "@/app-layer/routes/paths";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { loadDoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
 import { PatientCardClient } from "./PatientCardClient";
@@ -34,7 +33,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
 
   const [
     cardHeaderPromise,
-    physicalRow,
+    physical,
     clinicalState,
     visits,
     notes,
@@ -45,10 +44,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     programInstances,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
-    runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
-      `SELECT height_cm, weight_kg FROM platform_users WHERE id = $1::uuid AND role = 'client'`,
-      [userId],
-    ),
+    deps.doctorClients.getPatientPhysical(userId),
     deps.patientClinical.getClinicalState(userId),
     deps.patientClinical.listVisits(userId),
     deps.doctorNotes.listForUser(userId),
@@ -62,9 +58,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     deps.treatmentProgramInstance.listForPatientClinicalView(userId),
   ]);
 
-  const physicalData = physicalRow.rows[0]
-    ? { heightCm: physicalRow.rows[0].height_cm, weightKg: physicalRow.rows[0].weight_kg }
-    : { heightCm: null, weightKg: null };
+  const physicalData = physical ?? { heightCm: null, weightKg: null };
 
   const initialTab = typeof sp.tab === "string" ? sp.tab : undefined;
   const createVisitFrom = typeof sp.createVisitFrom === "string" ? sp.createVisitFrom : undefined;

@@ -12,7 +12,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { routePaths } from "@/app-layer/routes/paths";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { buildTreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers";
 import { TreatmentProgramInstanceDetailClient } from "@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient";
@@ -45,7 +44,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
 
   const [
     cardHeader,
-    physicalRow,
+    physical,
     testResults,
     attemptAcceptMap,
     programEvents,
@@ -61,10 +60,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     bodyRegionItems,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
-    runWebappPgText<{ height_cm: number | null; weight_kg: number | null }>(
-      `SELECT height_cm, weight_kg FROM platform_users WHERE id = $1::uuid AND role = 'client'`,
-      [userId],
-    ),
+    deps.doctorClients.getPatientPhysical(userId),
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
     deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
     deps.treatmentProgramInstance.listProgramEvents(instanceId),
@@ -107,9 +103,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const initialFocusTestResultId =
     focusItemIdRaw && z.string().uuid().safeParse(focusItemIdRaw).success ? focusItemIdRaw : undefined;
 
-  const physicalData = physicalRow.rows[0]
-    ? { heightCm: physicalRow.rows[0].height_cm, weightKg: physicalRow.rows[0].weight_kg }
-    : { heightCm: null, weightKg: null };
+  const physicalData = physical ?? { heightCm: null, weightKg: null };
 
   const patientCardTabHref = patientCardHref(userId, { tab: "program" });
 
