@@ -116,6 +116,21 @@ describe("PatientProgramStageItemPageClient", () => {
           { status: 200 },
         );
       }
+      if (url.endsWith("/progress/complete/metrics")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            metrics: { perceivedDifficulty: "hard", reps: 12, sets: 3, weightKg: 2.5 },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/progress/complete")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      if (url.endsWith(`/api/patient/treatment-program-instances/${instanceId}`)) {
+        return new Response(JSON.stringify({ ok: true, item: makeDetail() }), { status: 200 });
+      }
       return new Response(JSON.stringify({ ok: false }), { status: 404 });
     });
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -139,11 +154,16 @@ describe("PatientProgramStageItemPageClient", () => {
     expect(screen.queryByText("Комментарий специалиста")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("12")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("3")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2.5")).toBeInTheDocument();
 
     const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
     fireEvent.click(completeButton);
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Отметить выполнение")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/progress/complete"))).toBe(true);
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows comments and complete actions in the exercise action row, with video upload hint below instruction", async () => {
@@ -176,6 +196,9 @@ describe("PatientProgramStageItemPageClient", () => {
           { status: 200 },
         );
       }
+      if (url.endsWith("/progress/complete/metrics")) {
+        return new Response(JSON.stringify({ ok: true, metrics: null }), { status: 200 });
+      }
       return new Response(JSON.stringify({ ok: false }), { status: 404 });
     });
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -198,6 +221,7 @@ describe("PatientProgramStageItemPageClient", () => {
     const commentsButton = await screen.findByRole("button", { name: /Комментарии/i });
     const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
     expect(commentsButton.parentElement).toBe(completeButton.parentElement);
+    expect(await screen.findByRole("button", { name: /Записать/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Прикрепить видео/i })).toBeInTheDocument();
     expect(screen.getByText(/Если у вас есть вопросы по технике выполнения/i)).toBeInTheDocument();
   });
@@ -440,13 +464,16 @@ describe("PatientProgramStageItemPageClient", () => {
           appDisplayTimeZone="Europe/Moscow"
           itemLinksPlanTab="program"
           planItemDoneRepeatCooldownMinutes={60}
-          programCommentsInteraction={{ visible: false, enabled: false }}
-          programMediaInteraction={{ visible: false, enabled: false }}
+          programCommentsInteraction={{ visible: true, enabled: true }}
+          programMediaInteraction={{ visible: true, enabled: true }}
         />,
       );
 
       expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Отметить выполнение/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Прикрепить видео/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Оставить комментарий к выполнению/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Открыть комментарии/i })).not.toBeInTheDocument();
       expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion"))).toBe(false);

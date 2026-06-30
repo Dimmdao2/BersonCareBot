@@ -138,9 +138,9 @@ type ItemDiscussionSummary = {
   unreadCount: number;
 };
 
-type CompletionDifficulty = "easy" | "medium" | "hard";
+export type CompletionDifficulty = "easy" | "medium" | "hard";
 
-type CompletionMetricsDraft = {
+export type CompletionMetricsDraft = {
   perceivedDifficulty: CompletionDifficulty;
   repsRaw: string;
   setsRaw: string;
@@ -149,14 +149,14 @@ type CompletionMetricsDraft = {
   saving: boolean;
 };
 
-type CompletionMetricsPayload = {
+export type CompletionMetricsPayload = {
   perceivedDifficulty: CompletionDifficulty;
   reps?: number;
   sets?: number;
   weightKg?: number;
 };
 
-const DEFAULT_COMPLETION_METRICS_DRAFT: CompletionMetricsDraft = {
+export const DEFAULT_COMPLETION_METRICS_DRAFT: CompletionMetricsDraft = {
   perceivedDifficulty: "medium",
   repsRaw: "",
   setsRaw: "",
@@ -204,12 +204,12 @@ function optionalWeight(raw: string): number | undefined {
   return Math.round(n * 10) / 10;
 }
 
-function metricNumberToInput(v: number | null | undefined, decimal = false): string {
+export function metricNumberToInput(v: number | null | undefined, decimal = false): string {
   if (typeof v !== "number" || !Number.isFinite(v)) return "";
   return decimal && !Number.isInteger(v) ? v.toFixed(1) : String(v);
 }
 
-function draftToPayload(draft: CompletionMetricsDraft): CompletionMetricsPayload {
+export function draftToPayload(draft: CompletionMetricsDraft): CompletionMetricsPayload {
   return {
     perceivedDifficulty: draft.perceivedDifficulty,
     reps: optionalPositiveInt(draft.repsRaw),
@@ -262,7 +262,7 @@ function PatientProgramTileSimpleCompleteButton(props: {
   );
 }
 
-function CompletionMetricsPanel(props: {
+export function CompletionMetricsPanel(props: {
   draft: CompletionMetricsDraft;
   onDraftChange: (draft: CompletionMetricsDraft) => void;
   onSave: () => void;

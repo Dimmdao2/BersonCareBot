@@ -60,14 +60,18 @@ import { PatientStageCompositionList } from "@/app/app/patient/treatment/Patient
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import {
-  ProgramItemCompleteDialog,
-  type ProgramItemCompleteDialogPayload,
-} from "@/app/app/patient/treatment/ProgramItemCompleteDialog";
-import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
 } from "@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog";
 import { ProgramItemDiscussionDialog } from "@/app/app/patient/treatment/ProgramItemDiscussionDialog";
+import {
+  CompletionMetricsPanel,
+  DEFAULT_COMPLETION_METRICS_DRAFT,
+  draftToPayload,
+  metricNumberToInput,
+  type CompletionDifficulty,
+  type CompletionMetricsDraft,
+} from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection";
 import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
 import { postProgramItemComplete } from "@/app/app/patient/treatment/postProgramItemComplete";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
@@ -108,21 +112,6 @@ type ItemDiscussionPreview = {
   lastMessage: ProgramItemDiscussionMessage | null;
   lastDoneSummary: ItemDiscussionLastDoneSummary | null;
 };
-
-function parseOptionalPositiveInt(raw: string): number | undefined {
-  const t = raw.trim();
-  if (!t) return undefined;
-  if (!/^\d+$/.test(t)) return undefined;
-  const n = Number.parseInt(t, 10);
-  return Number.isFinite(n) && n > 0 ? n : undefined;
-}
-
-function parseOptionalNonNegativeNumber(raw: string): number | undefined {
-  const t = raw.trim();
-  if (!t) return undefined;
-  const n = Number.parseFloat(t.replace(",", "."));
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
-}
 
 function modalSnapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -315,22 +304,22 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [doneTodayCountByActivityKey, setDoneTodayCountByActivityKey] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
   const mediaPickerRef = useRef<ProgramItemSubmissionSourceDialogHandle>(null);
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
-  const [repsRaw, setRepsRaw] = useState("");
-  const [weightRaw, setWeightRaw] = useState("");
+  const [metricsDraft, setMetricsDraft] = useState<CompletionMetricsDraft>(DEFAULT_COMPLETION_METRICS_DRAFT);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
     unreadCount: 0,
     lastMessage: null,
     lastDoneSummary: null,
   });
-  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
+  const canUseInteractiveProgramActions = detail.assignmentSource === "doctor";
   const commentsInteraction = programCommentsInteraction;
   const mediaInteraction = programMediaInteraction;
-  const mediaPickerVisible = mediaInteraction.visible;
-  const mediaPickerEnabled = mediaInteraction.enabled;
+  const commentsVisible = canUseInteractiveProgramActions && commentsInteraction.visible;
+  const commentsEnabled = canUseInteractiveProgramActions && commentsInteraction.enabled;
+  const mediaPickerVisible = canUseInteractiveProgramActions && mediaInteraction.visible;
+  const mediaPickerEnabled = canUseInteractiveProgramActions && mediaInteraction.enabled;
 
   const navForPath = navMode === "default" ? undefined : navMode;
 
@@ -471,7 +460,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [item, navMode, resolvedTestId]);
 
   const loadDiscussionPreview = useCallback(async () => {
-    if (!commentsInteraction.visible || !item || contentBlocked) {
+    if (!commentsVisible || !item || contentBlocked) {
       setDiscussionPreview({ totalCount: 0, unreadCount: 0, lastMessage: null, lastDoneSummary: null });
       return;
     }
@@ -511,49 +500,95 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     } catch {
       setDiscussionPreview({ totalCount: 0, unreadCount: 0, lastMessage: null, lastDoneSummary: null });
     }
-  }, [commentsInteraction.visible, contentBlocked, instanceId, item]);
+  }, [commentsVisible, contentBlocked, instanceId, item]);
 
   useEffect(() => {
     void loadDiscussionPreview();
   }, [loadDiscussionPreview]);
 
-  useEffect(() => {
-    const lds = discussionPreview.lastDoneSummary;
-    if (!lds) return;
-    if (lds.reps != null) setRepsRaw(String(lds.reps));
-    if (lds.weightKg != null) setWeightRaw(String(lds.weightKg));
-    if (lds.perceivedDifficulty) setDifficulty(lds.perceivedDifficulty);
-  }, [discussionPreview.lastDoneSummary]);
+  const loadLatestMetrics = useCallback(async (): Promise<CompletionMetricsDraft> => {
+    if (!item || !canUseInteractiveProgramActions) return DEFAULT_COMPLETION_METRICS_DRAFT;
+    try {
+      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`);
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        metrics?: {
+          perceivedDifficulty?: CompletionDifficulty | null;
+          difficulty?: CompletionDifficulty | null;
+          reps?: number | null;
+          sets?: number | null;
+          weightKg?: number | null;
+        } | null;
+      } | null;
+      const m = res.ok && data?.ok ? data.metrics : null;
+      return {
+        ...DEFAULT_COMPLETION_METRICS_DRAFT,
+        perceivedDifficulty: m?.difficulty ?? m?.perceivedDifficulty ?? "medium",
+        repsRaw: metricNumberToInput(m?.reps),
+        setsRaw: metricNumberToInput(m?.sets),
+        weightRaw: metricNumberToInput(m?.weightKg, true),
+      };
+    } catch {
+      return DEFAULT_COMPLETION_METRICS_DRAFT;
+    }
+  }, [base, canUseInteractiveProgramActions, item]);
 
   useEffect(() => {
-    setRepsRaw("");
-    setWeightRaw("");
-    setDifficulty("medium");
-  }, [itemId]);
+    if (!canUseInteractiveProgramActions || !item || item.itemType === "clinical_test") {
+      setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
+      return;
+    }
+    let cancelled = false;
+    setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
+    void loadLatestMetrics().then((draft) => {
+      if (!cancelled) setMetricsDraft(draft);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseInteractiveProgramActions, item, loadLatestMetrics]);
 
-  const handleComplete = async (payload?: ProgramItemCompleteDialogPayload) => {
-    if (!item || simpleCompleteDoneFrozen) return;
+  const handleComplete = async () => {
+    if (!item || !canUseInteractiveProgramActions || simpleCompleteDoneFrozen) return;
     setBusy(item.id);
     setError(null);
     try {
       const result = await postProgramItemComplete({
         base,
         itemId: item.id,
-        payload: payload ?? {
-          perceivedDifficulty: difficulty,
-          reps: parseOptionalPositiveInt(repsRaw),
-          weightKg: parseOptionalNonNegativeNumber(weightRaw),
-        },
       });
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setCompleteDialogOpen(false);
+      setMetricsDraft(await loadLatestMetrics());
       await refresh();
       await loadDiscussionPreview();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const saveCompletionMetrics = async () => {
+    if (!item || !canUseInteractiveProgramActions) return;
+    setMetricsDraft((prev) => ({ ...prev, saving: true }));
+    setError(null);
+    try {
+      const payload = draftToPayload(metricsDraft);
+      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !data?.ok) {
+        setError(data?.error ?? "Не удалось сохранить значения");
+        return;
+      }
+      await refresh();
+      await loadDiscussionPreview();
+    } finally {
+      setMetricsDraft((prev) => ({ ...prev, saving: false }));
     }
   };
 
@@ -782,7 +817,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
         <div className={cn(patientInnerPageStackClass, "p-4 pb-8 lg:p-5 lg:pb-10")}>
           <div className="flex flex-col gap-0">
-            {!contentBlocked && !readOnly && item.itemType !== "clinical_test" ? (
+            {!contentBlocked && !readOnly && canUseInteractiveProgramActions && item.itemType !== "clinical_test" ? (
               <div className="flex flex-wrap items-stretch gap-2">
                 {isPersistentRecommendation(item) ? (
                   flatNextItemId ? (
@@ -809,20 +844,20 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                 ) : (
                   <div className="flex w-full min-w-0 flex-col gap-2">
                     <div className="flex w-full min-w-0 items-stretch gap-2">
-                      {commentsInteraction.visible ? (
+                      {commentsVisible ? (
                         <button
                           type="button"
                           className={cn(
                             "inline-flex min-h-9 min-w-0 flex-[0.9] items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-xs font-medium leading-tight transition-colors sm:min-h-10",
-                            commentsInteraction.enabled
+                            commentsEnabled
                               ? "cursor-pointer border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-primary)] hover:bg-muted/50 active:bg-muted/70"
                               : "cursor-not-allowed opacity-60",
                             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
                           )}
-                          disabled={busy !== null || !commentsInteraction.enabled}
-                          aria-disabled={!commentsInteraction.enabled}
+                          disabled={busy !== null || !commentsEnabled}
+                          aria-disabled={!commentsEnabled}
                           onClick={() => {
-                            if (!commentsInteraction.enabled) return;
+                            if (!commentsEnabled) return;
                             setError(null);
                             setDiscussionDialogOpen(true);
                           }}
@@ -843,13 +878,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         className={cn(
                           patientButtonPrimaryClass,
                           "min-h-9 min-w-0 flex-1 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
-                          !commentsInteraction.visible && "w-full",
+                          !commentsVisible && "w-full",
                           simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                         )}
                         disabled={busy !== null || simpleCompleteDoneFrozen}
                         onClick={() => {
                           if (simpleCompleteDoneFrozen) return;
-                          setCompleteDialogOpen(true);
+                          void handleComplete();
                         }}
                       >
                         {simpleCompleteDoneFrozen ? (
@@ -862,11 +897,10 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         )}
                       </button>
                     </div>
-                    <ProgramItemCompleteDialog
-                      open={completeDialogOpen}
-                      onOpenChange={setCompleteDialogOpen}
-                      submitting={busy !== null}
-                      onSubmit={async (payload) => { await handleComplete(payload); }}
+                    <CompletionMetricsPanel
+                      draft={metricsDraft}
+                      onDraftChange={setMetricsDraft}
+                      onSave={() => void saveCompletionMetrics()}
                     />
                   </div>
                 )}
@@ -954,7 +988,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               onError={() => setError("Не удалось загрузить файл")}
             />
           ) : null}
-          {commentsInteraction.visible && item ? (
+          {commentsVisible && item ? (
             <ProgramItemDiscussionDialog
               instanceId={instanceId}
               itemId={item.id}
