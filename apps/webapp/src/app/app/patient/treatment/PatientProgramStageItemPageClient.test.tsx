@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { PatientProgramStageItemPageClient } from "./PatientProgramStageItemPageClient";
 
@@ -138,12 +138,68 @@ describe("PatientProgramStageItemPageClient", () => {
     expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
     expect(screen.queryByText("Комментарий специалиста")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
 
     const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
     fireEvent.click(completeButton);
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Отметить выполнение")).toBeInTheDocument();
+  });
+
+  it("shows comments and complete actions in the exercise action row, with video upload hint below instruction", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/checklist-today")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            doneItemIds: [],
+            doneTodayCountByItemId: {},
+            lastDoneAtIsoByItemId: {},
+            doneTodayCountByActivityKey: {},
+            lastDoneAtIsoByActivityKey: {},
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/discussion")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [],
+            pageInfo: { direction: "backward", limit: 1, nextCursor: null, hasMore: false },
+            totalCount: 0,
+            unreadCount: 0,
+            lastMessage: null,
+            lastDoneSummary: null,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PatientProgramStageItemPageClient
+        instanceId={instanceId}
+        itemId={itemId}
+        navMode="exec"
+        backHref="/app/patient/treatment"
+        initialDetail={makeDetail()}
+        appDisplayTimeZone="Europe/Moscow"
+        itemLinksPlanTab="program"
+        planItemDoneRepeatCooldownMinutes={60}
+        programCommentsInteraction={{ visible: true, enabled: true }}
+        programMediaInteraction={{ visible: true, enabled: true }}
+      />,
+    );
+
+    const commentsButton = await screen.findByRole("button", { name: /Комментарии/i });
+    const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
+    expect(commentsButton.parentElement).toBe(completeButton.parentElement);
+    expect(screen.getByRole("button", { name: /Прикрепить видео/i })).toBeInTheDocument();
+    expect(screen.getByText(/Если у вас есть вопросы по технике выполнения/i)).toBeInTheDocument();
   });
 
   it("shows unread count on discussion preview block", async () => {
@@ -205,11 +261,12 @@ describe("PatientProgramStageItemPageClient", () => {
       />,
     );
 
-    expect(await screen.findByText("новых: 3")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Открыть комментарии/i })).toBeInTheDocument();
+    const commentsButton = await screen.findByRole("button", { name: /Комментарии/i });
+    expect(within(commentsButton).getByText("2")).toBeInTheDocument();
+    expect(within(commentsButton).getByLabelText("Есть новые комментарии")).toBeInTheDocument();
   });
 
-  it("marks discussion read when opening preview CTA", async () => {
+  it("opens discussion dialog from comments CTA and marks it read", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/checklist-today")) {
@@ -261,9 +318,12 @@ describe("PatientProgramStageItemPageClient", () => {
       />,
     );
 
-    const cta = await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i });
+    const cta = await screen.findByRole("button", { name: /Комментарии/i });
     fireEvent.click(cta);
-    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/read"))).toBe(true);
+    expect(await screen.findByRole("heading", { name: "Комментарии" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/read"))).toBe(true);
+    });
   });
 
   it("disables discussion CTA when visible but policy denies", async () => {
@@ -301,7 +361,7 @@ describe("PatientProgramStageItemPageClient", () => {
       />,
     );
 
-    const cta = await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i });
+    const cta = await screen.findByRole("button", { name: /Комментарии/i });
     expect(cta).toBeDisabled();
     expect(cta).toHaveAttribute("aria-disabled", "true");
   });

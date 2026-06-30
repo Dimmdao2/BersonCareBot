@@ -67,6 +67,7 @@ import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
 } from "@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog";
+import { ProgramItemDiscussionDialog } from "@/app/app/patient/treatment/ProgramItemDiscussionDialog";
 import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
 import { postProgramItemComplete } from "@/app/app/patient/treatment/postProgramItemComplete";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
@@ -324,6 +325,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     lastDoneSummary: null,
   });
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
   const commentsInteraction = programCommentsInteraction;
   const mediaInteraction = programMediaInteraction;
@@ -514,13 +516,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   useEffect(() => {
     void loadDiscussionPreview();
   }, [loadDiscussionPreview]);
-
-  const markDiscussionRead = useCallback(async () => {
-    if (!item) return;
-    const readUrl = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/discussion/read`;
-    await fetch(readUrl, { method: "POST" });
-    await loadDiscussionPreview();
-  }, [instanceId, item, loadDiscussionPreview]);
 
   useEffect(() => {
     const lds = discussionPreview.lastDoneSummary;
@@ -779,6 +774,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                 programInstanceId={instanceId}
                 programStageItemId={item.id}
                 readOnly={readOnly || contentBlocked}
+                hideAfterSaved
               />
             </div>
           );
@@ -812,49 +808,60 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                   )
                 ) : (
                   <div className="flex w-full min-w-0 flex-col gap-2">
-                    {mediaPickerVisible ? (
+                    <div className="flex w-full min-w-0 items-stretch gap-2">
+                      {commentsInteraction.visible ? (
+                        <button
+                          type="button"
+                          className={cn(
+                            "inline-flex min-h-9 min-w-0 flex-[0.9] items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-xs font-medium leading-tight transition-colors sm:min-h-10",
+                            commentsInteraction.enabled
+                              ? "cursor-pointer border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-primary)] hover:bg-muted/50 active:bg-muted/70"
+                              : "cursor-not-allowed opacity-60",
+                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+                          )}
+                          disabled={busy !== null || !commentsInteraction.enabled}
+                          aria-disabled={!commentsInteraction.enabled}
+                          onClick={() => {
+                            if (!commentsInteraction.enabled) return;
+                            setError(null);
+                            setDiscussionDialogOpen(true);
+                          }}
+                        >
+                          <span className="min-w-0 truncate">Комментарии</span>
+                          {discussionPreview.totalCount > 0 ? (
+                            <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                              {discussionPreview.totalCount}
+                            </span>
+                          ) : null}
+                          {discussionPreview.unreadCount > 0 ? (
+                            <span className="size-1.5 shrink-0 rounded-full bg-[#ef4444]" aria-label="Есть новые комментарии" />
+                          ) : null}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className={cn(
-                          "inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 p-0 text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10 sm:min-w-10",
-                          mediaPickerEnabled
-                            ? "cursor-pointer hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]"
-                            : "cursor-not-allowed opacity-60",
-                          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+                          patientButtonPrimaryClass,
+                          "min-h-9 min-w-0 flex-1 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
+                          !commentsInteraction.visible && "w-full",
+                          simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                         )}
-                        disabled={busy !== null || !mediaPickerEnabled}
-                        aria-disabled={!mediaPickerEnabled}
-                        aria-label="Камера"
+                        disabled={busy !== null || simpleCompleteDoneFrozen}
                         onClick={() => {
-                          if (!mediaPickerEnabled) return;
-                          queueMicrotask(() => mediaPickerRef.current?.open());
+                          if (simpleCompleteDoneFrozen) return;
+                          setCompleteDialogOpen(true);
                         }}
                       >
-                        <Camera className="size-4" aria-hidden />
+                        {simpleCompleteDoneFrozen ? (
+                          <>
+                            <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
+                            <span className="min-w-0 flex-1 text-center font-semibold leading-tight">Выполнено</span>
+                          </>
+                        ) : (
+                          <span className="w-full text-center leading-tight">Отметить выполнение</span>
+                        )}
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className={cn(
-                        patientButtonPrimaryClass,
-                        "min-h-9 w-full py-2.5 text-xs font-medium leading-tight sm:min-h-10",
-                        simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
-                      )}
-                      disabled={busy !== null || simpleCompleteDoneFrozen}
-                      onClick={() => {
-                        if (simpleCompleteDoneFrozen) return;
-                        setCompleteDialogOpen(true);
-                      }}
-                    >
-                      {simpleCompleteDoneFrozen ? (
-                        <>
-                          <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-                          <span className="min-w-0 flex-1 text-center font-semibold leading-tight">Выполнено</span>
-                        </>
-                      ) : (
-                        <span className="w-full text-center leading-tight">Отметить выполнение</span>
-                      )}
-                    </button>
+                    </div>
                     <ProgramItemCompleteDialog
                       open={completeDialogOpen}
                       onOpenChange={setCompleteDialogOpen}
@@ -863,8 +870,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                     />
                   </div>
                 )}
-              </div>
-            ) : null}
+            </div>
+          ) : null}
 
             <PatientProgramItemExecutionRow
               lastIso={mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt)}
@@ -889,32 +896,30 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
-          {commentsInteraction.visible ? (
-            <div className="my-2 flex flex-col gap-2">
-              {discussionPreview.unreadCount > 0 ? (
-                <>
-                  <p className={cn(patientMutedTextClass, "text-xs")}>новых: {discussionPreview.unreadCount}</p>
-                  <button
-                    type="button"
-                    disabled={!commentsInteraction.enabled}
-                    aria-disabled={!commentsInteraction.enabled}
-                    className={cn(patientButtonPrimaryClass, "w-full py-2 text-sm")}
-                    onClick={() => { void markDiscussionRead(); }}
-                  >
-                    Открыть комментарии
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  disabled={!commentsInteraction.enabled}
-                  aria-disabled={!commentsInteraction.enabled}
-                  className={cn(patientButtonPrimaryClass, "w-full py-2 text-sm")}
-                  onClick={() => { void markDiscussionRead(); }}
-                >
-                  Оставить комментарий к выполнению
-                </button>
-              )}
+          {mediaPickerVisible ? (
+            <div className="my-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5">
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors",
+                  mediaPickerEnabled
+                    ? "cursor-pointer hover:bg-slate-100 active:bg-slate-200"
+                    : "cursor-not-allowed opacity-60",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300",
+                )}
+                disabled={busy !== null || !mediaPickerEnabled}
+                aria-disabled={!mediaPickerEnabled}
+                aria-label="Прикрепить видео"
+                onClick={() => {
+                  if (!mediaPickerEnabled) return;
+                  queueMicrotask(() => mediaPickerRef.current?.open());
+                }}
+              >
+                <Camera className="size-4" aria-hidden />
+              </button>
+              <p className={cn(patientMutedTextClass, "m-0 text-xs leading-snug")}>
+                Если у вас есть вопросы по технике выполнения, вы можете записать небольшое видео с выполнением и отправить его специалисту.
+              </p>
             </div>
           ) : null}
 
@@ -947,6 +952,21 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                 void loadDiscussionPreview();
               }}
               onError={() => setError("Не удалось загрузить файл")}
+            />
+          ) : null}
+          {commentsInteraction.visible && item ? (
+            <ProgramItemDiscussionDialog
+              instanceId={instanceId}
+              itemId={item.id}
+              open={discussionDialogOpen}
+              mediaSubmissionEnabled={mediaPickerVisible && mediaPickerEnabled}
+              onOpenChange={(open) => {
+                setDiscussionDialogOpen(open);
+                if (!open) {
+                  void loadDiscussionPreview();
+                }
+              }}
+              onRead={loadDiscussionPreview}
             />
           ) : null}
           {navMode === "program" || navMode === "exec" ? (

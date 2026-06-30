@@ -21,6 +21,7 @@ export type MaterialRatingBlockProps = {
   variant?: "patient" | "doctorCompact";
   /** После успешного PUT, только если сохранённые звёзды 1–3. */
   onLowRatingSaved?: (stars: number) => void;
+  hideAfterSaved?: boolean;
   className?: string;
 };
 
@@ -100,6 +101,7 @@ export function MaterialRatingBlock({
   readOnly = false,
   variant = "patient",
   onLowRatingSaved,
+  hideAfterSaved = false,
   className,
 }: MaterialRatingBlockProps) {
   const [loading, setLoading] = useState(true);
@@ -262,6 +264,10 @@ export function MaterialRatingBlock({
   const showSummaryRow = hasSavedVote && !editRatingPicker && !guest;
   const showChangeLink = showSummaryRow && interactive;
   const showStarPicker = !showSummaryRow;
+
+  if (hideAfterSaved && showSummaryRow) {
+    return null;
+  }
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
