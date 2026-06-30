@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDoctorAccountTimezone, setDoctorAccountTimezone } from "@/app-layer/doctor/accountTimezone";
 import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { isValidIanaTimeZoneId } from "@/shared/timezone/ianaTimezonesForAdminUi";
 
 export async function GET() {
   const guard = await requireDoctorApiSession();
   if (!guard.ok) return guard.response;
 
-  const r = await runWebappPgText<{ calendar_timezone: string | null }>(
-    `SELECT calendar_timezone FROM platform_users WHERE id = $1::uuid`,
-    [guard.session.user.userId],
-  );
-  const timezone = r.rows[0]?.calendar_timezone ?? null;
+  const timezone = await getDoctorAccountTimezone(guard.session.user.userId);
   return NextResponse.json({ ok: true, timezone });
 }
 
@@ -31,9 +27,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "invalid_timezone" }, { status: 400 });
   }
 
-  await runWebappPgText(
-    `UPDATE platform_users SET calendar_timezone = $2, updated_at = now() WHERE id = $1::uuid`,
-    [guard.session.user.userId, timezone],
-  );
+  await setDoctorAccountTimezone(guard.session.user.userId, timezone);
   return NextResponse.json({ ok: true });
 }
