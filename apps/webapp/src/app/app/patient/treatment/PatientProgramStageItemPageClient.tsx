@@ -846,13 +846,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                   )
                 ) : (
                   <div className="flex w-full min-w-0 flex-col gap-2">
-                    <div className="flex w-full min-w-0 items-stretch gap-2">
+                    <div className="flex w-full min-w-0 flex-nowrap items-stretch gap-2">
                       {commentsVisible ? (
                         <button
                           type="button"
                           className={cn(
                             patientSecondaryActionClass,
-                            "inline-flex min-h-9 min-w-0 flex-[0.9] items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium leading-tight whitespace-nowrap",
+                            "!w-auto min-h-9 min-w-0 max-w-[9.5rem] flex-[0_1_9.5rem] items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium leading-tight whitespace-nowrap",
                             commentsEnabled
                               ? "cursor-pointer"
                               : "cursor-not-allowed opacity-60",
@@ -880,7 +880,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         type="button"
                         className={cn(
                           patientCompactActionClass,
-                          "min-h-9 min-w-0 flex-1 px-2 py-2.5 text-xs font-medium leading-tight",
+                          "min-h-9 min-w-0 flex-[1_1_0] px-2 py-2.5 text-xs font-medium leading-tight",
                           !commentsVisible && "w-full",
                           simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                         )}
