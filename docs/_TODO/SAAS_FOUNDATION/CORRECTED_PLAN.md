@@ -22,6 +22,17 @@ Supersedes `00/01/02_*` (history). Authoritative scope artifact: **`scope-deriva
 (every base table → exactly one tier; reconciliation PERFORMED, not asserted). Other evidence:
 VERIFIED_SCOPE.md, REVIEW_2026-06-17_FRESH.md, FOUNDATION_PLAN.md, spike/.
 
+## Hard prerequisite before Phase 0 code
+`docs/_TODO/DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md` is a blocking prerequisite. It is the owner-marked "before SAAS" initiative and must finish before any SAAS migration/code stage starts.
+
+What it removes from SAAS startup:
+- raw-SQL / `.connect()` / `new Pool` cleanup and CI guards;
+- single `system_settings` accessor + grep guard (SAAS P0.11 still owns the org dimension and mirror schema);
+- process pool providers and dormant identity-hook seams;
+- connection-surface audit for T0.
+
+After that prerequisite, SAAS Phase 0 starts with tenant semantics: org membership/enrollment, scoped columns/backfills, RLS descriptors/policies, org-aware `system_settings`, isolation fixtures. If the chokepoint is not done, P0.6/P0.7/T0 are too large and must not be started under the SAAS label.
+
 v3 changelog (folds round-1 review C-A/C-B/C-C + H-A/H-B/H-C + M-A/M-B):
 - **C-A/H-C/M-A:** the 219-wide reconciliation is now actually run (`tiers-218.tsv`), spanning public+integrator+drizzle — every previously-missed table (comments, patient_merge_candidates, mailing_logs_webapp, user_subscriptions_webapp, reminder_delivery_events/occurrence_history, patient_home_blocks, all integrator per-patient) is tiered.
 - **C-B/M-B:** tier model gives each table EXACTLY one tier; bootstrap tables that also hold per-tenant rows use a **row-level org predicate** (below) — no double-assignment.
@@ -96,13 +107,13 @@ Each row is intended to fit one small PR. Each stage updates `LOG.md`, runs only
 | P0.4.BE | Close the two `be_*` FK-path gaps (`be_package_items`, `be_patient_package_items`). | FK-path invariant proves both scope through package parents. |
 | P0.4.RC | Make `reference_categories.organization_id` authoritative; document/retire stale `tenant_id`/`owner_id` usage. | `rg` proves RLS predicates and new writes use exactly `organization_id`. |
 | P0.5.1 | DB role split: migrator/owner vs non-bypass app role; deploy docs only where confirmed. | Scratch/prod-parity proof before any runtime role flip. |
-| P0.6.1 | Dormant context carrier: AsyncLocalStorage + pinned client design, resolving `buildAppDeps=cache()` interaction. | Unit tests show unset context preserves current behavior. |
-| P0.7.1 | Writer census artifact only: webapp routes/actions, integrator API, worker, scheduler, media-worker, payment/webhooks, boot migrations. | Inventory reconciles against `rg` counts; no code behavior changes. |
-| P0.7.2 | Wrap webapp route/action writers with tenant context where they touch SCOPED rows. | Family-specific tests; unset context still permits dormant behavior. |
-| P0.7.3 | Wrap integrator API/bot writers with tenant context. | Family-specific tests; unset context still permits dormant behavior. |
-| P0.7.4 | Wrap integrator worker/scheduler writers with tenant context. | Family-specific tests; unset context still permits dormant behavior. |
-| P0.7.5 | Wrap media-worker writers with tenant context. | Family-specific tests; unset context still permits dormant behavior. |
-| P0.7.6 | Wrap payment/webhook and boot-migration writer paths or document them as migrator-only. | Family-specific tests; unset context still permits dormant behavior. |
+| P0.6.1 | Use the chokepoint-provided dormant context carrier to set org principal in one place; resolve remaining `buildAppDeps=cache()` interaction if still present. | Unit tests show unset context preserves current behavior; no ad-hoc DB access remains outside chokepoint. |
+| P0.7.1 | Reconcile writer census from DB_ACCESS against SAAS SCOPED writes: webapp routes/actions, integrator API, worker, scheduler, media-worker, payment/webhooks, boot migrations. | Inventory reconciles against `rg` counts and DB_ACCESS coverage report; no code behavior changes. |
+| P0.7.2 | Apply tenant context to webapp route/action writers that touch SCOPED rows through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
+| P0.7.3 | Apply tenant context to integrator API/bot writers through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
+| P0.7.4 | Apply tenant context to integrator worker/scheduler writers through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
+| P0.7.5 | Apply tenant context to media-worker writers through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
+| P0.7.6 | Apply tenant context to payment/webhook paths; boot-migration paths remain migrator-only. | Family-specific tests; unset context still permits dormant behavior. |
 | P0.8.1 | RLS descriptor model: SCOPED/BOOTSTRAP/INFRA/LEGACY/TELEMETRY + predicate templates. | Descriptor covers all 219 artifacts exactly once. |
 | P0.8.2 | SQL renderer tests for org predicate, patient predicate, bootstrap hybrid, unset-GUC permit, wrong-org deny, empty-GUC deny. | Pure unit tests green; no DB mutation. |
 | P0.8.3 | Apply ENABLE+FORCE GUC-gated permissive policies to public direct-org SCOPED families. | Scratch DB policy smoke before merge. |
@@ -126,6 +137,7 @@ Each row is intended to fit one small PR. Each stage updates `LOG.md`, runs only
 
 ### Phase 0 Definition of Done
 - All micro-stages above are completed or explicitly cancelled with a reason in `LOG.md`.
+- `DB_ACCESS_CHOKEPOINT_INITIATIVE` DoD is complete before SAAS code starts.
 - P0.10 invariants are green over the full 219 artifact universe.
 - No aggregate P0.4/P0.7/P0.8/P0.11/P0.13 brief remains as an executable agent task.
 - Dormant mode preserves current single-clinic runtime behavior.

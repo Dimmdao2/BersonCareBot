@@ -23,10 +23,10 @@ T0 connection-audit. ⇒ После неё SAAS = `organization_id` + enrollment
 (механизм request-контекста — AsyncLocalStorage + pinned-connection — это первый этап SAAS T0, опирается на ствол из #1).
 
 ## Мастер-план и статус
-План **ЗАХАРДЕНЕН** (9 раундов adversarial-loop, 2 подряд clean). Канонический план — **`CORRECTED_PLAN.md` (v8)**.
-- История решений / находки / уроки метода — `SESSION_SUMMARY_2026-06-17.md`.
+План **ЗАХАРДЕНЕН** (9 раундов adversarial-loop, 2 подряд clean) и дополнительно разложен перед стартом, чтобы не начинать с агрегированных этапов. Канонический план — **`CORRECTED_PLAN.md` (v9)**.
+- Глобальная дорога до полноценного SaaS — `ROADMAP_TO_SAAS.md`.
 - Единый источник scope — `scope-derivation/tiers-218.tsv` + `needs-orgid-FINAL.txt` (111).
-- Лог раундов — `LOG.md`. Индекс — `README.md`. Стартовый промпт — `NEXT_CHAT_KICKOFF.md`.
+- Лог раундов — `LOG.md`. Индекс — `README.md`.
 - Поверхность сырого SQL (вход для #1 и для SAAS T0) — `RAW_SQL_AUDIT.md`.
 
 ## Гейты

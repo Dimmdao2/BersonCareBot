@@ -6,7 +6,7 @@
 change** today; turning it on is a controlled cutover, not a flag.
 
 ## Documents
-**LIVE (read these):** [`CORRECTED_PLAN.md`](CORRECTED_PLAN.md) — **canonical plan** · [`scope-derivation/tiers-218.tsv`](scope-derivation/tiers-218.tsv) — authoritative 219-artifact tier map · [`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md) — historical scope derivation · [`LOG.md`](LOG.md) — execution log.
+**LIVE (read these):** [`CORRECTED_PLAN.md`](CORRECTED_PLAN.md) — **canonical plan** · [`ROADMAP_TO_SAAS.md`](ROADMAP_TO_SAAS.md) — global path from now to SaaS · [`scope-derivation/tiers-218.tsv`](scope-derivation/tiers-218.tsv) — authoritative 219-artifact tier map · [`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md) — historical scope derivation · [`LOG.md`](LOG.md) — execution log.
 
 **History / rationale (superseded by CORRECTED_PLAN where they conflict):**
 1. [`00_DECISIONS_AND_SCHEMA.md`](00_DECISIONS_AND_SCHEMA.md) — settled decisions + target schema (Drizzle).
@@ -14,6 +14,8 @@ change** today; turning it on is a controlled cutover, not a flag.
 3. [`02_PHASED_BRIEF.md`](02_PHASED_BRIEF.md) — per-stage brief **template** (§12 + §24 compliant) + stage stubs.
 4. [`LOG.md`](LOG.md) — mandatory execution log (per `.cursor/rules/plan-authoring-execution-standard`).
 5. [`FOUNDATION_PLAN.md`](FOUNDATION_PLAN.md) — **rationale & analysis history** (v1→v3, red-team, grounding). Canonical decisions live in `00_…`; if they conflict, `00_…` wins.
+
+**Blocking prerequisite:** [`../DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md`](../DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md) must be completed before SAAS code starts. It is not replaced by this initiative.
 
 ## Canonical decision (one line)
 **Cabinet ≡ Organization** (reuse `be_organizations`); specialist = org member; enrollment = Person↔Organization; patient = `platform_users` (no persons-split in Phase 0). Scoping = one context-aware org resolver → request context → Postgres RLS (FORCE + GUC-gated permissive, dormant).
