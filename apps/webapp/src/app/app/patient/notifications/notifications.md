@@ -1,4 +1,6 @@
-Страница настроек уведомлений пациента (`/app/patient/notifications`).
+Страница настроек уведомлений пациента (`/app/patient/notifications/settings`).
+
+Лента уведомлений пациента открывается на обычной странице `/app/patient/notifications`.
 
 - Перед загрузкой email/каналов из БД — **`patientRscPersonalDataGate`** (`requireRole.ts`), тот же критерий tier, что у API.
 - Показывает категории подписок и каналы, которые реально подключены у пользователя.

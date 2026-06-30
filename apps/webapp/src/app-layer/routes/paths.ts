@@ -41,6 +41,7 @@ export const routePaths = {
   patientAbout: "/app/patient/about",
   profile: "/app/patient/profile",
   notifications: "/app/patient/notifications",
+  notificationSettings: "/app/patient/notifications/settings",
   purchases: "/app/patient/purchases",
   /** Единая страница дневника с вкладками «Симптомы» / «ЛФК». */
   diary: "/app/patient/diary",

@@ -59,7 +59,7 @@ export default async function PatientProfilePage() {
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link
-              href={routePaths.notifications}
+              href={routePaths.notificationSettings}
               className="inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
               Настройка

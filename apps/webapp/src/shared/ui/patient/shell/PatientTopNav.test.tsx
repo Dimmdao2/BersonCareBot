@@ -108,7 +108,10 @@ describe("PatientTopNav", () => {
     expect(desktopNav).toHaveClass("hidden");
     expect(desktopNav).toHaveClass("patient-desktop:flex");
     expect(within(desktopNav).getByText("BersonCare")).toBeInTheDocument();
-    expect(within(desktopNav).getByRole("button", { name: "Уведомления" })).toBeInTheDocument();
+    expect(within(desktopNav).getByRole("link", { name: "Уведомления" })).toHaveAttribute(
+      "href",
+      "/app/patient/notifications",
+    );
     expect(within(desktopNav).getByRole("link", { name: "Сообщения" })).toBeInTheDocument();
   });
 });

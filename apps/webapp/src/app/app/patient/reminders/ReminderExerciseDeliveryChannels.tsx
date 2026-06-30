@@ -70,7 +70,7 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
         {deliveryChannelLabels.length === 0 ?
           <>
             {" "}
-            <Link href={routePaths.notifications} className="text-primary underline">
+            <Link href={routePaths.notificationSettings} className="text-primary underline">
               Настроить
             </Link>
           </>
