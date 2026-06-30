@@ -44,6 +44,7 @@ export function formatProgramItemExecutionLabel(params: {
 
 export type ProgramItemLastDoneSummary = {
   reps: number | null;
+  sets?: number | null;
   weightKg: number | null;
 };
 
@@ -51,15 +52,16 @@ export function formatProgramItemLastDoneSummaryText(
   summary: ProgramItemLastDoneSummary | null | undefined,
 ): string | null {
   if (!summary) return null;
-  const { reps, weightKg } = summary;
-  if (reps != null && weightKg != null) {
-    return `В прошлый раз сделано ${reps} повторений с весом ${weightKg} кг`;
+  const { reps, sets, weightKg } = summary;
+  const repsSetsText = reps != null && sets != null ? `${reps} × ${sets}` : reps != null ? String(reps) : null;
+  if (repsSetsText && weightKg != null) {
+    return `сделано ${repsSetsText} с весом ${weightKg} кг`;
   }
-  if (reps != null) {
-    return `В прошлый раз сделано ${reps} повторений`;
+  if (repsSetsText) {
+    return `сделано ${repsSetsText}`;
   }
   if (weightKg != null) {
-    return `В прошлый раз сделано с весом ${weightKg} кг`;
+    return `сделано с весом ${weightKg} кг`;
   }
   return null;
 }

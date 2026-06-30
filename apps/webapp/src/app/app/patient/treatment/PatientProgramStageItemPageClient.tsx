@@ -102,6 +102,7 @@ type StageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][numbe
 type ItemDiscussionLastDoneSummary = {
   createdAt: string;
   reps: number | null;
+  sets?: number | null;
   weightKg: number | null;
   perceivedDifficulty: "easy" | "medium" | "hard" | null;
 };
@@ -555,6 +556,14 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         setError(result.error);
         setMetricsPanelOpen(false);
         return;
+      }
+      if (result.item) {
+        setDetail(result.item);
+        const updatedItem = result.item.stages.flatMap((s) => s.items).find((x) => x.id === item.id) ?? null;
+        const completedAt = updatedItem?.completedAt ?? new Date().toISOString();
+        setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+        setLastDoneAtIsoByItemId((prev) => ({ ...prev, [item.id]: completedAt }));
+        setDoneTodayCountByItemId((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
       }
       setMetricsDraft(previousDraft);
       await refresh();

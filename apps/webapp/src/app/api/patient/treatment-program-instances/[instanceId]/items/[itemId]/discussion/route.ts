@@ -60,6 +60,7 @@ function getLastDoneSummary(params: {
   if (!row) return null;
   const payload = row.payload ?? {};
   const reps = typeof payload.reps === "number" && Number.isFinite(payload.reps) ? payload.reps : null;
+  const sets = typeof payload.sets === "number" && Number.isFinite(payload.sets) ? payload.sets : null;
   const weightKg =
     typeof payload.weightKg === "number" && Number.isFinite(payload.weightKg) ? payload.weightKg : null;
   const perceivedDifficulty =
@@ -71,6 +72,7 @@ function getLastDoneSummary(params: {
   return {
     createdAt: row.createdAt,
     reps,
+    sets,
     weightKg,
     perceivedDifficulty,
   };

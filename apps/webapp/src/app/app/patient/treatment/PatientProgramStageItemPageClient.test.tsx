@@ -87,15 +87,23 @@ describe("PatientProgramStageItemPageClient", () => {
   });
 
   it("shows instruction label and discussion CTA variants with feature-gated discussion UI", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    let completed = false;
+    let metricsSaved = false;
+    const completedAtIso = new Date().toISOString();
+    const completedDetail = () => {
+      const detail = makeDetail();
+      detail.stages[0]!.items[0]!.completedAt = completedAtIso;
+      return detail;
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/checklist-today")) {
         return new Response(
           JSON.stringify({
             ok: true,
-            doneItemIds: [],
-            doneTodayCountByItemId: {},
-            lastDoneAtIsoByItemId: {},
+            doneItemIds: completed ? [itemId] : [],
+            doneTodayCountByItemId: completed ? { [itemId]: 1 } : {},
+            lastDoneAtIsoByItemId: completed ? { [itemId]: completedAtIso } : {},
             doneTodayCountByActivityKey: {},
             lastDoneAtIsoByActivityKey: {},
           }),
@@ -111,12 +119,18 @@ describe("PatientProgramStageItemPageClient", () => {
             totalCount: 0,
             unreadCount: 0,
             lastMessage: null,
-            lastDoneSummary: null,
+            lastDoneSummary: metricsSaved
+              ? { createdAt: now, reps: 12, sets: 3, weightKg: 2.5, perceivedDifficulty: "hard" }
+              : null,
           }),
           { status: 200 },
         );
       }
       if (url.endsWith("/progress/complete/metrics")) {
+        if (init?.method === "PATCH") {
+          metricsSaved = true;
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
         return new Response(
           JSON.stringify({
             ok: true,
@@ -126,10 +140,11 @@ describe("PatientProgramStageItemPageClient", () => {
         );
       }
       if (url.endsWith("/progress/complete")) {
-        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        completed = true;
+        return new Response(JSON.stringify({ ok: true, item: completedDetail() }), { status: 200 });
       }
       if (url.endsWith(`/api/patient/treatment-program-instances/${instanceId}`)) {
-        return new Response(JSON.stringify({ ok: true, item: makeDetail() }), { status: 200 });
+        return new Response(JSON.stringify({ ok: true, item: completed ? completedDetail() : makeDetail() }), { status: 200 });
       }
       return new Response(JSON.stringify({ ok: false }), { status: 404 });
     });
@@ -162,6 +177,7 @@ describe("PatientProgramStageItemPageClient", () => {
       expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/progress/complete"))).toBe(true);
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Выполнено/i })).toBeInTheDocument();
     expect(await screen.findByDisplayValue("12")).toBeInTheDocument();
     expect(screen.getByDisplayValue("3")).toBeInTheDocument();
     expect(screen.getByDisplayValue("2.5")).toBeInTheDocument();
@@ -169,6 +185,7 @@ describe("PatientProgramStageItemPageClient", () => {
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
     });
+    expect(await screen.findByText("сделано 12 × 3 с весом 2.5 кг")).toBeInTheDocument();
   });
 
   it("shows comments and complete actions in the exercise action row, with video upload hint below instruction", async () => {
