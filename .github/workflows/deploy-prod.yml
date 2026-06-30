@@ -1,7 +1,8 @@
 name: Deploy (production)
 
-# Production deploy is MANUAL ONLY. A push to `main` never deploys (see ci.yml —
-# there is no auto-deploy job for main). Deploy is triggered here by hand:
+# Production deploy is MANUAL ONLY and only from `main`. A push to `main` never
+# deploys (see ci.yml — there is no auto-deploy job for main). Deploy is
+# triggered here by hand:
 # Actions → "Deploy (production)" → Run workflow, then approve the `production`
 # environment. Two guards stand between a click and prod:
 #   1. verify-ci  — the chosen commit must already have a green CI run.
@@ -32,6 +33,10 @@ jobs:
             const confirm = (context.payload.inputs && context.payload.inputs.confirm) || '';
             if (confirm.trim() !== 'deploy') {
               core.setFailed('Confirmation text did not match "deploy". Aborting.');
+              return;
+            }
+            if (context.ref !== 'refs/heads/main') {
+              core.setFailed(`Production deploy is allowed only from main. Current ref: ${context.ref}.`);
               return;
             }
             const sha = context.sha;
