@@ -70,7 +70,11 @@ describe("Wave3 phase 15E route tails (runtime constraints)", () => {
       "utf8",
     );
     expect(src).not.toMatch(/\bpool\.query\b/);
-    expect(src).toContain("runPgPoolPgText");
+    expect(src).not.toContain("runPgPoolPgText");
+    expect(src).toContain("findPublicBookingNameCollisionCandidates");
+
+    const repoSrc = readFileSync(join(repoRoot, "infra/repos/pgPublicBookingMergeCandidates.ts"), "utf8");
+    expect(repoSrc).toContain("runPgPoolPgText");
   });
 });
 
