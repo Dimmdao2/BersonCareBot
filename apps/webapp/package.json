@@ -11,7 +11,7 @@
     "lint": "eslint . && bash scripts/check-media-preview-invariants.sh && bash scripts/check-legacy-migrations-frozen.sh && bash scripts/check-drizzle-journal-sync.sh",
     "check:catalog-shared-primitives": "bash scripts/check-catalog-shared-primitives.sh",
     "check:media-preview-invariants": "bash scripts/check-media-preview-invariants.sh",
-    "build": "rm -rf .next/standalone && NODE_ENV=production next build && bash ../../deploy/host/sync-webapp-standalone-assets.sh",
+    "build": "rm -rf .next/standalone && NODE_OPTIONS=\"${NODE_OPTIONS:---max-old-space-size=4096}\" NODE_ENV=production next build && bash ../../deploy/host/sync-webapp-standalone-assets.sh",
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start -H 127.0.0.1 -p 6200",
     "typecheck": "bash ../../scripts/ensure-booking-sync-built.sh && tsc --noEmit",
