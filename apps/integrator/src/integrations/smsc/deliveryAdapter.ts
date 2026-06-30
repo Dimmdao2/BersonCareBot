@@ -1,5 +1,6 @@
 import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
 import type { SmsClient } from './types.js';
+import { readChannelWithDefault } from '../../infra/adapters/channelRouting.js';
 
 type DeliveryPayload = {
   recipient?: { phoneNormalized?: string };
@@ -7,21 +8,12 @@ type DeliveryPayload = {
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
 
-function readChannel(intent: OutgoingIntent): string {
-  const payload = intent.payload as DeliveryPayload;
-  const channels = payload.delivery?.channels;
-  if (Array.isArray(channels)) {
-    const normalized = channels.filter((item): item is string => typeof item === 'string');
-    if (normalized.length > 0) return normalized[0] as string;
-  }
-  return 'smsc';
-}
-
 export function createSmscDeliveryAdapter(deps: { smsClient: SmsClient }): DeliveryAdapter {
   return {
     canHandle(intent: OutgoingIntent): boolean {
       if (intent.type !== 'message.send') return false;
-      return readChannel(intent) === 'smsc';
+      // Falls back to 'smsc' (the original adapter default, D4 — preserved exactly).
+      return readChannelWithDefault(intent, 'smsc') === 'smsc';
     },
     async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
       if (intent.type !== 'message.send') return {};

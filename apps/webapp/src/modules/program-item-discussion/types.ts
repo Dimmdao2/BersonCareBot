@@ -62,3 +62,54 @@ export type ProgramItemDiscussionLegacyUnreadInput = {
   excludeSupportMessageIds?: string[];
   lastReadAt: string | null;
 };
+
+/** Cursor-ключ для keyset-пагинации doctor-wide запросов. */
+export type DoctorExerciseCommentCursor = {
+  createdAt: string;
+  id: string;
+};
+
+/** Входные данные для doctor-wide запросов непрочитанных / истории комментариев. */
+export type ListDoctorExerciseCommentsInput = {
+  /** Список patient_user_id — для запросов с явным списком пациентов. */
+  patientUserIds: string[];
+  /**
+   * Альтернативный скоуп: UUID врача для фильтра по treatment_program_instances.assigned_by.
+   * Когда задан — patientUserIds игнорируется; запрос охватывает всех пациентов врача
+   * без предварительного фан-аута по ID пациентов.
+   */
+  assignedByUserId?: string;
+  /** User id врача-viewer'а для чтения lastReadAt из _reads. */
+  viewerUserId: string;
+  limit: number;
+  cursor?: DoctorExerciseCommentCursor | null;
+};
+
+/**
+ * Счётчик «всего / непрочитанных врачом» сообщений-от-пациента по одному stageItem.
+ * Используется в state B drill-down комментариев (список упражнений пациента).
+ *
+ * Семантика:
+ * - `total`  = все сообщения пациента по данному stageItem (текст + медиа).
+ * - `unread` = из них — те, чьё `createdAt` > lastReadAt для viewerUserId (или все, если lastReadAt == null).
+ * - `latestMessageAt` = ISO-дата последнего сообщения пациента (для сортировки).
+ */
+export type StageItemViewerUnreadCount = {
+  stageItemId: string;
+  total: number;
+  unread: number;
+  latestMessageAt: string | null;
+};
+
+/**
+ * Одна строка результата doctor-wide запроса: последнее сообщение пациента по exercise-элементу.
+ * `instanceId` и `stageItemTitle` пусты в inMemory-реализации (нет доступа к схеме программы).
+ */
+export type DoctorExerciseCommentRow = {
+  patientUserId: string;
+  instanceId: string;
+  stageItemId: string;
+  stageItemTitle: string;
+  latestMessage: ProgramItemDiscussionMessage;
+  createdAt: string;
+};

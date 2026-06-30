@@ -29,6 +29,8 @@ export async function runStaffManualCancelAfterCanonical(input: {
   decisionType: string;
   reason?: string;
   staffComment?: string;
+  /** R21: false → не уведомлять пациента об отмене. По умолчанию уведомляем. */
+  notifyPatient?: boolean;
   getRubitimeAppointmentId?: (params: {
     organizationId: string;
     appointmentId: string;
@@ -104,6 +106,7 @@ export async function runStaffManualCancelAfterCanonical(input: {
       bookingRow,
       lifecycleNotificationSettings,
       branches: input.deps.branches,
+      suppressPatientNotification: input.notifyPatient === false,
     });
   } catch {
     flags.notificationOutcomeFailed = true;

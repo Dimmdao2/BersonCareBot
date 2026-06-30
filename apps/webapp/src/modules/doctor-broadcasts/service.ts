@@ -10,12 +10,17 @@ import type {
   DoctorBroadcastDeliveryCommitPort,
 } from "./ports";
 import { normalizeBroadcastChannels, type BroadcastChannel } from "./broadcastChannels";
-import { buildBroadcastMessageText, buildDoctorBroadcastDeliveryJobs } from "./deliveryJobs";
+import { buildBroadcastMessageText, buildDoctorBroadcastDeliveryJobs, stripMarkdownToPlain } from "./deliveryJobs";
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "./deliveryQueueKind";
 import {
   fanOutBroadcastWebPush,
   type FanOutBroadcastWebPushResult,
 } from "./fanOutBroadcastWebPush";
+import {
+  fanOutBroadcastEmail,
+  type FanOutBroadcastEmailDeps,
+  type FanOutBroadcastEmailResult,
+} from "./fanOutBroadcastEmail";
 import {
   appendPatientInboundAdminMessage,
   broadcastChatIntegratorMessageId,
@@ -38,6 +43,11 @@ export type DoctorBroadcastsServiceDeps = {
   ) => Promise<FanOutBroadcastWebPushResult>;
   patientWebPushNotifyDeps?: PatientWebPushNotifyDeps;
   patientInboundChatPort?: PatientInboundChatPort;
+  /**
+   * Email fan-out deps. Если не задан — email-отправка не выполняется (канал
+   * остаётся видимым, счётчик реальный, но фактическая рассылка guarded).
+   */
+  fanOutBroadcastEmailDeps?: FanOutBroadcastEmailDeps;
 };
 
 const CATEGORIES: BroadcastCategory[] = [
@@ -80,8 +90,16 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
     async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
       const channels = resolvedChannels(command);
       const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels, command.category);
-      const { audienceSize, eligibleClients, notificationPrefsByUserId, webPushEligibleUserIds } = resolved;
+      const {
+        audienceSize,
+        eligibleClients,
+        notificationPrefsByUserId,
+        webPushEligibleUserIds,
+        emailEligibleUserIds,
+      } = resolved;
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
+      // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
+      const messageBodyPlainText = stripMarkdownToPlain(messageBody);
       const auditId = randomUUID();
       const jobs = buildDoctorBroadcastDeliveryJobs({
         auditId,
@@ -92,6 +110,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         attachMenu: command.attachMenuAfterSend === true,
         audienceFilter: command.audienceFilter,
         notificationPrefsByUserId,
+        imageUrl: command.message.mediaUrl ?? null,
       });
       const auditBase = {
         actorId: command.actorId,
@@ -120,8 +139,11 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
           try {
             await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
               platformUserId: client.userId,
-              text: messageBody,
+              text: messageBodyPlainText,
               integratorMessageId: broadcastChatIntegratorMessageId(auditId, client.userId),
+              source: "doctor_broadcast",
+              mediaUrl: command.message.mediaUrl ?? null,
+              mediaType: command.message.mediaType ?? null,
             });
           } catch (err) {
             logger.warn(
@@ -151,6 +173,23 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             webPushEligibleUserIds,
           },
           deps.patientWebPushNotifyDeps,
+        );
+      }
+
+      if (channels.includes("email") && deps.fanOutBroadcastEmailDeps) {
+        const emailClients = emailEligibleUserIds
+          ? eligibleClients.filter((c) => emailEligibleUserIds.has(c.userId))
+          : eligibleClients;
+        await fanOutBroadcastEmail(
+          {
+            auditId,
+            broadcastCategory: command.category,
+            broadcastTitle: command.message.title,
+            broadcastBody: stripMarkdownToPlain(command.message.body),
+            mediaUrl: command.message.mediaUrl ?? null,
+            eligibleClients: emailClients,
+          },
+          deps.fanOutBroadcastEmailDeps,
         );
       }
 

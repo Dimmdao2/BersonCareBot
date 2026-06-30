@@ -1,3 +1,22 @@
+/**
+ * P19 migration (PLAN S14g — specialist-task reminder web_push leg).
+ *
+ * Instead of calling `sendWebPushToSubscriptions` directly (G2-guarded webapp sink),
+ * the web_push leg now emits a `web_push` intent to the integrator via relay-outbound.
+ * The integrator's `WebPushDeliveryAdapter` handles the actual send + VAPID resolution,
+ * covered by the pre-fork redirect chokepoint (G1). G2 guard in
+ * `sendWebPushToSubscriptions.ts` is kept intact — it retires in S16 after all legs are
+ * migrated.
+ *
+ * Channel-preference + subscription existence + VAPID availability pre-checks are still
+ * performed in the webapp to avoid unnecessary relay calls. The integrator re-reads
+ * subscriptions and VAPID at send time; the webapp pre-checks are best-effort guards.
+ *
+ * `smtpInnerFromValueJson` / SMTP fetch / `vapidSubject` derivation removed — the
+ * integrator adapter owns VAPID and resolves the subject from its own system settings.
+ *
+ * The email leg uses `sendEmailSetupLinkViaIntegrator` (rides S9) — left untouched.
+ */
 import { logger } from "@/app-layer/logging/logger";
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
@@ -13,6 +32,7 @@ export type NotifySpecialistTaskReminderDeps = {
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
   getProfileEmail: (platformUserId: string) => Promise<string | null>;
   webPushSubscriptions: WebPushSubscriptionsPort;
+  /** Still used for VAPID pre-check (ownerHasDeliverableChannel + web_push guard). */
   systemSettings: Pick<SystemSettingsService, "getSetting">;
 };
 
@@ -135,41 +155,36 @@ export async function notifySpecialistTaskReminder(
   }
 
   if (channels.includes("web_push")) {
+    // P19 MIGRATION (PLAN S14g): emit a web_push intent to the integrator via relay-outbound
+    // instead of calling sendWebPushToSubscriptions directly (G2-guarded webapp sink).
+    // The integrator's WebPushDeliveryAdapter resolves subscriptions + VAPID and performs
+    // the actual send, covered by the pre-fork redirect chokepoint (G1).
+    // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the telegram
+    // test chat — ZERO real webpush.sendNotification calls.
+    // G2 guard retired (S16) — 0 live callers, secondary safety layer only.
     const vapid = await getWebPushVapidKeyPair(deps.systemSettings);
     if (vapid) {
       const subs = await deps.webPushSubscriptions.listActiveByUserId(ownerId);
       if (subs.length > 0) {
-        const { sendWebPushToSubscriptions } = await import("@/modules/web-push/sendWebPushToSubscriptions");
-        const { smtpInnerFromValueJson } = await import("@/modules/outbound-email/sendTransactionalSmtp");
-        const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
-        const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
-        const vapidSubject =
-          smtpParsed?.success === true && smtpParsed.data.from.includes("@")
-            ? `mailto:${smtpParsed.data.from}`
-            : "mailto:noreply@invalid";
         const openUrl = task.patientUserId
           ? `/app/doctor/clients/${task.patientUserId}#doctor-client-section-tasks`
           : "/app/doctor#doctor-today-global-tasks";
-        const pushResult = await sendWebPushToSubscriptions({
-          subscriptions: subs,
-          vapidPublicKey: vapid.publicKey,
-          vapidPrivateKey: vapid.privateKey,
-          vapidSubject,
-          payload: {
+        const tag = `specialist_task:${task.id}`;
+        const pushResult = await relayOutbound({
+          messageId: `specialist-task:${task.id}:web_push:${ownerId}`,
+          channel: "web_push",
+          recipient: ownerId,
+          text: task.title,
+          metadata: {
             title: "Задача",
-            body: task.title,
             url: openUrl,
-            tag: `specialist_task:${task.id}`,
+            pushExtras: { tag },
           },
-          onSubscriptionDead: async (endpoint) => {
-            await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
-          },
-          logContext: { userId: ownerId },
         }).catch((err: unknown) => {
-          logger.warn({ err, taskId: task.id }, "specialist task reminder web push failed");
-          return { delivered: 0, errors: 1, deactivated: 0 };
+          logger.warn({ err, taskId: task.id }, "specialist task reminder web push relay failed");
+          return { ok: false as const, reason: "relay_error" };
         });
-        if (pushResult.delivered > 0) sent = true;
+        if (pushResult.ok) sent = true;
       }
     }
   }

@@ -26,6 +26,16 @@ describe('recipientBlockedBot', () => {
     expect(blocked?.channel).toBe('max');
   });
 
+  it('classifies max dialog.suspended (403) as recipient blocked', () => {
+    const err = new MaxSendError('MAX_SEND_FAILED', {
+      apiMessage: '403: Key: error.dialog.suspended, args: [14039325,].',
+    });
+    const blocked = classifyMaxRecipientBlockedError(err);
+    expect(blocked).toBeInstanceOf(RecipientBlockedBotError);
+    expect(blocked?.channel).toBe('max');
+    expect(classifyRecipientBlockedBotError(err, 'max')?.channel).toBe('max');
+  });
+
   it('is non-retryable in delivery contract', () => {
     const msg = `${RECIPIENT_BLOCKED_BOT}: bot was blocked by the user`;
     expect(isRecipientBlockedBotDispatchError(msg)).toBe(true);

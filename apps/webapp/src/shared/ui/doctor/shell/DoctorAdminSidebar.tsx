@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Stethoscope } from "lucide-react";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
 import {
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
@@ -20,12 +22,15 @@ const SIDEBAR_LINK_CLASS = cn(
 type DoctorAdminSidebarProps = {
   userDisplayName?: string;
   menuAccess: DoctorMenuAccess;
+  /** Если `"клиент"`, пункт «Пациенты» отображается как «Клиенты». */
+  patientLabel?: string;
 };
 
 /**
- * Левое меню разделов кабинета на md+ (под полноширинной шапкой); на мобильных скрыто (Sheet в шапке).
+ * Левое меню разделов кабинета на md+ (бренд-блок сверху + разделы); глобальной шапки на desktop нет,
+ * сайдбар липнет к верху вьюпорта. На мобильных скрыто (разделы — в Sheet мобильной `DoctorHeader`).
  */
-export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminSidebarProps) {
+export function DoctorAdminSidebar({ userDisplayName, menuAccess, patientLabel }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
 
   return (
@@ -34,16 +39,37 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminS
       className={cn(
         "hidden md:flex",
         DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
-        "shrink-0 flex-col border-r border-border/70 bg-background pb-4 pl-3 pr-2 pt-4",
+        "shrink-0 flex-col border-r border-border/70 bg-background pb-4 pl-3 pr-2 pt-3",
         "md:sticky md:self-start md:overflow-y-auto",
-        "md:max-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_0.5rem)]",
+        // Глобальной шапки на desktop нет → сайдбар липнет к верху вьюпорта и занимает всю высоту.
+        "md:max-h-[calc(100dvh_-_0.5rem)]",
         DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
       )}
       aria-label="Разделы кабинета"
     >
-      <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
+      <Link
+        href={routePaths.doctor}
+        prefetch={false}
+        id="doctor-sidebar-brand"
+        className={cn(
+          "mb-3 flex items-center gap-2 rounded-lg px-2 py-1.5 no-underline",
+          "transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+      >
+        <span
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-foreground/5 text-foreground"
+          aria-hidden
+        >
+          <Stethoscope className="size-[18px]" strokeWidth={NAV_STRIP_ICON_STROKE} />
+        </span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-sm font-semibold tracking-tight text-foreground">Berson Care</span>
+          <span className="truncate text-xs text-muted-foreground">Doctor</span>
+        </span>
+      </Link>
+      <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Разделы кабинета">
-        <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} />
+        <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} patientLabel={patientLabel} />
         <Link
           href={routePaths.doctorInstall}
           className={cn(

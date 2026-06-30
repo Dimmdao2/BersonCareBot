@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   boolean,
+  integer,
   timestamp,
   index,
   foreignKey,
@@ -20,6 +21,8 @@ export const bePatientBookingProfiles = pgTable(
     isProblematic: boolean("is_problematic").default(false).notNull(),
     bookingBlocked: boolean("booking_blocked").default(false).notNull(),
     problematicNote: text("problematic_note"),
+    /** Lifetime count of no-shows for this patient (migration 0115). Incremented atomically in mark-no-show transaction; never decremented. */
+    noShowCount: integer("no_show_count").default(0).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedBy: uuid("updated_by"),
   },

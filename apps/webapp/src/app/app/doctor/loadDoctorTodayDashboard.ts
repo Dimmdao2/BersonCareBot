@@ -31,11 +31,15 @@ import {
   mapProactiveInsightsForToday,
   type TodayProactiveInsightItem,
 } from "./mapProactiveInsightsForToday";
+import { patientCardHref } from "./patients/patientCardHref";
+import { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
 import {
-  DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
-  doctorClientProfileHref,
-} from "./clients/doctorClientProfileHref";
-import { doctorClientTreatmentProgramInstanceHref } from "./clients/doctorClientInstanceHref";
+  loadDoctorExerciseCommentAttention,
+  type TodayExerciseCommentAttentionItem,
+} from "./loadDoctorExerciseCommentAttention";
+
+export { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
+export type { TodayExerciseCommentAttentionItem } from "./loadDoctorExerciseCommentAttention";
 
 /** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&support=on`. */
 export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
@@ -57,6 +61,8 @@ export type DoctorTodayDashboardDeps = {
       audience?: DoctorAppointmentsAudience,
     ): Promise<AppointmentRow[]>;
   };
+  /** Optional loader for calendar-month appointments (deferred to avoid extra audience-filtered call). */
+  loadMonthAppointments?: () => Promise<AppointmentRow[]>;
   doctorClients: {
     getDashboardPatientMetrics(audience?: {
       excludedUserIds?: string[];
@@ -110,7 +116,10 @@ export type DoctorTodayDashboardDeps = {
 
 export type TodayAppointmentItem = {
   id: string;
+  /** Форматированная метка времени «ЧЧ:мм ДД.ММ» (для отображения в списках). */
   time: string;
+  /** UTC ISO-момент записи (`record_at`); используется для точного позиционирования в FullCalendar. */
+  recordAtIso: string | null;
   clientLabel: string;
   /** Имя из Rubitime при расхождении с профилем; иначе `null`. */
   rubitimeNameIfDifferent: string | null;
@@ -148,25 +157,20 @@ export type TodayUnreadConversationItem = {
 export type TodayOnSupportClientItem = {
   userId: string;
   displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   href: string;
   unreadMessagesCount: number;
   exerciseDoneTodayCount: number;
   newExerciseCommentsCount: number;
 };
 
-export type TodayExerciseCommentAttentionItem = {
-  patientUserId: string;
-  patientDisplayName: string;
-  instanceId: string;
-  stageItemId: string;
-  stageItemTitle: string;
-  latestMessage: ProgramItemDiscussionMessage;
-  latestMessageAtLabel: string;
-  href: string;
-};
-
 export type TodayDashboardData = {
   todayAppointments: TodayAppointmentItem[];
+  /** All appointments this week (incl. today) for SEG-04 week modal. */
+  weekAppointments: TodayAppointmentItem[];
+  /** All appointments in calendar month for SEG-04 month modal. */
+  monthAppointments: TodayAppointmentItem[];
   newIntakeRequests: TodayIntakeItem[];
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
@@ -176,6 +180,8 @@ export type TodayDashboardData = {
   onSupportClients: TodayOnSupportClientItem[];
   onSupportListTruncated: boolean;
   globalOpenTasks: SpecialistTaskRow[];
+  /** Общее количество открытых задач (§1.3). */
+  globalOpenTasksTotal: number;
   pendingProgramTests: TodayPendingProgramTestItem[];
   pendingProgramTestsTotal: number;
   pendingProgramTestsTruncated: boolean;
@@ -194,26 +200,10 @@ const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
 
 const MESSAGES_HREF = "/app/doctor/messages";
 
-export const ON_SUPPORT_LIST_HREF = "/app/doctor/clients?scope=all&support=on";
+export const ON_SUPPORT_LIST_HREF = "/app/doctor/patients?segment=on_support";
 
 export const PROGRAM_WITHOUT_SUPPORT_LIST_HREF =
-  "/app/doctor/clients?scope=all&support=programWithoutSupport";
-
-const TEXT_PREVIEW_MAX = 160;
-export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
-
-export function truncateText(text: string | null | undefined, max = TEXT_PREVIEW_MAX): string | null {
-  if (text == null || text === "") return null;
-  const t = text.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max - 1)}…`;
-}
-
-export function formatDateTimeRu(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
-}
+  "/app/doctor/patients?segment=with_program";
 
 export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointmentItem {
   const uid = row.clientUserId?.trim() ?? "";
@@ -221,6 +211,7 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
   return {
     id: row.id,
     time: row.time,
+    recordAtIso: row.recordAtIso,
     clientLabel: row.clientLabel,
     rubitimeNameIfDifferent: row.rubitimeNameIfDifferent,
     clientUserId: hasClient ? uid : null,
@@ -228,9 +219,7 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     status: row.status,
     branchName: row.branchName,
     scheduleProvenancePrefix: row.scheduleProvenancePrefix ?? null,
-    href: hasClient
-      ? doctorClientProfileHref(uid, { profileListScope: "appointments" })
-      : "/app/doctor/appointments",
+    href: hasClient ? patientCardHref(uid) : "/app/doctor/appointments",
     ctaLabel: hasClient ? "Открыть карточку" : "Открыть записи",
   };
 }
@@ -255,10 +244,9 @@ export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSuppo
   return {
     userId: uid,
     displayName: row.displayName.trim() || "—",
-    href: doctorClientProfileHref(uid, {
-      profileListScope: "appointments",
-      hash: DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
-    }),
+    firstName: row.firstName ?? null,
+    lastName: row.lastName ?? null,
+    href: patientCardHref(uid),
     unreadMessagesCount: 0,
     exerciseDoneTodayCount: 0,
     newExerciseCommentsCount: 0,
@@ -275,108 +263,6 @@ export function mapConversationToTodayItem(row: TodayConversationSourceRow): Tod
     lastMessagePreview: truncateText(row.lastMessageText),
     unreadFromUserCount: row.unreadFromUserCount,
     href: MESSAGES_HREF,
-  };
-}
-
-function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
-  const raw = snapshot.title;
-  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-  return "Упражнение";
-}
-
-async function loadTodayExerciseCommentAttention(
-  deps: DoctorTodayDashboardDeps,
-  onSupportListRaw: ClientListItem[],
-): Promise<{
-  items: TodayExerciseCommentAttentionItem[];
-  total: number;
-  truncated: boolean;
-}> {
-  if (
-    !deps.programItemDiscussion ||
-    !deps.treatmentProgramInstance ||
-    !deps.doctorUserId ||
-    onSupportListRaw.length === 0
-  ) {
-    return { items: [], total: 0, truncated: false };
-  }
-
-  const patientDisplayNameById = new Map<string, string>();
-  for (const row of onSupportListRaw) {
-    const uid = row.userId.trim();
-    if (!uid) continue;
-    patientDisplayNameById.set(uid, row.displayName.trim() || "—");
-  }
-
-  const perPatientRows = await Promise.all(
-    [...patientDisplayNameById.keys()].map(async (patientUserId) => {
-      try {
-        const instances = await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
-        const active = pickActivePlanInstance(instances);
-        if (!active) return [] as TodayExerciseCommentAttentionItem[];
-        const detail = await deps.treatmentProgramInstance!.getInstanceById(active.id);
-        const activeExerciseItems = detail.stages.flatMap((stage) =>
-          stage.items.filter((item) => item.status === "active" && item.itemType === "exercise"),
-        );
-        if (activeExerciseItems.length === 0) return [] as TodayExerciseCommentAttentionItem[];
-
-        const summary = await deps.programItemDiscussion!.listAttentionSummaryForStageItems(
-          activeExerciseItems.map((item) => item.id),
-        );
-        const attentionStageItemIds = summary.filter((row) => row.comments > 0).map((row) => row.stageItemId);
-        if (attentionStageItemIds.length === 0) return [] as TodayExerciseCommentAttentionItem[];
-
-        const itemById = new Map(activeExerciseItems.map((item) => [item.id, item]));
-        const rows = await Promise.all(
-          attentionStageItemIds.map(async (stageItemId) => {
-            const [latestList, lastReadAt] = await Promise.all([
-              deps.programItemDiscussion!.listMessagesPage({
-                stageItemId,
-                limit: 1,
-                direction: "backward",
-                cursor: null,
-              }),
-              deps.programItemDiscussion!.getLastReadAtForViewer({
-                viewerUserId: deps.doctorUserId!,
-                stageItemId,
-              }),
-            ]);
-            const latest = latestList[latestList.length - 1] ?? null;
-            if (!latest || latest.senderRole !== "patient" || latest.mediaFileId) return null;
-            if (lastReadAt && latest.createdAt <= lastReadAt) return null;
-            const item = itemById.get(stageItemId);
-            if (!item) return null;
-            return {
-              patientUserId,
-              patientDisplayName: patientDisplayNameById.get(patientUserId) ?? "—",
-              instanceId: active.id,
-              stageItemId,
-              stageItemTitle: stageItemSnapshotTitle(item.snapshot),
-              latestMessage: latest,
-              latestMessageAtLabel: formatDateTimeRu(latest.createdAt),
-              href: doctorClientTreatmentProgramInstanceHref(patientUserId, active.id, {
-                profileListScope: "appointments",
-                discussionItemId: stageItemId,
-              }),
-            } satisfies TodayExerciseCommentAttentionItem;
-          }),
-        );
-        return rows.filter((row): row is TodayExerciseCommentAttentionItem => row !== null);
-      } catch {
-        return [] as TodayExerciseCommentAttentionItem[];
-      }
-    }),
-  );
-
-  const allRows = perPatientRows
-    .flat()
-    .sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
-  const total = allRows.length;
-  const items = allRows.slice(0, DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT);
-  return {
-    items,
-    total,
-    truncated: total > items.length,
   };
 }
 
@@ -497,14 +383,20 @@ export async function loadDoctorTodayDashboard(
   const [
     todayRaw,
     weekRaw,
+    monthRaw,
     newIntake,
     unreadConversations,
     unreadTotal,
     patientMetrics,
     onSupportListRaw,
   ] = await Promise.all([
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }, audience),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }, audience),
+    // #9: use statsRange so cancelled appointments are included in today/week lists
+    // (statsRange = same date window as range, but no status filter → includes cancelled)
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "today" }, audience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "week" }, audience),
+    deps.loadMonthAppointments
+      ? deps.loadMonthAppointments()
+      : Promise.resolve([] as AppointmentRow[]),
     intakeService.listForDoctor({ status: "new", limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),
@@ -527,8 +419,13 @@ export async function loadDoctorTodayDashboard(
     proactiveResult,
     exerciseCommentAttention,
   ] = await Promise.all([
+    // §1.3: грузим все открытые задачи (без лимита) для подсчёта total и фильтрации «сегодня»
     deps.specialistTasks && deps.specialistOwnerUserId
-      ? deps.specialistTasks.listGlobalOpen(deps.specialistOwnerUserId, 8)
+      ? deps.specialistTasks.listForOwner({
+          ownerUserId: deps.specialistOwnerUserId,
+          patientUserId: null,
+          includeCompleted: false,
+        })
       : Promise.resolve([] as SpecialistTaskRow[]),
     deps.treatmentProgramProgress
       ? Promise.all([
@@ -542,7 +439,7 @@ export async function loadDoctorTodayDashboard(
           displayIana: deps.displayIana,
         })
       : Promise.resolve({ items: [], totalCount: 0 }),
-    loadTodayExerciseCommentAttention(deps, onSupportListRaw),
+    loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
   ]);
 
   const unreadExerciseCommentsByPatientId = new Map<string, number>();
@@ -576,6 +473,8 @@ export async function loadDoctorTodayDashboard(
 
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
+    weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
+    monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
     newIntakeRequests: newIntake.items.map(mapIntakeToTodayItem),
     unreadConversations: unreadConversations.map(mapConversationToTodayItem),
     unreadTotal,
@@ -584,6 +483,7 @@ export async function loadDoctorTodayDashboard(
     onSupportClients: onSupportClientsWithStats,
     onSupportListTruncated,
     globalOpenTasks,
+    globalOpenTasksTotal: globalOpenTasks.length,
     pendingProgramTests,
     pendingProgramTestsTotal,
     pendingProgramTestsTruncated,

@@ -1,17 +1,17 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData";
 import { GoogleCalendarSection } from "@/app/app/settings/GoogleCalendarSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 export default async function DoctorAdminIntegrationsPage() {
   await requireAdminDoctorPage();
   const { googleCalendarConfig } = await loadAdminSettingsPageData();
 
   return (
-    <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className={`mb-3 ${doctorPageTitleClass}`}>Интеграции</h1>
+    <DoctorAppShell title="Интеграции">
+      <DoctorPageHeader title="Интеграции" />
       <GoogleCalendarSection {...googleCalendarConfig} />
-    </div>
+    </DoctorAppShell>
   );
 }

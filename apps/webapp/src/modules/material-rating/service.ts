@@ -258,6 +258,19 @@ export function createMaterialRatingService(deps: {
     },
 
     /**
+     * Батч-агрегаты для списков в кабинете врача (карточки контента): без
+     * проверки существования каждой цели — это вьюшка над уже загруженным списком.
+     */
+    async listDoctorAggregates(input: {
+      targetKind: MaterialRatingTargetKind;
+      targetIds: string[];
+      excludedUserIds?: string[];
+    }): Promise<Map<string, MaterialRatingAggregate>> {
+      if (input.targetIds.length === 0) return new Map();
+      return deps.ratings.listAggregates(input);
+    },
+
+    /**
      * Детализация для кабинета врача: цель должна существовать.
      * Для `content_page` достаточно строки в CMS без soft-delete — черновики/неопубликованное допустимы (врач редактирует контент).
      */

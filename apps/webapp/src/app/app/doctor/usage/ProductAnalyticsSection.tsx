@@ -127,7 +127,7 @@ export function ProductAnalyticsSection() {
       .join(" · ") ?? "—";
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={String(windowHours)}
@@ -157,7 +157,7 @@ export function ProductAnalyticsSection() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <DoctorStatCard
               id="usage-kpi-active-users"
-              title="Активных клиентов"
+              title="Активных пользователей"
               value={data.summary.uniqueActiveUsers}
               onClick={() => setClientsDialogOpen(true)}
             />
@@ -187,7 +187,7 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Активные клиенты по суткам</CardTitle>
+              <CardTitle className="text-sm">Активные пользователи по суткам</CardTitle>
             </CardHeader>
             <CardContent>
               <ProductAnalyticsActiveUsersChart rows={data.activeUsersDaily} />
@@ -256,7 +256,7 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Клиенты</CardTitle>
+              <CardTitle className="text-sm">Пользователи приложения</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <StatTable
@@ -319,7 +319,7 @@ export function ProductAnalyticsSection() {
           <UsageMetricAccountsDialog
             open={clientsDialogOpen}
             onOpenChange={setClientsDialogOpen}
-            title="Активные клиенты"
+            title="Активные пользователи"
             rows={sortedClientRows}
             displayTimezone={data.displayTimezone}
           />

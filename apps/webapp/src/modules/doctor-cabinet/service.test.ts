@@ -33,7 +33,7 @@ describe("doctor-cabinet service", () => {
       const overview = getOverviewState();
       expect(Array.isArray(overview.quickActions)).toBe(true);
       expect(overview.quickActions.length).toBeGreaterThan(0);
-      expect(overview.quickActions.some((a) => a.href === "/app/doctor/clients")).toBe(true);
+      expect(overview.quickActions.some((a) => a.href === "/app/doctor/patients")).toBe(true);
       expect(overview.quickActions.some((a) => a.href === "/app/doctor/appointments")).toBe(true);
     });
   });

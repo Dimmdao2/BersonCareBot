@@ -3,7 +3,7 @@
 import { Check, CornerDownLeft, SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { proactiveInsightKindLabelRu } from "@/modules/doctor-proactive-insights/computeProactiveInsights";
@@ -14,11 +14,11 @@ import { sendDoctorProgramDiscussionReply } from "@/app/app/doctor/clients/[user
 import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
 import type { TodayProactiveInsightItem } from "./mapProactiveInsightsForToday";
 import { markDoctorProgramDiscussionRead } from "./doctorProgramDiscussionMarkRead";
-import type {
-  TodayExerciseCommentAttentionItem,
-  TodayIntakeItem,
-  TodayUnreadConversationItem,
-} from "./loadDoctorTodayDashboard";
+import {
+  groupExerciseCommentAttentionByPatient,
+  type TodayExerciseCommentAttentionItem,
+} from "./loadDoctorExerciseCommentAttention";
+import type { TodayIntakeItem, TodayUnreadConversationItem } from "./loadDoctorTodayDashboard";
 
 export type DoctorTodayAttentionKind =
   | "intake"
@@ -316,35 +316,14 @@ export function DoctorTodayAttentionDialog({
   onExerciseCommentResolved,
 }: Props) {
   const title = kind ? TITLES[kind] : "";
-  const exerciseCommentsByPatient = useMemo(() => {
-    const groups = new Map<
-      string,
-      { patientUserId: string; patientDisplayName: string; items: TodayExerciseCommentAttentionItem[] }
-    >();
-    for (const row of exerciseCommentAttentionItems) {
-      const key = row.patientUserId;
-      const current = groups.get(key);
-      if (current) {
-        current.items.push(row);
-      } else {
-        groups.set(key, { patientUserId: row.patientUserId, patientDisplayName: row.patientDisplayName, items: [row] });
-      }
-    }
-    for (const group of groups.values()) {
-      group.items.sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
-    }
-    return [...groups.values()].sort((a, b) =>
-      a.patientDisplayName.localeCompare(b.patientDisplayName, "ru", { sensitivity: "base" }),
-    );
-  }, [exerciseCommentAttentionItems]);
+  const exerciseCommentsByPatient = useMemo(
+    () => groupExerciseCommentAttentionByPatient(exerciseCommentAttentionItems),
+    [exerciseCommentAttentionItems],
+  );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <div className="max-h-[65vh] overflow-y-auto pr-1">
+    <DoctorModal open={open} onClose={() => onOpenChange(false)} title={title} size="lg">
+      <div className="max-h-[65vh] overflow-y-auto pr-1">
           {kind === "intake" ? (
             <>
               {newIntakeRequests.length === 0 ? (
@@ -526,8 +505,7 @@ export function DoctorTodayAttentionDialog({
               ) : null}
             </>
           ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DoctorModal>
   );
 }

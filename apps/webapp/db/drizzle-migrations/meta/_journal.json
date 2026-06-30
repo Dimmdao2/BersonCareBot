@@ -806,6 +806,153 @@
       "when": 1785700000000,
       "tag": "0114_client_media_folders_fixup",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1785800000000,
+      "tag": "0115_be_working_days_and_schedule_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1785900000000,
+      "tag": "0116_breaks_jsonb_working_days_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1786000000000,
+      "tag": "0117_be_branches_short_title",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1786100000000,
+      "tag": "0118_drop_legacy_break_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1786200000000,
+      "tag": "0119_be_appointments_soft_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1786300000000,
+      "tag": "0120_patient_files_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1786300100000,
+      "tag": "0121_patient_clinical_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1786400000000,
+      "tag": "0122_patient_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1786500000000,
+      "tag": "0123_platform_users_birth_date",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1786600000000,
+      "tag": "0124_patient_gender_and_support_started",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1786700000000,
+      "tag": "0125_patient_clinical_anamnesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1786800000000,
+      "tag": "0126_be_no_show_handling",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1786886400000,
+      "tag": "0127_patient_comorbidities",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1786972800000,
+      "tag": "0128_patient_diagnosis_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1787059200000,
+      "tag": "0129_add_patronymic",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1787059300000,
+      "tag": "0130_patient_height_weight",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1787145600000,
+      "tag": "0131_patient_files_media_file_id_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1787232000000,
+      "tag": "0132_system_settings_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1787318400000,
+      "tag": "0133_patient_files_folder_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1787404800000,
+      "tag": "0134_broadcast_drafts_add_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1787491200000,
+      "tag": "0135_clinical_diagnosis_add_comment",
+      "breakpoints": true
     }
   ]
 }

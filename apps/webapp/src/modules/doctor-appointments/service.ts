@@ -35,5 +35,17 @@ export function createDoctorAppointmentsService(deps: DoctorAppointmentsServiceD
     ) {
       return deps.appointmentsPort.getDashboardAppointmentMetrics(audience);
     },
+    async getScheduleKpis(
+      query: Parameters<DoctorAppointmentsPort["getScheduleKpis"]>[0],
+      audience?: Parameters<DoctorAppointmentsPort["getScheduleKpis"]>[1],
+    ) {
+      return deps.appointmentsPort.getScheduleKpis(query, audience);
+    },
+    async getAppointmentDailySeries(
+      filter: Parameters<DoctorAppointmentsPort["getAppointmentDailySeries"]>[0],
+      audience?: Parameters<DoctorAppointmentsPort["getAppointmentDailySeries"]>[1],
+    ) {
+      return deps.appointmentsPort.getAppointmentDailySeries(filter, audience);
+    },
   };
 }

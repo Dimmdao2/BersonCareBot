@@ -2204,7 +2204,7 @@
 		},
 		"steps": [
 			{
-				"action": "reminders.messengerTopic.disable.callback",
+				"action": "reminders.notifSettings.open.callback",
 				"mode": "sync",
 				"params": {
 					"occurrenceId": "{{input.reminderOccurrenceId}}",
@@ -2316,6 +2316,78 @@
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "max",
 					"chatId": "{{actor.chatId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "max.reminder.snoozeMenu",
+		"source": "max",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_snooze_menu"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.snoozeMenu.callback",
+				"mode": "sync",
+				"params": {
+					"occurrenceId": "{{input.reminderOccurrenceId}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "max",
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "max.reminder.notifSettings.open",
+		"source": "max",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_notif_settings"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.notifSettings.open.callback",
+				"mode": "sync",
+				"params": {
+					"occurrenceId": "{{input.reminderOccurrenceId}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "max",
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "max.reminder.notifSettings.toggle",
+		"source": "max",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_notif_toggle"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.notifSettings.toggle.callback",
+				"mode": "sync",
+				"params": {
+					"topicCode": "{{input.reminderTopicCode}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "max",
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
 		]

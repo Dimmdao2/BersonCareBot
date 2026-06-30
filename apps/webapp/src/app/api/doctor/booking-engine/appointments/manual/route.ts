@@ -81,6 +81,18 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const syncPort = createBookingSyncPort();
   const bridgeEnabled = await isStaffRubitimeOutboundEnabled(deps);
+
+  // Staff manual creates are in-person and MUST have a concrete specialist.
+  // A NULL specialist_id bypasses the be_appointments_specialist_no_overlap
+  // exclusion constraint (it only covers non-null), letting a booking land on
+  // any occupied slot. ONLINE patient bookings legitimately use NULL, but they
+  // never reach this route. (F2: null-specialist overlap escape.)
+  const resolvedSpecialistId =
+    parsed.data.specialistId ?? (await resolveDefaultSpecialistId(ctx));
+  if (!resolvedSpecialistId) {
+    return NextResponse.json({ ok: false, error: "specialist_required" }, { status: 400 });
+  }
+
   let syncContext: StaffRubitimeSyncContext | null = null;
   try {
     syncContext = await resolveRubitimeSyncContext({
@@ -88,7 +100,7 @@ export async function POST(request: Request) {
       ctx,
       branchId: parsed.data.branchId ?? null,
       serviceId: parsed.data.serviceId ?? null,
-      specialistId: parsed.data.specialistId ?? null,
+      specialistId: resolvedSpecialistId,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "rubitime_mapping_missing";
@@ -102,7 +114,7 @@ export async function POST(request: Request) {
     if (deps.bookingScheduling) {
       await deps.bookingScheduling.assertSlotAvailable({
         organizationId: ctx.organizationId,
-        specialistId: parsed.data.specialistId ?? null,
+        specialistId: resolvedSpecialistId,
         roomId: parsed.data.roomId ?? null,
         slotStart: parsed.data.startAt,
         slotEnd: parsed.data.endAt,
@@ -113,7 +125,7 @@ export async function POST(request: Request) {
       organizationId: ctx.organizationId,
       branchId: parsed.data.branchId ?? null,
       roomId: parsed.data.roomId ?? null,
-      specialistId: parsed.data.specialistId ?? null,
+      specialistId: resolvedSpecialistId,
       serviceId: parsed.data.serviceId ?? null,
       platformUserId: parsed.data.platformUserId ?? null,
       startAt: parsed.data.startAt,

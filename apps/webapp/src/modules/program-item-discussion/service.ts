@@ -1,10 +1,13 @@
 import type { ProgramItemDiscussionPort } from "./ports";
 import type {
+  DoctorExerciseCommentCursor,
+  DoctorExerciseCommentRow,
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionAttentionSummary,
   ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
+  StageItemViewerUnreadCount,
 } from "./types";
 import {
   PROGRAM_ITEM_DISCUSSION_ORIGINS,
@@ -237,6 +240,64 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
         patientUserId: assertUuid(input.patientUserId, "patient_user_id"),
         inboundAdminMessages: input.inboundAdminMessages,
       });
+    },
+
+    async listUnreadExerciseCommentsForDoctor(input: {
+      patientUserIds: string[];
+      viewerUserId: string;
+      limit: number;
+      cursor?: DoctorExerciseCommentCursor | null;
+    }): Promise<DoctorExerciseCommentRow[]> {
+      const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      const patientUserIds = [...new Set(input.patientUserIds.map((id) => assertUuid(id, "patient_user_id")))];
+      const safeLimit = Math.max(1, Math.trunc(input.limit));
+      return port.listUnreadExerciseCommentsForDoctor({
+        patientUserIds,
+        viewerUserId,
+        limit: safeLimit,
+        cursor: input.cursor ?? null,
+      });
+    },
+
+    async listExerciseCommentsForDoctor(input: {
+      patientUserIds: string[];
+      viewerUserId: string;
+      limit: number;
+      cursor?: DoctorExerciseCommentCursor | null;
+    }): Promise<DoctorExerciseCommentRow[]> {
+      const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      const patientUserIds = [...new Set(input.patientUserIds.map((id) => assertUuid(id, "patient_user_id")))];
+      const safeLimit = Math.max(1, Math.trunc(input.limit));
+      return port.listExerciseCommentsForDoctor({
+        patientUserIds,
+        viewerUserId,
+        limit: safeLimit,
+        cursor: input.cursor ?? null,
+      });
+    },
+
+    async listAllExerciseCommentsForDoctor(input: {
+      viewerUserId: string;
+      limit: number;
+      cursor?: DoctorExerciseCommentCursor | null;
+    }): Promise<DoctorExerciseCommentRow[]> {
+      const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      const safeLimit = Math.max(1, Math.trunc(input.limit));
+      return port.listAllExerciseCommentsForDoctor({
+        viewerUserId,
+        limit: safeLimit,
+        cursor: input.cursor ?? null,
+      });
+    },
+
+    async listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<StageItemViewerUnreadCount[]> {
+      const ids = [...new Set(input.stageItemIds.map((id) => assertUuid(id, "stage_item_id")))];
+      const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      if (ids.length === 0) return [];
+      return port.listUnreadCountsForViewerByStageItems({ stageItemIds: ids, viewerUserId });
     },
 
     async deletePatientMediaMessage(input: {

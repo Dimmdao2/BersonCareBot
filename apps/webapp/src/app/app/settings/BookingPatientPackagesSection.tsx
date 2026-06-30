@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { apiJson } from "@/shared/lib/apiJson";
 
 type Props = {
   apiBase?: string;
@@ -34,15 +35,6 @@ const ERROR_LABELS: Record<string, string> = {
   response_parse_failed: "Ошибка ответа сервера.",
 };
 
-async function readJsonSafe<T>(res: Response): Promise<T | null> {
-  const raw = await res.text();
-  if (!raw.trim()) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
 
 function errorLabel(code: string | null): string | null {
   if (!code) return null;
@@ -76,11 +68,16 @@ export function BookingPatientPackagesSection({
 
   function loadRefs() {
     startTransition(async () => {
-      const [svcRes, pkgRes] = await Promise.all([fetch(servicesApi), fetch(packagesApi)]);
-      const svcJson = await readJsonSafe<{ ok?: boolean; services?: Array<{ id: string; title: string }> }>(svcRes);
-      const pkgJson = await readJsonSafe<{ ok?: boolean; packages?: Array<{ id: string; title: string }> }>(pkgRes);
-      if (svcJson?.ok && svcJson.services) setServices(svcJson.services);
-      if (pkgJson?.ok && pkgJson.packages) setCatalog(pkgJson.packages);
+      try {
+        const [svcJson, pkgJson] = await Promise.all([
+          apiJson<{ ok?: boolean; services?: Array<{ id: string; title: string }> }>(servicesApi),
+          apiJson<{ ok?: boolean; packages?: Array<{ id: string; title: string }> }>(packagesApi),
+        ]);
+        if (svcJson.services) setServices(svcJson.services);
+        if (pkgJson.packages) setCatalog(pkgJson.packages);
+      } catch {
+        // refs load failure is non-critical
+      }
     });
   }
 
@@ -98,26 +95,21 @@ export function BookingPatientPackagesSection({
       return;
     }
     startTransition(async () => {
-      const res = await fetch(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`);
-      const json = await readJsonSafe<{
-        ok?: boolean;
-        packages?: Array<{
-          id: string;
-          title: string;
-          status: string;
-          balance: { items: Array<{ remaining: number }> };
-        }>;
-        error?: string;
-      }>(res);
-      if (!json) {
-        setError("response_parse_failed");
-        return;
+      try {
+        const json = await apiJson<{
+          ok?: boolean;
+          packages?: Array<{
+            id: string;
+            title: string;
+            status: string;
+            balance: { items: Array<{ remaining: number }> };
+          }>;
+          error?: string;
+        }>(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`);
+        setListed(json.packages ?? []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "failed");
       }
-      if (!json.ok) {
-        setError(json.error ?? "failed");
-        return;
-      }
-      setListed(json.packages ?? []);
     });
   }
 
@@ -132,26 +124,21 @@ export function BookingPatientPackagesSection({
       return;
     }
     startTransition(async () => {
-      const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "catalog",
-          platformUserId: platformUserId.trim(),
-          subscriptionPackageId: catalogId,
-          notes: catalogNotes.trim() || undefined,
-        }),
-      });
-      const json = await readJsonSafe<{ ok?: boolean; package?: { id: string }; error?: string }>(res);
-      if (!json) {
-        setError("response_parse_failed");
-        return;
+      try {
+        const json = await apiJson<{ ok?: boolean; package?: { id: string }; error?: string }>(apiBase, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "catalog",
+            platformUserId: platformUserId.trim(),
+            subscriptionPackageId: catalogId,
+            notes: catalogNotes.trim() || undefined,
+          }),
+        });
+        setResultId(json.package?.id ?? null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "failed");
       }
-      if (!json.ok) {
-        setError(json.error ?? "failed");
-        return;
-      }
-      setResultId(json.package?.id ?? null);
     });
   }
 
@@ -163,31 +150,26 @@ export function BookingPatientPackagesSection({
       return;
     }
     startTransition(async () => {
-      const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "manual",
-          platformUserId: platformUserId.trim(),
-          notes: manualNotes.trim() || undefined,
-          priceMinor,
-          items,
-        }),
-      });
-      const json = await readJsonSafe<{
-        ok?: boolean;
-        package?: { id: string; paymentIntentId?: string };
-        error?: string;
-      }>(res);
-      if (!json) {
-        setError("response_parse_failed");
-        return;
+      try {
+        const json = await apiJson<{
+          ok?: boolean;
+          package?: { id: string; paymentIntentId?: string };
+          error?: string;
+        }>(apiBase, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "manual",
+            platformUserId: platformUserId.trim(),
+            notes: manualNotes.trim() || undefined,
+            priceMinor,
+            items,
+          }),
+        });
+        setResultId(json.package?.id ?? null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "failed");
       }
-      if (!json.ok) {
-        setError(json.error ?? "failed");
-        return;
-      }
-      setResultId(json.package?.id ?? null);
     });
   }
 

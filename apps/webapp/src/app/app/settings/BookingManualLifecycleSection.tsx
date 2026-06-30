@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { BookingStaffPaymentPanel } from "./BookingStaffPaymentPanel";
+import { apiJson } from "@/shared/lib/apiJson";
 
 const CANCEL_TYPES = [
   { value: "free", label: "Бесплатная" },
@@ -68,34 +69,37 @@ export function BookingManualLifecycleSection({
         setAppointmentOptions([]);
         return;
       }
-      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(platformUserId)}/history`);
-      const json = (await res.json()) as {
-        ok?: boolean;
-        timeline?: Array<{
-          appointmentId: string | null;
-          title: string;
-          occurredAt: string;
-          category: string;
-        }>;
-      };
-      if (!json.ok || !json.timeline) {
+      try {
+        const json = await apiJson<{
+          ok?: boolean;
+          timeline?: Array<{
+            appointmentId: string | null;
+            title: string;
+            occurredAt: string;
+            category: string;
+          }>;
+        }>(`/api/doctor/clients/${encodeURIComponent(platformUserId)}/history`);
+        if (!json.timeline) {
+          setAppointmentOptions([]);
+          return;
+        }
+        const byId = new Map<string, AppointmentOption>();
+        for (const item of json.timeline) {
+          if (!item.appointmentId) continue;
+          if (item.category !== "appointment" && item.category !== "reschedule") continue;
+          const at = new Date(item.occurredAt);
+          const when = Number.isNaN(at.getTime())
+            ? item.occurredAt
+            : at.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+          byId.set(item.appointmentId, {
+            id: item.appointmentId,
+            label: `${item.title} · ${when}`,
+          });
+        }
+        setAppointmentOptions([...byId.values()]);
+      } catch {
         setAppointmentOptions([]);
-        return;
       }
-      const byId = new Map<string, AppointmentOption>();
-      for (const item of json.timeline) {
-        if (!item.appointmentId) continue;
-        if (item.category !== "appointment" && item.category !== "reschedule") continue;
-        const at = new Date(item.occurredAt);
-        const when = Number.isNaN(at.getTime())
-          ? item.occurredAt
-          : at.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
-        byId.set(item.appointmentId, {
-          id: item.appointmentId,
-          label: `${item.title} · ${when}`,
-        });
-      }
-      setAppointmentOptions([...byId.values()]);
     });
   }, [platformUserId]);
 
@@ -153,16 +157,16 @@ export function BookingManualLifecycleSection({
               disabled={pending || !appointmentId}
               onClick={() => {
                 startTransition(async () => {
-                  const res = await fetch(
-                    `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-cancel`,
-                    {
+                  try {
+                    await apiJson(`${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-cancel`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ decisionType: cancelType }),
-                    },
-                  );
-                  const json = (await res.json()) as { ok?: boolean; error?: string };
-                  setMessage(json.ok ? "Отмена применена" : (json.error ?? "error"));
+                    });
+                    setMessage("Отмена применена");
+                  } catch (e) {
+                    setMessage(e instanceof Error ? e.message : "error");
+                  }
                 });
               }}
             >
@@ -198,9 +202,8 @@ export function BookingManualLifecycleSection({
                   Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
                 );
                 startTransition(async () => {
-                  const res = await fetch(
-                    `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-reschedule`,
-                    {
+                  try {
+                    await apiJson(`${apiBase}/appointments/${encodeURIComponent(appointmentId)}/manual-reschedule`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
@@ -208,10 +211,11 @@ export function BookingManualLifecycleSection({
                         newEndAt,
                         durationMinutes,
                       }),
-                    },
-                  );
-                  const json = (await res.json()) as { ok?: boolean; error?: string };
-                  setMessage(json.ok ? "Перенос применён" : (json.error ?? "error"));
+                    });
+                    setMessage("Перенос применён");
+                  } catch (e) {
+                    setMessage(e instanceof Error ? e.message : "error");
+                  }
                 });
               }}
             >

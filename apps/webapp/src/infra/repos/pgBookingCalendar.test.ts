@@ -28,3 +28,10 @@ describe("pgBookingCalendar purge filter", () => {
     expect(src).toMatch(/visibleRows = await filterCanonicalRowsNotPurged/);
   });
 });
+
+describe("pgBookingCalendar soft-delete filter (F1b)", () => {
+  it("listAppointmentsInRange excludes soft-deleted canonical rows (deleted_at IS NULL)", () => {
+    const src = readFileSync(join(repoDir, "pgBookingCalendar.ts"), "utf8");
+    expect(src).toContain("isNull(beAppointments.deletedAt)");
+  });
+});

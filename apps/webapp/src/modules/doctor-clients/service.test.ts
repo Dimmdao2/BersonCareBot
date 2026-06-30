@@ -31,6 +31,9 @@ describe("doctor-clients service", () => {
         },
       ];
     },
+    async getPatientCardHeader() {
+      return null;
+    },
     async getPatientClientIdentity(userId: string) {
       return this.getClientIdentity(userId);
     },
@@ -38,7 +41,7 @@ describe("doctor-clients service", () => {
       return userId === "user-1" ? stubIdentity : null;
     },
     async getDashboardPatientMetrics() {
-      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0 };
+      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
     },
     async getClientContactBreakdown() {
       return emptyClientContactBreakdown();
@@ -55,12 +58,21 @@ describe("doctor-clients service", () => {
       return {
         patientUserId: params.patientUserId,
         onSupport: params.onSupport ?? false,
+        supportStartedAt: null,
         commentsEnabled: params.commentsEnabled ?? null,
         mediaEnabled: params.mediaEnabled ?? null,
         updatedAt: new Date().toISOString(),
         updatedBy: params.actorId,
       };
     },
+    async listPatientAppointments() {
+      return [];
+    },
+    async setPatientBirthDate() {},
+    async setPatientGender() {},
+    async setPatientNames() {},
+    async getPatientPhysical() { return { heightCm: null, weightKg: null }; },
+    async setPatientPhysical() {},
   };
 
   const service = createDoctorClientsService({
@@ -114,6 +126,7 @@ describe("doctor-clients service", () => {
         return {
           patientUserId: "user-1",
           onSupport: false,
+          supportStartedAt: null,
           commentsEnabled: true,
           mediaEnabled: null,
           updatedAt: "2026-01-01T00:00:00.000Z",
@@ -212,6 +225,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     async listClients() {
       return [];
     },
+    async getPatientCardHeader() {
+      return null;
+    },
     async getPatientClientIdentity(userId: string) {
       return this.getClientIdentity(userId);
     },
@@ -219,7 +235,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       return userId === "user-1" ? stubIdentity : null;
     },
     async getDashboardPatientMetrics() {
-      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0 };
+      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
     },
     async getClientContactBreakdown() {
       return emptyClientContactBreakdown();
@@ -236,12 +252,21 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       return {
         patientUserId: params.patientUserId,
         onSupport: params.onSupport ?? false,
+        supportStartedAt: null,
         commentsEnabled: params.commentsEnabled ?? null,
         mediaEnabled: params.mediaEnabled ?? null,
         updatedAt: new Date().toISOString(),
         updatedBy: params.actorId,
       };
     },
+    async listPatientAppointments() {
+      return [];
+    },
+    async setPatientBirthDate() {},
+    async setPatientGender() {},
+    async setPatientNames() {},
+    async getPatientPhysical() { return { heightCm: null, weightKg: null }; },
+    async setPatientPhysical() {},
   };
 
   afterEach(() => {

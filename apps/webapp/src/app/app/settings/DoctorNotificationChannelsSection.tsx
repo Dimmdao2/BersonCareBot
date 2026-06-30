@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import type { DoctorNotificationTopicModel } from "@/modules/doctor-notifications/doctorProfileTopicChannelsModel";
 import { routePaths } from "@/app-layer/routes/paths";
 import { DoctorWebPushControls } from "./DoctorWebPushControls";
@@ -28,26 +28,24 @@ export function DoctorNotificationChannelsSection({
   const hasMessengerOrEmail = hasTelegram || hasMax || emailVerified;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Уведомления</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <DoctorWebPushControls
-          initialHasSubscription={hasWebPushSubscription}
-          initialGlobalEnabled={globalWebPushEnabled}
-        />
-        {!hasMessengerOrEmail && !hasWebPushSubscription ? (
-          <p className="text-xs text-muted-foreground">
-            Для Telegram, MAX или email подключите каналы в{" "}
-            <Link href={routePaths.settings} className="underline">
-              настройках аккаунта
-            </Link>{" "}
-            (email — в блоке выше).
-          </p>
-        ) : null}
-        <DoctorNotificationsTopicMatrix initialTopics={initialTopics} pushEffective={pushEffective} />
-      </CardContent>
-    </Card>
+    <DoctorSection>
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Уведомления</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      <DoctorWebPushControls
+        initialHasSubscription={hasWebPushSubscription}
+        initialGlobalEnabled={globalWebPushEnabled}
+      />
+      {!hasMessengerOrEmail && !hasWebPushSubscription ? (
+        <p className="text-xs text-muted-foreground">
+          Для Telegram, MAX или email подключите каналы в{" "}
+          <Link href={routePaths.settings} className="underline">
+            настройках аккаунта
+          </Link>{" "}
+          (email — в блоке выше).
+        </p>
+      ) : null}
+      <DoctorNotificationsTopicMatrix initialTopics={initialTopics} pushEffective={pushEffective} />
+    </DoctorSection>
   );
 }

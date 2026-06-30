@@ -8,9 +8,11 @@ import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hook
 
 const pathnameRef = vi.hoisted(() => ({ value: "/app/patient" }));
 const chatUnreadState = vi.hoisted(() => ({ count: 0 }));
+const notificationUnreadState = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameRef.value,
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     back: vi.fn(),
     push: vi.fn(),
@@ -31,6 +33,8 @@ vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", async (importOrigin
       }, []);
       return count;
     },
+    usePatientNotificationUnreadCount: () => notificationUnreadState.count,
+    notifyPatientNotificationUnreadCountChanged: vi.fn(),
   };
 });
 
@@ -104,7 +108,10 @@ describe("PatientTopNav", () => {
     expect(desktopNav).toHaveClass("hidden");
     expect(desktopNav).toHaveClass("patient-desktop:flex");
     expect(within(desktopNav).getByText("BersonCare")).toBeInTheDocument();
-    expect(within(desktopNav).getByRole("link", { name: "Напоминания" })).toBeInTheDocument();
+    expect(within(desktopNav).getByRole("link", { name: "Уведомления" })).toHaveAttribute(
+      "href",
+      "/app/patient/notifications",
+    );
     expect(within(desktopNav).getByRole("link", { name: "Сообщения" })).toBeInTheDocument();
   });
 });

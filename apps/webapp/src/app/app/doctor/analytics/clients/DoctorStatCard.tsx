@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   doctorMetricLabelClass,
   doctorMetricValueClass,
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   id: string;
   title: string;
-  value: number | string;
+  value: ReactNode;
   tone?: "neutral" | "warning";
   hint?: string;
   href?: string;
@@ -35,7 +36,7 @@ export function DoctorStatCard({
   const inner = (
     <>
       <p className={doctorMetricLabelClass}>{title}</p>
-      <p className={`mt-0.5 ${doctorMetricValueClass}`}>{value}</p>
+      <div className={`mt-0.5 ${doctorMetricValueClass}`}>{value}</div>
       {hint ? <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p> : null}
     </>
   );

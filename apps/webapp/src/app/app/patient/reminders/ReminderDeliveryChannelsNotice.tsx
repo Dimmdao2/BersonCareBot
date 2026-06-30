@@ -13,7 +13,7 @@ export function ReminderDeliveryChannelsNotice({ className }: { className?: stri
     <div className={cn(patientHeroBookingCardChromeClass, "mb-4 flex flex-col gap-3 p-4 md:p-[18px]", className)}>
       <p className={cn(patientMutedTextClass, "text-sm")}>{REMINDER_DELIVERY_CHANNELS_NOTICE}</p>
       <Link
-        href={routePaths.notifications}
+        href={routePaths.notificationSettings}
         className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full sm:w-auto")}
       >
         Настроить каналы доставки

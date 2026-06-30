@@ -211,6 +211,31 @@ describe("createBookingSyncPort.fetchSlots", () => {
   });
 });
 
+// X1: cancelRecord posts to update-record with {status:4}, NOT to remove-record
+describe("createBookingSyncPort.cancelRecord", () => {
+  it("X1: cancelRecord posts to /update-record with {status:4} (not /remove-record)", async () => {
+    let capturedUrl: string | undefined;
+    let capturedBody: Record<string, unknown> | undefined;
+    globalFetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+      capturedUrl = url;
+      capturedBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+      return { status: 200, json: () => Promise.resolve({ ok: true }) };
+    });
+    const port = createBookingSyncPort();
+    await port.cancelRecord("rt-record-123");
+    expect(capturedUrl).toContain("/update-record");
+    expect(capturedUrl).not.toContain("/remove-record");
+    expect(capturedBody?.recordId).toBe("rt-record-123");
+    expect((capturedBody?.patch as Record<string, unknown> | undefined)?.status).toBe(4);
+  });
+
+  it("X1: cancelRecord throws when update-record returns ok:false", async () => {
+    mockFetch({ ok: false }, 502);
+    const port = createBookingSyncPort();
+    await expect(port.cancelRecord("rt-fail-1")).rejects.toThrow("rubitime_cancel_failed");
+  });
+});
+
 describe("createBookingSyncPort postSigned retry", () => {
   afterEach(() => {
     vi.useRealTimers();

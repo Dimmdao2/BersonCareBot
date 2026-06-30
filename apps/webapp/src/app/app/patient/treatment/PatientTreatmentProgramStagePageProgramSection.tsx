@@ -36,10 +36,6 @@ import {
   sortProgramCompositionItemsByOrderThenId,
 } from "@/app/app/patient/treatment/programCompositionOrder";
 import { ProgramItemDiscussionDialog } from "./ProgramItemDiscussionDialog";
-import {
-  ProgramItemCompleteDialog,
-  type ProgramItemCompleteDialogPayload,
-} from "./ProgramItemCompleteDialog";
 import { PatientProgramItemExecutionRow } from "./PatientProgramItemExecutionRow";
 import { postProgramItemComplete } from "./postProgramItemComplete";
 
@@ -142,6 +138,86 @@ type ItemDiscussionSummary = {
   unreadCount: number;
 };
 
+export type CompletionDifficulty = "easy" | "medium" | "hard";
+
+export type CompletionMetricsDraft = {
+  perceivedDifficulty: CompletionDifficulty;
+  repsRaw: string;
+  setsRaw: string;
+  weightRaw: string;
+  loading: boolean;
+  saving: boolean;
+};
+
+export type CompletionMetricsPayload = {
+  perceivedDifficulty: CompletionDifficulty;
+  reps?: number;
+  sets?: number;
+  weightKg?: number;
+};
+
+export const DEFAULT_COMPLETION_METRICS_DRAFT: CompletionMetricsDraft = {
+  perceivedDifficulty: "medium",
+  repsRaw: "",
+  setsRaw: "",
+  weightRaw: "",
+  loading: false,
+  saving: false,
+};
+
+function sanitizeIntegerInput(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
+function sanitizeWeightInput(raw: string): string {
+  const normalized = raw.replace(",", ".");
+  let out = "";
+  let dotSeen = false;
+  let decimalSeen = false;
+  for (const ch of normalized) {
+    if (/\d/.test(ch)) {
+      if (dotSeen) {
+        if (decimalSeen) continue;
+        decimalSeen = true;
+      }
+      out += ch;
+      continue;
+    }
+    if (ch === "." && !dotSeen) {
+      dotSeen = true;
+      out += ch;
+    }
+  }
+  return out;
+}
+
+function optionalPositiveInt(raw: string): number | undefined {
+  if (!raw.trim()) return undefined;
+  const n = Number.parseInt(raw, 10);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+function optionalWeight(raw: string): number | undefined {
+  if (!raw.trim() || raw.trim() === ".") return undefined;
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return Math.round(n * 10) / 10;
+}
+
+export function metricNumberToInput(v: number | null | undefined, decimal = false): string {
+  if (typeof v !== "number" || !Number.isFinite(v)) return "";
+  return decimal && !Number.isInteger(v) ? v.toFixed(1) : String(v);
+}
+
+export function draftToPayload(draft: CompletionMetricsDraft): CompletionMetricsPayload {
+  return {
+    perceivedDifficulty: draft.perceivedDifficulty,
+    reps: optionalPositiveInt(draft.repsRaw),
+    sets: optionalPositiveInt(draft.setsRaw),
+    weightKg: optionalWeight(draft.weightRaw),
+  };
+}
+
 function PatientProgramTileSimpleCompleteButton(props: {
   itemId: string;
   completedAt: string | null;
@@ -149,7 +225,7 @@ function PatientProgramTileSimpleCompleteButton(props: {
   busy: string | null;
   planItemDoneRepeatCooldownMs: number;
   containerClassName?: string;
-  onOpenComplete: (itemId: string) => void;
+  onComplete: (itemId: string) => void;
 }) {
   const {
     itemId,
@@ -158,7 +234,7 @@ function PatientProgramTileSimpleCompleteButton(props: {
     busy,
     planItemDoneRepeatCooldownMs,
     containerClassName,
-    onOpenComplete,
+    onComplete,
   } = props;
   const merged = mergeLastActivityDisplayedIso(lastDoneAtIso, completedAt);
   const doneFrozen = isItemDoneCooldownActive(merged, planItemDoneRepeatCooldownMs);
@@ -175,13 +251,112 @@ function PatientProgramTileSimpleCompleteButton(props: {
         disabled={busy !== null || doneFrozen}
         onClick={(e) => {
           e.stopPropagation();
-          onOpenComplete(itemId);
+          onComplete(itemId);
         }}
       >
         <span className="w-full text-center leading-tight">
           {doneFrozen ? "Выполнено" : "Отметить выполнение"}
         </span>
       </button>
+    </div>
+  );
+}
+
+export function CompletionMetricsPanel(props: {
+  draft: CompletionMetricsDraft;
+  onDraftChange: (draft: CompletionMetricsDraft) => void;
+  onSave: () => void;
+}) {
+  const { draft, onDraftChange, onSave } = props;
+  const difficultyOptions: Array<{ value: CompletionDifficulty; label: string }> = [
+    { value: "easy", label: "Легко" },
+    { value: "medium", label: "Средне" },
+    { value: "hard", label: "Тяжело" },
+  ];
+  const fieldBase = cn(
+    "h-8 w-full rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 text-center text-xs tabular-nums outline-none",
+    "focus-visible:ring-2 focus-visible:ring-[var(--patient-border)]",
+  );
+
+  return (
+    <div className="grid grid-rows-[1fr] transition-[grid-template-rows,opacity] duration-200 ease-out">
+      <div className="min-h-0 overflow-hidden">
+        <div className="border-t border-[var(--patient-border)] bg-[var(--patient-color-primary-soft)]/20 px-2.5 py-2.5">
+          {draft.loading ? (
+            <p className={cn(patientMutedTextClass, "text-xs")}>Готовим поля…</p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              <div className="grid grid-cols-3 gap-1.5">
+                {difficultyOptions.map((opt) => {
+                  const active = draft.perceivedDifficulty === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={cn(
+                        "min-h-8 rounded-md border px-2 text-xs font-medium transition-colors",
+                        active
+                          ? "border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]"
+                          : "border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-secondary)]",
+                      )}
+                      onClick={() => onDraftChange({ ...draft, perceivedDifficulty: opt.value })}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className={cn(patientMutedTextClass, "text-[11px]")}>повторы</span>
+                  <input
+                    value={draft.repsRaw}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
+                    className={fieldBase}
+                    onChange={(e) => onDraftChange({ ...draft, repsRaw: sanitizeIntegerInput(e.target.value) })}
+                  />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className={cn(patientMutedTextClass, "text-[11px]")}>подходы</span>
+                  <input
+                    value={draft.setsRaw}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
+                    className={fieldBase}
+                    onChange={(e) => onDraftChange({ ...draft, setsRaw: sanitizeIntegerInput(e.target.value) })}
+                  />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className={cn(patientMutedTextClass, "text-[11px]")}>вес, кг</span>
+                  <input
+                    value={draft.weightRaw}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    className={fieldBase}
+                    onChange={(e) => onDraftChange({ ...draft, weightRaw: sanitizeWeightInput(e.target.value) })}
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex min-h-8 w-full cursor-pointer items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--patient-color-primary)] transition-colors",
+                  "hover:bg-[var(--patient-color-primary-soft)]/80 active:bg-[var(--patient-color-primary-soft)]/70",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+                disabled={draft.saving}
+                onClick={onSave}
+              >
+                {draft.saving ? "Сохраняю..." : "Записать"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -237,8 +412,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   );
 
   const [discussionDialogItemId, setDiscussionDialogItemId] = useState<string | null>(null);
-  const [completeDialogItemId, setCompleteDialogItemId] = useState<string | null>(null);
-  const [completeSubmitting, setCompleteSubmitting] = useState(false);
+  const [activeMetricsItemId, setActiveMetricsItemId] = useState<string | null>(null);
+  const [metricsDraft, setMetricsDraft] = useState<CompletionMetricsDraft>(DEFAULT_COMPLETION_METRICS_DRAFT);
   const [discussionSummaryByItemId, setDiscussionSummaryByItemId] = useState<Record<string, ItemDiscussionSummary>>(
     {},
   );
@@ -305,30 +480,83 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     return () => clearTimeout(timer);
   }, [loadDiscussionSummary]);
 
+  const loadLatestMetrics = useCallback(
+    async (itemId: string): Promise<CompletionMetricsDraft> => {
+      try {
+        const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete/metrics`);
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          metrics?: {
+            perceivedDifficulty?: CompletionDifficulty | null;
+            difficulty?: CompletionDifficulty | null;
+            reps?: number | null;
+            sets?: number | null;
+            weightKg?: number | null;
+          } | null;
+        } | null;
+        const m = res.ok && data?.ok ? data.metrics : null;
+        return {
+          ...DEFAULT_COMPLETION_METRICS_DRAFT,
+          perceivedDifficulty: m?.difficulty ?? m?.perceivedDifficulty ?? "medium",
+          repsRaw: metricNumberToInput(m?.reps),
+          setsRaw: metricNumberToInput(m?.sets),
+          weightRaw: metricNumberToInput(m?.weightKg, true),
+        };
+      } catch {
+        return DEFAULT_COMPLETION_METRICS_DRAFT;
+      }
+    },
+    [base],
+  );
+
   const handleTileComplete = useCallback(
-    async (payload: ProgramItemCompleteDialogPayload) => {
-      if (!completeDialogItemId) return;
-      setCompleteSubmitting(true);
-      setBusy(completeDialogItemId);
+    async (itemId: string) => {
+      setActiveMetricsItemId(itemId);
+      setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
+      setBusy(itemId);
       setError(null);
       try {
+        const previousDraft = await loadLatestMetrics(itemId);
         const result = await postProgramItemComplete({
           base,
-          itemId: completeDialogItemId,
-          payload,
+          itemId,
         });
         if (!result.ok) {
           setError(result.error);
           return;
         }
-        setCompleteDialogItemId(null);
+        setMetricsDraft(previousDraft);
         await refresh();
       } finally {
-        setCompleteSubmitting(false);
         setBusy(null);
       }
     },
-    [base, completeDialogItemId, refresh, setBusy, setError],
+    [base, loadLatestMetrics, refresh, setBusy, setError],
+  );
+
+  const saveMetrics = useCallback(
+    async (itemId: string) => {
+      setMetricsDraft((prev) => ({ ...prev, saving: true }));
+      setError(null);
+      try {
+        const payload = draftToPayload(metricsDraft);
+        const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete/metrics`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+        if (!res.ok || !data?.ok) {
+          setError(data?.error ?? "Не удалось сохранить значения");
+          return;
+        }
+        setActiveMetricsItemId(null);
+        await refresh();
+      } finally {
+        setMetricsDraft((prev) => ({ ...prev, saving: false }));
+      }
+    },
+    [base, metricsDraft, refresh, setError],
   );
 
   if (visibleProgramItems.length === 0) return null;
@@ -485,12 +713,19 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   lastDoneAtIso={lastDoneAtIsoByItemId[item.id]}
                   busy={busy}
                   planItemDoneRepeatCooldownMs={planItemDoneRepeatCooldownMs}
-                  onOpenComplete={setCompleteDialogItemId}
+                  onComplete={handleTileComplete}
                 />
               ) : null}
             </div>
           ) : null}
         </div>
+        {activeMetricsItemId === item.id ? (
+          <CompletionMetricsPanel
+            draft={metricsDraft}
+            onDraftChange={setMetricsDraft}
+            onSave={() => void saveMetrics(item.id)}
+          />
+        ) : null}
       </li>
     );
   };
@@ -549,14 +784,6 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
         />
       ) : null}
 
-      <ProgramItemCompleteDialog
-        open={completeDialogItemId != null}
-        onOpenChange={(open) => {
-          if (!open) setCompleteDialogItemId(null);
-        }}
-        onSubmit={handleTileComplete}
-        submitting={completeSubmitting}
-      />
     </section>
   );
 }

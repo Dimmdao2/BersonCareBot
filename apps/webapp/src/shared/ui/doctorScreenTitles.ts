@@ -11,6 +11,7 @@ export function getDoctorScreenTitle(pathname: string): string {
   const exact: Record<string, string> = {
     [routePaths.doctorInstall]: "Установить приложение",
     "/app/settings": "Настройки специалиста",
+    "/app/doctor/analytics": "Аналитика",
     "/app/doctor/analytics/clients": "По клиентам",
     "/app/doctor/analytics/notifications": "По уведомлениям",
     "/app/doctor/system-health": "Здоровье системы",
@@ -21,7 +22,9 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/admin/integrations": "Интеграции",
     "/app/doctor/admin/booking": "Настройки записи",
     "/app/doctor/admin/technical": "Технические режимы",
-    "/app/doctor/clients": "Клиенты",
+    "/app/doctor/patients": "Пациенты",
+    "/app/doctor/schedule": "Расписание",
+    "/app/doctor/communications": "Коммуникации",
     "/app/doctor/appointments": "Записи",
     "/app/doctor/calendar": "Календарь",
     "/app/doctor/messages": "Сообщения",

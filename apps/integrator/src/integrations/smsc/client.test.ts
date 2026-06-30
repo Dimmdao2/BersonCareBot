@@ -1,3 +1,8 @@
+// NOTE: The interim ALLOW_DEV_SMS per-sink guard was retired in S15.
+// Dev safety for SMS is now provided solely by the pre-fork redirect in dispatchPort
+// (S11 dispatchPort.redirect.test.ts proves all channels including smsc collapse to
+// the telegram test chat before any adapter can call sendSms).
+
 /* global RequestInit */
 import { describe, expect, it, vi } from 'vitest';
 import { createSmscClient } from './client.js';

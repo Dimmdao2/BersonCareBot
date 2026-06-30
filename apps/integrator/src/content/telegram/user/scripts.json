@@ -1088,7 +1088,7 @@
 		},
 		"steps": [
 			{
-				"action": "reminders.messengerTopic.disable.callback",
+				"action": "reminders.notifSettings.open.callback",
 				"mode": "sync",
 				"params": {
 					"occurrenceId": "{{input.reminderOccurrenceId}}",
@@ -1204,6 +1204,78 @@
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "telegram",
 					"chatId": "{{actor.chatId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminder.snoozeMenu",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_snooze_menu"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.snoozeMenu.callback",
+				"mode": "sync",
+				"params": {
+					"occurrenceId": "{{input.reminderOccurrenceId}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram",
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminder.notifSettings.open",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_notif_settings"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.notifSettings.open.callback",
+				"mode": "sync",
+				"params": {
+					"occurrenceId": "{{input.reminderOccurrenceId}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram",
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminder.notifSettings.toggle",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_notif_toggle"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.notifSettings.toggle.callback",
+				"mode": "sync",
+				"params": {
+					"topicCode": "{{input.reminderTopicCode}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram",
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
 		]

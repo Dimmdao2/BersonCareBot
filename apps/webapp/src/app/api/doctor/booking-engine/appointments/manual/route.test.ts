@@ -173,4 +173,108 @@ describe("POST manual appointment", () => {
     expect(transitionAppointmentStatusMock).not.toHaveBeenCalled();
     expect(emitBookingEventMock).not.toHaveBeenCalled();
   });
+
+  it("F2: rejects in-person create with no resolvable specialist (not inserted)", async () => {
+    requireDoctorBookingEngineMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: "org-1",
+        session: { user: { userId: "u1", role: "doctor" } },
+        service: {
+          catalog: { listSpecialists: vi.fn().mockResolvedValue([]) },
+          createAppointment: createAppointmentMock,
+          transitionAppointmentStatus: transitionAppointmentStatusMock,
+          deleteAppointmentHard: deleteAppointmentHardMock,
+          upsertRubitimeAppointmentMapping: vi.fn(),
+        },
+      },
+    });
+
+    const res = await POST(
+      new Request("http://localhost/manual", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          branchId: "11111111-1111-4111-8111-111111111111",
+          serviceId: "22222222-2222-4222-8222-222222222222",
+          // no specialistId, none resolvable from catalog
+          startAt: "2026-06-01T10:00:00.000Z",
+          endAt: "2026-06-01T11:00:00.000Z",
+          durationMinutes: 60,
+        }),
+      }),
+    );
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    expect(res.status).toBe(400);
+    expect(json.ok).toBe(false);
+    expect(json.error).toBe("specialist_required");
+    expect(createAppointmentMock).not.toHaveBeenCalled();
+    expect(assertSlotAvailableMock).not.toHaveBeenCalled();
+  });
+
+  it("F2: in-person create with a resolvable specialist succeeds (uses default specialist)", async () => {
+    requireDoctorBookingEngineMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: "org-1",
+        session: { user: { userId: "u1", role: "doctor" } },
+        service: {
+          catalog: {
+            listSpecialists: vi
+              .fn()
+              .mockResolvedValue([{ id: "33333333-3333-4333-8333-333333333333", isActive: true }]),
+          },
+          createAppointment: createAppointmentMock,
+          transitionAppointmentStatus: transitionAppointmentStatusMock,
+          deleteAppointmentHard: deleteAppointmentHardMock,
+          upsertRubitimeAppointmentMapping: vi.fn(),
+          getAppointment: vi.fn(),
+        },
+      },
+    });
+    createAppointmentMock.mockResolvedValue({
+      id: "appt-1",
+      startAt: "2026-06-01T10:00:00.000Z",
+      endAt: "2026-06-01T11:00:00.000Z",
+      platformUserId: null,
+      phoneNormalized: null,
+      attributionJson: {},
+      organizationId: "org-1",
+      status: "confirmed",
+      source: "admin_manual",
+      specialistId: "33333333-3333-4333-8333-333333333333",
+    });
+    assertSlotAvailableMock.mockResolvedValue(undefined);
+    resolveLegacyBranchServiceIdMock.mockResolvedValue("branch-service-id");
+    resolveBranchServiceMock.mockResolvedValue({
+      branch: { rubitimeBranchId: "123" },
+      specialist: { rubitimeCooperatorId: "456" },
+      branchService: { rubitimeServiceId: "789" },
+    });
+    createRecordMock.mockResolvedValue({ rubitimeId: "rt-1", raw: {} });
+
+    const res = await POST(
+      new Request("http://localhost/manual", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          branchId: "11111111-1111-4111-8111-111111111111",
+          serviceId: "22222222-2222-4222-8222-222222222222",
+          // no explicit specialistId → resolved from catalog default
+          startAt: "2026-06-01T10:00:00.000Z",
+          endAt: "2026-06-01T11:00:00.000Z",
+          durationMinutes: 60,
+        }),
+      }),
+    );
+    const json = (await res.json()) as { ok?: boolean };
+    expect(res.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(assertSlotAvailableMock).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: "33333333-3333-4333-8333-333333333333" }),
+    );
+    expect(createAppointmentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: "33333333-3333-4333-8333-333333333333" }),
+    );
+  });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { DateTime } from "luxon";
 
 import type {
   ClientContactBreakdown,
@@ -11,8 +12,6 @@ import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 
-import { AdminPlatformRegistrationStatsClient } from "./AdminPlatformRegistrationStatsClient";
-import { AdminPlatformSubscriberStatsClient } from "./AdminPlatformSubscriberStatsClient";
 import { AnalyticsPeriodToolbar } from "./AnalyticsPeriodToolbar";
 import { ClientContactPieChart } from "./ClientContactPieChart";
 import { DoctorAnalyticsAppointmentsSection } from "./DoctorAnalyticsAppointmentsSection";
@@ -29,6 +28,8 @@ type ClientsSnapshot = {
   total: number;
   phoneOnly: number;
   appGuests: number;
+  patientsCount: number;
+  subscribersOnlyCount: number;
   contactBreakdown: ClientContactBreakdown;
 };
 
@@ -51,9 +52,11 @@ type Props = {
   calendarTodayYmd: string;
   displayIana: string;
   clients: ClientsSnapshot;
+  patientPluralLabel?: string;
+  patientGenPlural?: string;
 };
 
-export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana, clients }: Props) {
+export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana, clients, patientPluralLabel = "Клиенты", patientGenPlural = "клиентов" }: Props) {
   const [preset, setPreset] = useState<AdminStatsTimePreset>("week");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -102,7 +105,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
     (next: AdminStatsTimePreset) => {
       setPreset(next);
       if (next === "custom") {
-        const t = calendarTodayYmd.trim() || new Date().toISOString().slice(0, 10);
+        const t = calendarTodayYmd.trim() || DateTime.now().setZone(displayIana).toISODate() || "";
         const from = ymdMinusDays(t, 6);
         const to = t;
         setCustomFrom(from);
@@ -114,6 +117,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
       setCustomTo("");
       applyPeriod({ preset: next, customFrom: "", customTo: "" });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayIana стабилен в рамках сессии (TZ-проброс отложен владельцем)
     [applyPeriod, calendarTodayYmd],
   );
 
@@ -153,7 +157,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 max-w-6xl">
       <AnalyticsPeriodToolbar
         period={period}
         periodLabel={periodLabel}
@@ -164,15 +168,8 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
         onApplyCustom={handleApplyCustom}
       />
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <AdminPlatformSubscriberStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
-        <AdminPlatformRegistrationStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
-      </div>
-
-      <DoctorAnalyticsAppointmentsSection period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
-
       <DoctorSection id="doctor-stats-clients-section">
-        <DoctorSectionTitle>Клиенты</DoctorSectionTitle>
+        <DoctorSectionTitle>{patientPluralLabel}</DoctorSectionTitle>
         <p className="text-muted-foreground text-sm">Срез на текущий момент, без привязки к периоду выше.</p>
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
           <div className="order-1 rounded-lg border border-border/60 bg-card p-3 overflow-visible lg:min-h-[260px]">
@@ -187,17 +184,29 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
               className="grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 max-w-xl"
             >
               <DoctorStatCard
+                id="doctor-stats-clients-patients"
+                title={patientPluralLabel}
+                value={clients.patientsCount}
+                onClick={() => openMetric("clients_total", `${patientPluralLabel} (с записями)`)}
+              />
+              <DoctorStatCard
+                id="doctor-stats-clients-potential"
+                title="Потенциальных"
+                value={clients.subscribersOnlyCount}
+                onClick={() => openMetric("clients_total", "Потенциальные (без записей)")}
+              />
+              <DoctorStatCard
                 id="doctor-stats-clients-total"
-                title="Всего клиентов"
+                title={`Всего ${patientGenPlural}`}
                 value={clients.total}
-                onClick={() => openMetric("clients_total", "Все клиенты")}
+                onClick={() => openMetric("clients_total", `Все ${patientGenPlural}`)}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-phone-only"
                 title="Только телефон"
                 value={clients.phoneOnly}
                 tone="warning"
-                onClick={() => openMetric("clients_phone_only", "Клиенты: только телефон")}
+                onClick={() => openMetric("clients_phone_only", `${patientPluralLabel}: только телефон`)}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-app-guests"
@@ -224,6 +233,9 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
           </div>
         </div>
       </DoctorSection>
+
+      <DoctorAnalyticsAppointmentsSection period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} patientGenPlural={patientGenPlural} />
+
       <MetricAccountsDialog
         open={metricDialogOpen}
         onOpenChange={setMetricDialogOpen}

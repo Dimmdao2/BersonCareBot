@@ -220,5 +220,85 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         return { ok: false, error: message };
       }
     },
+
+    async getNotificationSettings(input) {
+      const baseUrl = await getAppBaseUrl(db);
+      const secret = integratorWebhookSecret();
+      if (!baseUrl || !secret) {
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const body = JSON.stringify({
+        integratorUserId: input.integratorUserId,
+        channel: input.messengerChannel,
+      });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, body, secret);
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/reminders/notification-settings`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bersoncare-Timestamp': timestamp,
+            'X-Bersoncare-Signature': signature,
+          },
+          body,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          topics?: unknown;
+          error?: string;
+        };
+        if (!res.ok || data.ok !== true || !Array.isArray(data.topics)) {
+          return { ok: false, error: data.error ?? res.statusText };
+        }
+        const topics = (data.topics as Array<Record<string, unknown>>)
+          .filter((t) => typeof t.code === 'string' && typeof t.title === 'string' && typeof t.isEnabled === 'boolean')
+          .map((t) => ({ code: t.code as string, title: t.title as string, isEnabled: t.isEnabled as boolean }));
+        return { ok: true, topics };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+
+    async toggleNotificationTopic(input) {
+      const baseUrl = await getAppBaseUrl(db);
+      const secret = integratorWebhookSecret();
+      if (!baseUrl || !secret) {
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const body = JSON.stringify({
+        integratorUserId: input.integratorUserId,
+        topicCode: input.topicCode,
+        channel: input.messengerChannel,
+      });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, body, secret);
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/reminders/notification-settings/toggle`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bersoncare-Timestamp': timestamp,
+            'X-Bersoncare-Signature': signature,
+          },
+          body,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          newState?: unknown;
+          error?: string;
+        };
+        if (!res.ok || data.ok !== true || typeof data.newState !== 'boolean') {
+          return { ok: false, error: data.error ?? res.statusText };
+        }
+        return { ok: true, newState: data.newState };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
   };
 }

@@ -83,7 +83,7 @@ export function AppointmentStaffCommentsSection({
             <li key={c.id} className="text-xs whitespace-pre-wrap">
               {c.body}
               <span className="ml-2 text-muted-foreground">
-                {new Date(c.createdAt).toLocaleString("ru-RU")}
+                {new Date(c.createdAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
               </span>
             </li>
           ))}

@@ -1,25 +1,12 @@
+/**
+ * P17 migration test (PLAN S14b): web_push leg now uses relayOutbound, not sendWebPushToSubscriptions.
+ */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const relayMock = vi.hoisted(() => vi.fn());
-const sendPushMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/messaging/relayOutbound", () => ({
   relayOutbound: relayMock,
-}));
-
-vi.mock("@/modules/system-settings/webPushVapidRuntime", () => ({
-  getWebPushVapidKeyPair: vi.fn().mockResolvedValue({
-    publicKey: "pub",
-    privateKey: "priv",
-  }),
-}));
-
-vi.mock("@/modules/web-push/sendWebPushToSubscriptions", () => ({
-  sendWebPushToSubscriptions: sendPushMock,
-}));
-
-vi.mock("@/modules/outbound-email/sendTransactionalSmtp", () => ({
-  smtpInnerFromValueJson: vi.fn().mockReturnValue({ success: false }),
 }));
 
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
@@ -30,7 +17,6 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     relayMock.mockResolvedValue({ ok: true, status: "accepted" });
-    sendPushMock.mockResolvedValue({ delivered: 1, errors: 0, deactivated: 0 });
   });
 
   it("delivers telegram to staff with default fallback and binding", async () => {
@@ -106,7 +92,7 @@ describe("notifyDoctorPatientMessageToStaff", () => {
     expect(relayMock).not.toHaveBeenCalled();
   });
 
-  it("delivers web_push by default when subscription and vapid exist", async () => {
+  it("delivers web_push via relay-outbound when subscription exists (P17 migrated)", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {
         topicCode: "doctor_patient_messages",
@@ -122,13 +108,7 @@ describe("notifyDoctorPatientMessageToStaff", () => {
         channelPreferences: { getPreferences: async () => [] } as unknown as ChannelPreferencesPort,
         webPushSubscriptions: {
           hasAnyForUserId: async () => true,
-          listActiveByUserId: async () => [
-            {
-              endpoint: "https://push.example/sub",
-              expirationTime: null,
-              keys: { p256dh: "k", auth: "a" },
-            },
-          ],
+          listActiveByUserId: async () => [],
           deleteByEndpointIfExists: async () => true,
         } as unknown as WebPushSubscriptionsPort,
         systemSettings: { getSetting: async () => null },
@@ -137,7 +117,45 @@ describe("notifyDoctorPatientMessageToStaff", () => {
     );
 
     expect(result.pushDelivered).toBe(1);
-    expect(sendPushMock).toHaveBeenCalled();
+    // P17: web_push now emits a relay-outbound intent, NOT a direct sendWebPushToSubscriptions call.
+    expect(relayMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "web_push",
+        recipient: "doc-1",
+        text: "Иван: hi",
+        metadata: expect.objectContaining({
+          title: "Сообщение от пациента",
+          url: "/app/doctor/messages",
+        }),
+      }),
+    );
+  });
+
+  it("skips web_push when no subscription exists", async () => {
+    const result = await notifyDoctorPatientMessageToStaff(
+      {
+        topicCode: "doctor_patient_messages",
+        messageId: "patient-msg-notify:m4",
+        text: "hello",
+        pushTitle: "t",
+        pushBody: "b",
+        pushUrl: "/app/doctor/messages",
+      },
+      {
+        staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },
+        topicChannelPrefs: { listByUserId: async () => [], upsert: async () => {} },
+        channelPreferences: { getPreferences: async () => [] } as unknown as ChannelPreferencesPort,
+        webPushSubscriptions: {
+          hasAnyForUserId: async () => false,
+          listActiveByUserId: async () => [],
+          deleteByEndpointIfExists: async () => true,
+        } as unknown as WebPushSubscriptionsPort,
+        systemSettings: { getSetting: async () => null },
+        getChannelBindings: async () => ({}),
+      },
+    );
+
+    expect(result.pushDelivered).toBe(0);
     expect(relayMock).not.toHaveBeenCalled();
   });
 });

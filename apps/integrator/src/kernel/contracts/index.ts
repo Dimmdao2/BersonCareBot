@@ -131,6 +131,9 @@ export type {
   SubscriptionMailingReadsPort,
   MailingTopicReadRow,
   UserSubscriptionReadRow,
+  WebPushAccessPort,
+  WebPushSubscriptionPayload,
+  VapidCredentials,
 } from './ports.js';
 
 export {
@@ -150,6 +153,13 @@ export type {
 } from './projectionEventTypes.js';
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin } from './messengerStaff.js';
+
+export type {
+  Channel,
+  UnifiedContent,
+  UnifiedOutgoingMessage,
+  UnifiedRecipient,
+} from './unifiedMessage.js';
 
 export {
   actionResultSchema,

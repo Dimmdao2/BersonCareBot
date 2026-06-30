@@ -2,6 +2,7 @@
  * Сообщения поддержки для пациента (webapp thread `webapp:platform:{userId}`).
  */
 import type { SupportCommunicationPort, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
+import { isSupportChatMessage } from "@/shared/lib/supportMessageKinds";
 import { serializeSupportMessage, type SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 
 const MAX_LEN = 4000;
@@ -34,7 +35,7 @@ export function createPatientMessagingService(
         console.error("[patientMessaging] merge legacy conversations error:", err);
       });
       const messages = await port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 });
-      return { conversationId: id, messages };
+      return { conversationId: id, messages: messages.filter(isSupportChatMessage) };
     },
 
     /** Новые сообщения после `since` (для polling). */
@@ -49,7 +50,7 @@ export function createPatientMessagingService(
         sinceCreatedAt: sinceCreatedAt ?? undefined,
         limit: 80,
       });
-      return { messages };
+      return { messages: messages.filter(isSupportChatMessage) };
     },
 
     async sendText(platformUserId: string, conversationId: string, text: string): Promise<

@@ -2,7 +2,7 @@ import type { AppointmentSummary } from "@/modules/appointments/service";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 import type { LfkComplex, LfkSession, SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
 import type { DoctorSupplementaryContact } from "@/modules/platform-user-contacts/bookingContactUpsert";
-import type { DoctorClientsFilters, DoctorClientsPort } from "./ports";
+import type { DoctorClientsFilters, DoctorClientsPort, PatientCardHeader } from "./ports";
 import type { ClientIdentity, ClientListItem, PatientProgramInteractionPolicy } from "./ports";
 import type { ClientSupportProfile } from "./supportPolicy";
 import {
@@ -136,6 +136,38 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       actorId: string;
     }): Promise<ClientSupportProfile> {
       return deps.clientsPort.updateClientSupport(params);
+    },
+
+    async getPatientCardHeader(userId: string): Promise<PatientCardHeader | null> {
+      return deps.clientsPort.getPatientCardHeader(userId);
+    },
+
+    async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
+      return deps.clientsPort.setPatientBirthDate(userId, birthDate);
+    },
+
+    async setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void> {
+      return deps.clientsPort.setPatientGender(userId, gender);
+    },
+
+    async setPatientNames(
+      userId: string,
+      names: { displayName?: string; firstName?: string | null; lastName?: string | null; patronymic?: string | null },
+    ): Promise<void> {
+      return deps.clientsPort.setPatientNames(userId, names);
+    },
+
+    async getPatientPhysical(
+      userId: string,
+    ): Promise<{ heightCm: number | null; weightKg: number | null } | null> {
+      return deps.clientsPort.getPatientPhysical(userId);
+    },
+
+    async setPatientPhysical(
+      userId: string,
+      params: { heightCm?: number | null; weightKg?: number | null },
+    ): Promise<void> {
+      return deps.clientsPort.setPatientPhysical(userId, params);
     },
 
     async getPatientProgramInteractionPolicy(

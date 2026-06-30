@@ -38,7 +38,7 @@ export function DoctorClientCommunicationsTab({
                   className={doctorClientStackedCardClass}
                 >
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
+                    {new Date(entry.sentAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })} · {entry.category}
                   </span>
                   <p className="mt-1 text-sm leading-snug">
                     {entry.text.slice(0, 80)}

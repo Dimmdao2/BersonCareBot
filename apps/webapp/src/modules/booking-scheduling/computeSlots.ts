@@ -8,18 +8,87 @@ export type WorkingHoursRow = {
   endMinute: number;
 };
 
+/** Per-date override row from be_working_days. When provided, takes priority over weekday schedule. */
+export type WorkingDayRow = {
+  workDate: string; // YYYY-MM-DD
+  startMinute: number | null;
+  endMinute: number | null;
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
+  breaks?: { startMinute: number; endMinute: number }[];
+  isClosed: boolean;
+};
+
+/**
+ * Resolve effective breaks for a WorkingDayRow.
+ * Returns breaks[] from the jsonb column (sole representation since migration 0118).
+ */
+function resolveWorkingDayBreaks(row: WorkingDayRow): { startMinute: number; endMinute: number }[] {
+  return row.breaks ?? [];
+}
+
+/**
+ * Split a working day into N+1 intervals around N breaks (sorted ascending by startMinute).
+ * If no breaks, returns a single [dayStart, dayEnd] interval.
+ * Uses the breaks[] jsonb column exclusively (legacy scalar columns removed in migration 0118).
+ */
+export function splitByBreak(
+  row: WorkingDayRow,
+  dateKey: string,
+  timeZone: string,
+  bufferMinutes: number,
+): TimeInterval[] {
+  if (row.isClosed || row.startMinute == null || row.endMinute == null) return [];
+  const startIso = wallClockToUtcIso(dateKey, Math.floor(row.startMinute / 60), row.startMinute % 60, timeZone);
+  const endIso = wallClockToUtcIso(dateKey, Math.floor(row.endMinute / 60), row.endMinute % 60, timeZone);
+  const dayStartMs = new Date(startIso).getTime() + bufferMinutes * 60_000;
+  const dayEndMs = new Date(endIso).getTime() - bufferMinutes * 60_000;
+  if (dayEndMs <= dayStartMs) return [];
+
+  const breaks = resolveWorkingDayBreaks(row);
+  if (breaks.length === 0) {
+    return [{ startMs: dayStartMs, endMs: dayEndMs }];
+  }
+
+  // Sort breaks by startMinute (defensive — should already be sorted by service validation)
+  const sorted = [...breaks].sort((a, b) => a.startMinute - b.startMinute);
+
+  // Build N+1 intervals: work through cursor from dayStart, punching holes for each break
+  const result: TimeInterval[] = [];
+  let cursorMs = dayStartMs;
+
+  for (const brk of sorted) {
+    const bsIso = wallClockToUtcIso(dateKey, Math.floor(brk.startMinute / 60), brk.startMinute % 60, timeZone);
+    const beIso = wallClockToUtcIso(dateKey, Math.floor(brk.endMinute / 60), brk.endMinute % 60, timeZone);
+    const bsMs = new Date(bsIso).getTime();
+    const beMs = new Date(beIso).getTime();
+
+    // Clamp break to day bounds after buffer
+    const clampedBsMs = Math.max(bsMs, cursorMs);
+    const clampedBeMs = Math.min(beMs, dayEndMs);
+
+    if (clampedBsMs > cursorMs) {
+      result.push({ startMs: cursorMs, endMs: Math.min(clampedBsMs, dayEndMs) });
+    }
+    cursorMs = Math.max(cursorMs, clampedBeMs);
+  }
+
+  // Tail interval after the last break
+  if (cursorMs < dayEndMs) {
+    result.push({ startMs: cursorMs, endMs: dayEndMs });
+  }
+
+  return result.filter((iv) => iv.endMs > iv.startMs);
+}
+
 export type BusyInterval = { startAt: string; endAt: string };
 
-const DEFAULT_WORKING: WorkingHoursRow[] = [
-  { weekday: 1, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 2, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 3, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 4, startMinute: 9 * 60, endMinute: 18 * 60 },
-  { weekday: 5, startMinute: 9 * 60, endMinute: 18 * 60 },
-];
-
+/**
+ * Returns the provided working-hours rows as-is.
+ * Empty input yields empty output — callers must handle the no-schedule case explicitly
+ * (no phantom Mon–Fri 09:00–18:00 default).
+ */
 export function pickWorkingHours(rows: WorkingHoursRow[]): WorkingHoursRow[] {
-  return rows.length > 0 ? rows : DEFAULT_WORKING;
+  return rows;
 }
 
 /** Local calendar date YYYY-MM-DD in IANA timezone. */
@@ -72,12 +141,26 @@ export function wallClockToUtcIso(dateKey: string, hour: number, minute: number,
   return guess.toISOString();
 }
 
+/**
+ * Compute working intervals for a given calendar date.
+ *
+ * When `perDayRow` is provided it takes full priority over weekday schedule:
+ *   - `isClosed` → empty
+ *   - `startMinute` null → empty
+ *   - otherwise → `splitByBreak` (1–2 windows)
+ *
+ * Without `perDayRow` the existing weekday-based behaviour is used (backward-compatible).
+ */
 export function workingIntervalsForDate(
   dateKey: string,
   timeZone: string,
   working: WorkingHoursRow[],
   bufferMinutes: number,
+  perDayRow?: WorkingDayRow,
 ): TimeInterval[] {
+  if (perDayRow !== undefined) {
+    return splitByBreak(perDayRow, dateKey, timeZone, bufferMinutes);
+  }
   const wd = localWeekday(dateKey, timeZone);
   const rows = working.filter((w) => w.weekday === wd);
   const out: TimeInterval[] = [];
@@ -89,6 +172,58 @@ export function workingIntervalsForDate(
     if (endMs > startMs) out.push({ startMs, endMs });
   }
   return out;
+}
+
+/**
+ * Working-day bounds for a single calendar date, in local wall-clock minutes.
+ *
+ * Returns `{ startMinute, endMinute }` spanning from the earliest working interval
+ * start to the latest working interval end for `dateKey` (breaks/gaps are *inside*
+ * this span, not excluded). Honours per-date overrides exactly like
+ * `workingIntervalsForDate` (per-date row takes priority; otherwise weekday rows).
+ *
+ * Returns `null` when the day has no working time (closed / no matching rows).
+ *
+ * Reused by:
+ *   - booking-calendar gray non-working fill (§3.14)
+ *   - «Сегодня» mini-calendar window (S4 §1.2)
+ */
+export function deriveWorkingBounds(
+  dateKey: string,
+  timeZone: string,
+  working: WorkingHoursRow[],
+  perDayRow?: WorkingDayRow,
+): { startMinute: number; endMinute: number } | null {
+  const intervals = workingIntervalsForDate(dateKey, timeZone, working, 0, perDayRow).filter(
+    (i) => i.endMs > i.startMs,
+  );
+  if (intervals.length === 0) return null;
+
+  let minStartMs = Infinity;
+  let maxEndMs = -Infinity;
+  for (const iv of intervals) {
+    if (iv.startMs < minStartMs) minStartMs = iv.startMs;
+    if (iv.endMs > maxEndMs) maxEndMs = iv.endMs;
+  }
+
+  const startMinute = utcMsToLocalMinute(minStartMs, timeZone);
+  const endMinute = utcMsToLocalMinute(maxEndMs, timeZone);
+  return { startMinute, endMinute };
+}
+
+/** UTC ms → minutes-since-midnight in the given IANA timezone (0..1440). */
+function utcMsToLocalMinute(ms: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(ms));
+  let hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  // Intl can format midnight as "24" in en-US hour12:false; normalise to 0.
+  if (hour === 24) hour = 0;
+  return hour * 60 + minute;
 }
 
 export function subtractBusy(working: TimeInterval[], busy: TimeInterval[]): TimeInterval[] {
@@ -150,6 +285,50 @@ export function isChainFree(
     if (intervalsOverlap(chainStart, chainEnd, b.startAt, b.endAt)) return false;
   }
   return true;
+}
+
+/**
+ * C3 — Вычислить ближайшее свободное окно из уже собранных данных.
+ *
+ * @param todayKey        Ключ сегодняшнего дня YYYY-MM-DD в бизнес-таймзоне.
+ * @param timeZone        Бизнес-таймзона (IANA).
+ * @param workingHours    Строки рабочего расписания (weekday-модель).
+ * @param perDayRow       Per-date override (уже scoped: isClosed=true если не совпадает branch).
+ * @param busyIntervals   Занятые интервалы (ISO UTC, для сегодняшнего дня).
+ * @param nowMs           Текущий момент в миллисекундах.
+ * @returns               { from, to } ISO UTC или null.
+ */
+export function computeNearestFreeWindowFromData(
+  todayKey: string,
+  timeZone: string,
+  workingHours: WorkingHoursRow[],
+  perDayRow: WorkingDayRow | undefined,
+  busyIntervals: { startAt: string; endAt: string }[],
+  nowMs: number,
+): { from: string; to: string } | null {
+  const effective = pickWorkingHours(workingHours);
+  const workingIntervals = workingIntervalsForDate(todayKey, timeZone, effective, 0, perDayRow);
+  if (workingIntervals.length === 0) return null;
+
+  const busyMs = busyIntervals
+    .map((b) => ({
+      startMs: new Date(b.startAt).getTime(),
+      endMs: new Date(b.endAt).getTime(),
+    }))
+    .filter((x) => Number.isFinite(x.startMs) && Number.isFinite(x.endMs) && x.endMs > x.startMs);
+
+  const freeIntervals = subtractBusy(workingIntervals, busyMs);
+
+  for (const iv of freeIntervals) {
+    const start = Math.max(iv.startMs, nowMs);
+    if (start < iv.endMs) {
+      return {
+        from: new Date(start).toISOString(),
+        to: new Date(iv.endMs).toISOString(),
+      };
+    }
+  }
+  return null;
 }
 
 export function groupSlotsByLocalDate(

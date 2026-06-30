@@ -90,7 +90,7 @@ function ClientProfileCardInner({
   profile,
   messageHistory,
   userId,
-  listBasePath = "/app/doctor/clients",
+  listBasePath = "/app/doctor/patients",
   profileListScope,
   isAdmin = false,
   canPermanentDelete = false,
@@ -267,6 +267,7 @@ function ClientProfileCardInner({
               programInbox={programInbox}
               activeProgramTree={activeProgramTree}
               focusPendingProgramAttemptId={focusPendingProgramAttemptId}
+              displayIana={displayTimeZone}
             />
           </TabsContent>
 

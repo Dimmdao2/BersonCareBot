@@ -278,6 +278,15 @@ UI:
 
 ### 7.5. Расписание
 
+> **Реализовано (v26-ребилд, 2026-06-13):** per-date слой расписания (таблицы `be_working_days` /
+> `be_schedule_templates`, миграции 0115–0116, N перерывов `breaks jsonb`), `be_branches.short_title`
+> (migration 0117), интеграция со слот-движком (`splitByBreak` cursor-engine), полный агрегатный
+> раздел `/app/doctor/schedule` (3 таба: Записи/График/Настройки, 9 KPI, drill-down день,
+> `nearest-free-window`) — всё реализовано в
+> [`DOCTOR_SCHEDULE_SECTION_INITIATIVE`](../DOCTOR_SCHEDULE_SECTION_INITIATIVE/README.md)
+> (статус: **завершена**).
+> Текущее weekday-поведение (`be_working_hours`) сохранено backward-compatible.
+
 Расписание должно быть экраном управления рабочим временем, а не списком технических строк.
 
 Основной сценарий:

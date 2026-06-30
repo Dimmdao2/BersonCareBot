@@ -1,3 +1,21 @@
+/**
+ * P15 — PLAN S14b migration.
+ *
+ * Instead of calling `sendWebPushToSubscriptions` directly (G2-guarded webapp sink),
+ * this function now emits a `web_push` intent to the integrator via relay-outbound.
+ * The integrator's `WebPushDeliveryAdapter` resolves subscriptions + VAPID and
+ * performs the actual send, covered by the pre-fork redirect chokepoint (G1).
+ *
+ * G2 guard retired (S16) — 0 live callers, secondary layer. Was:
+ * the other un-migrated legs (S14c–S14g).
+ *
+ * `systemSettings` is kept in `PatientWebPushNotifyDeps` for call-site backward
+ * compat (buildAppDeps, route.ts, fanOutBroadcastWebPush). It is no longer used
+ * inside this function — VAPID + SMTP are read by the integrator adapter.
+ *
+ * `recordDeliveryAttempt` is kept in deps for call-site compat. Delivery-attempt
+ * logging for this leg has moved to the integrator adapter (PLAN S14 step 1).
+ */
 import { z } from "zod";
 import { routePaths } from "@/app-layer/routes/paths";
 import { logger } from "@/infra/logging/logger";
@@ -8,7 +26,6 @@ import {
   bookingLifecycleChatIntegratorMessageId,
 } from "@/modules/messaging/appendPatientInboundAdminMessage";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
-import { smtpInnerFromValueJson } from "@/modules/outbound-email/sendTransactionalSmtp";
 import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
 import {
   resolvePatientNotificationChannels,
@@ -17,7 +34,6 @@ import {
 import { REMINDER_NOTIFICATION_TOPIC_APPOINTMENT } from "@/modules/reminders/notificationTopicCode";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import {
   buildAppointmentLifecyclePushCopy,
   buildAppointmentReminderPushCopy,
@@ -25,12 +41,8 @@ import {
   type AppointmentLifecycleVariant,
 } from "@/modules/web-push/pushNotificationCopy";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import {
-  createTrackedWebPushPayload,
-  productAnalyticsMetadataFromPayload,
-} from "@/app-layer/product-analytics/createTrackedWebPushPayload";
-import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
-import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
+import { createTrackedWebPushPayload } from "@/app-layer/product-analytics/createTrackedWebPushPayload";
+import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 
 export const integratorPatientWebPushNotifyBodySchema = z
@@ -59,15 +71,23 @@ export type PatientWebPushNotifyDeps = {
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
+  /**
+   * Kept for call-site backward compat (buildAppDeps, route.ts, fanOutBroadcastWebPush).
+   * No longer used by this function — VAPID + SMTP are read by the integrator adapter (PLAN S14b).
+   */
   systemSettings: Pick<SystemSettingsService, "getSetting">;
   readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
+  /**
+   * Kept for call-site backward compat. Delivery-attempt logging for this leg has moved
+   * to the integrator adapter (PLAN S14 step 1). No longer called here.
+   */
   recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
   patientInboundChatPort?: PatientInboundChatPort;
 };
 
-function buildPatientMessagesOpenUrl(): string {
+function buildPatientNotificationsOpenUrl(): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
-  return `${base}${routePaths.patientMessages}`;
+  return `${base}${routePaths.patient}?notifications=1`;
 }
 
 function bookingIdFromLifecycleStableKey(stableKey: string): string | null {
@@ -81,8 +101,6 @@ function lifecycleChatText(copy: { title: string; body: string }): string {
   if (t && b) return `${t}\n\n${b}`;
   return t || b;
 }
-
-const INTENT_TYPE = "patient_web_push";
 
 function buildCopy(
   body: IntegratorPatientWebPushNotifyBody,
@@ -142,6 +160,7 @@ export async function runPatientWebPushNotify(
           platformUserId: uid,
           text: chatText,
           integratorMessageId: bookingLifecycleChatIntegratorMessageId(body.variant, bookingId),
+          source: "appointment_lifecycle",
         });
       } catch (err) {
         logger.warn(
@@ -157,12 +176,14 @@ export async function runPatientWebPushNotify(
     return { ok: true, skipped: "muted" };
   }
 
-  const prefs = await deps.channelPreferences.getPreferences(uid);
-  const topicRows = await deps.topicChannelPrefs.listByUserId(uid);
-  const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
-  const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
-  const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
-  const subs = await deps.webPushSubscriptions.listActiveByUserId(uid);
+  const [prefs, topicRows, hasSubs] = await Promise.all([
+    deps.channelPreferences.getPreferences(uid),
+    deps.topicChannelPrefs.listByUserId(uid),
+    // Pre-check: avoid relay call for users with no subscriptions at all.
+    // Integrator adapter also checks at send time, but we short-circuit here
+    // to preserve the same skipped-channel semantics as the old path.
+    deps.webPushSubscriptions.hasAnyForUserId(uid),
+  ]);
 
   const resolved = resolvePatientNotificationChannels({
     topicCode: body.topicCode,
@@ -171,9 +192,9 @@ export async function runPatientWebPushNotify(
       hasMax: false,
       hasEmail: false,
       emailVerified: false,
-      hasWebPushSubscription: subs.length > 0,
-      vapidConfigured: Boolean(vapidKeys),
-      smtpConfigured: smtpParsed?.success === true,
+      hasWebPushSubscription: hasSubs,
+      // VAPID is now read by the integrator adapter; treat as always configured here.
+      vapidConfigured: true,
     },
     channelPrefs: prefs,
     topicChannelRows: topicRows,
@@ -183,10 +204,7 @@ export async function runPatientWebPushNotify(
   if (!resolved.selectedChannels.includes("web_push")) {
     return { ok: true, skipped: "web_push_not_selected", skippedChannels: resolved.skippedChannels };
   }
-  if (!vapidKeys) {
-    return { ok: true, skipped: "vapid_missing" };
-  }
-  if (subs.length === 0) {
+  if (!hasSubs) {
     return { ok: true, skipped: "no_active_subscriptions" };
   }
 
@@ -196,18 +214,16 @@ export async function runPatientWebPushNotify(
   }
 
   const pushOpenUrl =
-    body.intentType === "appointment_lifecycle" ? buildPatientMessagesOpenUrl() : body.openUrl;
-
-  const vapidSubject =
-    smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
-      `mailto:${smtpParsed.data.from}`
-    : "mailto:noreply@invalid";
+    body.intentType === "appointment_lifecycle" ? buildPatientNotificationsOpenUrl() : body.openUrl;
 
   const pushKind =
     body.intentType === "news" ? "news"
     : body.intentType === "appointment_reminder" ? "custom"
     : "custom";
 
+  // Register product analytics + obtain trackingId for delivery attribution.
+  // The integrator adapter carries the full payload and will attach trackingId
+  // to the actual notification via pushExtras.
   const trackedPayload = await createTrackedWebPushPayload({
     userId: uid,
     title: copy.title,
@@ -220,58 +236,44 @@ export async function runPatientWebPushNotify(
     warmupSloganKey: null,
   });
 
-  const verbose = await isOperationalVerboseLogEnabled({ systemSettings: deps.systemSettings });
-  const r = await sendWebPushToSubscriptions({
-    subscriptions: subs,
-    vapidPublicKey: vapidKeys.publicKey,
-    vapidPrivateKey: vapidKeys.privateKey,
-    vapidSubject,
-    payload: trackedPayload,
-    onSubscriptionDead: async (endpoint) => {
-      await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
-    },
-    onAttempt: deps.recordDeliveryAttempt
-      ? async (attempt) => {
-          await deps.recordDeliveryAttempt!({
-            userId: uid,
-            integratorUserId: body.integratorUserId,
-            topicCode: body.topicCode,
-            intentType: INTENT_TYPE,
-            channel: "web_push",
-            status: attempt.status,
-            reason: attempt.reason,
-            providerStatusCode: attempt.providerStatusCode,
-            endpointHash: attempt.endpointHash,
-            errorMessage: attempt.errorMessage,
-            metadata: productAnalyticsMetadataFromPayload(trackedPayload),
-          });
-        }
-      : undefined,
-    verbose,
-    logContext: {
-      userId: uid,
-      topicCode: body.topicCode,
-    },
-  });
-
-  if (verbose) {
-    logger.info(
-      {
-        event: "patient_web_push_notify.result",
-        platformUserId: uid,
+  // Emit a web_push intent to the integrator via relay-outbound.
+  // The integrator's WebPushDeliveryAdapter (S14) resolves subscriptions + VAPID
+  // and performs the actual send. In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork
+  // redirect collapses to the telegram test chat — ZERO real webpush.sendNotification calls.
+  const tag = body.stableKey.slice(0, 240);
+  const result = await relayOutbound({
+    messageId: `patient-web-push:${uid}:${tag}`,
+    channel: "web_push",
+    recipient: uid,
+    text: trackedPayload.body,
+    metadata: {
+      title: trackedPayload.title,
+      url: trackedPayload.url,
+      pushExtras: {
+        tag,
+        trackingId: trackedPayload.trackingId ?? undefined,
         topicCode: body.topicCode,
         intentType: body.intentType,
-        delivered: r.delivered,
-        errors: r.errors,
+        pushKind,
+        warmupSloganKey: null,
       },
-      "patient web push notify result",
+    },
+  }).catch((err: unknown) => {
+    logger.warn(
+      { err, event: "patient_web_push_notify.relay_failed", platformUserId: uid, topicCode: body.topicCode },
+      "patient web push notify relay failed",
     );
+    return { ok: false as const, reason: "relay_error" };
+  });
+
+  if (!result.ok) {
+    return { ok: true, webPushDelivered: 0, webPushErrors: 1, webPushDeactivated: 0 };
   }
 
   return {
     ok: true,
-    webPushDelivered: r.delivered,
-    webPushErrors: r.errors,
-    webPushDeactivated: r.deactivated,
+    webPushDelivered: 1,
+    webPushErrors: 0,
+    webPushDeactivated: 0,
   };
 }

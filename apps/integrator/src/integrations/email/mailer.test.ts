@@ -35,3 +35,8 @@ describe('mailer when not configured', () => {
     expect(result).toEqual({ accepted: [], rejected: [] });
   });
 });
+
+// NOTE: The interim ALLOW_DEV_EMAIL per-sink guard was retired in S15.
+// Dev safety for email is now provided solely by the pre-fork redirect in dispatchPort
+// (S11 dispatchPort.redirect.test.ts proves all channels including email collapse to
+// the telegram test chat before any adapter can call sendMail).

@@ -250,4 +250,56 @@ describe('POST /api/bersoncare/relay-outbound', () => {
       }),
     );
   });
+
+  // S10 / D-S10: email branch dispatches channel:'email' intent with recipient.email + subject
+  it('dispatches email intent with recipient.email and subject from metadata (D-S10)', async () => {
+    const body = makeRelayBody({
+      channel: 'email',
+      recipient: 'patient@example.com',
+      text: 'Напоминание о визите',
+      metadata: { subject: 'Напоминание' },
+    });
+    const rawBody = JSON.stringify(body);
+    await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'message.send',
+        payload: expect.objectContaining({
+          recipient: { email: 'patient@example.com' },
+          subject: 'Напоминание',
+          message: { text: 'Напоминание о визите' },
+          delivery: { channels: ['email'] },
+        }),
+      }),
+    );
+  });
+
+  it('email channel falls back to BersonCare subject when metadata.subject absent', async () => {
+    const body = makeRelayBody({
+      channel: 'email',
+      recipient: 'patient@example.com',
+      text: 'Some text',
+    });
+    const rawBody = JSON.stringify(body);
+    await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          subject: 'BersonCare',
+        }),
+      }),
+    );
+  });
 });

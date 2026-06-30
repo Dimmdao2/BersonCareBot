@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./config.js', () => ({
   emailConfig: {
@@ -41,6 +41,13 @@ const resolvedConfigured: ResolvedSmtpOutboundConfig = {
 describe('mailer when configured', () => {
   beforeEach(() => {
     mockSendMail.mockClear();
+    // Run as production so the pre-fork dev redirect does not collapse to telegram instead of
+    // reaching the email adapter (DEV_DELIVERY_REDIRECT is active in non-prod by default in vitest).
+    vi.stubEnv('NODE_ENV', 'production');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('sendMail calls transport and returns result', async () => {

@@ -20,7 +20,10 @@ import {
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
-import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import {
+  DOCTOR_HEADER_INNER_CLASS,
+  DOCTOR_MOBILE_HEADER_HEIGHT_VAR,
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 import type { DoctorMenuAccess } from "@/shared/ui/doctor/doctorNavLinks";
@@ -30,6 +33,8 @@ type DoctorHeaderProps = {
   userDisplayName?: string;
   adminMode?: boolean;
   menuAccess: DoctorMenuAccess;
+  /** Если `"клиент"`, пункт «Пациенты» в Sheet-меню отображается как «Клиенты» (как в сайдбаре). */
+  patientLabel?: string;
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
 };
@@ -41,16 +46,17 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
-const DOCTOR_STICKY_OFFSET_VAR = "--doctor-sticky-offset";
 
-export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuOnDesktop }: DoctorHeaderProps) {
+export function DoctorHeader({ userDisplayName, adminMode, menuAccess, patientLabel, hideMenuOnDesktop }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const showBack = pathname !== "/app/doctor" && pathname !== "/app/doctor/";
-  useReportShellChromeHeight(headerRef, DOCTOR_STICKY_OFFSET_VAR);
+  // Глобальная шапка видна только на <md (на md+ — `md:hidden`, offsetHeight → 0),
+  // поэтому пишем именно высоту мобильной шапки.
+  useReportShellChromeHeight(headerRef, DOCTOR_MOBILE_HEADER_HEIGHT_VAR);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -68,7 +74,9 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
         ref={headerRef}
         id="doctor-header"
         className={cn(
-          "fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80",
+          // Глобальная шапка — только мобильный (<md). На desktop кабинет = сайдбар + контент
+          // с per-page шапкой (`DoctorPageHeader`), глобальной шапки нет.
+          "fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden",
           adminMode ? "bg-destructive/10" : "bg-background/95",
         )}
       >
@@ -114,17 +122,17 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
 
           <div className="flex shrink-0 items-center gap-1">
             <Link
-              href="/app/doctor/clients?scope=all"
+              href={routePaths.doctorPatients}
               prefetch={false}
-              aria-label="Пациенты"
+              aria-label={patientLabel ?? "Пациенты"}
               className={HEADER_ICON_CLASS}
             >
               <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             </Link>
             <Link
-              href="/app/doctor/messages"
+              href={routePaths.doctorCommunications}
               prefetch={false}
-              aria-label="Сообщения"
+              aria-label="Коммуникации"
               className={HEADER_ICON_CLASS}
             >
               <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
@@ -165,6 +173,7 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
                 variant="sheet"
                 pathname={pathname}
                 menuAccess={menuAccess}
+                patientLabel={patientLabel}
                 onNavigate={closeMenu}
               />
               <Link href={routePaths.doctorInstall} onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>

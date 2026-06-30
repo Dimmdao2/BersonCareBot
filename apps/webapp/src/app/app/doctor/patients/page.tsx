@@ -1,0 +1,64 @@
+/**
+ * /app/doctor/patients — список пациентов врача.
+ * Pattern: follows exercises/page.tsx (requireDoctorAccess → buildAppDeps → pass promise to Client).
+ */
+import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { resolvePatientTerms } from "@/modules/system-settings/patientTerms";
+import { PatientsPageClient } from "./PatientsPageClient";
+
+function getValueJson<T>(v: unknown, fallback: T): T {
+  if (v !== null && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
+    return (v as Record<string, unknown>).value as T;
+  }
+  return fallback;
+}
+
+type PageProps = {
+  searchParams?: Promise<{
+    q?: string;
+    segment?: string;
+    archived?: string;
+  }>;
+};
+
+export default async function DoctorPatientsPage({ searchParams }: PageProps) {
+  const session = await requireDoctorAccess();
+  const sp = (await searchParams) ?? {};
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
+  const segment = typeof sp.segment === "string" ? sp.segment : null;
+  const archivedOnly = sp.archived === "true";
+
+  const deps = buildAppDeps();
+
+  const displayIana = await getAppDisplayTimeZone();
+
+  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
+  const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
+  const { patientPluralLabel } = resolvePatientTerms(String(patientSingular));
+
+  const listPromise = deps.doctorClients.listClients(
+    {
+      // PAT-10: search is done client-side — do not pass q to DB
+      archivedOnly,
+      viewerUserId: session.user.userId,
+      // Segment and channel filters are applied client-side so toggles do not reload the list.
+    },
+  );
+
+  const metricsPromise = deps.doctorClientsPort.getDashboardPatientMetrics();
+
+  return (
+    <DoctorAppShell title={patientPluralLabel} user={session.user} layout="full-height">
+      <PatientsPageClient
+        listPromise={listPromise}
+        metricsPromise={metricsPromise}
+        initialFilters={{ q, segment, archivedOnly }}
+        patientPluralLabel={patientPluralLabel}
+        displayIana={displayIana}
+      />
+    </DoctorAppShell>
+  );
+}

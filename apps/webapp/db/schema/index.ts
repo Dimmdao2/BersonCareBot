@@ -34,4 +34,8 @@ export * from "./patientMergeCandidate";
 export * from "./platformUserContacts";
 export * from "./programItemDiscussion";
 export * from "./specialistTasks";
+export * from "./patientFiles";
+export * from "./patientClinical";
+export * from "./patientClinicalAnamnesis";
+export * from "./patientPayments";
 export * from "./relations";

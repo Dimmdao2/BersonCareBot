@@ -44,7 +44,7 @@ type HistoryRow = {
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   try {
-    return new Date(iso).toLocaleDateString("ru-RU");
+    return new Date(iso).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" });
   } catch {
     return iso;
   }

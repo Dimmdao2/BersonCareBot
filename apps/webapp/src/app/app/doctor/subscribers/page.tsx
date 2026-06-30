@@ -26,5 +26,5 @@ export default async function DoctorSubscribersPage({ searchParams }: Props) {
   if (params.max === "1") query.set("max", "1");
   if (params.appointment === "1") query.set("appointment", "1");
   if (params.selected) query.set("selected", params.selected);
-  redirect(`/app/doctor/clients?${query.toString()}`);
+  redirect(`/app/doctor/patients?${query.toString()}`);
 }

@@ -10,9 +10,9 @@ import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime"
 import { broadcastIncludeWebPushJob } from "./broadcastEligible";
 import type { BroadcastCategory } from "./ports";
 
-function buildPatientMessagesOpenUrl(): string {
+function buildPatientNotificationsOpenUrl(): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
-  return `${base}${routePaths.patientMessages}`;
+  return `${base}${routePaths.patient}?notifications=1`;
 }
 
 export type FanOutBroadcastWebPushInput = {
@@ -47,7 +47,7 @@ export async function fanOutBroadcastWebPush(
 
     attempted += 1;
     try {
-      const openUrl = buildPatientMessagesOpenUrl();
+      const openUrl = buildPatientNotificationsOpenUrl();
       const result = await runPatientWebPushNotify(
         {
           platformUserId: client.userId,

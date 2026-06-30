@@ -1,4 +1,8 @@
-/** Поиск клиента врачом: имя, телефон (в т.ч. по цифрам без +7), мессенджеры. */
+/**
+ * Поиск клиента врачом: имя, телефон (в т.ч. по цифрам без +7), мессенджеры, email.
+ * TODO: Добавить поиск по firstName/lastName/email на уровне SQL-запроса в pgDoctorClients
+ * для более эффективной фильтрации (сейчас post-fetch фильтр).
+ */
 function phoneDigitVariants(phone: string | null): string[] {
   const digits = (phone ?? "").replace(/\D/g, "");
   if (!digits) return [];
@@ -14,6 +18,11 @@ export function matchesDoctorClientSearch(
     displayName: string;
     phone: string | null;
     bindings?: { telegramId?: string | null; maxId?: string | null };
+    /** Optional: email for search (available in PatientCardHeader; not in ClientListItem yet). */
+    email?: string | null;
+    /** Optional: first name / last name for search (not in ClientListItem; available in identity). */
+    firstName?: string | null;
+    lastName?: string | null;
   },
   query: string,
 ): boolean {
@@ -28,7 +37,11 @@ export function matchesDoctorClientSearch(
     item.displayName.toLowerCase().includes(s) ||
     phoneMatches ||
     (item.bindings?.telegramId ?? "").toLowerCase().includes(s) ||
-    (item.bindings?.maxId ?? "").toLowerCase().includes(s)
+    (item.bindings?.maxId ?? "").toLowerCase().includes(s) ||
+    // Optional extended fields (present when available)
+    Boolean(item.email?.toLowerCase().includes(s)) ||
+    Boolean(item.firstName?.toLowerCase().includes(s)) ||
+    Boolean(item.lastName?.toLowerCase().includes(s))
   );
 }
 

@@ -9,12 +9,16 @@ import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { rubitimeNameIfDifferent } from "@/shared/lib/appointmentRubitimeNameMismatch";
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
 import type {
+  AppointmentBranchPoint,
+  AppointmentDayPoint,
   AppointmentRow,
   AppointmentStats,
   DoctorAppointmentStatsFilter,
   DoctorAppointmentsListFilter,
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
+  ScheduleKpis,
+  ScheduleKpisQuery,
 } from "@/modules/doctor-appointments/ports";
 
 /** Заполнение строки `time` перенесено в createDoctorAppointmentsService (бизнес-таймзона из system_settings). */
@@ -302,16 +306,42 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
            AND updated_at >= NOW() - INTERVAL '30 days'${cancel30Ex.clause}`,
         cancel30Ex.params,
       );
+      // firstVisitInPeriod: appointments in window where phone_normalized has no earlier non-cancelled record
+      // Note: table is aliased "a" so the exclusion clause must reference "a", not "appointment_records"
+      const firstVisitEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 3, "a");
+      const firstVisitResult = await runWebappPgText<{ c: string }>(
+        `SELECT COUNT(*)::text AS c
+         FROM appointment_records a
+         WHERE a.deleted_at IS NULL
+           AND a.status <> 'canceled'
+           AND a.record_at >= $1::timestamptz AND a.record_at < $2::timestamptz
+           AND a.phone_normalized IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM appointment_records earlier
+             WHERE earlier.deleted_at IS NULL
+               AND earlier.status <> 'canceled'
+               AND earlier.phone_normalized = a.phone_normalized
+               AND (
+                 earlier.record_at < a.record_at
+                 OR (earlier.record_at = a.record_at AND earlier.integrator_record_id < a.integrator_record_id)
+               )
+           )${firstVisitEx.clause}`,
+        [from, toExclusive, ...firstVisitEx.params],
+      );
       const row = rangeResult.rows[0];
       const row30 = cancellations30dResult.rows[0];
+      const firstVisitCount = parseInt(firstVisitResult.rows[0]?.c ?? "0", 10) || 0;
+      const pastVisitsCount = row ? parseInt(row.past_visits, 10) : 0;
       return {
-        pastVisitsInPeriod: row ? parseInt(row.past_visits, 10) : 0,
+        pastVisitsInPeriod: pastVisitsCount,
         cancelledVisitsInPeriod: row ? parseInt(row.cancelled_visits, 10) : 0,
         bookingsCreatedInPeriod: parseInt(bookingsCreatedResult.rows[0]?.count ?? "0", 10) || 0,
         cancellationActionsInPeriod: row ? parseInt(row.cancellation_actions, 10) : 0,
         rescheduleActionsInPeriod: row ? parseInt(row.reschedule_actions, 10) : 0,
         total: row ? parseInt(row.total, 10) : 0,
         cancellations30d: row30 ? parseInt(row30.count, 10) : 0,
+        firstVisitInPeriod: firstVisitCount,
+        repeatVisitInPeriod: Math.max(0, pastVisitsCount - firstVisitCount),
       };
     },
 
@@ -350,6 +380,118 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         recordsInCalendarMonthTotal: parseInt(monthR.rows[0]?.c ?? "0", 10),
         cancellationsInCalendarMonth: parseInt(cancelR.rows[0]?.c ?? "0", 10),
       };
+    },
+
+    // Legacy Rubitime port does not have per-patient analytics; returns zeros for all 9 KPI.
+    async getScheduleKpis(
+      _query: ScheduleKpisQuery,
+      _audience?: { excludedUserIds?: string[] },
+    ): Promise<ScheduleKpis> {
+      return {
+        recordsInPeriod: 0,
+        pastInPeriod: 0,
+        futureInPeriod: 0,
+        bySubscriptionInPeriod: 0,
+        firstVisitInPeriod: 0,
+        firstVisitIds: [],
+        repeatVisitInPeriod: 0,
+        uniquePatientsInPeriod: 0,
+        cancellationsInPeriod: 0,
+        reschedulesInPeriod: 0,
+      };
+    },
+
+    async getAppointmentDailySeries(
+      filter: DoctorAppointmentStatsFilter,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<{ daySeries: AppointmentDayPoint[]; branchSeries: AppointmentBranchPoint[] }> {
+      const iana = await getAppDisplayTimeZone();
+      const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
+
+      const dayEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 4);
+      const bookEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 4);
+      const branchEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 4, "ar");
+
+      const [dayResult, bookingsResult, branchResult] = await Promise.all([
+        runWebappPgText<{ day: string; past_visits: string; cancellation_actions: string }>(
+          `SELECT
+            to_char(record_at AT TIME ZONE $3, 'YYYY-MM-DD') AS day,
+            COUNT(*) FILTER (WHERE record_at < NOW() AND status <> 'canceled')::text AS past_visits,
+            COUNT(*) FILTER (
+              WHERE status = 'canceled'
+                AND updated_at >= $1::timestamptz AND updated_at < $2::timestamptz
+            )::text AS cancellation_actions
+          FROM appointment_records
+          WHERE deleted_at IS NULL
+            AND record_at >= $1::timestamptz AND record_at < $2::timestamptz${dayEx.clause}
+          GROUP BY 1
+          ORDER BY 1`,
+          [from, toExclusive, iana, ...dayEx.params],
+        ),
+        runWebappPgText<{ day: string; bookings_created: string }>(
+          `SELECT
+            to_char(created_at AT TIME ZONE $3, 'YYYY-MM-DD') AS day,
+            COUNT(*)::text AS bookings_created
+          FROM appointment_records
+          WHERE deleted_at IS NULL
+            AND created_at >= $1::timestamptz AND created_at < $2::timestamptz${bookEx.clause}
+          GROUP BY 1
+          ORDER BY 1`,
+          [from, toExclusive, iana, ...bookEx.params],
+        ),
+        runWebappPgText<{ branch_name: string; past_visits: string; cancelled_visits: string }>(
+          `SELECT
+            COALESCE(b.name, 'Без филиала') AS branch_name,
+            COUNT(*) FILTER (WHERE ar.record_at < NOW() AND ar.status <> 'canceled')::text AS past_visits,
+            COUNT(*) FILTER (WHERE ar.status = 'canceled' AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL})::text AS cancelled_visits
+          FROM appointment_records ar
+          LEFT JOIN branches b ON ar.branch_id = b.id
+          WHERE ar.deleted_at IS NULL
+            AND ar.record_at >= $1::timestamptz AND ar.record_at < $2::timestamptz${branchEx.clause}
+          GROUP BY 1
+          ORDER BY 1`,
+          [from, toExclusive, iana, ...branchEx.params],
+        ),
+      ]);
+
+      // Merge day series with bookings by day key
+      const bookingsMap = new Map<string, number>();
+      for (const row of bookingsResult.rows) {
+        bookingsMap.set(row.day, parseInt(row.bookings_created, 10) || 0);
+      }
+
+      // Collect all unique days from both series
+      const allDays = new Set<string>();
+      for (const row of dayResult.rows) allDays.add(row.day);
+      for (const row of bookingsResult.rows) allDays.add(row.day);
+
+      const dayMap = new Map<string, { pastVisits: number; cancellationActions: number }>();
+      for (const row of dayResult.rows) {
+        dayMap.set(row.day, {
+          pastVisits: parseInt(row.past_visits, 10) || 0,
+          cancellationActions: parseInt(row.cancellation_actions, 10) || 0,
+        });
+      }
+
+      const daySeries: AppointmentDayPoint[] = Array.from(allDays)
+        .sort()
+        .map((day) => {
+          const d = dayMap.get(day);
+          return {
+            day,
+            pastVisits: d?.pastVisits ?? 0,
+            bookingsCreated: bookingsMap.get(day) ?? 0,
+            cancellationActions: d?.cancellationActions ?? 0,
+          };
+        });
+
+      const branchSeries: AppointmentBranchPoint[] = branchResult.rows.map((row) => ({
+        branchName: row.branch_name,
+        pastVisits: parseInt(row.past_visits, 10) || 0,
+        cancelledVisits: parseInt(row.cancelled_visits, 10) || 0,
+      }));
+
+      return { daySeries, branchSeries };
     },
   };
 }

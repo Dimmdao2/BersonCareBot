@@ -1,6 +1,7 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { buildTreatmentProgramLibraryPickers } from "./buildTreatmentProgramLibraryPickers";
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
 import {
@@ -59,6 +60,7 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
 
   return (
     <DoctorAppShell title="Шаблоны программ" user={session.user} backHref="/app/doctor">
+      <DoctorPageHeader title="Шаблоны программ" />
       <TreatmentProgramTemplatesPageClient
         templates={items}
         library={library}

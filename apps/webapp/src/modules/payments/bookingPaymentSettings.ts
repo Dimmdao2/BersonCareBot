@@ -15,6 +15,10 @@ function parseProviders(raw: unknown): PaymentProviderConfig[] {
       webhookSecret: typeof o.webhookSecret === "string" ? o.webhookSecret : undefined,
       apiKey: typeof o.apiKey === "string" ? o.apiKey : undefined,
       shopId: typeof o.shopId === "string" ? o.shopId : undefined,
+      terminalKey: typeof o.terminalKey === "string" ? o.terminalKey : undefined,
+      publicId: typeof o.publicId === "string" ? o.publicId : undefined,
+      merchantLogin: typeof o.merchantLogin === "string" ? o.merchantLogin : undefined,
+      gatewayUrl: typeof o.gatewayUrl === "string" ? o.gatewayUrl : undefined,
     });
   }
   return out;
@@ -27,6 +31,9 @@ export function parseBookingPaymentSettingsValue(envelope: unknown): BookingPaym
     providers: [
       { id: "mock", label: "Тестовый (mock)", enabled: true },
       { id: "yookassa", label: "ЮKassa", enabled: false },
+      { id: "tinkoff", label: "Тинькофф Касса", enabled: false },
+      { id: "cloudpayments", label: "CloudPayments", enabled: false },
+      { id: "alfabank", label: "Альфа-Банк", enabled: false },
     ],
   };
   if (envelope === null || typeof envelope !== "object") return defaults;

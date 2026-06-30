@@ -85,6 +85,9 @@ export const doctorHoverLinkClass = "text-primary underline-offset-4 hover:under
 /** Default container for empty states in doctor pages. */
 export const doctorEmptyStateClass = "flex flex-col gap-2 text-sm text-muted-foreground";
 
+/** Compact empty-state variant for dense panels / inline hints inside cards. */
+export const doctorEmptyStateCompactClass = "flex flex-col gap-2 text-xs text-muted-foreground";
+
 // -- Grids --------------------------------------------------------------------
 
 /** KPI cards grid (dashboard/analytics): 3 per row on mobile, denser on wide screens. */

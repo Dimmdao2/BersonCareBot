@@ -1,10 +1,34 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildExerciseVideoSplit,
   loadContentEngagementStats,
   mergePushOpenBuckets,
   parseReminderStatsWindowHours,
   summarizePushOpens,
 } from "./loadAdminReminderStats";
+
+describe("buildExerciseVideoSplit (AN-11)", () => {
+  it("buckets promo vs assigned, no double counting, top-15 per bucket", () => {
+    const rows = [
+      { media_id: "m1", title: "Promo A", in_promo: true, n: "30" },
+      { media_id: "m2", title: "Assigned B", in_promo: false, n: "20" },
+      { media_id: "m3", title: "Promo C", in_promo: true, n: "5" },
+    ];
+    const out = buildExerciseVideoSplit(rows);
+    expect(out.promoExerciseVideoCount).toBe(35);
+    expect(out.assignedExerciseVideoCount).toBe(20);
+    expect(out.promoExerciseVideoTopItems.map((r) => r.mediaId)).toEqual(["m1", "m3"]);
+    expect(out.assignedExerciseVideoTopItems.map((r) => r.mediaId)).toEqual(["m2"]);
+  });
+
+  it("handles empty input", () => {
+    const out = buildExerciseVideoSplit([]);
+    expect(out.promoExerciseVideoCount).toBe(0);
+    expect(out.assignedExerciseVideoCount).toBe(0);
+    expect(out.promoExerciseVideoTopItems).toEqual([]);
+    expect(out.assignedExerciseVideoTopItems).toEqual([]);
+  });
+});
 
 describe("parseReminderStatsWindowHours", () => {
   it("defaults to 168 when param is missing or empty", () => {

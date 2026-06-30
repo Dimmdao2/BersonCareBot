@@ -8,13 +8,17 @@
 - `README.md`
 - `docs/README.md`
 - `docs/ARCHITECTURE/SERVER CONVENTIONS.md`
+- `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — **dev-серверы, dev-bypass вход в кабинеты, живое UI-тестирование**
 - `deploy/HOST_DEPLOY_README.md`
+- `docs/AGENT_AUTORUN_SCHEME.md` — **СХЕМА АВТО-ПРОХОДА АГЕНТАМИ** (канон оркестрации: фазы планирования/исполнения, роли, цикл аудитов, параллельность, governance) — для любой оркестрованной/автономной работы
 
 ---
 
 ## Оглавление
 
 1. [Онбординг и server conventions](#1-онбординг-и-server-conventions)
+1a. [Локальный dev и тестирование UI](#1a-локальный-dev-и-тестирование-ui)
+1b. [Безопасность dev-среды: изоляция от прод](#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов)
 2. [CRITICAL: конфигурация интеграций только в БД](#2-critical-конфигурация-интеграций-только-в-бд)
 3. [Runtime config: env vs database](#3-runtime-config-env-vs-database)
 4. [system_settings: зеркало public + integrator](#4-system_settings-зеркало-public--integrator)
@@ -36,6 +40,8 @@
 20. [CMS: единый layout медиа-пикера](#20-cms-единый-layout-медиа-пикера) — *scoped: doctor CMS*
 21. [UI: тексты без избыточных пояснений](#21-ui-тексты-без-избыточных-пояснений)
 22. [UI: Select — displayLabel](#22-ui-select--displaylabel)
+23. [Справочник вне .cursor/rules](#23-справочник-вне-cursorrules)
+24. [Оркестрация субагентов](#24-оркестрация-субагентов)
 
 ---
 
@@ -59,6 +65,116 @@
 - When adding discovered server facts to docs:
   - Store only non-secret operational facts in docs (paths, unit names, port numbers, DB names, env key names, URLs, users, ownership).
   - Never write secrets, passwords, tokens, or full credential-bearing connection strings into repo docs.
+
+**Production-хост:** пользователь `deploy` **не имеет** произвольного `sudo` в SSH — только whitelist (systemctl bersoncarebot-*, backup). Не давать агенту `sudo rm/chown/cp` от `deploy`; root-операции — явно «от root». Подробно: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
+
+### Задачи — только через taskdb-порт, не сырой SQL
+
+Канон: [`.cursor/rules/unified-task-db.mdc`](.cursor/rules/unified-task-db.mdc) (`alwaysApply`) + памятка [`docs/SHARED_TASKDB.md`](docs/SHARED_TASKDB.md). Кратко:
+
+- Все задачи репозитория ведём в ОБЩЕЙ базе задач (проект `bcb`) **только** через утилиту-порт:
+  ```
+  node /home/dev/brain/tools/taskdb.mjs <cmd>
+  ```
+  Основные команды: `list bcb` · `find bcb "<подстрока>"` · `waiting` · `add "<title>" "<details>" bcb-lead bcb` · `set <id> <field> <value>`
+  Settable fields: `status` · `note` · `question` · `owner_waiting` · `commit_ref` · `seal_test` · `seal_audit` · `auto_ok` · `title` · `meta` · `category`
+
+- **НИКОГДА** не лезть в таблицу `plan_tasks` напрямую — ни `psql`, ни `INSERT/UPDATE/SELECT` из кода/ORM. Один порт = согласованные транзакции + единая точка контроля доступа. Не хватает операции — допиши утилиту (через ведущего/Нео), не обходи её.
+
+- **`accepted` / `accepted_at`** — **только владелец**. Агент НЕ ставит `accepted`. «done» ≠ «accepted».
+
+- Дисциплина статусов: начал → `status doing`; упёрся в решение владельца → `status blocked` + `owner_waiting true` + `question "<вопрос>"`; довёл и проверил → `status done` + `seal_test true` + `commit_ref <hash>`. **Сразу** фиксируй в порт ход работы и ЛЮБЫЕ ответы/решения владельца — база единственный источник правды, не держать в голове.
+
+---
+
+## Операционные правила (добавлено через Claude, 2026-06): кап тестов · deploy · индекс · задачи
+
+### Прогон тестов и сборок — ТОЛЬКО через кап-враппер
+- ВСЕ тесты и тяжёлые сборки запускать через `bash /home/dev/orch/run-tests.sh "<команда>"`. Враппер даёт: (а) flock-мьютекс — один прогон за раз; (б) **жёсткий кап CPU** — `taskset` на 2 ядра (env `TEST_CPUSET`, дефолт `6,7`) + `nice 19` + `ionice idle`.
+- Зачем: прод и **МОЗГ** (embed-server/STT) co-resident на этой коробке (8 vCPU, со swap). Прямой `vitest`/`pnpm test`/`pnpm build`/`tsc` форкается на все ядра → вешает систему и голодит мозг (не разбирает голос). Враппер не допускает (тесты чуть медленнее — коробка жива).
+- НЕ запускать тесты/сборки напрямую. **Исключение:** владелец может осознанно прогнать на полную — ТОЛЬКО по его явной команде («гони напрямую») или он сам. По умолчанию агент — всегда через враппер.
+
+### CI / lint / build / fix-warnings — делегировать Sonnet, не гнать в Opus
+- **Opus** = оркестрация + принятие решений. **Sonnet** = механический run+fix цикл.
+- Как только нужен зелёный CI / починить lint / build / предупреждения — **сразу** спаунить одного Sonnet-агента с промптом:
+  1. прогони `bash /home/dev/orch/run-tests.sh "pnpm run ci"`;
+  2. для НОВОГО кода → правь **тесты** (не регрессируй код под устаревшим тестом);
+  3. предупреждения и ошибки — чини;
+  4. сложное / неочевидное / нужно решение владельца → неси ведущему на выбор, не хачь.
+- Ведущий (Opus) **не расследует логи, не правит файлы, не читает ошибки сам** — только бридж для сложных решений, которые Sonnet вынес.
+
+### Deploy / push
+- **`feat/doctor-ui-rebuild`** (dev): коммить и пушить свободно (авто-push ок).
+- **`main` / `test`: НИКОГДА не пушить/мёрджить без прямой команды владельца.**
+- **Два репо:** `origin` = `Dimmdao2/BersonCareBot` (dev/backup; прод-деплой выключен `if:false`). `dimmdao` = `dimmdao/BersonCareBot` — **производственный**.
+- **Прод-деплой — ручной:** в `dimmdao` → Actions → workflow **«Deploy (production)»** (`workflow_dispatch`, ввод `confirm=deploy`) → аппрув окружения `production`. Гейты: зелёный CI на коммите + human-approval. Затем SSH под юзером `deploy` запускает `deploy/host/deploy-prod.sh` (хост: `git pull main` → install → build → `pnpm migrate` → рестарт systemd). Хост `135.106.162.170`, путь `/opt/projects/bersoncarebot`, секреты `DEPLOY_SSH_KEY/USER/HOST/PATH` + read-only deploy-key для pull. Детали: `deploy/HOST_DEPLOY_README.md`.
+
+### Индекс/векторы по репозиторию (в работе)
+- Готовится семантический индекс+векторы по репо. Как появится — для навигации по коду предпочитать семантический поиск вместо дорогих `grep`/чтений целых файлов. Ключи/ссылки индекса хранить в `meta` задач (ниже).
+
+### Задачи — расширенные конвенции (доп. к разделу «taskdb-порт» выше)
+- **`title`** = человеческий TL;DR (агент сразу отвечает «что это», без поиска). **`block`** = полное ТЗ/детали. **`note`** = ход + решения/ответы владельца. **`category`** = область/страница (Карточка/Пациенты/Расписание/Напоминания/Рассылки/…) для группировки. **`commit_ref`** = коммит.
+- **Слои состояния:** `status` (todo/doing/blocked/done) → `seal_test`/`seal_audit` (агент проверил) → **`accepted`** (+`accepted_at`) = **ВЛАДЕЛЕЦ принял**. «done» ≠ «accepted».
+- **Гейт автономного лупа:** воркер берёт задачу только при `status∈(todo,doing) AND owner_waiting=false AND auto_ok=true`. Новую/крупную/спорную заводить `auto_ok=false` (ждёт триажа); мелкую-безопасную — `auto_ok=true`.
+- **`meta jsonb`** (после добавления поля): ссылки на доки + AI-данные — `{"docs":{"plan":…,"audit":…,"log":…,"design":…},"ai":{"vectorIds":[…],"indexKeys":[…]}}`. Планы/аудиты/логи остаются ФАЙЛАМИ; в БД — статус + ссылки, не контент.
+
+---
+
+## 1a. Локальный dev и тестирование UI
+
+*Канон: [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md)*
+
+### Запуск
+
+| Команда | Назначение |
+|---------|------------|
+| `pnpm run dev` | integrator + webapp (полный стек) |
+| `pnpm run webapp:dev` | только webapp (`127.0.0.1:5200`) |
+| `pnpm run dev:turbo` | webapp, Turbopack (быстрый HMR) |
+| `pnpm --dir apps/webapp run dev:visual` | webapp + file polling (VM/Docker) |
+| `pnpm run dev:integrator` | только API `:4200` |
+| `pnpm run worker:dev` / `scheduler:dev` | фоновые процессы integrator |
+| `pnpm run dev:stop` | освободить dev-порты 5200/4200 |
+
+Перед UI-тестом: `pnpm run migrate`, env из `.env` + `apps/webapp/.env.dev`.
+
+### Dev-bypass (вход без Telegram)
+
+Требуется `ALLOW_DEV_AUTH_BYPASS=true` в `apps/webapp/.env.dev`. Хост — **`http://127.0.0.1:5200`**, не `localhost`.
+
+| `token` | Роль |
+|---------|------|
+| `dev:admin` | врач + admin mode (настройки, audit-log) |
+| `dev:doctor` | только кабинет специалиста |
+| `dev:client` | пациент |
+
+```
+http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
+# затем /app/doctor/clients или полный URL страницы
+```
+
+Проверка: `curl -s -c /tmp/c.cookies -L "…dev-bypass…"` → `curl -s -b /tmp/c.cookies http://127.0.0.1:5200/api/me`.
+
+**Скриншоты авторизованных страниц без браузер-MCP** (headless chromium, двухшаговая схема с флашем cookie) — канон в [`LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) §4.7. Главное: `next` для doctor/admin игнорируется; на auth-шаге chromium запускать **без** `--virtual-time-budget` (иначе cookie не сохранится в профиль).
+
+**Не путать:** `system_settings.dev_mode` в БД — тестовые аккаунты в аналитике, не вход.
+
+Подробности, curl, browser MCP, типовые сценарии — в каноническом документе выше.
+
+---
+
+## 1b. Безопасность dev-среды: изоляция от прод и реальных каналов
+
+*Источник: `.cursor/rules/dev-prod-isolation-no-real-creds.mdc` (alwaysApply)*
+
+Прод и dev — на одной машине. Прод: из `/opt/projects/bersoncarebot` (+ `/opt/env/bersoncarebot/*`, systemd `bersoncarebot-*-prod.service`, БД `bcb_webapp_prod`). Dev: из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, env `/.env` + `apps/webapp/.env.dev`, БД `bcb_webapp_dev`). Канонические пути — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+
+1. **Реальные креды — только на проде.** Dev-env НЕ содержит реальных prod-секретов внешних каналов (Telegram / Rubitime / MAX / SMSC / S3) — они только в `/opt/env/bersoncarebot/*`. В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`. Нашёл реальные креды в dev-env — очистить и сообщить владельцу.
+2. **Dev не шлёт реально.** В `development` доставка = no-op/мок. Не делать действий, способных отправить реальное сообщение/SMS в Telegram / Rubitime / SMSC / MAX или записать в реальный S3 из dev (тестовые записи, рассылки, ретраи). `INTEGRATOR_API_URL` в dev — только локальный `127.0.0.1:4200`.
+3. **Dev-БД = реальные ПДн.** `bcb_webapp_dev` — копия прод-дампа с реальными данными пациентов: только read-only SELECT при необходимости, не писать, не слать уведомления, не печатать ПДн в чат/логи.
+4. **Прод не трогать из dev.** Не подключаться к `bcb_webapp_prod`, не читать `/opt/env/*`, не дёргать прод-сервисы — только по явному запросу владельца и канону SERVER CONVENTIONS (+ раздел [Host: PostgreSQL](#6-host-postgresql-и-database_url)).
+5. **Секреты не печатать.** Значения `.env`/секретов — маскировать; не вставлять креды в чат / логи / коммиты / доки.
+6. **Не удалять `.next`/кэш работающих серверов вслепую** — сперва `pgrep -af next`.
 
 ---
 
@@ -295,6 +411,12 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 Пути к локальным `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (например webapp dev: `apps/webapp/.env.dev`). Тот же принцип: **сначала** загрузить файл, в котором задан `DATABASE_URL`, **потом** `psql`.
 
+**Prod и dev — в одной PostgreSQL** (`bcb_webapp_prod` + `bcb_webapp_dev` на `127.0.0.1:5432`). Прод трогать нельзя; dev-роль не видит схемы прода — это норма, а не пустая база.
+
+### Пересоздание / обновление dev-базы из prod-дампа
+
+Канон с командами и граблями — [`docs/ARCHITECTURE/DB_DUMPS/README.md`](docs/ARCHITECTURE/DB_DUMPS/README.md) (раздел «Пересоздание dev-базы из prod-дампа»). Чего **не** делать (ломали вживую): `pg_restore --clean` поверх живой схемы; `--single-transaction` (откат из-за `COMMENT ON EXTENSION`); `REASSIGN OWNED BY bcb_webapp_prod` (задевает боевую базу — владельца задавать через `--no-owner --role=bcb_webapp_dev_user`). Пересоздание базы — только суперюзер `postgres` (роли `bcb_*` без `CREATEDB`): дать команды пользователю, не запускать самому. Миграциями «с нуля» схему не собирать — базу+леджер даёт дамп, `pnpm migrate` накатывает дельту.
+
 ### Скрипты в репозитории
 
 Если в комментарии к SQL написано «подставьте `DATABASE_URL`» — для хоста всегда дописывай полный префикс `set -a && source …` из таблицы выше, иначе команда неполная.
@@ -414,6 +536,15 @@ pnpm run ci
 
 Приоритет сигнала: скорость и полезный результат, а не избыточные повторы.
 
+### Падающий тест после правок — чинить ТЕСТ под код, не наоборот
+
+Канон: [`.cursor/rules/ci-fix-test-not-rollback-code.mdc`](.cursor/rules/ci-fix-test-not-rollback-code.mdc) (`alwaysApply`). Кратко:
+
+- Упал тест после изменения кода → разберись, **каково намеренное поведение**. Если новое поведение верное (мы его и хотели) → **обнови тест** под новый код. **НЕ откатывай рабочие правки**, лишь бы зелёный устаревший тест.
+- Откат кода к старому поведению допустим **только** если установлено, что изменение было ошибочным (регрессия), а не «потому что так проще пройти старый тест».
+- Не уверен, тест или код верен → **СТОП, спроси ведущего/владельца**. Никогда не «подгоняй код под тест» молча.
+- **Full CI запускать под контролем старшего агента (lead)**, который понимает назначение каждого теста; слабому субагенту Full CI — только с явной этой инструкцией.
+
 ### Уровни
 
 #### Step-level (по умолчанию после точечных правок)
@@ -532,6 +663,10 @@ pnpm run ci
 #### Cost rule
 
 **Аудит не должен быть дороже выполнения задачи.** Если аудит инициирует **больше** прогонов (или тяжелее уровень), чем было разумно при самой реализации — стратегия **неверна**; нужно остановиться и сузить scope.
+
+### Dev-DB opt-in smoke-тесты
+
+Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Запускаются вручную в dev-среде. Обязаны быть **строго read-only** — `bcb_webapp_dev` содержит реальные PII пациентов. Полное соглашение: `.cursor/rules/test-execution-policy.md` §«Dev-DB opt-in smoke-тесты».
 
 ---
 
@@ -680,7 +815,7 @@ pnpm run ci
 1. `docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`
 2. `apps/webapp/src/shared/ui/patientVisual.ts`
 3. `apps/webapp/src/shared/ui/patient/PatientCatalogMediaStaticThumb.tsx` (превью каталожного медиа в списках/модалках)
-4. `apps/webapp/src/components/ui/*` (shadcn/base-ui)
+4. `apps/webapp/src/shared/ui/patient/primitives/*` — shadcn-копии для patient zone (**не** `@/components/ui/**` в patient routes: ESLint + [§17](#17-patient--doctor-ui-isolation))
 5. `apps/webapp/src/app/globals.css` (`#app-shell-patient` токены)
 
 ### Обязательные правила
@@ -716,7 +851,7 @@ pnpm run ci
 3. [`apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts`](apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts) — shell и панели карточки клиента (entity-card), без дубля в `doctorVisual`.
 4. [`apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts`](apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts) — контейнер страницы, sticky toolbar каталога.
 5. [`apps/webapp/src/shared/ui/doctor/`](apps/webapp/src/shared/ui/doctor/) — каталог, toolbar, `DoctorSection` / `DoctorSectionHeader` / `DoctorEmptyState` / `DoctorMetricList`.
-6. [`apps/webapp/src/components/ui/*`](apps/webapp/src/components/ui/) — shadcn/base-ui (Button, Dialog, Card, Select, …).
+6. [`apps/webapp/src/shared/ui/doctor/primitives/*`](apps/webapp/src/shared/ui/doctor/primitives/) — shadcn-копии doctor zone (**не** `@/components/ui/**` в doctor routes; ESLint + [§17](#17-patient--doctor-ui-isolation)). Источник для копирования: `components/ui/`.
 7. Журнал унификации (исключения, cancelled routes): [`docs/archive/2026-06-initiatives/DOCTOR_UI_UNIFICATION_INITIATIVE/README.md`](docs/archive/2026-06-initiatives/DOCTOR_UI_UNIFICATION_INITIATIVE/README.md).
 
 Плотность UI **не откатывать** — см. [`docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md`](docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md).
@@ -916,6 +1051,56 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ---
 
+## 23. Справочник вне `.cursor/rules`
+
+Постоянные инструкции — в `.cursor/rules/` и разделах 1–22 выше. Ниже — **документы и паттерны**, которые Cursor не подставляет автоматически, но агенту нужно знать по задаче.
+
+### Покрытие `.cursor/rules` → `AGENTS.md`
+
+Все **22** файла из `.cursor/rules/` (21× `.mdc` + `test-execution-policy.md`) продублированы в разделах 1–22. Исключение по смыслу: §1a ([`LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md)) — канон репозитория, не rule-файл.
+
+| Файл | В AGENTS | Примечание |
+|------|----------|------------|
+| `patient-doctor-ui-isolation.mdc` | §17 | **Нет YAML frontmatter** (`alwaysApply`/`globs`) — правило не scoped в IDE; опирайтесь на §17 при правках patient/doctor UI |
+| `cms-unified-media-picker-layout.mdc` | §20 | `alwaysApply: false` — только doctor CMS media pickers |
+| `patient-media-playback-video.mdc` | §19 | scoped: patient routes |
+
+### Архитектура и контракты
+
+| Документ | Когда читать |
+|----------|----------------|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Integrator: слои, запреты, runtime-процессы |
+| [`apps/webapp/INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md) | M2M webapp↔integrator, idempotency, webhooks |
+| [`docs/ARCHITECTURE/DB_STRUCTURE.md`](docs/ARCHITECTURE/DB_STRUCTURE.md) | Карта таблиц PostgreSQL (`public` + `integrator`) |
+| [`docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md) | Маршруты врача/admin, меню |
+| [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) | Что в env, что в `system_settings` |
+| [`docs/RULES/README.md`](docs/RULES/README.md) | Нормативы исполнения (программы лечения, reminders DDL) |
+| [`docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md) | Программы лечения, Drizzle, фазовые gate |
+
+### Модули в коде (`*.md` рядом с кодом)
+
+В `apps/*/src/**` лежат `имя_папки.md` с контрактом модуля (auth, api, reminders, …). При правке модуля **сначала** откройте соседний `*.md`; индекс webapp-модулей: [`apps/webapp/src/modules/modules.md`](apps/webapp/src/modules/modules.md).
+
+### Планы инициатив
+
+`.cursor/plans/` и `docs/*_INITIATIVE/` — **задачи и журналы**, не standing rules. Не смешивать с `AGENTS.md`. Закрытые планы: `.cursor/plans/archive/`.
+
+### Известные пересечения правил
+
+- **Patient UI primitives vs isolation (§15 vs §17):** в patient/doctor **routes** импорт `@/components/ui/**` запрещён ESLint — используйте `shared/ui/patient/primitives` или `shared/ui/doctor/primitives`. Канонический shadcn живёт в `components/ui/` как **источник для копирования**, не для прямого импорта в product zones.
+- **`dev_mode` (БД) vs `ALLOW_DEV_AUTH_BYPASS` (env):** разные вещи — см. [§1a](#1a-локальный-dev-и-тестирование-ui).
+
+### Деплой и ops (кратко)
+
+| Тема | Документ |
+|------|----------|
+| Host deploy, cron, nginx | [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md) |
+| Env-шаблоны | [`deploy/env/README.md`](deploy/env/README.md) |
+| Backfill / cutover | [`deploy/DATA_MIGRATION_CHECKLIST.md`](deploy/DATA_MIGRATION_CHECKLIST.md) |
+| `psql` на production | §6 + полный префикс `set -a && source /opt/env/...` |
+
+---
+
 ## Справка: файлы правил
 
 | Файл | alwaysApply | globs (если scoped) |
@@ -928,7 +1113,7 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 | `git-commit-push-full-worktree.mdc` | да | — |
 | `host-psql-database-url.mdc` | да | — |
 | `no-unsolicited-followups.mdc` | да | — |
-| `patient-doctor-ui-isolation.mdc` | — | — |
+| `patient-doctor-ui-isolation.mdc` | нет (нет frontmatter) | patient + doctor zones; см. §17 |
 | `patient-lfk-means-rehab-program.mdc` | да | — |
 | `patient-media-playback-video.mdc` | нет | patient routes, media |
 | `patient-ui-shared-primitives.mdc` | да | — |
@@ -943,4 +1128,41 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 | `ui-select-trigger-display-label.mdc` | да | — |
 | `webapp-tests-lean-no-bloat.mdc` | да | — |
 
+**Документация репозитория (не rule-файл):** [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) — §1a; [`docs/ARCHITECTURE/DB_STRUCTURE.md`](docs/ARCHITECTURE/DB_STRUCTURE.md) — §23.
+
 **Не включено в этот файл:** `.cursor/plans/` — это архив задач и планов инициатив, а не постоянные инструкции для агентов.
+
+---
+
+## 24. Оркестрация субагентов
+
+*Правила выведены из практики (2026-06): тихие смерти/зависания агентов, git-факапы в общем чек-ауте, дублирование с параллельным чатом.*
+
+### Роли и стоимость
+- Дорогая модель (оркестратор) делает ТОЛЬКО: планирование, брифы, ревью, интеграцию. **Всю реализацию (включая «мелкий» код) отдавать Sonnet-субагентам.** Не писать рутинный код самому — это жжёт контекст чата и токены.
+- Для планирования / перепроверки плана дорогая модель допустима. Уровень модели/мышления подбирать под задачу (мелкая правка → дешевле; рискованная архитектура → дороже).
+
+### Параллелизм
+- **Не больше 1–2 фоновых агентов одновременно** (перегруз среды). Лишнее — в очередь, не «веером».
+
+### Бриф агента (self-contained)
+- В брифе: пути, эталон, ограничения, шаги проверки, **запрет commit в main / push**. Холодный старт — агент ничего не доводит «по памяти».
+- **Запрещать бесконечные циклы ожидания** (напр. «жди, пока поднимется порт N») — только с таймаутом/числом попыток. Иначе агент НЕ падает, а ВИСНЕТ навсегда (в панели — «Running» часами).
+- По возможности **не давать агенту поднимать dev-сервер**: реализация = код + typecheck + тесты + commit (в своём worktree, без push). Живую проверку (скриншоты) делать отдельно — оркестратором или коротким verify-агентом. Меньше зависаний.
+
+### Git в среде агентов (КРИТИЧНО)
+- cwd ненадёжен → все git-команды с явным `git -C <main-checkout>`.
+- Только явный `git add <пути>`. **Никогда `git add -A`** — однажды это втянуло в коммит файлы параллельного чата.
+- Агенты иногда ветвятся от УСТАРЕВШЕЙ базы. Новый/перезапущенный агент: STEP 0 — `git merge <ветка-feat> --no-edit` + проверить маркер актуальности (`grep` известной строки), иначе остановиться и доложить.
+- В общий feat не пушить без нужды; только **fast-forward, без `--force`**. Пуш feat может опубликовать неотправленные коммиты ПАРАЛЛЕЛЬНОГО чата — координировать.
+
+### Живость агентов
+- При запуске **оценивать длительность и ставить себе напоминалку** (ScheduleWakeup) на проверку живости. Не полагаться только на нотификацию о завершении — агенты тихо умирают/виснут.
+- Проверка живости БЕЗ чтения транскрипта: `git worktree list` + коммиты на ветке агента; список задач (пусто = не отслеживается/мёртв); нотификация о завершении. ⚠️ Размер `.output`-файла НЕнадёжен (почти всегда ~179 байт) — не использовать как сигнал.
+- Мёртв/завис → проверить его worktree `git status` на несохранённое (салвадж) → прибрать (`git worktree remove --force`; если locked — сперва `git worktree unlock`) → перезапустить с корректной базой.
+
+### Интеграция и уборка
+- Интегрировать вывод агентов **по одному**: посмотреть diff/скриншоты → typecheck/тесты → merge (ff или 3-way) в feat → удалить worktree агента.
+- Убирать за собой dev-серверы и worktree: висящие серверы/worktree перегружают среду и могут заклинивать новых агентов.
+- Перед запуском проверять, не делает ли ту же работу **параллельный чат** (чужие ветки/worktree вида `claude/*`) — чтобы не дублировать.
+- Панель Background tasks может показывать «фантомы» (Running) после завершения процессов; их `TaskStop` не находит — чистить кнопкой Clear, а реальные процессы проверять через `ps` / порты.

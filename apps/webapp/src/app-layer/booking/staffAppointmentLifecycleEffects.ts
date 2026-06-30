@@ -11,6 +11,7 @@ import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { emitStaffCanonicalBookingEvent } from "@/app-layer/booking/staffBookingIntegratorEvent";
 import {
   projectCanonicalAppointmentCancelled,
+  projectCanonicalAppointmentNoShow,
   projectCanonicalAppointmentRescheduled,
 } from "@/modules/patient-booking/projectCanonicalAppointment";
 
@@ -62,6 +63,8 @@ export async function applyStaffCancelSideEffects(opts: {
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
   branches?: LegacyBranchProjectionPort | null;
+  /** R21: врач снял галочку «Уведомлять пациента» — подавить уведомление пациенту. */
+  suppressPatientNotification?: boolean;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentCancelled(
@@ -75,12 +78,16 @@ export async function applyStaffCancelSideEffects(opts: {
     eventType: "booking.cancelled",
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
+    suppressPatientNotification: opts.suppressPatientNotification === true,
   });
-  const cancelNotify = resolveBookingNotifyTargets(
+  const resolvedCancelNotify = resolveBookingNotifyTargets(
     "booking.cancelled",
     opts.cancelPolicy,
     opts.lifecycleNotificationSettings ?? null,
   );
+  const cancelNotify = opts.suppressPatientNotification
+    ? { ...resolvedCancelNotify, notifyPatient: false }
+    : resolvedCancelNotify;
   await opts.lifecycle.patchLatestCancellationNotifications(
     opts.appointment.id,
     opts.organizationId,
@@ -89,6 +96,63 @@ export async function applyStaffCancelSideEffects(opts: {
       idempotencyKey: `staff.cancelled:${opts.appointment.id}`,
       notifyPatient: cancelNotify.notifyPatient,
       notifyStaff: cancelNotify.notifyStaff,
+      integratorStatus,
+    }),
+  );
+}
+
+/**
+ * Side effects after staff marks a canonical appointment as no-show:
+ * - update projection record (status → "canceled", last_event = "native.no_show")
+ * - emit booking.cancelled integrator event (no-show is a variant of appointment end without visit)
+ * - resolve + record notificationsSent with same suppression mechanism as staff-cancel (R21 pattern)
+ */
+export async function applyStaffNoShowSideEffects(opts: {
+  projection: AppointmentProjectionPort | null | undefined;
+  lifecycle: LifecycleService;
+  organizationId: string;
+  appointment: BeAppointment;
+  syncPort?: BookingSyncPort | null;
+  bookingRow?: PatientBookingRecord | null;
+  lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
+  branches?: LegacyBranchProjectionPort | null;
+  /** Suppress patient notification — same flag/mechanism as staff-cancel R21 suppression. */
+  suppressPatientNotification?: boolean;
+}): Promise<void> {
+  if (opts.projection) {
+    await projectCanonicalAppointmentNoShow(
+      opts.projection,
+      opts.appointment,
+      await projectionFromAppointment(opts.appointment, opts.bookingRow, opts.branches),
+    );
+  }
+  // Reuse booking.cancelled integrator event (no-show is a variant of appointment end without visit).
+  // suppressPatientNotification travels exactly as in the staff-cancel path (R21).
+  const integratorStatus = await emitStaffCanonicalBookingEvent({
+    syncPort: opts.syncPort,
+    eventType: "booking.cancelled",
+    appointment: opts.appointment,
+    bookingRow: opts.bookingRow,
+    suppressPatientNotification: opts.suppressPatientNotification === true,
+  });
+  // Use booking.cancelled policy for notification targets (no separate no-show policy exists yet).
+  const noShowNotifyRaw = resolveBookingNotifyTargets(
+    "booking.cancelled",
+    // Default: notify patient on no-show unless suppressed.
+    { notifyPatient: true, notifyStaff: true },
+    opts.lifecycleNotificationSettings ?? null,
+  );
+  const noShowNotify = opts.suppressPatientNotification
+    ? { ...noShowNotifyRaw, notifyPatient: false }
+    : noShowNotifyRaw;
+  await opts.lifecycle.patchLatestNoShowNotifications(
+    opts.appointment.id,
+    opts.organizationId,
+    buildBookingNotificationsSent({
+      eventType: "booking.cancelled",
+      idempotencyKey: `staff.no_show:${opts.appointment.id}`,
+      notifyPatient: noShowNotify.notifyPatient,
+      notifyStaff: noShowNotify.notifyStaff,
       integratorStatus,
     }),
   );

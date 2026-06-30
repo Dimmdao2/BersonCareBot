@@ -1,14 +1,80 @@
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import type {
+  DoctorExerciseCommentCursor,
+  DoctorExerciseCommentRow,
+  ListDoctorExerciseCommentsInput,
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionLegacyUnreadInput,
   ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
+  StageItemViewerUnreadCount,
 } from "@/modules/program-item-discussion/types";
 
 function isoNow(): string {
   return new Date().toISOString();
+}
+
+function inMemoryDoctorExerciseComments(
+  input: ListDoctorExerciseCommentsInput,
+  reads: Map<string, string>,
+  rows: Map<string, ProgramItemDiscussionMessage>,
+  opts: { unreadOnly: boolean },
+): Promise<DoctorExerciseCommentRow[]> {
+  const { patientUserIds, viewerUserId, limit, cursor } = input;
+  if (patientUserIds.length === 0) return Promise.resolve([]);
+  const patientSet = new Set(patientUserIds);
+
+  // step 1: latest message (ANY role) per stage item for on-support patients
+  const latestOverallByItem = new Map<string, ProgramItemDiscussionMessage>();
+  for (const msg of rows.values()) {
+    if (!patientSet.has(msg.patientUserId)) continue;
+    const current = latestOverallByItem.get(msg.instanceStageItemId);
+    if (
+      !current ||
+      msg.createdAt > current.createdAt ||
+      (msg.createdAt === current.createdAt && msg.id > current.id)
+    ) {
+      latestOverallByItem.set(msg.instanceStageItemId, msg);
+    }
+  }
+
+  // step 2: keep only items where the latest message is a patient text (no media)
+  let candidates: DoctorExerciseCommentRow[] = [];
+  for (const msg of latestOverallByItem.values()) {
+    if (msg.senderRole !== "patient") continue;
+    if (msg.mediaFileId !== null) continue;
+    if (opts.unreadOnly) {
+      const lastReadAt = reads.get(`${viewerUserId}:${msg.instanceStageItemId}`) ?? null;
+      if (lastReadAt && msg.createdAt <= lastReadAt) continue;
+    }
+    candidates.push({
+      patientUserId: msg.patientUserId,
+      instanceId: "", // inMemory has no access to instance hierarchy
+      stageItemId: msg.instanceStageItemId,
+      stageItemTitle: "", // inMemory has no snapshot
+      latestMessage: { ...msg },
+      createdAt: msg.createdAt,
+    });
+  }
+
+  // keyset cursor (DESC order — keep entries strictly before cursor)
+  if (cursor) {
+    candidates = candidates.filter(
+      (r) =>
+        r.createdAt < cursor.createdAt ||
+        (r.createdAt === cursor.createdAt && r.latestMessage.id < cursor.id),
+    );
+  }
+
+  // sort by createdAt DESC, id DESC
+  candidates.sort(
+    (a, b) =>
+      b.createdAt.localeCompare(a.createdAt) ||
+      b.latestMessage.id.localeCompare(a.latestMessage.id),
+  );
+
+  return Promise.resolve(candidates.slice(0, Math.max(1, Math.trunc(limit))));
 }
 
 export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussionPort {
@@ -197,6 +263,56 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       rows.delete(messageId);
       if (row.supportMessageId) bySupportMessageId.delete(row.supportMessageId);
       return true;
+    },
+
+    async listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<StageItemViewerUnreadCount[]> {
+      const { stageItemIds, viewerUserId } = input;
+      return stageItemIds.map((stageItemId) => {
+        const msgs = [...rows.values()].filter(
+          (m) => m.instanceStageItemId === stageItemId && m.senderRole === "patient",
+        );
+        const lastReadAt = reads.get(readKey(viewerUserId, stageItemId)) ?? null;
+        const total = msgs.length;
+        const unread = msgs.filter((m) => !lastReadAt || m.createdAt > lastReadAt).length;
+        const latestMsg = msgs.reduce<ProgramItemDiscussionMessage | null>((acc, m) => {
+          if (!acc || m.createdAt > acc.createdAt || (m.createdAt === acc.createdAt && m.id > acc.id)) return m;
+          return acc;
+        }, null);
+        return {
+          stageItemId,
+          total,
+          unread,
+          latestMessageAt: latestMsg ? latestMsg.createdAt : null,
+        };
+      });
+    },
+
+    async listUnreadExerciseCommentsForDoctor(
+      input: ListDoctorExerciseCommentsInput,
+    ): Promise<DoctorExerciseCommentRow[]> {
+      return inMemoryDoctorExerciseComments(input, reads, rows, { unreadOnly: true });
+    },
+
+    async listExerciseCommentsForDoctor(
+      input: ListDoctorExerciseCommentsInput,
+    ): Promise<DoctorExerciseCommentRow[]> {
+      return inMemoryDoctorExerciseComments(input, reads, rows, { unreadOnly: false });
+    },
+
+    async listAllExerciseCommentsForDoctor(
+      input: { viewerUserId: string; limit: number; cursor?: DoctorExerciseCommentCursor | null },
+    ): Promise<DoctorExerciseCommentRow[]> {
+      // inMemory stub: collect all unique patientUserIds from in-memory messages.
+      const allPatientIds = [...new Set([...rows.values()].map((m) => m.patientUserId))];
+      return inMemoryDoctorExerciseComments(
+        { patientUserIds: allPatientIds, viewerUserId: input.viewerUserId, limit: input.limit, cursor: input.cursor },
+        reads,
+        rows,
+        { unreadOnly: false },
+      );
     },
   };
 }

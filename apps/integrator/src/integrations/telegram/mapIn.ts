@@ -117,6 +117,7 @@ export function incomingCallbackPayloadFromNormalized(
   if (typeof normalized.reminderMuteMinutes === 'number') out.reminderMuteMinutes = normalized.reminderMuteMinutes;
   if (normalized.reminderMutePreset === 'tomorrow') out.reminderMutePreset = 'tomorrow';
   if (typeof normalized.skipReasonCode === 'string') out.skipReasonCode = normalized.skipReasonCode;
+  if (typeof normalized.reminderTopicCode === 'string') out.reminderTopicCode = normalized.reminderTopicCode;
   if (normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no') {
     out.questionConfirm = normalized.questionConfirm;
   }
@@ -227,6 +228,21 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
     const occurrenceId = trimmed.slice('rem_bot_off:'.length).trim();
     if (!occurrenceId) return { action: trimmed };
     return { action: 'rem_bot_off', reminderOccurrenceId: occurrenceId };
+  }
+  if (trimmed.startsWith('rem_snooze_menu:')) {
+    const occurrenceId = trimmed.slice('rem_snooze_menu:'.length).trim();
+    if (!occurrenceId) return { action: trimmed };
+    return { action: 'rem_snooze_menu', reminderOccurrenceId: occurrenceId };
+  }
+  if (trimmed.startsWith('rem_notif_settings:')) {
+    const occurrenceId = trimmed.slice('rem_notif_settings:'.length).trim();
+    if (!occurrenceId) return { action: trimmed };
+    return { action: 'rem_notif_settings', reminderOccurrenceId: occurrenceId };
+  }
+  if (trimmed.startsWith('rem_notif_toggle:')) {
+    const topicCode = trimmed.slice('rem_notif_toggle:'.length).trim();
+    if (!topicCode || !/^[a-z0-9_]{1,64}$/.test(topicCode)) return { action: trimmed };
+    return { action: 'rem_notif_toggle', reminderTopicCode: topicCode };
   }
   if (trimmed === 'q_confirm:yes') return { action: 'q_confirm:yes', questionConfirm: 'yes' };
   if (trimmed === 'q_confirm:no') return { action: 'q_confirm:no', questionConfirm: 'no' };

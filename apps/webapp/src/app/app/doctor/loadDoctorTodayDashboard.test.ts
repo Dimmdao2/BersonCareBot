@@ -40,7 +40,7 @@ describe("loadDoctorTodayDashboard helpers", () => {
       status: "created",
     });
     const item = mapAppointmentToTodayItem(row);
-    expect(item.href).toBe("/app/doctor/clients/uuid-1?scope=appointments");
+    expect(item.href).toBe("/app/doctor/patients/uuid-1");
     expect(item.ctaLabel).toBe("Открыть карточку");
     expect(item.clientUserId).toBe("uuid-1");
   });
@@ -84,6 +84,8 @@ describe("loadDoctorTodayDashboard helpers", () => {
       updatedAt: "2026-05-02T10:00:00.000Z",
       patientName: "Петр",
       patientPhone: "+79990001122",
+      lastName: "",
+      firstName: "",
     } satisfies IntakeRequestWithPatientIdentity;
     const item = mapIntakeToTodayItem(row);
     expect(item.typeLabel).toBe("ЛФК");
@@ -142,7 +144,7 @@ describe("loadDoctorTodayDashboard helpers", () => {
     expect(formatDateTimeRu("not-a-date")).toBe("not-a-date");
   });
 
-  it("mapOnSupportClientToTodayItem links to patient card program section when instance id present", () => {
+  it("mapOnSupportClientToTodayItem links to the new patient card when instance id present", () => {
     const item = mapOnSupportClientToTodayItem({
       userId: "  uuid-1  ",
       displayName: "  Иван  ",
@@ -153,14 +155,12 @@ describe("loadDoctorTodayDashboard helpers", () => {
       activeTreatmentProgramInstanceId: "inst-1",
       cancellationCount30d: 0,
     });
-    expect(item.href).toBe(
-      "/app/doctor/clients/uuid-1?scope=appointments#doctor-client-section-treatment-programs",
-    );
+    expect(item.href).toBe("/app/doctor/patients/uuid-1");
     expect(item.displayName).toBe("Иван");
     expect(item.userId).toBe("uuid-1");
   });
 
-  it("mapOnSupportClientToTodayItem links to patient card program section without instance id", () => {
+  it("mapOnSupportClientToTodayItem links to the new patient card without instance id", () => {
     const item = mapOnSupportClientToTodayItem({
       userId: "uuid-2",
       displayName: "Пётр",
@@ -171,9 +171,7 @@ describe("loadDoctorTodayDashboard helpers", () => {
       activeTreatmentProgramInstanceId: null,
       cancellationCount30d: 0,
     });
-    expect(item.href).toBe(
-      "/app/doctor/clients/uuid-2?scope=appointments#doctor-client-section-treatment-programs",
-    );
+    expect(item.href).toBe("/app/doctor/patients/uuid-2");
   });
 });
 
@@ -195,7 +193,7 @@ describe("loadDoctorTodayDashboard audience", () => {
       doctorClients: {
         getDashboardPatientMetrics: async (aud?: { excludedUserIds?: string[] }) => {
           expect(aud).toEqual(audience);
-          return { onSupportCount: 0, totalClients: 0, visitedThisCalendarMonthCount: 0 };
+          return { onSupportCount: 0, totalClients: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
         },
         listClients: async (_filters: unknown, aud?: { excludedUserIds?: string[] }) => {
           expect(aud).toEqual(audience);
@@ -231,6 +229,12 @@ describe("loadDoctorTodayDashboard proactive", () => {
           onSupportCount: 0,
           totalClients: 0,
           visitedThisCalendarMonthCount: 0,
+          withProgramCount: 0,
+          membershipsCount: 0,
+          subscriberCount: 0,
+          newCount: 0,
+          formerCount: 0,
+          cancellationsCount: 0,
         }),
         listClients: async () => [],
       },
@@ -266,6 +270,6 @@ describe("loadDoctorTodayDashboard proactive", () => {
     expect(queryCalls).toBe(1);
     expect(data.proactiveInsightsTotal).toBe(3);
     expect(data.proactiveInsights).toHaveLength(1);
-    expect(data.proactiveInsights[0]?.href).toContain("#doctor-client-section-wellbeing");
+    expect(data.proactiveInsights[0]?.href).toBe("/app/doctor/patients/p1");
   });
 });

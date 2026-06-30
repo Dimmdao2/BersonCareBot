@@ -1,6 +1,7 @@
 "use client";
 
 import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import { MarkdownPreview } from "@/shared/ui/doctor/markdown/MarkdownPreview";
 import {
   formatAudienceLabel,
   formatCategoryLabel,
@@ -30,13 +31,27 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dd>{formatCategoryLabel(command.category)}</dd>
         <dt className="text-muted-foreground">Аудитория</dt>
         <dd>{formatAudienceLabel(command.audienceFilter)}</dd>
-        <dt className="text-muted-foreground">Заголовок</dt>
-        <dd className="font-medium">{command.message.title}</dd>
         <dt className="text-muted-foreground">Получателей</dt>
         <dd id="broadcast-audience-size" className="font-semibold">{preview.audienceSize}</dd>
         <dt className="text-muted-foreground">Каналы</dt>
         <dd id="broadcast-channels-summary">{formatChannelsSummary(preview.channels)}</dd>
       </dl>
+
+      {/* RASSL-07: show actual message preview matching what gets sent — title bold + markdown body */}
+      <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex flex-col gap-1.5">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Предпросмотр сообщения</p>
+        <p id="broadcast-preview-title" className="text-sm font-bold leading-snug">{command.message.title}</p>
+        {command.message.mediaUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            id="broadcast-preview-image"
+            src={command.message.mediaUrl}
+            alt="Прикреплённая картинка"
+            className="max-h-40 rounded-md border border-border object-contain"
+          />
+        ) : null}
+        <MarkdownPreview markdown={command.message.body} className="text-sm text-foreground [&_p]:leading-snug [&_p]:mb-1" />
+      </div>
 
       <p id="broadcast-delivery-policy" className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
         {preview.deliveryPolicyDescriptionRu}

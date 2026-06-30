@@ -12,6 +12,7 @@ import { patientButtonPrimaryClass, patientFormSurfaceClass, patientMutedTextCla
 export type ProgramItemCompleteDialogPayload = {
   perceivedDifficulty: "easy" | "medium" | "hard";
   reps?: number;
+  sets?: number;
   weightKg?: number;
 };
 

@@ -2,14 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
@@ -18,6 +12,7 @@ import {
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
 import { BookingPatientSearchPicker, type BookingPatientPick } from "@/app/app/doctor/admin/booking/BookingPatientSearchPicker";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 
 type ServiceOption = { id: string; title: string };
 type BranchOption = { id: string; title: string };
@@ -111,11 +106,7 @@ export function DoctorCreateAppointmentDialog() {
       <Button type="button" size="sm" onClick={() => setOpen(true)}>
         Создать запись
       </Button>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Создать запись</DialogTitle>
-        </DialogHeader>
+      <DoctorModal open={open} onClose={() => handleOpenChange(false)} title="Создать запись" size="md">
         <form onSubmit={onSubmit} className="space-y-4">
           <BookingPatientSearchPicker value={patient} onChange={setPatient} />
 
@@ -160,21 +151,11 @@ export function DoctorCreateAppointmentDialog() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Начало</Label>
-              <Input
-                type="datetime-local"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
-                required
-              />
+              <DoctorDateTimePicker value={startAt} onChange={setStartAt} />
             </div>
             <div className="space-y-2">
               <Label>Окончание</Label>
-              <Input
-                type="datetime-local"
-                value={endAt}
-                onChange={(e) => setEndAt(e.target.value)}
-                required
-              />
+              <DoctorDateTimePicker value={endAt} onChange={setEndAt} />
             </div>
           </div>
 
@@ -191,8 +172,7 @@ export function DoctorCreateAppointmentDialog() {
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DoctorModal>
     </>
   );
 }

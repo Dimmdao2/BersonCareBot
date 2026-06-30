@@ -1,0 +1,155 @@
+file	app	layer	transport	op	pool_routing	scoped_tables
+apps/webapp/src/infra/db/runWebappSql.ts	webapp	infra/db	transport-def	—	CENTRAL	—
+apps/webapp/src/infra/db/client.ts	webapp	infra/db	pool-def	—	CENTRAL	—
+apps/webapp/src/infra/repos/pgBookingEngine.ts	webapp	infra/repos	runWebappSql/sql``	READ	CENTRAL	(system_settings bypasser only)
+apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts	webapp	infra/repos	runWebappSql/sql``	READ	CENTRAL	(system_settings bypasser only)
+apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgBookingCatalog.ts	webapp	infra/repos	runWebappPgText+sql``	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgBranches.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgBroadcastAudit.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	public.broadcast_audit
+apps/webapp/src/infra/repos/pgBroadcastDrafts.ts	webapp	infra/repos	pool.connect/CENTRAL	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgBroadcastEmailRecipients.ts	webapp	infra/repos	pool.connect/CENTRAL	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgAdminClientProfileConflicts.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgAdminPlatformUserStats.ts	webapp	infra/repos	pool.connect/CENTRAL	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgAppointmentProjection.ts	webapp	infra/repos	runWebappPgText+pool.connect	WRITE	CENTRAL	public.patient_bookings(not in scope)
+apps/webapp/src/infra/repos/pgAuthRateLimitEvents.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgChannelLinkClaim.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgChannelPreferences.ts	webapp	infra/repos	runWebappPgText+pool.connect	MIXED	CENTRAL	—
+apps/webapp/src/infra/repos/pgClinicalTests.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.clinical_*
+apps/webapp/src/infra/repos/pgCourses.ts	webapp	infra/repos	runWebappPgText+sql``	READ	CENTRAL	public.courses
+apps/webapp/src/infra/repos/pgDevBypassPlatformUserPhone.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgDiaryPurge.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.symptom_trackings,public.lfk_complexes
+apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgDoctorAppointments.ts	webapp	infra/repos	runWebappPgText+pool.connect	MIXED	CENTRAL	—
+apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts	webapp	infra/repos	runWebappPgText+pool.connect	WRITE	CENTRAL	public.broadcast_audit_recipients
+apps/webapp/src/infra/repos/pgDoctorClients.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	—(platform_users not in scope)
+apps/webapp/src/infra/repos/pgDoctorMotivationQuotesEditor.ts	webapp	infra/repos	runWebappPgText+pool.connect	WRITE	CENTRAL	public.motivational_quotes
+apps/webapp/src/infra/repos/pgDoctorNotes.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.doctor_notes
+apps/webapp/src/infra/repos/pgDoctorProactiveInsights.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgEmailAuth.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgEmailPasswordLookup.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgEmailSetupFlowPort.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	—
+apps/webapp/src/infra/repos/pgEmailSetupTokens.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgIdentityResolution.ts	webapp	infra/repos	pool.connect/CENTRAL	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgLfkAssignments.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.patient_lfk_assignments
+apps/webapp/src/infra/repos/pgLfkDiary.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.lfk_complexes
+apps/webapp/src/infra/repos/pgLfkExercises.ts	webapp	infra/repos	runWebappPgText+sql``	MIXED	CENTRAL	public.lfk_exercises,public.lfk_exercise_media
+apps/webapp/src/infra/repos/pgLfkTemplates.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.lfk_complex_templates
+apps/webapp/src/infra/repos/pgLoginTokens.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	—
+apps/webapp/src/infra/repos/pgMaterialRating.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.material_ratings
+apps/webapp/src/infra/repos/pgMediaFileIntakeResolve.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.media_files
+apps/webapp/src/infra/repos/pgMediaFolderLookup.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	public.media_folders
+apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.media_transcode_jobs
+apps/webapp/src/infra/repos/pgMediaUsageSummary.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	public.media_files
+apps/webapp/src/infra/repos/pgMessageLog.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.message_log
+apps/webapp/src/infra/repos/pgOAuthBindings.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	—
+apps/webapp/src/infra/repos/pgOAuthUserResolve.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgOnlineIntake.ts	webapp	infra/repos	runWebappPgText+pool.connect	WRITE	CENTRAL	public.online_intake_requests,public.online_intake_answers
+apps/webapp/src/infra/repos/pgPatientBookings.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.patient_bookings(not in scope)
+apps/webapp/src/infra/repos/pgPatientBroadcasts.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	—
+apps/webapp/src/infra/repos/pgPatientCalendarTimezone.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgPhoneChallengeStore.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgPhoneHistory.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts	webapp	infra/repos	pool.connect/CENTRAL	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgPhoneOtpLimits.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgRecommendations.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.recommendations
+apps/webapp/src/infra/repos/pgReferences.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.reference_items
+apps/webapp/src/infra/repos/pgReminderJournal.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	public.reminder_journal
+apps/webapp/src/infra/repos/pgReminderProjection.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.reminder_rules
+apps/webapp/src/infra/repos/pgReminderRules.ts	webapp	infra/repos	runWebappSql/sql``	WRITE	CENTRAL	public.reminder_rules
+apps/webapp/src/infra/repos/pgRubitimeMapping.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/pgSubscriptionMailingProjection.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.mailing_logs_webapp,public.user_subscriptions_webapp
+apps/webapp/src/infra/repos/pgSupportCommunication.ts	webapp	infra/repos	runWebappPgText+pool.connect	WRITE	CENTRAL	public.support_conversations,public.support_conversation_messages,public.support_questions
+apps/webapp/src/infra/repos/pgSymptomDiary.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.symptom_trackings,public.symptom_entries
+apps/webapp/src/infra/repos/pgSystemSettings.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	system_settings(official accessor)
+apps/webapp/src/infra/repos/pgTestSets.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.test_sets,public.test_attempts
+apps/webapp/src/infra/repos/pgTreatmentProgram.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.treatment_program_*
+apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	public.treatment_program_*
+apps/webapp/src/infra/repos/pgUserPasswordCredentials.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	—
+apps/webapp/src/infra/repos/pgUserPins.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgUserProjection.ts	webapp	infra/repos	runWebappPgText+pool.connect	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgUserByPhone.ts	webapp	infra/repos	pool.connect/CENTRAL	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/pgWebPushOnlyReminders.ts	webapp	infra/repos	runWebappPgText	MIXED	CENTRAL	public.webapp_reminder_occurrences
+apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts	webapp	infra/repos	runWebappPgText+pool.connect	WRITE	CENTRAL	—
+apps/webapp/src/infra/repos/s3MediaStorage.ts	webapp	infra/repos	runWebappSql+pool.connect	WRITE	CENTRAL	public.media_files,public.media_folders
+apps/webapp/src/infra/repos/broadcastChannelCounts.ts	webapp	infra/repos	pool.connect/CENTRAL	READ	CENTRAL	—
+apps/webapp/src/infra/repos/loadPlatformUserChannelBindings.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/mediaPreviewWorker.ts	webapp	infra/repos	runWebappSql+pool.connect	WRITE	CENTRAL	public.media_files
+apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts	webapp	infra/repos	runWebappSql+pool.connect	WRITE	CENTRAL	public.media_upload_sessions
+apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts	webapp	infra/repos	runWebappPgText	WRITE	CENTRAL	public.support_conversations
+apps/webapp/src/infra/repos/doctorAppointmentPurgeFilter.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/repos/identityPhoneSql.ts	webapp	infra/repos	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/adminAuditLog.ts	webapp	infra	runWebappPgText+pool.connect	WRITE	CENTRAL	public.admin_audit_log
+apps/webapp/src/infra/idempotency/pgStore.ts	webapp	infra	runWebappPgText	WRITE	CENTRAL	—
+apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts	webapp	infra	runWebappPgText+runWebappSql	WRITE	CENTRAL	—
+apps/webapp/src/infra/manualMergeIntegratorGate.ts	webapp	infra	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/mergeAuditLabels.ts	webapp	infra	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/mergePreviewIntegratorUserPresence.ts	webapp	infra	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/platformUserMergePreview.ts	webapp	infra	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/platformUserNameMatchHints.ts	webapp	infra	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/infra/platformUserPurgeSql.ts	webapp	infra	runWebappPgText(helper)	WRITE	CENTRAL or SEPARATE	—
+apps/webapp/src/infra/platformUserFullPurge.ts	webapp	infra	runPurgeClientPgText+pool.connect	WRITE	SEPARATE-POOL(integratorPurgePools)	—
+apps/webapp/src/infra/strictPlatformUserPurge.ts	webapp	infra	runWebappPgText+pool.connect	WRITE	CENTRAL	—
+apps/webapp/src/infra/integratorPlatformUserMerge.ts	webapp	infra	pool.connect/CENTRAL	WRITE	CENTRAL	—
+apps/webapp/src/infra/multipartSessionLock.ts	webapp	infra	pool.connect/CENTRAL	WRITE	CENTRAL	—
+apps/webapp/src/infra/userLifecycleLock.ts	webapp	infra	pool.connect/CENTRAL	WRITE	CENTRAL	—
+apps/webapp/src/app-layer/doctor/createDoctorClient.ts	webapp	app-layer(PORT-BYPASS)	runWebappPgText+pool.connect	WRITE	CENTRAL	—(platform_users)
+apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts	webapp	app-layer(PORT-BYPASS)	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts	webapp	app-layer(PORT-BYPASS)	runWebappPgText+pool.connect	WRITE	CENTRAL	—
+apps/webapp/src/app-layer/media/adminTranscodeHealthMetrics.ts	webapp	app-layer(PORT-BYPASS)	runPgPoolPgText(CENTRAL)	READ	CENTRAL	public.media_files
+apps/webapp/src/app-layer/media/videoHlsLegacyBackfill.ts	webapp	app-layer(PORT-BYPASS)	runPgPoolPgText(CENTRAL)	MIXED	CENTRAL	public.media_files
+apps/webapp/src/app-layer/messaging/resolvePatientTelegramUsernameMention.ts	webapp	app-layer(PORT-BYPASS)	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/app-layer/platform-user/recordPublicBookingMergeCandidates.ts	webapp	app-layer(PORT-BYPASS)	runPgPoolPgText(CENTRAL)	WRITE	CENTRAL	public.patient_merge_candidates
+apps/webapp/src/app-layer/platform-user/resolveOrCreateUserByPhone.ts	webapp	app-layer(PORT-BYPASS)	runWebappPgText+pool.connect	WRITE	CENTRAL	—
+apps/webapp/src/app/api/doctor/account/timezone/route.ts	webapp	app/route(PORT-BYPASS)	runWebappPgText	WRITE	CENTRAL	—(platform_users)
+apps/webapp/src/app/app/doctor/patients/[userId]/page.tsx	webapp	app/page(PORT-BYPASS)	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx	webapp	app/page(PORT-BYPASS)	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/app/app/settings/page.tsx	webapp	app/page(PORT-BYPASS)	runWebappPgText	READ	CENTRAL	—
+apps/webapp/src/modules/auth/channelLink.ts	webapp	modules(PORT-BYPASS)	runWebappPgText+pool.connect	WRITE	CENTRAL	—
+apps/webapp/src/modules/reminders/disableReminderMessengerTopic.ts	webapp	modules(PORT-BYPASS)	runPgPoolPgText(caller-pool)	READ	CENTRAL	public.reminder_rules
+apps/webapp/src/modules/reminders/loadWarmupsSectionSlugs.ts	webapp	modules(PORT-BYPASS)	runPgPoolPgText(caller-pool)	READ	CENTRAL	public.content_sections
+apps/webapp/src/modules/system-settings/configAdapter.ts	webapp	modules(PORT-BYPASS)	runWebappPgText	READ	CENTRAL	(system_settings bypasser)
+apps/integrator/src/infra/db/client.ts	integrator	infra/db	pool-def	—	CENTRAL	—
+apps/integrator/src/infra/db/runIntegratorSql.ts	integrator	infra/db	transport-def	—	CENTRAL	—
+apps/integrator/src/infra/db/publicSystemSettings.ts	integrator	infra/db	runIntegratorSql	READ	CENTRAL	(system_settings bypasser)
+apps/integrator/src/infra/db/branchTimezone.ts	integrator	infra/db	runIntegratorSql	READ	CENTRAL	—
+apps/integrator/src/infra/db/writePort.ts	integrator	infra/db	db.query/txDb.query(inline)	WRITE	CENTRAL	integrator.conversations,integrator.identities
+apps/integrator/src/infra/db/repos/adminStats.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/db/repos/bookingCalendarMap.ts	integrator	infra/db/repos	runIntegratorSql	WRITE	CENTRAL	public.patient_bookings(not in scope)
+apps/integrator/src/infra/db/repos/canonicalUserId.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/db/repos/channelUsers.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	integrator.identities
+apps/integrator/src/infra/db/repos/idempotencyKeys.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	—
+apps/integrator/src/infra/db/repos/integrationDataQualityIncidents.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	—
+apps/integrator/src/infra/db/repos/mergeIntegratorConversationToPlatform.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	integrator.conversations
+apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts	integrator	infra/db/repos	runIntegratorSql+db.query	WRITE	CENTRAL	integrator.user_reminder_rules
+apps/integrator/src/infra/db/repos/messageThreads.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	integrator.conversations,integrator.message_drafts,integrator.user_questions
+apps/integrator/src/infra/db/repos/messengerPhoneBindAudit.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	—
+apps/integrator/src/infra/db/repos/notificationDeliveryAttempts.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	public.notification_delivery_attempts
+apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	—
+apps/integrator/src/infra/db/repos/patientHomeMorningPing.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/db/repos/platformUserByChannel.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/db/repos/platformUserDeliveryPhone.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/db/repos/projectionHealthCore.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/db/repos/resolvePlatformUserIdForRubitimeBooking.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
+apps/integrator/src/infra/runtime/worker/doctorBroadcastIntentMenu.ts	integrator	infra/runtime	runIntegratorSql	WRITE	CENTRAL	public.broadcast_audit
+apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts	integrator	infra/runtime	runIntegratorSql	MIXED	CENTRAL	—
+apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts	integrator	integrations	runIntegratorSql	WRITE	CENTRAL	integrator.system_settings(not in scope)
+apps/integrator/src/integrations/google-calendar/calendarDescription.ts	integrator	integrations	runIntegratorSql	READ	CENTRAL	—
+apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts	integrator	integrations	runIntegratorSql	READ	CENTRAL	—
+apps/integrator/src/integrations/rubitime/db/bookingProfilesRepo.ts	integrator	integrations	runIntegratorSql	MIXED	CENTRAL	—(rubitime_branches/services)
+apps/media-worker/src/main.ts	media-worker	process	pool-creator	—	SEPARATE(per-process)	—
+apps/media-worker/src/runMediaWorkerSql.ts	media-worker	infra	transport-def	—	SEPARATE(per-process)	—
+apps/media-worker/src/pipelineEnabled.ts	media-worker	infra	runMediaWorkerPgText	READ	SEPARATE(per-process)	(system_settings bypasser)
+apps/media-worker/src/watermarkEnabled.ts	media-worker	infra	runMediaWorkerPgText	READ	SEPARATE(per-process)	(system_settings bypasser)
+apps/media-worker/src/persistVideoDurationSeconds.ts	media-worker	infra	runMediaWorkerPgText	WRITE	SEPARATE(per-process)	public.media_files
+apps/media-worker/src/processTranscodeJob.ts	media-worker	infra	runMediaWorkerPgText	WRITE	SEPARATE(per-process)	public.media_files,public.media_transcode_jobs
+apps/media-worker/src/processProgramSubmissionTranscode.ts	media-worker	infra	runMediaWorkerPgText	WRITE	SEPARATE(per-process)	public.media_files,public.media_transcode_jobs
+apps/media-worker/src/jobs/claim.ts	media-worker	infra	pool.query+client.query(dedicated)	WRITE	SEPARATE(per-process)	public.media_transcode_jobs
+packages/booking-rubitime-sync/src/lookupBranchServiceByRubitimeIds.ts	booking-rubitime-sync	package	SqlExecutor.query(caller-provided)	READ	CALLER-PROVIDED	—
+packages/booking-rubitime-sync/src/shouldSkipNativeReviveUpdate.ts	booking-rubitime-sync	package	SqlExecutor.query(caller-provided)	READ	CALLER-PROVIDED	public.patient_bookings(not in scope)
+packages/booking-rubitime-sync/src/upsertPatientBookingFromRubitime.ts	booking-rubitime-sync	package	SqlExecutor.query(caller-provided)	WRITE	CALLER-PROVIDED	public.patient_bookings(not in scope)
+packages/platform-merge/src/messengerPhonePublicBind.ts	platform-merge	package	PlatformMergeDbClient.query(caller)	WRITE	CALLER-PROVIDED	—(platform_users not in scope)
+packages/platform-merge/src/pgPlatformUserMerge.ts	platform-merge	package	PlatformMergeDbClient.query(caller)	WRITE	CALLER-PROVIDED	public.media_files,public.reminder_rules,public.treatment_program_instances,public.symptom_trackings
+packages/platform-merge/src/mergeContactFallback.ts	platform-merge	package	client.query(PoolClient param)	WRITE	CALLER-PROVIDED	public.symptom_trackings,public.lfk_complexes
+packages/platform-merge/src/messengerBindAuditEnrichment.ts	platform-merge	package	client.query(PoolClient param)	READ	CALLER-PROVIDED	—

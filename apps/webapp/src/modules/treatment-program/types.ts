@@ -664,6 +664,19 @@ export function formatLfkPostSessionDifficultyRu(d: unknown): string | null {
 /** Сложность занятия ЛФК в пост-сессионной форме (A4). */
 export type LfkPostSessionDifficulty = "easy" | "medium" | "hard";
 
+/**
+ * Одна точка данных для микро-графика статистики выполнения упражнения (B.3).
+ * Поля `reps`, `weightKg`, `sets`, `difficulty` — null, если не зафиксированы.
+ */
+export type ExerciseMetricPoint = {
+  /** ISO-строка `created_at` из `program_action_log`. */
+  at: string;
+  reps: number | null;
+  weightKg: number | null;
+  sets: number | null;
+  difficulty: LfkPostSessionDifficulty | null;
+};
+
 /** A4: результат теста без оценки врача для inbox «К проверке». */
 export type PendingProgramTestEvaluationRow = {
   attemptId: string;

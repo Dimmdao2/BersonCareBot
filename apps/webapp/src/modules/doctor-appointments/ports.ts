@@ -66,6 +66,10 @@ export type AppointmentStats = {
   total: number;
   /** Отмены за 30 суток по `updated_at` — KPI «Сегодня». */
   cancellations30d: number;
+  /** Записи в периоде, у пациента которых НЕТ более ранней неотменённой записи (по phone_normalized). */
+  firstVisitInPeriod: number;
+  /** pastVisitsInPeriod − firstVisitInPeriod. */
+  repeatVisitInPeriod: number;
 };
 
 /** Метрики записей для дашборда врача (этап 9). Семантика — в DOCTOR_DASHBOARD_METRICS.md. */
@@ -80,6 +84,61 @@ export type DoctorDashboardAppointmentMetrics = {
 
 export type DoctorAppointmentsAudience = { excludedUserIds?: string[] };
 
+/** KPI метрики для страницы «Расписание» врача (9 плиток в KPI-строке, ТЗ §4.1). */
+export type ScheduleKpis = {
+  /** Неотменённые записи в периоде по start_at. */
+  recordsInPeriod: number;
+  /** Из записей в периоде: start_at < now(). */
+  pastInPeriod: number;
+  /** Из записей в периоде: start_at >= now(). */
+  futureInPeriod: number;
+  /** Неотменённые в периоде с package_usage_ref IS NOT NULL. */
+  bySubscriptionInPeriod: number;
+  /** Записи в периоде, у пациента которых НЕТ более ранней неотменённой записи. */
+  firstVisitInPeriod: number;
+  /**
+   * ID записей, вошедших в firstVisitInPeriod.
+   * Позволяет модалке отфильтровать фид точно так же, как SQL.
+   * Гарантирует tile == modal для «Первичных» и «Повторных».
+   */
+  firstVisitIds: string[];
+  /** records − firstVisit. */
+  repeatVisitInPeriod: number;
+  /** COUNT(DISTINCT platformUserId) по записям в периоде. */
+  uniquePatientsInPeriod: number;
+  /** Отмены: записи с start_at в окне со статусом отмены (по дате визита §13.1). */
+  cancellationsInPeriod: number;
+  /** Переносы: записи с start_at в окне и rescheduleCount > 0 (по дате визита §13.1). */
+  reschedulesInPeriod: number;
+};
+
+/** Запрос KPI по произвольному диапазону + опциональные фильтры. */
+export type ScheduleKpisQuery = {
+  /** ISO-строка начала диапазона (включительно, бизнес-таймзона). */
+  from: string;
+  /** ISO-строка конца диапазона (исключительно, бизнес-таймзона). */
+  to: string;
+  branchId?: string | null;
+  serviceId?: string | null;
+};
+
+/** Одна точка в дневном ряду динамики записей. */
+export type AppointmentDayPoint = {
+  /** Дата в формате YYYY-MM-DD (бизнес-таймзона). */
+  day: string;
+  pastVisits: number;
+  bookingsCreated: number;
+  cancellationActions: number;
+};
+
+/** Статистика по филиалу за выбранный период. */
+export type AppointmentBranchPoint = {
+  /** Название филиала или «Без филиала» если null. */
+  branchName: string;
+  pastVisits: number;
+  cancelledVisits: number;
+};
+
 export type DoctorAppointmentsPort = {
   listAppointmentsForSpecialist(
     filter: DoctorAppointmentsListFilter,
@@ -91,4 +150,14 @@ export type DoctorAppointmentsPort = {
   ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
   getDashboardAppointmentMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardAppointmentMetrics>;
+  /** KPI строка раздела «Расписание»: 9 метрик по произвольному диапазону + фильтры. */
+  getScheduleKpis(
+    query: ScheduleKpisQuery,
+    audience?: DoctorAppointmentsAudience,
+  ): Promise<ScheduleKpis>;
+  /** Дневной ряд динамики записей + разбивка по филиалам за выбранный период. */
+  getAppointmentDailySeries(
+    filter: DoctorAppointmentStatsFilter,
+    audience?: { excludedUserIds?: string[] },
+  ): Promise<{ daySeries: AppointmentDayPoint[]; branchSeries: AppointmentBranchPoint[] }>;
 };

@@ -145,8 +145,9 @@ describe("doctor-broadcasts service", () => {
     expect(result.audienceSize).toBe(2);
     expect(result.category).toBe("reminder");
     expect(result.audienceFilter).toBe("with_telegram");
-    expect(result.channels).toEqual(["bot_message", "push", "sms"]);
-    expect(result.deliveryPolicyKind).toBe("telegram_isolate_bot_respect_prefs_sms");
+    expect(result.channels).toEqual(["max", "push", "telegram"]);
+    // Default channels are telegram+max+push (no sms); filter with_telegram → telegram_isolate_bot
+    expect(result.deliveryPolicyKind).toBe("telegram_isolate_bot");
     expect(result.deliveryPolicyDescriptionRu.length).toBeGreaterThan(10);
     expect(auditEntries.length).toBe(0);
   });
@@ -155,7 +156,11 @@ describe("doctor-broadcasts service", () => {
     const { auditEntry } = await service.execute({
       category: "important_notice",
       audienceFilter: "all",
-      message: { title: "Важно", body: "Текст длиннее десяти символов" },
+      message: {
+        title: "Важно",
+        body: "Текст длиннее десяти символов",
+        mediaUrl: "https://x/y.jpg",
+      },
       actorId: "doctor-123",
       channels: ["bot_message"],
     });
@@ -166,6 +171,10 @@ describe("doctor-broadcasts service", () => {
     expect(committed[0].jobs.length).toBe(2);
     expect(committed[0].jobs[0].kind).toBe("doctor_broadcast_intent");
     expect(committed[0].recipientUserIds).toEqual(["u1", "u2"]);
+    // telegram job carries the broadcast image (sendPhoto), max does not.
+    const tgJob = committed[0].jobs.find((j) => j.channel === "telegram")!;
+    const tgIntent = tgJob.payloadJson.intent as { payload: { imageUrl?: string } };
+    expect(tgIntent.payload.imageUrl).toBe("https://x/y.jpg");
   });
 
   it("execute stores attachMenuAfterSend and sets attachMenu on queue jobs", async () => {
@@ -220,7 +229,8 @@ describe("doctor-broadcasts service", () => {
       truncated: false,
     });
     expect(result.deliveryPolicyKind).toBe("respect_prefs_bot");
-    expect(result.channels).toEqual(["bot_message"]);
+    // bot_message is normalized to telegram+max (legacy expansion)
+    expect(result.channels).toEqual(["max", "telegram"]);
   });
 
   it("listAudit returns entries", async () => {
@@ -252,6 +262,63 @@ describe("doctor-broadcasts service", () => {
       expect.objectContaining({
         platformUserId: "u1",
         integratorMessageId: expect.stringMatching(/^broadcast:/),
+      }),
+    );
+  });
+
+  it("execute threads message media into the in-app chat append", async () => {
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: makeResolve([client("u1")]),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: {
+        title: "Новость",
+        body: "Текст длиннее десяти символов",
+        mediaUrl: "https://cdn.example.com/promo.jpg",
+        mediaType: "image",
+      },
+      actorId: "doctor-1",
+      channels: ["bot_message"],
+    });
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        platformUserId: "u1",
+        mediaUrl: "https://cdn.example.com/promo.jpg",
+        mediaType: "image",
+      }),
+    );
+  });
+
+  it("execute strips markdown markers from the in-app chat copy", async () => {
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: makeResolve([client("u1")]),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: { title: "Новость", body: "Текст **жирный** и\n- пункт" },
+      actorId: "doctor-1",
+      channels: ["bot_message"],
+    });
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        text: "Новость\n\nТекст жирный и\n• пункт",
       }),
     );
   });
@@ -302,5 +369,59 @@ describe("doctor-broadcasts service", () => {
         channels: ["bot_message"],
       }),
     ).rejects.toThrow(BROADCAST_DELIVERY_CAP_EXCEEDED_CODE);
+  });
+
+  it("execute with email channel calls email fan-out", async () => {
+    const emailFanOut = vi.fn().mockResolvedValue({ attempted: 1, delivered: 1, errors: 0, skipped: 0 });
+    const emailEligible = new Set(["u1"]);
+    const emailRecipientsPort = {
+      getVerifiedEmailsForUserIds: vi.fn().mockResolvedValue(new Map([["u1", "u1@example.com"]])),
+    };
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: async (filter, channels, category) => ({
+        ...(await makeResolve([client("u1", { bindings: {} })])(filter, channels, category)),
+        webPushEligibleUserIds: new Set<string>(),
+        emailEligibleUserIds: emailEligible,
+      }),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      fanOutBroadcastEmailDeps: {
+        emailRecipientsPort,
+        getSmtpValueJson: () => Promise.resolve(null),
+      },
+    });
+
+    await svc.execute({
+      category: "organizational",
+      audienceFilter: "all",
+      message: { title: "Email-рассылка", body: "Текст письма длиннее десяти символов" },
+      actorId: "doctor-1",
+      channels: ["email"],
+    });
+
+    expect(committed.length).toBeGreaterThan(0);
+  });
+
+  it("execute with email channel without fanOutBroadcastEmailDeps does not throw", async () => {
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: async (filter, channels, category) => ({
+        ...(await makeResolve([client("u1", { bindings: {} })])(filter, channels, category)),
+        webPushEligibleUserIds: new Set<string>(),
+      }),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      // fanOutBroadcastEmailDeps not provided — email delivery guarded
+    });
+
+    // Should complete without error (email just skipped)
+    await expect(
+      svc.execute({
+        category: "organizational",
+        audienceFilter: "all",
+        message: { title: "Email-guard", body: "Текст письма длиннее десяти символов" },
+        actorId: "doctor-1",
+        channels: ["email"],
+      }),
+    ).resolves.toBeDefined();
   });
 });

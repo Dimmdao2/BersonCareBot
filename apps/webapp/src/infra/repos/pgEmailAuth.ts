@@ -120,6 +120,20 @@ export async function findLatestEmailChallengeForUser(
   return row.rows[0] ?? null;
 }
 
+export async function findLatestPendingEmailChallengeForUser(
+  userId: string,
+  nowSec: number,
+): Promise<EmailChallengeRow | null> {
+  const row = await runWebappPgText<EmailChallengeRow>(
+    `SELECT id, email, code_hash, expires_at, attempts FROM email_challenges
+     WHERE user_id = $1::uuid AND expires_at > $2
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId, nowSec],
+  );
+  return row.rows[0] ?? null;
+}
+
 export const pgEmailAuthPort = {
   findEmailSendCooldown,
   deleteEmailChallengesForUser,
@@ -132,6 +146,7 @@ export const pgEmailAuthPort = {
   verifyUserEmail,
   findEmailChallengeForConsume,
   findLatestEmailChallengeForUser,
+  findLatestPendingEmailChallengeForUser,
 };
 
 export type EmailAuthDbPort = typeof pgEmailAuthPort;

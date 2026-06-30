@@ -39,6 +39,18 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.hasMax === true) {
       list = list.filter((item) => Boolean(item.bindings.maxId?.trim()));
     }
+    if (filters.hasEmail === true) {
+      list = list.filter((item) => item.hasEmail === true);
+    }
+    if (filters.hasPhone === true) {
+      list = list.filter((item) => Boolean(item.phone?.trim()));
+    }
+    if (filters.hasApp === true) {
+      list = list.filter((item) => item.hasApp === true);
+    }
+    if (filters.hasWebPush === true) {
+      list = list.filter((item) => item.hasWebPush === true);
+    }
     if (filters.hasUpcomingAppointment === true) {
       list = list.filter((item) => (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel));
     }
@@ -70,7 +82,17 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       totalClients: 0,
       onSupportCount: 0,
       visitedThisCalendarMonthCount: 0,
+      withProgramCount: 0,
+      membershipsCount: 0,
+      subscriberCount: 0,
+      newCount: 0,
+      formerCount: 0,
+      cancellationsCount: 0,
     };
+  },
+
+  async listPatientAppointments(_userId: string) {
+    return [];
   },
 
   async getClientContactBreakdown() {
@@ -94,8 +116,8 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       blockedReason: null,
       isArchived: false,
       channelBindingDates: {},
-      firstName: null,
-      lastName: null,
+      firstName: found.firstName ?? null,
+      lastName: found.lastName ?? null,
       email: null,
       emailVerifiedAt: null,
     };
@@ -118,22 +140,63 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     /* no-op in memory stub */
   },
 
+  async getPatientCardHeader(_userId: string) {
+    // In-memory stub — returns null (no data in test environment)
+    return null;
+  },
+
   async getClientSupport(patientUserId: string) {
     return supportProfiles.get(patientUserId) ?? null;
   },
 
   async updateClientSupport(params) {
     const existing = supportProfiles.get(params.patientUserId);
+    const now = new Date().toISOString();
+    const nextOnSupport = params.onSupport ?? existing?.onSupport ?? false;
+    let supportStartedAt = existing?.supportStartedAt ?? null;
+    if (params.onSupport !== undefined) {
+      if (params.onSupport && !supportStartedAt) supportStartedAt = now;
+      else if (!params.onSupport) supportStartedAt = null;
+    }
     const profile: ClientSupportProfile = {
       patientUserId: params.patientUserId,
-      onSupport: params.onSupport ?? existing?.onSupport ?? false,
+      onSupport: nextOnSupport,
+      supportStartedAt,
       commentsEnabled:
         params.commentsEnabled !== undefined ? params.commentsEnabled : (existing?.commentsEnabled ?? null),
       mediaEnabled: params.mediaEnabled !== undefined ? params.mediaEnabled : (existing?.mediaEnabled ?? null),
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
       updatedBy: params.actorId,
     };
     supportProfiles.set(params.patientUserId, profile);
     return profile;
+  },
+
+  async setPatientBirthDate(_userId: string, _birthDate: string | null): Promise<void> {
+    /* no-op in memory stub */
+  },
+
+  async setPatientGender(_userId: string, _gender: "male" | "female" | null): Promise<void> {
+    /* no-op in memory stub */
+  },
+
+  async setPatientNames(
+    _userId: string,
+    _names: { displayName?: string; firstName?: string | null; lastName?: string | null },
+  ): Promise<void> {
+    /* no-op in memory stub */
+  },
+
+  async getPatientPhysical(
+    _userId: string,
+  ): Promise<{ heightCm: number | null; weightKg: number | null } | null> {
+    return { heightCm: null, weightKg: null };
+  },
+
+  async setPatientPhysical(
+    _userId: string,
+    _params: { heightCm?: number | null; weightKg?: number | null },
+  ): Promise<void> {
+    /* no-op in memory stub */
   },
 };

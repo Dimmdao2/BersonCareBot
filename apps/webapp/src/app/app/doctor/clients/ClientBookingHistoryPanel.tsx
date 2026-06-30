@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   appointmentStatusLabel,
@@ -155,7 +155,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
   }
 
   function paymentMeta(p: PaymentRow): string {
-    const parts: string[] = [new Date(p.occurredAt).toLocaleString("ru-RU")];
+    const parts: string[] = [new Date(p.occurredAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })];
     if (p.serviceTitle) parts.push(p.serviceTitle);
     if (p.packageTitle) parts.push(p.packageTitle);
     if (p.productTitle) parts.push(p.productTitle);
@@ -236,7 +236,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium">{item.title}</span>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(item.occurredAt).toLocaleString("ru-RU")}
+                    {new Date(item.occurredAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
                   </span>
                 </div>
                 {item.summary ? <p className="mt-1 text-muted-foreground">{item.summary}</p> : null}
@@ -278,8 +278,8 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="font-medium">{v.serviceTitle ?? "Запись"}</span>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(v.startAt).toLocaleString("ru-RU")}
-                    {v.endAt ? ` — ${new Date(v.endAt).toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                    {new Date(v.startAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
+                    {v.endAt ? ` — ${new Date(v.endAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" })}` : ""}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">

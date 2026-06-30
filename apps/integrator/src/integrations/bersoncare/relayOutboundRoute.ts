@@ -17,9 +17,11 @@ type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
 const relayPayloadSchema = z.object({
   messageId: z.string().min(1),
-  channel: z.enum(['telegram', 'max', 'email', 'sms'] as const),
+  channel: z.enum(['telegram', 'max', 'email', 'sms', 'web_push'] as const),
   recipient: z.string().min(1),
   text: z.string().min(1),
+  /** Опц. HTML-тело письма (email-канал) — мапится в payload.html для email-адаптера. */
+  html: z.string().optional(),
   idempotencyKey: z.string().min(1),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -82,7 +84,57 @@ function buildIntent(parsed: RelayPayload) {
     };
   }
 
-  // email — not yet implemented; return null to signal skip
+  if (parsed.channel === 'email') {
+    // D-S10: extend relay-outbound to carry email intents (N4 APPROVED §5b).
+    // subject comes from optional metadata.subject; falls back to 'BersonCare'.
+    // payload shape matches EmailDeliveryAdapter expectations (S8):
+    //   payload.recipient.email, payload.subject, payload.message.text, payload.delivery.channels.
+    const subject =
+      typeof parsed.metadata?.subject === 'string' && parsed.metadata.subject.trim() ?
+        parsed.metadata.subject.trim()
+      : 'BersonCare';
+    return {
+      type: 'message.send' as const,
+      meta,
+      payload: {
+        recipient: { email: parsed.recipient },
+        subject,
+        message: { text: parsed.text },
+        ...(parsed.html ? { html: parsed.html } : {}),
+        delivery: { channels: ['email'] },
+      },
+    };
+  }
+
+  if (parsed.channel === 'web_push') {
+    // S14a: extend relay-outbound to carry web_push intents (N4 APPROVED §5b).
+    // recipient = pushUserId (integrator/webapp user id whose subscriptions receive the push).
+    // Push content comes from text (body) + metadata (title, url, pushExtras).
+    // eslint-disable-next-line no-secrets/no-secrets -- identifier in comment, not a secret
+    // payload shape matches WebPushDeliveryAdapter expectations (S14):
+    //   payload.recipient.pushUserId, payload.message.text (body), payload.title,
+    //   payload.url, payload.pushExtras, payload.delivery.channels.
+    const title = typeof parsed.metadata?.title === 'string' ? parsed.metadata.title : 'BersonCare';
+    const url = typeof parsed.metadata?.url === 'string' ? parsed.metadata.url : '/';
+    const rawExtras = parsed.metadata?.pushExtras;
+    const pushExtras =
+      rawExtras !== null && typeof rawExtras === 'object' && !Array.isArray(rawExtras)
+        ? (rawExtras as Record<string, unknown>)
+        : undefined;
+    return {
+      type: 'message.send' as const,
+      meta: { ...meta, source: 'web_push' },
+      payload: {
+        recipient: { pushUserId: parsed.recipient },
+        message: { text: parsed.text },
+        title,
+        url,
+        ...(pushExtras ? { pushExtras } : {}),
+        delivery: { channels: ['web_push'] },
+      },
+    };
+  }
+
   return null;
 }
 

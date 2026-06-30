@@ -1,18 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
+import {
+  DoctorCalendarPatientSearch,
+  type CalendarPatientOption,
+} from "@/app/app/doctor/calendar/DoctorCalendarPatientSearch";
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -31,13 +30,17 @@ function fromLocalInput(value: string): string | null {
 }
 
 type FormFieldsProps = {
+  /**
+   * If non-empty, the task is pinned to this patient (e.g. from patient card).
+   * If empty string, a patient picker is shown so the doctor can optionally link the task to a patient.
+   */
   patientUserId: string;
   editing: SpecialistTaskRow | null;
   onSaved: () => void;
   onClose: () => void;
 };
 
-function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: FormFieldsProps) {
+function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }: FormFieldsProps) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
   const [dueAt, setDueAt] = useState(() => toLocalInput(editing?.dueAt ?? null));
@@ -46,8 +49,54 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  /**
+   * Selected patient for global tasks (patientUserId prop is "").
+   * Pre-populate from editing.patientUserId if available.
+   */
+  const [linkedPatient, setLinkedPatient] = useState<CalendarPatientOption | null>(() => {
+    if (patientUserId.trim()) return null; // fixed patient — picker not shown
+    if (editing?.patientUserId) {
+      // We only have the id; display name won't be available here without an API call.
+      // Render with a placeholder label — the picker will let doctor re-select if needed.
+      return { id: editing.patientUserId, displayName: "Загрузка…", phone: null };
+    }
+    return null;
+  });
+
+  // TASK-02: При редактировании задачи с привязанным пациентом в глобальном режиме
+  // (patientUserId === "") начальный displayName — «Загрузка…». Здесь получаем реальное имя.
+  useEffect(() => {
+    if (!editing?.patientUserId || patientUserId.trim()) return;
+    let cancelled = false;
+    fetch(`/api/doctor/patients/${editing.patientUserId}`)
+      .then((r) => r.json())
+      .then(
+        (data: {
+          ok: boolean;
+          header?: { identity: { userId: string; displayName: string; phone: string | null } };
+        }) => {
+          if (cancelled || !data.ok || !data.header) return;
+          setLinkedPatient({
+            id: data.header.identity.userId,
+            displayName: data.header.identity.displayName,
+            phone: data.header.identity.phone,
+          });
+        },
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [editing?.patientUserId, patientUserId]);
+
+  const isGlobal = !patientUserId.trim();
+
   function handleSubmit() {
     setError(null);
+    const effectivePatientUserId = isGlobal
+      ? (linkedPatient?.id ?? null)
+      : patientUserId;
+
     const body = {
       title,
       description: description.trim() || null,
@@ -55,19 +104,21 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
       remindAt: fromLocalInput(remindAt),
       isImportant,
     };
+
     startTransition(async () => {
       try {
-        const isGlobal = !patientUserId.trim();
         const url = editing
           ? `/api/doctor/tasks/${encodeURIComponent(editing.id)}`
-          : isGlobal
-            ? "/api/doctor/tasks"
-            : `/api/doctor/clients/${encodeURIComponent(patientUserId)}/tasks`;
+          : effectivePatientUserId
+            ? `/api/doctor/clients/${encodeURIComponent(effectivePatientUserId)}/tasks`
+            : "/api/doctor/tasks";
         const res = await fetch(url, {
           method: editing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            isGlobal && !editing ? { ...body, patientUserId: null } : body,
+            isGlobal && !editing
+              ? { ...body, patientUserId: effectivePatientUserId }
+              : body,
           ),
         });
         if (!res.ok) {
@@ -83,48 +134,51 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
   }
 
   return (
-    <DialogContent className="max-w-md">
-      <DialogHeader>
-        <DialogTitle>{editing ? "Изменить задачу" : "Новая задача"}</DialogTitle>
-      </DialogHeader>
-      <div className="flex flex-col gap-3">
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Кратко"
-          maxLength={500}
-        />
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Подробнее"
-          rows={3}
-        />
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Срок</span>
-          <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Напомнить</span>
-          <Input type="datetime-local" value={remindAt} onChange={(e) => setRemindAt(e.target.value)} />
-        </label>
-        <LabeledSwitch
-          label="Важное"
-          checked={isImportant}
-          onCheckedChange={setIsImportant}
+    <div className="flex flex-col gap-3">
+      <Input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Кратко"
+        maxLength={500}
+      />
+      <Textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Подробнее"
+        rows={3}
+      />
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Срок</span>
+        <DoctorDateTimePicker value={dueAt} onChange={setDueAt} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Напомнить</span>
+        <DoctorDateTimePicker value={remindAt} onChange={setRemindAt} />
+      </label>
+      <LabeledSwitch
+        label="Важное"
+        checked={isImportant}
+        onCheckedChange={setIsImportant}
+        disabled={isPending}
+      />
+      {/* Patient picker: shown only for global tasks (patientUserId === "") */}
+      {isGlobal ? (
+        <DoctorCalendarPatientSearch
+          value={linkedPatient}
+          onChange={setLinkedPatient}
           disabled={isPending}
         />
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      </div>
-      <DialogFooter>
+      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
           Отмена
         </Button>
         <Button type="button" onClick={handleSubmit} disabled={isPending || !title.trim()}>
           {isPending ? "Сохранение…" : "Сохранить"}
         </Button>
-      </DialogFooter>
-    </DialogContent>
+      </div>
+    </div>
   );
 }
 
@@ -144,9 +198,14 @@ export function SpecialistTaskFormDialog({
   onSaved,
 }: Props) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <DoctorModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={editing ? "Изменить задачу" : "Новая задача"}
+      size="sm"
+    >
       {open ? (
-        <SpecialistTaskFormFields
+        <SpecialistTaskFormContent
           key={editing?.id ?? "new"}
           patientUserId={patientUserId}
           editing={editing}
@@ -154,6 +213,6 @@ export function SpecialistTaskFormDialog({
           onClose={() => onOpenChange(false)}
         />
       ) : null}
-    </Dialog>
+    </DoctorModal>
   );
 }

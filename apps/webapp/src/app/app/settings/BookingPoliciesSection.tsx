@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -67,20 +68,19 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
   const [pending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    const res = await fetch(BASE);
-    const json = (await res.json()) as {
-      ok?: boolean;
-      cancellationPolicies?: CancellationPolicy[];
-      reschedulePolicies?: ReschedulePolicy[];
-      error?: string;
-    };
-    if (!json.ok) {
-      setError(json.error ?? "load_failed");
-      return;
+    try {
+      const json = await apiJson<{
+        ok?: boolean;
+        cancellationPolicies?: CancellationPolicy[];
+        reschedulePolicies?: ReschedulePolicy[];
+        error?: string;
+      }>(BASE);
+      setCancellationPolicies(json.cancellationPolicies ?? []);
+      setReschedulePolicies(json.reschedulePolicies ?? []);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "load_failed");
     }
-    setCancellationPolicies(json.cancellationPolicies ?? []);
-    setReschedulePolicies(json.reschedulePolicies ?? []);
-    setError(null);
   }, []);
 
   useEffect(() => {
@@ -95,21 +95,24 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
 
   useEffect(() => {
     void (async () => {
-      const [ovRes, prodRes] = await Promise.all([fetch(OVERVIEW), fetch(PRODUCTS)]);
-      const ov = (await ovRes.json()) as {
-        ok?: boolean;
-        specialists?: Array<{ id: string; fullName: string }>;
-        services?: Array<{ id: string; title: string }>;
-      };
-      const prod = (await prodRes.json()) as {
-        ok?: boolean;
-        products?: Array<{ id: string; title: string }>;
-      };
-      if (ov.ok) {
+      try {
+        const [ov, prod] = await Promise.all([
+          apiJson<{
+            ok?: boolean;
+            specialists?: Array<{ id: string; fullName: string }>;
+            services?: Array<{ id: string; title: string }>;
+          }>(OVERVIEW),
+          apiJson<{
+            ok?: boolean;
+            products?: Array<{ id: string; title: string }>;
+          }>(PRODUCTS),
+        ]);
         setSpecialists(ov.specialists ?? []);
         setServices(ov.services ?? []);
+        if (prod.products) setProducts(prod.products);
+      } catch {
+        // catalog load failure is non-critical; selects simply stay empty
       }
-      if (prod.ok && prod.products) setProducts(prod.products);
     })();
   }, []);
 
@@ -131,57 +134,65 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
 
   function saveCancellation(policy: CancellationPolicy) {
     startTransition(async () => {
-      await fetch(BASE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "cancellation",
-          id: policy.id,
-          scopeLevel: policy.scopeLevel,
-          scopeEntityId: policy.scopeLevel === "organization" ? null : policy.scopeEntityId,
-          title: policy.title,
-          isActive: policy.isActive,
-          freeCancelHoursBefore: policy.freeCancelHoursBefore,
-          cancellationAllowed: policy.cancellationAllowed,
-          lateCancellationBehavior: policy.lateCancellationBehavior,
-          refundPrepaymentOnLate: policy.refundPrepaymentOnLate,
-          chargePackageSessionOnLate: policy.chargePackageSessionOnLate,
-          requiresStaffConfirmation: policy.requiresStaffConfirmation,
-          notifyPatient: policy.notifyPatient,
-          notifyStaff: policy.notifyStaff,
-          sortOrder: policy.sortOrder,
-        }),
-      });
-      await load();
+      try {
+        await apiJson(BASE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "cancellation",
+            id: policy.id,
+            scopeLevel: policy.scopeLevel,
+            scopeEntityId: policy.scopeLevel === "organization" ? null : policy.scopeEntityId,
+            title: policy.title,
+            isActive: policy.isActive,
+            freeCancelHoursBefore: policy.freeCancelHoursBefore,
+            cancellationAllowed: policy.cancellationAllowed,
+            lateCancellationBehavior: policy.lateCancellationBehavior,
+            refundPrepaymentOnLate: policy.refundPrepaymentOnLate,
+            chargePackageSessionOnLate: policy.chargePackageSessionOnLate,
+            requiresStaffConfirmation: policy.requiresStaffConfirmation,
+            notifyPatient: policy.notifyPatient,
+            notifyStaff: policy.notifyStaff,
+            sortOrder: policy.sortOrder,
+          }),
+        });
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ошибка сети");
+      }
     });
   }
 
   function saveReschedule(policy: ReschedulePolicy) {
     startTransition(async () => {
-      await fetch(BASE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "reschedule",
-          id: policy.id,
-          scopeLevel: policy.scopeLevel,
-          scopeEntityId: policy.scopeLevel === "organization" ? null : policy.scopeEntityId,
-          title: policy.title,
-          isActive: policy.isActive,
-          selfRescheduleHoursBefore: policy.selfRescheduleHoursBefore,
-          maxSelfReschedules: policy.maxSelfReschedules,
-          allowDifferentBranch: policy.allowDifferentBranch,
-          allowDifferentCity: policy.allowDifferentCity,
-          allowDifferentSpecialist: policy.allowDifferentSpecialist,
-          allowDifferentService: policy.allowDifferentService,
-          limitExceededBehavior: policy.limitExceededBehavior,
-          requiresStaffConfirmation: policy.requiresStaffConfirmation,
-          notifyPatient: policy.notifyPatient,
-          notifyStaff: policy.notifyStaff,
-          sortOrder: policy.sortOrder,
-        }),
-      });
-      await load();
+      try {
+        await apiJson(BASE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "reschedule",
+            id: policy.id,
+            scopeLevel: policy.scopeLevel,
+            scopeEntityId: policy.scopeLevel === "organization" ? null : policy.scopeEntityId,
+            title: policy.title,
+            isActive: policy.isActive,
+            selfRescheduleHoursBefore: policy.selfRescheduleHoursBefore,
+            maxSelfReschedules: policy.maxSelfReschedules,
+            allowDifferentBranch: policy.allowDifferentBranch,
+            allowDifferentCity: policy.allowDifferentCity,
+            allowDifferentSpecialist: policy.allowDifferentSpecialist,
+            allowDifferentService: policy.allowDifferentService,
+            limitExceededBehavior: policy.limitExceededBehavior,
+            requiresStaffConfirmation: policy.requiresStaffConfirmation,
+            notifyPatient: policy.notifyPatient,
+            notifyStaff: policy.notifyStaff,
+            sortOrder: policy.sortOrder,
+          }),
+        });
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ошибка сети");
+      }
     });
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 import type {
   BroadcastAuditEntry,
   BroadcastAudienceFilter,
@@ -9,60 +10,173 @@ import type {
   BroadcastCommand,
   BroadcastPreviewResult,
 } from "@/modules/doctor-broadcasts/ports";
-import { BROADCAST_PLANNED_CHANNELS } from "@/modules/doctor-broadcasts/broadcastChannels";
-import { CATEGORY_LABELS, CHANNEL_LABELS, isAudienceEstimateApproximate } from "./labels";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import {
+  BROADCAST_ACTIVE_CHANNELS,
+  BROADCAST_DEFAULT_CHANNELS,
+} from "@/modules/doctor-broadcasts/broadcastChannels";
+import {
+  BROADCAST_FORM_CATEGORIES,
+  isAudienceEstimateApproximate,
+} from "./labels";
 import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
-import { previewBroadcastAction, executeBroadcastAction } from "./actions";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { MediaPickerPanel } from "@/shared/ui/doctor/media/MediaPickerPanel";
+import { MediaPickerShell } from "@/shared/ui/doctor/media/MediaPickerShell";
+import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import {
+  previewBroadcastAction,
+  executeBroadcastAction,
+  loadDraftAction,
+  saveDraftAction,
+  getChannelCountsAction,
+  getChannelCountsByAudienceAction,
+} from "./actions";
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "@/modules/doctor-broadcasts/deliveryQueueKind";
+import type { BroadcastChannelCounts } from "@/modules/doctor-broadcasts/draftPort";
 
 type Stage = "idle" | "previewing" | "previewed" | "confirming" | "sent" | "error";
 
-const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [BroadcastCategory, string][];
+const CHANNEL_TILE_LABELS: Record<BroadcastChannel, string> = {
+  bot_message: "Telegram+MAX", // legacy
+  telegram: "Telegram",
+  max: "MAX",
+  sms: "SMS",
+  push: "Push",
+  email: "Email",
+  home_banner: "Баннер",
+  notification_bell: "Bell",
+};
+
+/** Параметры префилла формы из записи журнала. */
+export type BroadcastFormPrefill = {
+  entry: BroadcastAuditEntry;
+  /** Монотонный счётчик; при каждом новом «Создать на основе» инкрементируется. */
+  nonce: number;
+};
 
 type Props = {
   onBroadcastSent?: (entry: BroadcastAuditEntry) => void;
+  /** Если передан — применяет данные записи журнала в форму при изменении nonce. */
+  prefill?: BroadcastFormPrefill;
 };
 
-export function BroadcastForm({ onBroadcastSent }: Props) {
+export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
   const [isPending, startTransition] = useTransition();
   const [stage, setStage] = useState<Stage>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<BroadcastPreviewResult | null>(null);
   const [sentEntry, setSentEntry] = useState<BroadcastAuditEntry | null>(null);
 
-  const [category, setCategory] = useState<BroadcastCategory | "">("");
+  const [category, setCategory] = useState<BroadcastCategory | "">("organizational");
   const [audience, setAudience] = useState<BroadcastAudienceFilter | "">("");
-  const [channelBot, setChannelBot] = useState(true);
-  const [channelSms, setChannelSms] = useState(true);
-  const [channelPush, setChannelPush] = useState(true);
-  const [attachMenuAfterSend, setAttachMenuAfterSend] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState<Set<BroadcastChannel>>(
+    new Set(BROADCAST_DEFAULT_CHANNELS),
+  );
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  // RASSL-06 phase 1: опциональная прикреплённая картинка из медиабиблиотеки.
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<string | null>(null);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerFolderId, setMediaPickerFolderId] = useState<string | null | undefined>(undefined);
+
+  const [channelCounts, setChannelCounts] = useState<BroadcastChannelCounts | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+
+  /**
+   * Отслеживает последний применённый nonce префилла.
+   * Используется для того, чтобы draft-эффект не затирал
+   * префилл, применённый после маунта (nonce > 0).
+   */
+  const appliedPrefillNonceRef = useRef<number>(0);
+
+  // Load draft and channel counts on mount
+  useEffect(() => {
+    void (async () => {
+      const [draft, counts] = await Promise.all([
+        loadDraftAction().catch(() => null),
+        getChannelCountsAction().catch(() => null),
+      ]);
+      if (counts) setChannelCounts(counts);
+      // Не применяем черновик, если за время асинхронной загрузки
+      // пользователь уже применил префилл (nonce > 0).
+      if (draft && appliedPrefillNonceRef.current === 0) {
+        if (draft.category) setCategory(draft.category);
+        if (draft.audience) setAudience(draft.audience);
+        if (draft.channels.length > 0) setSelectedChannels(new Set(draft.channels));
+        setTitle(draft.title);
+        setBody(draft.body);
+        setMediaUrl(draft.mediaUrl ?? null);
+        setMediaType(draft.mediaType ?? null);
+      }
+    })();
+  }, []);
+
+  // Re-fetch channel counts filtered by selected audience so tiles reflect the segment.
+  useEffect(() => {
+    if (!audience) return;
+    void getChannelCountsByAudienceAction(audience).then((counts) => {
+      setChannelCounts(counts);
+    }).catch(() => undefined);
+  }, [audience]);
+
+  // Применяем префилл при изменении nonce (идемпотентно: повторный клик
+  // «Создать на основе» по той же записи инкрементирует nonce → эффект снова сработает).
+  useEffect(() => {
+    if (!prefill || prefill.nonce === 0) return;
+    appliedPrefillNonceRef.current = prefill.nonce;
+    const { entry } = prefill;
+    // Сбрасываем форму в редактируемое состояние
+    setStage("idle");
+    setSentEntry(null);
+    setPreview(null);
+    setErrorMsg(null);
+    // Применяем данные из записи журнала
+    setCategory(entry.category);
+    setAudience(entry.audienceFilter);
+    const channels = new Set(
+      entry.channels.filter((ch) => (BROADCAST_ACTIVE_CHANNELS as readonly string[]).includes(ch)),
+    );
+    setSelectedChannels(channels.size > 0 ? channels : new Set(BROADCAST_ACTIVE_CHANNELS));
+    setTitle(entry.messageTitle);
+    setBody(entry.messageBody);
+    setMediaUrl(null);
+    setMediaType(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce]);
 
   const isFormLocked = stage === "previewing" || stage === "confirming";
 
+  function toggleChannel(ch: BroadcastChannel) {
+    setSelectedChannels((prev) => {
+      const next = new Set(prev);
+      if (next.has(ch)) next.delete(ch);
+      else next.add(ch);
+      return next;
+    });
+  }
+
   function buildCommand(): Omit<BroadcastCommand, "actorId"> | null {
     if (!category || !audience || !title.trim() || body.trim().length < 10) return null;
-    if (!channelBot && !channelSms && !channelPush) return null;
-    const channels: BroadcastChannel[] = [];
-    if (channelBot) channels.push("bot_message");
-    if (channelSms) channels.push("sms");
-    if (channelPush) channels.push("push");
+    if (selectedChannels.size === 0) return null;
+    const channels: BroadcastChannel[] = [...selectedChannels];
     return {
       category,
       audienceFilter: audience,
-      message: { title: title.trim(), body: body.trim() },
+      message: { title: title.trim(), body: body.trim(), mediaUrl, mediaType },
       channels,
-      attachMenuAfterSend: attachMenuAfterSend && channelBot,
+      attachMenuAfterSend: false,
     };
   }
 
   const isPreviewValid =
     Boolean(category && audience && title.trim() && body.trim().length >= 10) &&
-    (channelBot || channelSms || channelPush);
+    selectedChannels.size > 0;
 
   function handlePreview() {
     const command = buildCommand();
@@ -102,24 +216,55 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
     });
   }
 
+  function handlePickImage(item: MediaListItem) {
+    if (item.kind !== "image") return;
+    setMediaUrl(item.url);
+    setMediaType(item.mimeType);
+    setMediaPickerOpen(false);
+  }
+
+  function handleRemoveImage() {
+    setMediaUrl(null);
+    setMediaType(null);
+  }
+
   function handleCancelConfirm() {
     setPreview(null);
     setStage("idle");
   }
 
   function handleReset() {
-    setCategory("");
+    setCategory("organizational");
     setAudience("");
-    setChannelBot(true);
-    setChannelSms(true);
-    setChannelPush(true);
-    setAttachMenuAfterSend(false);
+    setSelectedChannels(new Set(BROADCAST_DEFAULT_CHANNELS));
     setTitle("");
     setBody("");
+    setMediaUrl(null);
+    setMediaType(null);
     setPreview(null);
     setSentEntry(null);
     setErrorMsg(null);
     setStage("idle");
+  }
+
+  async function handleSaveDraft() {
+    setDraftSaving(true);
+    setDraftSaved(false);
+    try {
+      await saveDraftAction({
+        category: category || null,
+        audience: audience || null,
+        channels: [...selectedChannels],
+        title,
+        body,
+        mediaUrl,
+        mediaType,
+      });
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2500);
+    } finally {
+      setDraftSaving(false);
+    }
   }
 
   if (stage === "sent" && preview && sentEntry) {
@@ -152,38 +297,25 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   }
 
   return (
-    <div id="broadcast-form" className="flex flex-col gap-4">
+    <div id="broadcast-form" className="flex flex-col divide-y divide-border">
       {(stage === "error" || errorMsg) && (
-        <p id="broadcast-error" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {errorMsg ?? "Произошла ошибка."}
-        </p>
+        <div className="px-3 py-2">
+          <p
+            id="broadcast-error"
+            className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {errorMsg ?? "Произошла ошибка."}
+          </p>
+        </div>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="broadcast-category" className="text-sm font-medium">
-          Категория <span aria-hidden>*</span>
-        </label>
-        <select
-          id="broadcast-category"
-          value={category}
-          disabled={isFormLocked}
-          onChange={(e) => setCategory(e.target.value as BroadcastCategory)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      {/* Audience */}
+      <div className="px-3 py-2.5">
+        <label
+          htmlFor="broadcast-audience"
+          className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
         >
-          <option value="" disabled>
-            — выберите категорию —
-          </option>
-          {CATEGORY_OPTIONS.map(([v, label]) => (
-            <option key={v} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="broadcast-audience" className="text-sm font-medium">
-          Аудитория <span aria-hidden>*</span>
+          Аудитория · кому
         </label>
         <BroadcastAudienceSelect
           id="broadcast-audience"
@@ -194,106 +326,191 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
         {audience && isAudienceEstimateApproximate(audience) ? (
           <p
             id="broadcast-audience-form-warning"
-            className="text-xs text-amber-700 dark:text-amber-500"
+            className="mt-1 text-[10px] text-amber-700 dark:text-amber-500"
           >
-            Для этой аудитории число получателей пока считается как «все клиенты», пока не появится фильтр в списке клиентов.
+            Для этой аудитории число получателей считается как «все клиенты».
           </p>
         ) : null}
       </div>
 
-      <fieldset className="flex flex-col gap-2 border-0 p-0">
-        <legend className="mb-1 text-sm font-medium">Каналы</legend>
-        <label htmlFor="broadcast-channel-bot" className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            id="broadcast-channel-bot"
-            type="checkbox"
-            checked={channelBot}
-            disabled={isFormLocked}
-            onChange={(e) => setChannelBot(e.target.checked)}
-          />
-          {CHANNEL_LABELS.bot_message}
-        </label>
-        <label htmlFor="broadcast-channel-sms" className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            id="broadcast-channel-sms"
-            type="checkbox"
-            checked={channelSms}
-            disabled={isFormLocked}
-            onChange={(e) => setChannelSms(e.target.checked)}
-          />
-          {CHANNEL_LABELS.sms}
-        </label>
-        <label htmlFor="broadcast-channel-push" className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            id="broadcast-channel-push"
-            type="checkbox"
-            checked={channelPush}
-            disabled={isFormLocked}
-            onChange={(e) => setChannelPush(e.target.checked)}
-          />
-          {CHANNEL_LABELS.push}
-        </label>
-        {BROADCAST_PLANNED_CHANNELS.map((code) => (
-          <label
-            key={code}
-            className="flex cursor-not-allowed items-center gap-2 text-sm text-muted-foreground"
-          >
-            <input type="checkbox" disabled checked={false} readOnly className="pointer-events-none" />
-            <span>
-              {CHANNEL_LABELS[code]} <span className="text-xs">(скоро)</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
+      {/* Category chips — order: Организационное · Важное · Сервисное · Рекламное */}
+      <div className="px-3 py-2.5">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Категория
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {BROADCAST_FORM_CATEGORIES.map(({ value: v, label }) => (
+            <button
+              key={v}
+              type="button"
+              disabled={isFormLocked}
+              onClick={() => setCategory(category === v ? "" : v)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                category === v
+                  ? "bg-primary/15 text-primary"
+                  : "border border-border text-muted-foreground hover:bg-muted/40",
+                isFormLocked && "opacity-60",
+              )}
+              aria-pressed={category === v}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <LabeledSwitch
-        label="Прикрепить / обновить меню"
-        checked={attachMenuAfterSend}
-        onCheckedChange={setAttachMenuAfterSend}
-        disabled={isFormLocked || !channelBot}
-      />
+      {/* Channel tiles — 5 channels: Telegram · MAX · Push · SMS · Email */}
+      <div className="px-3 py-2.5">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Каналы · куда отправить
+        </p>
+        <div className="grid auto-cols-fr grid-flow-col gap-1.5">
+          {BROADCAST_ACTIVE_CHANNELS.map((ch) => {
+            const active = selectedChannels.has(ch);
+            const count = channelCounts ? channelCounts[ch as keyof BroadcastChannelCounts] : null;
+            return (
+              <label
+                key={ch}
+                className={cn(
+                  "flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-1.5 py-2.5 transition-colors",
+                  active
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-background hover:bg-muted/30",
+                  isFormLocked && "pointer-events-none opacity-60",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  disabled={isFormLocked}
+                  onChange={() => toggleChannel(ch)}
+                  className="sr-only"
+                />
+                {count !== null ? (
+                  <span className={cn("text-sm font-bold leading-none", active ? "text-primary" : "text-foreground")}>
+                    {count}
+                  </span>
+                ) : (
+                  <span className="text-sm leading-none text-muted-foreground">—</span>
+                )}
+                <span className={cn("mt-0.5 text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
+                  {CHANNEL_TILE_LABELS[ch]}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-[10px] text-muted-foreground">
+          Один человек может получить по нескольким каналам — это нормально.
+        </p>
+      </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="broadcast-title" className="text-sm font-medium">
+      {/* Title */}
+      <div className="px-3 py-2.5">
+        <label
+          htmlFor="broadcast-title"
+          className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+        >
           Заголовок <span aria-hidden>*</span>
         </label>
-        <input
+        <Input
           id="broadcast-title"
           type="text"
           value={title}
           maxLength={200}
           disabled={isFormLocked}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Заголовок сообщения"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder="Например: Изменение расписания на следующей неделе"
+          className="w-full"
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="broadcast-body" className="text-sm font-medium">
-          Текст сообщения <span aria-hidden>*</span>
-        </label>
-        <textarea
-          id="broadcast-body"
+      {/* Body */}
+      <div className={`px-3 py-2.5${isFormLocked ? " pointer-events-none opacity-50" : ""}`}>
+        {/* body is stored as Markdown; markdownToTelegramHtml converts it for Telegram/MAX at delivery time */}
+        <MarkdownEditor
+          name="broadcast-body"
           value={body}
-          disabled={isFormLocked}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Текст рассылки (минимум 10 символов)"
-          rows={5}
-          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          onChange={setBody}
+          maxLength={800}
+          label="Текст сообщения * (Markdown)"
         />
-        <p className="text-xs text-muted-foreground text-right">{body.length} символов</p>
       </div>
 
-      <button
-        type="button"
-        id="broadcast-preview-button"
-        onClick={handlePreview}
-        disabled={!isPreviewValid || isFormLocked || isPending}
-        className="self-start rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-      >
-        {stage === "previewing" ? "Загрузка…" : "Предпросмотр"}
-      </button>
+      {/* Image attachment (optional) — RASSL-06 phase 1 */}
+      <div className={`px-3 py-2.5${isFormLocked ? " pointer-events-none opacity-50" : ""}`}>
+        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Картинка · необязательно
+        </p>
+        {mediaUrl ? (
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={mediaUrl}
+              alt="Прикреплённая картинка"
+              className="max-h-20 rounded-md border border-border object-contain"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isFormLocked}
+              onClick={handleRemoveImage}
+            >
+              Убрать
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isFormLocked}
+            onClick={() => setMediaPickerOpen(true)}
+          >
+            Прикрепить картинку
+          </Button>
+        )}
+        <MediaPickerShell
+          open={mediaPickerOpen}
+          onOpenChange={setMediaPickerOpen}
+          title="Выбор картинки"
+        >
+          <MediaPickerPanel
+            key={mediaPickerOpen ? "broadcast-img-open" : "broadcast-img-closed"}
+            open={mediaPickerOpen}
+            apiKind="image"
+            folderId={mediaPickerFolderId}
+            kind="image"
+            onPick={handlePickImage}
+            exercisePicker={false}
+            onPickerFolderIdChange={setMediaPickerFolderId}
+            showSort
+          />
+        </MediaPickerShell>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <button
+          type="button"
+          id="broadcast-preview-button"
+          onClick={handlePreview}
+          disabled={!isPreviewValid || isFormLocked || isPending}
+          className="rounded-md bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {stage === "previewing" ? "Загрузка…" : "Предпросмотр"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSaveDraft()}
+          disabled={draftSaving || isFormLocked}
+          className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
+        >
+          {draftSaving ? "Сохранение…" : draftSaved ? "Черновик сохранён ✓" : "Сохранить черновик"}
+        </button>
+      </div>
     </div>
   );
 }

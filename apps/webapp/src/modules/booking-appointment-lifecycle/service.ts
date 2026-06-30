@@ -7,7 +7,7 @@ import {
   hoursUntil,
 } from "@/modules/booking-policies/policyResolver";
 import type { PolicyAppointmentContext } from "@/modules/booking-policies/types";
-import type { AppointmentLifecyclePort } from "./ports";
+import type { AppointmentLifecyclePort, AppointmentNoShowRecord } from "./ports";
 
 export type PreviewCancelResult =
   | {
@@ -336,9 +336,44 @@ export function createBookingAppointmentLifecycleService(deps: {
     patchLatestCancellationNotifications: deps.lifecyclePort.patchLatestCancellationNotifications.bind(
       deps.lifecyclePort,
     ),
+    patchLatestNoShowNotifications: deps.lifecyclePort.patchLatestNoShowNotifications.bind(
+      deps.lifecyclePort,
+    ),
 
     listReschedules: deps.lifecyclePort.listReschedules.bind(deps.lifecyclePort),
     listCancellations: deps.lifecyclePort.listCancellations.bind(deps.lifecyclePort),
+    listNoShows: deps.lifecyclePort.listNoShows.bind(deps.lifecyclePort),
+
+    async staffMarkNoShow(input: {
+      appointmentId: string;
+      organizationId: string;
+      actorType: "specialist" | "admin";
+      actorId: string;
+      reason?: string;
+      staffComment?: string;
+      notificationsSent?: Record<string, unknown>;
+    }): Promise<{ ok: true; appointment: BeAppointment; noShowRecord: AppointmentNoShowRecord } | { ok: false; error: "not_found" | "state_conflict" }> {
+      const appt = await deps.lifecyclePort.getAppointment(input.appointmentId, input.organizationId);
+      if (!appt) return { ok: false, error: "not_found" };
+      // Terminal check: surface early error if already no_show (no double-count).
+      if (appt.status === "no_show") return { ok: false, error: "state_conflict" };
+
+      const updated = await deps.lifecyclePort.applyNoShow({
+        appointmentId: input.appointmentId,
+        organizationId: input.organizationId,
+        actorType: input.actorType,
+        actorId: input.actorId,
+        reason: input.reason,
+        staffComment: input.staffComment,
+        manualOverride: true,
+        notificationsSent: input.notificationsSent,
+      });
+
+      // Read back the no-show history record (the latest one written in the same transaction)
+      const noShows = await deps.lifecyclePort.listNoShows(input.appointmentId, input.organizationId);
+      const noShowRecord = noShows[noShows.length - 1]!;
+      return { ok: true, appointment: updated, noShowRecord };
+    },
   };
 }
 

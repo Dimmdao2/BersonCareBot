@@ -31,6 +31,7 @@ export function BookingSoloLocationsSection() {
   const [timezone, setTimezone] = useState("Europe/Moscow");
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [editShortTitle, setEditShortTitle] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editTimezone, setEditTimezone] = useState("Europe/Moscow");
   const [editSortOrder, setEditSortOrder] = useState("0");
@@ -151,6 +152,7 @@ export function BookingSoloLocationsSection() {
             <thead>
               <tr className="border-b bg-muted/40 text-left">
                 <th className="px-3 py-2 font-medium">Локация</th>
+                <th className="px-3 py-2 font-medium">Короткое название</th>
                 <th className="px-3 py-2 font-medium">Адрес</th>
                 <th className="px-3 py-2 font-medium">Порядок</th>
                 <th className="px-3 py-2 font-medium">Показывать пациентам</th>
@@ -169,6 +171,19 @@ export function BookingSoloLocationsSection() {
                       <span className={!b.isActive ? "text-muted-foreground line-through" : undefined}>
                         {b.title}
                       </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editId === b.id ? (
+                      <Input
+                        className="h-8 w-28"
+                        placeholder="СПб, Мск"
+                        maxLength={12}
+                        value={editShortTitle}
+                        onChange={(e) => setEditShortTitle(e.target.value.slice(0, 12))}
+                      />
+                    ) : (
+                      (b.shortTitle ?? "—")
                     )}
                   </td>
                   <td className="px-3 py-2">
@@ -220,6 +235,7 @@ export function BookingSoloLocationsSection() {
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                   title: editTitle,
+                                  shortTitle: editShortTitle.trim() || null,
                                   address: editAddress.trim() || null,
                                   timezone: editTimezone,
                                   sortOrder: Number(editSortOrder),
@@ -252,6 +268,7 @@ export function BookingSoloLocationsSection() {
                         onClick={() => {
                           setEditId(b.id);
                           setEditTitle(b.title);
+                          setEditShortTitle(b.shortTitle ?? "");
                           setEditAddress(b.address ?? "");
                           setEditTimezone(b.timezone);
                           setEditSortOrder(String(b.sortOrder));

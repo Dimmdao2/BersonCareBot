@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { mapBookingCatalogApiError } from "@/app/app/settings/rubitimeCatalogErrors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { apiJson } from "@/shared/lib/apiJson";
 
 type CatalogCity = {
   id: string;
@@ -58,11 +59,6 @@ type CatalogBranchService = {
 };
 
 const BASE = "/api/admin/booking-catalog";
-
-async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  return res.json() as Promise<T>;
-}
 
 function formatPriceMinor(kopecks: number): string {
   return `${(kopecks / 100).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₽`;
@@ -155,15 +151,10 @@ export function RubitimeSection() {
     start(async () => {
       setActionError(null);
       try {
-        const res = await fetch(`${BASE}/${kind}/${id}`, { method: "DELETE" });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (!res.ok || data.ok === false) {
-          setActionError(String(data.error ?? `HTTP ${res.status}`));
-          return;
-        }
+        await apiJson<{ ok: boolean }>(`${BASE}/${kind}/${id}`, { method: "DELETE" });
         await loadAll();
-      } catch {
-        setActionError("Не удалось выполнить запрос");
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Не удалось выполнить запрос");
       }
     });
   }
@@ -365,22 +356,22 @@ function CityForm({ onDone }: { onDone: () => void }) {
     }
     const c = code.trim().toLowerCase();
     start(async () => {
-      const res = await apiJson<{ ok: boolean; error?: string }>(`${BASE}/cities`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: c,
-          title: title.trim(),
-          sortOrder: Number.parseInt(sortOrder, 10) || 0,
-        }),
-      });
-      if (!res.ok) {
-        setErr(String(res.error ?? "Ошибка"));
-        return;
+      try {
+        await apiJson<{ ok: boolean }>(`${BASE}/cities`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: c,
+            title: title.trim(),
+            sortOrder: Number.parseInt(sortOrder, 10) || 0,
+          }),
+        });
+        setCode("");
+        setTitle("");
+        onDone();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
       }
-      setCode("");
-      setTitle("");
-      onDone();
     });
   }
 
@@ -445,17 +436,16 @@ function BranchTimezoneEditor({ branch, onSaved }: { branch: CatalogBranch; onSa
       return;
     }
     start(async () => {
-      const res = await fetch(`${BASE}/branches/${branch.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ timezone: t }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || data.ok === false) {
-        setErr(String(data.error ?? `HTTP ${res.status}`));
-        return;
+      try {
+        await apiJson<{ ok: boolean }>(`${BASE}/branches/${branch.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ timezone: t }),
+        });
+        onSaved();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
       }
-      onSaved();
     });
   }
 
@@ -500,26 +490,26 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
       return;
     }
     start(async () => {
-      const res = await apiJson<{ ok: boolean; error?: string }>(`${BASE}/branches`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cityCode: cityCode.trim().toLowerCase(),
-          title: title.trim(),
-          address: address.trim() || null,
-          rubitimeBranchId: rubitimeBranchId.trim(),
-          ...(tzTrim ? { timezone: tzTrim } : {}),
-        }),
-      });
-      if (!res.ok) {
-        setErr(String(res.error ?? "Ошибка"));
-        return;
+      try {
+        await apiJson<{ ok: boolean }>(`${BASE}/branches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cityCode: cityCode.trim().toLowerCase(),
+            title: title.trim(),
+            address: address.trim() || null,
+            rubitimeBranchId: rubitimeBranchId.trim(),
+            ...(tzTrim ? { timezone: tzTrim } : {}),
+          }),
+        });
+        setTitle("");
+        setAddress("");
+        setRubitimeBranchId("");
+        setTimezone("");
+        onDone();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
       }
-      setTitle("");
-      setAddress("");
-      setRubitimeBranchId("");
-      setTimezone("");
-      onDone();
     });
   }
 
@@ -653,23 +643,22 @@ function ServiceEditor({
       return;
     }
     start(async () => {
-      const res = await fetch(`${BASE}/services/${service.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          durationMinutes: dur,
-          priceMinor: price,
-        }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || data.ok === false) {
-        setErr(mapBookingCatalogApiError(data.error, "edit"));
-        return;
+      try {
+        await apiJson<{ ok: boolean }>(`${BASE}/services/${service.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim() || null,
+            durationMinutes: dur,
+            priceMinor: price,
+          }),
+        });
+        onCollapse();
+        onSaved();
+      } catch (e) {
+        setErr(mapBookingCatalogApiError(e instanceof Error ? e.message : undefined, "edit"));
       }
-      onCollapse();
-      onSaved();
     });
   }
 
@@ -763,26 +752,25 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
       return;
     }
     start(async () => {
-      const res = await fetch(`${BASE}/services`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          durationMinutes: dur,
-          priceMinor: price,
-        }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || data.ok === false) {
-        setErr(mapBookingCatalogApiError(data.error, "create"));
-        return;
+      try {
+        await apiJson<{ ok: boolean }>(`${BASE}/services`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim() || null,
+            durationMinutes: dur,
+            priceMinor: price,
+          }),
+        });
+        setTitle("");
+        setDescription("");
+        setDurationMinutes("60");
+        setPriceMinor("400000");
+        onDone();
+      } catch (e) {
+        setErr(mapBookingCatalogApiError(e instanceof Error ? e.message : undefined, "create"));
       }
-      setTitle("");
-      setDescription("");
-      setDurationMinutes("60");
-      setPriceMinor("400000");
-      onDone();
     });
   }
 
@@ -857,24 +845,24 @@ function SpecialistForm({
       return;
     }
     start(async () => {
-      const res = await apiJson<{ ok: boolean; error?: string }>(`${BASE}/specialists`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rubitimeBranchId: br.rubitimeBranchId,
-          fullName: fullName.trim(),
-          description: description.trim() || null,
-          rubitimeCooperatorId: rubitimeCooperatorId.trim(),
-        }),
-      });
-      if (!res.ok) {
-        setErr(String(res.error ?? "Ошибка"));
-        return;
+      try {
+        await apiJson<{ ok: boolean }>(`${BASE}/specialists`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rubitimeBranchId: br.rubitimeBranchId,
+            fullName: fullName.trim(),
+            description: description.trim() || null,
+            rubitimeCooperatorId: rubitimeCooperatorId.trim(),
+          }),
+        });
+        setFullName("");
+        setDescription("");
+        setRubitimeCooperatorId("");
+        onDone();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
       }
-      setFullName("");
-      setDescription("");
-      setRubitimeCooperatorId("");
-      onDone();
     });
   }
 

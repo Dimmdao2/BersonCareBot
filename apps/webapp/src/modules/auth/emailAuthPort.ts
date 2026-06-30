@@ -30,4 +30,6 @@ export type EmailAuthDbPort = {
   verifyUserEmail: (userId: string, email: string) => Promise<void>;
   findEmailChallengeForConsume: (challengeId: string, userId: string) => Promise<EmailChallengeCodeRow | null>;
   findLatestEmailChallengeForUser: (userId: string, nowSec: number) => Promise<EmailChallengeCodeRow | null>;
+  /** Returns the latest unexpired challenge for a user, including the pending email address. */
+  findLatestPendingEmailChallengeForUser: (userId: string, nowSec: number) => Promise<EmailChallengeRow | null>;
 };

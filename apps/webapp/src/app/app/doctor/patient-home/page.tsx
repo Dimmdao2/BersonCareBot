@@ -1,8 +1,8 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { parsePatientHomeDailyPracticeTarget } from "@/modules/patient-home/todayConfig";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { PatientHomeBlocksSettingsPageClient } from "@/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient";
 import { PatientHomePracticeTargetPanel } from "@/app/app/settings/patient-home/PatientHomePracticeTargetPanel";
 import { PatientHomeDailyWarmupRotationPanel } from "@/app/app/settings/patient-home/PatientHomeDailyWarmupRotationPanel";
@@ -111,26 +111,18 @@ export default async function DoctorPatientHomeSettingsPage() {
   }
 
   return (
-    <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h1 className={doctorPageTitleClass}>Главная пациента</h1>
-      </div>
-      <div className="mb-6">
-        <PatientHomePracticeTargetPanel initialTarget={initialPracticeTarget} />
-      </div>
-      <div className="mb-6">
-        <PatientHomeMoodIconsPanel initialOptions={moodOptions} />
-      </div>
+    <DoctorAppShell title="Главная пациента">
+      <DoctorPageHeader title="Главная пациента" />
+      <PatientHomePracticeTargetPanel initialTarget={initialPracticeTarget} />
+      <PatientHomeMoodIconsPanel initialOptions={moodOptions} />
       {isAdmin ? (
-        <div className="mb-6">
-          <PatientHomeRepeatCooldownPanel
-            initialWarmupMinutes={initialWarmupRepeatMinutes}
-            initialPlanItemMinutes={initialPlanItemRepeatMinutes}
-          />
-        </div>
+        <PatientHomeRepeatCooldownPanel
+          initialWarmupMinutes={initialWarmupRepeatMinutes}
+          initialPlanItemMinutes={initialPlanItemRepeatMinutes}
+        />
       ) : null}
       {isAdmin ? (
-        <div className="mb-6 flex flex-col gap-6">
+        <div className="flex flex-col gap-3">
           <PatientHomeDailyWarmupRotationPanel
             initialEnabled={initialWarmupRotationEnabled}
             initialTimes={initialWarmupRotationTimes}
@@ -147,6 +139,6 @@ export default async function DoctorPatientHomeSettingsPage() {
         refDisplayTitles={refDisplayTitles}
         blockRuntimeStatuses={blockRuntimeStatuses}
       />
-    </div>
+    </DoctorAppShell>
   );
 }

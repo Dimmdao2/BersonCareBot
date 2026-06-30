@@ -35,6 +35,8 @@ import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { tryConsumeStart } from '../infra/db/repos/channelUsers.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
+import { createUnifiedSender } from '../infra/adapters/sendUnified.js';
+import type { UnifiedSender } from '../infra/adapters/sendUnified.js';
 import { createActorResolutionPort } from '../infra/adapters/actorResolutionPort.js';
 import { createContentCatalogPort } from '../infra/adapters/contentCatalogPort.js';
 import { createDeliveryDefaultsPort } from '../infra/adapters/deliveryDefaultsPort.js';
@@ -47,6 +49,7 @@ import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import { getSmscApiKey } from '../integrations/smsc/runtimeConfig.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
+import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import { maxConfig } from '../integrations/max/config.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
 import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
@@ -63,6 +66,9 @@ import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.j
 import { createRemindersWritesPort } from '../infra/adapters/remindersWritesPort.js';
 import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReadsPort.js';
 import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscriptionMailingReadsPort.js';
+import { createWebPushAccessPort } from '../infra/adapters/webPushAccessPort.js';
+import type { WebPushAccessPort } from '../kernel/contracts/index.js';
+import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -125,6 +131,8 @@ export type AppDeps = {
   smsClient: SmsClient;
   dbWritePort: DbWritePort;
   dispatchPort: DispatchPort;
+  /** Unified send façade — THE single entry point for outbound sends (PLAN S3). */
+  unifiedSender: UnifiedSender;
   contentPort: ContentPort;
   /** Шаблоны контента (reply keyboard / inline из JSON меню). */
   templatePort: TemplatePort;
@@ -137,6 +145,13 @@ export type AppDeps = {
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
   webappEventsPort: WebappEventsPort;
+  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
+  /**
+   * Read port for web-push subscriptions + VAPID (PLAN S13 Model β).
+   * Used by `WebPushDeliveryAdapter` (S14a) to fetch subscriptions + VAPID at send time
+   * and to clean up dead subscriptions after 410/404. Wired in S14a.
+   */
+  webPushAccessPort: WebPushAccessPort;
 };
 
 /** Собирает полностью связанный набор зависимостей app-слоя. */
@@ -179,6 +194,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const webappEventsPort = createWebappEventsPort({
     getAppBaseUrl: () => getAppBaseUrl(dbPort),
   });
+  const webPushAccessPort = createWebPushAccessPort({
+    getAppBaseUrl: () => getAppBaseUrl(dbPort),
+  });
   const dispatchPortRef: { current?: DispatchPort } = {};
   const dbWritePort =
     input.dbWritePort ??
@@ -216,6 +234,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createTelegramDeliveryAdapter(),
     createSmscDeliveryAdapter({ smsClient }),
     ...(maxConfig.enabled ? [createMaxDeliveryAdapter()] : []),
+    createEmailDeliveryAdapter({ getDb: () => dbPort }),
+    createWebPushDeliveryAdapter({ webPushAccessPort }),
   ];
 
   const dispatchPort =
@@ -229,6 +249,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   dispatchPortRef.current = dispatchPort;
 
   dispatchPortForReminders.current = dispatchPort;
+
+  // Unified send façade — built from the existing dispatchPort (PLAN S3).
+  const unifiedSender = createUnifiedSender({ dispatchPort });
 
   const idempotencyPort = input.idempotencyPort ?? createPostgresIdempotencyPort(dbPort);
 
@@ -277,6 +300,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     smsClient,
     dbWritePort,
     dispatchPort,
+    unifiedSender,
     contentPort,
     templatePort,
     sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
@@ -284,6 +308,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     contextQueryPort,
     eventGateway,
     webappEventsPort,
+    webPushAccessPort,
     ...(telegramRegistrar !== undefined ? { registerTelegramWebhookRoutes: telegramRegistrar } : {}),
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
     ...(maxRegistrar !== undefined ? { registerMaxWebhookRoutes: maxRegistrar } : {}),

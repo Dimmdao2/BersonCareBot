@@ -9,6 +9,8 @@ import {
 } from "../../../db/schema";
 
 export const ADMIN_PLAYBACK_METRICS_WINDOW_HOURS = 24;
+/** Client-side video errors in last 1 h that trigger "degraded" (mirrors transcode threshold). */
+export const ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED = 3;
 
 export type AdminPlaybackHealthMetrics = {
   byDelivery: { hls: number; mp4: number; file: number };

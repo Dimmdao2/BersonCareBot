@@ -13,6 +13,9 @@ import {
 import { extractPatientExerciseCommentReplyBody } from "@/modules/messaging/programNoteReplyContext";
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import type {
+  DoctorExerciseCommentCursor,
+  DoctorExerciseCommentRow,
+  ListDoctorExerciseCommentsInput,
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionLegacyUnreadInput,
   ProgramItemDiscussionListPageInput,
@@ -20,6 +23,7 @@ import type {
   ProgramItemDiscussionMessageInsert,
   ProgramItemDiscussionOrigin,
   ProgramItemDiscussionSenderRole,
+  StageItemViewerUnreadCount,
 } from "@/modules/program-item-discussion/types";
 
 function mapMessage(row: typeof programItemDiscussionMessages.$inferSelect): ProgramItemDiscussionMessage {
@@ -34,6 +38,167 @@ function mapMessage(row: typeof programItemDiscussionMessages.$inferSelect): Pro
     supportMessageId: row.supportMessageId,
     createdAt: row.createdAt,
   };
+}
+
+function mapMessageFields(row: {
+  id: string;
+  instanceStageItemId: string;
+  patientUserId: string;
+  senderRole: string;
+  origin: string;
+  body: string | null;
+  mediaFileId: string | null;
+  supportMessageId: string | null;
+  createdAt: string;
+}): ProgramItemDiscussionMessage {
+  return {
+    id: row.id,
+    instanceStageItemId: row.instanceStageItemId,
+    patientUserId: row.patientUserId,
+    senderRole: row.senderRole as ProgramItemDiscussionSenderRole,
+    origin: row.origin as ProgramItemDiscussionOrigin,
+    body: row.body,
+    mediaFileId: row.mediaFileId,
+    supportMessageId: row.supportMessageId,
+    createdAt: row.createdAt,
+  };
+}
+
+function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
+  const raw = snapshot.title;
+  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
+  return "Упражнение";
+}
+
+/**
+ * Единый doctor-wide запрос комментариев по упражнениям.
+ *
+ * Два варианта скоупа пациентов:
+ *   - assignedByUserId (doctor-wide без фан-аута): фильтрует по treatment_program_instances.assigned_by
+ *   - patientUserIds (явный список): используется unread-режимом и тестами
+ *
+ * opts.unreadOnly: true → только непрочитанные (latest patient message > lastReadAt)
+ * opts.showAnswered: true → снимаем фильтр «последнее сообщение = от пациента» из OUTER WHERE;
+ *   CTE уже выбирает latest patient message per stageItem, поэтому отвеченные треды
+ *   (где врач ответил после) всё равно попадают — мы видим последний комментарий пациента.
+ */
+async function queryDoctorExerciseComments(
+  input: ListDoctorExerciseCommentsInput,
+  opts: { unreadOnly: boolean; showAnswered?: boolean },
+): Promise<DoctorExerciseCommentRow[]> {
+  const { patientUserIds, assignedByUserId, viewerUserId, limit, cursor } = input;
+  // Need at least one scope method.
+  if (!assignedByUserId && patientUserIds.length === 0) return [];
+  const safeLimit = Math.max(1, Math.trunc(limit));
+  const db = getDrizzle();
+
+  // Patient scope: either by doctor's assignedBy (efficient, no fanout) or explicit list.
+  const patientScopeCondition = assignedByUserId
+    ? sql`${treatmentProgramInstances.assignedBy} = ${assignedByUserId}::uuid`
+    : inArray(treatmentProgramInstances.patientUserId, patientUserIds);
+
+  // CTE: latest PATIENT TEXT message per exercise stage-item (DISTINCT ON = one row per item).
+  // senderRole='patient' + mediaFileId IS NULL are now INSIDE the CTE WHERE so:
+  //   - The CTE always yields the latest patient text comment per stageItem.
+  //   - Answered threads (doctor replied after) still surface: we look at the latest
+  //     patient message, not the latest overall. No outer senderRole check needed.
+  //   - unreadOnly uses createdAt > lastReadAt on the latest patient comment.
+  const latestCte = db.$with("latest").as(
+    db
+      .selectDistinctOn([programItemDiscussionMessages.instanceStageItemId], {
+        id: programItemDiscussionMessages.id,
+        instanceStageItemId: programItemDiscussionMessages.instanceStageItemId,
+        patientUserId: programItemDiscussionMessages.patientUserId,
+        senderRole: programItemDiscussionMessages.senderRole,
+        origin: programItemDiscussionMessages.origin,
+        body: programItemDiscussionMessages.body,
+        mediaFileId: programItemDiscussionMessages.mediaFileId,
+        supportMessageId: programItemDiscussionMessages.supportMessageId,
+        createdAt: programItemDiscussionMessages.createdAt,
+        snapshot: treatmentProgramInstanceStageItems.snapshot,
+        // ВАЖНО: явный алиас instance_id — иначе колонка тоже зовётся "id" и
+        // CTE получает дубликат столбца "id" (вместе с messages.id) → Postgres падает
+        // ("Failed query … select "id", …, "id", …"). См. TODO#3 fix.
+        instanceId: sql<string>`${treatmentProgramInstances.id}`.as("instance_id"),
+        lastReadAt: programItemDiscussionReads.lastReadAt,
+      })
+      .from(programItemDiscussionMessages)
+      .innerJoin(
+        treatmentProgramInstanceStageItems,
+        eq(
+          treatmentProgramInstanceStageItems.id,
+          programItemDiscussionMessages.instanceStageItemId,
+        ),
+      )
+      .innerJoin(
+        treatmentProgramInstanceStages,
+        eq(
+          treatmentProgramInstanceStages.id,
+          treatmentProgramInstanceStageItems.stageId,
+        ),
+      )
+      .innerJoin(
+        treatmentProgramInstances,
+        eq(treatmentProgramInstances.id, treatmentProgramInstanceStages.instanceId),
+      )
+      .leftJoin(
+        programItemDiscussionReads,
+        and(
+          eq(
+            programItemDiscussionReads.instanceStageItemId,
+            programItemDiscussionMessages.instanceStageItemId,
+          ),
+          eq(programItemDiscussionReads.patientUserId, viewerUserId),
+        ),
+      )
+      .where(
+        and(
+          patientScopeCondition,
+          eq(treatmentProgramInstances.status, "active"),
+          sql`${treatmentProgramInstances.assignmentSource} = ANY(ARRAY['doctor','course']::text[])`,
+          eq(treatmentProgramInstanceStageItems.itemType, "exercise"),
+          eq(treatmentProgramInstanceStageItems.status, "active"),
+          // Only patient text messages inside CTE — so DISTINCT ON picks latest patient comment.
+          eq(programItemDiscussionMessages.senderRole, "patient"),
+          sql`${programItemDiscussionMessages.mediaFileId} IS NULL`,
+        ),
+      )
+      .orderBy(
+        asc(programItemDiscussionMessages.instanceStageItemId),
+        desc(programItemDiscussionMessages.createdAt),
+        desc(programItemDiscussionMessages.id),
+      ),
+  );
+
+  // Outer: apply unread + cursor filters. No senderRole check needed (CTE guarantees patient msgs).
+  const outerConditions: ReturnType<typeof sql>[] = [];
+  if (opts.unreadOnly) {
+    outerConditions.push(
+      sql`${latestCte.createdAt} > COALESCE(${latestCte.lastReadAt}, '-infinity'::timestamptz)`,
+    );
+  }
+  if (cursor) {
+    outerConditions.push(
+      sql`(${latestCte.createdAt}, ${latestCte.id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`,
+    );
+  }
+
+  const rows = await db
+    .with(latestCte)
+    .select()
+    .from(latestCte)
+    .where(outerConditions.length > 0 ? and(...outerConditions) : undefined)
+    .orderBy(desc(latestCte.createdAt), desc(latestCte.id))
+    .limit(safeLimit);
+
+  return rows.map((row) => ({
+    patientUserId: row.patientUserId,
+    instanceId: row.instanceId,
+    stageItemId: row.instanceStageItemId,
+    stageItemTitle: stageItemSnapshotTitle(row.snapshot as Record<string, unknown>),
+    latestMessage: mapMessageFields(row),
+    createdAt: row.createdAt,
+  }));
 }
 
 export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
@@ -470,6 +635,138 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .where(eq(programItemDiscussionMessages.id, messageId))
         .returning({ id: programItemDiscussionMessages.id });
       return rows.length > 0;
+    },
+
+    async listUnreadExerciseCommentsForDoctor(
+      input: ListDoctorExerciseCommentsInput,
+    ): Promise<DoctorExerciseCommentRow[]> {
+      return queryDoctorExerciseComments(input, { unreadOnly: true });
+    },
+
+    async listExerciseCommentsForDoctor(
+      input: ListDoctorExerciseCommentsInput,
+    ): Promise<DoctorExerciseCommentRow[]> {
+      return queryDoctorExerciseComments(input, { unreadOnly: false });
+    },
+
+    async listAllExerciseCommentsForDoctor(
+      input: { viewerUserId: string; limit: number; cursor?: DoctorExerciseCommentCursor | null },
+    ): Promise<DoctorExerciseCommentRow[]> {
+      // Doctor-wide all-comments: no patient-ID fanout, shows answered threads.
+      return queryDoctorExerciseComments(
+        {
+          patientUserIds: [],
+          assignedByUserId: input.viewerUserId,
+          viewerUserId: input.viewerUserId,
+          limit: input.limit,
+          cursor: input.cursor,
+        },
+        { unreadOnly: false, showAnswered: true },
+      );
+    },
+
+    async listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<StageItemViewerUnreadCount[]> {
+      if (input.stageItemIds.length === 0) return [];
+      const db = getDrizzle();
+
+      // Total patient messages per stageItem + latest message date
+      const totals = await db
+        .select({
+          stageItemId: programItemDiscussionMessages.instanceStageItemId,
+          total: sql<number>`cast(count(*) as int)`,
+          latestAt: sql<string | null>`max(${programItemDiscussionMessages.createdAt})`,
+        })
+        .from(programItemDiscussionMessages)
+        .where(
+          and(
+            inArray(programItemDiscussionMessages.instanceStageItemId, input.stageItemIds),
+            eq(programItemDiscussionMessages.senderRole, "patient"),
+          ),
+        )
+        .groupBy(programItemDiscussionMessages.instanceStageItemId);
+
+      const totalMap = new Map<string, { total: number; latestAt: string | null }>(
+        totals.map((r) => [r.stageItemId, { total: r.total, latestAt: r.latestAt }]),
+      );
+
+      // lastReadAt for viewer per stageItem
+      const reads = await db
+        .select({
+          stageItemId: programItemDiscussionReads.instanceStageItemId,
+          lastReadAt: programItemDiscussionReads.lastReadAt,
+        })
+        .from(programItemDiscussionReads)
+        .where(
+          and(
+            inArray(programItemDiscussionReads.instanceStageItemId, input.stageItemIds),
+            eq(programItemDiscussionReads.patientUserId, input.viewerUserId),
+          ),
+        );
+
+      const readMap = new Map<string, string>(reads.map((r) => [r.stageItemId, r.lastReadAt]));
+
+      // For items where viewerUserId has read cursor: count messages after lastReadAt
+      const unreadCounts = await db
+        .select({
+          stageItemId: programItemDiscussionMessages.instanceStageItemId,
+          unread: sql<number>`cast(count(*) as int)`,
+        })
+        .from(programItemDiscussionMessages)
+        .where(
+          and(
+            inArray(programItemDiscussionMessages.instanceStageItemId, input.stageItemIds),
+            eq(programItemDiscussionMessages.senderRole, "patient"),
+          ),
+        )
+        .groupBy(programItemDiscussionMessages.instanceStageItemId);
+
+      // Build per-item result (unread = total unless lastReadAt is set)
+      const unreadCountMap = new Map<string, number>(unreadCounts.map((r) => [r.stageItemId, r.unread]));
+
+      // For items where lastReadAt is set, we need the real unread count (messages after lastReadAt)
+      const itemsWithRead = input.stageItemIds.filter((id) => readMap.has(id));
+      if (itemsWithRead.length > 0) {
+        const unreadAfterRead = await db
+          .select({
+            stageItemId: programItemDiscussionMessages.instanceStageItemId,
+            unread: sql<number>`cast(count(*) as int)`,
+          })
+          .from(programItemDiscussionMessages)
+          .where(
+            and(
+              inArray(programItemDiscussionMessages.instanceStageItemId, itemsWithRead),
+              eq(programItemDiscussionMessages.senderRole, "patient"),
+              sql`${programItemDiscussionMessages.createdAt} > (
+                SELECT last_read_at FROM program_item_discussion_reads
+                WHERE instance_stage_item_id = ${programItemDiscussionMessages.instanceStageItemId}
+                  AND patient_user_id = ${input.viewerUserId}
+                LIMIT 1
+              )`,
+            ),
+          )
+          .groupBy(programItemDiscussionMessages.instanceStageItemId);
+
+        for (const r of unreadAfterRead) {
+          unreadCountMap.set(r.stageItemId, r.unread);
+        }
+        // For items with read cursor but no unread rows above, set unread to 0
+        for (const id of itemsWithRead) {
+          if (!unreadAfterRead.some((r) => r.stageItemId === id)) {
+            unreadCountMap.set(id, 0);
+          }
+        }
+      }
+
+      return input.stageItemIds.map((stageItemId) => {
+        const entry = totalMap.get(stageItemId);
+        const total = entry?.total ?? 0;
+        const latestMessageAt = entry?.latestAt ?? null;
+        const unread = total === 0 ? 0 : (unreadCountMap.get(stageItemId) ?? total);
+        return { stageItemId, total, unread, latestMessageAt };
+      });
     },
 
     async listStageItemIdsByExerciseTitleForPatient(

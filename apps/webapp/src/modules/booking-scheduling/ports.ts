@@ -25,6 +25,90 @@ export type CanonicalBookingContext = {
   branchTimezone: string;
 };
 
+// ── Per-date working days ────────────────────────────────────────────────────
+
+/** Single break window within a working day. */
+export type BreakInterval = { startMinute: number; endMinute: number };
+
+export type WorkingDayRecord = {
+  id: string;
+  organizationId: string;
+  specialistId: string | null;
+  branchId: string | null;
+  roomId: string | null;
+  workDate: string; // YYYY-MM-DD
+  startMinute: number | null;
+  endMinute: number | null;
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
+  breaks: BreakInterval[];
+  isClosed: boolean;
+};
+
+export type UpsertWorkingDaysInput = {
+  organizationId: string;
+  specialistId?: string | null;
+  branchId?: string | null;
+  roomId?: string | null;
+  dates: string[]; // YYYY-MM-DD[]
+  startMinute: number;
+  endMinute: number;
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
+  breaks?: BreakInterval[];
+};
+
+export type CloseWorkingDaysInput = {
+  organizationId: string;
+  specialistId?: string | null;
+  dates: string[]; // YYYY-MM-DD[]
+};
+
+export type ClearWorkingDaysInput = {
+  organizationId: string;
+  specialistId?: string | null;
+  dates: string[]; // YYYY-MM-DD[]
+};
+
+// ── Schedule templates ───────────────────────────────────────────────────────
+
+export type ScheduleTemplateRecord = {
+  id: string;
+  organizationId: string;
+  branchId: string | null;
+  name: string;
+  startMinute: number;
+  endMinute: number;
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
+  breaks: BreakInterval[];
+  sortOrder: number;
+  isActive: boolean;
+};
+
+export type CreateScheduleTemplateInput = {
+  organizationId: string;
+  branchId?: string | null;
+  name: string;
+  startMinute: number;
+  endMinute: number;
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
+  breaks?: BreakInterval[];
+  sortOrder?: number;
+};
+
+// ── Nearest free window ──────────────────────────────────────────────────────
+
+export type NearestFreeWindowInput = {
+  organizationId: string;
+  specialistId: string | null;
+  branchId: string | null;
+  roomId: string | null;
+  /** Таймзона бизнеса (IANA, напр. "Europe/Moscow"). */
+  timeZone: string;
+  /** Переопределить «сегодня» (для тестов). По умолчанию — new Date(). */
+  nowOverride?: Date;
+};
+
+export type NearestFreeWindowResult = { from: string; to: string } | null;
+
 export type BookingSchedulingPort = {
   resolveCanonicalFromBranchService(branchServiceId: string): Promise<CanonicalBookingContext | null>;
   resolveLegacyBranchServiceId(input: {
@@ -45,9 +129,11 @@ export type BookingSchedulingPort = {
   }): Promise<{ startAt: string; endAt: string }[]>;
   listWorkingHours(input: {
     organizationId: string;
-    specialistId: string | null;
-    branchId: string | null;
-    roomId: string | null;
+    /** undefined = no filter (return all specialists); null = global-only (IS NULL) */
+    specialistId?: string | null;
+    /** undefined = no filter (return all branches); null = global-only (IS NULL) */
+    branchId?: string | null;
+    roomId?: string | null;
   }): Promise<{ weekday: number; startMinute: number; endMinute: number }[]>;
   getBufferMinutes(organizationId: string, specialistId: string | null): Promise<number>;
   upsertBufferMinutes(input: {
@@ -71,10 +157,29 @@ export type BookingSchedulingPort = {
     specialistId?: string | null;
     branchId?: string | null;
     roomId?: string | null;
+    weekday?: number;
   }): Promise<WorkingHoursRecord[]>;
   createWorkingHours(input: CreateWorkingHoursInput): Promise<WorkingHoursRecord>;
   updateWorkingHours(input: UpdateWorkingHoursInput): Promise<WorkingHoursRecord>;
   deactivateWorkingHours(organizationId: string, id: string): Promise<void>;
+  // Per-date working days
+  listWorkingDays(input: {
+    organizationId: string;
+    specialistId?: string | null;
+    /** Optional filter: only return rows matching this branchId. */
+    branchId?: string | null;
+    dateFrom: string;
+    dateTo: string;
+  }): Promise<WorkingDayRecord[]>;
+  upsertWorkingDays(input: UpsertWorkingDaysInput): Promise<WorkingDayRecord[]>;
+  closeWorkingDays(input: CloseWorkingDaysInput): Promise<WorkingDayRecord[]>;
+  clearWorkingDays(input: ClearWorkingDaysInput): Promise<void>;
+  // Schedule templates
+  listScheduleTemplates(organizationId: string): Promise<ScheduleTemplateRecord[]>;
+  createScheduleTemplate(input: CreateScheduleTemplateInput): Promise<ScheduleTemplateRecord>;
+  deleteScheduleTemplate(organizationId: string, id: string): Promise<void>;
+  // Nearest free window
+  nearestFreeWindow(input: NearestFreeWindowInput): Promise<NearestFreeWindowResult>;
 };
 
 export type ScheduleBlockRecord = {
@@ -121,6 +226,7 @@ export type CreateWorkingHoursInput = {
   weekday: number;
   startMinute: number;
   endMinute: number;
+  replace?: boolean;
 };
 
 export type UpdateWorkingHoursInput = {
@@ -179,6 +285,7 @@ export type BookingSchedulingService = {
     specialistId?: string | null;
     branchId?: string | null;
     roomId?: string | null;
+    weekday?: number;
   }): Promise<WorkingHoursRecord[]>;
   createWorkingHours(
     input: Omit<CreateWorkingHoursInput, "organizationId"> & { organizationId?: string },
@@ -198,4 +305,23 @@ export type BookingSchedulingService = {
     minutes: number;
   }): Promise<void>;
   getMinNoticeHours(organizationId: string): Promise<number>;
+  // Per-date working days
+  listWorkingDays(input: {
+    organizationId: string;
+    specialistId?: string | null;
+    /** Optional filter: only return rows matching this branchId. */
+    branchId?: string | null;
+    dateFrom: string;
+    dateTo: string;
+  }): Promise<WorkingDayRecord[]>;
+  upsertWorkingDays(input: UpsertWorkingDaysInput): Promise<WorkingDayRecord[]>;
+  closeWorkingDays(input: CloseWorkingDaysInput): Promise<WorkingDayRecord[]>;
+  clearWorkingDays(input: ClearWorkingDaysInput): Promise<void>;
+  // Schedule templates
+  listScheduleTemplates(organizationId: string): Promise<ScheduleTemplateRecord[]>;
+  createScheduleTemplate(input: CreateScheduleTemplateInput): Promise<ScheduleTemplateRecord>;
+  deleteScheduleTemplate(id: string, organizationId: string): Promise<void>;
+  applyScheduleTemplate(input: { organizationId: string; specialistId?: string | null; templateId: string; dates: string[] }): Promise<WorkingDayRecord[]>;
+  // Nearest free window
+  nearestFreeWindow(input: NearestFreeWindowInput): Promise<NearestFreeWindowResult>;
 };

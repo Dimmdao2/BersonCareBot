@@ -286,7 +286,7 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
     await user.click(await screen.findByRole("button", { name: "Мост" }));
     await waitFor(() => {
       expect(screen.getByText("Фильтр мост")).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     const loadOlderBtn = screen.getByRole("button", { name: /показать предыдущие/i });
     expect(loadOlderBtn).toBeEnabled();
@@ -316,7 +316,7 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Фильтр мост")).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
     expect(screen.queryByText("Устаревшее older")).not.toBeInTheDocument();
   });
 

@@ -46,20 +46,23 @@ export async function GET(req: Request) {
       { kind: "preset", preset, customFrom: fromRaw ?? undefined, customTo: toRaw ?? undefined },
       iana,
     );
-    const appointments = await deps.doctorAppointments.getAppointmentStats(
-      {
-        kind: "preset",
-        preset,
-        customFrom: fromRaw ?? undefined,
-        customTo: toRaw ?? undefined,
-      },
-      { excludedUserIds: audience.excludedUserIds },
-    );
+    const filter = {
+      kind: "preset" as const,
+      preset,
+      customFrom: fromRaw ?? undefined,
+      customTo: toRaw ?? undefined,
+    };
+    const [appointments, { daySeries, branchSeries }] = await Promise.all([
+      deps.doctorAppointments.getAppointmentStats(filter, { excludedUserIds: audience.excludedUserIds }),
+      deps.doctorAppointments.getAppointmentDailySeries(filter, { excludedUserIds: audience.excludedUserIds }),
+    ]);
     return NextResponse.json({
       ok: true as const,
       fromDay: bounds.fromDay,
       toDay: bounds.toDay,
       appointments,
+      daySeries,
+      branchSeries,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

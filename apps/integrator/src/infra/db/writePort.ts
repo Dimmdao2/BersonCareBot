@@ -209,8 +209,11 @@ export function createDbWritePort(input: {
             return;
           }
           const statusRaw = asNonEmptyString(params.status);
-          const status: 'created' | 'updated' | 'canceled' =
-            statusRaw === 'created' || statusRaw === 'updated' || statusRaw === 'canceled'
+          const status: 'created' | 'updated' | 'canceled' | 'deleted' =
+            statusRaw === 'created'
+            || statusRaw === 'updated'
+            || statusRaw === 'canceled'
+            || statusRaw === 'deleted'
               ? statusRaw
               : 'updated';
           const rawPhone = asNullableString(params.phoneNormalized);
@@ -222,6 +225,40 @@ export function createDbWritePort(input: {
             : {};
           const lastEvent = asNonEmptyString(params.lastEvent) ?? 'unknown';
           const updatedAt = new Date().toISOString();
+
+          // Rubitime delete/remove → silent soft-delete in webapp. Do NOT upsert/revive the local
+          // appointment_records / patient_bookings row (we are deleting it); just fan out the
+          // `deleted` signal so webapp events.ts calls softDeleteByIntegratorId (no notifications).
+          if (status === 'deleted') {
+            const payloadJsonForDelete =
+              typeof params.payloadJson === 'object' && params.payloadJson !== null
+                ? (params.payloadJson as Record<string, unknown>)
+                : {};
+            await fanoutProjectionsAfterTx([
+              buildAppointmentRecordUpsertedFanout({
+                externalRecordId,
+                phoneNormalized:
+                  asNullableString(params.phoneNormalized) ? normalizeRuPhoneE164(asNullableString(params.phoneNormalized) as string) : null,
+                recordAt,
+                status: 'deleted',
+                payloadJson: payloadJsonForDelete,
+                lastEvent,
+                updatedAt,
+                patientFirstName: null,
+                patientLastName: null,
+                patientEmail: null,
+                integratorBranchId: null,
+                branchName: null,
+                dateTimeEnd: null,
+                serviceId: null,
+                serviceName: null,
+                rubitimeCooperatorId: null,
+                integratorUserId: null,
+              }),
+            ]);
+            return;
+          }
+
           const patientEmail = asNullableString(params.patientEmail)?.trim() || null;
           const rawBranchId =
             asNullableString(params.integratorBranchId) ??

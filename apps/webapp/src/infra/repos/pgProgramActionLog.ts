@@ -26,6 +26,58 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       return { id: row.id, createdAt: row.createdAt };
     },
 
+    async updateLatestSimpleDonePayload(params) {
+      const db = getDrizzle();
+      const [row] = await db
+        .update(logTable)
+        .set({
+          payload: sql<Record<string, unknown>>`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.payloadPatch)}::jsonb`,
+        })
+        .where(
+          eq(
+            logTable.id,
+            sql`(
+              select id
+              from program_action_log
+              where instance_id = ${params.instanceId}
+                and patient_user_id = ${params.patientUserId}
+                and instance_stage_item_id = ${params.instanceStageItemId}
+                and action_type = 'done'
+                and (
+                  payload is null
+                  or coalesce(payload->>'source', '') not in ('test_submitted', 'lfk_exercise_done')
+                )
+              order by created_at desc
+              limit 1
+            )`,
+          ),
+        )
+        .returning({ id: logTable.id });
+      return Boolean(row);
+    },
+
+    async getLatestSimpleDonePayload(params) {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ createdAt: logTable.createdAt, payload: logTable.payload })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.instanceId, params.instanceId),
+            eq(logTable.patientUserId, params.patientUserId),
+            eq(logTable.instanceStageItemId, params.instanceStageItemId),
+            eq(logTable.actionType, "done"),
+            or(
+              isNull(logTable.payload),
+              sql`coalesce(${logTable.payload}->>'source', '') not in ('test_submitted', 'lfk_exercise_done')`,
+            ),
+          ),
+        )
+        .orderBy(desc(logTable.createdAt))
+        .limit(1);
+      return row ? { createdAt: row.createdAt, payload: row.payload ?? null } : null;
+    },
+
     async deleteSimpleDoneInWindow(params) {
       const db = getDrizzle();
       await db
@@ -336,6 +388,52 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
         .where(eq(logTable.instanceId, params.instanceId))
         .orderBy(desc(logTable.createdAt))
         .limit(limit);
+
+      const out: ProgramActionLogListRow[] = [];
+      for (const r of rows) {
+        const at = r.actionType;
+        if (!PROGRAM_ACTION_TYPES.includes(at as ProgramActionType)) continue;
+        out.push({
+          id: r.id,
+          instanceId: r.instanceId,
+          instanceStageItemId: r.instanceStageItemId,
+          patientUserId: r.patientUserId,
+          sessionId: r.sessionId ?? null,
+          actionType: at as ProgramActionType,
+          payload: r.payload ?? null,
+          note: r.note ?? null,
+          createdAt: r.createdAt,
+        });
+      }
+      return out;
+    },
+
+    async listDoneForStageItemInWindow(params) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          id: logTable.id,
+          instanceId: logTable.instanceId,
+          instanceStageItemId: logTable.instanceStageItemId,
+          patientUserId: logTable.patientUserId,
+          sessionId: logTable.sessionId,
+          actionType: logTable.actionType,
+          payload: logTable.payload,
+          note: logTable.note,
+          createdAt: logTable.createdAt,
+        })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.instanceId, params.instanceId),
+            eq(logTable.instanceStageItemId, params.instanceStageItemId),
+            eq(logTable.actionType, "done"),
+            gte(logTable.createdAt, params.windowStartUtcIso),
+            lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
+          ),
+        )
+        .orderBy(desc(logTable.createdAt))
+        .limit(50);
 
       const out: ProgramActionLogListRow[] = [];
       for (const r of rows) {

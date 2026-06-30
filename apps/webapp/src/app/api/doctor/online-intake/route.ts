@@ -15,6 +15,8 @@ function toDoctorListItem(r: IntakeRequestWithPatientIdentity) {
     summary: r.summary,
     patientName: r.patientName,
     patientPhone: r.patientPhone,
+    lastName: r.lastName,
+    firstName: r.firstName,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };

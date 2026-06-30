@@ -8,6 +8,7 @@ import {
   parseExerciseLoadQueryParam,
 } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import {
   lfkTemplateFilterFromPubArch,
   parseDoctorCatalogPubArchQuery,
@@ -65,6 +66,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
 
   return (
     <DoctorAppShell title="Комплексы" user={session.user} backHref="/app/doctor">
+      <DoctorPageHeader title="Комплексы" />
       <Suspense fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}>
         <LfkTemplatesPageClient
           templates={rawList}

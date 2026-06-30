@@ -1,7 +1,5 @@
 import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { sendMaxMessage } from '../../integrations/max/client.js';
 import { maxConfig } from '../../integrations/max/config.js';
-import { getMaxApiKey } from '../../integrations/max/runtimeConfig.js';
 import { logger } from '../observability/logger.js';
 import { openOrTouchOperatorIncident } from '../db/repos/operatorHealthDrizzle.js';
 import { createDbPort } from '../db/client.js';
@@ -116,32 +114,30 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
   }
 
   if (channels.max && maxConfig.enabled && lists.max.length > 0) {
-    const apiKey = await getMaxApiKey();
-    if (!apiKey.trim()) {
-      logger.info(
-        { scope: 'operator_incident', event: 'operator_alert_skipped_no_max_api_key', channel: 'max' },
-        'skipped',
-      );
-    } else {
-      const config = { apiKey };
-      for (const id of lists.max) {
-        const userId = Number(id);
-        if (!Number.isFinite(userId)) continue;
-        try {
-          await sendMaxMessage(config, { userId, text });
-        } catch (err) {
-          logger.warn(
-            {
-              err,
-              scope: 'operator_incident',
-              event: 'operator_alert_relay_failed',
-              channel: 'max',
-              recipient: id,
-            },
-            'relay failed',
-          );
-        }
-      }
+    for (const recipientId of lists.max) {
+      const userId = Number(recipientId);
+      if (!Number.isFinite(userId)) continue;
+      const eventId = `op-alert:${incidentId}:${recipientId}:${dedupKey}`.slice(0, 240);
+      const intent: OutgoingIntent = {
+        type: 'message.send',
+        meta: {
+          eventId: `op-inc:${dedupKey}:${recipientId}`.slice(0, 240),
+          occurredAt: new Date().toISOString(),
+          source: 'max',
+        },
+        payload: {
+          recipient: { userId },
+          message: { text },
+          delivery: { channels: ['max'], maxAttempts: 1 },
+        },
+      };
+      await enqueueOutgoingDeliveryIfAbsent(db, {
+        eventId,
+        kind: 'operator_alert',
+        channel: 'max',
+        payloadJson: { incidentId, intent },
+        maxAttempts: OPERATOR_ALERT_DELIVERY_MAX_ATTEMPTS,
+      });
     }
   } else if (channels.max) {
     logger.info(

@@ -26,6 +26,13 @@ export type OAuthUserResolvePort = {
     emailTrusted: boolean,
   ) => Promise<void>;
   findUserIdsByVerifiedEmail: (emailNorm: string) => Promise<string[]>;
+  /**
+   * Active users (merged_into_id IS NULL) owning `emailNorm`, REGARDLESS of email verification.
+   * Matches the scope of `uq_platform_users_email_normalized_active`, so it catches phone/booking-
+   * created accounts whose email is set but unverified — which `findUserIdsByVerifiedEmail` misses,
+   * causing an INSERT duplicate-key crash on OAuth login with a verified copy of that email.
+   */
+  findActiveUserIdsByEmail: (emailNorm: string) => Promise<string[]>;
   createOAuthPlatformUser: (input: CreateOAuthPlatformUserInput) => Promise<string>;
   upsertOAuthBinding: (input: UpsertOAuthBindingInput) => Promise<UpsertOAuthBindingResult>;
 };

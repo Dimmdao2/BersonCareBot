@@ -158,6 +158,8 @@ export type BookingSyncPort = {
       cityCodeSnapshot?: string | null;
       serviceTitleSnapshot?: string | null;
       canonicalAppointmentId?: string;
+      /** R21: врач снял «Уведомлять пациента» — интегратор не шлёт пациентские каналы/web-push (врач/GCal — как обычно). */
+      suppressPatientNotification?: boolean;
     };
   }): Promise<void>;
 };

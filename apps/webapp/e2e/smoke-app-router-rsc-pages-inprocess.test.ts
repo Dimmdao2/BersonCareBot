@@ -10,13 +10,10 @@ const LOADERS = {
   doctorRoot: () => import("@/app/app/doctor/page") as Promise<PageMod>,
   doctorInstall: () => import("@/app/app/doctor/install/page") as Promise<PageMod>,
   doctorAppointments: () => import("@/app/app/doctor/appointments/page") as Promise<PageMod>,
-  doctorCalendar: () => import("@/app/app/doctor/calendar/page") as Promise<PageMod>,
   doctorMessages: () => import("@/app/app/doctor/messages/page") as Promise<PageMod>,
   doctorBroadcasts: () => import("@/app/app/doctor/broadcasts/page") as Promise<PageMod>,
   doctorStats: () => import("@/app/app/doctor/stats/page") as Promise<PageMod>,
   doctorSubscribers: () => import("@/app/app/doctor/subscribers/page") as Promise<PageMod>,
-  doctorClients: () => import("@/app/app/doctor/clients/page") as Promise<PageMod>,
-  doctorClientProfile: () => import("@/app/app/doctor/clients/[userId]/page") as Promise<PageMod>,
   doctorSubscriberProfile: () => import("@/app/app/doctor/subscribers/[userId]/page") as Promise<PageMod>,
   doctorClinicalTests: () => import("@/app/app/doctor/clinical-tests/page") as Promise<PageMod>,
   doctorTestSets: () => import("@/app/app/doctor/test-sets/page") as Promise<PageMod>,
@@ -73,16 +70,13 @@ describe("app router RSC pages smoke (in-process)", () => {
     expectAsyncRscPage(mod("doctorRoot"), "doctor/");
     expectAsyncRscPage(mod("doctorInstall"), "doctor/install");
     expectAsyncRscPage(mod("doctorAppointments"), "doctor/appointments");
-    expectAsyncRscPage(mod("doctorCalendar"), "doctor/calendar");
     expectAsyncRscPage(mod("doctorMessages"), "doctor/messages");
     expectAsyncRscPage(mod("doctorBroadcasts"), "doctor/broadcasts");
     expectAsyncRscPage(mod("doctorStats"), "doctor/stats");
     expectAsyncRscPage(mod("doctorSubscribers"), "doctor/subscribers");
   });
 
-  it("doctor clients and subscriber profile pages export async RSC defaults", () => {
-    expectAsyncRscPage(mod("doctorClients"), "doctor/clients");
-    expectAsyncRscPage(mod("doctorClientProfile"), "doctor/clients/[userId]");
+  it("doctor subscriber profile page exports async RSC default", () => {
     expectAsyncRscPage(mod("doctorSubscriberProfile"), "doctor/subscribers/[userId]");
   });
 

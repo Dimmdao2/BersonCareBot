@@ -16,6 +16,10 @@ export const ALLOWED_KEYS = [
   "doctor_patient_support_media_without_support_default_enabled",
   /** Каналы напоминаний о задачах специалиста: `{ channels: ("telegram"|"max"|"web_push"|"email")[] }`. */
   "doctor_specialist_task_reminder_channels",
+  /** Вкл/выкл отправку напоминаний клиентам о записи на приём (scope: doctor). */
+  "doctor_appointment_reminder_enabled",
+  /** Смещения напоминаний о записи в минутах, массив чисел, например [1440, 120] (scope: doctor). */
+  "doctor_appointment_reminder_offsets_minutes",
   /** Полнота серверных логов webapp+integrator (journalctl): false (default) — только значимое (warn/error/DLQ/retry-fail); true — подробные operational `info` для диагностики. Не меняет доставку сообщений. */
   "debug_forward_to_admin",
   /** Полный сырой initData в логах webapp (journalctl) при открытии миниаппа (POST max-init / telegram-init). Выкл. на проде. Ключ исторический (раньше включали `/max-debug`). */
@@ -98,7 +102,16 @@ export const ALLOWED_KEYS = [
   "booking_slots_read_source",
   /** Вкл/выкл платёжный слой записи (предоплата, intents). */
   "booking_payment_enabled",
-  /** Провайдеры оплаты записи: `{ value: { enabled, defaultProviderId, providers[] } }`; секреты merge при PATCH. */
+  /**
+   * Провайдеры оплаты записи: `{ value: { enabled, defaultProviderId, providers[] } }`.
+   * Секреты (apiKey, webhookSecret) merge при PATCH — не сбрасываются при [REDACTED].
+   * providers[].id: "mock" | "yookassa" | "tinkoff" | "cloudpayments" | "alfabank".
+   * Per-provider fields:
+   *   yookassa:       shopId (Shop ID), apiKey (Secret Key), webhookSecret
+   *   tinkoff:        terminalKey (= shopId), apiKey (Password), webhookSecret
+   *   cloudpayments:  publicId (= shopId), apiKey (API Secret), webhookSecret
+   *   alfabank:       merchantLogin (= shopId), apiKey (Password), webhookSecret, gatewayUrl (override for test env)
+   */
   "booking_payment_providers",
   "booking_lifecycle_notifications",
   /** Разрешить отвязывать прошедшие записи от абонемента (двойное подтверждение в UI). */

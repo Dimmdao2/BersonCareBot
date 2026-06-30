@@ -16,6 +16,7 @@ import {
 } from "@/shared/ui/patient/pwaLayoutClasses";
 import { PatientPrimaryNavStrip } from "@/shared/ui/patient/PatientPrimaryNavStrip";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
+import { PatientNotificationInboxButton } from "@/shared/ui/patient/shell/PatientNotificationInboxButton";
 
 export const PATIENT_HEADER_BAR_HEIGHT_VAR = "--patient-header-bar-height";
 
@@ -30,7 +31,7 @@ const MOBILE_HEADER_TITLE_CLASS =
 
 /** Заголовок не уходит под профиль; без back начинается от визуального края содержимого карточек. */
 const MOBILE_HEADER_TITLE_ROW_CLASS =
-  "flex w-full min-w-0 items-center justify-start gap-1.5 pr-[var(--patient-header-side-pad)]";
+  "flex w-full min-w-0 items-center justify-start gap-1.5 pr-[calc(var(--patient-header-side-pad)+2.25rem)]";
 
 function profileIconBtnClass(isActive: boolean): string {
   return cn(
@@ -140,7 +141,8 @@ export function PatientShellTopChrome({
               : null}
             </div>
           : null}
-          <div className="absolute right-1 flex h-full w-[var(--patient-shell-chrome-action-width,2.25rem)] items-center justify-center">
+          <div className="absolute right-1 flex h-full items-center justify-center gap-1">
+            <PatientNotificationInboxButton className={profileIconBtnClass(false)} />
             <Link
               href={routePaths.profile}
               prefetch={false}
@@ -156,6 +158,7 @@ export function PatientShellTopChrome({
           <div className="min-w-0 flex-1">
             <PatientPrimaryNavStrip variant="inline" />
           </div>
+          <PatientNotificationInboxButton className={profileIconBtnClass(false)} />
           <Link
             href={routePaths.profile}
             prefetch={false}

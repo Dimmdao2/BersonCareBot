@@ -7,8 +7,8 @@ import { redirect } from "next/navigation";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { NameMatchHintsClient } from "./NameMatchHintsClient";
 
-const CLIENTS = "/app/doctor/clients";
-const CLIENTS_ALL = `${CLIENTS}?scope=all`;
+const CLIENTS = "/app/doctor/patients";
+const CLIENTS_ALL = CLIENTS;
 
 export default async function NameMatchHintsPage() {
   const session = await requireDoctorAccess();

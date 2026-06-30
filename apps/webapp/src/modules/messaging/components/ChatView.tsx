@@ -27,7 +27,7 @@ type ChatViewProps = {
   variant: Variant;
   messages: SerializedSupportMessage[];
   emptyText?: string;
-  composer: ReactNode;
+  composer?: ReactNode;
   /**
    * Пациент: подпись дата и время под пузырём (сегодня / вчера / 5 июня / … год),
    * без блоковых разделителей по дням.
@@ -56,7 +56,10 @@ export function ChatView({
     () => [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [messages],
   );
-  const scrollClasses = "min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-4 pb-4 pt-1 md:pb-5";
+  const scrollClasses = cn(
+    "min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-4 pb-4 pt-1 md:pb-5",
+    variant === "doctor" && "px-3",
+  );
 
   const patientBubbleMine = cn(
     "max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]",
@@ -72,7 +75,7 @@ export function ChatView({
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
-      <div className={scrollClasses}>
+      <div className={cn(scrollClasses, messages.length === 0 && "flex items-center justify-center")}>
         {messages.length === 0 ?
           <p
             className={cn(patientRelative ? cn("text-center", patientMutedTextClass) : "text-center text-sm text-muted-foreground")}
@@ -89,14 +92,24 @@ export function ChatView({
               <div key={m.id} className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
                 <div className={cn("flex max-w-[min(100%,22rem)]", mine ? "justify-end" : "justify-start")}>
                   <div className={mine ? patientBubbleMine : patientBubbleOther}>
-                    <p
-                      className={cn(
-                        "whitespace-pre-wrap break-words",
-                        mine ? undefined : patientRelative ? patientBodyTextClass : undefined,
-                      )}
-                    >
-                      {m.text}
-                    </p>
+                    {m.mediaUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.mediaUrl}
+                        alt=""
+                        className={cn("max-h-60 w-auto max-w-full rounded-lg", m.text ? "mb-1.5" : undefined)}
+                      />
+                    ) : null}
+                    {m.text ? (
+                      <p
+                        className={cn(
+                          "whitespace-pre-wrap break-words",
+                          mine ? undefined : patientRelative ? patientBodyTextClass : undefined,
+                        )}
+                      >
+                        {m.text}
+                      </p>
+                    ) : null}
                     {mine && deliveryStatus ?
                       <ChatBubbleOutgoingMeta
                         timeLabel={formatChatMessageTimeRu(m.createdAt)}
@@ -123,7 +136,7 @@ export function ChatView({
         : grouped.map((g) => (
             <div key={g.dayKey}>
               <p className="mb-2 text-center text-xs capitalize text-muted-foreground">{g.dayLabel}</p>
-              <div className="space-y-2">
+              <div className={variant === "doctor" ? "space-y-3" : "space-y-2"}>
                 {g.items.map((m) => {
                   const mine = isAlignedRight(m.senderRole, variant);
                   const deliveryStatus = mine
@@ -139,7 +152,15 @@ export function ChatView({
                             : "bg-muted text-foreground",
                         )}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                        {m.mediaUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={m.mediaUrl}
+                            alt=""
+                            className={cn("max-h-60 w-auto max-w-full rounded-lg", m.text ? "mb-1.5" : undefined)}
+                          />
+                        ) : null}
+                        {m.text ? <p className="whitespace-pre-wrap break-words">{m.text}</p> : null}
                         {mine && deliveryStatus ?
                           <ChatBubbleOutgoingMeta
                             timeLabel={formatChatMessageTimeRu(m.createdAt)}
@@ -159,7 +180,9 @@ export function ChatView({
           ))}
         <div ref={bottomRef} />
       </div>
-      <div className="mt-auto shrink-0">{composer}</div>
+      {composer != null ? (
+        <div className={cn("mt-auto shrink-0", variant === "doctor" && "px-3")}>{composer}</div>
+      ) : null}
     </div>
   );
 }

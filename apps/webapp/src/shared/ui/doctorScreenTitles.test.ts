@@ -12,8 +12,8 @@ describe("getDoctorScreenTitle", () => {
     expect(getDoctorScreenTitle("/app/doctor/online-intake")).toBe("Онлайн-заявки");
     expect(getDoctorScreenTitle("/app/doctor/content/library")).toBe("Библиотека файлов");
   });
-  it("returns clients for list", () => {
-    expect(getDoctorScreenTitle("/app/doctor/clients")).toBe("Клиенты");
+  it("returns patients for list (new canonical URL)", () => {
+    expect(getDoctorScreenTitle("/app/doctor/patients")).toBe("Пациенты");
   });
   it("returns client for detail", () => {
     expect(getDoctorScreenTitle("/app/doctor/clients/u1")).toBe("Клиент");
@@ -67,6 +67,11 @@ describe("getDoctorScreenTitle", () => {
   it("normalizes trailing slash on today", () => {
     expect(getDoctorScreenTitle("/app/doctor/")).toBe("Сегодня");
   });
+  it("returns titles for new aggregate URLs (middleware rewrite — usePathname returns new URL)", () => {
+    expect(getDoctorScreenTitle("/app/doctor/schedule")).toBe("Расписание");
+    expect(getDoctorScreenTitle("/app/doctor/communications")).toBe("Коммуникации");
+  });
+
   it("returns fallback for unknown doctor path", () => {
     expect(getDoctorScreenTitle("/app/doctor/unknown-section")).toBe("Кабинет");
   });

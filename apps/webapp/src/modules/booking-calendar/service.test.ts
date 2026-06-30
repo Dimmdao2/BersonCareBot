@@ -79,6 +79,15 @@ describe("booking-calendar service", () => {
     deactivateWorkingHours: vi.fn(),
     upsertBufferMinutes: vi.fn(),
     getMinNoticeHours: vi.fn(async () => 0),
+    // per-date stubs
+    listWorkingDays: vi.fn(async () => []),
+    upsertWorkingDays: vi.fn(async () => []),
+    closeWorkingDays: vi.fn(async () => []),
+    clearWorkingDays: vi.fn(async () => undefined),
+    listScheduleTemplates: vi.fn(async () => []),
+    createScheduleTemplate: vi.fn(),
+    deleteScheduleTemplate: vi.fn(),
+    nearestFreeWindow: vi.fn(async () => null),
   };
 
   const service = createBookingCalendarService({
@@ -131,6 +140,127 @@ describe("booking-calendar service", () => {
       branchId: "b1",
     });
     expect(result.events.filter((e) => e.kind === "block")).toHaveLength(0);
+  });
+
+  it("§3.13: per-date be_working_days override reaches the feed (with breaks)", async () => {
+    // 2026-05-30 is a Saturday (weekday 6 → 09–12 + 13–18 from listWorkingHours).
+    // Per-date row narrows to 10:00–16:00 with a single break 12:00–13:00.
+    (schedulingPort.listWorkingDays as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: "wd-1",
+        organizationId: "org1",
+        specialistId: "s1",
+        branchId: "b1",
+        roomId: null,
+        workDate: "2026-05-30",
+        startMinute: 10 * 60,
+        endMinute: 16 * 60,
+        breaks: [{ startMinute: 12 * 60, endMinute: 13 * 60 }],
+        isClosed: false,
+      },
+    ]);
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: "s1",
+      branchId: "b1",
+    });
+    const working = result.events.filter((e) => e.kind === "working");
+    const breaks = result.events.filter((e) => e.kind === "break");
+    // Two working windows split by the per-date break, plus one break event.
+    expect(working).toHaveLength(2);
+    expect(breaks).toHaveLength(1);
+    // Per-date window starts at 10:00 Moscow = 07:00Z (not the weekday 09:00 = 06:00Z).
+    expect(working[0]!.startAt).toBe("2026-05-30T07:00:00.000Z");
+    // Break is 12:00–13:00 Moscow = 09:00Z–10:00Z.
+    expect(breaks[0]!.startAt).toBe("2026-05-30T09:00:00.000Z");
+    expect(breaks[0]!.endAt).toBe("2026-05-30T10:00:00.000Z");
+  });
+
+  it("§3.13: weekday schedule is used when no per-date row exists (fallback)", async () => {
+    // listWorkingDays default stub returns [] → weekday 09–12 + 13–18 fallback.
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: "s1",
+      branchId: "b1",
+    });
+    const working = result.events.filter((e) => e.kind === "working");
+    // Weekday 09:00 Moscow = 06:00Z.
+    expect(working.some((e) => e.startAt === "2026-05-30T06:00:00.000Z")).toBe(true);
+  });
+
+  it("CR5-FIX: specialistId=null (multi-specialist org) → listWorkingHours получает undefined → working[] не пуст", async () => {
+    // Воспроизводит СИМПТОМ-2: орг с ≥2 специалистами → resolvedSpecialistId=null
+    // (route.ts:40-45 не разрешает его), filters.specialistId=null передаётся в
+    // listWorkingAndBreakEvents. До фикса: null ?? null = null → listWorkingHours
+    // c specialistId=null → WHERE specialistId IS NULL → per-specialist строки
+    // не возвращались → working=[] → workingBounds=null → нет серого фона.
+    // После фикса: null ?? undefined = undefined → listWorkingHours без фильтра
+    // по специалисту → все строки (включая per-specialist) → working не пуст.
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: null, // ← как при multi-specialist org (resolvedSpecialistId=null)
+    });
+    // listWorkingHours должен быть вызван с specialistId: undefined, не null
+    expect(schedulingPort.listWorkingHours).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: undefined }),
+    );
+    // working[] не пуст — weekday 6 (суббота) есть рабочее время из мока
+    const working = result.events.filter((e) => e.kind === "working");
+    expect(working.length).toBeGreaterThan(0);
+  });
+
+  it("R18: календарь врача без specialistId читает per-date по ВСЕМ специалистам (specialistId=undefined, не null)", async () => {
+    // Регресс: ScheduleWorkTab сохраняет график ПО СПЕЦИАЛИСТУ (specialist_id=uuid),
+    // а календарь ребилда обычно без specialistId. Раньше сервис передавал
+    // `?? null` → listWorkingDays фильтровал IS NULL → сохранённый график не доходил.
+    // Должно передаваться undefined (без фильтра по специалисту = все).
+    await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      // specialistId намеренно не передан (как в rebuild-календаре врача)
+    });
+    expect(schedulingPort.listWorkingDays).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: undefined }),
+    );
+  });
+
+  it("§3.13: per-date row for a different branch reads as closed for queried branch", async () => {
+    (schedulingPort.listWorkingDays as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: "wd-2",
+        organizationId: "org1",
+        specialistId: "s1",
+        branchId: "other-branch",
+        roomId: null,
+        workDate: "2026-05-30",
+        startMinute: 10 * 60,
+        endMinute: 16 * 60,
+        breaks: [],
+        isClosed: false,
+      },
+    ]);
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: "s1",
+      branchId: "b1",
+    });
+    // Committed elsewhere → no working/break events for this branch that day.
+    expect(result.events.some((e) => e.kind === "working")).toBe(false);
+    expect(result.events.some((e) => e.kind === "break")).toBe(false);
   });
 
   it("hides working and break layers when setting is disabled", async () => {

@@ -5,10 +5,10 @@
 | Фаза | Статус | План / лог |
 |------|--------|------------|
 | **0** — hotfix UI плиток программы (P0): «Комментарии» + «Отметить выполнение» | **Закрыта** | active workqueue §Фаза 0 |
-| **1** — «На сопровождении» + гейты comment/media | **Закрыта** | Cursor `phase1_support_model_7c745931.plan.md`; LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) |
-| **2A** — дизайн карточки врача | **Закрыта** | [`CARD_REDESIGN_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md) |
+| **1** — «На сопровождении» + гейты comment/media | **Закрыта** | Cursor `phase1_support_model_7c745931.plan.md`; LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) |
+| **2A** — дизайн карточки врача | **Закрыта** | [`CARD_REDESIGN_PLAN.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md) |
 | **2B** — реализация карточки | **Закрыта** | LOG §2026-06-02 |
-| **2C** — задачи специалиста | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C |
+| **2C** — задачи специалиста | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C |
 | **3** — черновик редактора программы | **Закрыта** (2026-06-02) | LOG §фаза 3 |
 | **4** — фильтры каталога (регион + нагрузка) | **Закрыта** (2026-06-02) | LOG §фаза 4 |
 | **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId` | **Закрыта** (2026-06-02) | LOG §фаза 5 |
@@ -60,7 +60,7 @@
 - Cross-patient «К проверке» на `/app/doctor` («Сегодня»): `countPendingTestEvaluationAttemptsGlobal` + `listPendingTestEvaluationsGlobal` (top 10 попыток), секция `#doctor-today-section-pending-tests`, строка в «Требует внимания».
 - Deep link `focusItemId` (UUID) на экране инстанса — scroll/highlight с retry; `discussionItem` — тоже только валидный UUID; карточка / «Сегодня» «Оценить» — тот же query.
 - Бейдж меню «Сегодня» (фаза 5): `GET /api/doctor/pending-program-tests/summary`. С фазой 7 — суммарный `todayAttention` (+ `GET /api/doctor/proactive-insights/summary`).
-- ROADMAP_2 §2.2–2.3 — closed; план §фаза 5, `api.md`, targeted vitest — см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5.
+- ROADMAP_2 §2.2–2.3 — closed; план §фаза 5, `api.md`, targeted vitest — см. [`LOG.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5.
 
 ## Фаза 7 (закрыта)
 
@@ -70,7 +70,7 @@
 - **API:** `GET /api/doctor/proactive-insights/summary`; доки — `DOCTOR_DASHBOARD_METRICS.md`, `api.md`, `ROADMAP_2.md` §4.1.
 - **Аудит (2026-06-02):** inactivity по активному instance; якорь streak сегодня/вчера; один проход insights; scoped `listForPatient`; тесты `mapProactiveInsightsForToday`, `doctorNavLinks`, `mediaPreviewUiModel.templateList`.
 - **Backlog:** настраиваемые пороги / доп. сигналы — RECOMMENDATIONS этап 8.
-- **Проверки:** vitest proactive + DoctorTodayDashboard + loadDoctorTodayDashboard; `tsc --noEmit` webapp. См. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 7.
+- **Проверки:** vitest proactive + DoctorTodayDashboard + loadDoctorTodayDashboard; `tsc --noEmit` webapp. См. [`LOG.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 7.
 
 ## Вне scope workqueue
 
@@ -78,7 +78,7 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 
 ### Редактор инстанса программы — batch toolbar (закрыт)
 
-План (архив): [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.7.
+План (архив): [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.7.
 
 | Фаза плана | Статус |
 |------------|--------|

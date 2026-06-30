@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Star } from "lucide-react";
 import { Rating, Star as RatingStarShape } from "@smastrom/react-rating";
 import "@smastrom/react-rating/style.css";
@@ -21,6 +22,7 @@ export type MaterialRatingBlockProps = {
   variant?: "patient" | "doctorCompact";
   /** После успешного PUT, только если сохранённые звёзды 1–3. */
   onLowRatingSaved?: (stars: number) => void;
+  hideAfterSaved?: boolean;
   className?: string;
 };
 
@@ -100,6 +102,7 @@ export function MaterialRatingBlock({
   readOnly = false,
   variant = "patient",
   onLowRatingSaved,
+  hideAfterSaved = false,
   className,
 }: MaterialRatingBlockProps) {
   const [loading, setLoading] = useState(true);
@@ -189,7 +192,8 @@ export function MaterialRatingBlock({
               myStars?: number | null;
             };
             if (!res.ok || !data.ok) {
-              setError("Не удалось сохранить");
+              setError(null);
+              toast.error("Не удалось сохранить");
               await load();
               return;
             }
@@ -202,11 +206,13 @@ export function MaterialRatingBlock({
             });
             setValue(my ?? 0);
             setEditRatingPicker(false);
+            toast.success("Спасибо за оценку!");
             if (my != null && my >= 1 && my <= 3) {
               onLowRatingSaved?.(my);
             }
           } catch {
-            setError("Не удалось сохранить");
+            setError(null);
+            toast.error("Не удалось сохранить");
             await load();
           }
         })();
@@ -263,6 +269,10 @@ export function MaterialRatingBlock({
   const showChangeLink = showSummaryRow && interactive;
   const showStarPicker = !showSummaryRow;
 
+  if (hideAfterSaved && showSummaryRow) {
+    return null;
+  }
+
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {showSummaryRow ? (
@@ -318,7 +328,6 @@ export function MaterialRatingBlock({
           />
         </MaterialRatingSmastromBoundary>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

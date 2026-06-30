@@ -5,7 +5,7 @@ import { HLS_PROXY_REASON_CODES_DB } from "@/modules/media/hlsProxyTelemetry";
 
 export const ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS = 24;
 export const ADMIN_HLS_PROXY_DEGRADED_MIN_ERRORS_1H = 20;
-export const ADMIN_HLS_PROXY_CRITICAL_SHARE_MIN_DENOM = 8;
+export const ADMIN_HLS_PROXY_CRITICAL_SHARE_MIN_DENOM = 15;
 export const ADMIN_HLS_PROXY_CRITICAL_SHARE_1H = 0.35;
 
 function cutoffIso(hours: number): string {

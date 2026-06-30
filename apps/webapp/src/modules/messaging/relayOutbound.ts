@@ -20,8 +20,16 @@ export type RelayOutboundParams = {
   text: string;
   /** Опционально: platform user id для отладки/idempotency; не используется в dev_mode guard. */
   userId?: string;
+  /** Опц. HTML-тело письма (email): integrator relay-outbound кладёт в `content.html`,
+   * email-адаптер шлёт как HTML-часть (text остаётся plain-fallback). Только для email. */
+  html?: string;
   /** Inline-клавиатура (Telegram / MAX) через integrator relay-outbound `metadata.replyMarkup`. */
   replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
+  /**
+   * Дополнительные метаданные канала (например, subject для email, listUnsubscribe для email).
+   * Передаются в integrator relay-outbound в поле `metadata`.
+   */
+  metadata?: Record<string, unknown>;
 };
 
 export type RelayOutboundDeps = {
@@ -111,8 +119,18 @@ export async function relayOutbound(
   const url = `${integratorUrl.replace(/\/$/, "")}/api/bersoncare/relay-outbound`;
 
   const bodyObj: Record<string, unknown> = { messageId, channel, recipient, text, idempotencyKey };
+  const mergedMetadata: Record<string, unknown> = {};
+  if (params.metadata) {
+    Object.assign(mergedMetadata, params.metadata);
+  }
   if (params.replyMarkup) {
-    bodyObj.metadata = { replyMarkup: params.replyMarkup };
+    mergedMetadata.replyMarkup = params.replyMarkup;
+  }
+  if (Object.keys(mergedMetadata).length > 0) {
+    bodyObj.metadata = mergedMetadata;
+  }
+  if (params.html) {
+    bodyObj.html = params.html;
   }
   const rawBody = JSON.stringify(bodyObj);
 

@@ -201,6 +201,8 @@ export type SupportCommunicationPort = {
     text: string;
     source: string;
     createdAt: string;
+    mediaUrl?: string | null;
+    mediaType?: string | null;
   }): Promise<{ id: string; created: boolean }>;
   listMessagesSince(conversationId: string, params: { sinceCreatedAt?: string | null; limit: number }): Promise<SupportConversationMessageRow[]>;
   conversationExists(conversationId: string): Promise<boolean>;
@@ -211,11 +213,14 @@ export type SupportCommunicationPort = {
     platformUserId: string,
     messageIds: string[],
   ): Promise<void>;
+  markNotificationMessagesReadForUser(platformUserId: string): Promise<void>;
   markUserMessagesReadByAdmin(conversationId: string): Promise<void>;
   countUnreadForUser(platformUserId: string): Promise<number>;
+  countUnreadNotificationsForUser(platformUserId: string): Promise<number>;
   listUnreadInboundAdminMessagesForUser(
     platformUserId: string,
   ): Promise<Array<{ id: string; text: string }>>;
+  listNotificationMessagesForUser(platformUserId: string, limit: number): Promise<SupportConversationMessageRow[]>;
   /** Непрочитанные от пациентов (роль `user`) в **открытых** диалогах — согласовано с `listOpenConversationsForAdmin`. */
   countUnreadUserMessagesForAdmin(): Promise<number>;
   countUnreadUserMessagesForAdminByConversation(conversationId: string): Promise<number>;
@@ -241,6 +246,14 @@ function mapMessageRow(m: Record<string, unknown>): SupportConversationMessageRo
     mediaType: m.media_type != null ? String(m.media_type) : null,
   };
 }
+
+const SUPPORT_NOTIFICATION_SQL = `(
+  m.source IN ('doctor_broadcast', 'appointment_lifecycle')
+  OR m.integrator_message_id LIKE 'broadcast:%'
+  OR m.integrator_message_id LIKE 'booking-created:%'
+  OR m.integrator_message_id LIKE 'booking-cancelled:%'
+  OR m.integrator_message_id LIKE 'booking-rescheduled:%'
+)`;
 
 type SupportConversationDbRow = {
   id: string;
@@ -773,24 +786,25 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           sc.admin_scope,
           sc.status,
           sc.opened_at::text,
-          sc.last_message_at::text,
+          COALESCE(last_personal.personal_msg_at, sc.created_at)::text AS last_message_at,
           sc.closed_at::text,
           sc.close_reason,
           COALESCE(pu.display_name, '') AS display_name,
           pu.phone_normalized,
           sc.channel_external_id,
-          lm.text AS last_message_text,
-          lm.sender_role AS last_sender_role,
+          last_personal.last_msg_text AS last_message_text,
+          last_personal.last_sender_role AS last_sender_role,
           COALESCE(unread.unread_from_user_count, 0)::int AS unread_from_user_count
          FROM support_conversations sc
          LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
          LEFT JOIN LATERAL (
-           SELECT m.text, m.sender_role
+           SELECT m.text AS last_msg_text, m.sender_role AS last_sender_role, m.created_at AS personal_msg_at
            FROM support_conversation_messages m
            WHERE m.conversation_id = sc.id
+             AND NOT ${SUPPORT_NOTIFICATION_SQL}
            ORDER BY m.created_at DESC
            LIMIT 1
-         ) lm ON true
+         ) last_personal ON true
          LEFT JOIN LATERAL (
            SELECT COUNT(*)::int AS unread_from_user_count
            FROM support_conversation_messages m
@@ -800,9 +814,11 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          ) unread ON true
          WHERE sc.status <> 'closed'
            AND sc.closed_at IS NULL
+           AND last_personal.personal_msg_at IS NOT NULL
            AND ($1::text IS NULL OR sc.source = $1)
            AND ($3::boolean = false OR COALESCE(unread.unread_from_user_count, 0) > 0)
-         ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC, sc.last_message_at DESC
+         ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC,
+                  COALESCE(last_personal.personal_msg_at, sc.created_at) DESC
          LIMIT $2`,
         [source, limit, params.unreadOnly === true]
       );
@@ -835,6 +851,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            SELECT m.text, m.sender_role
            FROM support_conversation_messages m
            WHERE m.conversation_id = sc.id
+             AND NOT ${SUPPORT_NOTIFICATION_SQL}
            ORDER BY m.created_at DESC
            LIMIT 1
          ) lm ON true
@@ -956,8 +973,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversation_messages (
           integrator_message_id, conversation_id, sender_role, message_type, text, source,
-          external_chat_id, external_message_id, delivery_status, created_at, delivered_at
-        ) VALUES ($1, $2::uuid, $3, 'text', $4, $5, NULL, NULL, NULL, $6::timestamptz, $6::timestamptz)
+          external_chat_id, external_message_id, delivery_status, created_at, delivered_at,
+          media_url, media_type
+        ) VALUES ($1, $2::uuid, $3, 'text', $4, $5, NULL, NULL, NULL, $6::timestamptz, $6::timestamptz, $7, $8)
         ON CONFLICT (integrator_message_id) DO NOTHING
         RETURNING id`,
         [
@@ -967,6 +985,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           params.text,
           params.source,
           params.createdAt,
+          params.mediaUrl ?? null,
+          params.mediaType ?? null,
         ]
       );
       if (r.rows[0]?.id) {
@@ -1064,11 +1084,14 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       );
       if (ok.rows.length === 0) return;
       await runWebappPgText(
-        `UPDATE support_conversation_messages SET read_at = COALESCE(read_at, now())
+        `UPDATE support_conversation_messages m
+         SET read_at = COALESCE(m.read_at, now())
          WHERE conversation_id IN (
            SELECT id FROM support_conversations WHERE platform_user_id = $1::uuid
          )
-         AND sender_role <> 'user' AND read_at IS NULL`,
+         AND m.sender_role <> 'user'
+         AND NOT ${SUPPORT_NOTIFICATION_SQL}
+         AND m.read_at IS NULL`,
         [platformUserId]
       );
     },
@@ -1083,9 +1106,24 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          WHERE m.conversation_id = c.id
            AND c.platform_user_id = $1::uuid
            AND m.sender_role <> 'user'
+           AND NOT ${SUPPORT_NOTIFICATION_SQL}
            AND m.read_at IS NULL
            AND m.id = ANY($2::uuid[])`,
         [platformUserId, ids],
+      );
+    },
+
+    async markNotificationMessagesReadForUser(platformUserId) {
+      await runWebappPgText(
+        `UPDATE support_conversation_messages m
+         SET read_at = COALESCE(m.read_at, now())
+         FROM support_conversations c
+         WHERE m.conversation_id = c.id
+           AND c.platform_user_id = $1::uuid
+           AND m.sender_role <> 'user'
+           AND ${SUPPORT_NOTIFICATION_SQL}
+           AND m.read_at IS NULL`,
+        [platformUserId],
       );
     },
 
@@ -1101,8 +1139,25 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
          JOIN support_conversations c ON c.id = m.conversation_id
-         WHERE c.platform_user_id = $1::uuid AND m.sender_role <> 'user' AND m.read_at IS NULL`,
+         WHERE c.platform_user_id = $1::uuid
+           AND m.sender_role <> 'user'
+           AND NOT ${SUPPORT_NOTIFICATION_SQL}
+           AND m.read_at IS NULL`,
         [platformUserId]
+      );
+      return parseInt(r.rows[0]?.c ?? "0", 10);
+    },
+
+    async countUnreadNotificationsForUser(platformUserId) {
+      const r = await runWebappPgText<{ c: string }>(
+        `SELECT COUNT(*)::text AS c
+         FROM support_conversation_messages m
+         JOIN support_conversations c ON c.id = m.conversation_id
+         WHERE c.platform_user_id = $1::uuid
+           AND m.sender_role <> 'user'
+           AND ${SUPPORT_NOTIFICATION_SQL}
+           AND m.read_at IS NULL`,
+        [platformUserId],
       );
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },
@@ -1114,11 +1169,34 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          JOIN support_conversations c ON c.id = m.conversation_id
          WHERE c.platform_user_id = $1::uuid
            AND m.sender_role <> 'user'
+           AND NOT ${SUPPORT_NOTIFICATION_SQL}
            AND m.read_at IS NULL
          ORDER BY m.created_at ASC, m.id ASC`,
         [platformUserId],
       );
       return r.rows.map((row) => ({ id: row.id, text: row.text }));
+    },
+
+    async listNotificationMessagesForUser(platformUserId, limit) {
+      const lim = Math.min(Math.max(limit, 1), 200);
+      const r = await runWebappPgText<Record<string, unknown>>(
+        `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+                external_chat_id, external_message_id, delivery_status, created_at::text,
+                read_at::text, delivered_at::text, media_url, media_type
+         FROM (
+           SELECT m.*
+           FROM support_conversation_messages m
+           JOIN support_conversations c ON c.id = m.conversation_id
+           WHERE c.platform_user_id = $1::uuid
+             AND m.sender_role <> 'user'
+             AND ${SUPPORT_NOTIFICATION_SQL}
+           ORDER BY m.created_at DESC
+           LIMIT $2
+         ) sub
+         ORDER BY created_at ASC`,
+        [platformUserId, lim],
+      );
+      return r.rows.map((m) => mapMessageRow(m));
     },
 
     async countUnreadUserMessagesForAdmin() {

@@ -75,24 +75,32 @@ export function broadcastClientHasAnyDelivery(
   audienceFilter: BroadcastAudienceFilter,
   prefs: BroadcastNotificationPrefsFlags,
   webPushEligibleUserIds: ReadonlySet<string> = new Set(),
+  emailEligibleUserIds: ReadonlySet<string> = new Set(),
 ): boolean {
-  const wantsBot = channels.includes("bot_message");
+  // Legacy bot_message = telegram + max
+  const legacyBotMessage = channels.includes("bot_message");
+  const wantsTelegram = channels.includes("telegram") || legacyBotMessage;
+  const wantsMax = channels.includes("max") || legacyBotMessage;
   const wantsSms = channels.includes("sms");
   const wantsPush = channels.includes("push");
+  const wantsEmail = channels.includes("email");
   const tg = Boolean(client.bindings.telegramId?.trim());
   const mx = Boolean(client.bindings.maxId?.trim());
   const smsOk = clientSmsPhoneValid(client);
 
-  if (
-    wantsBot &&
-    (broadcastIncludeTelegramJob(audienceFilter, prefs, tg) || broadcastIncludeMaxJob(audienceFilter, prefs, mx))
-  ) {
+  if (wantsTelegram && broadcastIncludeTelegramJob(audienceFilter, prefs, tg)) {
+    return true;
+  }
+  if (wantsMax && broadcastIncludeMaxJob(audienceFilter, prefs, mx)) {
     return true;
   }
   if (wantsSms && broadcastIncludeSmsJob(audienceFilter, prefs, smsOk)) {
     return true;
   }
   if (wantsPush && broadcastIncludeWebPushJob(channels, webPushEligibleUserIds, client.userId)) {
+    return true;
+  }
+  if (wantsEmail && emailEligibleUserIds.has(client.userId)) {
     return true;
   }
   return false;
@@ -104,6 +112,7 @@ export function filterEligibleBroadcastClients(
   audienceFilter: BroadcastAudienceFilter,
   prefsByUserId: ReadonlyMap<string, BroadcastNotificationPrefsFlags>,
   webPushEligibleUserIds: ReadonlySet<string> = new Set(),
+  emailEligibleUserIds: ReadonlySet<string> = new Set(),
 ): ClientListItem[] {
   return clients.filter((c) =>
     broadcastClientHasAnyDelivery(
@@ -112,6 +121,7 @@ export function filterEligibleBroadcastClients(
       audienceFilter,
       resolveBroadcastNotificationPrefsFromBatch(prefsByUserId, c.userId),
       webPushEligibleUserIds,
+      emailEligibleUserIds,
     ),
   );
 }
@@ -120,21 +130,41 @@ export function deriveBroadcastDeliveryPolicy(
   audienceFilter: BroadcastAudienceFilter,
   channels: readonly BroadcastChannel[],
 ): { kind: BroadcastDeliveryPolicyKind; descriptionRu: string } {
-  const wantsBot = channels.includes("bot_message");
+  // Legacy bot_message = telegram + max
+  const legacyBotMessage = channels.includes("bot_message");
+  const wantsBot =
+    legacyBotMessage || channels.includes("telegram") || channels.includes("max");
   const wantsSms = channels.includes("sms");
   const wantsPush = channels.includes("push");
+  const wantsEmail = channels.includes("email");
+  const emailPart = wantsEmail ? " Email — при подтверждённом адресе." : "";
   const pushPart = wantsPush
     ? " Web Push — при подписке PWA и включённой теме «Новости и обновления»."
     : "";
 
-  if (!wantsBot && !wantsSms && !wantsPush) {
+  if (!wantsBot && !wantsSms && !wantsPush && !wantsEmail) {
     return { kind: "none", descriptionRu: "Каналы доставки не выбраны." };
   }
 
-  if (!wantsBot && !wantsSms && wantsPush) {
+  if (!wantsBot && !wantsSms && wantsPush && !wantsEmail) {
     return {
       kind: "respect_prefs_bot",
       descriptionRu: "Web Push — при подписке PWA и включённой теме «Новости и обновления».",
+    };
+  }
+
+  if (!wantsBot && !wantsSms && !wantsPush && wantsEmail) {
+    return {
+      kind: "respect_prefs_bot",
+      descriptionRu: "Email — при подтверждённом адресе.",
+    };
+  }
+
+  if (!wantsBot && !wantsSms) {
+    // only push+email
+    return {
+      kind: "respect_prefs_bot",
+      descriptionRu: pushPart.trim() + emailPart,
     };
   }
 
@@ -144,7 +174,8 @@ export function deriveBroadcastDeliveryPolicy(
         kind: "telegram_isolate_bot",
         descriptionRu:
           "Сообщение в боте уйдёт только в Telegram (по привязке), даже если у пациента отключены уведомления; MAX не используется." +
-          pushPart,
+          pushPart +
+          emailPart,
       };
     }
     if (audienceFilter === "with_max") {
@@ -152,14 +183,16 @@ export function deriveBroadcastDeliveryPolicy(
         kind: "max_isolate_bot",
         descriptionRu:
           "Сообщение в боте уйдёт только в MAX (по привязке), даже если у пациента отключены уведомления; Telegram не используется." +
-          pushPart,
+          pushPart +
+          emailPart,
       };
     }
     return {
       kind: "respect_prefs_bot",
       descriptionRu:
         "Сообщение в боте уйдёт в Telegram и/или MAX только при привязке и если у пациента включены уведомления для этого канала." +
-        pushPart,
+        pushPart +
+        emailPart,
     };
   }
 
@@ -168,13 +201,13 @@ export function deriveBroadcastDeliveryPolicy(
       return {
         kind: "sms_isolate",
         descriptionRu:
-          "SMS уйдёт на валидный номер, даже если у пациента отключены SMS-уведомления." + pushPart,
+          "SMS уйдёт на валидный номер, даже если у пациента отключены SMS-уведомления." + pushPart + emailPart,
       };
     }
     return {
       kind: "respect_prefs_sms",
       descriptionRu:
-        "SMS только при валидном номере и если у пациента включены уведомления для SMS." + pushPart,
+        "SMS только при валидном номере и если у пациента включены уведомления для SMS." + pushPart + emailPart,
     };
   }
 
@@ -188,7 +221,8 @@ export function deriveBroadcastDeliveryPolicy(
       kind: smsIsolate ? "telegram_isolate_bot_sms_isolate" : "telegram_isolate_bot_respect_prefs_sms",
       descriptionRu:
         `Сообщение в боте — только в Telegram, независимо от настроек; MAX не используется.${smsPart}` +
-        pushPart,
+        pushPart +
+        emailPart,
     };
   }
   if (audienceFilter === "with_max") {
@@ -196,12 +230,15 @@ export function deriveBroadcastDeliveryPolicy(
       kind: smsIsolate ? "max_isolate_bot_sms_isolate" : "max_isolate_bot_respect_prefs_sms",
       descriptionRu:
         `Сообщение в боте — только в MAX, независимо от настроек; Telegram не используется.${smsPart}` +
-        pushPart,
+        pushPart +
+        emailPart,
     };
   }
   return {
     kind: "respect_prefs_bot_sms",
     descriptionRu:
-      `Сообщение в боте — в мессенджеры с привязкой и включёнными уведомлениями.${smsPart}` + pushPart,
+      `Сообщение в боте — в мессенджеры с привязкой и включёнными уведомлениями.${smsPart}` +
+      pushPart +
+      emailPart,
   };
 }

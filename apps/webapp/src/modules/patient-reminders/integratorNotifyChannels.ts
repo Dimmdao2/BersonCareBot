@@ -2,7 +2,8 @@ import { z } from "zod";
 import { logger } from "@/infra/logging/logger";
 import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { smtpInnerFromValueJson, sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
+import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
+import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import {
   attachResolutionIdentity,
   logNotificationChannelsResolved,
@@ -19,11 +20,7 @@ import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRu
 import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
 import type { SkippedNotificationChannel } from "@/modules/patient-notifications/notificationChannelContract";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import {
-  createTrackedWebPushPayload,
-  productAnalyticsMetadataFromPayload,
-} from "@/app-layer/product-analytics/createTrackedWebPushPayload";
-import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
+import { createTrackedWebPushPayload } from "@/app-layer/product-analytics/createTrackedWebPushPayload";
 import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
 import { resolveReminderWebPushPayload } from "@/modules/web-push/resolveReminderWebPushPayload";
 
@@ -350,6 +347,12 @@ export async function runPatientReminderIntegratorNotify(
   }
 
   if (resolved.selectedChannels.includes("web_push") && vapidKeys) {
+    // P3 MIGRATION (PLAN S14e — patient-reminder web_push leg).
+    // Instead of calling `sendWebPushToSubscriptions` directly (G2-guarded webapp sink),
+    // emit a `web_push` intent to the integrator via relay-outbound.
+    // The integrator's WebPushDeliveryAdapter handles the actual send + VAPID resolution,
+    // covered by the pre-fork redirect chokepoint (G1). G2 guard in
+    // `sendWebPushToSubscriptions.ts` is kept intact — it still protects other legs.
     const warmupContext =
       deps.loadWarmupPushContext ? await deps.loadWarmupPushContext(uid).catch(() => ({})) : undefined;
     const pushPayload = resolveReminderWebPushPayload({
@@ -363,10 +366,6 @@ export async function runPatientReminderIntegratorNotify(
       customText: body.bodyText ?? "",
       warmupContext,
     });
-    const vapidSubject =
-      smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
-        `mailto:${smtpParsed.data.from}`
-      : "mailto:noreply@invalid";
 
     if (!pushPayload) {
       await deps.recordDeliveryAttempt?.({
@@ -380,85 +379,81 @@ export async function runPatientReminderIntegratorNotify(
         occurrenceId: body.occurrenceId,
       });
     } else {
-    const trackedPayload = await createTrackedWebPushPayload({
-      userId: uid,
-      title: pushPayload.title,
-      body: pushPayload.body,
-      url: body.openUrl,
-      tag: pushPayload.tag,
-      topicCode: body.topicCode,
-      intentType: PATIENT_REMINDER_INTENT_TYPE,
-      occurrenceId: body.occurrenceId,
-      pushKind: pushPayload.pushKind,
-      warmupSloganKey: pushPayload.warmupSloganKey,
-    });
-
-    const r = await sendWebPushToSubscriptions({
-      subscriptions: subs,
-      vapidPublicKey: vapidKeys.publicKey,
-      vapidPrivateKey: vapidKeys.privateKey,
-      vapidSubject,
-      payload: trackedPayload,
-      onSubscriptionDead: async (endpoint) => {
-        await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
-      },
-      onAttempt: deps.recordDeliveryAttempt
-        ? async (attempt) => {
-            await deps.recordDeliveryAttempt!({
-              userId: uid,
-              integratorUserId: body.integratorUserId,
-              topicCode: body.topicCode,
-              intentType: PATIENT_REMINDER_INTENT_TYPE,
-              channel: "web_push",
-              status: attempt.status,
-              reason: attempt.reason,
-              providerStatusCode: attempt.providerStatusCode,
-              endpointHash: attempt.endpointHash,
-              occurrenceId: body.occurrenceId,
-              errorMessage: attempt.errorMessage,
-              metadata: productAnalyticsMetadataFromPayload(trackedPayload),
-            });
-          }
-        : undefined,
-      verbose,
-      logContext: {
+      // Register product-analytics tracking record (not a send path).
+      const trackedPayload = await createTrackedWebPushPayload({
         userId: uid,
+        title: pushPayload.title,
+        body: pushPayload.body,
+        url: body.openUrl,
+        tag: pushPayload.tag,
         topicCode: body.topicCode,
+        intentType: PATIENT_REMINDER_INTENT_TYPE,
         occurrenceId: body.occurrenceId,
-      },
-    });
-    out.webPushDelivered = r.delivered;
-    out.webPushErrors = r.errors;
-    out.webPushDeactivated = r.deactivated;
+        pushKind: pushPayload.pushKind,
+        warmupSloganKey: pushPayload.warmupSloganKey,
+      });
 
-    if (verbose) {
-      logger.info(
-        {
-          event: "web_push_send_result",
-          userId: uid,
-          topicCode: body.topicCode,
-          occurrenceId: body.occurrenceId,
-          delivered: r.delivered,
-          errors: r.errors,
-          activeSubscriptionsCount: subs.length,
-          deactivatedSubscriptionsCount: r.deactivated,
+      // Emit a web_push intent to the integrator via relay-outbound.
+      // All WebPushClientPayload fields are forwarded via metadata.pushExtras so the
+      // integrator adapter can reconstruct the notification faithfully.
+      // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the
+      // telegram test chat — ZERO real webpush.sendNotification calls.
+      const relayResult = await relayOutbound({
+        messageId: `prn:${body.occurrenceId}:web_push`,
+        channel: "web_push",
+        recipient: uid,
+        text: trackedPayload.body,
+        metadata: {
+          title: trackedPayload.title,
+          url: trackedPayload.url,
+          pushExtras: {
+            tag: trackedPayload.tag,
+            ...(trackedPayload.trackingId ? { trackingId: trackedPayload.trackingId } : {}),
+            topicCode: body.topicCode,
+            intentType: PATIENT_REMINDER_INTENT_TYPE,
+            ...(trackedPayload.pushKind != null ? { pushKind: trackedPayload.pushKind } : {}),
+            ...(trackedPayload.warmupSloganKey != null ? { warmupSloganKey: trackedPayload.warmupSloganKey } : {}),
+            ...(body.occurrenceId ? { occurrenceId: body.occurrenceId } : {}),
+          },
         },
-        "web push send result",
-      );
+      }).catch((err: unknown) => {
+        logger.warn(
+          {
+            err,
+            event: "patient_reminder.notify_channels.web_push.relay_failed",
+            userId: uid,
+            topicCode: body.topicCode,
+            occurrenceId: body.occurrenceId,
+          },
+          "patient reminder web push relay failed",
+        );
+        return { ok: false as const, reason: "relay_error" };
+      });
 
-      logger.info(
-        {
-          event: "patient_reminder.notify_channels.web_push.result",
-          platformUserId: uid,
-          topicCode: body.topicCode,
-          activeSubscriptionsCount: subs.length,
-          webPushDelivered: r.delivered,
-          webPushErrors: r.errors,
-          deactivatedSubscriptionsCount: r.deactivated,
-        },
-        "patient reminder web push result",
-      );
-    }
+      if (relayResult.ok) {
+        out.webPushDelivered = 1;
+        out.webPushErrors = 0;
+        out.webPushDeactivated = 0;
+      } else {
+        out.webPushDelivered = 0;
+        out.webPushErrors = 1;
+        out.webPushDeactivated = 0;
+      }
+
+      if (verbose) {
+        logger.info(
+          {
+            event: "patient_reminder.notify_channels.web_push.result",
+            platformUserId: uid,
+            topicCode: body.topicCode,
+            occurrenceId: body.occurrenceId,
+            relayOk: relayResult.ok,
+            webPushDelivered: out.webPushDelivered,
+            webPushErrors: out.webPushErrors,
+          },
+          "patient reminder web push relay result",
+        );
+      }
     }
   }
 
@@ -487,17 +482,21 @@ export async function runPatientReminderIntegratorNotify(
       const subject = stripHtmlLight(body.title).slice(0, 200) || "Напоминание";
       const text =
         `${stripHtmlLight(body.bodyText ?? "")}\n\n${body.openUrl}`.trim().slice(0, 8000);
-      const res = await sendTransactionalSmtpEmail({
-        smtpValueJson: smtp?.valueJson,
-        to: emailFields.email.trim(),
-        subject,
+      // S10: relay email through integrator dispatchPort (redirect-covered) instead of direct SMTP.
+      const res = await relayOutbound({
+        messageId: `prn:${body.occurrenceId}:email`,
+        channel: "email",
+        recipient: emailFields.email.trim(),
         text: text || body.openUrl,
-        listUnsubscribe,
+        metadata: {
+          subject,
+          ...(listUnsubscribe ? { listUnsubscribe } : {}),
+        },
       });
       out.emailOk = res.ok;
       if (!res.ok) {
-        out.emailError = res.error;
-        const mapped = mapEmailSendError(res.error);
+        out.emailError = res.reason;
+        const mapped = mapEmailSendError(res.reason);
         await deps.recordDeliveryAttempt?.({
           userId: uid,
           integratorUserId: body.integratorUserId,

@@ -33,12 +33,15 @@ export const routePaths = {
   bookingNewService: "/app/patient/booking/new/service",
   bookingNewSlot: "/app/patient/booking/new/slot",
   bookingNewConfirm: "/app/patient/booking/new/confirm",
+  /** Экран «Запись подтверждена» — добавить в календарь / скачать ICS. */
+  bookingNewDone: "/app/patient/booking/new/done",
   /** Адрес кабинета (iframe сайта специалиста). */
   patientAddress: "/app/patient/address",
   /** Кратко о специалисте + ссылка на полный сайт. */
   patientAbout: "/app/patient/about",
   profile: "/app/patient/profile",
   notifications: "/app/patient/notifications",
+  notificationSettings: "/app/patient/notifications/settings",
   purchases: "/app/patient/purchases",
   /** Единая страница дневника с вкладками «Симптомы» / «ЛФК». */
   diary: "/app/patient/diary",
@@ -112,6 +115,14 @@ export const routePaths = {
   intakeNutrition: "/app/patient/intake/nutrition",
   /** Doctor online-intake inbox. */
   doctorOnlineIntake: "/app/doctor/online-intake",
+  /** Расписание врача (новый URL, объединяет calendar + appointments + admin/booking). */
+  doctorSchedule: "/app/doctor/schedule",
+  /** Коммуникации врача (новый URL, объединяет messages + online-intake + broadcasts). */
+  doctorCommunications: "/app/doctor/communications",
+  /** Список пациентов врача (новый раздел «Пациенты», Patients list page). */
+  doctorPatients: "/app/doctor/patients",
+  /** Карточка пациента (Patients card page). */
+  doctorPatientCard: (userId: string) => `/app/doctor/patients/${encodeURIComponent(userId)}`,
 } as const;
 
 /**

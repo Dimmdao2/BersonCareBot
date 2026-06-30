@@ -314,8 +314,22 @@ export function ConfirmStepClient({
                 router.push(payPath);
                 return;
               }
-              toast.success("Запись подтверждена");
-              router.push(successRedirectPath);
+              // Redirect to success/calendar screen instead of straight to hub.
+              const doneQ = new URLSearchParams({
+                bookingId: booking.id,
+                slotStart: booking.slotStart,
+                slotEnd: booking.slotEnd,
+                serviceTitle:
+                  booking.serviceTitleSnapshot ??
+                  serviceTitle ??
+                  (type === "online" ? formatLabel : ""),
+              });
+              const loc =
+                booking.branchTitleSnapshot ??
+                (type === "online" ? "Онлайн" : cityTitle ?? "");
+              if (loc) doneQ.set("locationLabel", loc);
+              if (cityCode) doneQ.set("cityCode", cityCode);
+              router.push(`${routePaths.bookingNewDone}?${doneQ.toString()}`);
             });
         }}
       >

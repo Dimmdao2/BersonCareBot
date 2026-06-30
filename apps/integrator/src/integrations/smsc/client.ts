@@ -1,3 +1,9 @@
+/**
+ * Dev safety: SMS delivery is protected solely by the pre-fork redirect in dispatchPort
+ * (applyPreForkDevRedirect). The send-sms path now routes through dispatchPort → SmscDeliveryAdapter →
+ * createSmscClient().sendSms (S6). The interim ALLOW_DEV_SMS guard was retired in S15 after the redirect
+ * was proven to cover this path (S11 dispatchPort.redirect.test.ts).
+ */
 import fetch from 'node-fetch';
 import type { SmsClient } from './types.js';
 

@@ -30,10 +30,13 @@ describe("createBookingAppointmentLifecycleService", () => {
       getAppointment: vi.fn().mockResolvedValue(baseAppointment),
       listReschedules: vi.fn().mockResolvedValue([]),
       listCancellations: vi.fn().mockResolvedValue([]),
+      listNoShows: vi.fn().mockResolvedValue([]),
       applyReschedule: vi.fn(),
       applyCancellation: vi.fn(),
+      applyNoShow: vi.fn(),
       patchLatestRescheduleNotifications: vi.fn(),
       patchLatestCancellationNotifications: vi.fn(),
+      patchLatestNoShowNotifications: vi.fn(),
     };
     const policies = {
       resolveCancellationPolicy: vi.fn().mockResolvedValue(DEFAULT_CANCELLATION_POLICY),

@@ -24,6 +24,10 @@
 | Система *(admin)* | Здоровье системы, архив сбоев, журнал операций |
 | Администрирование *(admin)* | Настройки приложения, авторизация, интеграции, **Настройки записи**, технические режимы, **Мердж пациентов** |
 
+Пункт **«Расписание»** в меню — **одна прямая ссылка** на `/app/doctor/schedule` (не аккордеон;
+вкладки `cal/work/setup` переключаются внутри страницы). Admin-гейтинг таба «Настройки»
+обеспечивается шеллом, не пунктом меню.
+
 Пункты с `requiresAdminMode: true` видны только при `role === admin`.
 
 ## Маршруты (admin / аналитика)
@@ -44,11 +48,49 @@
 | Параметры приложения | `/app/doctor/admin/app-settings` | |
 | Авторизация | `/app/doctor/admin/auth` | |
 | Интеграции | `/app/doctor/admin/integrations` | |
-| Настройки записи | `/app/doctor/admin/booking` | **4 вкладки** (`bookingAdminTabs.ts`): «Обзор и настройка» (локации, услуги, доступность, правила абонементов), «Форма и публичная запись», «Оплата», «Интеграция Rubitime»; API `/api/admin/booking-engine/*`; расписание — у врача (`/appointments?tab=schedule`) |
+| Настройки записи | `/app/doctor/admin/booking` | **308** → `/app/doctor/schedule?tab=setup` (ребилд раскладки в `ScheduleSetupTab` как 6-секционный под-экран) |
+| **Расписание** | `/app/doctor/schedule` | Агрегатный шелл с 3 табами: **Календарь записей** (`?tab=cal`), **График работы** (`?tab=work`), **Настройки записи** (`?tab=setup`); per-date модель (см. `schedule.md`); 308: `/calendar`→`?tab=cal`, `/appointments`→`?tab=cal`, `/admin/booking`→`?tab=setup` |
 | Запись → Интеграции (Rubitime catalog v2) | `/app/doctor/admin/booking/integrations` | **`RubitimeSection`** — справочник `booking_*` через `/api/admin/booking-catalog/*` (город → филиал → услуга → специалист → branch-service); inline PATCH услуг, форма «Создать услугу»; план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) |
 | Технические режимы | `/app/doctor/admin/technical` | |
 
 Редиректы `?adminTab=` → см. `ADMIN_TAB_REDIRECTS` в `apps/webapp/src/app/app/settings/adminSettingsData.ts`.
+
+## Агрегатные экраны — Расписание и Коммуникации
+
+С 2026-06 кабинет использует агрегатные URL с вкладками; оба экрана — настоящие страницы-шеллы
+(internal-rewrite убран). Старые прямые URL → **308** на агрегатный.
+
+### Расписание (`/app/doctor/schedule`) — 3 таба
+
+| `?tab=` | Вкладка | Старый URL (308) |
+|---------|---------|-----------------|
+| `cal` (default) | Записи | `/app/doctor/calendar`, `/app/doctor/appointments` |
+| `work` | График работы | — |
+| `setup` | Настройки *(admin)* | `/app/doctor/admin/booking` |
+
+Шелл: `DoctorScheduleShell` + keepMounted-табы. **KPI (9 метрик) живут только в табе «Записи»**
+(`ScheduleCalendarTab`, §3.1 ТЗ); шелл не хранит метрики.
+Per-date бэкенд: таблицы `be_working_days` / `be_schedule_templates` (breaks jsonb, миграции 0115–0116);
+`be_branches.short_title` (migration 0117); слот-движок учитывает per-date override
+(`workingIntervalsForDate(…, perDayRow?)`), N перерывов через cursor-based `splitByBreak`.
+Ближайшее окно: `GET /api/doctor/schedule/nearest-free-window` → `NearestWindowLine` в правой панели.
+Loop-guard `x-bc-doctor-rewrite` сохранён в `doctorRouteRedirects.ts`.
+Документация: `apps/webapp/src/app/app/doctor/schedule/schedule.md`,
+`docs/DOCTOR_SCHEDULE_SECTION_INITIATIVE/`.
+
+### Коммуникации (`/app/doctor/communications`) — 4 таба
+
+| `?tab=` | Вкладка | Старый URL (308) |
+|---------|---------|-----------------|
+| `chats` (default) | Чаты | `/app/doctor/messages` |
+| `intake` | Заявки | `/app/doctor/online-intake[/:id]` |
+| `comments` | Комментарии | `/app/doctor/comments` |
+| `broadcasts` | Рассылки | `/app/doctor/broadcasts[/archive]` |
+
+Таб-бар: `DoctorCommunicationsTabsNav.tsx` (`doctorCommunicationsTabs.ts`, `communications.md`).
+
+**Петля редиректов (важно):** защита от петли через заголовок `x-bc-doctor-rewrite` (актуально для
+любых будущих rewrite в proxy). Тесты: `apps/webapp/src/middleware/doctorRouteRedirects.test.ts`.
 
 ## Окна аналитики (doctor)
 

@@ -62,10 +62,10 @@ export function getOverviewState(): DoctorOverviewState {
     requireAttention: [],
     recentEvents: [],
     quickActions: [
-      { id: "clients", label: "Клиенты", href: "/app/doctor/clients" },
+      { id: "clients", label: "Клиенты", href: "/app/doctor/patients" },
       { id: "appointments", label: "Записи на сегодня", href: "/app/doctor/appointments" },
       { id: "message", label: "Написать сообщение", href: "/app/doctor/messages" },
-      { id: "stats", label: "По клиентам", href: "/app/doctor/analytics/clients" },
+      { id: "stats", label: "По клиентам", href: "/app/doctor/analytics?tab=clients" },
     ],
   };
 }

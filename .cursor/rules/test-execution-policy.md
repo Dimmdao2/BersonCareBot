@@ -109,6 +109,31 @@ alwaysApply: true
 
 ---
 
+## Dev-DB opt-in smoke-тесты (`RUN_<DOMAIN>_DEV_DB`)
+
+Ряд Vitest-тестов в `apps/webapp` является **opt-in**: они выполняются **только** при явной установке флага и по умолчанию **исключены из CI**.
+
+### Соглашение
+
+- **Паттерн флага:** `RUN_<DOMAIN>_DEV_DB=1` плюс `USE_REAL_DATABASE=1` и непустой `DATABASE_URL`.
+- **Активные флаги** (по состоянию на волну 3):
+  `RUN_ADMIN_AUDIT_LOG_DEV_DB`, `RUN_BOOKING_CATALOG_DEV_DB`, `RUN_DOCTOR_ANALYTICS_DEV_DB`,
+  `RUN_DOCTOR_CLIENTS_DEV_DB`, `RUN_DOCTOR_COMMENTS_DEV_DB`, `RUN_MERGE_PREVIEW_DEV_DB`,
+  `RUN_ONLINE_INTAKE_DEV_DB`, `RUN_PATIENT_BOOKINGS_DEV_DB`, `RUN_PG_AUTH_RATE_LIMIT_DEV_DB`,
+  `RUN_PG_MERGE_DEV_DB`, `RUN_PURGE_DEV_DB`, `RUN_SUPPORT_COMMUNICATION_DEV_DB`,
+  `RUN_USER_PROJECTION_DEV_DB`.
+- **Реализация:** `describe.skipIf(!enabled)(...)` где `enabled` проверяет все три переменные; файлы именуются `*.devDb.integration.test.ts`.
+- **Исключение из CI:** ни один из этих флагов не выставляется в GitHub Actions — тесты автоматически пропускаются. Запускать вручную в dev-окружении.
+
+### Критическое ограничение безопасности
+
+`bcb_webapp_dev` содержит **реальные данные пациентов (PII)** — это prod-дамп.  
+Эти тесты **обязаны быть строго read-only**: никаких `INSERT/UPDATE/DELETE`, никакого вывода PII в лог/stdout.  
+Каждый файл проверяет имя базы (`assertDevDb`) и отказывает при подключении к не-dev БД.  
+См. `.cursor/rules/dev-prod-isolation-no-real-creds.mdc`.
+
+---
+
 ## Audit validation
 
 Аудит **не** заменяется автоматическим полным CI. Он проверяет **достаточность** уже сделанного, а не «прогнать максимум».

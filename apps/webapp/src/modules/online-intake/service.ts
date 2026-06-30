@@ -120,5 +120,9 @@ export function createOnlineIntakeService(deps: {
       }
       return intakePort.changeStatus(input);
     },
+
+    async getDoctorStats(days: number) {
+      return intakePort.getDoctorStats(days);
+    },
   };
 }

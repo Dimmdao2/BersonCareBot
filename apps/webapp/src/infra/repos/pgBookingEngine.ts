@@ -50,6 +50,7 @@ function mapBranch(row: typeof beBranches.$inferSelect): BeBranch {
     id: row.id,
     organizationId: row.organizationId,
     title: row.title,
+    shortTitle: row.shortTitle ?? null,
     cityCode: row.cityCode,
     address: row.address ?? null,
     timezone: row.timezone,
@@ -199,18 +200,20 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const db = getDrizzle();
       const now = new Date().toISOString();
       if (input.id) {
-        await db
-          .update(beBranches)
-          .set({
-            title: input.title,
-            cityCode: input.cityCode,
-            address: input.address ?? null,
-            timezone: input.timezone ?? "Europe/Moscow",
-            isActive: input.isActive,
-            sortOrder: input.sortOrder,
-            updatedAt: now,
-          })
-          .where(eq(beBranches.id, input.id));
+        const patch: Partial<typeof beBranches.$inferInsert> = {
+          title: input.title,
+          cityCode: input.cityCode,
+          address: input.address ?? null,
+          timezone: input.timezone ?? "Europe/Moscow",
+          isActive: input.isActive,
+          sortOrder: input.sortOrder,
+          updatedAt: now,
+        };
+        // Only write shortTitle when explicitly provided (preserve existing value otherwise)
+        if ("shortTitle" in input) {
+          patch.shortTitle = (input as { shortTitle?: string | null }).shortTitle ?? null;
+        }
+        await db.update(beBranches).set(patch).where(eq(beBranches.id, input.id));
         const row = await this.getBranch(input.id);
         if (!row) throw new Error("branch_not_found");
         return row;
@@ -220,6 +223,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .values({
           organizationId: input.organizationId,
           title: input.title,
+          shortTitle: (input as { shortTitle?: string | null }).shortTitle ?? null,
           cityCode: input.cityCode,
           address: input.address ?? null,
           timezone: input.timezone ?? "Europe/Moscow",
@@ -856,6 +860,41 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .returning({ id: beAppointments.id });
         return deleted.length > 0;
       });
+    },
+
+    async softDeleteAppointmentByRubitimeExternalId(input: {
+      organizationId: string;
+      rubitimeId: string;
+    }) {
+      const rubitimeId = input.rubitimeId.trim();
+      if (!rubitimeId) return false;
+      const db = getDrizzle();
+      const mapped = await db
+        .select({ canonicalId: beExternalEntityMappings.canonicalId })
+        .from(beExternalEntityMappings)
+        .where(
+          and(
+            eq(beExternalEntityMappings.organizationId, input.organizationId),
+            eq(beExternalEntityMappings.entityType, "appointment"),
+            eq(beExternalEntityMappings.externalSystem, "rubitime"),
+            eq(beExternalEntityMappings.externalId, rubitimeId),
+          ),
+        )
+        .limit(1);
+      const canonicalId = mapped[0]?.canonicalId?.trim();
+      if (!canonicalId) return false;
+      const updated = await db
+        .update(beAppointments)
+        .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(beAppointments.organizationId, input.organizationId),
+            eq(beAppointments.id, canonicalId),
+            isNull(beAppointments.deletedAt),
+          ),
+        )
+        .returning({ id: beAppointments.id });
+      return updated.length > 0;
     },
 
     async listSpecialistRooms(organizationId) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
+import { patientCardHref } from "../patients/patientCardHref";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { DateTime } from "luxon";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
@@ -31,6 +33,7 @@ import type {
 } from "@/modules/booking-appointment-lifecycle/ports";
 import {
   appointmentStatusLabel,
+  isCancelledAppointmentStatus,
   isStaffDeletableCancelledStatus,
 } from "@/modules/booking-calendar/appointmentStatusLabels";
 import {
@@ -44,15 +47,27 @@ import {
   type CalendarPatientOption,
 } from "./DoctorCalendarPatientSearch";
 import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 
-const CANCEL_TYPES = [
+// R21: причины отмены в стиле Rubitime (отправляются как reason в API).
+const CANCEL_REASONS = [
+  { value: "Пациент перенёс", label: "Пациент перенёс" },
+  { value: "Пациент отменил", label: "Пациент отменил" },
+  { value: "Не пришёл", label: "Не пришёл" },
+  { value: "По состоянию здоровья", label: "По состоянию здоровья" },
+  { value: "Другая", label: "Другая" },
+] as const;
+
+// R21: бесплатная/штрафная → decisionType API.
+const CANCEL_CHARGE = [
   { value: "free", label: "Бесплатная" },
   { value: "penalized", label: "Штрафная" },
-  { value: "package_charged", label: "Со списанием" },
-  { value: "no_package_charge", label: "Без списания" },
-  { value: "retain_prepayment", label: "Удержание предоплаты" },
-  { value: "refund_prepayment", label: "Возврат предоплаты" },
-  { value: "custom", label: "Индивидуально" },
+] as const;
+
+// R20: классификация уже отменённой записи (бесплатная/платная) — пока нефункц. плейсхолдер.
+const POST_CANCEL_CLASS = [
+  { value: "free", label: "Бесплатная" },
+  { value: "paid", label: "Платная" },
 ] as const;
 
 type Props = {
@@ -63,6 +78,12 @@ type Props = {
   activeFilters: CalendarCreateActiveFilters;
   onClose: () => void;
   onChanged: () => void;
+  /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
+  startInCreate?: boolean;
+  /** R32: подставить время старта (datetime-local) при выделении области в календаре */
+  createInitialStart?: string | null;
+  /** #225: конец drag-интервала ("yyyy-MM-dd'T'HH:mm") → начальная длительность в форме */
+  createInitialEnd?: string | null;
 };
 
 type LifecycleResponse = {
@@ -72,7 +93,14 @@ type LifecycleResponse = {
 };
 
 function formatEventAt(iso: string, timeZone: string): string {
-  return DateTime.fromISO(iso).setZone(timeZone).toFormat("dd.MM.yyyy HH:mm");
+  // R27: originalStartAt приходит из canonical-порта в Postgres timestamptz формате
+  // ("2026-06-13 10:00:00+02", пробел вместо "T") — строгий fromISO даёт Invalid.
+  // Парсим терпимо: ISO → SQL → нативный Date.
+  let dt = DateTime.fromISO(iso, { setZone: true });
+  if (!dt.isValid) dt = DateTime.fromSQL(iso, { setZone: true });
+  if (!dt.isValid) dt = DateTime.fromJSDate(new Date(iso));
+  if (!dt.isValid) return "—";
+  return dt.setZone(timeZone).toFormat("dd.MM.yyyy HH:mm");
 }
 
 function noneValue() {
@@ -99,9 +127,21 @@ function DoctorCalendarEventPanelInner({
   activeFilters,
   onClose,
   onChanged,
+  startInCreate = false,
+  createInitialStart = null,
+  createInitialEnd = null,
 }: Props) {
-  const [mode, setMode] = useState<"view" | "create" | "reschedule">("view");
-  const [cancelType, setCancelType] = useState("free");
+  // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
+  const [mode, setMode] = useState<"view" | "create" | "reschedule" | "cancel">(
+    startInCreate ? "create" : "view",
+  );
+  // R20: классификация уже отменённой записи (бесплатная/платная) — нефункц. плейсхолдер
+  const [postCancelClass, setPostCancelClass] = useState("free");
+  // R21: поля формы отмены
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelComment, setCancelComment] = useState("");
+  const [cancelCharge, setCancelCharge] = useState("free");
+  const [cancelNotify, setCancelNotify] = useState(true);
   const [newStartLocal, setNewStartLocal] = useState("");
   const [newEndLocal, setNewEndLocal] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -113,6 +153,8 @@ function DoctorCalendarEventPanelInner({
   const [createBranchId, setCreateBranchId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
   const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
+  // R16: комментарий, добавляемый сразу после создания записи (staff-коммент).
+  const [createComment, setCreateComment] = useState("");
   const selectedId = selected?.id ?? null;
 
   useEffect(() => {
@@ -131,10 +173,44 @@ function DoctorCalendarEventPanelInner({
     };
   }, [apiBase, selectedId]);
 
+  // §3.6: при startInCreate=true инициализируем поля создания сразу, как делает openCreateForm
+  useEffect(() => {
+    if (!startInCreate) return;
+    setCreateSpecialistId(
+      resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, null) ??
+        filterMeta.specialists[0]?.id ??
+        null,
+    );
+    setCreateBranchId(
+      resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null),
+    );
+    setCreateServiceId(
+      resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null),
+    );
+    // R32: подставить выделенное время старта (если открыто через select по сетке)
+    if (createInitialStart) setCreateStart(createInitialStart);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startInCreate, createInitialStart]);
+
+  // #225: duration from drag-interval (end − start), used as fallback when no service
+  // is selected yet or the service has no configured duration.
+  const dragDurationMinutes = useMemo(() => {
+    if (!createInitialStart || !createInitialEnd) return null;
+    const startMs = new Date(createInitialStart).getTime();
+    const endMs = new Date(createInitialEnd).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return null;
+    return Math.round((endMs - startMs) / 60_000);
+  }, [createInitialStart, createInitialEnd]);
+
   const createDurationMinutes = useMemo(() => {
-    if (!createServiceId) return null;
-    return filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null;
-  }, [createServiceId, filterMeta.services]);
+    const serviceDuration = createServiceId
+      ? (filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null)
+      : null;
+    // #225: drag duration takes priority over service default so the slot size chosen
+    // by the doctor is honoured. Service duration is only the fallback when no drag
+    // interval is available (e.g. panel opened via «+ Создать запись» button).
+    return dragDurationMinutes ?? serviceDuration;
+  }, [createServiceId, filterMeta.services, dragDurationMinutes]);
 
   const openCreateForm = () => {
     const nextSpecialistId = resolveCalendarCreateFieldValue(
@@ -165,7 +241,14 @@ function DoctorCalendarEventPanelInner({
               Создать
             </Button>
           ) : (
-            <Button type="button" size="sm" variant="ghost" onClick={() => setMode("view")}>
+            // §3.6: если открыто через startInCreate — × закрывает панель полностью;
+            // если открыто через кнопку «Создать» внутри плейсхолдера — возврат к плейсхолдеру
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => (startInCreate ? onClose() : setMode("view"))}
+            >
               ×
             </Button>
           )}
@@ -182,13 +265,16 @@ function DoctorCalendarEventPanelInner({
             createBranchId={createBranchId}
             createServiceId={createServiceId}
             createPatient={createPatient}
+            createComment={createComment}
             pending={pending}
             message={message}
             onStartChange={setCreateStart}
             onBranchChange={setCreateBranchId}
             onServiceChange={setCreateServiceId}
             onPatientChange={setCreatePatient}
-            onCancel={() => setMode("view")}
+            onCommentChange={setCreateComment}
+            // §3.6: если открыто через startInCreate — отмена закрывает панель
+            onCancel={() => (startInCreate ? onClose() : setMode("view"))}
             onSubmit={() => {
               if (!createStart || !createDurationMinutes || !createBranchId || !createServiceId || !createSpecialistId) {
                 setMessage("Заполните филиал, услугу и специалиста.");
@@ -213,9 +299,23 @@ function DoctorCalendarEventPanelInner({
                     phoneNormalized: createPatient?.phone?.trim() || null,
                   }),
                 });
-                const json = (await res.json()) as { ok?: boolean; error?: string };
+                const json = (await res.json()) as {
+                  ok?: boolean;
+                  error?: string;
+                  appointment?: { id?: string };
+                };
                 setMessage(json.ok ? "Создано" : panelErrorLabel(json.error));
                 if (json.ok) {
+                  // R16: после создания (есть id) добавляем staff-коммент отдельным запросом.
+                  const newId = json.appointment?.id;
+                  if (newId && createComment.trim()) {
+                    await fetch(`${apiBase}/appointments/${encodeURIComponent(newId)}/comments`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ body: createComment.trim() }),
+                    }).catch(() => undefined);
+                  }
+                  setCreateComment("");
                   setMode("view");
                   onChanged();
                 } else if (json.error === "external_slot_taken") {
@@ -228,6 +328,8 @@ function DoctorCalendarEventPanelInner({
       </div>
     );
   }
+
+  const statusLabel = appointmentStatusLabel(selected.status);
 
   return (
     <div className={doctorClientOverviewPrimaryCardClass}>
@@ -242,7 +344,8 @@ function DoctorCalendarEventPanelInner({
       </div>
 
       <div className="space-y-2 text-sm">
-        <Badge variant="outline">{appointmentStatusLabel(selected.status)}</Badge>
+        <Badge variant="outline">{statusLabel}</Badge>
+        <p className="text-xs text-muted-foreground">Статус записи: {statusLabel}</p>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
         {selected.serviceTitle ? <p>{selected.serviceTitle}</p> : null}
         {selected.specialistName ? <p>{selected.specialistName}</p> : null}
@@ -260,14 +363,24 @@ function DoctorCalendarEventPanelInner({
         ) : null}
         {selected.patientPhone ? <p>{selected.patientPhone}</p> : null}
         {selected.platformUserId ? (
-          <Link
-            href={doctorClientProfileHref(selected.platformUserId, {
-              profileListScope: "appointments",
-            })}
-            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-          >
-            Карточка клиента
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={patientCardHref(selected.platformUserId)}
+              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Карточка пациента
+            </Link>
+            <Link
+              href={patientCardHref(selected.platformUserId, {
+                tab: "karta",
+                createVisitFrom: selected.id,
+                visitDate: selected.startAt ? selected.startAt.slice(0, 10) : undefined,
+              })}
+              className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              + Создать визит из записи
+            </Link>
+          </div>
         ) : null}
         {selected.packageTitle ? <Badge variant="secondary">{selected.packageTitle}</Badge> : null}
         {selected.paymentStatus ? (
@@ -315,106 +428,183 @@ function DoctorCalendarEventPanelInner({
       {mode === "reschedule" ? (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
           <Label>Начало</Label>
-          <Input type="datetime-local" value={newStartLocal} onChange={(e) => setNewStartLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newStartLocal} onChange={setNewStartLocal} />
           <Label>Окончание</Label>
-          <Input type="datetime-local" value={newEndLocal} onChange={(e) => setNewEndLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newEndLocal} onChange={setNewEndLocal} />
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {mode !== "reschedule" ? (
-          <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("reschedule")}>
-            Перенести
-          </Button>
+      {/* R21: форма отмены разворачивается ВНИЗУ карточки */}
+      {mode === "cancel" ? (
+        <div className="mt-3 space-y-2 border-t border-border pt-3">
+          <Label>Причина отмены</Label>
+          <Select value={cancelReason} onValueChange={(v) => setCancelReason(v ?? "")}>
+            <SelectTrigger
+              displayLabel={
+                CANCEL_REASONS.find((r) => r.value === cancelReason)?.label ?? "Выберите причину"
+              }
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCEL_REASONS.map((r) => (
+                <SelectItem key={r.value} value={r.value} label={r.label}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Label>Комментарий</Label>
+          <Textarea
+            rows={2}
+            value={cancelComment}
+            onChange={(e) => setCancelComment(e.target.value)}
+            placeholder="Комментарий для истории записи"
+          />
+          <Label>Начисление</Label>
+          <Select value={cancelCharge} onValueChange={(v) => setCancelCharge(v ?? "free")}>
+            <SelectTrigger displayLabel={CANCEL_CHARGE.find((c) => c.value === cancelCharge)?.label}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCEL_CHARGE.map((c) => (
+                <SelectItem key={c.value} value={c.value} label={c.label}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <label className="flex items-center justify-between gap-2 pt-1">
+            <span className="text-sm">Уведомлять пациента</span>
+            <Switch checked={cancelNotify} onCheckedChange={setCancelNotify} />
+          </label>
+        </div>
+      ) : null}
+
+      {/* R20: один ряд кнопок, зависит от статуса записи */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {isCancelledAppointmentStatus(selected.status) ? (
+          <>
+            <Select value={postCancelClass} onValueChange={(v) => setPostCancelClass(v ?? "free")}>
+              <SelectTrigger
+                className="w-[8.5rem]"
+                displayLabel={POST_CANCEL_CLASS.find((c) => c.value === postCancelClass)?.label}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {POST_CANCEL_CLASS.map((c) => (
+                  <SelectItem key={c.value} value={c.value} label={c.label}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isStaffDeletableCancelledStatus(selected.status) ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="ml-auto text-destructive"
+                disabled={pending}
+                onClick={() => {
+                  // R22: удаление уже отменённой записи — пациенту не уведомляем (purge без side-effects).
+                  if (!window.confirm("Удалить запись из календаря и кабинета пациента?")) return;
+                  startTransition(async () => {
+                    const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({}),
+                    });
+                    const json = (await res.json()) as { ok?: boolean; error?: string };
+                    setMessage(json.ok ? "Удалено" : panelErrorLabel(json.error));
+                    if (json.ok) onChanged();
+                  });
+                }}
+              >
+                Удалить
+              </Button>
+            ) : null}
+          </>
+        ) : mode === "reschedule" ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending || !newStartLocal || !newEndLocal}
+              onClick={() => {
+                const newStartAt = new Date(newStartLocal).toISOString();
+                const newEndAt = new Date(newEndLocal).toISOString();
+                const durationMinutes = Math.max(
+                  1,
+                  Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
+                );
+                startTransition(async () => {
+                  const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ newStartAt, newEndAt, durationMinutes }),
+                  });
+                  const json = (await res.json()) as { ok?: boolean; error?: string };
+                  setMessage(json.ok ? "Перенесено" : panelErrorLabel(json.error));
+                  if (json.ok) {
+                    onChanged();
+                  } else if (json.error === "external_slot_taken") {
+                    onChanged();
+                  } else {
+                    setMode("view");
+                  }
+                });
+              }}
+            >
+              Сохранить
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("view")}>
+              Отмена
+            </Button>
+          </>
+        ) : mode === "cancel" ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="text-destructive"
+              disabled={pending}
+              onClick={() => {
+                startTransition(async () => {
+                  const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-cancel`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      decisionType: cancelCharge,
+                      ...(cancelReason ? { reason: cancelReason } : {}),
+                      ...(cancelComment.trim() ? { staffComment: cancelComment.trim() } : {}),
+                      notifyPatient: cancelNotify,
+                    }),
+                  });
+                  const json = (await res.json()) as { ok?: boolean; error?: string };
+                  setMessage(json.ok ? "Отменено" : panelErrorLabel(json.error));
+                  if (json.ok) onChanged();
+                });
+              }}
+            >
+              Подтвердить отмену
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("view")}>
+              Отмена
+            </Button>
+          </>
         ) : (
-          <Button
-            type="button"
-            size="sm"
-            disabled={pending || !newStartLocal || !newEndLocal}
-            onClick={() => {
-              const newStartAt = new Date(newStartLocal).toISOString();
-              const newEndAt = new Date(newEndLocal).toISOString();
-              const durationMinutes = Math.max(
-                1,
-                Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
-              );
-              startTransition(async () => {
-                const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ newStartAt, newEndAt, durationMinutes }),
-                });
-                const json = (await res.json()) as { ok?: boolean; error?: string };
-                setMessage(json.ok ? "Перенесено" : panelErrorLabel(json.error));
-                if (json.ok) {
-                  onChanged();
-                } else if (json.error === "external_slot_taken") {
-                  onChanged();
-                } else {
-                  setMode("view");
-                }
-              });
-            }}
-          >
-            Сохранить
-          </Button>
+          <>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("reschedule")}>
+              Перенести
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("cancel")}>
+              Отменить
+            </Button>
+          </>
         )}
-        <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? "free")}>
-          <SelectTrigger className="w-[9rem]" displayLabel={CANCEL_TYPES.find((t) => t.value === cancelType)?.label}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CANCEL_TYPES.map((t) => (
-              <SelectItem key={t.value} value={t.value} label={t.label}>
-                {t.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={pending}
-          onClick={() => {
-            startTransition(async () => {
-              const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-cancel`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ decisionType: cancelType }),
-              });
-              const json = (await res.json()) as { ok?: boolean; error?: string };
-              setMessage(json.ok ? "Отменено" : panelErrorLabel(json.error));
-              if (json.ok) onChanged();
-            });
-          }}
-        >
-          Отменить
-        </Button>
-        {isStaffDeletableCancelledStatus(selected.status) ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="text-destructive"
-            disabled={pending}
-            onClick={() => {
-              if (!window.confirm("Удалить запись из календаря и кабинета пациента?")) return;
-              startTransition(async () => {
-                const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({}),
-                });
-                const json = (await res.json()) as { ok?: boolean; error?: string };
-                setMessage(json.ok ? "Удалено" : panelErrorLabel(json.error));
-                if (json.ok) onChanged();
-              });
-            }}
-          >
-            Удалить
-          </Button>
-        ) : null}
       </div>
       {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
     </div>
@@ -430,12 +620,14 @@ type CreateFormProps = {
   createBranchId: string | null;
   createServiceId: string | null;
   createPatient: CalendarPatientOption | null;
+  createComment: string;
   pending: boolean;
   message: string | null;
   onStartChange: (v: string) => void;
   onBranchChange: (v: string | null) => void;
   onServiceChange: (v: string | null) => void;
   onPatientChange: (v: CalendarPatientOption | null) => void;
+  onCommentChange: (v: string) => void;
   onCancel: () => void;
   onSubmit: () => void;
 };
@@ -455,7 +647,12 @@ function CreateForm(props: CreateFormProps) {
         disabled={props.pending}
       />
       <Label>Начало</Label>
-      <Input type="datetime-local" value={props.createStart} onChange={(e) => props.onStartChange(e.target.value)} />
+      {/* R17: готовый react-day-picker вместо нативного datetime-local */}
+      <DoctorDateTimePicker
+        value={props.createStart}
+        onChange={props.onStartChange}
+        disabled={props.pending}
+      />
       <DoctorCalendarCreateFormField
         fieldLabel="Филиал"
         mode={branchMode}
@@ -474,6 +671,15 @@ function CreateForm(props: CreateFormProps) {
       />
       <Label>Длительность</Label>
       <Input readOnly value={durationLabel} aria-label="Длительность" />
+      {/* R16: комментарий добавится как staff-коммент сразу после создания */}
+      <Label>Комментарий</Label>
+      <Textarea
+        rows={2}
+        value={props.createComment}
+        disabled={props.pending}
+        placeholder="Заметка к записи (необязательно)"
+        onChange={(e) => props.onCommentChange(e.target.value)}
+      />
       <div className="flex gap-2 pt-2">
         <Button type="button" size="sm" disabled={props.pending} onClick={props.onSubmit}>
           Сохранить

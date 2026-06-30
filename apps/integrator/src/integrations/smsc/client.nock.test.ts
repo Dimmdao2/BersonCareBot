@@ -5,6 +5,8 @@ import { createSmscClient } from './client.js';
 describe('smsc client nock', () => {
   beforeEach(() => {
     nock.disableNetConnect();
+    // NOTE: ALLOW_DEV_SMS guard was retired in S15 — no NODE_ENV stub needed for that.
+    // nock intercepts work regardless of NODE_ENV.
   });
 
   afterEach(() => {

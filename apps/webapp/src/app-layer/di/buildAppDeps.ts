@@ -76,6 +76,14 @@ import { createPgDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/pgDocto
 import { createInMemoryDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/inMemoryDoctorBroadcastDelivery";
 import { createPgPatientBroadcastsPort } from "@/infra/repos/pgPatientBroadcasts";
 import { inMemoryPatientBroadcastsPort } from "@/infra/repos/inMemoryPatientBroadcasts";
+import { createPgBroadcastDraftPort } from "@/infra/repos/pgBroadcastDrafts";
+import { createInMemoryBroadcastDraftPort } from "@/infra/repos/inMemoryBroadcastDrafts";
+import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
+import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
+import { createPgBroadcastChannelCountsPort } from "@/infra/repos/broadcastChannelCounts";
+import { createInMemoryBroadcastChannelCountsPort } from "@/infra/repos/inMemoryBroadcastChannelCounts";
+import { createPgBroadcastEmailRecipientsPort } from "@/infra/repos/pgBroadcastEmailRecipients";
+import { createInMemoryBroadcastEmailRecipientsPort } from "@/infra/repos/inMemoryBroadcastEmailRecipients";
 import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
 import { inMemoryDoctorMotivationQuotesEditorPort } from "@/infra/repos/inMemoryDoctorMotivationQuotesEditor";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
@@ -172,6 +180,7 @@ import { createPgContentSectionsPort, inMemoryContentSectionsPort } from "@/infr
 import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
 import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
+import { createPatientNotificationInboxService } from "@/modules/messaging/patientNotificationInboxService";
 import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
 import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
 import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
@@ -195,6 +204,20 @@ import { createPgDoctorNotesPort } from "@/infra/repos/pgDoctorNotes";
 import { createPgSpecialistTasksPort } from "@/infra/repos/pgSpecialistTasks";
 import { inMemorySpecialistTasksPort } from "@/infra/repos/inMemorySpecialistTasks";
 import { createSpecialistTasksService } from "@/modules/specialist-tasks/service";
+import { createPgPatientFilesPort } from "@/infra/repos/pgPatientFiles";
+import { inMemoryPatientFilesPort } from "@/infra/repos/inMemoryPatientFiles";
+import { createPatientFilesService } from "@/modules/patient-files/service";
+import { createPgPatientClinicalPort } from "@/infra/repos/pgPatientClinical";
+import { inMemoryPatientClinicalPort } from "@/infra/repos/inMemoryPatientClinical";
+import { createPatientClinicalService } from "@/modules/patient-clinical/service";
+import { createPgPatientComorbiditiesPort } from "@/infra/repos/pgPatientComorbidities";
+import { inMemoryPatientComorbiditiesPort } from "@/infra/repos/inMemoryPatientComorbidities";
+import { createPatientComorbiditiesService } from "@/modules/patient-comorbidities/service";
+import { createPgPatientPaymentsPort } from "@/infra/repos/pgPatientPayments";
+import { inMemoryPatientPaymentsPort } from "@/infra/repos/inMemoryPatientPayments";
+import { createPatientPaymentsService } from "@/modules/patient-payments/service";
+import { noopAcquiringGateway } from "@/infra/repos/noopAcquiringGateway";
+import { createRegistryAcquiringGateway } from "@/infra/payments/registryAcquiringGateway";
 import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
@@ -402,6 +425,15 @@ const doctorBroadcastDeliveryCommitPort = !inMemoryRepos
   ? createPgDoctorBroadcastDeliveryCommitPort()
   : createInMemoryDoctorBroadcastDeliveryCommitPort();
 const patientBroadcastsPort = !inMemoryRepos ? createPgPatientBroadcastsPort() : inMemoryPatientBroadcastsPort;
+const broadcastDraftPort = !inMemoryRepos
+  ? createPgBroadcastDraftPort()
+  : createInMemoryBroadcastDraftPort();
+const broadcastChannelCountsPort = !inMemoryRepos
+  ? createPgBroadcastChannelCountsPort()
+  : createInMemoryBroadcastChannelCountsPort();
+const broadcastEmailRecipientsPort = !inMemoryRepos
+  ? createPgBroadcastEmailRecipientsPort()
+  : createInMemoryBroadcastEmailRecipientsPort();
 const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
@@ -546,6 +578,23 @@ const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoc
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 const specialistTasksPort = !inMemoryRepos ? createPgSpecialistTasksPort() : inMemorySpecialistTasksPort;
 const specialistTasksService = createSpecialistTasksService(specialistTasksPort);
+const patientFilesPort = !inMemoryRepos ? createPgPatientFilesPort() : inMemoryPatientFilesPort;
+const patientFilesService = createPatientFilesService({ patientFilesPort });
+const patientClinicalPort = !inMemoryRepos
+  ? createPgPatientClinicalPort()
+  : inMemoryPatientClinicalPort;
+const patientClinicalService = createPatientClinicalService({ patientClinicalPort });
+
+const patientComorbiditiesPort = !inMemoryRepos
+  ? createPgPatientComorbiditiesPort()
+  : inMemoryPatientComorbiditiesPort;
+const patientComorbiditiesService = createPatientComorbiditiesService({ patientComorbiditiesPort });
+
+const patientPaymentsPort = !inMemoryRepos
+  ? createPgPatientPaymentsPort()
+  : inMemoryPatientPaymentsPort;
+const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPort });
+// acquiringGateway is initialized below, after systemSettingsService + paymentsConfigReader are set up.
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
@@ -678,6 +727,18 @@ const paymentsService =
         },
       })
     : null;
+
+// Registry-backed acquiring gateway: delegates to the same PaymentProviderPort adapters
+// used by booking payments, sharing system_settings.booking_payment_providers as config.
+// Falls back to noopAcquiringGateway when repos are in-memory (test mode).
+const acquiringGateway = !inMemoryRepos
+  ? createRegistryAcquiringGateway({
+      getConfig: () =>
+        createPaymentsConfigReader((key) =>
+          systemSettingsService.getSetting(key, "admin"),
+        ).getBookingPaymentSettings(),
+    })
+  : noopAcquiringGateway;
 
 const refreshPackageCalendarForAppointment = bookingEngineService
   ? async (appointmentId: string) => {
@@ -1004,6 +1065,7 @@ const patientMessagingService = createPatientMessagingService(supportCommunicati
   },
   resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
+const patientNotificationInboxService = createPatientNotificationInboxService(supportCommunicationPort);
 const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
@@ -1255,6 +1317,11 @@ function _buildAppDeps() {
     doctorClientsPort,
     doctorNotes: doctorNotesService,
     specialistTasks: specialistTasksService,
+    patientFiles: patientFilesService,
+    patientClinical: patientClinicalService,
+    patientComorbidities: patientComorbiditiesService,
+    patientPayments: patientPaymentsService,
+    acquiringGateway,
     doctorMessaging: createDoctorMessagingService({
       getClientIdentity: async (userId) => {
         const p = await doctorClients.getClientProfile(userId);
@@ -1345,7 +1412,27 @@ function _buildAppDeps() {
         recordDeliveryAttempt: (input) => notificationDelivery.recordNotificationDeliveryAttempt(input),
         patientInboundChatPort: supportCommunicationPort,
       },
+      fanOutBroadcastEmailDeps: {
+        emailRecipientsPort: broadcastEmailRecipientsPort,
+        getSmtpValueJson: () =>
+          systemSettingsService
+            .getSetting("smtp_outbound", "admin")
+            .then((s) => s?.valueJson ?? null)
+            .catch(() => null),
+      },
     }),
+    doctorBroadcastComposer: {
+      loadDraft: (doctorUserId: string) => broadcastDraftPort.loadDraft(doctorUserId),
+      saveDraft: (doctorUserId: string, draft: BroadcastDraft) =>
+        broadcastDraftPort.saveDraft(doctorUserId, draft),
+      getChannelCounts: () => broadcastChannelCountsPort.getChannelConnectionCounts(),
+      getChannelCountsByAudience: async (filter: BroadcastAudienceFilter) => {
+        if (filter === "all") return broadcastChannelCountsPort.getChannelConnectionCounts();
+        const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
+        const userIds = clients.map((c) => c.userId);
+        return broadcastChannelCountsPort.getChannelCountsByUserIds(userIds);
+      },
+    },
     doctorMotivationQuotesEditor: doctorMotivationQuotesEditorPort,
     purchases: {
       getPurchaseSectionState,
@@ -1441,6 +1528,7 @@ function _buildAppDeps() {
     /** Поддержка: чат webapp ↔ админ (этап 8). */
     messaging: {
       patient: patientMessagingService,
+      patientNotifications: patientNotificationInboxService,
       doctorSupport: doctorSupportMessagingService,
     },
     reminders: remindersService,

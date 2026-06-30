@@ -16,13 +16,17 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+vi.mock("@/app-layer/booking/resolveDoctorCalendarIana", () => ({
+  resolveDoctorCalendarIana: vi.fn().mockResolvedValue("Europe/Moscow"),
+}));
+
 import { GET } from "./route";
 
 describe("GET /api/doctor/booking-engine/calendar", () => {
   it("returns calendar aggregate when authorized", async () => {
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1" },
+      ctx: { organizationId: "org-1", session: { user: { userId: "doctor-1" } } },
     });
     getCalendarMock.mockResolvedValue({
       events: [],

@@ -33,7 +33,9 @@ pnpm dev:stop            # stop dev listeners on :5200 / :4200 only (not prod :6
 
 Default local URL: `http://127.0.0.1:5200/app`
 
-**Режим разработки (вход в браузере без Telegram):** в `.env.dev` задайте `ALLOW_DEV_AUTH_BYPASS=true`. На странице `/app` появятся кнопки «Как пациент» и «Как врач / админ» — по клику создаётся сессия и выполняется переход в интерфейс пациента или врача/админа.
+**Режим разработки и тестирование UI:** полный гайд для агентов — [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](../../docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) (dev-bypass, `pnpm dev` / `webapp:dev` / `dev:turbo` / `dev:visual`, порты, curl).
+
+**Режим разработки (вход в браузере без Telegram):** в `.env.dev` задайте `ALLOW_DEV_AUTH_BYPASS=true`. На странице `/app` появятся кнопки «Как пациент», «Как врач / админ», «Как специалист» — по клику создаётся сессия. Или сразу: `/api/auth/dev-bypass?token=dev%3Aadmin` (см. гайд выше).
 
 ## Environment
 

@@ -5,7 +5,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import toast from "react-hot-toast";
-import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { InstanceEditorToolbar } from "./InstanceEditorToolbar";
 
 const saveDraft = vi.fn();
@@ -30,6 +29,7 @@ vi.mock("./programInstanceMutationGuard", () => ({
   isProgramInstanceEditLocked: () => draftState.editLocked,
 }));
 
+ 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
@@ -57,24 +57,22 @@ describe("InstanceEditorToolbar", () => {
 
   const baseProps = {
     programTitle: "План реабилитации",
-    patientProfileHref: doctorClientProfileHref("u1", { profileListScope: "appointments" }),
-    patientDisplayName: "Иван Т.",
     programStatus: "active" as const,
     pipelineStageCount: 0,
-    onCommentsClick: vi.fn(),
     onAddStageClick: vi.fn(),
     onChangeStageOrderClick: vi.fn(),
   };
 
-  it("renders sticky full-bleed toolbar with three zones", () => {
+  it("renders sticky full-bleed toolbar with program title and status badge", () => {
     render(<InstanceEditorToolbar {...baseProps} />);
 
     const toolbar = screen.getByTestId("instance-editor-toolbar");
     expect(toolbar).toHaveClass("sticky", "-mx-3");
-    expect(toolbar.className).toMatch(/top-\[calc\(3\.5rem/);
+    // Canonical context-aware sticky offset (0 on desktop, mobile-header height on <md) — task #49.
+    expect(toolbar.className).toMatch(/top-\[var\(--doctor-sticky-offset\)\]/);
 
     expect(screen.getByRole("heading", { name: /план реабилитации/i })).toBeInTheDocument();
-    expect(screen.getByTestId("instance-editor-comments")).toBeInTheDocument();
+    expect(screen.queryByTestId("instance-editor-comments")).not.toBeInTheDocument();
     expect(screen.getByTestId("instance-editor-add-stage")).toBeInTheDocument();
     expect(screen.getByTestId("instance-editor-change-stage-order")).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent(/несохранённые изменения/i);
@@ -133,15 +131,7 @@ describe("InstanceEditorToolbar", () => {
     expect(discardDraft).toHaveBeenCalledTimes(1);
   });
 
-  it("centers comments action on large layout grid", () => {
-    render(<InstanceEditorToolbar {...baseProps} />);
-    const grid = screen.getByTestId("instance-editor-toolbar").firstElementChild;
-    expect(grid?.className).toMatch(/lg:grid-cols/);
-    expect(screen.getByTestId("instance-editor-comments").closest(".lg\\:justify-self-center")).toBeTruthy();
-  });
-
   it("routes toolbar callbacks", async () => {
-    const onCommentsClick = vi.fn();
     const onAddStageClick = vi.fn();
     const onChangeStageOrderClick = vi.fn();
     const user = userEvent.setup();
@@ -149,17 +139,14 @@ describe("InstanceEditorToolbar", () => {
       <InstanceEditorToolbar
         {...baseProps}
         pipelineStageCount={2}
-        onCommentsClick={onCommentsClick}
         onAddStageClick={onAddStageClick}
         onChangeStageOrderClick={onChangeStageOrderClick}
       />,
     );
 
-    await user.click(screen.getByTestId("instance-editor-comments"));
     await user.click(screen.getByTestId("instance-editor-add-stage"));
     await user.click(screen.getByTestId("instance-editor-change-stage-order"));
 
-    expect(onCommentsClick).toHaveBeenCalledTimes(1);
     expect(onAddStageClick).toHaveBeenCalledTimes(1);
     expect(onChangeStageOrderClick).toHaveBeenCalledTimes(1);
   });

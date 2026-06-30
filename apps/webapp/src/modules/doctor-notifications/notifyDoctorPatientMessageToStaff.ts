@@ -1,9 +1,25 @@
+/**
+ * P17 migration (PLAN S14b): web_push leg migrated to relay-outbound, same pattern as P18/S14a.
+ *
+ * Instead of calling `sendWebPushToSubscriptions` directly (G2-guarded webapp sink),
+ * the web_push leg now emits a `web_push` intent to the integrator via relay-outbound.
+ * The integrator's `WebPushDeliveryAdapter` handles the actual send, covered by the
+ * pre-fork redirect chokepoint (G1). G2 guard in `sendWebPushToSubscriptions.ts` is
+ * kept intact — it still protects the remaining un-migrated legs (S14c–S14g).
+ *
+ * Channel-preference + subscription existence pre-check is still performed in the webapp
+ * to avoid unnecessary relay calls for staff who have web_push disabled or no subscriptions.
+ * vapidConfigured is set to `true` unconditionally — VAPID is now resolved by the integrator
+ * adapter at send time, not by the webapp.
+ *
+ * systemSettings dep is kept in the type for backward compat with call sites; it is no longer
+ * used by this function.
+ */
 import { logger } from "@/app-layer/logging/logger";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import { relayOutbound, type RelayInlineButton } from "@/modules/messaging/relayOutbound";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { defaultDoctorTopicFallbackChannels } from "./doctorTopicChannelDefaults";
 import type { DoctorNotificationTopicCode } from "./doctorNotificationTopics";
@@ -15,6 +31,7 @@ export type NotifyDoctorPatientMessageToStaffDeps = {
   topicChannelPrefs: TopicChannelPrefsPort;
   channelPreferences: ChannelPreferencesPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
+  /** Kept for call-site compat. No longer used; VAPID is read by the integrator adapter. */
   systemSettings: Pick<SystemSettingsService, "getSetting">;
   getChannelBindings: (
     platformUserId: string,
@@ -41,7 +58,6 @@ export async function notifyDoctorPatientMessageToStaff(
   input: NotifyDoctorStaffTopicInput,
   deps: NotifyDoctorPatientMessageToStaffDeps,
 ): Promise<NotifyDoctorPatientMessageToStaffResult> {
-  const vapid = await getWebPushVapidKeyPair(deps.systemSettings);
   const staffIds = await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
@@ -54,24 +70,12 @@ export async function notifyDoctorPatientMessageToStaff(
     return { telegramDelivered, maxDelivered, pushDelivered };
   }
 
-  const { sendWebPushToSubscriptions } = vapid
-    ? await import("@/modules/web-push/sendWebPushToSubscriptions")
-    : { sendWebPushToSubscriptions: null };
-  const { smtpInnerFromValueJson } = await import("@/modules/outbound-email/sendTransactionalSmtp");
-  const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
-  const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
-  const vapidSubject =
-    smtpParsed?.success === true && smtpParsed.data.from.includes("@")
-      ? `mailto:${smtpParsed.data.from}`
-      : "mailto:noreply@invalid";
-
   for (const userId of staffIds) {
-    const [prefRows, channelPrefs, bindings, hasPush, subs] = await Promise.all([
+    const [prefRows, channelPrefs, bindings, hasPush] = await Promise.all([
       deps.topicChannelPrefs.listByUserId(userId),
       deps.channelPreferences.getPreferences(userId),
       deps.getChannelBindings(userId),
       deps.webPushSubscriptions.hasAnyForUserId(userId),
-      deps.webPushSubscriptions.listActiveByUserId(userId),
     ]);
 
     const channels = resolveDoctorNotificationChannels({
@@ -82,7 +86,8 @@ export async function notifyDoctorPatientMessageToStaff(
         hasEmail: false,
         emailVerified: false,
         hasWebPushSubscription: hasPush,
-        vapidConfigured: Boolean(vapid),
+        // VAPID is now resolved by the integrator adapter — always available from webapp's view.
+        vapidConfigured: true,
       },
       channelPrefs,
       topicChannelRows: prefRows,
@@ -97,7 +102,7 @@ export async function notifyDoctorPatientMessageToStaff(
         messageId: input.messageId,
         selectedChannels: channels,
         hasWebPushSubscription: hasPush,
-        vapidConfigured: Boolean(vapid),
+        vapidConfigured: true,
       },
       "doctor staff notify channels",
     );
@@ -134,28 +139,27 @@ export async function notifyDoctorPatientMessageToStaff(
       if (result.ok) maxDelivered += 1;
     }
 
-    if (channels.includes("web_push") && vapid && sendWebPushToSubscriptions && subs.length > 0) {
-      const pushResult = await sendWebPushToSubscriptions({
-        subscriptions: subs,
-        vapidPublicKey: vapid.publicKey,
-        vapidPrivateKey: vapid.privateKey,
-        vapidSubject,
-        payload: {
+    if (channels.includes("web_push") && hasPush) {
+      // Emit a web_push intent to the integrator via relay-outbound.
+      // The integrator's WebPushDeliveryAdapter performs the actual send.
+      // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the
+      // telegram test chat — ZERO real webpush.sendNotification calls.
+      const tag = `${input.topicCode}:${input.messageId}`;
+      const result = await relayOutbound({
+        messageId: `${input.messageId}:push:${userId}`,
+        channel: "web_push",
+        recipient: userId,
+        text: input.pushBody,
+        metadata: {
           title: input.pushTitle,
-          body: input.pushBody,
           url: input.pushUrl,
-          tag: `${input.topicCode}:${input.messageId}`,
+          pushExtras: { tag },
         },
-        onSubscriptionDead: async (endpoint) => {
-          await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
-        },
-        verbose: true,
-        logContext: { userId, topicCode: input.topicCode },
       }).catch((err: unknown) => {
-        logger.warn({ err, userId, topicCode: input.topicCode }, "doctor staff web push failed");
-        return { delivered: 0, errors: 1, deactivated: 0 };
+        logger.warn({ err, userId, topicCode: input.topicCode }, "doctor staff web push relay failed");
+        return { ok: false as const, reason: "relay_error" };
       });
-      pushDelivered += pushResult.delivered;
+      if (result.ok) pushDelivered += 1;
     }
   }
 

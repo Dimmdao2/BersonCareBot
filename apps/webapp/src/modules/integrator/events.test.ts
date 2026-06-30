@@ -1115,6 +1115,163 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(result.accepted).toBe(true);
   });
 
+  it("appointment.record.upserted status=deleted → silent soft-delete, no upsert / patient-booking / notification", async () => {
+    const softDeleteByIntegratorId = vi.fn().mockResolvedValue(true);
+    const upsertRecordFromProjection = vi.fn();
+    const applyRubitimeUpdate = vi.fn();
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection,
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId,
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-deleted-1",
+          phoneNormalized: "+79991234567",
+          recordAt: "2025-06-01T10:00:00.000Z",
+          status: "deleted",
+          payloadJson: {},
+          lastEvent: "event-delete-record",
+          updatedAt: "2025-05-01T12:00:00.000Z",
+        },
+      },
+      {
+        ...mockDeps,
+        appointmentProjection: mockAp,
+        patientBooking: { applyRubitimeUpdate } as unknown as PatientBookingService,
+      },
+    );
+    expect(result).toEqual({ accepted: true, reason: "soft_deleted" });
+    expect(softDeleteByIntegratorId).toHaveBeenCalledWith("rec-deleted-1");
+    // No upsert / patient-booking write (no `cancelled`, no notification side-effects).
+    expect(upsertRecordFromProjection).not.toHaveBeenCalled();
+    expect(applyRubitimeUpdate).not.toHaveBeenCalled();
+    expect(mockAp.getRecordByIntegratorId).not.toHaveBeenCalled();
+  });
+
+  it("appointment.record.upserted status=deleted → also CANONICAL soft-delete (F1b), silent", async () => {
+    const softDeleteByIntegratorId = vi.fn().mockResolvedValue(true);
+    const softDeleteAppointmentByRubitimeExternalId = vi.fn().mockResolvedValue(true);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn(),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId,
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-deleted-canon",
+          status: "deleted",
+          payloadJson: {},
+          lastEvent: "event-remove-record",
+          updatedAt: "2025-05-01T12:00:00.000Z",
+        },
+      },
+      {
+        ...mockDeps,
+        appointmentProjection: mockAp,
+        bookingEngineCanonicalSoftDelete: {
+          softDeleteAppointmentByRubitimeExternalId,
+          getDefaultOrganizationId: async () => "a0000000-0000-4000-8000-000000000001",
+        },
+      },
+    );
+    expect(result).toEqual({ accepted: true, reason: "soft_deleted" });
+    expect(softDeleteByIntegratorId).toHaveBeenCalledWith("rec-deleted-canon");
+    expect(softDeleteAppointmentByRubitimeExternalId).toHaveBeenCalledWith({
+      organizationId: "a0000000-0000-4000-8000-000000000001",
+      rubitimeId: "rec-deleted-canon",
+    });
+  });
+
+  it("appointment.record.upserted status=deleted → accepted even if canonical soft-delete throws (best-effort)", async () => {
+    const softDeleteByIntegratorId = vi.fn().mockResolvedValue(true);
+    const softDeleteAppointmentByRubitimeExternalId = vi
+      .fn()
+      .mockRejectedValue(new Error("canon boom"));
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn(),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId,
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-deleted-canon-err",
+          status: "deleted",
+          payloadJson: {},
+          lastEvent: "event-remove-record",
+          updatedAt: "2025-05-01T12:00:00.000Z",
+        },
+      },
+      {
+        ...mockDeps,
+        appointmentProjection: mockAp,
+        bookingEngineCanonicalSoftDelete: {
+          softDeleteAppointmentByRubitimeExternalId,
+          getDefaultOrganizationId: async () => "a0000000-0000-4000-8000-000000000001",
+        },
+      },
+    );
+    expect(result).toEqual({ accepted: true, reason: "soft_deleted" });
+    expect(softDeleteAppointmentByRubitimeExternalId).toHaveBeenCalled();
+  });
+
+  it("appointment.record.upserted status=canceled (Rubitime cancel, regression) → upsert canceled, NOT soft-delete", async () => {
+    const softDeleteByIntegratorId = vi.fn().mockResolvedValue(true);
+    const upsertRecordFromProjection = vi.fn().mockResolvedValue(undefined);
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn().mockResolvedValue(null),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection,
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId,
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-cancel-1",
+          phoneNormalized: "+79991234567",
+          recordAt: "2025-06-01T10:00:00.000Z",
+          status: "canceled",
+          payloadJson: {},
+          lastEvent: "event-update-record",
+          updatedAt: "2025-05-01T12:00:00.000Z",
+        },
+      },
+      {
+        ...mockDeps,
+        appointmentProjection: mockAp,
+        patientBooking: { applyRubitimeUpdate } as unknown as PatientBookingService,
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(softDeleteByIntegratorId).not.toHaveBeenCalled();
+    expect(upsertRecordFromProjection).toHaveBeenCalledWith(
+      expect.objectContaining({ integratorRecordId: "rec-cancel-1", status: "canceled" }),
+    );
+  });
+
   it("appointment.record.upserted projects into canonical be_appointments when bridge port is wired", async () => {
     const upsertCanonicalFromRubitimeRecord = vi.fn().mockResolvedValue({ action: "inserted", appointmentId: "appt-1" });
     const result = await handleIntegratorEvent(

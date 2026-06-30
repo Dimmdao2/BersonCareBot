@@ -6,6 +6,7 @@ import {
   referenceItemsToRecommendationDomainFilterDto,
 } from "@/modules/recommendations/recommendationDomain";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import {
   parseRecommendationListFilterScope,
@@ -74,6 +75,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
 
   return (
     <DoctorAppShell title="Рекомендации" user={session.user} backHref="/app/doctor">
+      <DoctorPageHeader title="Рекомендации" />
       <RecommendationsPageClient
         initialItems={items}
         initialSelectedId={initialSelectedId}

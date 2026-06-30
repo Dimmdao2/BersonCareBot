@@ -1,5 +1,10 @@
 // Load .env (или .env.dev, если .env нет). Use dev DB only when USE_REAL_DATABASE=1.
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/react";
+
+// Raise global waitFor/findBy* timeout from 1000ms → 3000ms to prevent
+// timing flakes when the full test suite runs under CPU pressure.
+configure({ asyncUtilTimeout: 3000 });
 
 /** Base UI `Switch` (and similar) dereference `PointerEvent` in handlers; jsdom has `MouseEvent` but not `PointerEvent`. Skip in pure Node test environments. */
 if (

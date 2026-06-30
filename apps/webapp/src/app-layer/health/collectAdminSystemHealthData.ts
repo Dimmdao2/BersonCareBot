@@ -3,6 +3,7 @@ import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+  ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED,
   loadAdminPlaybackHealthMetrics,
 } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import { loadAdminPlaybackClientHealthMetrics } from "@/app-layer/media/playbackClientEvents";
@@ -444,12 +445,18 @@ function initMediaPreviewCounters(): MediaPreviewCounters {
   return byMime;
 }
 
-function computeMediaPreviewStatus(counters: MediaPreviewCounters, stalePendingCount: number): MediaPreviewStatus {
+export function computeMediaPreviewStatus(
+  counters: MediaPreviewCounters,
+  stalePendingCount: number,
+): MediaPreviewStatus {
   const failedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].failed, 0);
-  const pendingCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].pending, 0);
-  const skippedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].skipped, 0);
+  // #53: «pending» (preview ещё генерируется) и «skipped» (генерация осознанно
+  // пропущена) — это НОРМАЛЬНАЯ асинхронная работа, не деградация. Деградацию даёт
+  // только ЗАСТРЯВШИЙ pending (> STALE_PENDING_MINUTES, отдельный запрос ниже);
+  // реальный сбой генерации (failed) — это error. Иначе любая свежезагруженная
+  // картинка с pending-превью ложно красила всю панель в «degraded».
   if (failedCount > 0) return "error";
-  if (pendingCount > 0 || skippedCount > 0 || stalePendingCount > 0) return "degraded";
+  if (stalePendingCount > 0) return "degraded";
   return "ok";
 }
 
@@ -652,7 +659,8 @@ async function probeVideoPlaybackClient(): Promise<ProbeResult<VideoPlaybackClie
     const m = await loadAdminPlaybackClientHealthMetrics({
       windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
     });
-    const status: VideoPlaybackClientHealthStatus = m.totalErrorsLast1h > 0 ? "degraded" : "ok";
+    const status: VideoPlaybackClientHealthStatus =
+      m.totalErrorsLast1h >= ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED ? "degraded" : "ok";
     return {
       ok: true,
       value: {

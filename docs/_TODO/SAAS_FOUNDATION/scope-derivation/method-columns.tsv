@@ -1,0 +1,185 @@
+admin_audit_log		0	0
+appointment_records	platform_user_id	0	1
+auth_rate_limit_events		0	0
+be_appointment_cancellations		1	0
+be_appointment_events		1	0
+be_appointment_history_events		1	0
+be_appointment_no_shows		1	0
+be_appointment_reschedules		1	0
+be_appointment_staff_comments	platform_user_id	1	0
+be_appointments	platform_user_id	1	1
+be_availability_rules		1	1
+be_booking_form_fields		1	0
+be_booking_form_submissions		1	0
+be_branches		1	0
+be_cancellation_policies		1	0
+be_clinic_services		1	0
+be_external_entity_mappings		1	0
+be_organizations		0	0
+be_package_history_events		1	0
+be_package_items		0	0
+be_package_usages	created_by_platform_user_id	1	0
+be_patient_booking_profiles	platform_user_id	1	0
+be_patient_package_items		0	0
+be_patient_packages	assigned_by_platform_user_id,platform_user_id	1	0
+be_patient_timeline_events	platform_user_id	1	0
+be_payment_history_events	platform_user_id	1	0
+be_payment_intents	platform_user_id	1	0
+be_payment_provider_events		1	0
+be_payments	platform_user_id	1	0
+be_prepayment_policies		1	0
+be_product_history_events		1	0
+be_product_pay_links		1	0
+be_product_purchases	assigned_by_platform_user_id,platform_user_id	1	0
+be_products		1	0
+be_refunds		1	0
+be_reschedule_policies		1	0
+be_rooms		1	1
+be_schedule_blocks		1	1
+be_schedule_templates		1	1
+be_service_location_availability		1	1
+be_specialist_locations		1	1
+be_specialist_rooms		1	0
+be_specialist_service_availability		1	1
+be_specialists		1	0
+be_subscription_packages		1	0
+be_working_days		1	1
+be_working_hours		1	1
+booking_branch_services		0	1
+booking_branches		0	0
+booking_cities		0	0
+booking_services		0	0
+booking_specialists		0	1
+branches		0	0
+broadcast_audit		0	0
+broadcast_audit_recipients	platform_user_id	0	0
+channel_link_secrets	user_id	0	0
+clinical_anamnesis_illness	patient_user_id	0	0
+clinical_anamnesis_lifestyle	patient_user_id	0	0
+clinical_anamnesis_trauma	patient_user_id	0	0
+clinical_complaint	patient_user_id	0	0
+clinical_complaint_update		0	0
+clinical_diagnosis	patient_user_id	0	0
+clinical_diagnosis_catalog		0	0
+clinical_diagnosis_status_history		0	0
+clinical_diagnosis_update		0	0
+clinical_test_measure_kinds		0	0
+clinical_test_regions		0	0
+clinical_visit	patient_user_id	0	0
+comments		0	0
+content_access_grants_webapp	integrator_user_id,platform_user_id	0	0
+content_pages		0	0
+content_section_slug_history	changed_by_user_id	0	0
+content_sections		0	0
+courses		0	0
+doctor_notes	user_id	0	0
+doctor_patient_support	patient_user_id	0	0
+email_challenges	user_id	0	0
+email_send_cooldowns	user_id	0	0
+idempotency_keys		0	0
+integration_webhook_error_events		0	0
+integration_webhook_last_status		0	0
+integrator_push_outbox		0	0
+lfk_complex_exercises		0	0
+lfk_complex_template_exercises		0	0
+lfk_complex_templates		0	0
+lfk_complexes	platform_user_id,user_id	0	0
+lfk_exercise_media		0	0
+lfk_exercise_regions		0	0
+lfk_exercises		0	0
+lfk_sessions	user_id	0	0
+login_tokens	user_id	0	0
+mailing_logs_webapp	integrator_user_id	0	0
+mailing_topics_webapp		0	0
+material_ratings	user_id	0	0
+media_files		0	0
+media_folders	patient_user_id	0	0
+media_hls_proxy_error_events	user_id	0	0
+media_playback_client_events	user_id	0	0
+media_playback_resolution_events	user_id	0	0
+media_playback_stats_hourly		0	0
+media_playback_user_video_first_resolve	user_id	0	0
+media_transcode_jobs		0	0
+media_upload_sessions	owner_user_id	0	0
+message_log	platform_user_id,user_id	0	0
+motivational_quotes		0	0
+notification_delivery_attempts	integrator_user_id,user_id	0	0
+online_intake_answers		0	0
+online_intake_attachments		0	0
+online_intake_requests	user_id	0	0
+online_intake_status_history		0	0
+operator_health_alert_sent		0	0
+operator_health_failure_archive	archived_by_user_id,doctor_user_id	0	0
+operator_incidents		0	0
+operator_job_status		0	0
+outgoing_delivery_queue		0	0
+patient_bookings	platform_user_id	0	1
+patient_comorbidity	patient_user_id	0	0
+patient_content_rating_feedback	user_id	0	0
+patient_daily_warmup_presentations	user_id	0	0
+patient_daily_warmup_video_views	user_id	0	0
+patient_diary_day_snapshots	platform_user_id	0	0
+patient_files	patient_user_id,uploaded_by_user_id	0	0
+patient_home_block_items		0	0
+patient_home_blocks		0	0
+patient_lfk_assignments	patient_user_id	0	0
+patient_merge_candidates	anchor_user_id,candidate_user_id	1	0
+patient_payment	patient_user_id	0	0
+patient_practice_completions	user_id	0	0
+phone_challenges		0	0
+phone_messenger_bind_secrets	user_id	0	0
+phone_otp_locks		0	0
+platform_user_contacts	platform_user_id	0	0
+platform_users	integrator_user_id	0	0
+product_analytics_events_recent	user_id	0	0
+product_analytics_hourly		0	0
+product_analytics_user_hourly	user_id	0	0
+product_push_notifications	user_id	0	0
+program_action_log	patient_user_id	0	0
+program_item_discussion_messages	patient_user_id	0	0
+program_item_discussion_reads	patient_user_id	0	0
+recommendation_regions		0	0
+recommendations		0	0
+reference_categories		0	0
+reference_items		0	0
+reminder_delivery_events	integrator_user_id	0	0
+reminder_journal		0	0
+reminder_occurrence_history	integrator_user_id	0	0
+reminder_rules	integrator_user_id,platform_user_id	0	0
+schema_migrations		0	0
+specialist_tasks	owner_user_id,patient_user_id	0	0
+support_conversation_messages		0	0
+support_conversations	integrator_user_id,platform_user_id	0	0
+support_delivery_events		0	0
+support_question_messages		0	0
+support_questions		0	0
+symptom_entries	platform_user_id,user_id	0	0
+symptom_trackings	platform_user_id,user_id	0	0
+system_settings		0	0
+test_attempts	patient_user_id	0	0
+test_results		0	0
+test_set_items		0	0
+test_sets		0	0
+tests		0	0
+treatment_program_events		0	0
+treatment_program_instance_stage_groups		0	0
+treatment_program_instance_stage_items		0	0
+treatment_program_instance_stages		0	0
+treatment_program_instances	patient_user_id	0	0
+treatment_program_template_stage_groups		0	0
+treatment_program_template_stage_items		0	0
+treatment_program_template_stages		0	0
+treatment_program_templates		0	0
+user_channel_bindings	user_id	0	0
+user_channel_preferences	platform_user_id,user_id	0	0
+user_email_setup_tokens	created_by_user_id,user_id	0	0
+user_notification_topic_channels	user_id	0	0
+user_notification_topics	user_id	0	0
+user_oauth_bindings	provider_user_id,user_id	0	0
+user_password_credentials	user_id	0	0
+user_phone_history	platform_user_id	0	0
+user_pins	user_id	0	0
+user_subscriptions_webapp	integrator_user_id	0	0
+user_web_push_subscriptions	user_id	0	0
+webapp_reminder_occurrences	platform_user_id	0	0
+webapp_schema_migrations		0	0

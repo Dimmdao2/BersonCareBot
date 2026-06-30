@@ -6,6 +6,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { DoctorAppointmentsListClient } from "./DoctorAppointmentsListClient";
 import { DoctorAppointmentsToolbar } from "./DoctorAppointmentsToolbar";
 import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
@@ -33,26 +34,25 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
 
   return (
     <DoctorAppShell title="Записи" user={session.user}>
-      <div className="space-y-4">
-        <DoctorAppointmentsToolbar tab={tab} isAdmin={isAdmin} />
+      <DoctorPageHeader title="Записи" />
+      <DoctorAppointmentsToolbar tab={tab} isAdmin={isAdmin} />
 
-        {tab === "appointments" ? (
-          <DoctorAppointmentsListClient
-            appointments={appointments}
-            view={view}
-          />
-        ) : isAdmin ? (
-          <div className="space-y-4">
-            <BookingSoloScheduleSection />
-            <BookingScheduleBlocksSection soloUx />
-            <BookingScheduleSlotsProbeSection />
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Управление расписанием доступно только администратору.
-          </p>
-        )}
-      </div>
+      {tab === "appointments" ? (
+        <DoctorAppointmentsListClient
+          appointments={appointments}
+          view={view}
+        />
+      ) : isAdmin ? (
+        <div className="flex flex-col gap-3">
+          <BookingSoloScheduleSection />
+          <BookingScheduleBlocksSection soloUx />
+          <BookingScheduleSlotsProbeSection />
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Управление расписанием доступно только администратору.
+        </p>
+      )}
     </DoctorAppShell>
   );
 }

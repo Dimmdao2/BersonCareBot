@@ -79,7 +79,7 @@ describe('rubitime Google Calendar sync (connector)', () => {
     expect(syncAppointmentToCalendarMock).not.toHaveBeenCalled();
   });
 
-  it('maps event-remove-record to canceled calendar sync without throwing', async () => {
+  it('maps event-delete-record to deleted action but still removes the calendar event', async () => {
     syncAppointmentToCalendarMock.mockResolvedValue(null);
     const body = {
       from: 'rubitime',
@@ -87,11 +87,29 @@ describe('rubitime Google Calendar sync (connector)', () => {
       data: { record: { id: '77', record: '2026-01-01 10:00:00' } },
     };
     const incoming = toRubitimeIncoming(body);
-    expect(incoming.action).toBe('canceled');
+    // Rubitime delete → action 'deleted' (silent soft-delete), NOT 'canceled'.
+    expect(incoming.action).toBe('deleted');
     expect(incoming.recordId).toBe('77');
     await syncRubitimeWebhookBodyToGoogleCalendar(incoming);
+    // GCal still removes the event (delete maps to GCal 'canceled' removal).
     expect(syncAppointmentToCalendarMock).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'canceled', rubRecordId: '77' }),
+    );
+  });
+
+  it('maps event-remove-record to deleted action but still removes the calendar event', async () => {
+    syncAppointmentToCalendarMock.mockResolvedValue(null);
+    const body = {
+      from: 'rubitime',
+      event: 'event-remove-record' as const,
+      data: { record: { id: '78', record: '2026-01-01 10:00:00' } },
+    };
+    const incoming = toRubitimeIncoming(body);
+    expect(incoming.action).toBe('deleted');
+    expect(incoming.recordId).toBe('78');
+    await syncRubitimeWebhookBodyToGoogleCalendar(incoming);
+    expect(syncAppointmentToCalendarMock).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'canceled', rubRecordId: '78' }),
     );
   });
 });

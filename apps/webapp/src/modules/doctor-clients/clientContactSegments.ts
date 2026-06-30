@@ -29,6 +29,10 @@ export type ClientContactBreakdown = {
   phoneOnly: number;
   /** Нет телефона, email, telegram, max — гость приложения. */
   appGuests: number;
+  /** Клиенты с хотя бы одной записью (appointment_records). */
+  patientsCount: number;
+  /** Клиенты без записей (подписчики без визитов). */
+  subscribersOnlyCount: number;
   pie: Record<ClientContactPieSegment, number>;
   messengerBotBlocked: { telegram: number; max: number };
 };
@@ -38,6 +42,8 @@ export function emptyClientContactBreakdown(): ClientContactBreakdown {
     total: 0,
     phoneOnly: 0,
     appGuests: 0,
+    patientsCount: 0,
+    subscribersOnlyCount: 0,
     pie: {
       telegram_only: 0,
       max_only: 0,

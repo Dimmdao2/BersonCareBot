@@ -71,6 +71,8 @@ export const beBranches = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid("organization_id").notNull(),
     title: text().notNull(),
+    /** Short display name (e.g. «СПб», «Мск»). Migration 0117. Nullable; UI falls back to title. */
+    shortTitle: text("short_title"),
     cityCode: text("city_code").notNull(),
     address: text(),
     timezone: text().default("Europe/Moscow").notNull(),
@@ -345,6 +347,8 @@ export const beAppointments = pgTable(
     attributionJson: jsonb("attribution_json").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    /** F1b: inbound Rubitime delete/remove → silent canonical soft-delete (excluded from calendar/availability/KPI). */
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     index("idx_be_appointments_org_start").using(

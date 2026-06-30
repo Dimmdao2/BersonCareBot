@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
@@ -57,24 +58,18 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
 
   const startEmail = async () => {
     setStartError(null);
-    const res = await fetch("/api/auth/email/start", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: emailDraft.trim() }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      challengeId?: string;
-      retryAfterSeconds?: number;
-      message?: string;
-    };
-    if (data.ok && data.challengeId) {
+    try {
+      const data = await apiJson<{ ok: boolean; challengeId: string; retryAfterSeconds?: number }>("/api/auth/email/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: emailDraft.trim() }),
+      });
       setChallengeId(data.challengeId);
       setRetrySec(data.retryAfterSeconds ?? 60);
       setStep("code");
-      return;
+    } catch (e) {
+      setStartError(e instanceof Error ? e.message : "Не удалось отправить код");
     }
-    setStartError(data.message ?? "Не удалось отправить код");
   };
 
   const confirmCode = async () => {
@@ -87,29 +82,22 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
     }
     setCodeLoading(true);
     try {
-      const res = await fetch("/api/auth/email/confirm", {
+      await apiJson<{ ok: boolean }>("/api/auth/email/confirm", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ challengeId, code: raw }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        message?: string;
-        error?: string;
-        retryAfterSeconds?: number;
-      };
-      if (data.ok) {
-        setStep("view");
-        setChallengeId(null);
-        router.refresh();
-        return;
-      }
-      if (data.error === "too_many_attempts") {
+      setStep("view");
+      setChallengeId(null);
+      router.refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка";
+      if (msg === "too_many_attempts") {
         setHardBlocked(true);
         setCodeError(OTP_TOO_MANY_ATTEMPTS_MESSAGE);
         return;
       }
-      setCodeError(data.message ?? "Ошибка");
+      setCodeError(msg);
     } finally {
       setCodeLoading(false);
     }
@@ -119,18 +107,16 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
     setDeleteError(null);
     setDeleteLoading(true);
     try {
-      const res = await fetch("/api/doctor/account/email", { method: "DELETE" });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (data.ok) {
-        setDeleteDialogOpen(false);
-        router.refresh();
-        return;
-      }
-      if (data.error === "already_empty") {
+      await apiJson<{ ok: boolean }>("/api/doctor/account/email", { method: "DELETE" });
+      setDeleteDialogOpen(false);
+      router.refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Не удалось удалить email";
+      if (msg === "already_empty") {
         setDeleteError("Email уже не указан");
         return;
       }
-      setDeleteError("Не удалось удалить email");
+      setDeleteError(msg);
     } finally {
       setDeleteLoading(false);
     }
@@ -139,30 +125,23 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
   const resendCode = async () => {
     if (hardBlocked) return;
     setCodeError(null);
-    const res = await fetch("/api/auth/email/start", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: emailDraft.trim() }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      challengeId?: string;
-      retryAfterSeconds?: number;
-      error?: string;
-      message?: string;
-    };
-    if (data.ok && data.challengeId) {
+    try {
+      const data = await apiJson<{ ok: boolean; challengeId: string; retryAfterSeconds?: number }>("/api/auth/email/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: emailDraft.trim() }),
+      });
       setChallengeId(data.challengeId);
       setRetrySec(data.retryAfterSeconds ?? 60);
-      return;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Не удалось отправить код";
+      if (msg === "rate_limited") {
+        setCanResend(false);
+        setResendCountdown(60);
+        return;
+      }
+      setCodeError(msg);
     }
-    if (res.status === 429 || data.error === "rate_limited") {
-      const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
-      setCanResend(false);
-      setResendCountdown(sec);
-      return;
-    }
-    setCodeError(data.message ?? "Не удалось отправить код");
   };
 
   return (

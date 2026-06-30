@@ -37,6 +37,37 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       return { id, createdAt };
     },
 
+    async updateLatestSimpleDonePayload(params) {
+      const found = [...rows]
+        .filter(
+          (r) =>
+            r.instanceId === params.instanceId &&
+            r.patientUserId === params.patientUserId &&
+            r.instanceStageItemId === params.instanceStageItemId &&
+            r.actionType === "done" &&
+            isSimpleDonePayload(r.payload ?? null),
+        )
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))[0];
+      if (!found) return false;
+      found.payload = { ...(found.payload ?? {}), ...params.payloadPatch };
+      return true;
+    },
+
+    async getLatestSimpleDonePayload(params) {
+      const found = [...rows]
+        .filter(
+          (r) =>
+            r.instanceId === params.instanceId &&
+            r.patientUserId === params.patientUserId &&
+            r.instanceStageItemId === params.instanceStageItemId &&
+            r.actionType === "done" &&
+            isSimpleDonePayload(r.payload ?? null),
+        )
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))[0];
+      if (!found) return null;
+      return { createdAt: found.createdAt, payload: found.payload ?? null };
+    },
+
     async deleteSimpleDoneInWindow(params) {
       for (let i = rows.length - 1; i >= 0; i--) {
         const r = rows[i]!;
@@ -278,6 +309,34 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
       const out: ProgramActionLogListRow[] = [];
       for (const r of filtered.slice(0, limit)) {
+        if (!PROGRAM_ACTION_TYPES.includes(r.actionType as ProgramActionType)) continue;
+        out.push({
+          id: r.id,
+          instanceId: r.instanceId,
+          instanceStageItemId: r.instanceStageItemId,
+          patientUserId: r.patientUserId,
+          sessionId: r.sessionId ?? null,
+          actionType: r.actionType as ProgramActionType,
+          payload: r.payload ?? null,
+          note: r.note ?? null,
+          createdAt: r.createdAt,
+        });
+      }
+      return out;
+    },
+
+    async listDoneForStageItemInWindow(params) {
+      const filtered = rows.filter(
+        (r) =>
+          r.instanceId === params.instanceId &&
+          r.instanceStageItemId === params.instanceStageItemId &&
+          r.actionType === "done" &&
+          r.createdAt >= params.windowStartUtcIso &&
+          r.createdAt < params.windowEndUtcExclusiveIso,
+      );
+      filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+      const out: ProgramActionLogListRow[] = [];
+      for (const r of filtered.slice(0, 50)) {
         if (!PROGRAM_ACTION_TYPES.includes(r.actionType as ProgramActionType)) continue;
         out.push({
           id: r.id,

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
@@ -12,6 +11,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { isStaffDeletableCancelledStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 
 const API_BASE = "/api/doctor/booking-engine";
 
@@ -42,7 +42,7 @@ function actionErrorLabel(error: string | undefined): string {
 }
 
 export function DoctorAppointmentActions({ recordId, status, onChanged }: Props) {
-  const [pending, setPending] = useState<"cancel" | "reschedule" | "delete" | null>(null);
+  const [pending, setPending] = useState<"cancel" | "reschedule" | "delete" | "noshow" | null>(null);
   const [note, setNote] = useState<string>("");
   const [cancelType, setCancelType] = useState("free");
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -76,6 +76,27 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
       onChanged?.();
     } catch (err) {
       setNote(`Ошибка отмены: ${err instanceof Error ? actionErrorLabel(err.message) : "unknown"}`);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function onNoShow() {
+    if (!isCanonicalAppointmentId(recordId)) {
+      setNote("Запись без канонического id — откройте календарь.");
+      return;
+    }
+    if (!window.confirm("Отметить как «не пришёл»?")) return;
+    setPending("noshow");
+    setNote("");
+    try {
+      await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/manual-no-show`, {});
+      setNote("Отмечено: не пришёл.");
+      onChanged?.();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown";
+      const label = msg === "state_conflict" ? "Уже отмечено как «не пришёл»." : msg;
+      setNote(`Ошибка: ${label}`);
     } finally {
       setPending(null);
     }
@@ -164,6 +185,18 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
         >
           Отменить
         </Button>
+        {status === "confirmed" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onNoShow}
+            disabled={pending !== null}
+            aria-label={`doctor-appointment-noshow-${recordId}`}
+          >
+            Не пришёл
+          </Button>
+        ) : null}
         {isStaffDeletableCancelledStatus(status) ? (
           <Button
             type="button"
@@ -181,9 +214,9 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
       {rescheduleOpen ? (
         <div className="space-y-2 rounded-lg border border-border p-2">
           <Label>Начало</Label>
-          <Input type="datetime-local" value={newStartLocal} onChange={(e) => setNewStartLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newStartLocal} onChange={setNewStartLocal} />
           <Label>Окончание</Label>
-          <Input type="datetime-local" value={newEndLocal} onChange={(e) => setNewEndLocal(e.target.value)} />
+          <DoctorDateTimePicker value={newEndLocal} onChange={setNewEndLocal} />
           <Button type="button" size="sm" disabled={pending !== null} onClick={onRescheduleSubmit}>
             Сохранить перенос
           </Button>

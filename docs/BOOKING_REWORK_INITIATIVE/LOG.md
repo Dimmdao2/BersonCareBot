@@ -1,5 +1,53 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-14 — No-show handling (не пришёл)
+
+**Ветка:** `worktree-agent-ad583da3897b81d63` (изолированный worktree от `claude/blissful-lichterman-0705eb`).
+
+**Реализовано:**
+
+1. **Статус + история/проекции.** `be_appointment_no_shows` таблица (mirror `be_appointment_cancellations`), запись события `no_show` в `be_appointment_events` / `be_appointment_history_events` / `be_patient_timeline_events`. FSM: только `confirmed → no_show` (по `appointmentStatusFsm`).
+
+2. **Счётчик на пациента.** Колонка `no_show_count` в `be_patient_booking_profiles`; атомарный `INSERT ... ON CONFLICT DO UPDATE SET no_show_count = no_show_count + 1` в той же транзакции `applyNoShow`. Идемпотентный (терминальная проверка в сервисе → `state_conflict` если уже `no_show`).
+
+3. **Уведомление пациента.** `applyStaffNoShowSideEffects` — тот же механизм подавления R21 что и `applyStaffCancelSideEffects` (`suppressPatientNotification`). Интегратор получает `booking.cancelled` (no-show — вариант отмены без визита). Проекция обновляется в `"canceled"` / `lastEvent="native.no_show"`.
+
+**Ключевые файлы изменены:**
+- `db/schema/bookingPolicies.ts` — добавлена `beAppointmentNoShows`
+- `db/schema/bookingClientProfile.ts` — добавлена `noShowCount`
+- `db/drizzle-migrations/0115_be_no_show_handling.sql` — миграция (в orchestrator ветке она уже `0124`; при merge переименовать)
+- `db/drizzle-migrations/meta/_journal.json` — запись `0115`
+- `modules/booking-appointment-lifecycle/ports.ts` — `AppointmentNoShowRecord`, `MarkNoShowInput`, три новых метода порта
+- `modules/booking-appointment-lifecycle/service.ts` — `staffMarkNoShow`, `listNoShows`, `patchLatestNoShowNotifications`
+- `modules/booking-appointment-lifecycle/noShow.service.test.ts` — 5 тестов (new)
+- `infra/repos/pgBookingAppointmentLifecycle.ts` — `applyNoShow`, `listNoShows`, `patchLatestNoShowNotifications`
+- `modules/patient-booking/projectCanonicalAppointment.ts` — `projectCanonicalAppointmentNoShow`
+- `app-layer/booking/staffAppointmentLifecycleEffects.ts` — `applyStaffNoShowSideEffects` + R21 suppression в `applyStaffCancelSideEffects`
+- `app-layer/booking/staffBookingIntegratorEvent.ts` — параметр `suppressPatientNotification`
+- `app-layer/booking/staffManualNoShow.ts` — оркестратор (new, mirror `staffManualCancelAfterCanonical.ts`)
+- `app/api/doctor/booking-engine/appointments/[id]/manual-no-show/route.ts` — (new)
+- `app/api/admin/booking-engine/appointments/[id]/manual-no-show/route.ts` — (new)
+
+**Проверки:** 6 тестов (5 новых + 1 существующий) — все зелёные. Более широкий набор (30 тестов booking) — зелёный.
+
+**Паттерны переиспользованы:**
+- Status/history: зеркало `applyCancellation` (be_appointment_cancellations / be_appointment_events / be_appointment_history_events / be_patient_timeline_events)
+- Counter: аналог `reschedule_count` (но атомарный upsert вместо UPDATE)
+- Notification suppression: R21 pattern из `applyStaffCancelSideEffects` / `staffManualCancelAfterCanonical`
+
+**TODO для оркестратора (НЕИЗВЕСТНОЕ «something else»):**
+
+> Владелец на этапе выбора отметил «что-то ещё» без детализации. Конкретное поведение неизвестно — НЕ реализовывалось и НЕ угадывалось. Нужно уточнить у владельца перед merge: возможно речь идёт об одном из вариантов:
+> - Автоматическое выставление штрафа / блокировки после N неявок
+> - Пометка пациента как «проблемный» (`isProblematic`) при превышении порога
+> - Создание задачи специалисту для follow-up
+> - Что-то в интерфейсе (кнопка/бейдж)
+> Без явного подтверждения ничего из этого не реализовано.
+
+**Примечание по миграции:** в worktree номер `0115`, в orchestrator ветке (`claude/blissful-lichterman-0705eb`) тот же функционал уже существует под номером `0124`. При merge нужно привести к одному номеру и обновить `_journal.json`.
+
+---
+
 ## 2026-06-07 — Staff delete отменённых записей (doctor + admin)
 
 **План:** [`.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md`](../../.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md) (`status: completed`).

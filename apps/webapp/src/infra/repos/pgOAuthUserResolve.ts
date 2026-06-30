@@ -40,6 +40,22 @@ async function findUserIdsByVerifiedEmail(emailNorm: string): Promise<string[]> 
   return byEmail.rows.map((row) => row.id);
 }
 
+async function findActiveUserIdsByEmail(emailNorm: string): Promise<string[]> {
+  // Same as findUserIdsByVerifiedEmail but WITHOUT the email_verified_at filter — mirrors the
+  // uq_platform_users_email_normalized_active constraint so we link instead of INSERT-colliding.
+  const byEmail = await runWebappPgText<{ id: string }>(
+    `SELECT id FROM platform_users
+     WHERE merged_into_id IS NULL
+       AND (
+         email_normalized = $1
+         OR (email_normalized IS NULL AND lower(trim(COALESCE(email, ''))) = $1)
+       )
+     LIMIT 4`,
+    [emailNorm],
+  );
+  return byEmail.rows.map((row) => row.id);
+}
+
 async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Promise<string> {
   const ins = await runWebappPgText<{ id: string }>(
     `INSERT INTO platform_users (
@@ -99,6 +115,7 @@ export const pgOAuthUserResolvePort: OAuthUserResolvePort = {
   resolveCanonicalUserId: resolveCanonicalUserIdForOAuth,
   applyVerifiedOAuthEmail,
   findUserIdsByVerifiedEmail,
+  findActiveUserIdsByEmail,
   createOAuthPlatformUser,
   upsertOAuthBinding,
 };

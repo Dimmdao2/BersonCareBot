@@ -4,7 +4,7 @@ import { Fragment, type ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Activity, BookOpen, ChevronDown, ClipboardList, Layers, MessageSquare } from "lucide-react";
+import { Activity, BookOpen, ChevronDown, ClipboardList, MessageSquare } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
@@ -85,7 +85,6 @@ import {
   instanceGroupHeaderSurfaceStyle,
   tplToolbarTextBtnClass,
 } from "@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles";
-import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
 import {
   TreatmentProgramSortableItemShell,
   TreatmentProgramStageItemsDnd,
@@ -105,6 +104,7 @@ import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-
 import { doctorProgramTestResultDomId } from "@/app/app/doctor/treatment-program-shared/doctorProgramTestResultDomId";
 import { DoctorCatalogMediaStaticThumb } from "@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb";
 import { primaryMediaForStageItem } from "@/app/app/patient/treatment/stageItemSnapshot";
+import { ProgramEditHistoryModal } from "./ProgramEditHistoryModal";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -478,16 +478,11 @@ function DoctorProgramInstanceItemCard(props: {
               e.stopPropagation();
             }}
           >
-            <TemplateReorderChevrons
-              compact
-              className="-my-0.5"
-              disabled={reorderInGroup.disableAll}
-              disableUp={reorderInGroup.disableUp}
-              disableDown={reorderInGroup.disableDown}
-              ariaLabelUp="Выше в группе"
-              ariaLabelDown="Ниже в группе"
-              onUp={() => void reorderInGroup.onMove(-1)}
-              onDown={() => void reorderInGroup.onMove(1)}
+            <DoctorCatalogMediaStaticThumb
+              media={primaryMediaForStageItem(item as Parameters<typeof primaryMediaForStageItem>[0])}
+              frameClassName="h-8 w-8 rounded shrink-0"
+              sizes="32px"
+              iconClassName="size-4"
             />
           </div>
         ) : null}
@@ -822,6 +817,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
   const [attemptAcceptMap, setAttemptAcceptMap] = useState<Record<string, boolean>>(initialAttemptAcceptMap);
   const [addLibrarySpec, setAddLibrarySpec] = useState<InstanceAddLibraryItemSpec | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [noteReplyOpen, setNoteReplyOpen] = useState(false);
   const [noteReplyTarget, setNoteReplyTarget] = useState<ProgramActionLogListRow | null>(null);
   const [noteReplyDraft, setNoteReplyDraft] = useState("");
@@ -1036,9 +1032,9 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         patientDisplayName={patientDisplayName}
         programStatus={detail.status}
         pipelineStageCount={pipelineStages.length}
-        onCommentsClick={() => setInstanceDiscussionOpen(true)}
         onAddStageClick={() => setAddStageDialogOpen(true)}
         onChangeStageOrderClick={() => setStageOrderDialogOpen(true)}
+        onCommentsClick={() => setInstanceDiscussionOpen(true)}
       />
       <InstanceEditorAddStageDialog
         open={addStageDialogOpen}
@@ -1131,114 +1127,70 @@ function TreatmentProgramInstanceDetailClientBody(props: {
             </div>
           </section>
 
-          <section className={doctorClientOverviewPrimaryCardClass} id="doctor-program-instance-action-log">
-            <h3 className={doctorClientSectionTitleClass}>Журнал выполнения</h3>
-            {actionLog.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">Пока нет записей в журнале.</p>
-            ) : (
-              <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
-                {actionLog.map((row) => {
-                  const itemLabel = itemTitles.get(row.instanceStageItemId) ?? "Элемент";
-                  const diffRu = formatLfkPostSessionDifficultyRu(row.payload?.difficulty);
-                  const canReply = doctorReplyFromLogEnabled && isPatientObservationActionRow(row);
-                  const showDiscussion = isPatientObservationActionRow(row) || Boolean(patientMediaFileIdFromActionRow(row));
-                  return (
-                    <li
-                      key={row.id}
-                      className={doctorHistoryRowClass}
-                    >
-                      <span className="text-xs text-muted-foreground">
-                        {formatBookingDateTimeShortStyleRu(row.createdAt, appDisplayTimeZone)}
-                      </span>
-                      <span className="ml-2 font-medium">{formatProgramActionLogSummaryRu(row)}</span>
-                      <span className="ml-1 text-xs text-muted-foreground">· {itemLabel}</span>
-                      {row.actionType === "done" && diffRu ? (
-                        <span className="mt-0.5 block text-xs text-foreground/90">Как прошло: {diffRu}</span>
-                      ) : null}
-                      {row.note?.trim() ? (
-                        <span className="mt-0.5 block text-xs text-foreground/90">Заметка пациента: {row.note}</span>
-                      ) : null}
-                      {patientMediaFileIdFromActionRow(row) ? (
-                        <DoctorProgramActionLogMediaPreview mediaFileId={patientMediaFileIdFromActionRow(row)!} />
-                      ) : null}
-                      {showDiscussion || canReply ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {showDiscussion ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => openDiscussionDialog(row)}
-                            >
-                              Обсуждение
-                            </Button>
-                          ) : null}
-                          {canReply ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => openProgramNoteReplyDialog(row)}
-                            >
-                              Ответить
-                            </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
-          <section className={doctorClientOverviewPrimaryCardClass} id="doctor-program-instance-events">
-            <h3 className={doctorClientSectionTitleClass}>История правок программы</h3>
-            <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
-              <li className={doctorHistoryRowClass}>
-                <span className="text-xs text-muted-foreground">
-                  {formatBookingDateTimeShortStyleRu(detail.createdAt, appDisplayTimeZone)}
-                </span>
-                <span className="ml-2 font-medium">Программа назначена</span>
-                {assignedByLabel ? (
-                  <span className="ml-1 text-xs text-muted-foreground">· {assignedByLabel}</span>
+          {/* Action log: per-item observation rows — render buttons so discussions are reachable */}
+          {actionLog.filter(isPatientObservationActionRow).map((row) => (
+            <div key={row.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/40 bg-muted/5 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                {itemTitles.get(row.instanceStageItemId) ?? formatProgramActionLogSummaryRu(row)}
+                {row.note?.trim() ? ` — ${row.note.trim()}` : ""}
+              </span>
+              <div className="flex shrink-0 gap-2">
+                {doctorReplyFromLogEnabled ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => openProgramNoteReplyDialog(row)}
+                  >
+                    Ответить
+                  </Button>
                 ) : null}
-              </li>
-              {doctorTimelineEvents.length === 0 ? (
-                <li className="rounded-md border border-dashed border-border/70 px-2 py-2 text-sm text-muted-foreground">
-                  Дальше появятся изменения плана и прохождение этапов (отметки выполнения пунктов — в «Журнале
-                  выполнения»).
-                </li>
-              ) : (
-                doctorTimelineEvents.map((e) => {
-                  const who = doctorTimelineWhoRu(e.actorId, {
-                    currentUserId,
-                    patientUserId: detail.patientUserId,
-                  });
-                  return (
-                    <DoctorProgramInstanceTimelineEventRow
-                      key={e.id}
-                      event={e}
-                      labels={eventLabels}
-                      createdAtLabel={formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
-                      whoLabel={who}
-                      expanded={expandedTimelineEventIds.has(e.id)}
-                      onToggleExpand={() => {
-                        setExpandedTimelineEventIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(e.id)) next.delete(e.id);
-                          else next.add(e.id);
-                          return next;
-                        });
-                      }}
-                    />
-                  );
-                })
-              )}
-            </ul>
-          </section>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => openDiscussionDialog(row)}
+                >
+                  Обсуждение
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          <div id="doctor-program-instance-events-trigger">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setHistoryOpen(true)}
+            >
+              История правок
+            </Button>
+          </div>
+
+          <ProgramEditHistoryModal
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+            createdAt={detail.createdAt}
+            assignedByLabel={assignedByLabel}
+            doctorTimelineEvents={doctorTimelineEvents}
+            eventLabels={eventLabels}
+            appDisplayTimeZone={appDisplayTimeZone}
+            currentUserId={currentUserId}
+            patientUserId={detail.patientUserId}
+            expandedTimelineEventIds={expandedTimelineEventIds}
+            onToggleExpandEvent={(id) => {
+              setExpandedTimelineEventIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              });
+            }}
+          />
 
           {testResults.length > 0 ? (
             <section className={doctorClientOverviewPrimaryCardClass} id="doctor-program-instance-test-results">
@@ -1656,17 +1608,6 @@ function InstanceStageGroupsPanel(props: {
                         >
                           Изменить
                         </Button>
-                        <TemplateReorderChevrons
-                          compact
-                          className="-mt-px shrink-0"
-                          disabled={editLocked}
-                          disableUp={userIdx <= 0}
-                          disableDown={userIdx < 0 || userIdx >= userGroupsOrdered.length - 1}
-                          ariaLabelUp="Группа выше"
-                          ariaLabelDown="Группа ниже"
-                          onUp={() => void reorder(g.id, -1)}
-                          onDown={() => void reorder(g.id, 1)}
-                        />
                       </>
                     ) : (
                       <Button

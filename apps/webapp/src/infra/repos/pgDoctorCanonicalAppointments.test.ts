@@ -13,3 +13,17 @@ describe("pgDoctorCanonicalAppointments purge filter", () => {
     expect(src).toContain("BE_APPOINTMENTS_NOT_PURGED");
   });
 });
+
+describe("pgDoctorCanonicalAppointments soft-delete filter (F1b)", () => {
+  it("excludes soft-deleted canonical rows across list/stats/KPI/dashboard reads", () => {
+    const src = readFileSync(join(repoDir, "pgDoctorCanonicalAppointments.ts"), "utf8");
+    // Drizzle column filter on every aggregate/list condition.
+    expect(src).toContain("isNull(beAppointments.deletedAt)");
+    // firstVisit NOT EXISTS subquery (`earlier` alias) also excludes soft-deleted prior visits.
+    expect(src).toContain("earlier.deleted_at IS NULL");
+    // No fewer than the conditions we added (list base + statsRange + cancellations + monthly-cancel
+    // + stats rangeCond/createdInRangeCond + joins + cancel30 + orgCond + KPI active/cancelled ranges).
+    const occurrences = src.match(/isNull\(beAppointments\.deletedAt\)/g) ?? [];
+    expect(occurrences.length).toBeGreaterThanOrEqual(10);
+  });
+});

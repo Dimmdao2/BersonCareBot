@@ -8,6 +8,7 @@ import { allowedChannelsForTopic, isPatientTopicChannelCode } from "@/modules/pa
 
 async function revalidateNotificationSurfaces() {
   revalidatePath(routePaths.notifications);
+  revalidatePath(routePaths.notificationSettings);
   revalidatePath(routePaths.profile);
   revalidatePath(routePaths.patient);
 }
@@ -23,7 +24,7 @@ export async function setNotificationTopicMasterEnabled(
   }
 
   try {
-    const session = await requirePatientAccessWithPhone(routePaths.notifications);
+    const session = await requirePatientAccessWithPhone(routePaths.notificationSettings);
     const deps = buildAppDeps();
     await deps.patientNotificationTopics.setTopicEnabled(session.user.userId, tc, en);
     await revalidateNotificationSurfaces();
@@ -53,7 +54,7 @@ export async function setTopicChannelNotificationEnabled(
   }
 
   try {
-    const session = await requirePatientAccessWithPhone(routePaths.notifications);
+    const session = await requirePatientAccessWithPhone(routePaths.notificationSettings);
     const deps = buildAppDeps();
     const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
     const emailVerified = Boolean(emailFields.emailVerifiedAt);

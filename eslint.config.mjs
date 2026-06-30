@@ -11,6 +11,9 @@ export default [
       "dist/**",
       "node_modules/**",
       "coverage/**",
+      // Локальные агент-worktree/состояние Claude Code — полные копии репо,
+      // не линтуем (иначе вложенный apps/webapp-копия даёт тысячи ложных ошибок).
+      ".claude/**",
       "_old/**",
       "admin/dist/**",
       "admin/node_modules/**",

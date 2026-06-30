@@ -72,32 +72,38 @@ export function PatientProgramItemExecutionRow(props: {
   if (variant === "itemPage") {
     return (
       <div className={cn("flex flex-col gap-0", className)}>
-        <div className="-mx-4 flex flex-wrap items-center gap-2 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:-mx-5 lg:px-5">
-          <span className={cn("text-xs leading-snug", patientMutedTextStrongClass)}>{label}</span>
-          <ExecutionDots
-            variant={dots.variant}
-            dotCount={dots.dotCount}
-            dotOverflow={dots.dotOverflow}
-            align="end"
-          />
+        <div className="-mx-4 flex flex-wrap items-center justify-between gap-2 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:-mx-5 lg:px-5">
+          <span className={cn("inline-flex min-w-0 items-center gap-2 text-xs leading-snug", patientMutedTextStrongClass)}>
+            <span className="shrink-0">{label}</span>
+            <ExecutionDots
+              variant={dots.variant}
+              dotCount={dots.dotCount}
+              dotOverflow={dots.dotOverflow}
+            />
+          </span>
+          {lastDoneText ? (
+            <span className={cn("ml-auto text-right text-xs leading-snug", patientMutedTextStrongClass)}>
+              {lastDoneText}
+            </span>
+          ) : null}
         </div>
-        {lastDoneText ? (
-          <p className={cn(patientMutedTextClass, "border-b border-[var(--patient-border)]/40 px-0 py-2 text-xs leading-snug")}>
-            {lastDoneText}
-          </p>
-        ) : null}
       </div>
     );
   }
 
   return (
-    <div className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-2", className)}>
-      <p className={cn(patientMutedTextClass, "shrink-0 text-xs leading-tight")}>{label}</p>
-      <ExecutionDots
-        variant={dots.variant}
-        dotCount={dots.dotCount}
-        dotOverflow={dots.dotOverflow}
-      />
+    <div className={cn("flex min-w-0 flex-1 flex-col gap-0.5", className)}>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <p className={cn(patientMutedTextClass, "shrink-0 text-xs leading-tight")}>{label}</p>
+        <ExecutionDots
+          variant={dots.variant}
+          dotCount={dots.dotCount}
+          dotOverflow={dots.dotOverflow}
+        />
+      </div>
+      {lastDoneText ? (
+        <p className={cn(patientMutedTextStrongClass, "m-0 text-xs leading-tight")}>{lastDoneText}</p>
+      ) : null}
     </div>
   );
 }

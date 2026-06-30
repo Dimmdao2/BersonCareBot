@@ -165,4 +165,31 @@ describe('rubitime notification routing', () => {
       },
     });
   });
+
+  it('deleted action (Rubitime delete/remove) produces NO notification step (silent soft-delete)', async () => {
+    const contentPort = createContentPort({ rootDir });
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({
+        type: 'channel.lookupByPhone',
+        item: { chatId: 555, channelId: '555', username: 'user' },
+      }),
+    };
+    const incoming = {
+      entity: 'record',
+      action: 'deleted',
+      phone: '89643805480',
+      recordId: 'rec-del',
+      recordAt: '2026-03-05 12:00:00',
+      record: {},
+    };
+
+    const plan = await buildPlan(
+      { event: buildEvent(incoming), context: baseContext },
+      { contentPort, contextQueryPort },
+    );
+    const sendSteps = plan.filter((step) => step.kind === 'message.send');
+    expect(sendSteps).toHaveLength(0);
+    // The soft-delete still flows through booking.upsert.
+    expect(plan.some((step) => step.kind === 'booking.upsert')).toBe(true);
+  });
 });

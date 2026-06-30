@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     });
   }
 
-  revalidatePath(routePaths.notifications);
+  revalidatePath(routePaths.notificationSettings);
   revalidatePath(routePaths.profile);
   revalidatePath(routePaths.patient);
 

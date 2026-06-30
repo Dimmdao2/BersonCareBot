@@ -2,8 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const patientGateMock = vi.hoisted(() => vi.fn());
-const getTelegramBotTokenMock = vi.hoisted(() => vi.fn());
-const fetchMock = vi.hoisted(() => vi.fn());
+const relayOutboundMock = vi.hoisted(() => vi.fn());
 const envForTest = vi.hoisted(() => ({ ADMIN_TELEGRAM_ID: 424242 as number | undefined }));
 const headerMap = vi.hoisted(() => ({
   entries: [["user-agent", "VitestUA/1"]] as [string, string][],
@@ -17,8 +16,9 @@ vi.mock("@/modules/platform-access", () => ({
   patientClientBusinessGate: patientGateMock,
 }));
 
-vi.mock("@/modules/system-settings/integrationRuntime", () => ({
-  getTelegramBotToken: getTelegramBotTokenMock,
+// S7: relay-outbound is now the send path instead of raw Telegram fetch
+vi.mock("@/modules/messaging/relayOutbound", () => ({
+  relayOutbound: relayOutboundMock,
 }));
 
 vi.mock("next/headers", () => ({
@@ -60,16 +60,13 @@ const jsonBody = (email: string, message: string, opts?: { surface?: string; fro
 
 describe("POST /api/patient/support", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockResolvedValue({ ok: true, text: async () => "{}" });
-    getTelegramBotTokenMock.mockResolvedValue("token");
+    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
     patientGateMock.mockResolvedValue("allow");
     envForTest.ADMIN_TELEGRAM_ID = 424242;
     headerMap.entries = [["user-agent", "VitestUA/1"]];
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -134,7 +131,7 @@ describe("POST /api/patient/support", () => {
     expect(body.error).toBe("invalid_email");
   });
 
-  it("returns 200 when gate is need_activation", async () => {
+  it("returns 200 when gate is need_activation and emits relay with correct recipient and text", async () => {
     getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "onb-1", phone: "" }));
     patientGateMock.mockResolvedValue("need_activation");
     const res = await POST(
@@ -145,12 +142,12 @@ describe("POST /api/patient/support", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalled();
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const payload = JSON.parse(String(init.body)) as { chat_id: number; text: string };
-    expect(payload.chat_id).toBe(424242);
-    expect(payload.text).toContain("user@example.com");
-    expect(payload.text).toContain("onb-1");
+    expect(relayOutboundMock).toHaveBeenCalledTimes(1);
+    const [params] = relayOutboundMock.mock.calls[0] as [{ channel: string; recipient: string; text: string; messageId: string }];
+    expect(params.channel).toBe("telegram");
+    expect(params.recipient).toBe("424242");
+    expect(params.text).toContain("user@example.com");
+    expect(params.text).toContain("onb-1");
   });
 
   it("includes sanitized from path in Telegram text when under /app", async () => {
@@ -163,9 +160,8 @@ describe("POST /api/patient/support", () => {
       }),
     );
     expect(res.status).toBe(200);
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const payload = JSON.parse(String(init.body)) as { text: string };
-    expect(payload.text).toContain("Страница: /app/patient/bind-phone");
+    const [params] = relayOutboundMock.mock.calls[0] as [{ text: string }];
+    expect(params.text).toContain("Страница: /app/patient/bind-phone");
   });
 
   it("ignores from path outside /app", async () => {
@@ -178,9 +174,8 @@ describe("POST /api/patient/support", () => {
       }),
     );
     expect(res.status).toBe(200);
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const payload = JSON.parse(String(init.body)) as { text: string };
-    expect(payload.text).not.toContain("Страница:");
+    const [params] = relayOutboundMock.mock.calls[0] as [{ text: string }];
+    expect(params.text).not.toContain("Страница:");
   });
 
   it("allows messenger bindings (no messenger_only)", async () => {
@@ -196,10 +191,9 @@ describe("POST /api/patient/support", () => {
       }),
     );
     expect(res.status).toBe(200);
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const payload = JSON.parse(String(init.body)) as { text: string };
-    expect(payload.text).toContain("telegram=да");
-    expect(payload.text).toContain("12345");
+    const [params] = relayOutboundMock.mock.calls[0] as [{ text: string }];
+    expect(params.text).toContain("telegram=да");
+    expect(params.text).toContain("12345");
   });
 
   it("returns 429 on rapid repeat after success", async () => {
@@ -248,9 +242,9 @@ describe("POST /api/patient/support", () => {
     expect((await req()).status).toBe(429);
   });
 
-  it("does not rate-limit after failed Telegram send", async () => {
+  it("does not rate-limit after failed relay send (relay non-ok → 502)", async () => {
     getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "fail-u" }));
-    fetchMock.mockResolvedValueOnce({ ok: false, text: async () => "err" });
+    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: "relay_error" });
     const req = () =>
       POST(
         new Request("http://localhost/api/patient/support", {
@@ -263,9 +257,9 @@ describe("POST /api/patient/support", () => {
     expect((await req()).status).toBe(200);
   });
 
-  it("returns 503 when bot token missing", async () => {
-    getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "support-no-token" }));
-    getTelegramBotTokenMock.mockResolvedValue("");
+  it("returns 503 when ADMIN_TELEGRAM_ID is missing", async () => {
+    envForTest.ADMIN_TELEGRAM_ID = undefined;
+    getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "support-no-admin-id" }));
     const res = await POST(
       new Request("http://localhost/api/patient/support", {
         method: "POST",
@@ -287,5 +281,39 @@ describe("POST /api/patient/support", () => {
       }),
     );
     expect(res.status).toBe(503);
+  });
+
+  describe("relay-outbound chokepoint (S7 / P24)", () => {
+    it("calls relayOutbound with channel=telegram and recipient=ADMIN_TELEGRAM_ID", async () => {
+      getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "relay-check-u" }));
+      const res = await POST(
+        new Request("http://localhost/api/patient/support", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonBody("a@b.co", "test message"),
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(relayOutboundMock).toHaveBeenCalledTimes(1);
+      const [params] = relayOutboundMock.mock.calls[0] as [{ channel: string; recipient: string; messageId: string; text: string }];
+      expect(params.channel).toBe("telegram");
+      expect(params.recipient).toBe("424242");
+      expect(params.messageId).toMatch(/^support:patient:/);
+    });
+
+    it("returns 502 when relayOutbound fails", async () => {
+      getCurrentSessionMock.mockResolvedValue(baseSession({ userId: "relay-fail-u" }));
+      relayOutboundMock.mockResolvedValue({ ok: false, reason: "no_integrator_url" });
+      const res = await POST(
+        new Request("http://localhost/api/patient/support", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonBody("a@b.co", "test message"),
+        }),
+      );
+      expect(res.status).toBe(502);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toBe("send_failed");
+    });
   });
 });

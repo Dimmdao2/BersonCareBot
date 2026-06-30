@@ -355,6 +355,17 @@ export type TreatmentProgramTestAttemptsPort = {
 
 export type ProgramActionLogPort = {
   insertAction(input: ProgramActionLogInsert): Promise<{ id: string; createdAt: string }>;
+  updateLatestSimpleDonePayload(params: {
+    instanceId: string;
+    patientUserId: string;
+    instanceStageItemId: string;
+    payloadPatch: Record<string, unknown>;
+  }): Promise<boolean>;
+  getLatestSimpleDonePayload(params: {
+    instanceId: string;
+    patientUserId: string;
+    instanceStageItemId: string;
+  }): Promise<{ createdAt: string; payload: Record<string, unknown> | null } | null>;
   /** Удаляет «простые» `done` за окно (не трогает `test_submitted` / `lfk_exercise_done`). */
   deleteSimpleDoneInWindow(params: {
     instanceId: string;
@@ -452,4 +463,15 @@ export type ProgramActionLogPort = {
   }): Promise<Array<{ localDate: string; itemId: string; instanceId: string }>>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
+  /**
+   * Записи `done` по конкретному элементу экземпляра за UTC-окно.
+   * Используется для микро-графика динамики выполнения упражнения (Этап B.3).
+   * Возвращает записи в порядке убывания `created_at` (новые сверху), limit = 50.
+   */
+  listDoneForStageItemInWindow(params: {
+    instanceId: string;
+    instanceStageItemId: string;
+    windowStartUtcIso: string;
+    windowEndUtcExclusiveIso: string;
+  }): Promise<ProgramActionLogListRow[]>;
 };

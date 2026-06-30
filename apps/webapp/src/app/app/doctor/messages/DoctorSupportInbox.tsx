@@ -1,79 +1,135 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
-import { doctorPageStackClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import {
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
+
+const POLL_INTERVAL_MS = 1_000;
 
 type ConvRow = {
   conversationId: string;
   displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   phoneNormalized: string | null;
   lastMessageAt: string;
   lastMessageText: string | null;
   lastSenderRole: string | null;
   unreadFromUserCount: number;
   hasUnreadFromUser: boolean;
+  onSupport: boolean;
 };
 
-function formatConversationTime(value: string): string {
+type ConversationApiRow = {
+  conversationId: string;
+  displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phoneNormalized: string | null;
+  lastMessageAt: string;
+  lastMessageText: string | null;
+  lastSenderRole: string | null;
+  unreadFromUserCount?: number;
+  hasUnreadFromUser?: boolean;
+  onSupport?: boolean;
+};
+
+function formatConversationTime(value: string, tz = "Europe/Moscow"): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const now = new Date();
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+  const time = date.toLocaleString("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+  if (isToday) return time;
+  const dayMonth = date.toLocaleString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit" });
+  return `${dayMonth} · ${time}`;
 }
 
-export function DoctorSupportInbox() {
-  const [list, setList] = useState<ConvRow[]>([]);
+function getSenderPrefix(conv: ConvRow): string {
+  if (conv.lastSenderRole === "admin") return "Вы";
+  return conv.firstName || (conv.displayName.split(" ")[0] ?? "").trim() || "Пациент";
+}
+
+function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
+  return conversations.map((c) => ({
+    conversationId: c.conversationId,
+    displayName: c.displayName,
+    firstName: c.firstName ?? null,
+    lastName: c.lastName ?? null,
+    phoneNormalized: c.phoneNormalized,
+    lastMessageAt: c.lastMessageAt,
+    lastMessageText: c.lastMessageText,
+    lastSenderRole: c.lastSenderRole,
+    unreadFromUserCount: c.unreadFromUserCount ?? 0,
+    hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
+    onSupport: c.onSupport ?? false,
+  }));
+}
+
+function convSignature(rows: ConvRow[]): string {
+  return rows
+    .map(
+      (r) =>
+        `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}:${r.onSupport ? "1" : "0"}`,
+    )
+    .join("|");
+}
+
+export type DoctorSupportInboxProps = {
+  active?: boolean;
+  displayIana?: string;
+};
+
+type FilterMode = "all" | "unread" | "onSupport";
+
+export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow" }: DoctorSupportInboxProps) {
+  const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [filter, setFilter] = useState<FilterMode>("all");
+  const [query, setQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<"name" | "text">("name");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const sigRef = useRef<string>("");
 
-  const loadList = useCallback(async () => {
-    setError(null);
+  const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
       const url = new URL("/api/doctor/messages/conversations", window.location.origin);
-      if (unreadOnly) url.searchParams.set("unread", "1");
       const res = await fetch(url.toString());
       const data = (await res.json()) as {
         ok?: boolean;
-        conversations?: {
-          conversationId: string;
-          displayName: string;
-          phoneNormalized: string | null;
-          lastMessageAt: string;
-          lastMessageText: string | null;
-          lastSenderRole: string | null;
-          unreadFromUserCount?: number;
-          hasUnreadFromUser?: boolean;
-        }[];
+        conversations?: ConversationApiRow[];
       };
-      if (!res.ok || !data.ok || !data.conversations) {
-        setError("Не удалось загрузить диалоги");
-        setList([]);
-        return;
-      }
-      const rows = data.conversations.map((c) => ({
-        conversationId: c.conversationId,
-        displayName: c.displayName,
-        phoneNormalized: c.phoneNormalized,
-        lastMessageAt: c.lastMessageAt,
-        lastMessageText: c.lastMessageText,
-        lastSenderRole: c.lastSenderRole,
-        unreadFromUserCount: c.unreadFromUserCount ?? 0,
-        hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
-      }));
-      setList(rows);
+      if (!res.ok || !data.ok || !data.conversations) return null;
+      return mapConvRows(data.conversations);
     } catch {
-      setError("Ошибка сети при загрузке диалогов");
-      setList([]);
+      return null;
     }
-  }, [unreadOnly]);
+  }, []);
+
+  const loadList = useCallback(async () => {
+    setError(null);
+    const rows = await fetchList();
+    if (rows === null) {
+      setError("Не удалось загрузить диалоги");
+      setAllList([]);
+      sigRef.current = "";
+    } else {
+      sigRef.current = convSignature(rows);
+      setAllList(rows);
+    }
+  }, [fetchList]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,89 +146,263 @@ export function DoctorSupportInbox() {
     };
   }, [loadList]);
 
+  useEffect(() => {
+    if (!active) return;
+
+    const pollOnce = async () => {
+      const rows = await fetchList();
+      if (rows === null) return;
+      const sig = convSignature(rows);
+      if (sig === sigRef.current) return;
+      sigRef.current = sig;
+      setAllList(rows);
+    };
+
+    let timerId: ReturnType<typeof setInterval> | null = null;
+
+    const startInterval = () => {
+      if (timerId !== null) return;
+      timerId = setInterval(() => void pollOnce(), POLL_INTERVAL_MS);
+    };
+
+    const stopInterval = () => {
+      if (timerId !== null) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void pollOnce();
+        startInterval();
+      } else {
+        stopInterval();
+      }
+    };
+
+    if (document.visibilityState === "visible") startInterval();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      stopInterval();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [active, fetchList]);
+
+  const unreadCount = allList.filter((c) => c.unreadFromUserCount > 0).length;
+  const onSupportCount = allList.filter((c) => c.onSupport).length;
+
+  const filteredByChip =
+    filter === "unread"
+      ? allList.filter((c) => c.unreadFromUserCount > 0)
+      : filter === "onSupport"
+        ? allList.filter((c) => c.onSupport)
+        : allList;
+
+  const filteredList = query.trim()
+    ? filteredByChip.filter((c) => {
+        const q = query.toLowerCase();
+        if (searchMode === "name") {
+          const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
+          return searchable.includes(q);
+        }
+        return (c.lastMessageText ?? "").toLowerCase().includes(q);
+      })
+    : filteredByChip;
+
   if (loading) {
-    return <p className="text-muted-foreground">Загрузка…</p>;
+    return (
+      <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+        Загрузка…
+      </div>
+    );
   }
 
-  return (
-    <section id="doctor-support-inbox" className={doctorPageStackClass}>
-      <h2 className={doctorSectionTitleClass}>Поддержка (чат)</h2>
-      <div className="flex flex-wrap gap-2" aria-label="Фильтр диалогов">
-        <Button type="button" size="sm" variant={!unreadOnly ? "default" : "outline"} onClick={() => setUnreadOnly(false)}>
-          Все
-        </Button>
-        <Button type="button" size="sm" variant={unreadOnly ? "default" : "outline"} onClick={() => setUnreadOnly(true)}>
-          Непрочитанные
-        </Button>
-      </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
-        <ul className="space-y-1 border border-border/60 rounded-lg p-2 max-h-[60vh] overflow-y-auto">
-          {list.length === 0 ? (
-            <li className="text-sm text-muted-foreground px-2 py-2">
-              {unreadOnly ? "Нет непрочитанных диалогов" : "Нет открытых диалогов"}
-            </li>
-          ) : (
-            list.map((c) => (
-              <li key={c.conversationId}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={
-                    selectedId === c.conversationId
-                      ? "h-auto w-full flex-col items-stretch gap-0.5 rounded-md px-2 py-2 text-left text-sm font-normal"
-                      : "h-auto w-full flex-col items-stretch gap-0.5 rounded-md px-2 py-2 text-left text-sm font-normal hover:bg-muted/60"
-                  }
-                  onClick={() => {
-                    setSelectedId(c.conversationId);
-                  }}
-                >
-                  <span className="flex w-full items-center justify-between gap-2">
-                    <span className="truncate font-medium">{c.displayName || "Без имени"}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground">{formatConversationTime(c.lastMessageAt)}</span>
-                      {c.unreadFromUserCount > 0 ? (
-                        <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                          {c.unreadFromUserCount}
-                        </span>
-                      ) : null}
-                    </span>
-                  </span>
-                  <span className="block w-full truncate text-xs text-muted-foreground">
-                    {c.phoneNormalized ? `Телефон: ${c.phoneNormalized}` : "Телефон не указан"}
-                  </span>
-                  <span className="block w-full text-xs text-muted-foreground">
-                    {c.hasUnreadFromUser ? "Пациент · " : c.lastSenderRole === "user" ? "Пациент · " : ""}
-                    {(c.lastMessageText ?? "").slice(0, 80)}
-                    {(c.lastMessageText?.length ?? 0) > 80 ? "…" : ""}
-                  </span>
-                  <span className="block w-full text-[11px] text-muted-foreground/90">
-                    {c.phoneNormalized ? `Телефон: ${c.phoneNormalized}` : "Телефон не указан"} ·{" "}
-                    {new Date(c.lastMessageAt).toLocaleString("ru-RU", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </Button>
-              </li>
-            ))
-          )}
-        </ul>
-        <div>
-          {!selectedId ? (
-            <p className="text-muted-foreground text-sm">Выберите диалог слева</p>
-          ) : (
-            <DoctorChatPanel
-              key={selectedId}
-              conversationId={selectedId}
-              onReadStateChanged={loadList}
-              onSent={loadList}
-            />
-          )}
+  const leftPane = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      {/* Header: search bar, then filter chips below */}
+      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
+        <div className="flex gap-1.5">
+          <Input
+            type="search"
+            placeholder={searchMode === "name" ? "Поиск по имени / телефону" : "Поиск по тексту последнего сообщения"}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-8 min-w-0 flex-1"
+            aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту последнего сообщения"}
+          />
+          <button
+            type="button"
+            title={searchMode === "name" ? "Переключить на поиск по тексту сообщений" : "Переключить на поиск по имени"}
+            onClick={() => { setSearchMode(m => m === "name" ? "text" : "name"); setQuery(""); }}
+            className={cn(
+              "shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+              searchMode === "text"
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-muted/40",
+            )}
+          >
+            {searchMode === "name" ? "Аб" : "✉"}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              filter === "unread"
+                ? "bg-primary/15 text-primary"
+                : "border border-border text-muted-foreground hover:bg-muted/40",
+            )}
+            aria-pressed={filter === "unread"}
+          >
+            Непрочитанные · {unreadCount}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              filter === "onSupport"
+                ? "bg-primary/15 text-primary"
+                : "border border-border text-muted-foreground hover:bg-muted/40",
+            )}
+            aria-pressed={filter === "onSupport"}
+          >
+            ★ На сопровождении · {onSupportCount}
+          </button>
         </div>
       </div>
-    </section>
+
+      {error && (
+        <p className="border-b border-border px-3 py-2 text-xs text-destructive">{error}</p>
+      )}
+
+      {/* Conversation rows */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        {filteredList.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
+            {query.trim()
+              ? "Ничего не найдено"
+              : filter === "unread"
+                ? "Нет непрочитанных диалогов"
+                : filter === "onSupport"
+                  ? "Нет диалогов на сопровождении"
+                  : "Нет открытых диалогов"}
+          </div>
+        ) : (
+          filteredList.map((c) => (
+            <button
+              key={c.conversationId}
+              type="button"
+              onClick={() => setSelectedId(c.conversationId)}
+              className={cn(
+                "flex w-full cursor-pointer gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
+                selectedId === c.conversationId
+                  ? "bg-primary/15"
+                  : "hover:bg-muted/40",
+              )}
+            >
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm font-semibold">
+                    {(c.lastName ?? c.firstName) ? (
+                      [c.lastName, c.firstName].filter(Boolean).join(" ")
+                    ) : (
+                      c.displayName || "Без имени"
+                    )}
+                    {c.onSupport && (
+                      <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatConversationTime(c.lastMessageAt, displayIana)}
+                  </span>
+                </div>
+                {(c.lastName ?? c.firstName) && (
+                  <p className="truncate text-xs text-muted-foreground">{c.displayName}</p>
+                )}
+                {c.lastMessageText && (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground/80">{getSenderPrefix(c)}:</span>{" "}
+                    {c.lastMessageText}
+                  </p>
+                )}
+              </div>
+              {c.unreadFromUserCount > 0 && (
+                <span className="self-center rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                  {c.unreadFromUserCount}
+                </span>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
+
+  const rightPane = (
+    <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      {!selectedId ? (
+        <DoctorEmptyState
+          size="sm"
+          className="flex-1 items-center justify-center px-6 text-center"
+        >
+          <span className="font-semibold text-foreground">Выберите чат слева</span>
+          <span>Когда диалог выбран — здесь появляется тред переписки с полем ответа</span>
+        </DoctorEmptyState>
+      ) : (
+        <>
+          {/* Thread header: patient name + close button */}
+          <div className="shrink-0 flex items-center gap-2 border-b border-border px-3 py-2">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              {selectedConv
+                ? ((selectedConv.lastName ?? selectedConv.firstName)
+                    ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(" ")
+                    : selectedConv.displayName)
+                : "—"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              aria-label="Закрыть тред"
+              className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <DoctorChatPanel
+            key={selectedId}
+            conversationId={selectedId}
+            className="flex-1 min-h-0"
+            onReadStateChanged={loadList}
+            onSent={loadList}
+          />
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <CatalogSplitLayout
+      left={leftPane}
+      right={rightPane}
+      mobileView={selectedId ? "detail" : "list"}
+      mobileBackSlot={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedId(null)}
+          className="mb-2"
+        >
+          ← К списку
+        </Button>
+      }
+      className={cn("lg:grid-cols-[0.8fr_1.6fr]", DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE)}
+    />
   );
 }

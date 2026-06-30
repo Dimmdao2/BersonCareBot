@@ -5,7 +5,10 @@ import type {
   DoctorAppointmentsListFilter,
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
+  ScheduleKpis,
+  ScheduleKpisQuery,
 } from "@/modules/doctor-appointments/ports";
+
 
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
   async listAppointmentsForSpecialist(
@@ -26,6 +29,8 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
       rescheduleActionsInPeriod: 0,
       total: 0,
       cancellations30d: 0,
+      firstVisitInPeriod: 0,
+      repeatVisitInPeriod: 0,
     };
   },
   async getDashboardAppointmentMetrics(
@@ -36,5 +41,28 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
       recordsInCalendarMonthTotal: 0,
       cancellationsInCalendarMonth: 0,
     };
+  },
+  async getScheduleKpis(
+    _query: ScheduleKpisQuery,
+    _audience?: { excludedUserIds?: string[] },
+  ): Promise<ScheduleKpis> {
+    // Stub: no in-memory appointment dataset; returns zeros for all 9 KPI.
+    // Real KPIs come from pgDoctorCanonicalAppointments.
+    // firstVisitIds stub is an empty array — modal will be empty, matching count=0.
+    return {
+      recordsInPeriod: 0,
+      pastInPeriod: 0,
+      futureInPeriod: 0,
+      bySubscriptionInPeriod: 0,
+      firstVisitInPeriod: 0,
+      firstVisitIds: [],
+      repeatVisitInPeriod: 0,
+      uniquePatientsInPeriod: 0,
+      cancellationsInPeriod: 0,
+      reschedulesInPeriod: 0,
+    };
+  },
+  async getAppointmentDailySeries() {
+    return { daySeries: [], branchSeries: [] };
   },
 };

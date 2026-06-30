@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 import type {
   TreatmentProgramEventRow,
   TreatmentProgramInstanceDetail,
@@ -96,14 +97,16 @@ export function PatientTreatmentProgramDetailClient(props: {
   }, []);
   const [_testResults, setTestResults] = useState(props.initialTestResults);
   const [programEvents, setProgramEvents] = useState(initialProgramEvents);
-  const [error, setError] = useState<string | null>(null);
+  const reportError = useCallback((message: string | null) => {
+    if (message?.trim()) toast.error(message.trim());
+  }, []);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
   const [doneTodayCountByItemId, setDoneTodayCountByItemId] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
   const [statsRefreshToken, setStatsRefreshToken] = useState(0);
 
   const refresh = useCallback(async () => {
-    setError(null);
+    reportError(null);
     const id = detail.id;
     const [instRes, trRes, checklistRes, evRes] = await Promise.all([
       fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(id)}`),
@@ -113,7 +116,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     ]);
     const data = (await instRes.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
     if (!instRes.ok || !data.ok || !data.item) {
-      setError("Не удалось обновить данные");
+      reportError("Не удалось обновить данные");
       return;
     }
     setDetail(data.item);
@@ -137,7 +140,7 @@ export function PatientTreatmentProgramDetailClient(props: {
       setLastDoneAtIsoByItemId(normalizeChecklistLastMap(chData.lastDoneAtIsoByItemId));
     }
     setStatsRefreshToken((t) => t + 1);
-  }, [detail.id]);
+  }, [detail.id, reportError]);
 
   useEffect(() => {
     void (async () => {
@@ -276,11 +279,6 @@ export function PatientTreatmentProgramDetailClient(props: {
     const passedStages = countPatientCompletedPipelineStages(detail.stages);
     return (
       <div className={patientInnerPageStackClass}>
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
         <PatientPlanHeroCompleted
           detail={detail}
           appDisplayTimeZone={appDisplayTimeZone}
@@ -298,12 +296,6 @@ export function PatientTreatmentProgramDetailClient(props: {
 
   return (
     <div className={patientInnerPageStackClass}>
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-
       <div className="flex flex-col gap-2">
         {detail.status === "active" && planReminderStrip ? (
           <PatientPlanTodayRemindersCard

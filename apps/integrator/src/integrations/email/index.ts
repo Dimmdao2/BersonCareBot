@@ -3,20 +3,20 @@ import { createInboundPlaceholder, createOutboundPlaceholder } from '../template
 
 /**
  * Email descriptor for registry/diagnostics.
- * Outgoing is false: sendMail is a utility only; email is not wired into the shared dispatch pipeline.
+ * Outgoing is wired into the dispatch pipeline via EmailDeliveryAdapter (PLAN S8).
  */
 export const emailIntegration: IntegrationDescriptor = {
   id: 'email',
   kind: 'provider',
   capabilities: {
     supportsIncoming: false,
-    supportsOutgoing: false,
+    supportsOutgoing: true,
   },
   supportedIncomingTypes: [],
   supportedOutgoingTypes: [],
 };
 
-/** Placeholder outbound adapter; real email sending is via sendMail() utility, not the dispatch pipeline. */
+/** Placeholder outbound adapter (registry/diagnostics only; real sending is via createEmailDeliveryAdapter). */
 export const emailOutboundAdapter = createOutboundPlaceholder(emailIntegration);
 
 /** Inbound adapter placeholder (not used for email). */
@@ -26,3 +26,4 @@ export { sendMail, isResolvedMailerConfigured } from './mailer.js';
 export type { SendMailParams, SendMailResult } from './mailer.js';
 export type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 export { emailConfig } from './config.js';
+export { createEmailDeliveryAdapter } from './deliveryAdapter.js';

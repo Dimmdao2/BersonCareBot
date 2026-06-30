@@ -87,6 +87,7 @@ describe("createPgSupportCommunicationPort", () => {
       await port.listOpenConversationsForAdmin({ source: "  telegram  ", limit: 200, unreadOnly: true });
       const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("sc.status <> 'closed'");
+      expect(sql).toContain("last_personal.personal_msg_at IS NOT NULL");
       expect(sql).toContain("$1::text IS NULL OR sc.source = $1");
       expect(sql).toContain("$3::boolean = false OR");
       expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true]);

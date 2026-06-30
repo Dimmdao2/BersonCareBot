@@ -36,13 +36,62 @@ export function splitBroadcastPlainCombined(combined: string): { title: string; 
   };
 }
 
-/** Telegram/MAX HTML: bold title, plain body. */
+/**
+ * Convert simple Markdown to Telegram HTML parse_mode text.
+ * Supported: **bold**, _italic_, ~~strikethrough~~, `code`, - / * bullet lists.
+ * Text is HTML-escaped first; formatting tags are injected after escaping
+ * so user content can never inject raw HTML.
+ */
+export function markdownToTelegramHtml(md: string): string {
+  // HTML-escape the raw text so user-supplied < > & are safe.
+  let t = escapeHtml(md.trim());
+
+  // Bold: **text** (no newlines inside)
+  t = t.replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
+
+  // Italic: _text_ (no underscores or newlines inside; not inside a word like snake_case)
+  t = t.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, "<i>$1</i>");
+
+  // Strikethrough: ~~text~~
+  t = t.replace(/~~([^~\n]+)~~/g, "<s>$1</s>");
+
+  // Inline code: `code` (no newlines inside)
+  t = t.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+
+  // Unordered list: "- item" or "* item" at start of line → "• item"
+  t = t.replace(/^[*-] (.+)$/gm, "• $1");
+
+  return t;
+}
+
+/**
+ * Strip simple Markdown to clean plain text for channels that have no markup
+ * (SMS, in-app chat copy, email): removes bold/italic/strike/code markers, keeps
+ * the text, bulletises "- item" / "* item" into "• item", preserves line breaks.
+ * Mirrors the patterns of markdownToTelegramHtml so the renditions stay in sync.
+ */
+export function stripMarkdownToPlain(md: string): string {
+  let t = md;
+  // Bullet list first (uses *) before bold strips **: "- item" / "* item" → "• item"
+  t = t.replace(/^[*-] (.+)$/gm, "• $1");
+  // Bold **text** → text
+  t = t.replace(/\*\*([^*\n]+)\*\*/g, "$1");
+  // Italic _text_ → text (not snake_case)
+  t = t.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, "$1");
+  // Strikethrough ~~text~~ → text
+  t = t.replace(/~~([^~\n]+)~~/g, "$1");
+  // Inline code `code` → code
+  t = t.replace(/`([^`\n]+)`/g, "$1");
+  return t;
+}
+
+/** Telegram/MAX HTML: bold title, Markdown body converted to Telegram HTML. */
 export function buildBroadcastMessengerHtml(title: string, body: string): string {
   const t = title.trim();
-  const b = body.trim();
+  const b = markdownToTelegramHtml(body);
   const head = t ? `<b>${escapeHtml(t)}</b>` : "";
   if (!b) return head || "";
-  return head ? `${head}\n\n${escapeHtml(b)}` : escapeHtml(b);
+  return head ? `${head}\n\n${b}` : b;
 }
 
 function stableEventId(auditId: string, channel: string, clientUserId: string, suffix: string): string {
@@ -58,6 +107,7 @@ function buildMessageSendIntent(input: {
   text: string;
   deliveryChannels: string[];
   parseMode?: "HTML";
+  imageUrl?: string;
 }): Record<string, unknown> {
   const occurredAt = new Date().toISOString();
   const source = input.channel === "sms" ? "sms" : input.channel;
@@ -75,6 +125,7 @@ function buildMessageSendIntent(input: {
       message: { text: input.text },
       delivery: { channels: input.deliveryChannels, maxAttempts: 1 },
       ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
+      ...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
     },
   };
 }
@@ -90,6 +141,8 @@ export type DoctorBroadcastDeliveryJobsParams = {
   notificationPrefsByUserId?: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
   attachMenu?: boolean;
+  /** URL картинки рассылки — пробрасывается ТОЛЬКО в telegram-intent (sendPhoto). */
+  imageUrl?: string | null;
 };
 
 /**
@@ -100,21 +153,25 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
   const audienceFilter = input.audienceFilter ?? "all";
   const prefsMap = input.notificationPrefsByUserId ?? new Map<string, BroadcastNotificationPrefsFlags>();
 
-  const wantsBot = input.channels.includes("bot_message");
+  // Legacy bot_message → telegram + max (обратная совместимость).
+  const legacyBotMessage = input.channels.includes("bot_message");
+  const wantsTelegram = input.channels.includes("telegram") || legacyBotMessage;
+  const wantsMax = input.channels.includes("max") || legacyBotMessage;
   const wantsSms = input.channels.includes("sms");
   const jobs: DoctorBroadcastQueueJob[] = [];
   const attachMenu = input.attachMenu === true;
   const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
   const { title: truncatedTitle, body: truncatedBody } = splitBroadcastPlainCombined(plainCombined);
   const messengerText = buildBroadcastMessengerHtml(truncatedTitle, truncatedBody);
-  const smsText = plainCombined;
+  // SMS has no markup → strip markdown markers (keep bullets/line breaks).
+  const smsText = stripMarkdownToPlain(plainCombined);
 
   for (const client of input.eligibleClients) {
     const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);
     const tg = client.bindings.telegramId?.trim();
     const mx = client.bindings.maxId?.trim();
 
-    if (wantsBot) {
+    if (wantsTelegram) {
       if (tg && broadcastIncludeTelegramJob(audienceFilter, prefs, true)) {
         const chatId = /^\d+$/.test(tg) ? Number(tg) : tg;
         const eventId = stableEventId(input.auditId, "telegram", client.userId, "tg");
@@ -135,10 +192,13 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
               text: messengerText,
               deliveryChannels: ["telegram"],
               parseMode: "HTML",
+              imageUrl: input.imageUrl ?? undefined,
             }),
           },
         });
       }
+    }
+    if (wantsMax) {
       if (mx && broadcastIncludeMaxJob(audienceFilter, prefs, true)) {
         const eventId = stableEventId(input.auditId, "max", client.userId, "max");
         jobs.push({

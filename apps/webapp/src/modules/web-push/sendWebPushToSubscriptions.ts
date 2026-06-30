@@ -13,6 +13,8 @@ export type WebPushClientPayload = {
   intentType?: string | null;
   pushKind?: string | null;
   warmupSloganKey?: string | null;
+  /** Reminder occurrence id — enables snooze/skip action buttons in the service worker. */
+  occurrenceId?: string | null;
 };
 
 /**
@@ -47,6 +49,53 @@ export async function sendWebPushToSubscriptions(params: {
     params;
   if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
+  // S16 — DEV SECONDARY SAFETY GUARD (G2, retired as primary sink).
+  //
+  // All 7 web-push messaging legs (S14a–S14g) now route through the integrator dispatchPort,
+  // which applies `applyPreForkDevRedirect` (G1) before adapter selection → the
+  // WebPushDeliveryAdapter is only reached with test-user recipients. This function has 0 live
+  // business-logic callers; it is kept only as a secondary belt-and-suspenders layer for any
+  // hypothetical future direct callers.
+  //
+  // Strategy: DELIVER only to the test user (same source-of-truth as the integrator G1 redirect —
+  // env DEV_REDIRECT_WEB_PUSH_USER_ID, default «Дмитрий Берсон» 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0).
+  // All other subscriptions are SUPPRESSED. NEVER reaches a real endpoint in dev.
+  //
+  // ALLOW_DEV_WEB_PUSH=1 bypasses this guard entirely (e.g. for manual E2E runs with a real device).
+  if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_WEB_PUSH !== "1") {
+    const testUserId =
+      process.env.DEV_REDIRECT_WEB_PUSH_USER_ID?.trim() || "1c312a64-fab8-4b75-b24e-88a1d6ebe4e0";
+    const callerUserId = logContext?.userId;
+
+    // If the caller userId does NOT match the test user, suppress entirely.
+    if (!callerUserId || callerUserId !== testUserId) {
+      logger.warn(
+        {
+          scope: "web_push",
+          event: "dev_web_push_suppressed",
+          count: subscriptions.length,
+          userId: callerUserId ?? null,
+          testUserId,
+          topicCode: logContext?.topicCode,
+        },
+        "[web-push] DEV suppress: caller is not the test user — not sending to real subscriptions in non-production",
+      );
+      return { delivered: 0, errors: 0, deactivated: 0 };
+    }
+
+    // Caller IS the test user — allow all their subscriptions through.
+    logger.warn(
+      {
+        scope: "web_push",
+        event: "dev_web_push_test_user_allowed",
+        count: subscriptions.length,
+        userId: callerUserId,
+        topicCode: logContext?.topicCode,
+      },
+      "[web-push] DEV: delivering to test user's subscriptions (caller matches DEV_REDIRECT_WEB_PUSH_USER_ID)",
+    );
+  }
+
   const body = JSON.stringify({
     title: payload.title,
     body: payload.body,
@@ -57,6 +106,7 @@ export async function sendWebPushToSubscriptions(params: {
     ...(payload.intentType ? { intentType: payload.intentType } : {}),
     ...(payload.pushKind ? { pushKind: payload.pushKind } : {}),
     ...(payload.warmupSloganKey ? { warmupSloganKey: payload.warmupSloganKey } : {}),
+    ...(payload.occurrenceId ? { occurrenceId: payload.occurrenceId } : {}),
   });
 
   let delivered = 0;

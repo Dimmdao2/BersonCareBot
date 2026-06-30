@@ -28,6 +28,8 @@ const MAX_BLOCKED_PATTERNS = [
   'bot blocked',
   'blocked by user',
   'access denied',
+  /** MAX API: user suspended dialog with the bot (403 error.dialog.suspended). */
+  'dialog.suspended',
 ] as const;
 
 export function isRecipientBlockedBotMessage(message: string): boolean {

@@ -10,6 +10,7 @@ const upsertBody = z.object({
   specialistId: z.string().uuid().nullable().optional(),
   branchId: z.string().uuid().nullable().optional(),
   roomId: z.string().uuid().nullable().optional(),
+  replace: z.boolean().optional(),
 });
 
 const patchBody = upsertBody.partial().extend({
@@ -28,12 +29,21 @@ export async function GET(request: Request) {
   const specialistId = url.searchParams.get("specialistId");
   const branchId = url.searchParams.get("branchId");
   const roomId = url.searchParams.get("roomId");
+  const weekdayRaw = url.searchParams.get("weekday");
+  const weekdayParsed = weekdayRaw !== null
+    ? z.coerce.number().int().min(0).max(6).safeParse(weekdayRaw)
+    : { success: true as const, data: undefined };
+  if (!weekdayParsed.success) {
+    return NextResponse.json({ ok: false, error: "Invalid weekday" }, { status: 400 });
+  }
+  const weekdayFilter = weekdayParsed.data;
   const [rows, usesFallback] = await Promise.all([
     deps.bookingScheduling.listWorkingHoursAdmin({
       organizationId: gate.ctx.organizationId,
       specialistId: specialistId === "__none__" ? null : specialistId || undefined,
       branchId: branchId === "__none__" ? null : branchId || undefined,
       roomId: roomId === "__none__" ? null : roomId || undefined,
+      weekday: weekdayFilter,
     }),
     deps.bookingScheduling.usesWorkingHoursFallback({
       organizationId: gate.ctx.organizationId,
