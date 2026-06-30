@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, test, development ]
   pull_request:
 
 permissions:
@@ -62,7 +62,8 @@ jobs:
 
   test-webapp-inprocess:
     name: Test (webapp in-process ${{ matrix.shard }}/3)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Heavy suite: gates deploys. Runs on main (pre prod-button) and test (pre auto-deploy).
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -118,8 +119,12 @@ jobs:
       - run: pnpm run audit
       - uses: ./.github/actions/cancel-on-failure
 
-  deploy:
-    name: Deploy
+  # Auto-deploy to the TEST host on push to `test`. Mirrors the old prod-deploy
+  # pattern 1:1 (needs all parallel lanes), only re-pointed at the test branch/host.
+  # Production has NO auto-deploy: it is a manual, approval-gated button — see
+  # .github/workflows/deploy-prod.yml.
+  deploy-test:
+    name: Deploy (test)
     runs-on: ubuntu-latest
     needs:
       [
@@ -132,18 +137,14 @@ jobs:
         build-webapp,
         audit,
       ]
-    # Auto-deploy DISABLED 2026-06-18 — production control moved to MANUAL.
-    # This repo (Dimmdao2) becomes dev/backup; prod deploys are owner-triggered
-    # from the production repo. A push to main here must never deploy. Was:
-    #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    if: false
+    if: github.ref == 'refs/heads/test' && github.event_name == 'push'
     steps:
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.1
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-      - name: Deploy to host
+          ssh-private-key: ${{ secrets.DEPLOY_TEST_SSH_KEY }}
+      - name: Deploy to test host
         run: |
           ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "bash ${{ secrets.DEPLOY_PATH }}/deploy/host/deploy-prod.sh"
+            ${{ secrets.DEPLOY_TEST_USER }}@${{ secrets.DEPLOY_TEST_HOST }} \
+            "bash ${{ secrets.DEPLOY_TEST_PATH }}/deploy/host/deploy-test.sh"
