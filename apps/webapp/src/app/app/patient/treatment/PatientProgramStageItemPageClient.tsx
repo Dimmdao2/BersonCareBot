@@ -305,6 +305,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
   const mediaPickerRef = useRef<ProgramItemSubmissionSourceDialogHandle>(null);
   const [metricsDraft, setMetricsDraft] = useState<CompletionMetricsDraft>(DEFAULT_COMPLETION_METRICS_DRAFT);
+  const [metricsPanelOpen, setMetricsPanelOpen] = useState(false);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
     unreadCount: 0,
@@ -534,34 +535,28 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [base, canUseInteractiveProgramActions, item]);
 
   useEffect(() => {
-    if (!canUseInteractiveProgramActions || !item || item.itemType === "clinical_test") {
-      setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
-      return;
-    }
-    let cancelled = false;
-    setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
-    void loadLatestMetrics().then((draft) => {
-      if (!cancelled) setMetricsDraft(draft);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [canUseInteractiveProgramActions, item, loadLatestMetrics]);
+    setMetricsPanelOpen(false);
+    setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
+  }, [itemId]);
 
   const handleComplete = async () => {
     if (!item || !canUseInteractiveProgramActions || simpleCompleteDoneFrozen) return;
+    setMetricsPanelOpen(true);
+    setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
     setBusy(item.id);
     setError(null);
     try {
+      const previousDraft = await loadLatestMetrics();
       const result = await postProgramItemComplete({
         base,
         itemId: item.id,
       });
       if (!result.ok) {
         setError(result.error);
+        setMetricsPanelOpen(false);
         return;
       }
-      setMetricsDraft(await loadLatestMetrics());
+      setMetricsDraft(previousDraft);
       await refresh();
       await loadDiscussionPreview();
     } finally {
@@ -585,6 +580,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         setError(data?.error ?? "Не удалось сохранить значения");
         return;
       }
+      setMetricsPanelOpen(false);
       await refresh();
       await loadDiscussionPreview();
     } finally {
@@ -897,11 +893,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         )}
                       </button>
                     </div>
-                    <CompletionMetricsPanel
-                      draft={metricsDraft}
-                      onDraftChange={setMetricsDraft}
-                      onSave={() => void saveCompletionMetrics()}
-                    />
+                    {metricsPanelOpen ? (
+                      <CompletionMetricsPanel
+                        draft={metricsDraft}
+                        onDraftChange={setMetricsDraft}
+                        onSave={() => void saveCompletionMetrics()}
+                      />
+                    ) : null}
                   </div>
                 )}
             </div>

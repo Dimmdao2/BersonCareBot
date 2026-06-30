@@ -154,9 +154,7 @@ describe("PatientProgramStageItemPageClient", () => {
     expect(screen.queryByText("Комментарий специалиста")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("12")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("3")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("2.5")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
 
     const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
     fireEvent.click(completeButton);
@@ -164,6 +162,13 @@ describe("PatientProgramStageItemPageClient", () => {
       expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/progress/complete"))).toBe(true);
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByDisplayValue("12")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("3")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2.5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Записать/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
+    });
   });
 
   it("shows comments and complete actions in the exercise action row, with video upload hint below instruction", async () => {
@@ -221,7 +226,7 @@ describe("PatientProgramStageItemPageClient", () => {
     const commentsButton = await screen.findByRole("button", { name: /Комментарии/i });
     const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
     expect(commentsButton.parentElement).toBe(completeButton.parentElement);
-    expect(await screen.findByRole("button", { name: /Записать/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Прикрепить видео/i })).toBeInTheDocument();
     expect(screen.getByText(/Если у вас есть вопросы по технике выполнения/i)).toBeInTheDocument();
   });
