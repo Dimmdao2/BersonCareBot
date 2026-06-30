@@ -75,13 +75,13 @@ describe("resolveProgramItemExecutionDots", () => {
 describe("formatProgramItemLastDoneSummaryText", () => {
   it("formats reps and weight", () => {
     expect(formatProgramItemLastDoneSummaryText({ reps: 12, sets: 3, weightKg: 5 })).toBe(
-      "сделано 12 × 3 с весом 5 кг",
+      "12 × 3 с весом 5 кг",
     );
   });
 
   it("formats reps only", () => {
     expect(formatProgramItemLastDoneSummaryText({ reps: 10, weightKg: null })).toBe(
-      "сделано 10",
+      "10",
     );
   });
 

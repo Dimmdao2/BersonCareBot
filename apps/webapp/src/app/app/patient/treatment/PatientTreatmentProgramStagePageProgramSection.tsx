@@ -274,18 +274,18 @@ export function CompletionMetricsPanel(props: {
     { value: "hard", label: "Тяжело" },
   ];
   const fieldBase = cn(
-    "h-10 w-full rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 text-center text-sm tabular-nums outline-none",
+    "h-8 w-full rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 text-center text-xs tabular-nums outline-none",
     "focus-visible:ring-2 focus-visible:ring-[var(--patient-border)]",
   );
 
   return (
     <div className="grid grid-rows-[1fr] transition-[grid-template-rows,opacity] duration-200 ease-out">
       <div className="min-h-0 overflow-hidden">
-        <div className="border-t border-[var(--patient-border)] bg-[var(--patient-color-primary-soft)]/20 px-2.5 py-3">
+        <div className="border-t border-[var(--patient-border)] bg-[var(--patient-color-primary-soft)]/20 px-2.5 py-2.5">
           {draft.loading ? (
             <p className={cn(patientMutedTextClass, "text-xs")}>Готовим поля…</p>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5">
               <div className="grid grid-cols-3 gap-1.5">
                 {difficultyOptions.map((opt) => {
                   const active = draft.perceivedDifficulty === opt.value;
@@ -294,7 +294,7 @@ export function CompletionMetricsPanel(props: {
                       key={opt.value}
                       type="button"
                       className={cn(
-                        "min-h-9 rounded-md border px-2 text-xs font-medium transition-colors",
+                        "min-h-8 rounded-md border px-2 text-xs font-medium transition-colors",
                         active
                           ? "border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]"
                           : "border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-secondary)]",
@@ -306,7 +306,7 @@ export function CompletionMetricsPanel(props: {
                   );
                 })}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <label className="flex min-w-0 flex-col gap-1">
                   <span className={cn(patientMutedTextClass, "text-[11px]")}>повторы</span>
                   <input
@@ -342,7 +342,12 @@ export function CompletionMetricsPanel(props: {
               </div>
               <button
                 type="button"
-                className={cn(patientCompactActionClass, "min-h-9 w-full text-xs font-medium")}
+                className={cn(
+                  "inline-flex min-h-8 w-full cursor-pointer items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--patient-color-primary)] transition-colors",
+                  "hover:bg-[var(--patient-color-primary-soft)]/80 active:bg-[var(--patient-color-primary-soft)]/70",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
                 disabled={draft.saving}
                 onClick={onSave}
               >

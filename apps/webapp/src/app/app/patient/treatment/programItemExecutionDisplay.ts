@@ -55,13 +55,13 @@ export function formatProgramItemLastDoneSummaryText(
   const { reps, sets, weightKg } = summary;
   const repsSetsText = reps != null && sets != null ? `${reps} × ${sets}` : reps != null ? String(reps) : null;
   if (repsSetsText && weightKg != null) {
-    return `сделано ${repsSetsText} с весом ${weightKg} кг`;
+    return `${repsSetsText} с весом ${weightKg} кг`;
   }
   if (repsSetsText) {
-    return `сделано ${repsSetsText}`;
+    return repsSetsText;
   }
   if (weightKg != null) {
-    return `сделано с весом ${weightKg} кг`;
+    return `с весом ${weightKg} кг`;
   }
   return null;
 }

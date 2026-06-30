@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { ChevronDown, ScrollText } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
@@ -187,7 +188,9 @@ export function PatientTreatmentProgramStagePageClient(props: {
   } = props;
   const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
   const stageForUi = embedded ? props.stage : detachedStage;
-  const [error, setError] = useState<string | null>(null);
+  const reportError = useCallback((message: string | null) => {
+    if (message?.trim()) toast.error(message.trim());
+  }, []);
   const [busy, setBusy] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
   const [doneTodayCountByItemId, setDoneTodayCountByItemId] = useState<Record<string, number>>({});
@@ -226,7 +229,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
   }, [instanceId, variant, embedded, embeddedChecklist]);
 
   const refresh = useCallback(async () => {
-    setError(null);
+    reportError(null);
     if (embedded && onRefreshDetail) {
       await onRefreshDetail();
       return;
@@ -242,7 +245,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
       item?: TreatmentProgramInstanceDetail;
     };
     if (!instRes.ok || !data?.ok || !data.item) {
-      setError("Не удалось обновить данные");
+      reportError("Не удалось обновить данные");
       return;
     }
     const updated = data.item.stages.find((s) => s.id === props.stage.id);
@@ -265,7 +268,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
       setDoneTodayCountByItemId(normalizeChecklistCountMap(chData.doneTodayCountByItemId));
       setLastDoneAtIsoByItemId(normalizeChecklistLastMap(chData.lastDoneAtIsoByItemId));
     }
-  }, [instanceId, props.stage.id, variant, embedded, onRefreshDetail]);
+  }, [instanceId, props.stage.id, variant, embedded, onRefreshDetail, reportError]);
 
   const effectiveDoneItemIds =
     embedded && embeddedChecklist ? embeddedChecklist.doneItemIds : doneItemIds;
@@ -355,12 +358,6 @@ export function PatientTreatmentProgramStagePageClient(props: {
 
     return (
       <div className={patientInnerPageStackClass}>
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-
         {!embedded ? (
           <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
             <span className={cn(patientPillClass, "absolute right-3 top-3 lg:right-4 lg:top-4")}>Запланирован</span>
@@ -394,12 +391,6 @@ export function PatientTreatmentProgramStagePageClient(props: {
   if (variant === "pastReadOnly" && !isStageZero) {
     return (
       <div className={patientInnerPageStackClass}>
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-
         {!embedded ? (
           <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
             <span
@@ -427,7 +418,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           base={base}
           busy={busy}
           setBusy={setBusy}
-          setError={setError}
+          setError={reportError}
           refresh={refresh}
           ignoreStageLockForContent={isStageZero}
           surfaceClass={cn(patientCardListSectionClass, "flex flex-col gap-4")}
@@ -446,12 +437,6 @@ export function PatientTreatmentProgramStagePageClient(props: {
 
   return (
     <div className={patientInnerPageStackClass}>
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-
       {!embedded ? (
         <div className={cn(hasGoalsCollapsible && "flex flex-col gap-0")}>
           <div
@@ -530,7 +515,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         base={base}
         busy={busy}
         setBusy={setBusy}
-        setError={setError}
+        setError={reportError}
         refresh={refresh}
         contentBlocked={contentBlocked}
         itemInteraction="full"

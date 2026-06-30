@@ -27,6 +27,7 @@ import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/pr
 import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
 import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
 import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
+import type { ProgramItemLastDoneSummary } from "@/app/app/patient/treatment/programItemExecutionDisplay";
 
 export function PatientInstanceStageItemCard(props: {
   instanceId: string;
@@ -82,6 +83,7 @@ export function PatientInstanceStageItemCard(props: {
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
+  const [lastDoneSummary, setLastDoneSummary] = useState<ProgramItemLastDoneSummary | null>(null);
   const showsNew =
     !readOnly && patientStageItemShowsNewBadge(item, contentBlocked);
   const recommendationPreviewMedia = useMemo(() => {
@@ -134,6 +136,38 @@ export function PatientInstanceStageItemCard(props: {
     void reloadClinicalTestSnap(ac.signal);
     return () => ac.abort();
   }, [reloadClinicalTestSnap]);
+
+  useEffect(() => {
+    if (item.itemType !== "exercise" || !lastDoneAtIsoByItemId?.[item.id]) {
+      setLastDoneSummary(null);
+      return;
+    }
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`, {
+          signal: ac.signal,
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          metrics?: {
+            reps?: number | null;
+            sets?: number | null;
+            weightKg?: number | null;
+          } | null;
+        } | null;
+        if (!res.ok || !data?.ok || !data.metrics) {
+          setLastDoneSummary(null);
+          return;
+        }
+        const { reps = null, sets = null, weightKg = null } = data.metrics;
+        setLastDoneSummary({ reps, sets, weightKg });
+      } catch (e) {
+        if (!ac.signal.aborted) setLastDoneSummary(null);
+      }
+    })();
+    return () => ac.abort();
+  }, [base, item.id, item.itemType, lastDoneAtIsoByItemId]);
 
   const markRef = usePostMarkItemViewedWhenVisible({
     instanceId,
@@ -246,6 +280,16 @@ export function PatientInstanceStageItemCard(props: {
               <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
             ) : null}
           </p>
+          {item.itemType !== "recommendation" && appDisplayTimeZone ? (
+            <PatientProgramItemExecutionRow
+              lastIso={lastDoneAtIsoByItemId?.[item.id] ?? null}
+              todayCount={todayChecklistDoneCount ?? 0}
+              appDisplayTimeZone={appDisplayTimeZone}
+              lastDoneSummary={lastDoneSummary}
+              variant="tile"
+              className="mt-1"
+            />
+          ) : null}
           {item.itemType !== "recommendation" ? (
             <div className="mt-1 flex justify-end">{openDetailLink}</div>
           ) : null}
@@ -289,14 +333,6 @@ export function PatientInstanceStageItemCard(props: {
               ) : null}
               {Boolean((item.snapshot as Record<string, unknown>)?.contraindications) ? (
                 <AlertTriangle className="size-3.5 shrink-0 text-amber-500" aria-label="Противопоказания" />
-              ) : null}
-              {appDisplayTimeZone ? (
-                <PatientProgramItemExecutionRow
-                  lastIso={lastDoneAtIsoByItemId?.[item.id] ?? null}
-                  todayCount={todayChecklistDoneCount ?? 0}
-                  appDisplayTimeZone={appDisplayTimeZone}
-                  variant="tile"
-                />
               ) : null}
             </div>
           ) : null}

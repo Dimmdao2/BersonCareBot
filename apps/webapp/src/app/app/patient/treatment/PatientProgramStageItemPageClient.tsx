@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Check, Camera, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
@@ -35,8 +36,8 @@ import {
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import {
   patientBodyTextClass,
-  patientButtonPrimaryClass,
   patientButtonSuccessClass,
+  patientCompactActionClass,
   patientMutedTextClass,
   patientProgramItemHeroTitleClass,
   patientProgramItemPrimaryStatTextClass,
@@ -44,6 +45,7 @@ import {
   patientScrollbarHiddenClass,
   patientSectionTitleClass,
   patientSectionTitleNormalClass,
+  patientSecondaryActionClass,
   patientSimpleCompleteDoneButtonToneClass,
 } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
@@ -298,7 +300,9 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   );
   const [detail, setDetail] = useState(initialDetail);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const reportError = useCallback((message: string | null) => {
+    if (message?.trim()) toast.error(message.trim());
+  }, []);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
   const [doneTodayCountByItemId, setDoneTodayCountByItemId] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
@@ -358,11 +362,11 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [resolved, router, backHref]);
 
   const refresh = useCallback(async () => {
-    setError(null);
+    reportError(null);
     const instRes = await fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}`);
     const data = (await instRes.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
     if (!instRes.ok || !data.ok || !data.item) {
-      setError("Не удалось обновить данные");
+      reportError("Не удалось обновить данные");
       return;
     }
     setDetail(data.item);
@@ -392,7 +396,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
       setDoneTodayCountByActivityKey({});
       setLastDoneAtIsoByActivityKey({});
     }
-  }, [instanceId]);
+  }, [instanceId, reportError]);
 
   useEffect(() => {
     if (detail.status !== "active") {
@@ -545,7 +549,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     setMetricsPanelOpen(true);
     setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
     setBusy(item.id);
-    setError(null);
+    reportError(null);
     try {
       const previousDraft = await loadLatestMetrics();
       const result = await postProgramItemComplete({
@@ -553,7 +557,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         itemId: item.id,
       });
       if (!result.ok) {
-        setError(result.error);
+        reportError(result.error);
         setMetricsPanelOpen(false);
         return;
       }
@@ -576,7 +580,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const saveCompletionMetrics = async () => {
     if (!item || !canUseInteractiveProgramActions) return;
     setMetricsDraft((prev) => ({ ...prev, saving: true }));
-    setError(null);
+    reportError(null);
     try {
       const payload = draftToPayload(metricsDraft);
       const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`, {
@@ -586,7 +590,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!res.ok || !data?.ok) {
-        setError(data?.error ?? "Не удалось сохранить значения");
+        reportError(data?.error ?? "Не удалось сохранить значения");
         return;
       }
       setMetricsPanelOpen(false);
@@ -664,12 +668,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         "bg-[var(--patient-card-bg,#fff)]",
       )}
     >
-      {error ? (
-        <p className="px-4 pt-2 text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-
       <div
         className={cn(
           patientHomeCardHeroClass,
@@ -853,17 +851,17 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         <button
                           type="button"
                           className={cn(
-                            "inline-flex min-h-9 min-w-0 flex-[0.9] items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-xs font-medium leading-tight transition-colors sm:min-h-10",
+                            patientSecondaryActionClass,
+                            "inline-flex min-h-9 min-w-0 flex-[0.9] items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium leading-tight whitespace-nowrap",
                             commentsEnabled
-                              ? "cursor-pointer border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-primary)] hover:bg-muted/50 active:bg-muted/70"
+                              ? "cursor-pointer"
                               : "cursor-not-allowed opacity-60",
-                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
                           )}
                           disabled={busy !== null || !commentsEnabled}
                           aria-disabled={!commentsEnabled}
                           onClick={() => {
                             if (!commentsEnabled) return;
-                            setError(null);
+                            reportError(null);
                             setDiscussionDialogOpen(true);
                           }}
                         >
@@ -881,8 +879,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                       <button
                         type="button"
                         className={cn(
-                          patientButtonPrimaryClass,
-                          "min-h-9 min-w-0 flex-1 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
+                          patientCompactActionClass,
+                          "min-h-9 min-w-0 flex-1 px-2 py-2.5 text-xs font-medium leading-tight",
                           !commentsVisible && "w-full",
                           simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                         )}
@@ -976,7 +974,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               baseUrl={base}
               busy={busy}
               setBusy={setBusy}
-              setError={setError}
+              setError={reportError}
               onDone={refresh}
               serverSnapshot={testSetServerSnapshot ?? null}
               activeTestId={navMode === "tests" && resolvedTestId ? resolvedTestId : undefined}
@@ -992,7 +990,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               onUploaded={() => {
                 void loadDiscussionPreview();
               }}
-              onError={() => setError("Не удалось загрузить файл")}
+              onError={() => reportError("Не удалось загрузить файл")}
             />
           ) : null}
           {commentsVisible && item ? (

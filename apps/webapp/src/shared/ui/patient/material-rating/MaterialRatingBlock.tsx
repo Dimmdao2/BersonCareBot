@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Star } from "lucide-react";
 import { Rating, Star as RatingStarShape } from "@smastrom/react-rating";
 import "@smastrom/react-rating/style.css";
@@ -191,7 +192,8 @@ export function MaterialRatingBlock({
               myStars?: number | null;
             };
             if (!res.ok || !data.ok) {
-              setError("Не удалось сохранить");
+              setError(null);
+              toast.error("Не удалось сохранить");
               await load();
               return;
             }
@@ -204,11 +206,13 @@ export function MaterialRatingBlock({
             });
             setValue(my ?? 0);
             setEditRatingPicker(false);
+            toast.success("Спасибо за оценку!");
             if (my != null && my >= 1 && my <= 3) {
               onLowRatingSaved?.(my);
             }
           } catch {
-            setError("Не удалось сохранить");
+            setError(null);
+            toast.error("Не удалось сохранить");
             await load();
           }
         })();
@@ -324,7 +328,6 @@ export function MaterialRatingBlock({
           />
         </MaterialRatingSmastromBoundary>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

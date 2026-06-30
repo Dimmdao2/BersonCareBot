@@ -185,7 +185,7 @@ describe("PatientProgramStageItemPageClient", () => {
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
     });
-    expect(await screen.findByText("сделано 12 × 3 с весом 2.5 кг")).toBeInTheDocument();
+    expect(await screen.findByText("12 × 3 с весом 2.5 кг")).toBeInTheDocument();
   });
 
   it("shows comments and complete actions in the exercise action row, with video upload hint below instruction", async () => {
