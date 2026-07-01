@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { BookingCatalogPackagesSection } from "@/app/app/settings/BookingCatalogPackagesSection";
 import { BookingEngineSection } from "@/app/app/settings/BookingEngineSection";
 import { BookingPublicAttributionSection } from "@/app/app/settings/BookingPublicAttributionSection";
 import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidgetSection";
@@ -11,7 +10,6 @@ import { BookingRubitimeMappingSection } from "@/app/app/settings/BookingRubitim
 import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
 import { BookingSoloFormFieldsSection } from "@/app/app/settings/BookingSoloFormFieldsSection";
 import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocationsSection";
-import { BookingSoloServicesSection } from "@/app/app/settings/BookingSoloServicesSection";
 import { RubitimeSection } from "@/app/app/settings/RubitimeSection";
 import { BookingRulesPageClient } from "@/app/app/doctor/admin/booking/BookingRulesPageClient";
 import { parseBookingPaymentSettingsValue } from "@/modules/payments/bookingPaymentSettings";
@@ -37,7 +35,6 @@ import type { ScheduleTabProps } from "../scheduleTabRegistry";
 
 type SetupSectionId =
   | "calendar"
-  | "services"
   | "locations"
   | "form"
   | "payments"
@@ -51,7 +48,6 @@ type SetupSectionDef = {
 
 const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: "calendar",      label: "Календарь" },
-  { id: "services",      label: "Услуги и пакеты" },
   { id: "locations",     label: "Локации" },
   { id: "form",          label: "Публичная форма" },
   { id: "payments",      label: "Оплаты" },
@@ -450,17 +446,6 @@ function ScheduleCalendarDefaultsSection() {
 // Section content components
 // ---------------------------------------------------------------------------
 
-function SectionServices() {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className={BOOKING_CARD_GRID_CLASS}>
-        <BookingSoloServicesSection />
-        <BookingCatalogPackagesSection />
-      </div>
-    </div>
-  );
-}
-
 function SectionCalendar() {
   return <ScheduleCalendarDefaultsSection />;
 }
@@ -568,7 +553,6 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
       {/* Active section content */}
       <div data-testid={`setup-section-${activeSection}`}>
         {activeSection === "calendar"     && <SectionCalendar />}
-        {activeSection === "services"     && <SectionServices />}
         {activeSection === "locations"    && <SectionLocations />}
         {activeSection === "form"         && <SectionForm />}
         {activeSection === "payments"     && <SectionPayments />}
