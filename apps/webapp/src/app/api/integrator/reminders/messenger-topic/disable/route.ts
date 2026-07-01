@@ -4,6 +4,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/app-layer/db/client";
 import { findCanonicalUserIdByIntegratorId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { disableReminderMessengerTopicForOccurrence } from "@/modules/reminders/disableReminderMessengerTopic";
+import {
+  loadMessengerChannelBindingsForReminderTopicDisable,
+  loadReminderOccurrenceRuleForMessengerTopicDisable,
+} from "@/app-layer/reminders/reminderMessengerTopicDisable";
 
 type Body = {
   integratorUserId?: unknown;
@@ -73,7 +77,9 @@ export async function POST(request: Request) {
 
   const r = await disableReminderMessengerTopicForOccurrence(
     {
-      pool,
+      loadOccurrenceRule: (params) => loadReminderOccurrenceRuleForMessengerTopicDisable(pool, params),
+      loadChannelBindings: (platformUserId) =>
+        loadMessengerChannelBindingsForReminderTopicDisable(pool, platformUserId),
       channelPreferences: deps.channelPreferencesPort,
       topicChannelPrefs: deps.topicChannelPrefs,
       webPushSubscriptions: deps.webPushSubscriptions,

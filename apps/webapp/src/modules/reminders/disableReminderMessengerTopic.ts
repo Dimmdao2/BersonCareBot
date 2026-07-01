@@ -1,5 +1,3 @@
-import type { Pool } from "pg";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import type { ChannelBindings } from "@/shared/types/session";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
@@ -15,28 +13,12 @@ const MESSENGER_LABEL_RU: Record<"telegram" | "max", string> = {
   max: "MAX",
 };
 
-async function loadBindings(pool: Pool, platformUserId: string): Promise<ChannelBindings> {
-  const r = await runPgPoolPgText<{ channel_code: string; external_id: string }>(
-    pool,
-    `SELECT channel_code, external_id
-       FROM user_channel_bindings
-      WHERE user_id = $1::uuid
-        AND channel_code IN ('telegram', 'max')`,
-    [platformUserId],
-  );
-  const b: ChannelBindings = {};
-  for (const row of r.rows) {
-    const cc = row.channel_code.trim();
-    const ext = row.external_id.trim();
-    if (!ext) continue;
-    if (cc === "telegram") b.telegramId = ext;
-    if (cc === "max") b.maxId = ext;
-  }
-  return b;
-}
-
 export type DisableReminderMessengerDeps = {
-  pool: Pool;
+  loadOccurrenceRule: (params: {
+    platformUserId: string;
+    integratorOccurrenceId: string;
+  }) => Promise<ReminderRuleForTopicCode | null>;
+  loadChannelBindings: (platformUserId: string) => Promise<ChannelBindings>;
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: Pick<WebPushSubscriptionsPort, "hasAnyForUserId">;
@@ -58,36 +40,14 @@ export async function disableReminderMessengerTopicForOccurrence(
   | { ok: true; persisted: false; paragraphs: string[] }
   | { ok: true; persisted: true; paragraphs: string[] }
 > {
-  const { pool } = deps;
-  const own = await runPgPoolPgText<{
-    category: string;
-    notification_topic_code: string | null;
-    reminder_intent: string | null;
-    linked_object_type: string | null;
-  }>(
-    pool,
-    `SELECT rr.category::text AS category,
-            rr.notification_topic_code,
-            rr.reminder_intent,
-            rr.linked_object_type::text AS linked_object_type
-       FROM reminder_occurrence_history roh
- INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
- INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-      WHERE roh.integrator_occurrence_id = $1
-        AND pu.id = $2::uuid`,
-    [params.integratorOccurrenceId, params.platformUserId],
-  );
-  if (own.rows.length === 0) {
+  const rule = await deps.loadOccurrenceRule({
+    platformUserId: params.platformUserId,
+    integratorOccurrenceId: params.integratorOccurrenceId,
+  });
+  if (!rule) {
     return { ok: false, error: "not_found" };
   }
-  const dbRow = own.rows[0]!;
-  const rule: ReminderRuleForTopicCode = {
-    category: dbRow.category,
-    notificationTopicCode: dbRow.notification_topic_code,
-    reminderIntent: dbRow.reminder_intent,
-    linkedObjectType: dbRow.linked_object_type,
-  };
-  const topicCode = reminderOccurrenceTopicCode(rule, dbRow.category);
+  const topicCode = reminderOccurrenceTopicCode(rule, rule.category);
   const label = MESSENGER_LABEL_RU[params.messengerChannel];
 
   if (!topicCode) {
@@ -104,7 +64,7 @@ export async function disableReminderMessengerTopicForOccurrence(
 
   await deps.topicChannelPrefs.upsert(params.platformUserId, topicCode, params.messengerChannel, false);
 
-  const bindings = await loadBindings(pool, params.platformUserId);
+  const bindings = await deps.loadChannelBindings(params.platformUserId);
   const emailFields = await deps.getProfileEmailFields(params.platformUserId);
   const activeLabels = await resolveActiveReminderDeliveryLabelsForTopic({
     platformUserId: params.platformUserId,
