@@ -39,14 +39,14 @@ function filterTodayTasks(tasks: SpecialistTaskRow[], todayIso: string): Special
   return tasks.filter((t) => t.dueAt != null && t.dueAt.slice(0, 10) <= todayIso);
 }
 
-function formatWhenShort(iso: string | null): string | null {
+function formatWhenShort(iso: string | null, displayIana?: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleString("ru-RU", {
     dateStyle: "short",
     timeStyle: "short",
-    timeZone: DEFAULT_APP_DISPLAY_TIMEZONE,
+    timeZone: displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE,
   });
 }
 
@@ -54,6 +54,7 @@ export function DoctorGlobalTasksSection({
   initialTasks,
   initialTasksTotal,
   todayIso,
+  displayIana,
   className,
 }: {
   initialTasks: SpecialistTaskRow[];
@@ -64,6 +65,8 @@ export function DoctorGlobalTasksSection({
   initialTasksTotal?: number;
   /** Дата сегодня в формате YYYY-MM-DD (из сервера) для сортировки по дедлайну. */
   todayIso: string;
+  /** IANA timezone for display — threads from parent instead of hardcoding Europe/Moscow. */
+  displayIana?: string;
   className?: string;
 }) {
   const [tasks, setTasks] = useState(() => sortTasksByDeadline(initialTasks, todayIso));
@@ -153,6 +156,7 @@ export function DoctorGlobalTasksSection({
                   key={task.id}
                   task={task}
                   busy={isPending}
+                  displayIana={displayIana}
                   onComplete={handleComplete}
                   onEdit={(t) => {
                     setEditing(t);
@@ -196,6 +200,7 @@ export function DoctorGlobalTasksSection({
           <TaskRow
             task={task}
             busy={isPending}
+            displayIana={displayIana}
             onComplete={(id) => {
               handleComplete(id);
               setTaskModalOpen(false);

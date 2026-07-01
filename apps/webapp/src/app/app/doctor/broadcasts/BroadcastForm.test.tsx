@@ -9,6 +9,7 @@ const executeBroadcastAction = vi.fn();
 const loadDraftAction = vi.fn();
 const saveDraftAction = vi.fn();
 const getChannelCountsAction = vi.fn();
+const getChannelCountsByAudienceAction = vi.fn();
 
 vi.mock("./actions", () => ({
   previewBroadcastAction: (...args: unknown[]) => previewBroadcastAction(...args),
@@ -16,6 +17,7 @@ vi.mock("./actions", () => ({
   loadDraftAction: (...args: unknown[]) => loadDraftAction(...args),
   saveDraftAction: (...args: unknown[]) => saveDraftAction(...args),
   getChannelCountsAction: (...args: unknown[]) => getChannelCountsAction(...args),
+  getChannelCountsByAudienceAction: (...args: unknown[]) => getChannelCountsByAudienceAction(...args),
 }));
 
 import { BroadcastForm } from "./BroadcastForm";
@@ -50,7 +52,8 @@ async function fillValidForm() {
   });
   await userEvent.click(screen.getByRole("button", { name: "Все клиенты" }));
   await userEvent.type(screen.getByLabelText(/заголовок/i), "Заголовок теста");
-  await userEvent.type(screen.getByLabelText(/текст сообщения/i), "Достаточно длинный текст");
+  // MarkdownEditor exposes the textarea via sr-only label "Редактор"
+  await userEvent.type(screen.getByLabelText(/редактор/i), "Достаточно длинный текст");
 }
 
 describe("BroadcastForm", () => {
@@ -59,14 +62,16 @@ describe("BroadcastForm", () => {
     executeBroadcastAction.mockReset();
     loadDraftAction.mockResolvedValue(null);
     saveDraftAction.mockResolvedValue(undefined);
-    getChannelCountsAction.mockResolvedValue({
+    const defaultCounts = {
       bot_message: 42,
       telegram: 42,
       max: 18,
       sms: 15,
       push: 10,
       email: 25,
-    });
+    };
+    getChannelCountsAction.mockResolvedValue(defaultCounts);
+    getChannelCountsByAudienceAction.mockResolvedValue(defaultCounts);
   });
 
   it("does not call preview action when required fields are incomplete (preview button disabled)", async () => {
@@ -79,7 +84,7 @@ describe("BroadcastForm", () => {
 
   it("renders 4 category chips in correct order: Организационное · Важное · Сервисное · Рекламное", () => {
     render(<BroadcastForm />);
-    const chips = ["Организационное", "Важное", "Сервисное", "Рекламное"];
+    const chips = ["Организационное", "🔴❗ Важное", "⚙️ Сервисное", "Рекламное"];
     const buttons = chips.map((name) => screen.getByRole("button", { name }));
     expect(buttons).toHaveLength(4);
     // Verify order: position of Организационное < Важное < Сервисное < Рекламное
@@ -91,7 +96,7 @@ describe("BroadcastForm", () => {
     render(<BroadcastForm />);
     const orgChip = screen.getByRole("button", { name: "Организационное" });
     expect(orgChip).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Важное" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "🔴❗ Важное" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("legacy category chips (Напоминание, etc.) are not rendered in form", () => {
@@ -119,7 +124,7 @@ describe("BroadcastForm", () => {
         expect.objectContaining({
           category: "organizational",
           audienceFilter: "all",
-          message: { title: "Заголовок теста", body: "Достаточно длинный текст" },
+          message: expect.objectContaining({ title: "Заголовок теста", body: "Достаточно длинный текст" }),
           attachMenuAfterSend: false,
         }),
       );
@@ -156,7 +161,9 @@ describe("BroadcastForm", () => {
     await userEvent.click(previewBtn);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /загрузка/i })).toBeDisabled();
+      // "Загрузка…" (with ellipsis) is the preview button while loading;
+      // "Библиотека или загрузка" is the MarkdownEditor toolbar button — exclude it via exact text
+      expect(screen.getByRole("button", { name: "Загрузка…" })).toBeDisabled();
     });
 
     resolvePreview!(
@@ -289,7 +296,7 @@ describe("BroadcastForm", () => {
     expect(screen.getByDisplayValue("Черновик текст")).toBeInTheDocument();
     // Draft category "service" overrides default "organizational"
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Сервисное" })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: "⚙️ Сервисное" })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
@@ -345,8 +352,8 @@ describe("BroadcastForm", () => {
       expect(screen.getByDisplayValue("Важное сообщение")).toBeInTheDocument();
     });
     expect(screen.getByDisplayValue("Текст важного сообщения для тестирования")).toBeInTheDocument();
-    // Category "important_notice" → "Важное"
-    expect(screen.getByRole("button", { name: "Важное" })).toHaveAttribute("aria-pressed", "true");
+    // Category "important_notice" → "🔴❗ Важное"
+    expect(screen.getByRole("button", { name: "🔴❗ Важное" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Организационное" })).toHaveAttribute("aria-pressed", "false");
   });
 

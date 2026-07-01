@@ -86,6 +86,15 @@ const FLYOUT_LINK_CLASS = cn(
   "h-auto w-full justify-start px-3 py-2 text-sm font-normal",
 );
 
+/**
+ * Renders a menu icon from a stable Lucide component reference.
+ * Declared outside all components so react-hooks/static-components does not fire.
+ */
+function renderMenuIcon(Icon: ElementType | null, size: number) {
+  if (!Icon) return null;
+  return <Icon size={size} strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden className="shrink-0" />;
+}
+
 export type DoctorMenuAccordionProps = {
   variant: "sidebar" | "sheet";
   pathname: string;
@@ -190,14 +199,7 @@ function SidebarGroupFlyout({
         )}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          {Icon && (
-            <Icon
-              size={iconSize}
-              strokeWidth={NAV_STRIP_ICON_STROKE}
-              aria-hidden
-              className="shrink-0"
-            />
-          )}
+          {renderMenuIcon(Icon, iconSize)}
           <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
         </span>
         <ChevronRight
@@ -405,8 +407,8 @@ function SheetTwoLevelMenu({
 }
 
 export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabel, onNavigate }: DoctorMenuAccordionProps) {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess.role, menuAccess.adminMode, patientLabel]);
+  const { role, adminMode } = menuAccess;
+  const items = useMemo(() => getDoctorMenuItems({ role, adminMode }, patientLabel), [role, adminMode, patientLabel]);
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount();

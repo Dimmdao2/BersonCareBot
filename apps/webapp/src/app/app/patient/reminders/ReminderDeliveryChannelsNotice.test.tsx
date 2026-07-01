@@ -13,7 +13,7 @@ describe("ReminderDeliveryChannelsNotice", () => {
     expect(screen.getByText(REMINDER_DELIVERY_CHANNELS_NOTICE)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Настроить каналы доставки" })).toHaveAttribute(
       "href",
-      "/app/patient/notifications",
+      "/app/patient/notifications/settings",
     );
   });
 });

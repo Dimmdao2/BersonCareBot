@@ -236,14 +236,23 @@ describe('EmailDeliveryAdapter — send() errors in production', () => {
   });
 });
 
-describe('EmailDeliveryAdapter — DoD-2: DEV_DELIVERY_REDIRECT collapse (sendMail NOT called)', () => {
+describe('EmailDeliveryAdapter — DoD-2: DEV_DELIVERY_REDIRECT per-channel redirect (real email replaced, sendMail called with dev email)', () => {
+  /**
+   * Q-A rework: the redirect now redirects email→email (to the test user's email),
+   * NOT collapses email→telegram. sendMail IS called but with the dev test email,
+   * never the real client's email.
+   */
+  const DEV_EMAIL_TARGET = 'dimmdao@yandex.ru'; // Дмитрий default
+
   beforeEach(() => {
     mockSendMail.mockClear();
     mockResolveSmtp.mockResolvedValue(CONFIGURED_SMTP);
-    // Activate redirect (test/dev env — default)
+    // Activate redirect (test/dev env — default). No override for DEV_REDIRECT_EMAIL
+    // so the Дмитрий default (dimmdao@yandex.ru) is used.
     process.env.NODE_ENV = 'test';
     delete process.env.DEV_DELIVERY_REDIRECT;
-    process.env.TELEGRAM_ADMIN_ID = '364943522';
+    delete process.env.DEV_REDIRECT_EMAIL;
+    delete process.env.DEV_REDIRECT_DISABLE_DEFAULTS;
     _resetDevRedirectActiveCache();
   });
 
@@ -251,46 +260,40 @@ describe('EmailDeliveryAdapter — DoD-2: DEV_DELIVERY_REDIRECT collapse (sendMa
     restoreTestEnv();
   });
 
-  it('email intent through dispatchOutgoing with redirect active → sendMail NOT called', async () => {
-    // The telegram adapter captures the collapsed intent; email adapter must not be reached.
-    const telegramCapture: OutgoingIntent[] = [];
-    const telegramAdapter = {
-      canHandle: (intent: OutgoingIntent) => intent.meta.source === 'telegram',
-      send: async (intent: OutgoingIntent) => { telegramCapture.push(intent); return {}; },
-    };
-
+  it('email intent with redirect active → sendMail called with dev email, NOT real client email', async () => {
+    // Q-A: email stays as email — redirected to dev test user's email address.
+    // The email adapter IS reached (channel preserved), sendMail IS called,
+    // but with the dev email, never the real client.
     const emailAdapter = createEmailDeliveryAdapter({ getDb: () => fakeDb });
-    const port = createDefaultDispatchPort({ adapters: [telegramAdapter, emailAdapter] });
+    const port = createDefaultDispatchPort({ adapters: [emailAdapter] });
 
     await port.dispatchOutgoing(makeEmailIntent({ to: 'realclient@example.com', subject: 'Reminder', text: 'Hello' }));
 
-    // sendMail must NOT be called — the redirect collapsed to telegram before the email adapter
-    expect(mockSendMail).not.toHaveBeenCalled();
+    // sendMail IS called — email adapter is reached (channel preserved).
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
 
-    // The telegram adapter should have been called instead
-    expect(telegramCapture).toHaveLength(1);
-    const collapsed = telegramCapture[0]!.payload as { recipient: { chatId: number; email?: string } };
-    // recipient.email must NOT survive into the collapsed intent
-    expect(collapsed.recipient.email).toBeUndefined();
-    expect(collapsed.recipient.chatId).toBe(364943522);
+    // But recipient is the dev test email, NOT the real client.
+    const callArgs = mockSendMail.mock.calls[0]![1] as Record<string, unknown>;
+    expect(callArgs['to']).toBe(DEV_EMAIL_TARGET);
+    expect(callArgs['to']).not.toBe('realclient@example.com');
   });
 
-  it('forced redirect via DEV_DELIVERY_REDIRECT=1 also suppresses email send', async () => {
+  it('forced redirect via DEV_DELIVERY_REDIRECT=1 also redirects to dev email (not real client)', async () => {
     process.env.NODE_ENV = 'production';
     process.env.DEV_DELIVERY_REDIRECT = '1';
+    delete process.env.DEV_REDIRECT_EMAIL;
+    delete process.env.DEV_REDIRECT_DISABLE_DEFAULTS;
     _resetDevRedirectActiveCache();
 
-    const telegramCapture: OutgoingIntent[] = [];
-    const telegramAdapter = {
-      canHandle: (intent: OutgoingIntent) => intent.meta.source === 'telegram',
-      send: async (intent: OutgoingIntent) => { telegramCapture.push(intent); return {}; },
-    };
     const emailAdapter = createEmailDeliveryAdapter({ getDb: () => fakeDb });
-    const port = createDefaultDispatchPort({ adapters: [telegramAdapter, emailAdapter] });
+    const port = createDefaultDispatchPort({ adapters: [emailAdapter] });
 
     await port.dispatchOutgoing(makeEmailIntent({ to: 'real@client.com', text: 'body' }));
 
-    expect(mockSendMail).not.toHaveBeenCalled();
-    expect(telegramCapture).toHaveLength(1);
+    // sendMail IS called with the dev test email, NOT the real client.
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+    const callArgs = mockSendMail.mock.calls[0]![1] as Record<string, unknown>;
+    expect(callArgs['to']).toBe(DEV_EMAIL_TARGET);
+    expect(callArgs['to']).not.toBe('real@client.com');
   });
 });

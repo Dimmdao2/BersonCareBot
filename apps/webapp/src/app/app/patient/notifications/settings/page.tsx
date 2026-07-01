@@ -1,0 +1,90 @@
+import Link from "next/link";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
+import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
+import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import {
+  patientInnerPageStackClass,
+  patientMutedTextClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
+} from "@/shared/ui/patient/patientVisual";
+import { PatientNotificationChannelsStatus } from "../PatientNotificationChannelsStatus";
+import { PatientNotificationsTopicsSection } from "../PatientNotificationsTopicsSection";
+
+export default async function PatientNotificationSettingsPage() {
+  const session = await requirePatientAccessWithPhone(routePaths.notificationSettings);
+  const deps = buildAppDeps();
+  const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const emailVerified = Boolean(emailFields.emailVerifiedAt);
+  const hasEmail = Boolean(emailFields.email?.trim());
+  const telegramId = session.user.bindings.telegramId ?? "";
+  const maxId = session.user.bindings.maxId ?? "";
+  const hasTelegram = Boolean(telegramId.trim());
+  const hasMax = Boolean(maxId.trim());
+  const hasWebPushSubscription = await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId);
+  const channelPrefs = await deps.channelPreferencesPort.getPreferences(session.user.userId);
+  const globalWebPushEnabled =
+    channelPrefs.find((p) => p.channelCode === "web_push")?.isEnabledForNotifications !== false;
+
+  const notificationsTopicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
+  const subscriptionTopics = parseNotificationsTopics(notificationsTopicsSetting?.valueJson ?? null);
+  const prefRows = await deps.topicChannelPrefs.listByUserId(session.user.userId);
+  const topicMasterRows = await deps.patientNotificationTopics.listByUserId(session.user.userId);
+  const notificationModels = buildProfileNotificationTopicModels(
+    subscriptionTopics,
+    prefRows,
+    topicMasterRows,
+    {
+      hasTelegram,
+      hasMax,
+      emailVerified,
+      hasWebPushSubscription,
+      globalWebPushEnabled,
+    },
+  );
+
+  const hasMessengerOrEmail = hasTelegram || hasMax || (hasEmail && emailVerified);
+
+  return (
+    <PatientAppShell
+      title="Настройка уведомлений"
+      user={session.user}
+      backHref={routePaths.profile}
+      backLabel="Назад"
+    >
+      <div className={patientInnerPageStackClass}>
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Каналы</h2>
+          <PatientNotificationChannelsStatus
+            hasTelegram={hasTelegram}
+            hasMax={hasMax}
+            hasEmail={hasEmail}
+            emailVerified={emailVerified}
+          />
+          {!hasMessengerOrEmail && !hasWebPushSubscription ?
+            <p className={`${patientMutedTextClass} mt-3`}>
+              Подключите мессенджер или email в{" "}
+              <Link href={routePaths.profile} className="underline">
+                профиле
+              </Link>
+              .
+            </p>
+          : null}
+        </section>
+
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Типы уведомлений</h2>
+          <PatientNotificationsTopicsSection
+            initialTopics={notificationModels}
+            hasMessengerOrEmail={hasMessengerOrEmail}
+            hasWebPushSubscription={hasWebPushSubscription}
+            globalWebPushEnabled={globalWebPushEnabled}
+          />
+        </section>
+      </div>
+    </PatientAppShell>
+  );
+}

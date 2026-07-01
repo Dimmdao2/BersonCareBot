@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   appointmentStatusLabel,

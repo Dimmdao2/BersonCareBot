@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 
 export type AppointmentReminderSettingsSectionProps = {
   initialEnabled: boolean;
@@ -50,24 +51,23 @@ export function AppointmentReminderSettingsSection({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  async function patchDoctorSetting(key: string, value: unknown): Promise<boolean> {
-    const res = await fetch("/api/doctor/settings", {
+  async function patchDoctorSetting(key: string, value: unknown): Promise<void> {
+    await apiJson("/api/doctor/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value: { value } }),
     });
-    return res.ok;
   }
 
   function handleToggleEnabled(v: boolean) {
     setSaved(false);
     setError(null);
     startTransition(async () => {
-      const ok = await patchDoctorSetting("doctor_appointment_reminder_enabled", v);
-      if (ok) {
+      try {
+        await patchDoctorSetting("doctor_appointment_reminder_enabled", v);
         setEnabled(v);
         setSaved(true);
-      } else {
+      } catch {
         setError("Не удалось сохранить настройку");
       }
     });
@@ -94,12 +94,12 @@ export function AppointmentReminderSettingsSection({
       return;
     }
     startTransition(async () => {
-      const ok = await patchDoctorSetting("doctor_appointment_reminder_offsets_minutes", parsed);
-      if (ok) {
+      try {
+        await patchDoctorSetting("doctor_appointment_reminder_offsets_minutes", parsed);
         setOffsets(parsed);
         setEditMode(false);
         setSaved(true);
-      } else {
+      } catch {
         setError("Не удалось сохранить смещения напоминаний");
       }
     });

@@ -156,7 +156,11 @@ describe("doctor-broadcasts service", () => {
     const { auditEntry } = await service.execute({
       category: "important_notice",
       audienceFilter: "all",
-      message: { title: "Важно", body: "Текст длиннее десяти символов" },
+      message: {
+        title: "Важно",
+        body: "Текст длиннее десяти символов",
+        mediaUrl: "https://x/y.jpg",
+      },
       actorId: "doctor-123",
       channels: ["bot_message"],
     });
@@ -167,6 +171,10 @@ describe("doctor-broadcasts service", () => {
     expect(committed[0].jobs.length).toBe(2);
     expect(committed[0].jobs[0].kind).toBe("doctor_broadcast_intent");
     expect(committed[0].recipientUserIds).toEqual(["u1", "u2"]);
+    // telegram job carries the broadcast image (sendPhoto), max does not.
+    const tgJob = committed[0].jobs.find((j) => j.channel === "telegram")!;
+    const tgIntent = tgJob.payloadJson.intent as { payload: { imageUrl?: string } };
+    expect(tgIntent.payload.imageUrl).toBe("https://x/y.jpg");
   });
 
   it("execute stores attachMenuAfterSend and sets attachMenu on queue jobs", async () => {
@@ -254,6 +262,63 @@ describe("doctor-broadcasts service", () => {
       expect.objectContaining({
         platformUserId: "u1",
         integratorMessageId: expect.stringMatching(/^broadcast:/),
+      }),
+    );
+  });
+
+  it("execute threads message media into the in-app chat append", async () => {
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: makeResolve([client("u1")]),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: {
+        title: "Новость",
+        body: "Текст длиннее десяти символов",
+        mediaUrl: "https://cdn.example.com/promo.jpg",
+        mediaType: "image",
+      },
+      actorId: "doctor-1",
+      channels: ["bot_message"],
+    });
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        platformUserId: "u1",
+        mediaUrl: "https://cdn.example.com/promo.jpg",
+        mediaType: "image",
+      }),
+    );
+  });
+
+  it("execute strips markdown markers from the in-app chat copy", async () => {
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: makeResolve([client("u1")]),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: { title: "Новость", body: "Текст **жирный** и\n- пункт" },
+      actorId: "doctor-1",
+      channels: ["bot_message"],
+    });
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        text: "Новость\n\nТекст жирный и\n• пункт",
       }),
     );
   });

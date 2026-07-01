@@ -31,6 +31,7 @@ import {
   doctorMetricValueClass,
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -287,23 +288,19 @@ function buildSymptomSeries(
   });
 }
 
-/** Get current month ISO range. */
-function currentMonthRange(): { from: string; to: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const first = new Date(year, month, 1);
-  const last = new Date(year, month + 1, 0);
+/** Get ISO range for any calendar month (1-based month). */
+function monthRangeFor(year: number, month: number): { from: string; to: string } {
+  const last = new Date(year, month, 0); // day 0 of next month = last day of this month
   const pad = (n: number) => String(n).padStart(2, "0");
   return {
-    from: `${year}-${pad(month + 1)}-01`,
-    to: `${year}-${pad(month + 1)}-${pad(last.getDate())}`,
+    from: `${year}-${pad(month)}-01`,
+    to: `${year}-${pad(month)}-${pad(last.getDate())}`,
   };
 }
 
-/** Month label in Russian for the current month. */
-function currentMonthLabel(): string {
-  return new Date().toLocaleDateString("ru-RU", { month: "long" });
+/** Russian month+year label for the given 1-based month. */
+function monthLabelFor(year: number, month: number): string {
+  return new Date(year, month - 1, 1).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
 }
 
 // ---------------------------------------------------------------------------
@@ -459,6 +456,10 @@ type Props = {
   initialSignals?: ProactiveInsightRow[] | null;
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
+  /** SSR-provided patient packages. When present, skips the client-side fetch. */
+  initialPackages?: PackageItem[] | null;
+  /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
+  initialSupportEffectivePolicy?: import("@/modules/doctor-clients/supportPolicy").PatientProgramInteractionPolicy | null;
 };
 
 /** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
@@ -509,6 +510,7 @@ function buildSsrSeedData(
     appointmentsStatus,
     controlDays,
     controlDate,
+    // packageStatus/activePackage seeded after SSR packages are applied (caller patches via setData)
     packageStatus: "loading" as WidgetStatus,
     activePackage: null,
     programStatus: "loading" as WidgetStatus,
@@ -541,8 +543,14 @@ export function PatientTabOverview({
   initialSignals,
   initialProgramActivity,
   initialAppointments,
+  initialPackages,
+  initialSupportEffectivePolicy,
 }: Props) {
   const [calView, setCalView] = useState<"month" | "week">("month");
+  // Calendar month navigation — starts at current month, cannot go into future
+  const nowForCal = new Date();
+  const [calYear, setCalYear] = useState(nowForCal.getFullYear());
+  const [calMonth, setCalMonth] = useState(nowForCal.getMonth() + 1); // 1-based
   const [programStageOffset, setProgramStageOffset] = useState(0);
   const [data, setData] = useState<OverviewData | null>(() => {
     if (
@@ -604,27 +612,42 @@ export function PatientTabOverview({
   // overwriting mutation-triggered setData calls on re-render.
   const ssrSeedRef = useRef<string | null>(hasSsrData ? userId : null);
 
+  // Separate effect: calendar only — re-runs when userId or calYear/calMonth changes
   useEffect(() => {
     let active = true;
-    const { from, to } = currentMonthRange();
-
-    // Fetches not covered by SSR (always client-side)
-    const fetchPackages = fetch(
-      `/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`,
-      { credentials: "include" },
-    )
-      .then((r) => r.ok ? (r.json() as Promise<PackagesApiResponse>) : null)
-      .catch(() => null);
-
-    const fetchProgram = fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, { credentials: "include" })
-      .then((r) => r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null)
-      .catch(() => null);
-
-    const fetchCalendar = fetch(
+    // Mark loading before fetching
+    setData((prev) => prev ? { ...prev, calendarStatus: "loading", calendarDays: [] } : prev);
+    const { from, to } = monthRangeFor(calYear, calMonth);
+    fetch(
       `/api/doctor/patients/${userId}/exercise-calendar?from=${from}&to=${to}`,
       { credentials: "include" },
     )
       .then((r) => r.ok ? (r.json() as Promise<ExerciseCalendarApiResponse>) : null)
+      .catch(() => null)
+      .then((calendar) => {
+        if (!active) return;
+        const calendarDays = calendar?.days ?? [];
+        const calendarStatus: WidgetStatus = !calendar ? "error" : "ok";
+        setData((prev) => prev ? { ...prev, calendarStatus, calendarDays } : prev);
+      });
+    return () => { active = false; };
+  }, [userId, calYear, calMonth]);
+
+  useEffect(() => {
+    let active = true;
+
+    // patient-packages: skip when SSR data provided
+    const fetchPackages = initialPackages != null
+      ? Promise.resolve({ ok: true, packages: initialPackages } as PackagesApiResponse)
+      : fetch(
+          `/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`,
+          { credentials: "include" },
+        )
+          .then((r) => r.ok ? (r.json() as Promise<PackagesApiResponse>) : null)
+          .catch(() => null);
+
+    const fetchProgram = fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, { credentials: "include" })
+      .then((r) => r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null)
       .catch(() => null);
 
     const fetchMessages = fetch(
@@ -685,7 +708,6 @@ export function PatientTabOverview({
       fetchProgram,
       fetchSignals,
       fetchProgramActivity,
-      fetchCalendar,
       fetchMessages,
     ]).then(async ([
       clinical,
@@ -696,7 +718,6 @@ export function PatientTabOverview({
       programList,
       signals,
       programActivityRes,
-      calendar,
       messages,
     ]) => {
       if (!active) return;
@@ -852,16 +873,15 @@ export function PatientTabOverview({
         programActivity = programActivityRes?.activity ?? null;
       }
 
-      // --- Calendar ---
-      const calendarDays = calendar?.days ?? [];
-      const calendarStatus: WidgetStatus = !calendar ? "error" : "ok";
-
       // --- Messages ---
       const messagesList = messages?.messages ?? [];
       const unreadFromUserCount = messages?.unreadFromUserCount ?? 0;
       const messagesStatus: WidgetStatus = !messages ? "error" : "ok";
 
-      setData({
+      setData((prev) => ({
+        // Calendar is managed by its own effect; preserve whatever it already set (or loading default)
+        calendarStatus: prev?.calendarStatus ?? "loading",
+        calendarDays: prev?.calendarDays ?? [],
         clinicalStatus,
         complaints,
         symptomSeries,
@@ -882,12 +902,10 @@ export function PatientTabOverview({
         tasks: tasksList,
         signalsStatus,
         signals: signalsList,
-        calendarStatus,
-        calendarDays,
         messagesStatus,
         messages: messagesList,
         unreadFromUserCount,
-      });
+      }));
       setLoadedUserId(userId);
     });
 
@@ -948,8 +966,22 @@ export function PatientTabOverview({
     }
   }
 
-  // Compute calendar grid from real data
-  const calendarGrid = buildCalendarGrid(data?.calendarDays ?? []);
+  // Compute calendar grid from real data — pass the currently viewed month
+  const calendarGrid = buildCalendarGrid(data?.calendarDays ?? [], calYear, calMonth);
+
+  // Calendar month nav helpers
+  const nowCal = new Date();
+  const isCalCurrentMonth = calYear === nowCal.getFullYear() && calMonth === nowCal.getMonth() + 1;
+  function navigateCalMonth(delta: -1 | 1) {
+    // Block navigating into future
+    if (delta === 1 && isCalCurrentMonth) return;
+    let m = calMonth + delta;
+    let y = calYear;
+    if (m > 12) { m = 1; y++; }
+    if (m < 1) { m = 12; y--; }
+    setCalYear(y);
+    setCalMonth(m);
+  }
 
   // Program stage to display (offset from current stage)
   const displayStageIndex = data
@@ -970,13 +1002,13 @@ export function PatientTabOverview({
 
         {/* «+ Создать визит» entry point */}
         <div className="flex justify-end">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => onTabSwitch?.("karta")}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+            className="h-auto rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
           >
             + Создать визит
-          </button>
+          </Button>
         </div>
 
         {/* KPI row */}
@@ -1047,13 +1079,13 @@ export function PatientTabOverview({
         <div className={doctorSectionCardClass}>
           <div className="flex items-center justify-between mb-1">
             <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => onTabSwitch?.("karta")}
-              className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 transition-colors cursor-pointer"
+              className="h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
             >
               Открыть Карту →
-            </button>
+            </Button>
           </div>
 
           {isLoading && (
@@ -1131,7 +1163,7 @@ export function PatientTabOverview({
           <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
             <div>
               <span className={doctorSectionTitleClass}>
-                Выполнение упражнений · {calView === "month" ? currentMonthLabel() : "неделя"}
+                Выполнение упражнений
               </span>
               {data?.programTitle && (
                 <p className={cn(doctorSectionSubtitleClass, "mt-0.5")}>
@@ -1140,34 +1172,67 @@ export function PatientTabOverview({
               )}
             </div>
             <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => setCalView("month")}
                 className={cn(
-                  "px-2.5 py-1 transition-colors",
+                  "h-auto rounded-none px-2.5 py-1",
                   calView === "month"
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:bg-muted/50",
                 )}
               >
                 Месяц
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => setCalView("week")}
                 className={cn(
-                  "px-2.5 py-1 border-l border-border transition-colors",
+                  "h-auto rounded-none border-l border-border px-2.5 py-1",
                   calView === "week"
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:bg-muted/50",
                 )}
               >
                 Неделя
-              </button>
+              </Button>
             </div>
           </div>
 
-          {isLoading && (
+          {/* Month navigation row */}
+          <div className="flex items-center gap-1.5 mb-1.5" data-testid="cal-month-nav">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Предыдущий месяц"
+              data-testid="cal-month-prev"
+              onClick={() => navigateCalMonth(-1)}
+              className="h-6 w-6 rounded-md border border-border p-0 text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
+            >
+              ◀
+            </Button>
+            <span
+              className="flex-1 text-center text-xs font-medium text-foreground capitalize"
+              data-testid="cal-month-label"
+            >
+              {calView === "month" ? monthLabelFor(calYear, calMonth) : "текущая неделя"}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Следующий месяц"
+              data-testid="cal-month-next"
+              onClick={() => navigateCalMonth(1)}
+              disabled={isCalCurrentMonth}
+              className="h-6 w-6 rounded-md border border-border p-0 text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
+            >
+              ▶
+            </Button>
+          </div>
+
+          {(isLoading || data?.calendarStatus === "loading") && (
             <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка календаря…</p>
           )}
           {!isLoading && data?.calendarStatus === "error" && (
@@ -1218,18 +1283,11 @@ export function PatientTabOverview({
                 </span>
               </div>
 
-              {(data.calendarDays.length > 0 || !isLoading) && (
-                <p className="text-xs text-foreground mt-2">
-                  За месяц: <strong>{data.calendarDays.length}</strong> дн с выполнением
-                  {data.calendarDays.length === 0 && " · нет данных"}
-                </p>
-              )}
+              <p className="text-xs text-foreground mt-2">
+                За месяц: <strong>{data.calendarDays.length}</strong> дн с выполнением
+                {data.calendarDays.length === 0 && " · нет данных"}
+              </p>
             </>
-          )}
-
-          {/* If calendar 500'd (parallel agent building it) */}
-          {!isLoading && !data?.calendarStatus && (
-            <p className="text-xs text-muted-foreground py-2">Данные о выполнении недоступны.</p>
           )}
         </div>
 
@@ -1242,14 +1300,15 @@ export function PatientTabOverview({
         <div className={doctorSectionCardClass}>
           <div className="flex items-center gap-2 mb-1">
             <span className={doctorSectionTitleClass}>Заметки</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               title="Добавить заметку"
               onClick={() => { setAddingNote(true); setNoteText(""); }}
-              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
+              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
             >
               +
-            </button>
+            </Button>
           </div>
 
           {addingNote && (
@@ -1263,21 +1322,21 @@ export function PatientTabOverview({
                 className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="flex gap-1.5">
-                <button
-                  type="button"
+                <Button
+                  variant="default"
                   onClick={handleNoteSubmit}
                   disabled={noteSaving || !noteText.trim()}
-                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium"
                 >
                   {noteSaving ? "Сохранение…" : "Добавить"}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => { setAddingNote(false); setNoteText(""); }}
-                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
                 >
                   Отмена
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -1315,14 +1374,15 @@ export function PatientTabOverview({
         <div className={doctorSectionCardClass}>
           <div className="flex items-center gap-2 mb-1">
             <span className={doctorSectionTitleClass}>Задачи</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               title="Добавить задачу"
               onClick={() => { setAddingTask(true); setTaskTitle(""); }}
-              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
+              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
             >
               +
-            </button>
+            </Button>
           </div>
 
           {addingTask && (
@@ -1337,21 +1397,21 @@ export function PatientTabOverview({
                 className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="flex gap-1.5">
-                <button
-                  type="button"
+                <Button
+                  variant="default"
                   onClick={() => void handleTaskSubmit()}
                   disabled={taskSaving || !taskTitle.trim()}
-                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium"
                 >
                   {taskSaving ? "Сохранение…" : "Добавить"}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => { setAddingTask(false); setTaskTitle(""); }}
-                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+                  className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
                 >
                   Отмена
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -1403,13 +1463,13 @@ export function PatientTabOverview({
                 {data!.programActivity!.unreadCount} непрочит.
               </span>
             )}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => onTabSwitch?.("program")}
-              className="ml-auto inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 transition-colors cursor-pointer"
+              className="ml-auto h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
             >
               Открыть программу →
-            </button>
+            </Button>
           </div>
 
           {!isLoading && data?.programActivity?.lastMark && (
@@ -1441,15 +1501,16 @@ export function PatientTabOverview({
               {data.programStages.length > 0 && displayStage && (
                 <>
                   <div className="flex items-center gap-2 border border-border rounded-lg px-2 py-1.5 bg-muted/10 mb-2">
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       title="Предыдущий этап"
                       onClick={() => setProgramStageOffset((o) => Math.max(o - 1, minStageOffset))}
                       disabled={programStageOffset <= minStageOffset}
-                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
+                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
                     >
                       ◀
-                    </button>
+                    </Button>
                     <div className="flex-1 text-center">
                       <div className="text-[12.5px] font-semibold text-foreground">
                         Этап {displayStageIndex + 1} из {data.programStages.length} · {displayStage.title}
@@ -1464,15 +1525,16 @@ export function PatientTabOverview({
                               : displayStage.status}
                       </div>
                     </div>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       title="Следующий этап"
                       onClick={() => setProgramStageOffset((o) => Math.min(o + 1, maxStageOffset))}
                       disabled={programStageOffset >= maxStageOffset}
-                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
+                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
                     >
                       ▶
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Exercise items in stage — exclude system-kind groups */}
@@ -1525,7 +1587,10 @@ export function PatientTabOverview({
         {/* Сопровождение — moved here from Учётка (S2.5) */}
         <div className={doctorSectionCardClass}>
           <span className={doctorSectionTitleClass}>Сопровождение</span>
-          <DoctorClientSupportPanel patientUserId={userId} />
+          <DoctorClientSupportPanel
+            patientUserId={userId}
+            initialEffectivePolicy={initialSupportEffectivePolicy}
+          />
         </div>
 
         {/* Сообщения */}
@@ -1537,13 +1602,13 @@ export function PatientTabOverview({
                 {totalMessageUnread} новых
               </span>
             )}
-            <button
-              type="button"
-              className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+            <Button
+              variant="ghost"
               onClick={() => onTabSwitch?.("comms")}
+              className="ml-auto h-auto p-0 text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
             >
               вся переписка →
-            </button>
+            </Button>
           </div>
 
           {isLoading && (
@@ -1602,17 +1667,23 @@ interface CalendarGrid {
   weekDays: CalendarCellData[];
 }
 
-function buildCalendarGrid(apiDays: CalendarDay[]): CalendarGrid {
+/** Build renderable calendar cells for the given year+month (1-based). */
+function buildCalendarGrid(apiDays: CalendarDay[], viewYear: number, viewMonth: number): CalendarGrid {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const todayYear = now.getFullYear();
+  const todayMonthIdx = now.getMonth(); // 0-based
   const todayDay = now.getDate();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // viewMonth is 1-based; convert for Date constructor (month arg is 0-based)
+  const daysInMonth = new Date(viewYear, viewMonth, 0).getDate(); // day 0 of month+1
 
   // First day of week offset (Mon = 0): getDay() returns 0=Sun, 1=Mon, …6=Sat
-  const firstOfMonth = new Date(year, month, 1);
+  const firstOfMonth = new Date(viewYear, viewMonth - 1, 1);
   const jsDay = firstOfMonth.getDay(); // 0=Sun
   const firstDOW = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon-based
+
+  // Is the viewed month the current real month?
+  const isCurrentMonth = viewYear === todayYear && viewMonth - 1 === todayMonthIdx;
 
   // Build lookup by day number (1-31)
   const completedByDay = new Map<number, number>();
@@ -1626,18 +1697,24 @@ function buildCalendarGrid(apiDays: CalendarDay[]): CalendarGrid {
     const completedCount = completedByDay.get(d);
     let status: CalendarCellData["status"];
 
-    if (d > todayDay) {
+    // For a past month — all days are past; for current month — use today boundary
+    const isPast = !isCurrentMonth || d < todayDay;
+    const isToday = isCurrentMonth && d === todayDay;
+    const isFuture = isCurrentMonth && d > todayDay;
+
+    if (isFuture) {
       status = "future";
-    } else if (d === todayDay) {
+    } else if (isToday) {
       status = "today";
-    } else if (completedCount === undefined) {
+    } else if (isPast && completedCount === undefined) {
       // Past day with no data — we don't know if it had assignments
       status = "no-assign";
-    } else if (completedCount >= 3) {
+    } else if (!isPast && completedCount === undefined) {
+      status = "future";
+    } else if ((completedCount ?? 0) >= 3) {
       status = "full";
-    } else if (completedCount >= 1) {
+    } else if ((completedCount ?? 0) >= 1) {
       status = "partial";
-      // ratio hint: 1 → 0.3, 2 → 0.6
     } else {
       status = "missed";
     }
@@ -1645,8 +1722,9 @@ function buildCalendarGrid(apiDays: CalendarDay[]): CalendarGrid {
     days.push({ day: d, status, ratio: completedCount ? Math.min(completedCount / 3, 1) : undefined });
   }
 
-  // Week view: 7 days around today (today and 3 days each side, clamped)
-  const weekStart = Math.max(1, todayDay - 3);
+  // Week view: for current month use today; for past month use last day of month
+  const pivotDay = isCurrentMonth ? todayDay : daysInMonth;
+  const weekStart = Math.max(1, pivotDay - 3);
   const weekEnd = Math.min(daysInMonth, weekStart + 6);
   const weekDays = days.slice(weekStart - 1, weekEnd);
 

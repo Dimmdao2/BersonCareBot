@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, type MouseEvent } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -14,25 +14,29 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
 import {
   apiJson,
-  ensureDefaultSpecialist,
-  fetchSoloOverview,
   minuteToTimeLabel,
   timeLabelToMinute,
 } from "@/app/app/settings/bookingSoloAdminApi";
+import { fetchDoctorScheduleBootstrap } from "../doctorScheduleApi";
 import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { emitDoctorScheduleCalendarRefresh } from "../scheduleCalendarEvents";
 import { cn } from "@/lib/utils";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
-import { BookingSoloScheduleSection } from "@/app/app/settings/BookingSoloScheduleSection";
 
 // ---------------------------------------------------------------------------
 // API base paths
 // ---------------------------------------------------------------------------
 
-const WD_BASE = "/api/admin/booking-engine/working-days";
-const TPL_BASE = "/api/admin/booking-engine/working-schedule-templates";
+// Doctor-self-scoped routes: the server resolves the doctor's own specialist and forces
+// it on every read/write, so the editor works for the `doctor` role (solo owner) and
+// reads/writes the SAME specialist-scoped rows the calendar paints. (Admin mirrors at
+// /api/admin/booking-engine/* still serve the admin Settings flows.)
+const WD_BASE = "/api/doctor/booking-engine/working-days";
+const TPL_BASE = "/api/doctor/booking-engine/working-schedule-templates";
+const WH_BASE = "/api/doctor/booking-engine/working-hours";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +72,21 @@ type ScheduleTemplateRecord = {
   sortOrder: number;
   isActive: boolean;
 };
+
+type WorkingHoursRow = {
+  id: string;
+  weekday: number;
+  startMinute: number;
+  endMinute: number;
+  isActive: boolean;
+  branchId: string | null;
+};
+
+type EffectiveHours =
+  | { source: "template"; startMinute: number; endMinute: number }
+  | { source: "override"; startMinute: number; endMinute: number }
+  | { source: "closed" }
+  | null;
 
 /** A single break row state in the hours panel or template form. */
 type BreakRow = { from: string; to: string };
@@ -123,6 +142,26 @@ function buildMonthGrid(year: number, month: number): Array<string | null> {
   }
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
+}
+
+function resolveEffectiveHours(
+  dateKey: string,
+  dayMap: Map<string, WorkingDayRecord>,
+  workingHours: WorkingHoursRow[],
+): EffectiveHours {
+  const record = dayMap.get(dateKey);
+  if (record) {
+    if (record.isClosed) return { source: "closed" };
+    if (record.startMinute != null && record.endMinute != null) {
+      return { source: "override", startMinute: record.startMinute, endMinute: record.endMinute };
+    }
+  }
+  // Luxon weekday: 1=Mon..7=Sun. be_working_hours: 0=Sun, 1=Mon..6=Sat → (luxon % 7)
+  const luxonWd = DateTime.fromISO(dateKey).weekday;
+  const wd = luxonWd % 7;
+  const match = workingHours.find((wh) => wh.weekday === wd && wh.isActive);
+  if (match) return { source: "template", startMinute: match.startMinute, endMinute: match.endMinute };
+  return null;
 }
 
 function formatHourRange(start: number | null, end: number | null): string {
@@ -203,24 +242,24 @@ function getBranchColor(branches: Branch[], branchId: string): BranchColor {
 function branchColorActiveClass(color: BranchColor): string {
   // §3.17: приглушённые тинты вместо ядрёной заливки — мягкий фон /10 +
   // цветной текст + цветная граница (активный фильтр читается, но не «кричит»).
-  if (color === "blue") return "bg-blue-500/15 border-blue-500/50 text-blue-700 dark:text-blue-300";
-  if (color === "green") return "bg-green-600/15 border-green-600/50 text-green-700 dark:text-green-300";
-  if (color === "violet") return "bg-violet-600/15 border-violet-600/50 text-violet-700 dark:text-violet-300";
-  return "bg-orange-500/15 border-orange-500/50 text-orange-700 dark:text-orange-300";
+  if (color === "blue") return "bg-blue-500/10 border-blue-500/35 text-blue-700";
+  if (color === "green") return "bg-green-500/10 border-green-600/35 text-green-700";
+  if (color === "violet") return "bg-violet-500/10 border-violet-500/35 text-violet-700";
+  return "bg-orange-500/10 border-orange-500/35 text-orange-700";
 }
 
 function branchColorInactiveClass(color: BranchColor): string {
-  if (color === "blue") return "border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30";
-  if (color === "green") return "border-green-600/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30";
-  if (color === "violet") return "border-violet-500/50 text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30";
-  return "border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30";
+  if (color === "blue") return "border-blue-500/30 text-blue-600 hover:bg-blue-500/5";
+  if (color === "green") return "border-green-600/30 text-green-700 hover:bg-green-500/5";
+  if (color === "violet") return "border-violet-500/30 text-violet-700 hover:bg-violet-500/5";
+  return "border-orange-500/30 text-orange-700 hover:bg-orange-500/5";
 }
 
 function branchCellClass(color: BranchColor): string {
-  if (color === "blue") return "bg-blue-500/10 border-blue-500/50";
-  if (color === "green") return "bg-green-600/10 border-green-600/50";
-  if (color === "violet") return "bg-violet-500/10 border-violet-500/50";
-  return "bg-orange-500/10 border-orange-500/50";
+  if (color === "blue") return "bg-blue-500/10 border-blue-500/35";
+  if (color === "green") return "bg-green-500/10 border-green-600/35";
+  if (color === "violet") return "bg-violet-500/10 border-violet-500/35";
+  return "bg-orange-500/10 border-orange-500/35";
 }
 
 function branchDotClass(color: BranchColor): string {
@@ -235,17 +274,28 @@ function branchDotClass(color: BranchColor): string {
 // ---------------------------------------------------------------------------
 
 type DayCellProps = {
+  cellIndex?: number;
   dateKey: string | null;
   today: string;
   record: WorkingDayRecord | undefined;
   branches: Branch[];
   isSelected: boolean;
   onToggle: (date: string, shift: boolean, meta: boolean) => void;
+  onClearSelection?: () => void;
+  effectiveHours?: EffectiveHours;
 };
 
-function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: DayCellProps) {
+function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onToggle, onClearSelection, effectiveHours }: DayCellProps) {
   if (!dateKey) {
-    return <div className="min-h-[52px]" />;
+    return (
+      <button
+        type="button"
+        className="min-h-[52px] rounded-md border border-dashed border-transparent bg-transparent transition-colors hover:border-border/70 hover:bg-muted/20"
+        aria-label="Сбросить выбор дней"
+        onClick={() => onClearSelection?.()}
+        data-testid={cellIndex != null ? `day-cell-empty-${cellIndex}` : undefined}
+      />
+    );
   }
 
   const isToday = dateKey === today;
@@ -268,6 +318,12 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: Day
     cellClass += "bg-emerald-500/10 border-emerald-500/40 ";
   } else if (color) {
     cellClass += branchCellClass(color) + " ";
+  } else if (effectiveHours?.source === "override") {
+    // SCH-R-06: override = light blue tint
+    cellClass += "bg-primary/10 border-primary/30 hover:bg-primary/15 ";
+  } else if (effectiveHours?.source === "closed") {
+    // SCH-R-06: closed/выходной = light red tint
+    cellClass += "bg-destructive/5 border-destructive/20 hover:bg-destructive/10 ";
   } else {
     cellClass += "bg-card border-border hover:bg-muted/30 ";
   }
@@ -294,7 +350,21 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: Day
       <div className={cn("text-[11px] font-semibold leading-none", isSelected ? "text-primary" : isToday ? "text-emerald-700 dark:text-emerald-300" : "text-foreground")}>
         {isSelected ? `${day} ●` : day}
       </div>
-      {hasSchedule && record?.startMinute != null && record?.endMinute != null && (
+      {effectiveHours?.source === "override" && effectiveHours.startMinute != null && (
+        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
+          {formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
+        </div>
+      )}
+      {effectiveHours?.source === "template" && (
+        <div className="mt-0.5 text-[10px] leading-none italic text-muted-foreground">
+          ~{formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
+        </div>
+      )}
+      {effectiveHours?.source === "closed" && (
+        <div className="mt-0.5 text-[10px] leading-none text-destructive/70">выходной</div>
+      )}
+      {/* Keep existing block for backward compat when effectiveHours not passed */}
+      {!effectiveHours && hasSchedule && record?.startMinute != null && record?.endMinute != null && (
         <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
           {formatHourRange(record.startMinute, record.endMinute)}
         </div>
@@ -366,7 +436,10 @@ function BreakRowField({ index, row, onChange, onRemove }: BreakRowFieldProps) {
 export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: ScheduleTabProps) {
   // ── State ─────────────────────────────────────────────────────────────────
 
-  const [mode, setMode] = useState<"per-date" | "weekly">("per-date");
+  const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates");
+  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
+  // #232: «постоянное расписание» чекбокс УДАЛЁН — weekday selection всегда сохраняет
+  // как постоянное (weekday template), а разовые исключения делаются через dates-режим.
 
   const { year, month } = parseMonth(deepLinkParams.month);
   const [viewYear, setViewYear] = useState(year);
@@ -379,6 +452,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   const [dayRecords, setDayRecords] = useState<WorkingDayRecord[]>([]);
   const [templates, setTemplates] = useState<ScheduleTemplateRecord[]>([]);
+  const [workingHours, setWorkingHours] = useState<WorkingHoursRow[]>([]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const lastClickedRef = useRef<string | null>(null);
@@ -391,7 +465,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionOk, setActionOk] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // E5 — Create template dialog with N breaks
@@ -463,27 +536,38 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     });
   }, []);
 
+  const loadWorkingHours = useCallback(() => {
+    if (!specialistId) return;
+    startTransition(async () => {
+      try {
+        const qs = new URLSearchParams({ specialistId });
+        if (gridBranchFilter !== "all") qs.set("branchId", gridBranchFilter);
+        const json = await apiJson<{ ok: boolean; rows: WorkingHoursRow[] }>(`${WH_BASE}?${qs.toString()}`);
+        setWorkingHours(json.rows ?? []);
+      } catch {
+        // non-fatal
+      }
+    });
+  }, [specialistId, gridBranchFilter]);
+
   // ── Bootstrap (specialist + overview) ────────────────────────────────────
 
   useEffect(() => {
     startTransition(async () => {
       try {
-        const overview = await fetchSoloOverview();
-        if (!overview) { setLoadError("booking_engine_unavailable"); return; }
-        const activeBranches = overview.branches
-          .filter((b) => b.isActive)
-          .map((b) => ({ id: b.id, title: b.title, shortTitle: b.shortTitle, isActive: b.isActive }));
-        setBranches(activeBranches);
-        const specId = await ensureDefaultSpecialist(overview.organization?.title);
-        setSpecialistId(specId);
+        const bootstrap = await fetchDoctorScheduleBootstrap();
+        if (!bootstrap) { setLoadError("booking_engine_unavailable"); return; }
+        setBranches(bootstrap.branches);
+        if (!bootstrap.specialistId) { setLoadError("specialist_not_configured"); return; }
+        setSpecialistId(bootstrap.specialistId);
         // E3: default filter from deep-link or "all"
         const savedId = deepLinkParams.location ?? "";
-        const resolvedBranch = activeBranches.find((b) => b.id === savedId);
+        const resolvedBranch = bootstrap.branches.find((b) => b.id === savedId);
         if (resolvedBranch) {
           setGridBranchFilterState(resolvedBranch.id);
         }
         // Panel branch default: from deep-link or first active
-        const panelDefault = resolvedBranch ?? activeBranches[0];
+        const panelDefault = resolvedBranch ?? bootstrap.branches[0];
         if (panelDefault) {
           setPanelBranchId(panelDefault.id);
         }
@@ -494,13 +578,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { if (specialistId) { loadMonth(); loadTemplates(); } }, [specialistId, loadMonth, loadTemplates]);
+  useEffect(() => { if (specialistId) { loadMonth(); loadTemplates(); loadWorkingHours(); } }, [specialistId, loadMonth, loadTemplates, loadWorkingHours]);
 
   // Refresh on re-activation
   useEffect(() => {
     if (!isActive || !specialistId) return;
     loadMonth();
     loadTemplates();
+    loadWorkingHours();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
 
@@ -508,6 +593,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   useEffect(() => {
     if (!specialistId) return;
     loadMonth();
+    loadWorkingHours();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridBranchFilter]);
 
@@ -536,8 +622,38 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         return next;
       });
       lastClickedRef.current = date;
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
     },
     [gridDates],
+  );
+
+  const handleWeekdayHeaderClick = useCallback(
+    (colIndex: number) => {
+      const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
+      if (selectedWeekday === wd && selectionMode === "weekday") {
+        // Re-click same weekday → deselect
+        setSelectionMode("dates");
+        setSelectedWeekday(null);
+        setSelected(new Set());
+        return;
+      }
+      // Select all dates of this weekday in current month view
+      const allDates = buildMonthGrid(viewYear, viewMonth).filter((d): d is string => d !== null);
+      const matching = new Set(
+        allDates.filter((d) => {
+          // Luxon weekday: 1=Mon..7=Sun → map to [1,2,3,4,5,6,0] using (luxonWd % 7)
+          const luxonWd = DateTime.fromISO(d).weekday;
+          const bwHoursWd = luxonWd % 7;
+          return bwHoursWd === wd;
+        }),
+      );
+      setSelected(matching);
+      setSelectionMode("weekday");
+      setSelectedWeekday(wd);
+      lastClickedRef.current = null;
+    },
+    [selectedWeekday, selectionMode, viewYear, viewMonth],
   );
 
   // ── Break rows helpers ────────────────────────────────────────────────────
@@ -556,22 +672,95 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
-  function run(fn: () => Promise<void>, successMsg: string) {
+  // ── Weekday label lookup (0=Вс,1=Пн..6=Сб) ──────────────────────────────
+  const WD_LABEL: Record<number, string> = {0:"Вс",1:"Пн",2:"Вт",3:"Ср",4:"Чт",5:"Пт",6:"Сб"};
+
+  function run(fn: () => Promise<void>) {
     setActionError(null);
-    setActionOk(null);
     startTransition(async () => {
       try {
         await fn();
         await loadMonth();
         loadTemplates();
-        setActionOk(successMsg);
+        loadWorkingHours(); // SCH-R-08: reload template state after every save
+        emitDoctorScheduleCalendarRefresh();
       } catch (e) {
         setActionError(e instanceof Error ? e.message : "action_failed");
       }
     });
   }
 
+  // SCH-R-04: save weekday template → POST /working-hours replace=true
+  function handleSaveWeekdayTemplate() {
+    if (selectedWeekday === null) return;
+    let startMinute: number;
+    let endMinute: number;
+    try {
+      startMinute = timeLabelToMinute(panelStart);
+      endMinute = timeLabelToMinute(panelEnd);
+    } catch {
+      setActionError("Неверный формат времени");
+      return;
+    }
+    if (panelBreaks.length > 0) {
+      const err = validateBreakRows(panelBreaks, startMinute, endMinute);
+      if (err) { setActionError(err); return; }
+    }
+    const breaks: BreakInterval[] = panelBreaks.map((r) => ({
+      startMinute: timeLabelToMinute(r.from),
+      endMinute: timeLabelToMinute(r.to),
+    }));
+    run(async () => {
+      await apiJson(WH_BASE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekday: selectedWeekday,
+          startMinute,
+          endMinute,
+          specialistId,
+          branchId: panelBranchId || undefined,
+          replace: true,
+        }),
+      });
+    });
+  }
+
+  // SCH-R-04: clear weekday template → DELETE each active be_working_hours row for this weekday
+  // #233: после очистки сразу сбрасываем выделение и скрываем блок настроек
+  function handleClearWeekdayTemplate() {
+    if (selectedWeekday === null) return;
+    const toDeactivate = workingHours.filter(
+      (r) => r.weekday === selectedWeekday && r.isActive,
+    );
+    if (toDeactivate.length === 0) {
+      // #233: сбрасываем выделение даже если шаблон уже пуст
+      setSelected(new Set());
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
+      lastClickedRef.current = null;
+      return;
+    }
+    // #233: сбрасываем выделение СРАЗУ (до сетевого запроса), чтобы UI реагировал немедленно
+    setSelected(new Set());
+    setSelectionMode("dates");
+    setSelectedWeekday(null);
+    lastClickedRef.current = null;
+    run(async () => {
+      await Promise.all(
+        toDeactivate.map((r) =>
+          apiJson(`${WH_BASE}?id=${encodeURIComponent(r.id)}`, { method: "DELETE" }),
+        ),
+      );
+    });
+  }
+
   function handleSave() {
+    // SCH-R-04: weekday mode → всегда сохраняем как постоянный шаблон (#232)
+    if (selectionMode === "weekday") {
+      handleSaveWeekdayTemplate();
+      return;
+    }
     const dates = [...selected];
     if (!dates.length) return;
     let startMinute: number;
@@ -609,13 +798,18 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         }),
       });
       setSelected(new Set());
-    }, `Сохранено для ${dates.length} дн.`);
+    });
   }
 
   // §3.15: «Очистить расписание» — удалить сохранённые записи выбранных дней
   // (action:"clear" → DELETE be_working_days). После удаления день падает на
   // weekday-fallback (а не остаётся «закрытым»).
   function handleClearSchedule() {
+    // SCH-R-04: weekday mode → deactivate the weekday template
+    if (selectionMode === "weekday") {
+      handleClearWeekdayTemplate();
+      return;
+    }
     const dates = [...selected];
     if (!dates.length) return;
     run(async () => {
@@ -625,13 +819,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ action: "clear", dates, specialistId }),
       });
       setSelected(new Set());
-    }, `Расписание очищено: ${dates.length} дн.`);
+    });
   }
 
   function handleClearSelection() {
     setSelected(new Set());
     lastClickedRef.current = null;
-    setActionOk(null);
+    setSelectionMode("dates");
+    setSelectedWeekday(null);
     setActionError(null);
   }
 
@@ -648,13 +843,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ templateId, dates, specialistId }),
       });
       setSelected(new Set());
-    }, "Шаблон применён");
+    });
   }
 
   function handleDeleteTemplate(id: string) {
     run(async () => {
       await apiJson(`${TPL_BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    }, "Шаблон удалён");
+    });
   }
 
   function handleCreateTemplate() {
@@ -692,7 +887,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setTplDialogOpen(false);
       setTplName("");
       setTplBreaks([]);
-    }, "Шаблон создан");
+    });
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -708,37 +903,26 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     return b.shortTitle ?? b.title;
   }
 
+  function handleTopBarMouseDown(e: MouseEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    const interactive = target.closest("button,[role='button'],[role='combobox'],a,input,label");
+    if (!interactive) {
+      handleClearSelection();
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <DoctorSection data-testid="schedule-work-tab">
-      {/* Sticky top bar: mode toggle + filter (E3) + month nav */}
-      <div className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}>
-        {/* CAL-02: Mode switcher — «По датам» / «Недельный шаблон» */}
-        <div className="flex rounded-md border border-border overflow-hidden" role="tablist" data-testid="mode-switcher">
-          <button
-            role="tab"
-            aria-selected={mode === "per-date"}
-            className={cn("px-3 py-1 text-xs font-medium transition-colors", mode === "per-date" ? "bg-foreground/90 text-background" : "text-muted-foreground hover:bg-muted/60")}
-            onClick={() => setMode("per-date")}
-            data-testid="mode-btn-per-date"
-          >
-            По датам
-          </button>
-          <button
-            role="tab"
-            aria-selected={mode === "weekly"}
-            className={cn("px-3 py-1 text-xs font-medium transition-colors border-l border-border", mode === "weekly" ? "bg-foreground/90 text-background" : "text-muted-foreground hover:bg-muted/60")}
-            onClick={() => setMode("weekly")}
-            data-testid="mode-btn-weekly"
-          >
-            Недельный шаблон
-          </button>
-        </div>
-
-        {/* E3: Branch filter switcher (Все + individual branches) — only in per-date mode */}
-        {mode === "per-date" && (
-          <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
+      {/* Sticky top bar: filter (E3) + month nav */}
+      <div
+        className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}
+        onMouseDown={handleTopBarMouseDown}
+        data-testid="schedule-work-topbar"
+      >
+        {/* E3: Branch filter switcher (Все + individual branches) */}
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
             <button
               type="button"
               onClick={() => setGridBranchFilter("all")}
@@ -771,51 +955,81 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               );
             })}
           </div>
-        )}
 
-        {/* Month nav — only in per-date mode */}
-        {mode === "per-date" && (
-          <div className="ml-auto flex items-center gap-1">
+        {/* Month nav */}
+        <div className="ml-auto flex items-center gap-1">
             <Button type="button" size="sm" variant="outline" onClick={() => navigateMonth(-1)} aria-label="Предыдущий месяц" data-testid="month-prev">◀</Button>
             <span className="min-w-[120px] text-center text-sm font-semibold" data-testid="month-label">
               {RU_MONTHS[viewMonth]} {viewYear}
             </span>
             <Button type="button" size="sm" variant="outline" onClick={() => navigateMonth(1)} aria-label="Следующий месяц" data-testid="month-next">▶</Button>
           </div>
-        )}
       </div>
 
-      {/* CAL-02: Weekly mode — show BookingSoloScheduleSection */}
-      {mode === "weekly" && <BookingSoloScheduleSection />}
+      {/* Errors / feedback */}
+      {loadError ? <p className="text-sm text-destructive" data-testid="load-error">{loadError}</p> : null}
+      {actionError ? <p className="text-sm text-destructive" data-testid="action-error">{actionError}</p> : null}
 
-      {/* Errors / feedback — per-date mode only */}
-      {mode === "per-date" && loadError ? <p className="text-sm text-destructive" data-testid="load-error">{loadError}</p> : null}
-      {mode === "per-date" && actionError ? <p className="text-sm text-destructive" data-testid="action-error">{actionError}</p> : null}
-      {mode === "per-date" && actionOk ? <p className="text-sm text-green-700 dark:text-green-400" data-testid="action-ok">{actionOk}</p> : null}
-
-      {/* E1: Two-column layout on large screens — per-date mode only */}
-      {mode === "per-date" && <>
-      <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
+      {/* E1: Two-column layout on large screens */}
+      <>
+      {/* #235: клик в стороне от активных элементов (за пределами month-grid и hours-panel)
+          сбрасывает выбор. Используем onMouseDown чтобы перехватить раньше дочерних onClick. */}
+      <div
+        className="grid gap-3 lg:grid-cols-[1fr_320px]"
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+          // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel
+          const inside = target.closest("[data-testid='month-grid'], [data-testid='hours-panel']");
+          if (!inside) {
+            setSelected(new Set());
+            setSelectionMode("dates");
+            setSelectedWeekday(null);
+            lastClickedRef.current = null;
+          }
+        }}
+      >
         {/* LEFT: month grid */}
         <div className="flex flex-col gap-2">
           <div className={cn(doctorSectionCardClass, "p-0 overflow-hidden")} data-testid="month-grid">
-            {/* Weekday header */}
-            <div className="grid grid-cols-7 gap-0.5 px-1.5 pb-0.5 pt-1.5 text-[10px] font-medium text-muted-foreground text-center">
-              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
-                <div key={d}>{d}</div>
-              ))}
+            {/* Weekday header — click selects entire weekday column (SCH-R-03) */}
+            <div className="grid grid-cols-7 gap-0.5 px-1.5 pb-0.5 pt-1.5 text-center">
+              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d, colIndex) => {
+                const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
+                const isActiveWd = selectionMode === "weekday" && selectedWeekday === wd;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => handleWeekdayHeaderClick(colIndex)}
+                    className={cn(
+                      // #236: border как у DayCell — видно что кликабельна
+                      "text-[10px] font-medium rounded px-0.5 py-0.5 transition-colors cursor-pointer border",
+                      isActiveWd
+                        ? "text-primary font-semibold bg-primary/10 border-primary/40"
+                        : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground hover:border-muted-foreground/40",
+                    )}
+                    aria-label={`Выбрать все ${d} месяца`}
+                    aria-pressed={isActiveWd}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
             </div>
             {/* Day cells (E2 — компактнее, время крупнее) */}
             <div className="grid grid-cols-7 gap-0.5 p-1.5">
               {cells.map((dateKey, idx) => (
                 <DayCell
                   key={dateKey ?? `pad-${idx}`}
+                  cellIndex={idx}
                   dateKey={dateKey}
                   today={today}
                   record={dateKey ? dayMap.get(dateKey) : undefined}
                   branches={branches}
                   isSelected={dateKey ? selected.has(dateKey) : false}
                   onToggle={toggleDay}
+                  onClearSelection={handleClearSelection}
+                  effectiveHours={dateKey ? resolveEffectiveHours(dateKey, dayMap, workingHours) : undefined}
                 />
               ))}
             </div>
@@ -830,15 +1044,20 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               data-testid="hours-panel"
             >
               <h3 className={cn(doctorSectionTitleClass, "text-primary")}>
-                Задать расписание для {selectedCount} {selectedCount === 1 ? "дня" : "дней"} ({
-                  selectedDates.length <= 3
-                    ? selectedDates.map((d) => {
-                        const dt = DateTime.fromISO(d);
-                        return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
-                      }).join(", ")
-                    : `${DateTime.fromISO(selectedDates[0] ?? "").day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? "").day} …`
-                })
+                {selectionMode === "weekday" && selectedWeekday !== null
+                  ? `Расписание для всех ${WD_LABEL[selectedWeekday] ?? ""} (${selectedCount} дн.)`
+                  : `Задать расписание для ${selectedCount} ${selectedCount === 1 ? "дня" : "дней"} (${
+                      selectedDates.length <= 3
+                        ? selectedDates.map((d) => {
+                            const dt = DateTime.fromISO(d);
+                            return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
+                          }).join(", ")
+                        : `${DateTime.fromISO(selectedDates[0] ?? "").day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? "").day} …`
+                    })`}
               </h3>
+
+              {/* #232: чекбокс «постоянное расписание» УДАЛЁН. Выбор дня недели
+                  всегда сохраняется как постоянный шаблон weekday. */}
 
               {/* E4 — строчная раскладка */}
               <div className="flex flex-col gap-2">
@@ -924,11 +1143,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={pending}
+                  disabled={pending || (
+                    // #234: кнопка «Очистить шаблон» disabled если нет активного шаблона для этого дня
+                    selectionMode === "weekday" &&
+                    selectedWeekday !== null &&
+                    !workingHours.some((r) => r.weekday === selectedWeekday && r.isActive)
+                  )}
                   onClick={handleClearSchedule}
                   data-testid="btn-clear-schedule"
                 >
-                  Очистить расписание
+                  {selectionMode === "weekday" ? "Очистить шаблон" : "Очистить расписание"}
                 </Button>
                 <Button
                   type="button"
@@ -1107,7 +1331,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </>}
+      </>
     </DoctorSection>
   );
 }

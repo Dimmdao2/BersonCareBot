@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
 import { CopyForAiButton } from "./CopyForAiButton";
+import { apiJson } from "@/shared/lib/apiJson";
 
 type AuditItem = {
   id: string;
@@ -171,20 +172,10 @@ export function AdminAuditLogSection() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/audit-log?${queryString}`, { credentials: "include" });
-      const json = (await res.json()) as ApiOk | { ok: false; error?: string };
-      if (!res.ok || !json || (json as { ok?: boolean }).ok !== true) {
-        setError(
-          res.status === 403
-            ? "Нужна роль admin."
-            : (json as { error?: string }).error ?? `request_failed_${res.status}`,
-        );
-        setData(null);
-        return;
-      }
-      setData(json as ApiOk);
-    } catch {
-      setError("network");
+      const json = await apiJson<ApiOk>(`/api/admin/audit-log?${queryString}`, { credentials: "include" });
+      setData(json);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "network");
       setData(null);
     } finally {
       setLoading(false);
@@ -391,18 +382,15 @@ export function AdminAuditLogSection() {
                                       setResolvingId(row.id);
                                       setError(null);
                                       try {
-                                        const res = await fetch("/api/admin/audit-log/resolve", {
+                                        await apiJson<{ ok: boolean }>("/api/admin/audit-log/resolve", {
                                           method: "POST",
                                           credentials: "include",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify({ id: row.id }),
                                         });
-                                        const json = (await res.json()) as { ok?: boolean; error?: string };
-                                        if (!res.ok || json.ok !== true) {
-                                          setError(json.error ?? `close_failed_${res.status}`);
-                                          return;
-                                        }
                                         await load();
+                                      } catch (e) {
+                                        setError(e instanceof Error ? e.message : "close_failed");
                                       } finally {
                                         setResolvingId(null);
                                       }

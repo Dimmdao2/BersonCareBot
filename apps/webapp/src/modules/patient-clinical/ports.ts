@@ -58,6 +58,7 @@ export type ActiveDiagnosis = {
   clinicalStatus: DiagnosisClinicalStatus;
   /** Человекочитаемая мета, напр. «уточнён 22.01» / «поставлен 05.01». */
   meta: string;
+  comment: string | null;
 };
 
 export type ClinicalState = {
@@ -255,6 +256,7 @@ export type UpdateDiagnosisFieldsInput = {
   diagnosisId: string;
   text?: string;
   priority?: boolean;
+  comment?: string | null;
 };
 
 /** Установить клинический статус диагноза + записать в историю. */
@@ -326,4 +328,10 @@ export interface PatientClinicalPort {
   appendAnamnesisIllness(input: AppendAnamnesisIllnessInput): Promise<AnamnesisIllnessEntry>;
   /** Добавить запись в секцию «Образ жизни». */
   appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry>;
+
+  /**
+   * Список appointment_record_id (uuid) уже привязанных к визитам пациента.
+   * Используется в «Создать из записи», чтобы отфильтровать уже использованные записи.
+   */
+  listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]>;
 }

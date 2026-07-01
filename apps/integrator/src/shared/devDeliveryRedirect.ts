@@ -32,6 +32,19 @@
  *   DEV_REDIRECT_DISABLE_DEFAULTS=1  — drop the built-in Дмитрий defaults; only
  *                                      explicitly-configured channels redirect, the
  *                                      rest SUPPRESS. (Use for a strict no-default run.)
+ *
+ * ── PASSTHROUGH ALLOWLIST (multi-tester flows) ────────────────────────────────
+ * By default the redirect collapses EVERY recipient to the single test user, so a
+ * doctor↔patient conversation can't be exercised end-to-end (both ends land in one
+ * inbox). To run such flows in-vivo on a real-data test env, recipients that are
+ * KNOWN TEST ACCOUNTS may be delivered UNCHANGED (no redirect, no prefix). Every
+ * other recipient is still redirected/suppressed, so real clients stay protected.
+ * The allowlist is per-channel and EMPTY BY DEFAULT (opt-in, safe-by-default):
+ *   DEV_REDIRECT_PASSTHROUGH_TELEGRAM  — comma-sep telegram chat ids
+ *   DEV_REDIRECT_PASSTHROUGH_MAX       — comma-sep MAX user ids
+ *   DEV_REDIRECT_PASSTHROUGH_PHONES    — comma-sep E.164 phones (sms/smsc)
+ *   DEV_REDIRECT_PASSTHROUGH_EMAILS    — comma-sep emails (case-insensitive)
+ *   DEV_REDIRECT_PASSTHROUGH_WEB_PUSH  — comma-sep platform user ids (web-push)
  */
 
 const DEV_REDIRECT_PREFIX = '「DEV→ intended: ';
@@ -255,6 +268,70 @@ export function resolveDevRedirect(rawChannel: string | null | undefined): DevRe
         deliveryChannel: 'web_push',
         label: `web_push:${targets.webPushUserId}`,
       };
+    }
+  }
+}
+
+/** Reads a comma-separated env var into a trimmed, non-empty Set of strings. */
+function readEnvCsvSet(key: string): Set<string> {
+  const raw = process.env[key]?.trim();
+  if (!raw) return new Set<string>();
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+  );
+}
+
+/**
+ * Returns true when the intent's ORIGINAL recipient is an allowlisted TEST ACCOUNT
+ * for its channel and must therefore be delivered UNCHANGED (no redirect, no prefix)
+ * — see the PASSTHROUGH ALLOWLIST section in this file's header.
+ *
+ * SAFETY: empty allowlist (the default) → always returns false, so the chokepoint
+ * keeps its collapse-everything behaviour unless an operator explicitly opts in.
+ * Matching is per-channel and exact (case-insensitive only for email).
+ *
+ * Pure function of env + recipient — no DB, no IO (keeps the chokepoint cheap).
+ */
+export function isDevRedirectPassthrough(
+  rawChannel: string | null | undefined,
+  recipient: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!recipient) return false;
+  const channel = normalizeRedirectChannel(rawChannel);
+  if (channel === null) return false;
+
+  switch (channel) {
+    case 'telegram': {
+      const id = recipient.chatId;
+      if (id === undefined || id === null) return false;
+      return readEnvCsvSet('DEV_REDIRECT_PASSTHROUGH_TELEGRAM').has(String(id).trim());
+    }
+    case 'max': {
+      const id = recipient.userId ?? recipient.chatId;
+      if (id === undefined || id === null) return false;
+      return readEnvCsvSet('DEV_REDIRECT_PASSTHROUGH_MAX').has(String(id).trim());
+    }
+    case 'sms': {
+      const phone = recipient.phoneNormalized;
+      if (typeof phone !== 'string') return false;
+      return readEnvCsvSet('DEV_REDIRECT_PASSTHROUGH_PHONES').has(phone.trim());
+    }
+    case 'email': {
+      const email = recipient.email;
+      if (typeof email !== 'string') return false;
+      const target = email.trim().toLowerCase();
+      for (const allowed of readEnvCsvSet('DEV_REDIRECT_PASSTHROUGH_EMAILS')) {
+        if (allowed.toLowerCase() === target) return true;
+      }
+      return false;
+    }
+    case 'web_push': {
+      const id = recipient.pushUserId ?? recipient.userId;
+      if (typeof id !== 'string') return false;
+      return readEnvCsvSet('DEV_REDIRECT_PASSTHROUGH_WEB_PUSH').has(id.trim());
     }
   }
 }

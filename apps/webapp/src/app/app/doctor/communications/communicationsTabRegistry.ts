@@ -11,6 +11,8 @@ export type CommunicationsTabProps = {
   initialData?: unknown;
   /** Признак активного таба. Используется для управления поллингом (ChatsTab). По умолчанию true. */
   isActive?: boolean;
+  /** IANA timezone name for display (e.g. "Europe/Moscow"). Threaded from server page. */
+  displayIana?: string;
 };
 
 export type CommunicationsTabRegistryEntry = {

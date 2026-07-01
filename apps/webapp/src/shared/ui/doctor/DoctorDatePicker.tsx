@@ -23,6 +23,7 @@ type Props = {
   onChange: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  testId?: string;
 };
 
 export function DoctorDatePicker({
@@ -30,6 +31,7 @@ export function DoctorDatePicker({
   onChange,
   disabled,
   placeholder = "Выберите дату",
+  testId,
 }: Props) {
   const [open, setOpen] = useState(false);
   const dt = value ? DateTime.fromISO(value) : null;
@@ -41,6 +43,7 @@ export function DoctorDatePicker({
       <PopoverTrigger
         type="button"
         disabled={disabled}
+        data-testid={testId}
         className={cn(
           buttonVariants({ variant: "outline", size: "default" }),
           "w-full justify-start gap-2 font-normal",

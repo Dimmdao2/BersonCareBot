@@ -264,6 +264,7 @@ export function createTreatmentProgramProgressService(deps: {
       completion?: {
         perceivedDifficulty?: "easy" | "medium" | "hard";
         reps?: number;
+        sets?: number;
         weightKg?: number;
       };
     }): Promise<TreatmentProgramInstanceDetail> {
@@ -302,6 +303,9 @@ export function createTreatmentProgramProgressService(deps: {
       if (typeof input.completion?.reps === "number" && Number.isFinite(input.completion.reps)) {
         completionPayload.reps = input.completion.reps;
       }
+      if (typeof input.completion?.sets === "number" && Number.isFinite(input.completion.sets)) {
+        completionPayload.sets = input.completion.sets;
+      }
       if (typeof input.completion?.weightKg === "number" && Number.isFinite(input.completion.weightKg)) {
         completionPayload.weightKg = input.completion.weightKg;
       }
@@ -327,6 +331,73 @@ export function createTreatmentProgramProgressService(deps: {
       const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
       if (!out) throw new Error("Программа не найдена");
       return out;
+    },
+
+    async getLatestSimpleCompletionMetrics(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+    }): Promise<import("./types").ExerciseMetricPoint | null> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      const row = await actionLog.getLatestSimpleDonePayload({
+        patientUserId: input.patientUserId,
+        instanceId: input.instanceId,
+        instanceStageItemId: input.stageItemId,
+      });
+      if (!row) return null;
+      const p = row.payload ?? {};
+      const reps = typeof p.reps === "number" && Number.isFinite(p.reps) ? p.reps : null;
+      const sets = typeof p.sets === "number" && Number.isFinite(p.sets) ? p.sets : null;
+      const weightKg =
+        typeof p.weightKg === "number" && Number.isFinite(p.weightKg) ? p.weightKg : null;
+      const d = p.perceivedDifficulty;
+      const difficulty: import("./types").LfkPostSessionDifficulty | null =
+        d === "easy" || d === "medium" || d === "hard" ? d : null;
+      return { at: row.createdAt, reps, sets, weightKg, difficulty };
+    },
+
+    async updateLatestSimpleCompletionMetrics(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+      completion: {
+        perceivedDifficulty?: "easy" | "medium" | "hard";
+        reps?: number;
+        sets?: number;
+        weightKg?: number;
+      };
+    }): Promise<void> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      const payloadPatch: Record<string, unknown> = {
+        source: "simple_item_complete",
+      };
+      if (
+        input.completion.perceivedDifficulty === "easy" ||
+        input.completion.perceivedDifficulty === "medium" ||
+        input.completion.perceivedDifficulty === "hard"
+      ) {
+        payloadPatch.perceivedDifficulty = input.completion.perceivedDifficulty;
+      }
+      if (typeof input.completion.reps === "number" && Number.isFinite(input.completion.reps)) {
+        payloadPatch.reps = input.completion.reps;
+      }
+      if (typeof input.completion.sets === "number" && Number.isFinite(input.completion.sets)) {
+        payloadPatch.sets = input.completion.sets;
+      }
+      if (typeof input.completion.weightKg === "number" && Number.isFinite(input.completion.weightKg)) {
+        payloadPatch.weightKg = input.completion.weightKg;
+      }
+      const ok = await actionLog.updateLatestSimpleDonePayload({
+        patientUserId: input.patientUserId,
+        instanceId: input.instanceId,
+        instanceStageItemId: input.stageItemId,
+        payloadPatch,
+      });
+      if (!ok) throw new Error("Отметка выполнения не найдена");
     },
 
     async patientEnsureTestAttempt(input: {

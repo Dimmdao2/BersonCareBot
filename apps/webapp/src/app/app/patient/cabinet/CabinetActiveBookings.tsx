@@ -40,6 +40,57 @@ function showManageLink(status: PatientBookingRecord["status"]): boolean {
   return status === "confirmed" || status === "rescheduled" || status === "creating";
 }
 
+/** Format ISO datetime to iCalendar / Google Calendar compact form: `YYYYMMDDTHHmmssZ` */
+function fmtCalDate(iso: string): string {
+  return iso.replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function googleCalendarUrl(booking: PatientBookingRecord): string {
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: booking.serviceTitleSnapshot ?? "Запись",
+    dates: `${fmtCalDate(booking.slotStart)}/${fmtCalDate(booking.slotEnd)}`,
+    ...(booking.branchTitleSnapshot ? { location: booking.branchTitleSnapshot } : {}),
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function generateIcs(booking: PatientBookingRecord): string {
+  const uid = `bersoncare-booking-${booking.id}@bersoncare`;
+  const title = booking.serviceTitleSnapshot ?? "Запись";
+  const location = booking.branchTitleSnapshot ?? "";
+  const dtstart = fmtCalDate(booking.slotStart);
+  const dtend = fmtCalDate(booking.slotEnd);
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//BersonCare//BersonCare//RU",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTART:${dtstart}`,
+    `DTEND:${dtend}`,
+    `SUMMARY:${title}`,
+    location ? `LOCATION:${location}` : null,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ]
+    .filter(Boolean)
+    .join("\r\n");
+}
+
+function downloadIcs(booking: PatientBookingRecord): void {
+  const content = generateIcs(booking);
+  const blob = new Blob([content], { type: "text/calendar" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `booking-${booking.id}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   if (bookings.length === 0) {
     return (
@@ -98,6 +149,27 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                   >
                     Изменить
                   </Button>
+                ) : null}
+                {showManageLink(row.status) ? (
+                  <>
+                    <a
+                      href={isSafeExternalHref(googleCalendarUrl(row)) ? googleCalendarUrl(row) : "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(patientInlineLinkClass, "text-xs")}
+                    >
+                      Google Календарь
+                    </a>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto min-h-0 px-1 py-0 text-xs"
+                      onClick={() => downloadIcs(row)}
+                    >
+                      .ics
+                    </Button>
+                  </>
                 ) : null}
               </div>
             </div>

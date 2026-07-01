@@ -130,7 +130,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
       open={open}
       onClose={() => onOpenChange(false)}
       title={itemLabel ? `Обсуждение: ${itemLabel}` : "Обсуждение"}
-      size="lg"
+      size="content"
     >
       <DoctorProgramDiscussionMessagesPanel
         messages={messages}

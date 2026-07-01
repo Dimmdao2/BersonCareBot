@@ -7,6 +7,12 @@ export type DoctorClientsFilters = {
   search?: string;
   /** Viewer user id for per-doctor read cursors (discussion unread badges). */
   viewerUserId?: string;
+  /**
+   * Ограничить выборку конкретными userId (для точечных запросов без полного скана).
+   * Пустой массив → немедленно вернуть [] без запроса к БД.
+   * Undefined → без ограничений (все клиенты).
+   */
+  userIds?: string[];
   hasUpcomingAppointment?: boolean;
   /** Есть хотя бы одна активная назначенная программа лечения (`treatment_program_instances.status = 'active'`). */
   hasActiveTreatmentProgram?: boolean;
@@ -16,6 +22,10 @@ export type DoctorClientsFilters = {
   hasEmail?: boolean;
   /** Только клиенты с телефоном (phone_normalized не NULL). */
   hasPhone?: boolean;
+  /** Есть серверно зафиксированная активность из PWA (`product_analytics_user_hourly.entry_channel='pwa'`). */
+  hasApp?: boolean;
+  /** Есть активная web-push подписка и глобальный канал web_push не выключен. */
+  hasWebPush?: boolean;
   /** Только пользователи с хотя бы одной неотменённой строкой в `appointment_records` (JOIN по phone). Этап 9. */
   onlyWithAppointmentRecords?: boolean;
   /**
@@ -60,6 +70,7 @@ export type ClientListItem = {
   bindings: ChannelBindings;
   hasEmail?: boolean;
   hasApp?: boolean;
+  hasWebPush?: boolean;
   nextAppointmentLabel: string | null;
   /** Есть хотя бы одна неотменённая запись (`appointment_records.status IN ('created', 'updated')`). */
   hasAppointmentHistory?: boolean;
@@ -118,6 +129,9 @@ export type PatientCardHeader = {
     phone: string | null;
     email: string | null;
     bindings: import("@/shared/types/session").ChannelBindings;
+    /** Есть ли у пациента переписка (хотя бы одно сообщение в support_conversations),
+     * независимо от привязанного канала — чтобы открыть чат даже без Telegram/MAX. */
+    hasConversation: boolean;
     isArchived: boolean;
     isBlocked: boolean;
     /** Дата рождения из platform_users.birth_date (ISO yyyy-mm-dd), null если не задана. */
@@ -189,6 +203,12 @@ export type DoctorDashboardPatientMetrics = {
 /** Строка в списке записей пациента (Записи таб). */
 export type PatientAppointmentItem = {
   id: string;
+  /**
+   * Internal DB uuid of the appointment_records row. Used to link a clinical visit to this
+   * booking (clinical_visit.appointment_record_id → appointment_records.id). Optional because
+   * legacy/in-memory paths may not populate it.
+   */
+  internalId?: string | null;
   /** ISO timestamp момента записи. */
   dateTime: string;
   /**

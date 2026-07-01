@@ -73,6 +73,19 @@ export async function resolveUserIdForYandexOAuth(
       }
     }
 
+    // Yandex treats its account email as verified, so the INSERT sets email_normalized. An existing
+    // active account owning this email_normalized but with it UNVERIFIED (phone/booking-created) is
+    // missed by findUserIdsByVerifiedEmail → INSERT duplicate-key crash. Link to it instead.
+    if (!userId && emailNorm) {
+      const byAnyEmail = await db.findActiveUserIdsByEmail(emailNorm);
+      if (byAnyEmail.length > 1) {
+        return { ok: false, reason: "email_ambiguous" };
+      }
+      if (byAnyEmail.length === 1) {
+        userId = byAnyEmail[0]!;
+      }
+    }
+
     if (!userId) {
       accountOutcome = "created";
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || "").slice(0, 500);

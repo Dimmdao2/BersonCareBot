@@ -1,6 +1,7 @@
 /** Навигация кабинета врача: верхнеуровневые пункты (desktop sidebar и mobile Sheet). */
 
 import { routePaths } from "@/app-layer/routes/paths";
+import { resolvePatientTerms } from "@/modules/system-settings/patientTerms";
 import type { UserRole } from "@/shared/types/session";
 
 /** Устаревший ключ: один открытый кластер. Читается только для миграции в формат множества. */
@@ -124,14 +125,16 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
  * пункт не попадает в результат.
  *
  * @param access — роль и режим администратора.
- * @param patientLabel — если `"клиент"`, пункт «Пациенты» отображается как «Клиенты».
+ * @param patientLabel — значение настройки `patient_label` (raw singular из БД).
+ *   Нормализуется через `resolvePatientTerms` — регистронезависимо.
  */
 export function getDoctorMenuItems(access: DoctorMenuAccess, patientLabel?: string): DoctorMenuLinkItem[] {
+  const { patientPluralLabel } = resolvePatientTerms(patientLabel);
   return RAW_DOCTOR_MENU_ITEMS.filter((item) => isDoctorMenuLinkVisible(item, access))
     .map((item) => {
       if (!item.items) {
-        if (item.id === "patients" && patientLabel === "клиент") {
-          return { ...item, label: "Клиенты" };
+        if (item.id === "patients") {
+          return { ...item, label: patientPluralLabel };
         }
         return item;
       }

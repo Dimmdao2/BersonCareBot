@@ -22,6 +22,7 @@ const sampleKpis = {
   futureInPeriod: 4,
   bySubscriptionInPeriod: 2,
   firstVisitInPeriod: 3,
+  firstVisitIds: ["appt-1", "appt-2", "appt-3"],
   repeatVisitInPeriod: 7,
   uniquePatientsInPeriod: 8,
   cancellationsInPeriod: 1,

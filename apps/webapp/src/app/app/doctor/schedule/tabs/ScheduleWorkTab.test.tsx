@@ -7,13 +7,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // Mocks (webapp-tests-lean: тяжёлые импорты в beforeAll)
 // ---------------------------------------------------------------------------
 
-// BookingSoloScheduleSection — мокаем stub (тяжёлый, не нужен в этих тестах)
-vi.mock("@/app/app/settings/BookingSoloScheduleSection", () => ({
-  BookingSoloScheduleSection: () => (
-    <div data-testid="booking-solo-schedule-section">weekly-schedule-stub</div>
-  ),
-}));
-
 vi.mock("@/app/app/settings/bookingSoloAdminApi", () => ({
   apiJson: vi.fn(),
   fetchSoloOverview: vi.fn(),
@@ -27,6 +20,11 @@ vi.mock("@/app/app/settings/bookingSoloAdminApi", () => ({
     const [h, m] = v.split(":").map(Number);
     return h * 60 + m;
   },
+}));
+
+// Bootstrap: the component uses fetchDoctorScheduleBootstrap (not fetchSoloOverview)
+vi.mock("../doctorScheduleApi", () => ({
+  fetchDoctorScheduleBootstrap: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -49,16 +47,6 @@ const BRANCHES: MockBranch[] = [
   { id: "branch-msk", title: "Москва", shortTitle: "Мск", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
 ];
 
-const OVERVIEW = {
-  organizationId: "org-1",
-  organization: { id: "org-1", title: "Клиника" },
-  branches: BRANCHES,
-  specialists: [{ id: "spec-1", fullName: "Иванов", isActive: true }],
-  services: [],
-  specialistAvailability: [],
-  locationAvailability: [],
-};
-
 const WORKING_DAY_ROWS = [
   {
     id: "wd-1",
@@ -68,6 +56,15 @@ const WORKING_DAY_ROWS = [
     breaks: [],
     isClosed: false,
     branchId: "branch-spb",
+  },
+  {
+    id: "wd-2",
+    workDate: "2026-06-03",
+    startMinute: 600,
+    endMinute: 1080,
+    breaks: [],
+    isClosed: false,
+    branchId: "branch-msk",
   },
 ];
 
@@ -97,8 +94,14 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 
 async function renderWorkTab(deepLinkParams: Record<string, string> = {}) {
-  const { fetchSoloOverview, apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
-  (fetchSoloOverview as ReturnType<typeof vi.fn>).mockResolvedValue(OVERVIEW);
+  const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+  (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+    organizationTitle: "Клиника",
+    branches: BRANCHES.filter((b) => b.isActive),
+    specialistId: "spec-1",
+  });
+
+  const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
   (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
     if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
     if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
@@ -148,6 +151,50 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  it("clears selected days when clicking an empty month cell", async () => {
+    await renderWorkTab({ month: "2026-08" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-08-03"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("day-cell-empty-0"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  it("clears selected days when clicking the top bar above the calendar", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("schedule-work-topbar"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps selected days when clicking a branch filter button", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("branch-btn-branch-msk"));
+    fireEvent.click(screen.getByTestId("branch-btn-branch-msk"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
+    });
+  });
+
   // ── E2: Карточки дней ───────────────────────────────────────────────────
 
   it("E2: renders branch filter buttons with short titles", async () => {
@@ -161,6 +208,22 @@ describe("ScheduleWorkTab", () => {
     expect(screen.getByTestId("branch-btn-branch-msk")).toHaveTextContent("Мск");
   });
 
+  it("keeps branch filter buttons colored in inactive and active states", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("branch-btn-branch-msk")).toBeInTheDocument());
+
+    const mskButton = screen.getByTestId("branch-btn-branch-msk");
+    expect(mskButton.className).toContain("text-green-700");
+    expect(mskButton.className).toContain("border-green-600/30");
+
+    fireEvent.click(mskButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("border-green-600/35");
+    });
+  });
+
   it("E2: day cell with schedule shows time", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => {
@@ -168,6 +231,14 @@ describe("ScheduleWorkTab", () => {
       const cell = screen.getByTestId("day-cell-2026-06-02");
       expect(cell).toBeInTheDocument();
       expect(cell.textContent).toContain("11–19");
+    });
+  });
+
+  it("colors scheduled day cells by branch palette", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => {
+      expect(screen.getByTestId("day-cell-2026-06-02").className).toContain("bg-blue-500/10");
+      expect(screen.getByTestId("day-cell-2026-06-03").className).toContain("bg-green-500/10");
     });
   });
 
@@ -275,6 +346,28 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  it("does not show a success message after clearing schedule", async () => {
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: RequestInit) => {
+      if (typeof url === "string" && url.includes("working-days") && init?.method === "PUT") return { ok: true };
+      if (typeof url === "string" && url.includes("working-days")) return { ok: true, rows: [] };
+      if (typeof url === "string" && url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
+    });
+
+    fireEvent.click(screen.getByTestId("btn-clear-schedule"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("action-ok")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Расписание очищено/i)).not.toBeInTheDocument();
+    });
+  });
+
   it("E4: PUT upsert sends breaks array (2 breaks)", async () => {
     const { apiJson } = await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
@@ -303,7 +396,7 @@ describe("ScheduleWorkTab", () => {
     // Reset mock
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-days") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-days") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -314,7 +407,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const putCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-days" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-days" &&
           (call[1] as RequestInit)?.method === "PUT",
       );
       expect(putCall).toBeTruthy();
@@ -345,7 +438,7 @@ describe("ScheduleWorkTab", () => {
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-days") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-days") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -356,7 +449,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const putCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-days" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-days" &&
           (call[1] as RequestInit)?.method === "PUT",
       );
       expect(putCall).toBeTruthy();
@@ -379,7 +472,7 @@ describe("ScheduleWorkTab", () => {
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-days") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-days") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -390,7 +483,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const putCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-days" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-days" &&
           (call[1] as RequestInit)?.method === "PUT",
       );
       expect(putCall).toBeTruthy();
@@ -486,7 +579,7 @@ describe("ScheduleWorkTab", () => {
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === "/api/admin/booking-engine/working-schedule-templates") return { ok: true };
+      if (url === "/api/doctor/booking-engine/working-schedule-templates") return { ok: true };
       if (url.includes("working-days")) return { ok: true, rows: [] };
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
       return { ok: true };
@@ -497,7 +590,7 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
       const postCall = calls.find(
-        (call) => call[0] === "/api/admin/booking-engine/working-schedule-templates" &&
+        (call) => call[0] === "/api/doctor/booking-engine/working-schedule-templates" &&
           (call[1] as RequestInit)?.method === "POST",
       );
       expect(postCall).toBeTruthy();
@@ -509,6 +602,90 @@ describe("ScheduleWorkTab", () => {
       expect(body.breaks).toHaveLength(1);
       expect(body.breaks[0].startMinute).toBe(780);  // 13:00
       expect(body.breaks[0].endMinute).toBe(840);    // 14:00
+    });
+  });
+
+  // ── #233: сброс выделения/панели ДО async очистки шаблона ──────────────
+
+  it("#233: after clear-template click panel hides immediately (before async completes)", async () => {
+    // Setup: working-hours has an active row for Monday (weekday=1)
+    const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+    (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+      organizationTitle: "Клиника",
+      branches: BRANCHES.filter((b) => b.isActive),
+      specialistId: "spec-1",
+    });
+    const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
+
+    // DELETE never resolves in this test (simulates slow network)
+    let resolveDelete: (() => void) | undefined;
+    const neverResolves = new Promise<{ ok: true }>((resolve) => { resolveDelete = () => resolve({ ok: true }); });
+
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: RequestInit) => {
+      if (url.includes("working-hours") && opts?.method === "DELETE") return neverResolves;
+      if (url.includes("working-hours")) return { ok: true, rows: [{ id: "wh-mon", weekday: 1, startMinute: 540, endMinute: 1080, isActive: true, branchId: null }] };
+      if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
+    });
+
+    const { ScheduleWorkTab } = await import("./ScheduleWorkTab");
+    render(<ScheduleWorkTab deepLinkParams={{ month: "2026-06" }} onDeepLinkChange={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    // Select Monday weekday header
+    const monBtn = screen.getAllByRole("button").find((b) => b.textContent === "Пн");
+    expect(monBtn).toBeTruthy();
+    fireEvent.click(monBtn!);
+
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Click «Очистить шаблон» — DELETE hangs, but panel should hide immediately
+    // ждём загрузки working-hours, иначе кнопка disabled и клик — no-op (toDeactivate пуст → ранний выход)
+    await waitFor(() => expect(screen.getByTestId("btn-clear-schedule")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("btn-clear-schedule"));
+
+    // Panel must disappear immediately, without waiting for DELETE
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+
+    // Resolve the hanging DELETE so the component can cleanup
+    resolveDelete?.();
+  });
+
+  it("#233: after clear-template click selection is reset immediately", async () => {
+    const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+    (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+      organizationTitle: "Клиника",
+      branches: BRANCHES.filter((b) => b.isActive),
+      specialistId: "spec-1",
+    });
+    const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: RequestInit) => {
+      if (url.includes("working-hours") && opts?.method === "DELETE") return { ok: true };
+      if (url.includes("working-hours")) return { ok: true, rows: [{ id: "wh-mon", weekday: 1, startMinute: 540, endMinute: 1080, isActive: true, branchId: null }] };
+      if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
+    });
+
+    const { ScheduleWorkTab } = await import("./ScheduleWorkTab");
+    render(<ScheduleWorkTab deepLinkParams={{ month: "2026-06" }} onDeepLinkChange={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const monBtn = screen.getAllByRole("button").find((b) => b.textContent === "Пн");
+    fireEvent.click(monBtn!);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // ждём загрузки working-hours, иначе кнопка disabled и клик — no-op (toDeactivate пуст → ранний выход)
+    await waitFor(() => expect(screen.getByTestId("btn-clear-schedule")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("btn-clear-schedule"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
     });
   });
 
@@ -530,64 +707,63 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => expect(screen.getByTestId("month-label")).toHaveTextContent("Январь 2027"));
   });
 
-  // ── CAL-02: Mode switcher ────────────────────────────────────────────────
+  // ── CAL-02: always per-date mode (mode switcher removed in SCH-R-05) ──────
 
-  it("CAL-02: renders mode switcher with «По датам» and «Недельный шаблон» buttons", async () => {
-    await renderWorkTab({ month: "2026-06" });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("mode-switcher")).toBeInTheDocument();
-      expect(screen.getByTestId("mode-btn-per-date")).toBeInTheDocument();
-      expect(screen.getByTestId("mode-btn-weekly")).toBeInTheDocument();
-    });
-    expect(screen.getByTestId("mode-btn-per-date")).toHaveTextContent("По датам");
-    expect(screen.getByTestId("mode-btn-weekly")).toHaveTextContent("Недельный шаблон");
-  });
-
-  it("CAL-02: defaults to per-date mode — month grid visible, weekly section absent", async () => {
+  it("CAL-02: month grid is always visible — mode switcher removed", async () => {
     await renderWorkTab({ month: "2026-06" });
 
     await waitFor(() => {
       expect(screen.getByTestId("month-grid")).toBeInTheDocument();
-      expect(screen.queryByTestId("booking-solo-schedule-section")).not.toBeInTheDocument();
     });
+    // Mode-switcher was removed in feat(SCH-R-05) — assert it's absent
+    expect(screen.queryByTestId("mode-switcher")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mode-btn-per-date")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mode-btn-weekly")).not.toBeInTheDocument();
   });
 
-  it("CAL-02: per-date button has aria-selected=true by default", async () => {
-    await renderWorkTab({ month: "2026-06" });
+  // ── #232: постоянное расписание чекбокс удалён ──────────────────────────
 
-    await waitFor(() => {
-      const btn = screen.getByTestId("mode-btn-per-date");
-      expect(btn).toHaveAttribute("aria-selected", "true");
-      expect(screen.getByTestId("mode-btn-weekly")).toHaveAttribute("aria-selected", "false");
-    });
+  it("#232: permanent-schedule checkbox is absent (removed)", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    // Выбираем день недели (Пн)
+    fireEvent.click(screen.getAllByRole("button").find((b) => b.textContent === "Пн")!);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Чекбокс «Постоянное расписание» должен отсутствовать
+    expect(screen.queryByTestId("weekday-permanent")).not.toBeInTheDocument();
+    expect(screen.queryByText("Постоянное расписание")).not.toBeInTheDocument();
   });
 
-  it("CAL-02: clicking «Недельный шаблон» switches mode — shows weekly section, hides month grid", async () => {
-    await renderWorkTab({ month: "2026-06" });
+  // ── #234: кнопка Очистить шаблон disabled если нет шаблона ─────────────
 
-    await waitFor(() => expect(screen.getByTestId("mode-btn-weekly")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("mode-btn-weekly"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("booking-solo-schedule-section")).toBeInTheDocument();
-      expect(screen.queryByTestId("month-grid")).not.toBeInTheDocument();
+  it("#234: 'Очистить шаблон' is disabled when no working-hours template for weekday", async () => {
+    const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
+    (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
+      organizationTitle: "Клиника",
+      branches: BRANCHES.filter((b) => b.isActive),
+      specialistId: "spec-1",
     });
-    expect(screen.getByTestId("mode-btn-weekly")).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("mode-btn-per-date")).toHaveAttribute("aria-selected", "false");
-  });
-
-  it("CAL-02: switching back to «По датам» restores month grid and hides weekly section", async () => {
-    await renderWorkTab({ month: "2026-06" });
-
-    await waitFor(() => expect(screen.getByTestId("mode-btn-weekly")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("mode-btn-weekly"));
-    await waitFor(() => expect(screen.getByTestId("booking-solo-schedule-section")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByTestId("mode-btn-per-date"));
-    await waitFor(() => {
-      expect(screen.getByTestId("month-grid")).toBeInTheDocument();
-      expect(screen.queryByTestId("booking-solo-schedule-section")).not.toBeInTheDocument();
+    const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
+    // working-hours: нет активных строк
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.includes("working-hours")) return { ok: true, rows: [] };
+      if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
+      return { ok: true };
     });
+    const { ScheduleWorkTab } = await import("./ScheduleWorkTab");
+    render(<ScheduleWorkTab deepLinkParams={{ month: "2026-06" }} onDeepLinkChange={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    // Выбираем день недели Пн
+    fireEvent.click(screen.getAllByRole("button").find((b) => b.textContent === "Пн")!);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Кнопка «Очистить шаблон» должна быть disabled (нет шаблона)
+    const clearBtn = screen.getByTestId("btn-clear-schedule");
+    expect(clearBtn).toBeDisabled();
   });
 });

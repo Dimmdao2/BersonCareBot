@@ -1,5 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { getDoctorEffectiveCalendarIana } from "@/modules/doctor-calendar-timezone/doctorCalendarTimezone";
+import { pgDoctorCalendarTimezonePort } from "@/infra/repos/pgDoctorCalendarTimezone";
 import { scheduleTabFromQuery } from "./doctorScheduleTabs";
 import { DoctorScheduleShell } from "./DoctorScheduleShell";
 
@@ -8,11 +9,14 @@ type Props = {
 };
 
 export default async function DoctorSchedulePage({ searchParams }: Props) {
-  await requireDoctorAccess();
+  const session = await requireDoctorAccess();
   const params = await searchParams;
 
   const initialTab = scheduleTabFromQuery(params.tab ?? null);
-  const initialTimeZone = await getAppDisplayTimeZone().catch(() => "Europe/Moscow");
+  const initialTimeZone = await getDoctorEffectiveCalendarIana(
+    session.user.userId,
+    pgDoctorCalendarTimezonePort,
+  ).catch(() => "Europe/Moscow");
 
   return (
     <DoctorScheduleShell

@@ -11,6 +11,7 @@
 import webpush from 'web-push';
 import type { WebPushSubscriptionPayload, VapidCredentials } from '../../kernel/contracts/index.js';
 
+// eslint-disable-next-line no-secrets/no-secrets -- type name in JSDoc, not a secret
 /** Mirrors webapp's `WebPushClientPayload` (superset — no data loss per PLAN S12). */
 export type WebPushSendPayload = {
   title: string;
@@ -22,6 +23,8 @@ export type WebPushSendPayload = {
   intentType?: string | null;
   pushKind?: string | null;
   warmupSloganKey?: string | null;
+  /** Reminder occurrence id — enables snooze/skip action buttons in the service worker. */
+  occurrenceId?: string | null;
 };
 
 export type WebPushSendAttemptResult = {
@@ -75,6 +78,7 @@ export async function sendWebPushViaProvider(opts: WebPushSendOptions): Promise<
     ...(payload.intentType ? { intentType: payload.intentType } : {}),
     ...(payload.pushKind ? { pushKind: payload.pushKind } : {}),
     ...(payload.warmupSloganKey ? { warmupSloganKey: payload.warmupSloganKey } : {}),
+    ...(payload.occurrenceId ? { occurrenceId: payload.occurrenceId } : {}),
   });
 
   let delivered = 0;

@@ -31,6 +31,12 @@ export type ExerciseExecutionGraphProps = {
   windowDays?: 7 | 30;
   onWindowChange?: (days: 7 | 30) => void;
   className?: string;
+  /**
+   * CMT-05: IANA timezone name (e.g. "Europe/Moscow") for converting ISO metric
+   * timestamps to local calendar dates when matching them to DayBar.localDate.
+   * Falls back to the browser's local timezone if not provided.
+   */
+  displayIana?: string;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -146,6 +152,7 @@ export function ExerciseExecutionGraph({
   windowDays = 7,
   onWindowChange,
   className,
+  displayIana,
 }: ExerciseExecutionGraphProps) {
   const [hoveredDay, setHoveredDay] = useState<HoveredDay | null>(null);
 
@@ -199,13 +206,18 @@ export function ExerciseExecutionGraph({
 
   // ── Hover helpers ─────────────────────────────────────────────────────────
 
+  // CMT-05: resolve local timezone once per render (not per hover) for date comparison
+  const localTz = displayIana ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   const handleDayHover = (day: DayBar, i: number) => {
-    const isoDate = day.localDate; // YYYY-MM-DD
-    // Collect metric points for that calendar day
+    const isoDate = day.localDate; // YYYY-MM-DD in clinic local calendar
+    // Collect metric points for that calendar day.
+    // CMT-05 fix: convert p.at (ISO timestamp) to LOCAL date using clinic timezone,
+    // not UTC — otherwise UTC+N clinics see wrong day in the tooltip.
     const metricsForDay = ordered.filter((p) => {
       try {
-        const d = new Date(p.at);
-        const pDate = d.toISOString().slice(0, 10);
+        // 'en-CA' locale produces YYYY-MM-DD format natively
+        const pDate = new Date(p.at).toLocaleDateString("en-CA", { timeZone: localTz });
         return pDate === isoDate;
       } catch {
         return false;

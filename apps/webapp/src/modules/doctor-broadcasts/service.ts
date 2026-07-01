@@ -10,7 +10,7 @@ import type {
   DoctorBroadcastDeliveryCommitPort,
 } from "./ports";
 import { normalizeBroadcastChannels, type BroadcastChannel } from "./broadcastChannels";
-import { buildBroadcastMessageText, buildDoctorBroadcastDeliveryJobs } from "./deliveryJobs";
+import { buildBroadcastMessageText, buildDoctorBroadcastDeliveryJobs, stripMarkdownToPlain } from "./deliveryJobs";
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "./deliveryQueueKind";
 import {
   fanOutBroadcastWebPush,
@@ -98,6 +98,8 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         emailEligibleUserIds,
       } = resolved;
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
+      // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
+      const messageBodyPlainText = stripMarkdownToPlain(messageBody);
       const auditId = randomUUID();
       const jobs = buildDoctorBroadcastDeliveryJobs({
         auditId,
@@ -108,6 +110,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         attachMenu: command.attachMenuAfterSend === true,
         audienceFilter: command.audienceFilter,
         notificationPrefsByUserId,
+        imageUrl: command.message.mediaUrl ?? null,
       });
       const auditBase = {
         actorId: command.actorId,
@@ -136,8 +139,11 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
           try {
             await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
               platformUserId: client.userId,
-              text: messageBody,
+              text: messageBodyPlainText,
               integratorMessageId: broadcastChatIntegratorMessageId(auditId, client.userId),
+              source: "doctor_broadcast",
+              mediaUrl: command.message.mediaUrl ?? null,
+              mediaType: command.message.mediaType ?? null,
             });
           } catch (err) {
             logger.warn(
@@ -179,7 +185,8 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             auditId,
             broadcastCategory: command.category,
             broadcastTitle: command.message.title,
-            broadcastBody: command.message.body,
+            broadcastBody: stripMarkdownToPlain(command.message.body),
+            mediaUrl: command.message.mediaUrl ?? null,
             eligibleClients: emailClients,
           },
           deps.fanOutBroadcastEmailDeps,

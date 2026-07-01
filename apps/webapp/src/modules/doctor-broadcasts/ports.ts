@@ -26,7 +26,14 @@ export type BroadcastAudienceFilter =
 export type BroadcastCommand = {
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
-  message: { title: string; body: string };
+  message: {
+    title: string;
+    body: string;
+    /** RASSL-06: опц. прикреплённая картинка (URL из медиа-библиотеки/S3) — phase 1: in-app чат. */
+    mediaUrl?: string | null;
+    /** MIME картинки (image/jpeg|png|webp). */
+    mediaType?: string | null;
+  };
   actorId: string;
   /** Если не задано на границе — сервис подставляет активные каналы по умолчанию. */
   channels?: BroadcastChannel[];

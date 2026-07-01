@@ -240,6 +240,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           status: d.status === "refined" ? "refined" : "active",
           clinicalStatus: d.clinicalStatus ?? "предварительный",
           meta,
+          comment: null,
         };
       })
       .sort((a, b) => Number(b.priority) - Number(a.priority));
@@ -544,5 +545,11 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         changedByName: null,
         note: h.note,
       }));
+  },
+
+  async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+    return visits
+      .filter((v) => v.patientUserId === patientUserId && v.appointmentRecordId != null)
+      .map((v) => v.appointmentRecordId as string);
   },
 };

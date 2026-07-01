@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 import {
@@ -62,6 +62,32 @@ function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }:
     }
     return null;
   });
+
+  // TASK-02: При редактировании задачи с привязанным пациентом в глобальном режиме
+  // (patientUserId === "") начальный displayName — «Загрузка…». Здесь получаем реальное имя.
+  useEffect(() => {
+    if (!editing?.patientUserId || patientUserId.trim()) return;
+    let cancelled = false;
+    fetch(`/api/doctor/patients/${editing.patientUserId}`)
+      .then((r) => r.json())
+      .then(
+        (data: {
+          ok: boolean;
+          header?: { identity: { userId: string; displayName: string; phone: string | null } };
+        }) => {
+          if (cancelled || !data.ok || !data.header) return;
+          setLinkedPatient({
+            id: data.header.identity.userId,
+            displayName: data.header.identity.displayName,
+            phone: data.header.identity.phone,
+          });
+        },
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [editing?.patientUserId, patientUserId]);
 
   const isGlobal = !patientUserId.trim();
 

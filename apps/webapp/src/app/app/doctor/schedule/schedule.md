@@ -104,7 +104,7 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 
 | `?section=` | Компоненты |
 |-------------|-----------|
-| `services` (default) | `BookingSoloServicesSection` + `BookingCatalogPackagesSection` |
+| `calendar` (default) | `ScheduleCalendarDefaultsSection` |
 | `locations` | `BookingSoloLocationsSection` + `BookingSoloAvailabilitySection` |
 | `form` | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection` |
 | `payments` | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection` |

@@ -11,13 +11,20 @@ type SupportSettingsResponse = {
   effectivePolicy?: PatientProgramInteractionPolicy;
 };
 
-export function DoctorClientSupportPanel({ patientUserId }: { patientUserId: string }) {
-  const [loading, setLoading] = useState(true);
+export function DoctorClientSupportPanel({
+  patientUserId,
+  initialEffectivePolicy,
+}: {
+  patientUserId: string;
+  /** SSR-provided effective policy. When present, skips the initial client fetch. */
+  initialEffectivePolicy?: PatientProgramInteractionPolicy | null;
+}) {
+  const [loading, setLoading] = useState(initialEffectivePolicy == null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [onSupport, setOnSupport] = useState(false);
-  const [commentsAllowed, setCommentsAllowed] = useState(false);
-  const [mediaAllowed, setMediaAllowed] = useState(false);
+  const [onSupport, setOnSupport] = useState(() => initialEffectivePolicy?.onSupport ?? false);
+  const [commentsAllowed, setCommentsAllowed] = useState(() => initialEffectivePolicy?.commentsAllowed ?? false);
+  const [mediaAllowed, setMediaAllowed] = useState(() => initialEffectivePolicy?.mediaAllowed ?? false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,8 +49,11 @@ export function DoctorClientSupportPanel({ patientUserId }: { patientUserId: str
   }, [patientUserId]);
 
   useEffect(() => {
+    // Skip initial fetch when SSR data provided; load() is still called after PATCH.
+    if (initialEffectivePolicy != null) return;
     void load();
-  }, [load]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const patch = async (body: Record<string, unknown>) => {
     setSaving(true);

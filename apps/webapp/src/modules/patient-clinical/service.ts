@@ -202,6 +202,10 @@ export function createPatientClinicalService({
       if (!recordDate) throw new Error("anamnesis_lifestyle_record_date_required");
       return patientClinicalPort.appendAnamnesisLifestyle({ ...input, text, recordDate });
     },
+
+    async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+      return patientClinicalPort.listLinkedAppointmentRecordIds(patientUserId);
+    },
   };
 }
 

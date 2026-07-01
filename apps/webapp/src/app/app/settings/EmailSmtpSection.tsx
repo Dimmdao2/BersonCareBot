@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import { patchAdminSetting } from "./patchAdminSetting";
 
 export type EmailSmtpSectionProps = {
@@ -73,31 +74,27 @@ export function EmailSmtpSection({
     setTestError(null);
     startTestTransition(async () => {
       try {
-        const res = await fetch("/api/admin/smtp-test", {
+        await apiJson<{ ok: boolean }>("/api/admin/smtp-test", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ to: testTo.trim() }),
         });
-        const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
-        if (res.ok) {
-          setTestOk(true);
-          return;
-        }
-        if (res.status === 400 && data?.error === "smtp_not_configured") {
+        setTestOk(true);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Не удалось отправить";
+        if (msg === "smtp_not_configured") {
           setTestError("Сначала сохраните полный SMTP в БД");
           return;
         }
-        if (res.status === 400 && data?.error === "smtp_password_missing") {
+        if (msg === "smtp_password_missing") {
           setTestError("В настройках нет пароля SMTP");
           return;
         }
-        if (res.status === 400 && data?.error === "invalid_body") {
+        if (msg === "invalid_body") {
           setTestError("Укажите корректный email получателя");
           return;
         }
-        setTestError(data?.message ?? data?.error ?? "Не удалось отправить");
-      } catch {
-        setTestError("Ошибка запроса");
+        setTestError(msg);
       }
     });
   }

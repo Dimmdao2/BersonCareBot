@@ -23,6 +23,8 @@ type CommentsInitialDataV2 = {
     hasMore: boolean;
   };
   patients: CommentPatientRow[];
+  /** IANA timezone string for displaying exercise charts in clinic's local time. */
+  displayIana?: string;
 };
 
 /** Старая плоская форма (backward compat). */
@@ -59,12 +61,13 @@ function isLegacyShape(d: unknown): d is CommentsInitialDataLegacy {
 
 function toProps(initialData: unknown): DoctorCommentsTabProps {
   if (isV2Shape(initialData)) {
-    const { feed, patients } = initialData;
+    const { feed, patients, displayIana } = initialData;
     return {
       initialItems: Array.isArray(feed.items) ? feed.items : [],
       initialCursor: feed.nextCursor ?? null,
       hasMoreInitial: feed.hasMore ?? false,
       initialPatients: Array.isArray(patients) ? patients : [],
+      displayIana,
     };
   }
   if (isLegacyShape(initialData)) {

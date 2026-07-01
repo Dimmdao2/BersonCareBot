@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Check, Camera, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
@@ -35,8 +36,8 @@ import {
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import {
   patientBodyTextClass,
-  patientButtonPrimaryClass,
   patientButtonSuccessClass,
+  patientCompactActionClass,
   patientMutedTextClass,
   patientProgramItemHeroTitleClass,
   patientProgramItemPrimaryStatTextClass,
@@ -44,6 +45,7 @@ import {
   patientScrollbarHiddenClass,
   patientSectionTitleClass,
   patientSectionTitleNormalClass,
+  patientSecondaryActionClass,
   patientSimpleCompleteDoneButtonToneClass,
 } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
@@ -59,15 +61,19 @@ import {
 import { PatientStageCompositionList } from "@/app/app/patient/treatment/PatientStageCompositionList";
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
-import { ProgramItemDiscussionDialog } from "@/app/app/patient/treatment/ProgramItemDiscussionDialog";
 import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
 } from "@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog";
+import { ProgramItemDiscussionDialog } from "@/app/app/patient/treatment/ProgramItemDiscussionDialog";
 import {
-  ProgramItemCompleteDialog,
-  type ProgramItemCompleteDialogPayload,
-} from "@/app/app/patient/treatment/ProgramItemCompleteDialog";
+  CompletionMetricsPanel,
+  DEFAULT_COMPLETION_METRICS_DRAFT,
+  draftToPayload,
+  metricNumberToInput,
+  type CompletionDifficulty,
+  type CompletionMetricsDraft,
+} from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection";
 import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
 import { postProgramItemComplete } from "@/app/app/patient/treatment/postProgramItemComplete";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
@@ -98,6 +104,7 @@ type StageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][numbe
 type ItemDiscussionLastDoneSummary = {
   createdAt: string;
   reps: number | null;
+  sets?: number | null;
   weightKg: number | null;
   perceivedDifficulty: "easy" | "medium" | "hard" | null;
 };
@@ -293,26 +300,32 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   );
   const [detail, setDetail] = useState(initialDetail);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const reportError = useCallback((message: string | null) => {
+    if (message?.trim()) toast.error(message.trim());
+  }, []);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
   const [doneTodayCountByItemId, setDoneTodayCountByItemId] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
   const [doneTodayCountByActivityKey, setDoneTodayCountByActivityKey] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
-  const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
   const mediaPickerRef = useRef<ProgramItemSubmissionSourceDialogHandle>(null);
-  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [metricsDraft, setMetricsDraft] = useState<CompletionMetricsDraft>(DEFAULT_COMPLETION_METRICS_DRAFT);
+  const [metricsPanelOpen, setMetricsPanelOpen] = useState(false);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
     unreadCount: 0,
     lastMessage: null,
     lastDoneSummary: null,
   });
+  const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
+  const canUseInteractiveProgramActions = detail.assignmentSource === "doctor";
   const commentsInteraction = programCommentsInteraction;
   const mediaInteraction = programMediaInteraction;
-  const mediaPickerVisible = mediaInteraction.visible;
-  const mediaPickerEnabled = mediaInteraction.enabled;
+  const commentsVisible = canUseInteractiveProgramActions && commentsInteraction.visible;
+  const commentsEnabled = canUseInteractiveProgramActions && commentsInteraction.enabled;
+  const mediaPickerVisible = canUseInteractiveProgramActions && mediaInteraction.visible;
+  const mediaPickerEnabled = canUseInteractiveProgramActions && mediaInteraction.enabled;
 
   const navForPath = navMode === "default" ? undefined : navMode;
 
@@ -349,11 +362,11 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [resolved, router, backHref]);
 
   const refresh = useCallback(async () => {
-    setError(null);
+    reportError(null);
     const instRes = await fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}`);
     const data = (await instRes.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
     if (!instRes.ok || !data.ok || !data.item) {
-      setError("Не удалось обновить данные");
+      reportError("Не удалось обновить данные");
       return;
     }
     setDetail(data.item);
@@ -383,7 +396,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
       setDoneTodayCountByActivityKey({});
       setLastDoneAtIsoByActivityKey({});
     }
-  }, [instanceId]);
+  }, [instanceId, reportError]);
 
   useEffect(() => {
     if (detail.status !== "active") {
@@ -453,7 +466,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [item, navMode, resolvedTestId]);
 
   const loadDiscussionPreview = useCallback(async () => {
-    if (!commentsInteraction.visible || !item || contentBlocked) {
+    if (!commentsVisible || !item || contentBlocked) {
       setDiscussionPreview({ totalCount: 0, unreadCount: 0, lastMessage: null, lastDoneSummary: null });
       return;
     }
@@ -493,50 +506,98 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     } catch {
       setDiscussionPreview({ totalCount: 0, unreadCount: 0, lastMessage: null, lastDoneSummary: null });
     }
-  }, [commentsInteraction.visible, contentBlocked, instanceId, item]);
-
-  const markDiscussionRead = useCallback(async () => {
-    if (!commentsInteraction.visible || !item || contentBlocked) return;
-    await fetch(
-      `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/discussion/read`,
-      { method: "POST" },
-    );
-    await loadDiscussionPreview();
-  }, [commentsInteraction.visible, contentBlocked, instanceId, item, loadDiscussionPreview]);
-
-  const openDiscussionDialog = useCallback(async () => {
-    await markDiscussionRead();
-    setDiscussionDialogOpen(true);
-  }, [markDiscussionRead]);
+  }, [commentsVisible, contentBlocked, instanceId, item]);
 
   useEffect(() => {
     void loadDiscussionPreview();
   }, [loadDiscussionPreview]);
 
+  const loadLatestMetrics = useCallback(async (): Promise<CompletionMetricsDraft> => {
+    if (!item || !canUseInteractiveProgramActions) return DEFAULT_COMPLETION_METRICS_DRAFT;
+    try {
+      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`);
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        metrics?: {
+          perceivedDifficulty?: CompletionDifficulty | null;
+          difficulty?: CompletionDifficulty | null;
+          reps?: number | null;
+          sets?: number | null;
+          weightKg?: number | null;
+        } | null;
+      } | null;
+      const m = res.ok && data?.ok ? data.metrics : null;
+      return {
+        ...DEFAULT_COMPLETION_METRICS_DRAFT,
+        perceivedDifficulty: m?.difficulty ?? m?.perceivedDifficulty ?? "medium",
+        repsRaw: metricNumberToInput(m?.reps),
+        setsRaw: metricNumberToInput(m?.sets),
+        weightRaw: metricNumberToInput(m?.weightKg, true),
+      };
+    } catch {
+      return DEFAULT_COMPLETION_METRICS_DRAFT;
+    }
+  }, [base, canUseInteractiveProgramActions, item]);
+
   useEffect(() => {
-    setDiscussionDialogOpen(false);
-    setCompleteDialogOpen(false);
+    setMetricsPanelOpen(false);
+    setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
   }, [itemId]);
 
-  const handleComplete = async (completion: ProgramItemCompleteDialogPayload) => {
-    if (!item || simpleCompleteDoneFrozen) return;
+  const handleComplete = async () => {
+    if (!item || !canUseInteractiveProgramActions || simpleCompleteDoneFrozen) return;
+    setMetricsPanelOpen(true);
+    setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
     setBusy(item.id);
-    setError(null);
+    reportError(null);
     try {
+      const previousDraft = await loadLatestMetrics();
       const result = await postProgramItemComplete({
         base,
         itemId: item.id,
-        payload: completion,
       });
       if (!result.ok) {
-        setError(result.error);
+        reportError(result.error);
+        setMetricsPanelOpen(false);
         return;
       }
-      setCompleteDialogOpen(false);
+      if (result.item) {
+        setDetail(result.item);
+        const updatedItem = result.item.stages.flatMap((s) => s.items).find((x) => x.id === item.id) ?? null;
+        const completedAt = updatedItem?.completedAt ?? new Date().toISOString();
+        setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+        setLastDoneAtIsoByItemId((prev) => ({ ...prev, [item.id]: completedAt }));
+        setDoneTodayCountByItemId((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+      }
+      setMetricsDraft(previousDraft);
       await refresh();
       await loadDiscussionPreview();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const saveCompletionMetrics = async () => {
+    if (!item || !canUseInteractiveProgramActions) return;
+    setMetricsDraft((prev) => ({ ...prev, saving: true }));
+    reportError(null);
+    try {
+      const payload = draftToPayload(metricsDraft);
+      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !data?.ok) {
+        reportError(data?.error ?? "Не удалось сохранить значения");
+        return;
+      }
+      setMetricsPanelOpen(false);
+      await refresh();
+      await loadDiscussionPreview();
+    } finally {
+      setMetricsDraft((prev) => ({ ...prev, saving: false }));
     }
   };
 
@@ -607,12 +668,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         "bg-[var(--patient-card-bg,#fff)]",
       )}
     >
-      {error ? (
-        <p className="px-4 pt-2 text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-
       <div
         className={cn(
           patientHomeCardHeroClass,
@@ -757,6 +812,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                 programInstanceId={instanceId}
                 programStageItemId={item.id}
                 readOnly={readOnly || contentBlocked}
+                hideAfterSaved
               />
             </div>
           );
@@ -764,7 +820,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
         <div className={cn(patientInnerPageStackClass, "p-4 pb-8 lg:p-5 lg:pb-10")}>
           <div className="flex flex-col gap-0">
-            {!contentBlocked && !readOnly && item.itemType !== "clinical_test" ? (
+            {!contentBlocked && !readOnly && canUseInteractiveProgramActions && item.itemType !== "clinical_test" ? (
               <div className="flex flex-wrap items-stretch gap-2">
                 {isPersistentRecommendation(item) ? (
                   flatNextItemId ? (
@@ -789,70 +845,72 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                     </Link>
                   )
                 ) : (
-                  <div className="flex w-full min-w-0 flex-col gap-1">
-                    <div className="flex min-w-0 flex-nowrap items-stretch gap-2">
-                      {mediaPickerVisible ? (
+                  <div className="flex w-full min-w-0 flex-col gap-2">
+                    <div className="flex w-full min-w-0 flex-nowrap items-stretch gap-2">
+                      {commentsVisible ? (
                         <button
                           type="button"
                           className={cn(
-                            "inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 p-0 text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10 sm:min-w-10",
-                            mediaPickerEnabled
-                              ? "cursor-pointer hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]"
+                            patientSecondaryActionClass,
+                            "!w-auto min-h-9 min-w-0 max-w-[9.5rem] flex-[0_1_9.5rem] items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium leading-tight whitespace-nowrap",
+                            commentsEnabled
+                              ? "cursor-pointer"
                               : "cursor-not-allowed opacity-60",
-                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
                           )}
-                          disabled={busy !== null || !mediaPickerEnabled}
-                          aria-disabled={!mediaPickerEnabled}
-                          aria-label="Камера"
+                          disabled={busy !== null || !commentsEnabled}
+                          aria-disabled={!commentsEnabled}
                           onClick={() => {
-                            if (!mediaPickerEnabled) return;
-                            queueMicrotask(() => mediaPickerRef.current?.open());
+                            if (!commentsEnabled) return;
+                            reportError(null);
+                            setDiscussionDialogOpen(true);
                           }}
                         >
-                          <Camera className="size-4" aria-hidden />
+                          <span className="min-w-0 truncate">Комментарии</span>
+                          {discussionPreview.totalCount > 0 ? (
+                            <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                              {discussionPreview.totalCount}
+                            </span>
+                          ) : null}
+                          {discussionPreview.unreadCount > 0 ? (
+                            <span className="size-1.5 shrink-0 rounded-full bg-[#ef4444]" aria-label="Есть новые комментарии" />
+                          ) : null}
                         </button>
                       ) : null}
                       <button
                         type="button"
                         className={cn(
-                          patientButtonPrimaryClass,
-                          "min-h-9 min-w-0 shrink basis-0 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
-                          mediaPickerVisible ? "flex-[1.45]" : "flex-1",
-                          simpleCompleteDoneFrozen &&
-                            cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
-                          !simpleCompleteDoneFrozen && "gap-0",
+                          patientCompactActionClass,
+                          "min-h-9 min-w-0 flex-[1_1_0] px-2 py-2.5 text-xs font-medium leading-tight",
+                          !commentsVisible && "w-full",
+                          simpleCompleteDoneFrozen && cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                         )}
                         disabled={busy !== null || simpleCompleteDoneFrozen}
-                        onClick={() => setCompleteDialogOpen(true)}
+                        onClick={() => {
+                          if (simpleCompleteDoneFrozen) return;
+                          void handleComplete();
+                        }}
                       >
                         {simpleCompleteDoneFrozen ? (
                           <>
                             <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-                            <span className="min-w-0 flex-1 text-center font-semibold leading-tight">
-                              Выполнено
-                            </span>
+                            <span className="min-w-0 flex-1 text-center font-semibold leading-tight">Выполнено</span>
                           </>
                         ) : (
                           <span className="w-full text-center leading-tight">Отметить выполнение</span>
                         )}
                       </button>
                     </div>
-                    {/* Скрыто: строка «Можно отметить повторно…» — см. закомментированный simpleCompleteCooldownMinutes выше.
-                    {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
-                      <p
-                        className={cn(
-                          patientMutedTextClass,
-                          "w-full text-center text-[11px] leading-tight",
-                        )}
-                      >
-                        {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
-                      </p>
+                    {metricsPanelOpen ? (
+                      <CompletionMetricsPanel
+                        draft={metricsDraft}
+                        onDraftChange={setMetricsDraft}
+                        onSave={() => void saveCompletionMetrics()}
+                      />
                     ) : null}
-                    */}
                   </div>
                 )}
-              </div>
-            ) : null}
+            </div>
+          ) : null}
 
             <PatientProgramItemExecutionRow
               lastIso={mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt)}
@@ -877,39 +935,30 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
-          {commentsInteraction.visible ? (
-            <div className="my-4 flex flex-col gap-2 rounded-lg border border-[var(--patient-border)]/60 bg-muted/10 px-3 py-2.5">
-              {discussionPreview.unreadCount > 0 ? (
-                <span className={cn(patientMutedTextClass, "text-xs font-medium text-[#c0392b]")}>
-                  новых: {discussionPreview.unreadCount}
-                </span>
-              ) : null}
-              {discussionPreview.lastMessage ? (
-                <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap text-sm leading-relaxed")}>
-                  <span className={cn(patientMutedTextClass, "mr-1 text-xs")}>
-                    {discussionPreview.lastMessage.senderRole === "patient" ? "Вы:" : "Специалист:"}
-                  </span>
-                  {discussionPreview.lastMessage.body?.trim() || "Медиафайл"}
-                </p>
-              ) : null}
+          {mediaPickerVisible ? (
+            <div className="my-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5">
               <button
                 type="button"
                 className={cn(
-                  "inline-flex w-full items-center justify-start rounded-md px-1 py-1 text-left text-sm font-medium text-[var(--patient-color-primary,#284da0)] underline-offset-2 transition-colors",
-                  commentsInteraction.enabled
-                    ? "cursor-pointer hover:underline"
+                  "inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors",
+                  mediaPickerEnabled
+                    ? "cursor-pointer hover:bg-slate-100 active:bg-slate-200"
                     : "cursor-not-allowed opacity-60",
-                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300",
                 )}
-                disabled={!commentsInteraction.enabled}
-                aria-disabled={!commentsInteraction.enabled}
+                disabled={busy !== null || !mediaPickerEnabled}
+                aria-disabled={!mediaPickerEnabled}
+                aria-label="Прикрепить видео"
                 onClick={() => {
-                  if (!commentsInteraction.enabled) return;
-                  void openDiscussionDialog();
+                  if (!mediaPickerEnabled) return;
+                  queueMicrotask(() => mediaPickerRef.current?.open());
                 }}
               >
-                {discussionPreview.lastMessage ? "Открыть комментарии" : "Оставить комментарий к выполнению"}
+                <Camera className="size-4" aria-hidden />
               </button>
+              <p className={cn(patientMutedTextClass, "m-0 text-xs leading-snug")}>
+                Если у вас есть вопросы по технике выполнения, вы можете записать небольшое видео с выполнением и отправить его специалисту.
+              </p>
             </div>
           ) : null}
 
@@ -925,24 +974,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               baseUrl={base}
               busy={busy}
               setBusy={setBusy}
-              setError={setError}
+              setError={reportError}
               onDone={refresh}
               serverSnapshot={testSetServerSnapshot ?? null}
               activeTestId={navMode === "tests" && resolvedTestId ? resolvedTestId : undefined}
             />
           ) : null}
 
-          <ProgramItemDiscussionDialog
-            instanceId={instanceId}
-            itemId={item.id}
-            open={discussionDialogOpen}
-            onOpenChange={(open) => {
-              setDiscussionDialogOpen(open);
-              if (!open) void loadDiscussionPreview();
-            }}
-            onRead={loadDiscussionPreview}
-            mediaSubmissionEnabled={mediaPickerEnabled}
-          />
           {mediaPickerVisible ? (
             <ProgramItemSubmissionSourceDialog
               ref={mediaPickerRef}
@@ -952,17 +990,24 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               onUploaded={() => {
                 void loadDiscussionPreview();
               }}
-              onError={() => setError("Не удалось загрузить файл")}
+              onError={() => reportError("Не удалось загрузить файл")}
             />
           ) : null}
-          <ProgramItemCompleteDialog
-            key={completeDialogOpen ? "complete-dialog-open" : "complete-dialog-closed"}
-            open={completeDialogOpen}
-            onOpenChange={setCompleteDialogOpen}
-            submitting={busy === item.id}
-            onSubmit={handleComplete}
-          />
-
+          {commentsVisible && item ? (
+            <ProgramItemDiscussionDialog
+              instanceId={instanceId}
+              itemId={item.id}
+              open={discussionDialogOpen}
+              mediaSubmissionEnabled={mediaPickerVisible && mediaPickerEnabled}
+              onOpenChange={(open) => {
+                setDiscussionDialogOpen(open);
+                if (!open) {
+                  void loadDiscussionPreview();
+                }
+              }}
+              onRead={loadDiscussionPreview}
+            />
+          ) : null}
           {navMode === "program" || navMode === "exec" ? (
             <PatientStageCompositionList
               instanceId={instanceId}

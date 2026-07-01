@@ -50,6 +50,10 @@ export function PatientInstanceStageBody(props: {
   itemLinksPlanTab?: PatientPlanTab | null;
   /** Пауза перед повторным «Выполнено» у простых пунктов (мин), из админских настроек. */
   planItemDoneRepeatCooldownMinutes: number;
+  /** QW-A3: IANA timezone for execution dots in item tiles. */
+  appDisplayTimeZone?: string;
+  /** QW-A3: last done ISO timestamps per item id, for execution dots cooldown display. */
+  lastDoneAtIsoByItemId?: Readonly<Record<string, string>>;
 }) {
   const {
     instanceId,
@@ -70,6 +74,8 @@ export function PatientInstanceStageBody(props: {
     hideStageDescription = false,
     itemLinksPlanTab = null,
     planItemDoneRepeatCooldownMinutes,
+    appDisplayTimeZone,
+    lastDoneAtIsoByItemId,
   } = props;
   const likeStages = stackVariant === "likeStagesTimeline";
   const contentBlocked =
@@ -150,6 +156,8 @@ export function PatientInstanceStageBody(props: {
                       itemLinksPlanTab ?? null,
                     )}
                     planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+                    appDisplayTimeZone={appDisplayTimeZone}
+                    lastDoneAtIsoByItemId={lastDoneAtIsoByItemId}
                   />
                 ))}
               </ul>
@@ -187,6 +195,8 @@ export function PatientInstanceStageBody(props: {
                     itemLinksPlanTab ?? null,
                   )}
                   planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+                  appDisplayTimeZone={appDisplayTimeZone}
+                  lastDoneAtIsoByItemId={lastDoneAtIsoByItemId}
                 />
               ))}
             </ul>

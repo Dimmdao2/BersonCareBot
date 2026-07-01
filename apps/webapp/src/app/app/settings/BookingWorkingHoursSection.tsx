@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -78,21 +79,24 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
   const roomLabel = useMemo(() => catalog?.rooms.find((r) => r.id === roomId)?.title, [catalog, roomId]);
 
   const loadCatalog = useCallback(async () => {
-    const res = await fetch(OVERVIEW);
-    const json = (await res.json()) as {
-      ok?: boolean;
-      specialists?: Catalog["specialists"];
-      branches?: Catalog["branches"];
-      rooms?: Catalog["rooms"];
-    };
-    if (json.ok && json.specialists && json.branches && json.rooms) {
-      setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
-      if (soloUx && json.specialists[0]) {
-        setSpecialistId(json.specialists[0].id);
+    try {
+      const json = await apiJson<{
+        ok?: boolean;
+        specialists?: Catalog["specialists"];
+        branches?: Catalog["branches"];
+        rooms?: Catalog["rooms"];
+      }>(OVERVIEW);
+      if (json.specialists && json.branches && json.rooms) {
+        setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
+        if (soloUx && json.specialists[0]) {
+          setSpecialistId(json.specialists[0].id);
+        }
+        if (soloUx && json.branches[0]) {
+          setBranchId((prev) => prev || json.branches![0]!.id);
+        }
       }
-      if (soloUx && json.branches[0]) {
-        setBranchId((prev) => prev || json.branches![0]!.id);
-      }
+    } catch {
+      // catalog load failure is non-critical; selects simply stay empty
     }
   }, [soloUx]);
 
@@ -101,20 +105,23 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
     if (specialistId) qs.set("specialistId", specialistId);
     if (branchId) qs.set("branchId", branchId);
     if (roomId) qs.set("roomId", roomId);
-    const res = await fetch(`${BASE}?${qs.toString()}`);
-    const json = (await res.json()) as {
-      ok?: boolean;
-      rows?: Row[];
-      usesFallback?: boolean;
-      error?: string;
-    };
-    if (!json.ok || !json.rows) {
-      setError(json.error ?? "load_failed");
-      return;
+    try {
+      const json = await apiJson<{
+        ok?: boolean;
+        rows?: Row[];
+        usesFallback?: boolean;
+        error?: string;
+      }>(`${BASE}?${qs.toString()}`);
+      if (!json.rows) {
+        setError("load_failed");
+        return;
+      }
+      setRows(json.rows.filter((r) => r.isActive));
+      setUsesFallback(json.usesFallback === true);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "load_failed");
     }
-    setRows(json.rows.filter((r) => r.isActive));
-    setUsesFallback(json.usesFallback === true);
-    setError(null);
   }, [branchId, roomId, specialistId]);
 
   useEffect(() => {
@@ -131,30 +138,34 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
 
   function createRow() {
     startTransition(async () => {
-      const res = await fetch(BASE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekday: Number(weekday),
-          startMinute: timeToMinute(startTime),
-          endMinute: timeToMinute(endTime),
-          specialistId: specialistId || null,
-          branchId: branchId || null,
-          roomId: roomId || null,
-        }),
-      });
-      const json = (await res.json()) as { ok?: boolean };
-      if (!json.ok) {
-        setError("create_failed");
-        return;
+      try {
+        await apiJson(BASE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            weekday: Number(weekday),
+            startMinute: timeToMinute(startTime),
+            endMinute: timeToMinute(endTime),
+            specialistId: specialistId || null,
+            branchId: branchId || null,
+            roomId: roomId || null,
+          }),
+        });
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "create_failed");
       }
-      await load();
     });
   }
 
   function deactivate(id: string) {
     startTransition(async () => {
-      await fetch(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      try {
+        await apiJson(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "delete_failed");
+        return;
+      }
       await load();
     });
   }

@@ -36,7 +36,14 @@ type Props = Pick<
   | "exerciseCommentAttentionItems"
   | "exerciseCommentAttentionTotal"
   | "exerciseCommentAttentionTruncated"
->;
+> & {
+  /**
+   * SEG-07: Колбэк, который должен декрементировать KPI-счётчик комментариев.
+   * Пробрасывается из DoctorTodayDashboard → DoctorTodayAttentionDialog.
+   * Принимает stageItemId разрешённого комментария.
+   */
+  onExerciseCommentResolved?: (stageItemId: string) => void;
+};
 
 export function DoctorTodaySignalsSection({
   proactiveInsights,
@@ -51,6 +58,7 @@ export function DoctorTodaySignalsSection({
   exerciseCommentAttentionItems,
   exerciseCommentAttentionTotal,
   exerciseCommentAttentionTruncated,
+  onExerciseCommentResolved,
 }: Props) {
   const [open, setOpen] = useState(false);
   const openDialog = useCallback(() => setOpen(true), []);
@@ -116,9 +124,7 @@ export function DoctorTodaySignalsSection({
         exerciseCommentAttentionItems={exerciseCommentAttentionItems}
         exerciseCommentAttentionTotal={exerciseCommentAttentionTotal}
         exerciseCommentAttentionTruncated={exerciseCommentAttentionTruncated}
-        onExerciseCommentResolved={() => {
-          /* управление состоянием в DoctorTodayLeftKpiRow */
-        }}
+        onExerciseCommentResolved={onExerciseCommentResolved ?? (() => { /* no-op if not wired */ })}
       />
     </>
   );

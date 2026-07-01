@@ -667,14 +667,12 @@ export type LfkPostSessionDifficulty = "easy" | "medium" | "hard";
 /**
  * Одна точка данных для микро-графика статистики выполнения упражнения (B.3).
  * Поля `reps`, `weightKg`, `sets`, `difficulty` — null, если не зафиксированы.
- * `sets` зарезервировано под Фазу C (сейчас не пишется в `program_action_log`).
  */
 export type ExerciseMetricPoint = {
   /** ISO-строка `created_at` из `program_action_log`. */
   at: string;
   reps: number | null;
   weightKg: number | null;
-  /** Зарезервировано: Фаза C добавит запись подходов. Сейчас всегда null. */
   sets: number | null;
   difficulty: LfkPostSessionDifficulty | null;
 };

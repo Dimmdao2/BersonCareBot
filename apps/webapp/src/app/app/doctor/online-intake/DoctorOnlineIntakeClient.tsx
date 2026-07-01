@@ -13,8 +13,8 @@ import {
   doctorMetricValueClass,
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
-import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { patientCardHref } from "../patients/patientCardHref";
+import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
@@ -114,7 +114,7 @@ const STATS_DAYS_LABELS: Record<StatsDays, string> = {
   365: "Год",
 };
 
-function formatIntakeDate(iso: string): string {
+function formatIntakeDate(iso: string, tz = "Europe/Moscow"): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   const now = new Date();
@@ -123,9 +123,9 @@ function formatIntakeDate(iso: string): string {
     d.getMonth() === now.getMonth() &&
     d.getFullYear() === now.getFullYear();
   if (isToday) {
-    return `сегодня · ${d.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" })}`;
+    return `сегодня · ${d.toLocaleString("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit" })}`;
   }
-  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit" });
+  return d.toLocaleDateString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit" });
 }
 
 // ── Detail body ─────────────────────────────────────────────────────────────
@@ -196,16 +196,19 @@ function IntakeStatsCard({
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between border-b border-border bg-muted/20 px-3 py-2 text-left"
-      >
-        <span className="text-xs font-semibold">
+      {/* Header row is a div (NOT a button) so the period buttons below are
+          siblings, not nested inside a button — fixes the <button>-in-<button>
+          hydration warning (task #44). */}
+      <div className="flex w-full items-center justify-between border-b border-border bg-muted/20 px-3 py-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-left text-xs font-semibold"
+        >
           Статистика заявок {collapsed ? "▸" : "▾"}
-        </span>
+        </button>
         {!collapsed && (
-          <span className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <span className="flex gap-1">
             {STATS_DAYS_OPTIONS.map((d) => (
               <button
                 key={d}
@@ -223,7 +226,7 @@ function IntakeStatsCard({
             ))}
           </span>
         )}
-      </button>
+      </div>
 
       {!collapsed && (
         <>
@@ -282,11 +285,13 @@ function IntakeStatsCard({
 export type DoctorOnlineIntakeClientProps = {
   initialOpenRequestId?: string | null;
   onDetailChange?: (id: string | null) => void;
+  displayIana?: string;
 };
 
 export function DoctorOnlineIntakeClient({
   initialOpenRequestId = null,
   onDetailChange,
+  displayIana = "Europe/Moscow",
 }: DoctorOnlineIntakeClientProps) {
   const [allItems, setAllItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -562,7 +567,7 @@ export function DoctorOnlineIntakeClient({
                     item.status === "new" ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
-                  {item.status === "new" ? "Новая" : formatIntakeDate(item.createdAt)}
+                  {item.status === "new" ? "Новая" : formatIntakeDate(item.createdAt, displayIana)}
                 </span>
               </div>
               <div className="min-w-0 truncate text-xs text-muted-foreground">
@@ -625,7 +630,7 @@ export function DoctorOnlineIntakeClient({
                     <div className="text-xs text-muted-foreground">{detail.patientName}</div>
                   )}
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    Заявка · {formatIntakeDate(detail.createdAt)}
+                    Заявка · {formatIntakeDate(detail.createdAt, displayIana)}
                   </div>
                 </div>
                 <span
@@ -675,7 +680,7 @@ export function DoctorOnlineIntakeClient({
                     {detail.statusHistory.map((h, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs">
                         <span className="shrink-0 text-muted-foreground tabular-nums">
-                          {formatIntakeDate(h.changedAt)}
+                          {formatIntakeDate(h.changedAt, displayIana)}
                         </span>
                         <span className="shrink-0 text-muted-foreground">→</span>
                         <span className="font-medium">
@@ -782,15 +787,12 @@ export function DoctorOnlineIntakeClient({
                     Карточка клиента
                   </Link>
                 )}
-                <Link
-                  href={doctorClientProfileHref(detail.patientUserId, {
-                    profileListScope: "appointments",
-                    openChat: true,
-                  })}
-                  className={cn(buttonVariants({ size: "sm" }))}
-                >
-                  Открыть чат
-                </Link>
+                <DoctorOpenChatButton
+                  patientUserId={detail.patientUserId}
+                  patientName={detail.patientName}
+                  size="sm"
+                  variant="default"
+                />
               </div>
             </div>
           </>
@@ -813,7 +815,7 @@ export function DoctorOnlineIntakeClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => openDetail(selectedId!)}
+            onClick={() => setSelectedId(null)}
             className="mb-2"
           >
             ← К заявкам

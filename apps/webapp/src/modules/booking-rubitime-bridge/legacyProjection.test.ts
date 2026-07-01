@@ -41,6 +41,14 @@ describe("legacyProjection", () => {
     expect(endAtIso).toBe("2026-06-01T10:40:00.000Z");
   });
 
+  it("uses Rubitime duration field when explicit end is missing", () => {
+    const { durationMinutes, endAtIso } = resolveDurationAndEnd("2026-06-01T10:00:00.000Z", {
+      duration: "90",
+    });
+    expect(durationMinutes).toBe(90);
+    expect(endAtIso).toBe("2026-06-01T11:30:00.000Z");
+  });
+
   it("extracts rubitime ids from payload", () => {
     const legacy = buildLegacyAppointmentPayload("2026-06-01T10:00:00.000Z", {
       branch_id: "12",

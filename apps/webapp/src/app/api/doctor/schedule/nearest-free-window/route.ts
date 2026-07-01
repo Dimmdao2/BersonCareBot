@@ -17,6 +17,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger, serializeError } from "@/infra/logging/logger";
+import { resolveDoctorCalendarIana } from "@/app-layer/booking/resolveDoctorCalendarIana";
 import { requireDoctorBookingEngine } from "../../booking-engine/_requireDoctorBookingEngine";
 
 const QuerySchema = z.object({
@@ -52,21 +53,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, window: null });
   }
 
-  // Таймзона: явный параметр → системная настройка → дефолт
-  let timeZone = parsed.data.timeZone ?? "Europe/Moscow";
-  try {
-    if (!parsed.data.timeZone && deps.systemSettings) {
-      const tzRow = await deps.systemSettings.getSetting("app_display_timezone", "admin");
-      if (
-        tzRow?.valueJson &&
-        typeof tzRow.valueJson === "object" &&
-        typeof (tzRow.valueJson as { value?: unknown }).value === "string"
-      ) {
-        timeZone = (tzRow.valueJson as { value: string }).value;
-      }
-    }
-  } catch {
-    // Оставляем дефолт
+  // Таймзона: явный параметр (от клиента, уже разрешённый) → doctor TZ chain → дефолт
+  let timeZone: string;
+  if (parsed.data.timeZone) {
+    timeZone = parsed.data.timeZone;
+  } else {
+    timeZone = await resolveDoctorCalendarIana(gate.ctx.session.user.userId).catch(
+      () => "Europe/Moscow",
+    );
   }
 
   try {

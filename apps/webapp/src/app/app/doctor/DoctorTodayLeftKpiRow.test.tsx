@@ -28,13 +28,16 @@ function emptyProps() {
 }
 
 describe("DoctorTodayLeftKpiRow", () => {
-  it("renders 4 KPI cards as modal-opening buttons (SEG-02)", () => {
+  it("renders zero KPI cards without modal-opening buttons", () => {
     render(<DoctorTodayLeftKpiRow {...emptyProps()} />);
-    // SEG-02: all 4 KPI cards open KpiPreviewModal (buttons)
-    expect(screen.getByRole("button", { name: /Сообщения/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Заявки/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Тесты/i })).toBeInTheDocument();
+    expect(screen.getByText("Сообщения")).toBeInTheDocument();
+    expect(screen.getByText("Комментарии")).toBeInTheDocument();
+    expect(screen.getByText("Заявки")).toBeInTheDocument();
+    expect(screen.getByText("Тесты")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Сообщения/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Заявки/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Тесты/i })).not.toBeInTheDocument();
   });
 
   it("clicking Сообщения opens messages KpiPreviewModal", async () => {

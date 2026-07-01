@@ -13,7 +13,7 @@
  */
 import { NextResponse } from "next/server";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { deleteWebPushSubscriptionByEndpointForIntegrator } from "@/app-layer/integrator/webPushSubscriptions";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export async function POST(request: Request) {
   const timestamp = request.headers.get("x-bersoncare-timestamp");
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "endpoint required" }, { status: 400 });
   }
 
-  await deleteWebPushSubscriptionByEndpointForIntegrator(endpoint);
+  const { webPushSubscriptions } = buildAppDeps();
+  await webPushSubscriptions.deleteByEndpointIfExists(endpoint);
   return NextResponse.json({ ok: true }, { status: 200 });
 }

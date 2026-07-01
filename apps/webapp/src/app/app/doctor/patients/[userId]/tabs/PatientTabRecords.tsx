@@ -150,14 +150,26 @@ function StatusChip({ status, rescheduledToDate }: { status: AppointmentStatus; 
 // Main component
 // ---------------------------------------------------------------------------
 
+/** Appointment prefill data passed to the visit creation callback. */
+export type AppointmentPrefill = {
+  id: string;
+  location?: string;
+  service?: string;
+  durationMin?: number;
+};
+
 type Props = {
   userId: string;
   header?: PatientCardHeader;
-  onCreateVisitFromAppointment?: (appointmentId: string) => void;
+  onCreateVisitFromAppointment?: (prefill: AppointmentPrefill) => void;
   initialAppointments?: PatientAppointmentItem[] | null;
+  /** SSR-provided patient packages. When present, skips the MembershipPanel client fetch. */
+  initialPackages?: ApiPackage[] | null;
+  /** SSR-provided payments summary. When present, skips the PaymentsPanel initial fetch. */
+  initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
 };
 
-export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment, initialAppointments }: Props) {
+export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment, initialAppointments, initialPackages, initialPaymentsSummary }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
@@ -360,7 +372,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                     type="button"
                     onClick={() => {
                       if (onCreateVisitFromAppointment) {
-                        onCreateVisitFromAppointment(appt.id);
+                        onCreateVisitFromAppointment({
+                          id: appt.id,
+                          location: appt.location || undefined,
+                          service: appt.service || undefined,
+                          durationMin: appt.durationMin,
+                        });
                       } else {
                         openTab("karta");
                       }
@@ -375,7 +392,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                     type="button"
                     onClick={() => {
                       if (onCreateVisitFromAppointment) {
-                        onCreateVisitFromAppointment(appt.id);
+                        onCreateVisitFromAppointment({
+                          id: appt.id,
+                          location: appt.location || undefined,
+                          service: appt.service || undefined,
+                          durationMin: appt.durationMin,
+                        });
                       } else {
                         openTab("karta");
                       }
@@ -447,14 +469,14 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           </div>
 
           {/* Абонемент */}
-          <MembershipPanel userId={userId} />
+          <MembershipPanel userId={userId} initialPackages={initialPackages} />
         </div>
       </div>
 
       {/* ================================================================
           ФИНАНСЫ — Платежи (moved from Учётка S2.5)
       ================================================================ */}
-      <PaymentsPanel userId={userId} />
+      <PaymentsPanel userId={userId} initialPaymentsSummary={initialPaymentsSummary} />
 
     </div>
   );
@@ -465,7 +487,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
 // ---------------------------------------------------------------------------
 
 type ApiPackageItemBalance = { quantityInitial: number; remaining: number; serviceTitle?: string | null };
-type ApiPackage = {
+export type ApiPackage = {
   id: string;
   title: string;
   status: string;
@@ -486,12 +508,21 @@ function summarizePackage(pkg: ApiPackage) {
 
 const isActivePackageStatus = (s: string) => s === "active" || s === "activated";
 
-function MembershipPanel({ userId }: { userId: string }) {
+function MembershipPanel({
+  userId,
+  initialPackages,
+}: {
+  userId: string;
+  /** SSR-provided packages. When present, skips the initial client fetch. */
+  initialPackages?: ApiPackage[] | null;
+}) {
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [packages, setPackages] = useState<ApiPackage[] | null>(null);
+  const [packages, setPackages] = useState<ApiPackage[] | null>(() => initialPackages ?? null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    // Skip initial fetch when SSR data provided.
+    if (initialPackages != null) return;
     let active = true;
     fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, { credentials: "include" })
       .then((r) => {
@@ -509,6 +540,7 @@ function MembershipPanel({ userId }: { userId: string }) {
     return () => {
       active = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const activePackages = (packages ?? []).filter((p) => isActivePackageStatus(p.status));
@@ -594,7 +626,7 @@ function MembershipPanel({ userId }: { userId: string }) {
 // Real data from GET /api/doctor/patients/{userId}/payments
 // ---------------------------------------------------------------------------
 
-type PaymentItem = {
+export type PaymentItem = {
   id: string;
   amountMinor: number;
   currency?: string;
@@ -620,16 +652,23 @@ function fmtPaymentDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function PaymentsPanel({ userId }: { userId: string }) {
+function PaymentsPanel({
+  userId,
+  initialPaymentsSummary,
+}: {
+  userId: string;
+  /** SSR-provided payments + total. When present, skips the initial client fetch. */
+  initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
+}) {
   const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [payments, setPayments] = useState<PaymentItem[] | null>(null);
-  const [totalPaidMinor, setTotalPaidMinor] = useState(0);
-  const [fetched, setFetched] = useState(false);
+  const [payments, setPayments] = useState<PaymentItem[] | null>(() => initialPaymentsSummary?.payments ?? null);
+  const [totalPaidMinor, setTotalPaidMinor] = useState(() => initialPaymentsSummary?.totalPaidMinor ?? 0);
+  const [fetched, setFetched] = useState(() => initialPaymentsSummary != null);
 
   // Cash form state
   const [showCashForm, setShowCashForm] = useState(false);

@@ -20,6 +20,8 @@ const relayPayloadSchema = z.object({
   channel: z.enum(['telegram', 'max', 'email', 'sms', 'web_push'] as const),
   recipient: z.string().min(1),
   text: z.string().min(1),
+  /** Опц. HTML-тело письма (email-канал) — мапится в payload.html для email-адаптера. */
+  html: z.string().optional(),
   idempotencyKey: z.string().min(1),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -98,6 +100,7 @@ function buildIntent(parsed: RelayPayload) {
         recipient: { email: parsed.recipient },
         subject,
         message: { text: parsed.text },
+        ...(parsed.html ? { html: parsed.html } : {}),
         delivery: { channels: ['email'] },
       },
     };
@@ -107,6 +110,7 @@ function buildIntent(parsed: RelayPayload) {
     // S14a: extend relay-outbound to carry web_push intents (N4 APPROVED §5b).
     // recipient = pushUserId (integrator/webapp user id whose subscriptions receive the push).
     // Push content comes from text (body) + metadata (title, url, pushExtras).
+    // eslint-disable-next-line no-secrets/no-secrets -- identifier in comment, not a secret
     // payload shape matches WebPushDeliveryAdapter expectations (S14):
     //   payload.recipient.pushUserId, payload.message.text (body), payload.title,
     //   payload.url, payload.pushExtras, payload.delivery.channels.

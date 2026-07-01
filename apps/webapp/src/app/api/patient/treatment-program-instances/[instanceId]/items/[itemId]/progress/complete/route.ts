@@ -8,6 +8,7 @@ const completeBodySchema = z
   .object({
     perceivedDifficulty: z.enum(["easy", "medium", "hard"]).optional(),
     reps: z.number().int().positive().max(5000).optional(),
+    sets: z.number().int().positive().max(500).optional(),
     weightKg: z.number().min(0).max(500).optional(),
   })
   .strict();

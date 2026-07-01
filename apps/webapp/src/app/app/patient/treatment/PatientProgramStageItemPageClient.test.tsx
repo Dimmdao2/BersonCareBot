@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { PatientProgramStageItemPageClient } from "./PatientProgramStageItemPageClient";
 
@@ -87,6 +87,108 @@ describe("PatientProgramStageItemPageClient", () => {
   });
 
   it("shows instruction label and discussion CTA variants with feature-gated discussion UI", async () => {
+    let completed = false;
+    let metricsSaved = false;
+    const completedAtIso = new Date().toISOString();
+    const completedDetail = () => {
+      const detail = makeDetail();
+      detail.stages[0]!.items[0]!.completedAt = completedAtIso;
+      return detail;
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/checklist-today")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            doneItemIds: completed ? [itemId] : [],
+            doneTodayCountByItemId: completed ? { [itemId]: 1 } : {},
+            lastDoneAtIsoByItemId: completed ? { [itemId]: completedAtIso } : {},
+            doneTodayCountByActivityKey: {},
+            lastDoneAtIsoByActivityKey: {},
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/discussion")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [],
+            pageInfo: { direction: "backward", limit: 1, nextCursor: null, hasMore: false },
+            totalCount: 0,
+            unreadCount: 0,
+            lastMessage: null,
+            lastDoneSummary: metricsSaved
+              ? { createdAt: now, reps: 12, sets: 3, weightKg: 2.5, perceivedDifficulty: "hard" }
+              : null,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/progress/complete/metrics")) {
+        if (init?.method === "PATCH") {
+          metricsSaved = true;
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            metrics: { perceivedDifficulty: "hard", reps: 12, sets: 3, weightKg: 2.5 },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/progress/complete")) {
+        completed = true;
+        return new Response(JSON.stringify({ ok: true, item: completedDetail() }), { status: 200 });
+      }
+      if (url.endsWith(`/api/patient/treatment-program-instances/${instanceId}`)) {
+        return new Response(JSON.stringify({ ok: true, item: completed ? completedDetail() : makeDetail() }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PatientProgramStageItemPageClient
+        instanceId={instanceId}
+        itemId={itemId}
+        navMode="exec"
+        backHref="/app/patient/treatment"
+        initialDetail={makeDetail()}
+        appDisplayTimeZone="Europe/Moscow"
+        itemLinksPlanTab="program"
+        planItemDoneRepeatCooldownMinutes={60}
+        programCommentsInteraction={{ visible: true, enabled: true }}
+        programMediaInteraction={{ visible: false, enabled: false }}
+      />,
+    );
+
+    expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
+    expect(screen.queryByText("Комментарий специалиста")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
+
+    const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
+    fireEvent.click(completeButton);
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/progress/complete"))).toBe(true);
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Выполнено/i })).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("12")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("3")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2.5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Записать/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
+    });
+    expect(await screen.findByText("12 × 3 с весом 2.5 кг")).toBeInTheDocument();
+  });
+
+  it("shows comments and complete actions in the exercise action row, with video upload hint below instruction", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/checklist-today")) {
@@ -116,6 +218,9 @@ describe("PatientProgramStageItemPageClient", () => {
           { status: 200 },
         );
       }
+      if (url.endsWith("/progress/complete/metrics")) {
+        return new Response(JSON.stringify({ ok: true, metrics: null }), { status: 200 });
+      }
       return new Response(JSON.stringify({ ok: false }), { status: 404 });
     });
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -131,19 +236,16 @@ describe("PatientProgramStageItemPageClient", () => {
         itemLinksPlanTab="program"
         planItemDoneRepeatCooldownMinutes={60}
         programCommentsInteraction={{ visible: true, enabled: true }}
-        programMediaInteraction={{ visible: false, enabled: false }}
+        programMediaInteraction={{ visible: true, enabled: true }}
       />,
     );
 
-    expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
-    expect(screen.queryByText("Комментарий специалиста")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i })).toBeInTheDocument();
-
+    const commentsButton = await screen.findByRole("button", { name: /Комментарии/i });
     const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });
-    fireEvent.click(completeButton);
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Отметить выполнение")).toBeInTheDocument();
+    expect(commentsButton.parentElement).toBe(completeButton.parentElement);
+    expect(screen.queryByRole("button", { name: /Записать/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Прикрепить видео/i })).toBeInTheDocument();
+    expect(screen.getByText(/Если у вас есть вопросы по технике выполнения/i)).toBeInTheDocument();
   });
 
   it("shows unread count on discussion preview block", async () => {
@@ -205,11 +307,12 @@ describe("PatientProgramStageItemPageClient", () => {
       />,
     );
 
-    expect(await screen.findByText("новых: 3")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Открыть комментарии/i })).toBeInTheDocument();
+    const commentsButton = await screen.findByRole("button", { name: /Комментарии/i });
+    expect(within(commentsButton).getByText("2")).toBeInTheDocument();
+    expect(within(commentsButton).getByLabelText("Есть новые комментарии")).toBeInTheDocument();
   });
 
-  it("marks discussion read when opening preview CTA", async () => {
+  it("opens discussion dialog from comments CTA and marks it read", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/checklist-today")) {
@@ -261,9 +364,12 @@ describe("PatientProgramStageItemPageClient", () => {
       />,
     );
 
-    const cta = await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i });
+    const cta = await screen.findByRole("button", { name: /Комментарии/i });
     fireEvent.click(cta);
-    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/read"))).toBe(true);
+    expect(await screen.findByRole("heading", { name: "Комментарии" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/read"))).toBe(true);
+    });
   });
 
   it("disables discussion CTA when visible but policy denies", async () => {
@@ -301,7 +407,7 @@ describe("PatientProgramStageItemPageClient", () => {
       />,
     );
 
-    const cta = await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i });
+    const cta = await screen.findByRole("button", { name: /Комментарии/i });
     expect(cta).toBeDisabled();
     expect(cta).toHaveAttribute("aria-disabled", "true");
   });
@@ -380,13 +486,16 @@ describe("PatientProgramStageItemPageClient", () => {
           appDisplayTimeZone="Europe/Moscow"
           itemLinksPlanTab="program"
           planItemDoneRepeatCooldownMinutes={60}
-          programCommentsInteraction={{ visible: false, enabled: false }}
-          programMediaInteraction={{ visible: false, enabled: false }}
+          programCommentsInteraction={{ visible: true, enabled: true }}
+          programMediaInteraction={{ visible: true, enabled: true }}
         />,
       );
 
       expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Отметить выполнение/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Прикрепить видео/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Оставить комментарий к выполнению/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Открыть комментарии/i })).not.toBeInTheDocument();
       expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion"))).toBe(false);

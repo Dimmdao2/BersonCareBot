@@ -24,7 +24,8 @@ export type ContentNavPaneKey =
   | "situations"
   | "lessons"
   | `section:${string}`
-  | "media";
+  | "media"
+  | "sections";
 
 export type ContentNavSectionEntry = {
   slug: string;
@@ -180,13 +181,14 @@ export function ContentNav({
 
   const handleVisibilityToggle = useCallback(
     (slug: string, nextIsVisible: boolean) => {
-      // Optimistic update
       setVisibilityOverrides((prev) => ({ ...prev, [slug]: nextIsVisible }));
-
       startTransition(async () => {
-        const result = await setSectionVisibility(slug, nextIsVisible);
-        if (!result.ok) {
-          // Revert on failure
+        try {
+          const result = await setSectionVisibility(slug, nextIsVisible);
+          if (!result.ok) {
+            setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
+          }
+        } catch {
           setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
         }
       });
@@ -259,25 +261,19 @@ export function ContentNav({
         ))
       )}
 
+      {/* ── Разделы (управление) — в левом меню, открывает правую панель ── */}
+      <NavRow
+        label="Разделы"
+        active={activePaneKey === "sections"}
+        onClick={() => onPaneChange("sections")}
+      />
+
       <Separator className="my-1.5" />
 
       {/* ── Медиа ── */}
       <p className="px-2.5 pb-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Медиа
       </p>
-
-      {/* Файлы и медиа — external link */}
-      <div className="group relative flex items-center">
-        <Link
-          href={`${CONTENT_BASE}/library`}
-          className={cn(
-            "flex flex-1 min-w-0 items-center rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal transition-colors",
-            "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-          )}
-        >
-          Файлы и медиа
-        </Link>
-      </div>
 
       {/* ── Hint blurb (#11) ── */}
       <p className="mt-2 px-2.5 text-xs text-muted-foreground leading-relaxed">
@@ -313,7 +309,8 @@ function urlParamToPaneKey(raw: string | null, articleSlugs: string[]): ContentN
     raw === "sos" ||
     raw === "situations" ||
     raw === "lessons" ||
-    raw === "media"
+    raw === "media" ||
+    raw === "sections"
   ) {
     return raw;
   }

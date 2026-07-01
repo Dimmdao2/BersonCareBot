@@ -230,3 +230,20 @@ export function getStoredMediaBody(id: string): { body: ArrayBuffer; mimeType: s
   if (!stored) return null;
   return { body: stored.body, mimeType: stored.record.mimeType };
 }
+
+/**
+ * TEST ONLY — seed a folder with an explicit `kind` (e.g. "client_files_root" or
+ * "client_patient") so unit tests can verify the `excludeClientFiles` filter.
+ * Never call this in production code.
+ */
+export function seedFolderForTest(
+  name: string,
+  kind: MediaFolderRecord["kind"],
+  parentId: string | null,
+): MediaFolderRecord {
+  const id = `folder-seed-${folderCounter++}`;
+  const now = new Date().toISOString();
+  const rec: MediaFolderRecord = { id, parentId, name, kind, createdAt: now };
+  folders.set(id, rec);
+  return rec;
+}

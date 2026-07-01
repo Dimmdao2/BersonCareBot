@@ -16,6 +16,7 @@ type DeliveryPayload = {
   callbackQueryId?: unknown;
   replyMarkup?: unknown;
   parse_mode?: 'HTML' | 'Markdown';
+  imageUrl?: unknown;
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
 
@@ -116,6 +117,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'message.send') {
         const chatId = asChatId(rawChatId);
         const replyMarkup = sanitizeTelegramReplyMarkup(payload.replyMarkup);
+        const imageUrl = asNonEmptyString(payload.imageUrl);
         if (chatId === null || !text) {
           if (reqLogger) {
             reqLogger.error({ recipient: payload.recipient, intent }, '[telegram][deliveryAdapter] TELEGRAM_PAYLOAD_INVALID diagnostics');
@@ -124,17 +126,53 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           (err as { code?: number }).code = 400;
           throw err;
         }
-        return withTelegramBlockedDetection(async () => {
+        const extractMessageId = (sent: unknown): number | undefined => {
+          const midRaw = (sent as { message_id?: unknown })?.message_id;
+          return typeof midRaw === 'number' && Number.isFinite(midRaw) ? midRaw : undefined;
+        };
+        const sendPlainText = async (): Promise<DeliverySendResult> => {
           const sent = await getMessagingPort().sendMessage({
             chat_id: chatId,
             text,
             reply_markup: replyMarkup as never,
             ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
           });
-          const midRaw = (sent as { message_id?: unknown })?.message_id;
-          const telegramMessageId = typeof midRaw === 'number' && Number.isFinite(midRaw) ? midRaw : undefined;
+          const telegramMessageId = extractMessageId(sent);
           return telegramMessageId !== undefined ? { telegramMessageId } : {};
-        });
+        };
+        if (imageUrl) {
+          // Telegram photo caption max is 1024 chars. Lossless: caption when it fits,
+          // otherwise photo (no caption) + a follow-up text message carrying the full body.
+          const TELEGRAM_CAPTION_MAX = 1024;
+          return withTelegramBlockedDetection(async () => {
+            try {
+              const sentPhoto = await getMessagingPort().sendPhoto({
+                chat_id: chatId,
+                photo: imageUrl,
+                ...(text.length <= TELEGRAM_CAPTION_MAX ? { caption: text } : {}),
+                reply_markup: replyMarkup as never,
+                ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
+              });
+              if (text.length > TELEGRAM_CAPTION_MAX) {
+                await getMessagingPort().sendMessage({
+                  chat_id: chatId,
+                  text,
+                  ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
+                });
+              }
+              const telegramMessageId = extractMessageId(sentPhoto);
+              return telegramMessageId !== undefined ? { telegramMessageId } : {};
+            } catch (photoErr) {
+              // Photo send failed (e.g. Telegram could not fetch the URL). Re-throw if the
+              // recipient blocked the bot; otherwise fall back to text-only so the broadcast
+              // still delivers.
+              const blocked = classifyTelegramRecipientBlockedError(photoErr);
+              if (blocked) throw blocked;
+              return sendPlainText();
+            }
+          });
+        }
+        return withTelegramBlockedDetection(sendPlainText);
       }
 
       if (intent.type === 'message.copy') {

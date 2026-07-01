@@ -6,35 +6,28 @@ import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
-import {
-  isPersistentRecommendation,
-  patientStageItemShowsNewBadge,
-} from "@/modules/treatment-program/stage-semantics";
+import { patientStageItemShowsNewBadge } from "@/modules/treatment-program/stage-semantics";
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import {
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
   recommendationBodyMdPreviewPlain,
-  mergeLastActivityDisplayedIso,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
-import {
-  isItemDoneCooldownActive,
-  planItemDoneRepeatCooldownMsFromMinutes,
-} from "@/modules/treatment-program/itemDoneCooldown";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
+import { AlertTriangle, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  patientCompactActionClass,
   patientMutedTextClass,
   patientPillClass,
-  patientSimpleCompleteDoneButtonToneClass,
 } from "@/shared/ui/patient/patientVisual";
 import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
 import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
 import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
+import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
+import type { ProgramItemLastDoneSummary } from "@/app/app/patient/treatment/programItemExecutionDisplay";
 
 export function PatientInstanceStageItemCard(props: {
   instanceId: string;
@@ -59,8 +52,12 @@ export function PatientInstanceStageItemCard(props: {
   lastDoneAtIsoByItemId?: Readonly<Record<string, string>>;
   /** Ссылка на страницу детального просмотра пункта (вместо модалки). */
   itemDetailHref: string;
-  /** Пауза перед повторным «Выполнено» (мин), из `system_settings`. */
-  planItemDoneRepeatCooldownMinutes: number;
+  /** @deprecated Unused after button removal; kept for backward-compat with callers. */
+  planItemDoneRepeatCooldownMinutes?: number;
+  /** QW-A3: summary of discussion comments for this item (count badge + unread dot). */
+  discussionSummary?: { totalCount: number; unreadCount: number };
+  /** QW-A3: IANA timezone for PatientProgramItemExecutionRow execution dots. */
+  appDisplayTimeZone?: string;
 }) {
   const {
     instanceId,
@@ -78,22 +75,15 @@ export function PatientInstanceStageItemCard(props: {
     onDoneItemIds,
     todayChecklistDoneCount,
     neutralItemChrome = false,
+    lastDoneAtIsoByItemId,
     itemDetailHref,
-    lastDoneAtIsoByItemId = {},
-    planItemDoneRepeatCooldownMinutes,
+    discussionSummary,
+    appDisplayTimeZone,
   } = props;
-  const planItemDoneRepeatCooldownMs = useMemo(
-    () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),
-    [planItemDoneRepeatCooldownMinutes],
-  );
-  const mergedDoneIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(mergedDoneIso, planItemDoneRepeatCooldownMs);
-  /* Скрыто: подпись cooldown — при возврате раскомментировать и импорт formatPlanItemDoneCooldownCaption + itemDoneCooldownMinutesRemaining.
-  const simpleCooldownMinutes = itemDoneCooldownMinutesRemaining(mergedDoneIso, planItemDoneRepeatCooldownMs);
-  */
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
+  const [lastDoneSummary, setLastDoneSummary] = useState<ProgramItemLastDoneSummary | null>(null);
   const showsNew =
     !readOnly && patientStageItemShowsNewBadge(item, contentBlocked);
   const recommendationPreviewMedia = useMemo(() => {
@@ -146,6 +136,38 @@ export function PatientInstanceStageItemCard(props: {
     void reloadClinicalTestSnap(ac.signal);
     return () => ac.abort();
   }, [reloadClinicalTestSnap]);
+
+  useEffect(() => {
+    if (item.itemType !== "exercise" || !lastDoneAtIsoByItemId?.[item.id]) {
+      setLastDoneSummary(null);
+      return;
+    }
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`, {
+          signal: ac.signal,
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          metrics?: {
+            reps?: number | null;
+            sets?: number | null;
+            weightKg?: number | null;
+          } | null;
+        } | null;
+        if (!res.ok || !data?.ok || !data.metrics) {
+          setLastDoneSummary(null);
+          return;
+        }
+        const { reps = null, sets = null, weightKg = null } = data.metrics;
+        setLastDoneSummary({ reps, sets, weightKg });
+      } catch (e) {
+        if (!ac.signal.aborted) setLastDoneSummary(null);
+      }
+    })();
+    return () => ac.abort();
+  }, [base, item.id, item.itemType, lastDoneAtIsoByItemId]);
 
   const markRef = usePostMarkItemViewedWhenVisible({
     instanceId,
@@ -258,6 +280,16 @@ export function PatientInstanceStageItemCard(props: {
               <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
             ) : null}
           </p>
+          {item.itemType !== "recommendation" && appDisplayTimeZone ? (
+            <PatientProgramItemExecutionRow
+              lastIso={lastDoneAtIsoByItemId?.[item.id] ?? null}
+              todayCount={todayChecklistDoneCount ?? 0}
+              appDisplayTimeZone={appDisplayTimeZone}
+              lastDoneSummary={lastDoneSummary}
+              variant="tile"
+              className="mt-1"
+            />
+          ) : null}
           {item.itemType !== "recommendation" ? (
             <div className="mt-1 flex justify-end">{openDetailLink}</div>
           ) : null}
@@ -287,14 +319,22 @@ export function PatientInstanceStageItemCard(props: {
               )}
             </p>
           ) : null}
-          {!readOnly &&
-          todayChecklistDoneCount != null &&
-          todayChecklistDoneCount > 0 &&
-          item.itemType !== "recommendation" ? (
-            <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px] leading-snug")}>
-              Отметок в журнале за сегодня:{" "}
-              <span className="font-medium text-foreground">{todayChecklistDoneCount}</span>
-            </p>
+          {/* QW-A3: icon row — comments · contraindications · execution dots */}
+          {item.itemType !== "recommendation" ? (
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+              {(discussionSummary?.totalCount ?? 0) > 0 ? (
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <MessageCircle className="size-3.5 shrink-0" aria-hidden />
+                  <span className="tabular-nums">{discussionSummary!.totalCount}</span>
+                  {(discussionSummary?.unreadCount ?? 0) > 0 ? (
+                    <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-label="непрочитанные" />
+                  ) : null}
+                </span>
+              ) : null}
+              {Boolean((item.snapshot as Record<string, unknown>)?.contraindications) ? (
+                <AlertTriangle className="size-3.5 shrink-0 text-amber-500" aria-label="Противопоказания" />
+              ) : null}
+            </div>
           ) : null}
 
           {(() => {
@@ -340,45 +380,6 @@ export function PatientInstanceStageItemCard(props: {
                     serverSnapshot={clinicalTestSnap}
                   />
                 )}
-              </div>
-            ) : !isPersistentRecommendation(item) ? (
-              <div className="mt-2 flex flex-col gap-0.5">
-                <button
-                  type="button"
-                  className={cn(
-                    patientCompactActionClass,
-                    "h-9 w-auto text-sm",
-                    simpleCompleteDoneFrozen && patientSimpleCompleteDoneButtonToneClass,
-                  )}
-                  disabled={busy !== null || simpleCompleteDoneFrozen}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setBusy(item.id);
-                    setError(null);
-                    try {
-                      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-                        method: "POST",
-                      });
-                      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                      if (!res.ok || !data.ok) {
-                        setError(data.error ?? "Ошибка");
-                        return;
-                      }
-                      await refresh();
-                    } finally {
-                      setBusy(null);
-                    }
-                  }}
-                >
-                  {simpleCompleteDoneFrozen ? "Выполнено" : "Отметить выполненным"}
-                </button>
-                {/* Скрыто: строка «Можно отметить повторно…» — см. simpleCooldownMinutes выше.
-                {simpleCompleteDoneFrozen && simpleCooldownMinutes != null ? (
-                  <p className={cn(patientMutedTextClass, "text-[10px] leading-tight")}>
-                    {formatPlanItemDoneCooldownCaption(simpleCooldownMinutes)}
-                  </p>
-                ) : null}
-                */}
               </div>
             ) : null
           ) : null}

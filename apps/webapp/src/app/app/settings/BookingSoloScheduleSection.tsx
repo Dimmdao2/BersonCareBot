@@ -11,15 +11,17 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
+import { apiJson } from "@/shared/lib/apiJson";
 import {
-  apiJson,
   ensureDefaultSpecialist,
   fetchSoloOverview,
   minuteToTimeLabel,
   timeLabelToMinute,
 } from "@/app/app/settings/bookingSoloAdminApi";
 
-const WH_BASE = "/api/admin/booking-engine/working-hours";
+// Doctor-scoped route: server resolves and forces the doctor's own specialist;
+// a client-supplied specialistId in POST/PATCH bodies is ignored server-side.
+const WH_BASE = "/api/doctor/booking-engine/working-hours";
 const SETTINGS_BASE = "/api/admin/booking-engine/scheduling-settings";
 
 const WEEKDAYS = [
@@ -84,9 +86,7 @@ export function BookingSoloScheduleSection() {
     const qs = new URLSearchParams();
     if (specId) qs.set("specialistId", specId);
     if (brId) qs.set("branchId", brId);
-    const res = await fetch(`${WH_BASE}?${qs.toString()}`);
-    const json = (await res.json()) as { ok?: boolean; rows?: HourRow[]; usesFallback?: boolean; error?: string };
-    if (!json.ok || !json.rows) throw new Error(json.error ?? "hours_load_failed");
+    const json = await apiJson<{ ok: boolean; rows: HourRow[]; usesFallback?: boolean }>(`${WH_BASE}?${qs.toString()}`);
     setRows(json.rows);
     setUsesFallback(json.usesFallback === true);
   }, []);

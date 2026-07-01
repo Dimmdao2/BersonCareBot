@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
@@ -656,7 +657,10 @@ function integrationEntryAccordionStatus(entry: IntegrationHealthEntryPayload): 
   if (entry.outbound.status === "fail") return "error";
   if (entry.inbound?.processedOk === false) return "degraded";
   if (entry.outbound.status === "no_data" && (entry.inbound?.receivedAt ?? null) === null) return "no_data";
-  if (entry.outbound.status === "ok" && (entry.inbound?.processedOk ?? true)) return "ok";
+  if (
+    (entry.outbound.status === "ok" || entry.outbound.status === "skipped_not_configured")
+    && (entry.inbound?.processedOk ?? true)
+  ) return "ok";
   return "degraded";
 }
 
@@ -780,21 +784,14 @@ export function SystemHealthSection() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/system-health", {
+      const body = await apiJson<SystemHealthPayload & { ok?: boolean }>("/api/admin/system-health", {
         method: "GET",
         cache: "no-store",
         credentials: "include",
       });
-      const body = (await response.json().catch(() => null)) as SystemHealthPayload | { error?: string } | null;
-      if (!response.ok || body == null || typeof body !== "object" || !("fetchedAt" in body)) {
-        const errorCode = body && typeof body === "object" && "error" in body ? String(body.error) : "request_failed";
-        setError(response.status === 403 ? "Нужны роль admin и режим администратора." : errorCode);
-        setData(null);
-        return;
-      }
-      setData(body as SystemHealthPayload);
-    } catch {
-      setError("network");
+      setData(body);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "network");
       setData(null);
     } finally {
       setLoading(false);
@@ -806,27 +803,23 @@ export function SystemHealthSection() {
     setClearBusy(true);
     setClearError(null);
     try {
-      const res =
-        operatorAction.kind === "resolve_incidents"
-          ? await fetch("/api/admin/operator-incidents/resolve-all", {
-              method: "POST",
-              credentials: "include",
-            })
-          : await fetch("/api/admin/health-failure-archive/clear", {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ probe: operatorAction.probe }),
-            });
-      const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!res.ok || !body?.ok) {
-        setClearError(body?.error ?? "request_failed");
-        return;
+      if (operatorAction.kind === "resolve_incidents") {
+        await apiJson<{ ok: boolean }>("/api/admin/operator-incidents/resolve-all", {
+          method: "POST",
+          credentials: "include",
+        });
+      } else {
+        await apiJson<{ ok: boolean }>("/api/admin/health-failure-archive/clear", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ probe: operatorAction.probe }),
+        });
       }
       setOperatorAction(null);
       await load();
-    } catch {
-      setClearError("network");
+    } catch (e) {
+      setClearError(e instanceof Error ? e.message : "network");
     } finally {
       setClearBusy(false);
     }

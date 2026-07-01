@@ -7,16 +7,16 @@ import { ru } from "react-day-picker/locale";
 import { DateTime } from "luxon";
 import { CalendarDays } from "lucide-react";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/shared/ui/doctor/primitives/popover";
+import { DoctorTimeColumn } from "@/shared/ui/doctor/DoctorTimeColumn";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared canonical date-time picker (react-day-picker + time input).
+ * Shared canonical date-time picker (react-day-picker + brand time column).
  * value/onChange — строка datetime-local "yyyy-MM-ddTHH:mm".
  */
 type Props = {
@@ -66,29 +66,30 @@ export function DoctorDateTimePicker({
         align="start"
         style={{ ["--rdp-accent-color" as string]: "var(--primary)" }}
       >
-        <DayPicker
-          mode="single"
-          locale={ru}
-          weekStartsOn={1}
-          selected={selectedDate}
-          defaultMonth={selectedDate}
-          onSelect={(d) => {
-            if (!d) return;
-            commit(DateTime.fromJSDate(d), time || "09:00");
-          }}
-          className="p-3"
-        />
-        <div className="border-t border-border p-3">
-          <label className="mb-1 block text-xs text-muted-foreground">Время</label>
-          <Input
-            type="time"
-            value={time}
-            disabled={!selectedDate && !dt?.isValid}
-            onChange={(e) => {
-              const base = selectedDate ? DateTime.fromJSDate(selectedDate) : DateTime.now();
-              commit(base, e.target.value);
+        <div className="flex flex-col sm:flex-row sm:items-stretch">
+          <DayPicker
+            mode="single"
+            locale={ru}
+            weekStartsOn={1}
+            selected={selectedDate}
+            defaultMonth={selectedDate}
+            onSelect={(d) => {
+              if (!d) return;
+              commit(DateTime.fromJSDate(d), time || "09:00");
             }}
+            className="p-3"
           />
+          <div className="border-t border-border p-3 sm:border-t-0 sm:border-l">
+            <span className="mb-1 block text-xs text-muted-foreground">Время</span>
+            <DoctorTimeColumn
+              value={time}
+              disabled={!selectedDate && !dt?.isValid}
+              onChange={(hhmm) => {
+                const base = selectedDate ? DateTime.fromJSDate(selectedDate) : DateTime.now();
+                commit(base, hhmm);
+              }}
+            />
+          </div>
         </div>
       </PopoverContent>
     </Popover>

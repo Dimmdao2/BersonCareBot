@@ -114,8 +114,8 @@ describe("SystemHealthSection operator incidents", () => {
   it("shows operator incident title with count when API returns open incidents", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve(
+      text: () =>
+        Promise.resolve(JSON.stringify(
           healthJson({
             operatorIncidentsOpen: [
               {
@@ -137,7 +137,7 @@ describe("SystemHealthSection operator incidents", () => {
               },
             },
           }),
-        ),
+        )),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -152,8 +152,8 @@ describe("SystemHealthSection operator incidents", () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve(
+      text: () =>
+        Promise.resolve(JSON.stringify(
           healthJson({
             operatorIncidentsOpen: [
               {
@@ -175,7 +175,7 @@ describe("SystemHealthSection operator incidents", () => {
               },
             },
           }),
-        ),
+        )),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -210,8 +210,8 @@ describe("SystemHealthSection operator incidents", () => {
         healthLoads += 1;
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve(
+          text: () =>
+            Promise.resolve(JSON.stringify(
               healthJson({
                 operatorIncidentsOpen: healthLoads === 1 ? [openIncident] : [],
                 meta: {
@@ -221,13 +221,13 @@ describe("SystemHealthSection operator incidents", () => {
                   },
                 },
               }),
-            ),
+            )),
         });
       }
       if (url.includes("/api/admin/operator-incidents/resolve-all") && init?.method === "POST") {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ ok: true, resolved: 1 }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true, resolved: 1 })),
         });
       }
       return Promise.reject(new Error(`unexpected fetch: ${url}`));

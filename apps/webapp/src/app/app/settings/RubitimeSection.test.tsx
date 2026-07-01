@@ -46,7 +46,7 @@ describe("RubitimeSection (catalog v2)", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => catalogPayload(),
+        text: async () => JSON.stringify(catalogPayload()),
       }),
     );
   });
@@ -77,12 +77,12 @@ describe("RubitimeSection (catalog v2)", () => {
       if (typeof url === "string" && url.includes("/services/") && init?.method === "PATCH") {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ ok: true, service: { ...sampleService, durationMinutes: 90 } }),
+          text: async () => JSON.stringify({ ok: true, service: { ...sampleService, durationMinutes: 90 } }),
         });
       }
       return Promise.resolve({
         ok: true,
-        json: async () => catalogPayload({ services: [sampleService] }),
+        text: async () => JSON.stringify(catalogPayload({ services: [sampleService] })),
       });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -124,11 +124,11 @@ describe("RubitimeSection (catalog v2)", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () =>
-          catalogPayload({
+        text: async () =>
+          JSON.stringify(catalogPayload({
             services: [sampleService],
             branchServices: [sampleBranchService, secondLink],
-          }),
+          })),
       }),
     );
 
@@ -155,11 +155,11 @@ describe("RubitimeSection (catalog v2)", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () =>
-          catalogPayload({
+        text: async () =>
+          JSON.stringify(catalogPayload({
             services: [sampleService],
             branchServices: [sampleBranchService],
-          }),
+          })),
       }),
     );
 
@@ -179,12 +179,12 @@ describe("RubitimeSection (catalog v2)", () => {
         return Promise.resolve({
           ok: false,
           status: 409,
-          json: async () => ({ ok: false, error: "unique_violation" }),
+          text: async () => JSON.stringify({ ok: false, error: "unique_violation" }),
         });
       }
       return Promise.resolve({
         ok: true,
-        json: async () => catalogPayload({ services: [sampleService] }),
+        text: async () => JSON.stringify(catalogPayload({ services: [sampleService] })),
       });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -208,12 +208,12 @@ describe("RubitimeSection (catalog v2)", () => {
         return Promise.resolve({
           ok: false,
           status: 409,
-          json: async () => ({ ok: false, error: "unique_violation" }),
+          text: async () => JSON.stringify({ ok: false, error: "unique_violation" }),
         });
       }
       return Promise.resolve({
         ok: true,
-        json: async () => catalogPayload({ services: [sampleService] }),
+        text: async () => JSON.stringify(catalogPayload({ services: [sampleService] })),
       });
     });
     vi.stubGlobal("fetch", fetchMock);

@@ -82,6 +82,11 @@ type Props = {
   startInCreate?: boolean;
   /** R32: подставить время старта (datetime-local) при выделении области в календаре */
   createInitialStart?: string | null;
+  /** #225: конец drag-интервала ("yyyy-MM-dd'T'HH:mm") → начальная длительность в форме */
+  createInitialEnd?: string | null;
+  createInitialBranchId?: string | null;
+  createInitialServiceId?: string | null;
+  onCreateDirtyChange?: (dirty: boolean) => void;
 };
 
 type LifecycleResponse = {
@@ -99,6 +104,19 @@ function formatEventAt(iso: string, timeZone: string): string {
   if (!dt.isValid) dt = DateTime.fromJSDate(new Date(iso));
   if (!dt.isValid) return "—";
   return dt.setZone(timeZone).toFormat("dd.MM.yyyy HH:mm");
+}
+
+function parseEventDateTime(iso: string, timeZone: string): DateTime {
+  let dt = DateTime.fromISO(iso, { setZone: true });
+  if (!dt.isValid) dt = DateTime.fromSQL(iso, { setZone: true });
+  if (!dt.isValid) dt = DateTime.fromJSDate(new Date(iso));
+  return dt.isValid ? dt.setZone(timeZone).startOf("minute") : dt;
+}
+
+function isSameCalendarMinute(left: string, right: string, timeZone: string): boolean {
+  const l = parseEventDateTime(left, timeZone);
+  const r = parseEventDateTime(right, timeZone);
+  return l.isValid && r.isValid && l.toMillis() === r.toMillis();
 }
 
 function noneValue() {
@@ -127,6 +145,10 @@ function DoctorCalendarEventPanelInner({
   onChanged,
   startInCreate = false,
   createInitialStart = null,
+  createInitialEnd = null,
+  createInitialBranchId = null,
+  createInitialServiceId = null,
+  onCreateDirtyChange,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
   const [mode, setMode] = useState<"view" | "create" | "reschedule" | "cancel">(
@@ -179,20 +201,43 @@ function DoctorCalendarEventPanelInner({
         null,
     );
     setCreateBranchId(
-      resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null),
+      createInitialBranchId ??
+        resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null),
     );
     setCreateServiceId(
-      resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null),
+      createInitialServiceId ??
+        resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null),
     );
     // R32: подставить выделенное время старта (если открыто через select по сетке)
     if (createInitialStart) setCreateStart(createInitialStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startInCreate, createInitialStart]);
+  }, [startInCreate, createInitialStart, createInitialBranchId, createInitialServiceId]);
+
+  useEffect(() => {
+    if (mode !== "create") onCreateDirtyChange?.(false);
+  }, [mode, onCreateDirtyChange]);
+
+  const markCreateDirty = () => onCreateDirtyChange?.(true);
+
+  // #225: duration from drag-interval (end − start), used as fallback when no service
+  // is selected yet or the service has no configured duration.
+  const dragDurationMinutes = useMemo(() => {
+    if (!createInitialStart || !createInitialEnd) return null;
+    const startMs = new Date(createInitialStart).getTime();
+    const endMs = new Date(createInitialEnd).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return null;
+    return Math.round((endMs - startMs) / 60_000);
+  }, [createInitialStart, createInitialEnd]);
 
   const createDurationMinutes = useMemo(() => {
-    if (!createServiceId) return null;
-    return filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null;
-  }, [createServiceId, filterMeta.services]);
+    const serviceDuration = createServiceId
+      ? (filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null)
+      : null;
+    // #225: drag duration takes priority over service default so the slot size chosen
+    // by the doctor is honoured. Service duration is only the fallback when no drag
+    // interval is available (e.g. panel opened via «+ Создать запись» button).
+    return dragDurationMinutes ?? serviceDuration;
+  }, [createServiceId, filterMeta.services, dragDurationMinutes]);
 
   const openCreateForm = () => {
     const nextSpecialistId = resolveCalendarCreateFieldValue(
@@ -250,11 +295,26 @@ function DoctorCalendarEventPanelInner({
             createComment={createComment}
             pending={pending}
             message={message}
-            onStartChange={setCreateStart}
-            onBranchChange={setCreateBranchId}
-            onServiceChange={setCreateServiceId}
-            onPatientChange={setCreatePatient}
-            onCommentChange={setCreateComment}
+            onStartChange={(value) => {
+              setCreateStart(value);
+              markCreateDirty();
+            }}
+            onBranchChange={(value) => {
+              setCreateBranchId(value);
+              markCreateDirty();
+            }}
+            onServiceChange={(value) => {
+              setCreateServiceId(value);
+              markCreateDirty();
+            }}
+            onPatientChange={(value) => {
+              setCreatePatient(value);
+              markCreateDirty();
+            }}
+            onCommentChange={(value) => {
+              setCreateComment(value);
+              markCreateDirty();
+            }}
             // §3.6: если открыто через startInCreate — отмена закрывает панель
             onCancel={() => (startInCreate ? onClose() : setMode("view"))}
             onSubmit={() => {
@@ -311,6 +371,13 @@ function DoctorCalendarEventPanelInner({
     );
   }
 
+  const statusLabel = appointmentStatusLabel(selected.status);
+  const relevantReschedules = (lifecycle?.reschedules ?? []).filter((r) =>
+    isSameCalendarMinute(r.toStartAt, selected.startAt, timeZone) ||
+    isSameCalendarMinute(r.fromStartAt, selected.startAt, timeZone) ||
+    (selected.originalStartAt ? isSameCalendarMinute(r.fromStartAt, selected.originalStartAt, timeZone) : false),
+  );
+
   return (
     <div className={doctorClientOverviewPrimaryCardClass}>
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -324,7 +391,8 @@ function DoctorCalendarEventPanelInner({
       </div>
 
       <div className="space-y-2 text-sm">
-        <Badge variant="outline">{appointmentStatusLabel(selected.status)}</Badge>
+        <Badge variant="outline">{statusLabel}</Badge>
+        <p className="text-xs text-muted-foreground">Статус записи: {statusLabel}</p>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
         {selected.serviceTitle ? <p>{selected.serviceTitle}</p> : null}
         {selected.specialistName ? <p>{selected.specialistName}</p> : null}
@@ -378,9 +446,9 @@ function DoctorCalendarEventPanelInner({
             {c.label}: {c.value}
           </p>
         ))}
-        {lifecycle?.reschedules.length ? (
+        {relevantReschedules.length ? (
           <div className="space-y-1 border-t border-border pt-2">
-            {lifecycle.reschedules.map((r) => (
+            {relevantReschedules.map((r) => (
               <p key={r.id} className="text-xs text-muted-foreground">
                 Перенос: {formatEventAt(r.fromStartAt, timeZone)} → {formatEventAt(r.toStartAt, timeZone)}
                 {r.staffComment ? ` · ${r.staffComment}` : ""}

@@ -39,6 +39,18 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.hasMax === true) {
       list = list.filter((item) => Boolean(item.bindings.maxId?.trim()));
     }
+    if (filters.hasEmail === true) {
+      list = list.filter((item) => item.hasEmail === true);
+    }
+    if (filters.hasPhone === true) {
+      list = list.filter((item) => Boolean(item.phone?.trim()));
+    }
+    if (filters.hasApp === true) {
+      list = list.filter((item) => item.hasApp === true);
+    }
+    if (filters.hasWebPush === true) {
+      list = list.filter((item) => item.hasWebPush === true);
+    }
     if (filters.hasUpcomingAppointment === true) {
       list = list.filter((item) => (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel));
     }

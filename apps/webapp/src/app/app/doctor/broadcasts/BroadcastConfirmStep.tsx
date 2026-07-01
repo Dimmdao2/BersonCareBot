@@ -41,6 +41,15 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
       <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex flex-col gap-1.5">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Предпросмотр сообщения</p>
         <p id="broadcast-preview-title" className="text-sm font-bold leading-snug">{command.message.title}</p>
+        {command.message.mediaUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            id="broadcast-preview-image"
+            src={command.message.mediaUrl}
+            alt="Прикреплённая картинка"
+            className="max-h-40 rounded-md border border-border object-contain"
+          />
+        ) : null}
         <MarkdownPreview markdown={command.message.body} className="text-sm text-foreground [&_p]:leading-snug [&_p]:mb-1" />
       </div>
 

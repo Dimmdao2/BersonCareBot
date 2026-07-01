@@ -405,15 +405,20 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       await db.delete(beSb).where(and(eq(beSb.id, blockId), eq(beSb.organizationId, organizationId)));
     },
 
-    async listWorkingHoursAdmin({ organizationId, specialistId, branchId, roomId }) {
+    async listWorkingHoursAdmin({ organizationId, specialistId, branchId, roomId, weekday }) {
       const db = getDrizzle();
       const conds = [eq(beWh.organizationId, organizationId)];
+      // null  = global-only (IS NULL); string = own specialist rows OR global (IS NULL) rows.
+      // The OR-IS-NULL fallback mirrors listWorkingHours so the schedule editor and
+      // the calendar show the same rows: a specialist-scoped query must also surface
+      // global (specialist_id IS NULL) org-level rows that act as the default schedule.
       if (specialistId === null) conds.push(isNull(beWh.specialistId));
-      else if (specialistId) conds.push(eq(beWh.specialistId, specialistId));
+      else if (specialistId) conds.push(or(eq(beWh.specialistId, specialistId), isNull(beWh.specialistId))!);
       if (branchId === null) conds.push(isNull(beWh.branchId));
       else if (branchId) conds.push(eq(beWh.branchId, branchId));
       if (roomId === null) conds.push(isNull(beWh.roomId));
       else if (roomId) conds.push(eq(beWh.roomId, roomId));
+      if (weekday != null) conds.push(eq(beWh.weekday, weekday));
       const rows = await db
         .select()
         .from(beWh)
@@ -434,6 +439,48 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async createWorkingHours(input) {
       const db = getDrizzle();
+      if (input.replace) {
+        if (input.specialistId === undefined) {
+          throw new Error("replace=true requires specialistId for scope safety");
+        }
+        const deactConds = [
+          eq(beWh.organizationId, input.organizationId),
+          eq(beWh.weekday, input.weekday),
+          eq(beWh.isActive, true),
+        ];
+        if (input.specialistId === null) deactConds.push(isNull(beWh.specialistId));
+        else deactConds.push(eq(beWh.specialistId, input.specialistId));
+        if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
+        else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
+        const inserted = await db.transaction(async (tx) => {
+          await tx.update(beWh).set({ isActive: false, updatedAt: new Date().toISOString() }).where(and(...deactConds));
+          return tx
+            .insert(beWh)
+            .values({
+              organizationId: input.organizationId,
+              specialistId: input.specialistId ?? null,
+              branchId: input.branchId ?? null,
+              roomId: input.roomId ?? null,
+              weekday: input.weekday,
+              startMinute: input.startMinute,
+              endMinute: input.endMinute,
+              isActive: true,
+            })
+            .returning();
+        });
+        const row = inserted[0]!;
+        return {
+          id: row.id,
+          organizationId: row.organizationId,
+          specialistId: row.specialistId,
+          branchId: row.branchId,
+          roomId: row.roomId,
+          weekday: row.weekday,
+          startMinute: row.startMinute,
+          endMinute: row.endMinute,
+          isActive: row.isActive,
+        };
+      }
       const inserted = await db
         .insert(beWh)
         .values({

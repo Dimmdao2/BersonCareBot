@@ -8,6 +8,7 @@ const pathnameRef = vi.hoisted(() => ({ value: "/app/patient" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameRef.value,
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     back: vi.fn(),
     push: vi.fn(),
@@ -25,6 +26,8 @@ vi.mock("@/shared/hooks/usePlatform", () => ({
 
 vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
   usePatientSupportUnreadCount: () => 0,
+  usePatientNotificationUnreadCount: () => 0,
+  notifyPatientNotificationUnreadCountChanged: vi.fn(),
 }));
 
 describe("PatientAppShell width variants", () => {

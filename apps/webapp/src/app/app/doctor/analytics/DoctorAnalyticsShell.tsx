@@ -154,17 +154,9 @@ export type DoctorAnalyticsShellProps = {
  * Добавлена вкладка «Сопровождение» (placeholder, метрики будут расширены).
  */
 export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLabel, patientGenPlural }: DoctorAnalyticsShellProps) {
-  const resolvedInit: AnalyticsTabId = (() => {
-    if (initialTab) return initialTab;
-    if (typeof window !== "undefined") {
-      return analyticsTabFromQuery(new URLSearchParams(window.location.search).get("tab"));
-    }
-    return ANALYTICS_DEFAULT_TAB;
-  })();
-
-  const [activeTab, setActiveTab] = useState<AnalyticsTabId>(resolvedInit);
+  const [activeTab, setActiveTab] = useState<AnalyticsTabId>(initialTab ?? ANALYTICS_DEFAULT_TAB);
   const [mountedTabs, setMountedTabs] = useState<ReadonlySet<AnalyticsTabId>>(
-    () => new Set<AnalyticsTabId>([resolvedInit]),
+    () => new Set<AnalyticsTabId>([initialTab ?? ANALYTICS_DEFAULT_TAB]),
   );
   const activeTabRef = useRef(activeTab);
   useEffect(() => {
@@ -211,7 +203,7 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
           <div className="flex flex-col gap-6">
             <AppTab />
             {/* Push-статистика и уведомления — перенесены из упразднённой вкладки «Уведомления» */}
-            <NotificationsInAppTab />
+            <NotificationsInAppTab isActive={activeTab === "app"} />
             {/* Регистрации и слияния — перенесены из вкладки «Клиенты» (AN-03) */}
             <RegistrationInAppTab />
             {/* Подписчики — перенесены из вкладки «Клиенты» (AN-11): подписчики ≠ клиенты */}
@@ -226,7 +218,7 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
       ) : null}
       {mountedTabs.has("soprovozhdenie") ? (
         <div hidden={activeTab !== "soprovozhdenie"} data-testid="tab-panel-soprovozhdenie">
-          <SoprovozhdeniePage />
+          <SoprovozhdeniePage patientGenPlural={patientGenPlural} />
         </div>
       ) : null}
     </DoctorAppShell>

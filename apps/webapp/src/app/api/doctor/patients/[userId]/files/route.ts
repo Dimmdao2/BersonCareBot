@@ -17,6 +17,7 @@ import { env, isS3MediaEnabled } from "@/config/env";
 import { presignGetUrl, presignPutUrl } from "@/app-layer/media/s3Client";
 import type { PatientFileCategory } from "@/modules/patient-files/ports";
 import { PATIENT_FILE_CATEGORIES } from "@/modules/patient-files/ports";
+import { pgEnsureClientPatientFolder } from "@/app-layer/media/clientMediaFolders";
 
 const FILE_PRESIGN_GET_TTL = 3600; // 1 hour
 
@@ -116,6 +117,9 @@ export async function POST(
   const s3Key = patientFileS3Key(fileId, fileName);
   const s3Bucket = env.S3_PRIVATE_BUCKET ?? "bersonservices-private";
 
+  // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
+  const patientFolder = await pgEnsureClientPatientFolder(userId);
+
   const deps = buildAppDeps();
   const file = await deps.patientFiles.createFile({
     patientUserId: userId,
@@ -126,6 +130,7 @@ export async function POST(
     mimeType,
     sizeBytes,
     uploadedByUserId: auth.session.user.userId,
+    folderId: patientFolder.id,
   });
 
   // TODO(upload): return presigned PUT URL for direct browser upload when S3 is available.

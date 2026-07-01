@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { apiJson } from "@/shared/lib/apiJson";
 import {
   Select,
   SelectContent,
@@ -65,16 +66,10 @@ export function ReminderStatsSection() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/reminder-stats?windowHours=${hours}`, { credentials: "include" });
-      if (!res.ok) {
-        setError(res.status === 403 ? "Доступ запрещён" : `Ошибка ${res.status}`);
-        setData(null);
-        return;
-      }
-      const json = (await res.json()) as ContentEngagementStatsResponse;
+      const json = await apiJson<ContentEngagementStatsResponse & { ok?: boolean }>(`/api/admin/reminder-stats?windowHours=${hours}`, { credentials: "include" });
       setData(json);
-    } catch {
-      setError("Не удалось загрузить");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось загрузить");
       setData(null);
     } finally {
       setLoading(false);

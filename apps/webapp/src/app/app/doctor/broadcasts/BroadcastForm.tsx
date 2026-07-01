@@ -22,6 +22,11 @@ import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
 import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { MediaPickerPanel } from "@/shared/ui/doctor/media/MediaPickerPanel";
+import { MediaPickerShell } from "@/shared/ui/doctor/media/MediaPickerShell";
+import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
 import {
   previewBroadcastAction,
   executeBroadcastAction,
@@ -73,6 +78,11 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
   );
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  // RASSL-06 phase 1: опциональная прикреплённая картинка из медиабиблиотеки.
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<string | null>(null);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerFolderId, setMediaPickerFolderId] = useState<string | null | undefined>(undefined);
 
   const [channelCounts, setChannelCounts] = useState<BroadcastChannelCounts | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -101,6 +111,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         if (draft.channels.length > 0) setSelectedChannels(new Set(draft.channels));
         setTitle(draft.title);
         setBody(draft.body);
+        setMediaUrl(draft.mediaUrl ?? null);
+        setMediaType(draft.mediaType ?? null);
       }
     })();
   }, []);
@@ -133,6 +145,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     setSelectedChannels(channels.size > 0 ? channels : new Set(BROADCAST_ACTIVE_CHANNELS));
     setTitle(entry.messageTitle);
     setBody(entry.messageBody);
+    setMediaUrl(null);
+    setMediaType(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);
 
@@ -154,7 +168,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     return {
       category,
       audienceFilter: audience,
-      message: { title: title.trim(), body: body.trim() },
+      message: { title: title.trim(), body: body.trim(), mediaUrl, mediaType },
       channels,
       attachMenuAfterSend: false,
     };
@@ -202,6 +216,18 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     });
   }
 
+  function handlePickImage(item: MediaListItem) {
+    if (item.kind !== "image") return;
+    setMediaUrl(item.url);
+    setMediaType(item.mimeType);
+    setMediaPickerOpen(false);
+  }
+
+  function handleRemoveImage() {
+    setMediaUrl(null);
+    setMediaType(null);
+  }
+
   function handleCancelConfirm() {
     setPreview(null);
     setStage("idle");
@@ -213,6 +239,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     setSelectedChannels(new Set(BROADCAST_DEFAULT_CHANNELS));
     setTitle("");
     setBody("");
+    setMediaUrl(null);
+    setMediaType(null);
     setPreview(null);
     setSentEntry(null);
     setErrorMsg(null);
@@ -229,6 +257,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         channels: [...selectedChannels],
         title,
         body,
+        mediaUrl,
+        mediaType,
       });
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 2500);
@@ -384,7 +414,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         >
           Заголовок <span aria-hidden>*</span>
         </label>
-        <input
+        <Input
           id="broadcast-title"
           type="text"
           value={title}
@@ -392,7 +422,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
           disabled={isFormLocked}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Например: Изменение расписания на следующей неделе"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="w-full"
         />
       </div>
 
@@ -406,6 +436,59 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
           maxLength={800}
           label="Текст сообщения * (Markdown)"
         />
+      </div>
+
+      {/* Image attachment (optional) — RASSL-06 phase 1 */}
+      <div className={`px-3 py-2.5${isFormLocked ? " pointer-events-none opacity-50" : ""}`}>
+        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Картинка · необязательно
+        </p>
+        {mediaUrl ? (
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={mediaUrl}
+              alt="Прикреплённая картинка"
+              className="max-h-20 rounded-md border border-border object-contain"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isFormLocked}
+              onClick={handleRemoveImage}
+            >
+              Убрать
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isFormLocked}
+            onClick={() => setMediaPickerOpen(true)}
+          >
+            Прикрепить картинку
+          </Button>
+        )}
+        <MediaPickerShell
+          open={mediaPickerOpen}
+          onOpenChange={setMediaPickerOpen}
+          title="Выбор картинки"
+        >
+          <MediaPickerPanel
+            key={mediaPickerOpen ? "broadcast-img-open" : "broadcast-img-closed"}
+            open={mediaPickerOpen}
+            apiKind="image"
+            folderId={mediaPickerFolderId}
+            kind="image"
+            onPick={handlePickImage}
+            exercisePicker={false}
+            onPickerFolderIdChange={setMediaPickerFolderId}
+            showSort
+          />
+        </MediaPickerShell>
       </div>
 
       {/* Action buttons */}

@@ -91,6 +91,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       filters: DoctorClientsFilters,
       audience?: { excludedUserIds?: string[] },
     ): Promise<ClientListItem[]> {
+      // Short-circuit: empty userIds means caller wants specific users but there are none.
+      if (filters.userIds !== undefined && filters.userIds.length === 0) return [];
+
       const excluded = audience?.excludedUserIds ?? [];
       const archivedClause =
         filters.archivedOnly === true
@@ -99,7 +102,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const listBase = `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, created_at, email, email_verified_at
          FROM platform_users pu
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
-      const listQ = appendSqlExcludeUserIds(listBase, "pu.id", excluded, []);
+      // Apply userIds restriction when caller provides a specific set (e.g. conversations route).
+      const userIdsParams: unknown[] = [];
+      let listBaseWithUserIds = listBase;
+      if (filters.userIds !== undefined && filters.userIds.length > 0) {
+        userIdsParams.push(filters.userIds);
+        listBaseWithUserIds = `${listBase} AND pu.id = ANY($1::uuid[])`;
+      }
+      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, "pu.id", excluded, userIdsParams);
       const clientRows = await runWebappPgText<{
         id: string;
         display_name: string | null;
@@ -137,6 +147,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         unreadExerciseCommentRows,
         membershipRows,
         noShowRows,
+        pwaActivityRows,
+        webPushRows,
       ] = await Promise.all([
         runWebappPgText<{
             user_id: string;
@@ -271,6 +283,23 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              WHERE platform_user_id = ANY($1::uuid[])`,
             [userIds],
           ),
+          runWebappPgText<{ user_id: string }>(
+            `SELECT DISTINCT pah.user_id::text AS user_id
+             FROM product_analytics_user_hourly pah
+             WHERE pah.user_id = ANY($1::uuid[])
+               AND pah.entry_channel = 'pwa'`,
+            [userIds],
+          ),
+          runWebappPgText<{ user_id: string }>(
+            `SELECT DISTINCT s.user_id::text AS user_id
+             FROM user_web_push_subscriptions s
+             LEFT JOIN user_channel_preferences p
+               ON p.platform_user_id = s.user_id
+              AND p.channel_code = 'web_push'
+             WHERE s.user_id = ANY($1::uuid[])
+               AND COALESCE(p.is_enabled_for_notifications, true) = true`,
+            [userIds],
+          ),
         ]);
 
       const appointmentAggByUserId = new Map(
@@ -306,6 +335,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const noShowByPatientId = new Map<string, number>(
         noShowRows.rows.map((row) => [row.user_id, Number(row.no_show_count ?? 0)]),
       );
+      const pwaActiveUserIds = new Set<string>(pwaActivityRows.rows.map((row) => row.user_id));
+      const webPushEnabledUserIds = new Set<string>(webPushRows.rows.map((row) => row.user_id));
 
       let list: ClientListItem[] = clientRows.rows.map((r) => {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
@@ -324,7 +355,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             phone,
             bindings,
             hasEmail: Boolean(email) || Boolean(r.email_verified_at),
-            hasApp: true,
+            hasApp: pwaActiveUserIds.has(r.id),
+            hasWebPush: webPushEnabledUserIds.has(r.id),
             nextAppointmentLabel: activeAppointmentsCount > 0 ? "Есть запись" : null,
             hasAppointmentHistory: appointmentAgg?.hasHistory ?? false,
             activeAppointmentsCount,
@@ -379,6 +411,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (filters.hasPhone === true) {
         list = list.filter((item) => Boolean(item.phone?.trim()));
       }
+      if (filters.hasApp === true) {
+        list = list.filter((item) => item.hasApp === true);
+      }
+      if (filters.hasWebPush === true) {
+        list = list.filter((item) => item.hasWebPush === true);
+      }
       if (filters.hasMemberships === true) {
         list = list.filter((item) => item.hasMemberships === true);
       }
@@ -413,6 +451,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       // Fetch appointment_records attributed to this user via the canonical join
       const rows = await runWebappPgText<{
+        internal_id: string;
         id: string;
         record_at: Date | null;
         status: string;
@@ -421,6 +460,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         branch_name: string | null;
       }>(
         `SELECT
+           ar.id AS internal_id,
            ar.integrator_record_id AS id,
            ar.record_at,
            ar.status,
@@ -464,6 +504,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
         return {
           id: row.id,
+          internalId: row.internal_id ?? null,
           dateTime: row.record_at ? new Date(row.record_at).toISOString() : "",
           status,
           serviceName: (payload.service_title && payload.service_title.trim()) || null,
@@ -512,6 +553,19 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         [canonicalId],
       );
       const bindings = rowToBindings(bindingsRows.rows);
+
+      // Есть ли переписка: хотя бы одно сообщение в любой беседе пациента
+      // (даёт открыть чат даже без привязанного Telegram/MAX-канала).
+      const conversationRow = await runWebappPgText<{ has_conversation: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM support_conversations sc
+           JOIN support_conversation_messages m ON m.conversation_id = sc.id
+           WHERE sc.platform_user_id = $1::uuid
+         ) AS has_conversation`,
+        [canonicalId],
+      );
+      const hasConversation = conversationRow.rows[0]?.has_conversation ?? false;
 
       // Fetch support status
       const supportProfile = await getClientSupportProfile(canonicalId);
@@ -663,6 +717,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           phone: ur.phone_normalized,
           email: ur.email,
           bindings,
+          hasConversation,
           isArchived: ur.is_archived,
           isBlocked: ur.is_blocked,
           birthDate: birthDateIso,

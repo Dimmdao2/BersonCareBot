@@ -182,13 +182,14 @@ async function listWorkingAndBreakEvents(
       .sort((a, b) => a.startMs - b.startMs);
     for (let i = 0; i < intervals.length; i += 1) {
       const interval = intervals[i]!;
+      const effectiveBranchId = perDayRecord?.branchId ?? filters.branchId ?? null;
       working.push({
         kind: "working",
         id: `working:${dateKey}:${i}:${filters.specialistId ?? "any"}:${filters.branchId ?? "any"}`,
         startAt: new Date(interval.startMs).toISOString(),
         endAt: new Date(interval.endMs).toISOString(),
         specialistId: filters.specialistId ?? null,
-        branchId: filters.branchId ?? null,
+        branchId: effectiveBranchId,
         roomId: filters.roomId ?? null,
       });
       if (i === 0) continue;
@@ -200,7 +201,7 @@ async function listWorkingAndBreakEvents(
         startAt: new Date(prev.endMs).toISOString(),
         endAt: new Date(interval.startMs).toISOString(),
         specialistId: filters.specialistId ?? null,
-        branchId: filters.branchId ?? null,
+        branchId: effectiveBranchId,
         roomId: filters.roomId ?? null,
       });
     }

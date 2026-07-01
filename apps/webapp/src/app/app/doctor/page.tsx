@@ -77,7 +77,7 @@ export default async function DoctorPage() {
   const intakeService = getOnlineIntakeService();
   const displayIana = await getAppDisplayTimeZone();
   const audience = await loadDoctorAnalyticsAudience();
-  const [data, kpiStats, todayAppointmentStats, dashboardMetrics, todayWorkingBounds] = await Promise.all([
+  const [data, kpiStats, dashboardMetrics, todayWorkingBounds] = await Promise.all([
     loadDoctorTodayDashboard(
       {
         doctorAppointments: deps.doctorAppointments,
@@ -92,12 +92,13 @@ export default async function DoctorPage() {
         programItemDiscussion: deps.programItemDiscussion,
         programActionLog: deps.programActionLog,
         displayIana,
+        loadMonthAppointments: () =>
+          deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "recordsInCalendarMonth" }),
       },
       intakeService,
       audience,
     ),
     deps.doctorStats.getStats(audience),
-    deps.doctorAppointments.getAppointmentStats({ kind: "range", range: "today" }, audience),
     deps.doctorAppointments.getDashboardAppointmentMetrics(
       audience?.excludedUserIds?.length ? { excludedUserIds: audience.excludedUserIds } : undefined,
     ),
@@ -114,12 +115,14 @@ export default async function DoctorPage() {
       <DoctorTodayDashboard
         data={data}
         kpiStats={kpiStats}
-        appointmentsTodayCount={todayAppointmentStats.total}
+        // #9: count == modal list count. lists now include cancelled (statsRange).
+        // Derive counts directly from the list so card and modal always agree.
+        appointmentsTodayCount={data.todayAppointments.length}
+        weekAppointmentsCount={data.weekAppointments.length}
         monthAppointmentCount={dashboardMetrics.recordsInCalendarMonthTotal}
         displayIana={displayIana}
         adminHealthBanner={adminHealthBanner}
         adminRegistrationFailureBanner={adminRegistrationFailureBanner}
-        showAnalyticsLink={session.user.role === "admin"}
         todayWorkingBounds={todayWorkingBounds}
       />
     </DoctorAppShell>

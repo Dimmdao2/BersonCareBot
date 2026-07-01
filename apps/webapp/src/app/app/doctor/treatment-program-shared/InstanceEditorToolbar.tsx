@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import toast from "react-hot-toast";
+import { MessageSquare } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import type { TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
@@ -16,13 +18,17 @@ export function InstanceEditorToolbar(props: {
   pipelineStageCount: number;
   onAddStageClick: () => void;
   onChangeStageOrderClick: () => void;
+  onCommentsClick?: () => void;
 }) {
   const {
     programTitle,
+    patientProfileHref,
+    patientDisplayName,
     programStatus,
     pipelineStageCount,
     onAddStageClick,
     onChangeStageOrderClick,
+    onCommentsClick,
   } = props;
   const { isDirty, saving, saveDraft, discardDraft } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
@@ -50,6 +56,14 @@ export function InstanceEditorToolbar(props: {
       <div className="flex flex-col gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm lg:justify-self-start">
           <h1 className="truncate font-semibold tracking-tight text-foreground">{programTitle}</h1>
+          {patientProfileHref && patientDisplayName ? (
+            <Link
+              href={patientProfileHref}
+              className="truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              {patientDisplayName}
+            </Link>
+          ) : null}
           <span
             className={cn(
               "rounded-md px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide",
@@ -70,6 +84,19 @@ export function InstanceEditorToolbar(props: {
         <div className="hidden lg:block" />
 
         <div className="flex flex-wrap items-center justify-end gap-2 lg:justify-self-end">
+          {onCommentsClick ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={tplToolbarTextBtnClass}
+              onClick={onCommentsClick}
+              data-testid="instance-editor-comments"
+              aria-label="Обсуждение программы"
+            >
+              <MessageSquare className="size-3.5" />
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"

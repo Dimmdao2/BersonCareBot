@@ -3,7 +3,7 @@ import { posix } from "node:path";
 /**
  * VIDEO_HLS_DELIVERY phase-03: canonical private-bucket layout next to source MP4.
  *
- * Source: `s3_key` = `media/{mediaId}/{filename}` (existing uploads) — **never** removed by transcode.
+ * Source: `s3_key` = `media/{mediaId}/{filename}` (existing uploads) — deleted best-effort after successful transcode (see processTranscodeJob.ts).
  * HLS tree: `media/{mediaId}/hls/master.m3u8`, `.../hls/720p/index.m3u8`, segments, etc.
  * Poster: `media/{mediaId}/poster/poster.jpg` (not under `hls/`).
  *

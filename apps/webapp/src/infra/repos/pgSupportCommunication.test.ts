@@ -156,8 +156,40 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
       openedAt: "2025-01-01T10:00:00Z",
       lastMessageAt: "2025-01-01T10:01:00Z",
     });
+    await port.appendConversationMessageFromProjection({
+      integratorMessageId: "msg-admin-open-1",
+      integratorConversationId: "conv-admin-open-1",
+      senderRole: "admin",
+      text: "Open chat",
+      source: "webapp",
+      createdAt: "2025-01-01T10:01:00Z",
+    });
     const list = await port.listOpenConversationsForAdmin({ limit: 50 });
     expect(list.some((c) => c.integratorConversationId === "conv-admin-open-1")).toBe(true);
+  });
+
+  it("listOpenConversationsForAdmin excludes notification-only conversations", async () => {
+    await port.upsertConversationFromProjection({
+      integratorConversationId: "conv-admin-notification-only",
+      integratorUserId: "3",
+      source: "webapp",
+      adminScope: "support",
+      status: "open",
+      openedAt: "2025-01-01T10:00:00Z",
+      lastMessageAt: "2025-01-01T10:01:00Z",
+    });
+    await port.appendConversationMessageFromProjection({
+      integratorMessageId: "broadcast:audit-only:user-1",
+      integratorConversationId: "conv-admin-notification-only",
+      senderRole: "admin",
+      text: "Broadcast only",
+      source: "doctor_broadcast",
+      createdAt: "2025-01-01T10:01:00Z",
+    });
+
+    const list = await port.listOpenConversationsForAdmin({ limit: 50 });
+
+    expect(list.some((c) => c.integratorConversationId === "conv-admin-notification-only")).toBe(false);
   });
 
   it("listOpenConversationsForAdmin includes unread user count and supports unreadOnly", async () => {

@@ -16,6 +16,7 @@ import {
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { DoctorCatalogArchiveScopeSelect } from "@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect";
 import {
   doctorEmptyStateClass,
@@ -70,6 +71,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
 
   return (
     <DoctorAppShell title="Курсы" user={session.user} backHref="/app/doctor">
+      <DoctorPageHeader title="Курсы" />
       <DoctorCatalogFiltersToolbar
         filters={
           <DoctorCatalogToolbarFiltersSlot>

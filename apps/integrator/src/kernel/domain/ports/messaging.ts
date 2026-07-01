@@ -9,6 +9,13 @@ export type MessagingPort = {
     reply_markup?: unknown;
     parse_mode?: MessageParseMode;
   }): Promise<unknown>;
+  sendPhoto(params: {
+    chat_id: number | string;
+    photo: string;
+    caption?: string;
+    parse_mode?: MessageParseMode;
+    reply_markup?: unknown;
+  }): Promise<unknown>;
   copyMessage(params: {
     chat_id: number;
     from_chat_id: number;

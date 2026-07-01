@@ -5,26 +5,24 @@ import { EmailSmtpSection } from "@/app/app/settings/EmailSmtpSection";
 import { VideoSystemSettingsSection } from "@/app/app/settings/VideoSystemSettingsSection";
 import { WebPushVapidSection } from "@/app/app/settings/WebPushVapidSection";
 import { NotificationsTopicsSection } from "@/app/app/settings/NotificationsTopicsSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 export default async function DoctorAdminAppSettingsPage() {
   await requireAdminDoctorPage();
   const data = await loadAdminSettingsPageData();
 
   return (
-    <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className={`mb-3 ${doctorPageTitleClass}`}>Настройки приложения</h1>
-      <div className="space-y-4">
-        <AppParametersSection {...data.appParametersConfig} />
-        <EmailSmtpSection {...data.smtpOutboundUi} />
-        <VideoSystemSettingsSection {...data.videoSystemSettingsProps} />
-        <WebPushVapidSection
-          initialPublicKey={data.webPushVapidUi.publicKey}
-          hasStoredPrivateKey={data.webPushVapidUi.hasStoredPrivateKey}
-        />
-        <NotificationsTopicsSection initialRows={data.notificationsTopicsRows} />
-      </div>
-    </div>
+    <DoctorAppShell title="Настройки приложения">
+      <DoctorPageHeader title="Настройки приложения" />
+      <AppParametersSection {...data.appParametersConfig} />
+      <EmailSmtpSection {...data.smtpOutboundUi} />
+      <VideoSystemSettingsSection {...data.videoSystemSettingsProps} />
+      <WebPushVapidSection
+        initialPublicKey={data.webPushVapidUi.publicKey}
+        hasStoredPrivateKey={data.webPushVapidUi.hasStoredPrivateKey}
+      />
+      <NotificationsTopicsSection initialRows={data.notificationsTopicsRows} />
+    </DoctorAppShell>
   );
 }

@@ -7,3 +7,7 @@ export async function getMaxApiKey(): Promise<string> {
 export async function getMaxWebhookSecret(): Promise<string> {
   return maxConfig.webhookSecret;
 }
+
+export function getMaxBaseUrl(): string | undefined {
+  return maxConfig.baseUrl;
+}

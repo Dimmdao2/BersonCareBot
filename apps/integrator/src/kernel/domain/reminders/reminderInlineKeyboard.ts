@@ -21,7 +21,7 @@ export type InlineKeyboardButton =
 /** Primary CTA label from webapp `reminder_intent`. */
 export function reminderIntentPrimaryLabel(intent: string | null | undefined): string {
   if (intent === 'warmup') return 'Начать разминку';
-  return 'Начать занятие';
+  return 'Начать тренировку';
 }
 
 export type ReminderOpenLinkSpec =
@@ -42,32 +42,29 @@ export function buildReminderDispatchInlineKeyboard(params: {
   primaryLabel: string;
   primary: ReminderOpenLinkSpec;
   schedule: ReminderOpenLinkSpec;
-  mobileInstall: ReminderOpenLinkSpec;
   occurrenceId: string;
 }): { inline_keyboard: InlineKeyboardButton[][] } {
-  const { primaryLabel, primary, schedule, mobileInstall, occurrenceId } = params;
+  const { primaryLabel, primary, schedule, occurrenceId } = params;
   const rows: InlineKeyboardButton[][] = [[openButton(primaryLabel, primary)]];
 
-  const row20Skip: InlineKeyboardButton[] = [
-    { text: 'Через 20 минут', callback_data: `rem_snooze:${occurrenceId}:20` },
-    { text: 'Пропущу', callback_data: `rem_skip:${occurrenceId}` },
-  ];
-  if (row20Skip.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
-    rows.push(row20Skip);
+  const snoozeMenuData = `rem_snooze_menu:${occurrenceId}`;
+  const skipData = `rem_skip:${occurrenceId}`;
+  const notifData = `rem_notif_settings:${occurrenceId}`;
+
+  const row2: InlineKeyboardButton[] = [];
+  if (isTelegramCallbackDataWithinLimit(snoozeMenuData)) {
+    row2.push({ text: 'Напомнить позже', callback_data: snoozeMenuData });
   }
-
-  const muteScheduleRow: InlineKeyboardButton[] = [
-    { text: 'Тишина до завтра', callback_data: 'rem_mute:tomorrow' },
-    openButton('Расписание', schedule),
-  ];
-  rows.push(muteScheduleRow);
-
-  const botOffData = `rem_bot_off:${occurrenceId}`;
-  if (isTelegramCallbackDataWithinLimit(botOffData)) {
-    rows.push([{ text: 'Не напоминать в боте', callback_data: botOffData }]);
+  if (isTelegramCallbackDataWithinLimit(skipData)) {
+    row2.push({ text: 'Пропущу', callback_data: skipData });
   }
+  if (row2.length > 0) rows.push(row2);
 
-  rows.push([openButton('Установить мобильное приложение', mobileInstall)]);
+  const row3: InlineKeyboardButton[] = [openButton('Расписание', schedule)];
+  if (isTelegramCallbackDataWithinLimit(notifData)) {
+    row3.push({ text: 'Настройки уведомлений', callback_data: notifData });
+  }
+  rows.push(row3);
 
   return { inline_keyboard: rows };
 }
@@ -87,6 +84,37 @@ export function buildReminderSkipReasonInlineKeyboard(occurrenceId: string): { i
   const flat = rows.flat();
   if (!flat.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
     return { inline_keyboard: [] };
+  }
+  return { inline_keyboard: rows };
+}
+
+export function buildReminderSnoozeMenuInlineKeyboard(occurrenceId: string): { inline_keyboard: InlineKeyboardButton[][] } {
+  const rows: InlineKeyboardButton[][] = [
+    [
+      { text: '30 минут', callback_data: `rem_snooze:${occurrenceId}:30` },
+      { text: '1 час', callback_data: `rem_snooze:${occurrenceId}:60` },
+    ],
+    [
+      { text: '2 часа', callback_data: `rem_snooze:${occurrenceId}:120` },
+      { text: '3 часа', callback_data: `rem_snooze:${occurrenceId}:180` },
+    ],
+  ];
+  const flat = rows.flat();
+  if (!flat.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
+    return { inline_keyboard: [] };
+  }
+  return { inline_keyboard: rows };
+}
+
+export function buildReminderNotifSettingsInlineKeyboard(
+  topics: Array<{ code: string; title: string; isEnabled: boolean }>,
+): { inline_keyboard: InlineKeyboardButton[][] } {
+  const rows: InlineKeyboardButton[][] = [];
+  for (const topic of topics) {
+    const callbackData = `rem_notif_toggle:${topic.code}`;
+    if (!isTelegramCallbackDataWithinLimit(callbackData)) continue;
+    const label = `${topic.isEnabled ? '✓' : '✗'} ${topic.title}`;
+    rows.push([{ text: label, callback_data: callbackData }]);
   }
   return { inline_keyboard: rows };
 }

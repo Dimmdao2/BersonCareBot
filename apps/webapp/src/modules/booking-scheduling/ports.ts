@@ -157,6 +157,7 @@ export type BookingSchedulingPort = {
     specialistId?: string | null;
     branchId?: string | null;
     roomId?: string | null;
+    weekday?: number;
   }): Promise<WorkingHoursRecord[]>;
   createWorkingHours(input: CreateWorkingHoursInput): Promise<WorkingHoursRecord>;
   updateWorkingHours(input: UpdateWorkingHoursInput): Promise<WorkingHoursRecord>;
@@ -225,6 +226,7 @@ export type CreateWorkingHoursInput = {
   weekday: number;
   startMinute: number;
   endMinute: number;
+  replace?: boolean;
 };
 
 export type UpdateWorkingHoursInput = {
@@ -283,6 +285,7 @@ export type BookingSchedulingService = {
     specialistId?: string | null;
     branchId?: string | null;
     roomId?: string | null;
+    weekday?: number;
   }): Promise<WorkingHoursRecord[]>;
   createWorkingHours(
     input: Omit<CreateWorkingHoursInput, "organizationId"> & { organizationId?: string },

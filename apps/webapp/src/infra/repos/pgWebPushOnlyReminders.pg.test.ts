@@ -69,6 +69,7 @@ describe("pgWebPushOnlyReminders (pg SQL)", () => {
     const updateSql = drizzleSqlFragmentToApproximateSql(runWebappSqlMock.mock.calls[2]?.[1]);
     expect(updateSql).toContain("WHERE id IN (");
     expect(updateSql).toContain("::uuid");
+    expect(updateSql).not.toContain("::uuid[]");
   });
 
   it("markOccurrenceSent sets status sent", async () => {

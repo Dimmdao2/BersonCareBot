@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -39,12 +40,16 @@ function formatGcalErrorMessage(reason: string | null): string {
 }
 
 async function patchSetting(key: string, value: unknown): Promise<boolean> {
-  const res = await fetch("/api/admin/settings", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value: { value } }),
-  });
-  return res.ok;
+  try {
+    await apiJson<{ ok: boolean }>("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: { value } }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function GoogleCalendarSection({
@@ -108,15 +113,10 @@ export function GoogleCalendarSection({
     setConnectMsg(null);
     startTransition(async () => {
       try {
-        const res = await fetch("/api/admin/google-calendar/start", { method: "POST" });
-        const data = (await res.json()) as { ok: boolean; authUrl?: string; error?: string; message?: string };
-        if (!data.ok || !data.authUrl) {
-          setConnectMsg(data.message ?? data.error ?? "Ошибка");
-          return;
-        }
+        const data = await apiJson<{ ok: boolean; authUrl: string }>("/api/admin/google-calendar/start", { method: "POST" });
         window.location.href = data.authUrl;
-      } catch {
-        setConnectMsg("Не удалось начать подключение");
+      } catch (e) {
+        setConnectMsg(e instanceof Error ? e.message : "Не удалось начать подключение");
       }
     });
   }, []);
@@ -126,15 +126,10 @@ export function GoogleCalendarSection({
     setLoadingCalendars(true);
     startTransition(async () => {
       try {
-        const res = await fetch("/api/admin/google-calendar/calendars");
-        const data = (await res.json()) as { ok: boolean; calendars?: CalendarItem[]; error?: string; message?: string };
-        if (!data.ok || !data.calendars) {
-          setCalError(data.message ?? data.error ?? "Ошибка");
-          return;
-        }
+        const data = await apiJson<{ ok: boolean; calendars: CalendarItem[] }>("/api/admin/google-calendar/calendars");
         setCalendars(data.calendars);
-      } catch {
-        setCalError("Не удалось загрузить календари");
+      } catch (e) {
+        setCalError(e instanceof Error ? e.message : "Не удалось загрузить календари");
       } finally {
         setLoadingCalendars(false);
       }

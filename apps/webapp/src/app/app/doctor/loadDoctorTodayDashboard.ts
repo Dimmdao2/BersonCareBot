@@ -61,6 +61,8 @@ export type DoctorTodayDashboardDeps = {
       audience?: DoctorAppointmentsAudience,
     ): Promise<AppointmentRow[]>;
   };
+  /** Optional loader for calendar-month appointments (deferred to avoid extra audience-filtered call). */
+  loadMonthAppointments?: () => Promise<AppointmentRow[]>;
   doctorClients: {
     getDashboardPatientMetrics(audience?: {
       excludedUserIds?: string[];
@@ -388,9 +390,13 @@ export async function loadDoctorTodayDashboard(
     patientMetrics,
     onSupportListRaw,
   ] = await Promise.all([
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }, audience),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }, audience),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "recordsInCalendarMonth" }, audience),
+    // #9: use statsRange so cancelled appointments are included in today/week lists
+    // (statsRange = same date window as range, but no status filter → includes cancelled)
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "today" }, audience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "week" }, audience),
+    deps.loadMonthAppointments
+      ? deps.loadMonthAppointments()
+      : Promise.resolve([] as AppointmentRow[]),
     intakeService.listForDoctor({ status: "new", limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),

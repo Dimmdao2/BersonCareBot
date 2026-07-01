@@ -4,11 +4,12 @@ import { DoctorOnlineIntakeClient } from "../../online-intake/DoctorOnlineIntake
 import type { CommunicationsTabProps } from "../communicationsTabRegistry";
 
 /** Таб «Заявки» — deep-link ?id= ↔ URL-sync шелла. */
-export function IntakeTab({ deepLinkParams, onDeepLinkChange }: CommunicationsTabProps) {
+export function IntakeTab({ deepLinkParams, onDeepLinkChange, displayIana }: CommunicationsTabProps) {
   return (
     <DoctorOnlineIntakeClient
       initialOpenRequestId={deepLinkParams.id ?? null}
       onDetailChange={(id) => onDeepLinkChange("id", id)}
+      displayIana={displayIana}
     />
   );
 }

@@ -6,7 +6,7 @@
 
 Форма **категории**, **сегмента аудитории**, **каналов** (`bot_message`, `sms`), текста; **предпросмотр** → **подтверждение** → одна транзакция webapp: **`broadcast_audit`** + пакетная вставка в **`public.outgoing_delivery_queue`** (`kind = doctor_broadcast_intent`). **Журнал** на той же странице.
 
-Для подписчиков PWA параллельно идёт **Web Push** (основной канал в приложении) + запись в PWA-чат — см. [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md), [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
+Для подписчиков PWA параллельно идёт **Web Push** (основной канал в приложении) + запись в notification inbox пациента; в 1:1 чат рассылки не попадают — см. [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md), [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
 
 ## Код (webapp)
 
@@ -21,7 +21,7 @@
 | DI | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`, `doctorBroadcastDeliveryCommitPort`) |
 | Аудит в БД | `apps/webapp/src/infra/repos/pgBroadcastAudit.ts` → **`broadcast_audit`** |
 | Транзакция аудит + очередь + recipients | `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts` |
-| Inbound в PWA-чат | `apps/webapp/src/modules/messaging/appendPatientInboundAdminMessage.ts` (после `execute`) |
+| Inbound в notification inbox пациента | `apps/webapp/src/modules/messaging/appendPatientInboundAdminMessage.ts` (после `execute`, `source='doctor_broadcast'`) |
 | Legacy read API / redirect | `apps/webapp/src/modules/patient-broadcasts/`, `apps/webapp/src/app/app/patient/broadcasts/[auditId]/page.tsx` → редирект в чат |
 
 ## Преференсы каналов и изолированные аудитории
@@ -75,16 +75,16 @@
 3. Ограничение **`MAX_BROADCAST_DELIVERY_JOBS`** — при превышении ошибка до транзакции.
 4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`, **`attach_menu_after_send`**) + batch `INSERT` в **`broadcast_audit_recipients`** (все **`eligibleClients`**, включая push-only) + для каждой строки очереди — `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue`; если вставка строки не произошла (`rowCount ≠ 1`, дубликат `event_id` или иной сбой) — **откат всей транзакции** (в т.ч. запись `broadcast_audit` не фиксируется).
 
-### Пациент: PWA-чат и Web Push
+### Пациент: notification inbox и Web Push
 
-- **PWA-чат:** после `execute` для каждого **eligible** клиента — входящее сообщение в `support_conversation_messages` (`appendPatientInboundAdminMessage`, id `broadcast:{auditId}:{userId}`). Непрочитанное учитывается общим счётчиком чата (точка на «Сегодня», подсказка на главной).
-- **Web Push:** `openUrl` = `/app/patient/messages` (`fanOutBroadcastWebPush`).
-- **Legacy URL:** `/app/patient/broadcasts/[auditId]` редиректит в чат (старые push).
+- **Notification inbox:** после `execute` для каждого **eligible** клиента — входящее сообщение в `support_conversation_messages` (`appendPatientInboundAdminMessage`, id `broadcast:{auditId}:{userId}`, `source='doctor_broadcast'`). Оно показывается в колокольчике пациента и не отображается в 1:1 чатах пациента/врача.
+- **Web Push:** `openUrl` = `/app/patient?notifications=1` (`fanOutBroadcastWebPush`), колокольчик открывает Sheet автоматически по query.
+- **Legacy URL:** `/app/patient/broadcasts/[auditId]` редиректит в `/app/patient/messages` (старые push).
 - **Telegram / MAX:** текст в боте — HTML (`parse_mode: HTML`): жирный заголовок, тело обычным текстом (`buildBroadcastMessengerHtml` в `deliveryJobs.ts`). Перед HTML тот же лимит **3500** символов на combined plain, что и для SMS (`buildBroadcastMessageText` + `splitBroadcastPlainCombined`). SMS — plain `title\n\nbody`.
 
 `broadcast_audit_recipients` и модуль `patient-broadcasts` остаются для журнала/ACL; отдельная страница чтения не используется.
 
-Непрочитанные и бейдж на главной — общий контур чата: [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
+Непрочитанные и бейдж колокольчика — контур notification inbox: [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
 
 ### Меню в чате (опция формы)
 
@@ -161,7 +161,7 @@ Shared SQL: `apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts
 
 ## Связанные документы
 
-- Inbox PWA-чат (рассылки, unread, deep links): [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
+- PWA-чат и notification inbox пациента (рассылки, unread, deep links): [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
 - Кабинет специалиста (продуктовый смысл раздела «Рассылки»): [`SPECIALIST_CABINET_STRUCTURE.md`](SPECIALIST_CABINET_STRUCTURE.md) §9.
 - Guard relay: [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) (Flow 6, dev_mode).
 - Блокировка бота TG/MAX (health, маркер, post-deploy): [`archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md`](../archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md), [`OUTGOING_DELIVERY_QUEUE.md`](OUTGOING_DELIVERY_QUEUE.md).

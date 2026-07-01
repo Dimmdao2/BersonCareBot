@@ -38,9 +38,7 @@ describe("mapPendingProgramTestsForToday", () => {
     const [item] = mapPendingProgramTestsForToday(rows);
     expect(item?.patientDisplayName).toBe("Иванова");
     expect(item?.pendingCount).toBe(2);
-    expect(item?.href).toBe(
-      "/app/doctor/clients/patient-1?scope=appointments&pendingAttempt=att-1#doctor-client-section-pending-program-tests",
-    );
+    expect(item?.href).toBe("/app/doctor/patients/patient-1");
   });
 
   it("preserves attempt order from input rows (PG top-N order)", () => {

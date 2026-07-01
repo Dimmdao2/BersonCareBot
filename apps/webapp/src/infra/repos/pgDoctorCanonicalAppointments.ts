@@ -517,8 +517,9 @@ export function createPgDoctorCanonicalAppointmentsPort(
       // non-cancelled appointment — i.e. NO earlier non-cancelled appointment than THIS one.
       // Strict total order by (start_at, id) so each patient contributes at most one "first",
       // even when the same new patient has several appointments inside the window.
-      const firstVisitRow = await db
-        .select({ c: count() })
+      // We select both count AND ids so the frontend modal can filter by the exact same set.
+      const firstVisitRows = await db
+        .select({ id: beAppointments.id })
         .from(beAppointments)
         .where(
           and(
@@ -539,7 +540,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
         );
 
       const recordsInPeriod = recordsRow[0]?.c ?? 0;
-      const firstVisitInPeriod = firstVisitRow[0]?.c ?? 0;
+      const firstVisitIds = firstVisitRows.map((r) => r.id);
+      const firstVisitInPeriod = firstVisitIds.length;
 
       return {
         recordsInPeriod,
@@ -547,6 +549,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
         futureInPeriod: futureRow[0]?.c ?? 0,
         bySubscriptionInPeriod: bySubscriptionRow[0]?.c ?? 0,
         firstVisitInPeriod,
+        firstVisitIds,
         repeatVisitInPeriod: Math.max(0, recordsInPeriod - firstVisitInPeriod),
         uniquePatientsInPeriod: uniqueRow[0]?.c ?? 0,
         cancellationsInPeriod: cancellationRow[0]?.c ?? 0,

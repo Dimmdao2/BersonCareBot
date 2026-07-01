@@ -6,6 +6,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { BE_PRODUCT_TYPES, type ProductAccessRules, type ProductComposition } from "@/modules/products/types";
+import { apiJson } from "@/shared/lib/apiJson";
 
 const TYPE_LABELS: Record<(typeof BE_PRODUCT_TYPES)[number], string> = {
   single_visit: "Разовый приём",
@@ -52,9 +53,12 @@ export function BookingCatalogProductsSection({
   const [pending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    const res = await fetch(apiBase);
-    const json = (await res.json()) as { ok?: boolean; products?: ProductRow[] };
-    if (json.ok && json.products) setProducts(json.products);
+    try {
+      const json = await apiJson<{ ok?: boolean; products?: ProductRow[] }>(apiBase);
+      if (json.products) setProducts(json.products);
+    } catch {
+      // load errors are non-critical; list simply stays stale
+    }
   }, [apiBase]);
 
   useEffect(() => {
@@ -104,55 +108,58 @@ export function BookingCatalogProductsSection({
     const serviceIds = parseCsvIds(serviceIdsCsv);
     const visits = Number.parseInt(visitCount, 10);
     startTransition(async () => {
-      const res = await fetch(apiBase, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(editId ? { id: editId } : {}),
-          title: title.trim(),
-          productType,
-          priceMinor,
-          currency: "RUB",
-          validityDays: validity,
-          courseId: productType === "course" && courseId.trim() ? courseId.trim() : null,
-          subscriptionPackageId:
-            productType === "membership" && subscriptionPackageId.trim()
-              ? subscriptionPackageId.trim()
-              : null,
-          payByLinkEnabled,
-          accessRulesJson: contentIds.length > 0 ? { contentIds } : {},
-          compositionJson:
-            productType === "promo" || productType === "gift_certificate"
-              ? { visitCount: Number.isFinite(visits) && visits > 0 ? visits : 1, serviceIds }
-              : productType === "single_visit"
-                ? { serviceIds }
-                : productType === "subscription" || productType === "content_access"
-                  ? { contentIds }
-                  : {},
-        }),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
-        setError(json.error ?? "save_failed");
-        return;
+      try {
+        await apiJson(apiBase, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(editId ? { id: editId } : {}),
+            title: title.trim(),
+            productType,
+            priceMinor,
+            currency: "RUB",
+            validityDays: validity,
+            courseId: productType === "course" && courseId.trim() ? courseId.trim() : null,
+            subscriptionPackageId:
+              productType === "membership" && subscriptionPackageId.trim()
+                ? subscriptionPackageId.trim()
+                : null,
+            payByLinkEnabled,
+            accessRulesJson: contentIds.length > 0 ? { contentIds } : {},
+            compositionJson:
+              productType === "promo" || productType === "gift_certificate"
+                ? { visitCount: Number.isFinite(visits) && visits > 0 ? visits : 1, serviceIds }
+                : productType === "single_visit"
+                  ? { serviceIds }
+                  : productType === "subscription" || productType === "content_access"
+                    ? { contentIds }
+                    : {},
+          }),
+        });
+        setEditId("");
+        setTitle("");
+        setPriceRub("");
+        setValidityDays("");
+        setContentIdsCsv("");
+        setServiceIdsCsv("");
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "save_failed");
       }
-      setEditId("");
-      setTitle("");
-      setPriceRub("");
-      setValidityDays("");
-      setContentIdsCsv("");
-      setServiceIdsCsv("");
-      await load();
     });
   }
 
   async function createPayLink(productId: string) {
-    const res = await fetch(`${apiBase}/${productId}/pay-link`, { method: "POST", body: "{}" });
-    const json = (await res.json()) as { ok?: boolean; payUrl?: string; error?: string };
-    if (json.ok && json.payUrl) {
-      await navigator.clipboard.writeText(`${window.location.origin}${json.payUrl}`);
-    } else {
-      setError(json.error ?? "pay_link_failed");
+    try {
+      const json = await apiJson<{ ok?: boolean; payUrl?: string; error?: string }>(
+        `${apiBase}/${productId}/pay-link`,
+        { method: "POST", body: "{}" },
+      );
+      if (json.payUrl) {
+        await navigator.clipboard.writeText(`${window.location.origin}${json.payUrl}`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "pay_link_failed");
     }
   }
 

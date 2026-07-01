@@ -5,6 +5,7 @@ import type {
   SupportQuestionRow,
   SupportDeliveryEventRow,
 } from "./pgSupportCommunication";
+import { isSupportNotificationMessage } from "@/shared/lib/supportMessageKinds";
 
 const questionMessageTexts = new Map<string, string>();
 
@@ -253,10 +254,16 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         c.closedAt == null &&
         (source == null || c.source === source)
     );
+    const lastChatMessage = (conversationId: string) =>
+      Array.from(messages.values())
+        .filter((m) => m.conversationId === conversationId)
+        .filter((m) => !isSupportNotificationMessage(m))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     const unreadCount = (conversationId: string) =>
       Array.from(messages.values()).filter(
         (m) => m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null,
       ).length;
+    list = list.filter((c) => lastChatMessage(c.id) != null);
     if (params.unreadOnly) {
       list = list.filter((c) => unreadCount(c.id) > 0);
     }
@@ -265,13 +272,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         const aUnread = unreadCount(a.id) > 0;
         const bUnread = unreadCount(b.id) > 0;
         if (aUnread !== bUnread) return aUnread ? -1 : 1;
-        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        return (
+          new Date(lastChatMessage(b.id)?.createdAt ?? b.lastMessageAt).getTime() -
+          new Date(lastChatMessage(a.id)?.createdAt ?? a.lastMessageAt).getTime()
+        );
       })
       .slice(0, limit);
     return list.map((c) => {
-      const lastMsg = Array.from(messages.values())
-        .filter((m) => m.conversationId === c.id)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      const lastMsg = lastChatMessage(c.id);
       return {
         conversationId: c.id,
         integratorConversationId: c.integratorConversationId,
@@ -300,6 +308,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     if (!c) return null;
     const lastMsg = Array.from(messages.values())
       .filter((m) => m.conversationId === c.id)
+      .filter((m) => !isSupportNotificationMessage(m))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     const userMsg = Array.from(messages.values())
       .filter((m) => m.conversationId === c.id && m.senderRole === "user" && m.externalChatId != null)
@@ -415,8 +424,8 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       createdAt: params.createdAt,
       readAt: null,
       deliveredAt: null,
-      mediaUrl: null,
-      mediaType: null,
+      mediaUrl: params.mediaUrl ?? null,
+      mediaType: params.mediaType ?? null,
     };
     messages.set(id, row);
     const conv = conversations.get(params.conversationId);
@@ -471,7 +480,12 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     );
     const now = new Date().toISOString();
     for (const m of messages.values()) {
-      if (convIds.has(m.conversationId) && m.senderRole !== "user" && m.readAt == null) {
+      if (
+        convIds.has(m.conversationId) &&
+        m.senderRole !== "user" &&
+        !isSupportNotificationMessage(m) &&
+        m.readAt == null
+      ) {
         m.readAt = now;
       }
     }
@@ -489,7 +503,21 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     for (const m of messages.values()) {
       if (!ids.has(m.id)) continue;
       if (!convIds.has(m.conversationId)) continue;
-      if (m.senderRole === "user" || m.readAt != null) continue;
+      if (m.senderRole === "user" || isSupportNotificationMessage(m) || m.readAt != null) continue;
+      m.readAt = now;
+    }
+  },
+
+  async markNotificationMessagesReadForUser(platformUserId) {
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((row) => row.platformUserId === platformUserId)
+        .map((row) => row.id),
+    );
+    const now = new Date().toISOString();
+    for (const m of messages.values()) {
+      if (!convIds.has(m.conversationId)) continue;
+      if (m.senderRole === "user" || !isSupportNotificationMessage(m) || m.readAt != null) continue;
       m.readAt = now;
     }
   },
@@ -510,7 +538,30 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     );
     let n = 0;
     for (const m of messages.values()) {
-      if (convIds.has(m.conversationId) && m.senderRole !== "user" && m.readAt == null) n += 1;
+      if (
+        convIds.has(m.conversationId) &&
+        m.senderRole !== "user" &&
+        !isSupportNotificationMessage(m) &&
+        m.readAt == null
+      ) n += 1;
+    }
+    return n;
+  },
+
+  async countUnreadNotificationsForUser(platformUserId) {
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((c) => c.platformUserId === platformUserId)
+        .map((c) => c.id),
+    );
+    let n = 0;
+    for (const m of messages.values()) {
+      if (
+        convIds.has(m.conversationId) &&
+        m.senderRole !== "user" &&
+        isSupportNotificationMessage(m) &&
+        m.readAt == null
+      ) n += 1;
     }
     return n;
   },
@@ -522,9 +573,30 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         .map((c) => c.id),
     );
     return [...messages.values()]
-      .filter((m) => convIds.has(m.conversationId) && m.senderRole !== "user" && m.readAt == null)
+      .filter(
+        (m) =>
+          convIds.has(m.conversationId) &&
+          m.senderRole !== "user" &&
+          !isSupportNotificationMessage(m) &&
+          m.readAt == null,
+      )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
       .map((m) => ({ id: m.id, text: m.text }));
+  },
+
+  async listNotificationMessagesForUser(platformUserId, limit) {
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((c) => c.platformUserId === platformUserId)
+        .map((c) => c.id),
+    );
+    const lim = Math.min(Math.max(limit, 1), 200);
+    const list = [...messages.values()]
+      .filter((m) => convIds.has(m.conversationId) && m.senderRole !== "user" && isSupportNotificationMessage(m))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, lim)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return list;
   },
 
   async countUnreadUserMessagesForAdmin() {

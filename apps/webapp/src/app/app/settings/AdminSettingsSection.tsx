@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
@@ -407,7 +407,7 @@ export function AdminSettingsSection({
           </label>
           <select
             id="integrator-linked-phone-source"
-            className="max-w-xl rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="max-w-xl rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             value={linkedPhoneSource}
             onChange={(e) => setLinkedPhoneSource(e.target.value as IntegratorLinkedPhoneSource)}
             disabled={isPending}

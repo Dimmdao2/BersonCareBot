@@ -51,6 +51,22 @@ describe("appendPatientInboundAdminMessage", () => {
     );
   });
 
+  it("passes custom source to appended admin message", async () => {
+    const port = createPort();
+    await appendPatientInboundAdminMessage(port, {
+      platformUserId: "u1",
+      text: "Рассылка",
+      integratorMessageId: "broadcast:a1:u1",
+      source: "doctor_broadcast",
+    });
+
+    expect(port.appendWebappMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "doctor_broadcast",
+      }),
+    );
+  });
+
   it("truncates text over 4000 chars", async () => {
     const port = createPort();
     const long = "a".repeat(5000);

@@ -13,6 +13,7 @@ const oauthResolveMock: OAuthUserResolvePort = {
   resolveCanonicalUserId: vi.fn().mockImplementation(async (userId) => userId),
   applyVerifiedOAuthEmail: vi.fn().mockResolvedValue(undefined),
   findUserIdsByVerifiedEmail: vi.fn().mockResolvedValue([]),
+  findActiveUserIdsByEmail: vi.fn().mockResolvedValue([]),
   createOAuthPlatformUser: vi.fn().mockResolvedValue("oauth-only-id"),
   upsertOAuthBinding: vi.fn().mockResolvedValue({ inserted: true }),
 };
@@ -29,6 +30,7 @@ describe("resolveUserIdForWebOAuthLogin", () => {
     vi.mocked(oauthResolveMock.resolveCanonicalUserId).mockReset().mockImplementation(async (userId) => userId);
     vi.mocked(oauthResolveMock.applyVerifiedOAuthEmail).mockReset().mockResolvedValue(undefined);
     vi.mocked(oauthResolveMock.findUserIdsByVerifiedEmail).mockReset().mockResolvedValue([]);
+    vi.mocked(oauthResolveMock.findActiveUserIdsByEmail).mockReset().mockResolvedValue([]);
     vi.mocked(oauthResolveMock.createOAuthPlatformUser).mockReset().mockResolvedValue("oauth-only-id");
     vi.mocked(oauthResolveMock.upsertOAuthBinding).mockReset().mockResolvedValue({ inserted: true });
     vi.mocked(noOAuthPort.findUserByOAuthId).mockResolvedValue(null);
@@ -87,6 +89,48 @@ describe("resolveUserIdForWebOAuthLogin", () => {
       provider: "google",
       providerUserId: "g1",
       email: "dup@example.com",
+      emailVerified: true,
+      displayName: "D",
+      phone: null,
+    });
+
+    expect(r).toEqual({ ok: false, reason: "email_ambiguous" });
+  });
+
+  // Bug 1 (prod): existing active account owns the email but UNVERIFIED (phone/booking-created).
+  // The verified-email lookup misses it → previously fell through to INSERT → duplicate-key crash.
+  it("links to an existing account whose email is UNVERIFIED instead of inserting a duplicate", async () => {
+    vi.mocked(oauthResolveMock.findUserIdsByVerifiedEmail).mockResolvedValue([]);
+    vi.mocked(oauthResolveMock.findActiveUserIdsByEmail).mockResolvedValue(["phone-created-user"]);
+
+    const r = await resolveUserIdForWebOAuthLogin(noOAuthPort, {
+      provider: "google",
+      providerUserId: "google-sub-9",
+      email: "existing@gmail.com",
+      emailVerified: true,
+      displayName: "Existing",
+      phone: null,
+    });
+
+    expect(r).toEqual({ ok: true, userId: "phone-created-user", accountOutcome: "linked_existing" });
+    expect(oauthResolveMock.createOAuthPlatformUser).not.toHaveBeenCalled();
+    expect(oauthResolveMock.upsertOAuthBinding).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "phone-created-user", provider: "google" }),
+    );
+    expect(oauthResolveMock.applyVerifiedOAuthEmail).toHaveBeenCalledWith(
+      "phone-created-user",
+      "existing@gmail.com",
+      true,
+    );
+  });
+
+  it("returns email_ambiguous when multiple active (any-verification) email rows match", async () => {
+    vi.mocked(oauthResolveMock.findActiveUserIdsByEmail).mockResolvedValue(["a", "b"]);
+
+    const r = await resolveUserIdForWebOAuthLogin(noOAuthPort, {
+      provider: "google",
+      providerUserId: "g2",
+      email: "dup2@example.com",
       emailVerified: true,
       displayName: "D",
       phone: null,

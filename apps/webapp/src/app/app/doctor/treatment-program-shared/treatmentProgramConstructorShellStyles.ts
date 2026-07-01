@@ -30,9 +30,14 @@ export const TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS = INSTANCE_CONSTRUCTOR_LE
 
 export const tplToolbarTextBtnClass = "h-7 min-h-7 px-2 text-xs";
 
-/** Sticky toolbar редактора инстанса: компенсация `px-3` контейнера `#app-shell-doctor`. */
+/**
+ * Sticky toolbar редактора инстанса: компенсация `px-3` контейнера `#app-shell-doctor`.
+ * Липкий офсет берём из канонической переменной `--doctor-sticky-offset` (0 на десктопе,
+ * высота моб. шапки 3.5rem на <md) — иначе на десктопе тулбар залипал на 56px ниже верха
+ * (хардкод мобильного значения), и контент проскальзывал в зазор над ним.
+ */
 export const INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS =
-  "sticky z-20 -mx-3 border-b border-border bg-card/95 px-3 py-2 backdrop-blur-sm top-[calc(3.5rem_+_env(safe-area-inset-top,0px))]";
+  "sticky z-20 -mx-3 border-b border-border bg-card/95 px-3 py-2 backdrop-blur-sm top-[var(--doctor-sticky-offset)]";
 
 export function instanceGroupHeaderSurfaceStyle(g: TreatmentProgramInstanceStageGroup): CSSProperties {
   if (g.systemKind === "recommendations") {

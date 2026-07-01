@@ -42,7 +42,7 @@ type ConversationApiRow = {
   onSupport?: boolean;
 };
 
-function formatConversationTime(value: string): string {
+function formatConversationTime(value: string, tz = "Europe/Moscow"): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const now = new Date();
@@ -50,9 +50,9 @@ function formatConversationTime(value: string): string {
     date.getDate() === now.getDate() &&
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear();
-  const time = date.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" });
+  const time = date.toLocaleString("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
   if (isToday) return time;
-  const dayMonth = date.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit" });
+  const dayMonth = date.toLocaleString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit" });
   return `${dayMonth} · ${time}`;
 }
 
@@ -88,11 +88,12 @@ function convSignature(rows: ConvRow[]): string {
 
 export type DoctorSupportInboxProps = {
   active?: boolean;
+  displayIana?: string;
 };
 
 type FilterMode = "all" | "unread" | "onSupport";
 
-export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
+export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow" }: DoctorSupportInboxProps) {
   const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -199,10 +200,14 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
         ? allList.filter((c) => c.onSupport)
         : allList;
 
-  const filteredList = query.trim() && searchMode === "name"
+  const filteredList = query.trim()
     ? filteredByChip.filter((c) => {
-        const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
-        return searchable.includes(query.toLowerCase());
+        const q = query.toLowerCase();
+        if (searchMode === "name") {
+          const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized].filter(Boolean).join(" ").toLowerCase();
+          return searchable.includes(q);
+        }
+        return (c.lastMessageText ?? "").toLowerCase().includes(q);
       })
     : filteredByChip;
 
@@ -221,12 +226,11 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
         <div className="flex gap-1.5">
           <Input
             type="search"
-            placeholder={searchMode === "name" ? "Поиск по имени / телефону" : "Поиск по тексту сообщений (скоро)"}
+            placeholder={searchMode === "name" ? "Поиск по имени / телефону" : "Поиск по тексту последнего сообщения"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="h-8 min-w-0 flex-1"
-            disabled={searchMode === "text"}
-            aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту — недоступен"}
+            aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту последнего сообщения"}
           />
           <button
             type="button"
@@ -314,7 +318,7 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
                     )}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatConversationTime(c.lastMessageAt)}
+                    {formatConversationTime(c.lastMessageAt, displayIana)}
                   </span>
                 </div>
                 {(c.lastName ?? c.firstName) && (

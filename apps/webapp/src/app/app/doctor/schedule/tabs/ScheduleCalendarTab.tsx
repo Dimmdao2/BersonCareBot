@@ -28,6 +28,7 @@ import {
   isCancelledAppointmentStatus,
 } from "@/modules/booking-calendar/appointmentStatusLabels";
 import FullCalendar from "@fullcalendar/react";
+type FullCalendarInstance = InstanceType<typeof FullCalendar>;
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -43,6 +44,9 @@ import type { WorkingBounds } from "@/modules/booking-calendar/types";
 import type { ScheduleKpis } from "@/modules/doctor-appointments/ports";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
+import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
+import { routePaths } from "@/app-layer/routes/paths";
+import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from "../scheduleCalendarEvents";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -52,8 +56,14 @@ const API_BASE = "/api/doctor/booking-engine";
 const KPIS_API = "/api/doctor/schedule-kpis";
 const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 
-const DEFAULT_SLOT_MIN = "06:00:00";
-const DEFAULT_SLOT_MAX = "23:00:00";
+// #231: стандартное окно сетки 9:00–19:00.
+// Если записи/рабочие часы не укладываются — окно только РАСШИРЯЕТСЯ наружу.
+// TODO(owner-decision): «настройка доктором» (хранение personalized window bounds)
+// не реализована — нет существующего хранилища настроек доктора для этого параметра.
+// Рекомендация: добавить поле default_slot_start_minute/default_slot_end_minute в
+// be_specialists или отдельную таблицу doctor_preferences. До реализации — дефолт 9–19.
+const DEFAULT_WINDOW_MIN = 9 * 60; // 540 мин = 9:00
+const DEFAULT_WINDOW_MAX = 19 * 60; // 1140 мин = 19:00
 
 // R34: понятные подписи ошибок переноса для диалога подтверждения.
 function rescheduleErrorLabel(error: string | undefined): string {
@@ -93,6 +103,25 @@ type CalendarResponse = {
 type NearestWindowResponse = {
   ok: boolean;
   window: { from: string; to: string } | null;
+};
+
+type CalendarDoctorSettings = {
+  defaultWindowStartMinute: number;
+  defaultWindowEndMinute: number;
+  defaultBranchId: string | null;
+  defaultServiceId: string | null;
+};
+
+type CalendarDraftSlot = {
+  start: string;
+  end: string;
+};
+
+const DEFAULT_CALENDAR_SETTINGS: CalendarDoctorSettings = {
+  defaultWindowStartMinute: DEFAULT_WINDOW_MIN,
+  defaultWindowEndMinute: DEFAULT_WINDOW_MAX,
+  defaultBranchId: null,
+  defaultServiceId: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -253,48 +282,96 @@ function minuteToHHMM(minute: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
 }
 
+function getSettingValue(rows: Array<{ key: string; valueJson: unknown }>, key: string): unknown {
+  const valueJson = rows.find((row) => row.key === key)?.valueJson;
+  if (valueJson && typeof valueJson === "object" && "value" in valueJson) {
+    return (valueJson as { value?: unknown }).value;
+  }
+  return null;
+}
+
+function parseCalendarDoctorSettings(rows: Array<{ key: string; valueJson: unknown }>): CalendarDoctorSettings {
+  const windowValue = getSettingValue(rows, "booking_calendar_default_window");
+  let defaultWindowStartMinute = DEFAULT_WINDOW_MIN;
+  let defaultWindowEndMinute = DEFAULT_WINDOW_MAX;
+  if (windowValue && typeof windowValue === "object") {
+    const obj = windowValue as { startMinute?: unknown; endMinute?: unknown };
+    if (typeof obj.startMinute === "number" && typeof obj.endMinute === "number") {
+      defaultWindowStartMinute = Math.max(0, Math.min(1439, Math.round(obj.startMinute)));
+      defaultWindowEndMinute = Math.max(
+        defaultWindowStartMinute + 30,
+        Math.min(24 * 60, Math.round(obj.endMinute)),
+      );
+    }
+  }
+  const defaultBranchRaw = getSettingValue(rows, "booking_calendar_default_branch_id");
+  const defaultServiceRaw = getSettingValue(rows, "booking_calendar_default_service_id");
+  return {
+    defaultWindowStartMinute,
+    defaultWindowEndMinute,
+    defaultBranchId: typeof defaultBranchRaw === "string" && defaultBranchRaw.trim() ? defaultBranchRaw : null,
+    defaultServiceId: typeof defaultServiceRaw === "string" && defaultServiceRaw.trim() ? defaultServiceRaw : null,
+  };
+}
+
 /**
- * Диапазон часовой сетки = объединение рабочих границ И фактических записей,
- * чтобы ранние/поздние приёмы (7-8 утра и т.п.) НЕ обрезались.
+ * Диапазон часовой сетки = дефолтное окно 09:00–19:00, которое при необходимости
+ * расширяется по рабочим границам и по фактическим записям c буфером ±1 час.
  *
- * Логика нижней границы (CAL-01):
- * - Если все записи укладываются в рабочий период, нижняя граница = начало
- *   рабочего периода, выровненное вниз до часа (без дополнительного запаса).
- * - Только если запись начинается ДО рабочего периода, добавляется буфер 30 мин
- *   и округление вниз до часа — чтобы ранняя запись не обрезалась.
- * Верхняя граница: 60 мин запаса + округление вверх до часа.
- * Если нет ни рабочих границ, ни записей — дефолт.
+ * Правила:
+ * - Нет данных → 09:00–19:00.
+ * - Рабочие границы уже приходят с серверным буфером ±1 час.
+ * - Записи дополнительно расширяют окно на 60 минут до старта и 60 минут после конца.
+ * - Если всё внутри дефолтного окна, окно НЕ ужимается.
+ * - Если данные выходят за пределы дефолта, окно только расширяется наружу.
  */
 export function deriveSlotTimes(
   workingBounds: WorkingBounds | null | undefined,
   events: CalendarEvent[] | undefined,
   timeZone: string,
+  defaultWindow: { startMinute: number; endMinute: number } = {
+    startMinute: DEFAULT_WINDOW_MIN,
+    endMinute: DEFAULT_WINDOW_MAX,
+  },
 ): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
-  const workingFloor: number | null = workingBounds ? workingBounds.minMinute : null;
-  let min: number | null = workingFloor;
-  let max: number | null = workingBounds ? workingBounds.maxMinute : null;
+  const defaultLo = Math.max(0, Math.min(1439, defaultWindow.startMinute));
+  const defaultHi = Math.max(defaultLo + 30, Math.min(24 * 60, defaultWindow.endMinute));
+  let lo = defaultLo;
+  let hi = defaultHi;
+  let hasAnyData = Boolean(workingBounds);
+  if (workingBounds) {
+    lo = Math.min(lo, workingBounds.minMinute);
+    hi = Math.max(hi, workingBounds.maxMinute);
+  }
   for (const e of events ?? []) {
     if (e.kind !== "appointment" && e.kind !== "block") continue;
     const s = parseFeedInstant(e.startAt, timeZone);
     const en = parseFeedInstant(e.endAt, timeZone);
     if (s.isValid) {
-      const sm = s.hour * 60 + s.minute;
-      min = min == null ? sm : Math.min(min, sm);
+      const sm = Math.max(0, s.hour * 60 + s.minute - 60);
+      lo = Math.min(lo, sm);
+      hasAnyData = true;
     }
     if (en.isValid) {
-      let em = en.hour * 60 + en.minute;
+      let em = en.hour * 60 + en.minute + 60;
       if (em === 0) em = 24 * 60; // полночь конца = конец суток
-      max = max == null ? em : Math.max(max, em);
+      hi = Math.max(hi, Math.min(24 * 60, em));
+      hasAnyData = true;
     }
   }
-  if (min == null || max == null) {
-    return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX, loMinute: 0, hiMinute: 24 * 60 };
+
+  if (!hasAnyData) {
+    return {
+      slotMinTime: minuteToHHMM(defaultLo),
+      slotMaxTime: minuteToHHMM(defaultHi),
+      loMinute: defaultLo,
+      hiMinute: defaultHi,
+    };
   }
-  // Нижняя граница: если событие вышло за рабочий период — 30 мин запас + округление вниз;
-  // иначе (min == workingFloor или нет рабочих границ) — без запаса, просто округление вниз.
-  const hasEarlyEvent = workingFloor != null && min < workingFloor;
-  const lo = Math.max(0, hasEarlyEvent ? Math.floor((min - 30) / 60) * 60 : Math.floor(min / 60) * 60);
-  const hi = Math.min(24 * 60, Math.ceil((max + 60) / 60) * 60);
+
+  lo = Math.max(0, lo);
+  hi = Math.min(24 * 60, hi);
+
   return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
 }
 
@@ -311,16 +388,20 @@ export function deriveSlotTimes(
  * per-date be_working_days with weekday fallback — §3.13) plus the visible slot
  * bounds. For each day that has working intervals we emit the complement within
  * `[slotMin, slotMax]`. Days without working intervals (closed / no schedule) get
- * NO gray fill — an all-gray column reads as noise; FullCalendar leaves it white.
+ * a full-column grey fill (slotMin..slotMax) — #6: empty/closed days must be grey.
+ *
+ * @param visibleDayKeys  All YYYY-MM-DD keys in the visible grid (used to detect
+ *   days that have no working-hours at all → fill the whole column grey).  When
+ *   not provided the old behaviour is preserved: only days with ≥1 working event
+ *   are filled.
  */
 function buildNonWorkingFillEvents(
   workingEvents: { startAt: string; endAt: string }[],
   timeZone: string,
   slotMinMinute: number,
   slotMaxMinute: number,
+  visibleDayKeys?: string[],
 ): { id: string; start: string; end: string }[] {
-  if (workingEvents.length === 0) return [];
-
   // Group working intervals by local calendar day.
   const byDay = new Map<string, { startMs: number; endMs: number }[]>();
   for (const ev of workingEvents) {
@@ -334,6 +415,18 @@ function buildNonWorkingFillEvents(
       endMs: DateTime.fromISO(ev.endAt).toMillis(),
     });
     byDay.set(dayKey, list);
+  }
+
+  // #6: days that exist in the visible grid but have NO working events at all
+  // must get a full-column grey fill so they render as non-working (not white).
+  if (visibleDayKeys) {
+    for (const dayKey of visibleDayKeys) {
+      if (!byDay.has(dayKey)) {
+        byDay.set(dayKey, []); // empty interval list → full fill below
+      }
+    }
+  } else if (workingEvents.length === 0) {
+    return [];
   }
 
   const out: { id: string; start: string; end: string }[] = [];
@@ -732,10 +825,22 @@ export function ScheduleCalendarTab({
   const [kpis, setKpis] = useState<ScheduleKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  // #227: ref к FullCalendar для вызова unselect() при отмене создания
+  const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [kpiModalFilter, setKpiModalFilter] = useState<keyof ScheduleKpis | null>(null);
-  // R32: время старта, подставляемое в форму создания при выделении области.
+  // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
+  // #225: время конца из drag-интервала → используется как начальная длительность в форме создания.
+  const [createInitialEnd, setCreateInitialEnd] = useState<string | null>(null);
+  const [createInitialBranchId, setCreateInitialBranchId] = useState<string | null>(null);
+  const [createInitialServiceId, setCreateInitialServiceId] = useState<string | null>(null);
+  const [draftSlot, setDraftSlot] = useState<CalendarDraftSlot | null>(null);
+  const [createFormDirty, setCreateFormDirty] = useState(false);
+  const lastSelectAtRef = useRef(0);
+  const [calendarSettings, setCalendarSettings] = useState<CalendarDoctorSettings>(
+    DEFAULT_CALENDAR_SETTINGS,
+  );
   const [pending, startTransition] = useTransition();
 
   // R34: подтверждение переноса (drag/resize) перед применением.
@@ -908,6 +1013,22 @@ export function ScheduleCalendarTab({
   }, [loadFeed, loadKpis, view, anchorDate]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/doctor/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { ok?: boolean; settings?: Array<{ key: string; valueJson: unknown }> } | null) => {
+        if (cancelled || !json?.ok || !json.settings) return;
+        setCalendarSettings(parseCalendarDoctorSettings(json.settings));
+      })
+      .catch(() => {
+        // Non-critical: keep built-in defaults.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, anchorDate, branchId, serviceId]);
@@ -926,6 +1047,14 @@ export function ScheduleCalendarTab({
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [load, isActive]);
+
+  useEffect(() => {
+    const handleRefresh = () => load();
+    window.addEventListener(DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT, handleRefresh);
+    return () => {
+      window.removeEventListener(DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT, handleRefresh);
+    };
+  }, [load]);
 
   // ─── Period navigation ─────────────────────────────────────────────────────
 
@@ -961,7 +1090,108 @@ export function ScheduleCalendarTab({
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
-  const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(workingBounds, data?.events, currentTimeZone);
+  const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(
+    workingBounds,
+    data?.events,
+    currentTimeZone,
+    {
+      startMinute: calendarSettings.defaultWindowStartMinute,
+      endMinute: calendarSettings.defaultWindowEndMinute,
+    },
+  );
+
+  const findWorkingBranchIdForStart = useCallback(
+    (startLocal: string): string | null => {
+      const start = DateTime.fromISO(startLocal, { zone: currentTimeZone });
+      if (!start.isValid) return null;
+      const startMs = start.toMillis();
+      const event = (data?.events ?? []).find((e) => {
+        if (e.kind !== "working" || !e.branchId) return false;
+        const from = parseFeedInstant(e.startAt, currentTimeZone).toMillis();
+        const to = parseFeedInstant(e.endAt, currentTimeZone).toMillis();
+        return from <= startMs && startMs < to;
+      });
+      return event?.kind === "working" ? event.branchId : null;
+    },
+    [data?.events, currentTimeZone],
+  );
+
+  const chooseServiceForDuration = useCallback(
+    (durationMinutes: number | null): string | null => {
+      if (durationMinutes != null) {
+        const exact = filters.services.find((service) => service.durationMinutes === durationMinutes);
+        if (exact) return exact.id;
+      }
+      if (calendarSettings.defaultServiceId) {
+        const configured = filters.services.find((service) => service.id === calendarSettings.defaultServiceId);
+        if (configured) return configured.id;
+      }
+      return resolveCalendarCreateFieldValue(filters.services, serviceId, null);
+    },
+    [filters.services, calendarSettings.defaultServiceId, serviceId],
+  );
+
+  const clearDraftAndPanel = useCallback(() => {
+    setSelected(null);
+    setShowCreatePanel(false);
+    setCreateInitialStart(null);
+    setCreateInitialEnd(null);
+    setCreateInitialBranchId(null);
+    setCreateInitialServiceId(null);
+    setDraftSlot(null);
+    setCreateFormDirty(false);
+    onDeepLinkChange("appt", null);
+    calendarRef.current?.getApi().unselect();
+  }, [onDeepLinkChange]);
+
+  const openCreateDraft = useCallback(
+    (start: Date, end: Date | null) => {
+      const startLocal =
+        DateTime.fromJSDate(start).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+      if (!startLocal) return;
+      const durationFromDrag = end
+        ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 60_000))
+        : null;
+      const serviceForDraft = chooseServiceForDuration(durationFromDrag);
+      const serviceDuration =
+        serviceForDraft != null
+          ? (filters.services.find((service) => service.id === serviceForDraft)?.durationMinutes ?? null)
+          : null;
+      const durationMinutes = durationFromDrag ?? serviceDuration ?? 60;
+      const endDate = end ?? new Date(start.getTime() + durationMinutes * 60_000);
+      const endLocal =
+        DateTime.fromJSDate(endDate).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+      if (!endLocal) return;
+      const workingBranchId = findWorkingBranchIdForStart(startLocal);
+      const branchForDraft =
+        workingBranchId ??
+        (calendarSettings.defaultBranchId && filters.branches.some((b) => b.id === calendarSettings.defaultBranchId)
+          ? calendarSettings.defaultBranchId
+          : resolveCalendarCreateFieldValue(filters.branches, branchId, null));
+      setSelected(null);
+      setCreateInitialStart(startLocal);
+      setCreateInitialEnd(endLocal);
+      setCreateInitialBranchId(branchForDraft);
+      setCreateInitialServiceId(serviceForDraft);
+      setDraftSlot({
+        start: DateTime.fromJSDate(start).toISO() ?? start.toISOString(),
+        end: DateTime.fromJSDate(endDate).toISO() ?? endDate.toISOString(),
+      });
+      setCreateFormDirty(false);
+      setShowCreatePanel(true);
+      onDeepLinkChange("appt", null);
+    },
+    [
+      currentTimeZone,
+      chooseServiceForDuration,
+      filters.services,
+      filters.branches,
+      findWorkingBranchIdForStart,
+      calendarSettings.defaultBranchId,
+      branchId,
+      onDeepLinkChange,
+    ],
+  );
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
@@ -970,13 +1200,32 @@ export function ScheduleCalendarTab({
     // gray; working time stays white. Only in hour-grid views (3 дня / Неделя /
     // День) — a month grid has no time axis to fill. Replaces the old per-break
     // background events; the complement fill subsumes them.
+    // #6: compute all visible day keys so days with no schedule get full-grey fill.
+    const visibleDayKeysForFill: string[] = (() => {
+      if (!isTimeGrid) return [];
+      const range = visibleRange(view, anchorDate, currentTimeZone);
+      const from = DateTime.fromISO(range.from, { zone: currentTimeZone });
+      const to = DateTime.fromISO(range.to, { zone: currentTimeZone });
+      const totalDays = Math.max(1, Math.ceil(to.diff(from, "days").days));
+      const keys: string[] = [];
+      for (let i = 0; i < totalDays; i++) {
+        const k = from.plus({ days: i }).toISODate();
+        if (k) keys.push(k);
+      }
+      return keys;
+    })();
+
+    // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
+    // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
+    // Используем loMinute/hiMinute из deriveSlotTimes (дефолт 09:00–19:00, #231).
     const grayFill =
-      isTimeGrid && workingBounds
+      isTimeGrid
         ? buildNonWorkingFillEvents(
             data.events.filter((e) => e.kind === "working"),
             currentTimeZone,
             loMinute,
             hiMinute,
+            visibleDayKeysForFill,
           ).map((f) => ({
             id: f.id,
             start: f.start,
@@ -991,8 +1240,10 @@ export function ScheduleCalendarTab({
       // Рабочее время — не рендерим (фон белый).
       if (event.kind === "working") return null;
 
-      // SCH-10: перерывы рендерим как фоновые события с более тёмным серым,
-      // чтобы их можно было отличить от нерабочего времени (до/после смены).
+      // SCH-10 / owner-feedback: перерыв («обед») рисуем тем же ЛЁГКИМ прозрачным
+      // фоном, что и нерабочее время (#eee/0.6), а не плотной тёмной плашкой —
+      // владельцу нужен «обед как лёгкий фон». Отличает его подпись «Перерыв» и то,
+      // что он лежит внутри рабочей (белой) полосы, а не по краям смены.
       if (event.kind === "break" && isTimeGrid) {
         return {
           id: `break:${event.id}`,
@@ -1000,7 +1251,7 @@ export function ScheduleCalendarTab({
           end: toFcDate(event.endAt, currentTimeZone),
           title: "Перерыв",
           display: "background" as const,
-          classNames: ["!bg-[#d1d5db]", "!opacity-80"],
+          classNames: ["!bg-[#eeeeee]", "!opacity-60"],
           editable: false,
           extendedProps: { kind: "break" as const },
         };
@@ -1045,8 +1296,22 @@ export function ScheduleCalendarTab({
         },
       };
     }).filter((x): x is NonNullable<typeof x> => x !== null);
-    return [...grayFill, ...mapped] as FullCalendarOptions["events"];
-  }, [data, view, workingBounds, currentTimeZone]);
+    const draft = draftSlot
+      ? [
+          {
+            id: "draft:create",
+            start: draftSlot.start,
+            end: draftSlot.end,
+            title: "Новая запись",
+            editable: false,
+            classNames: ["!bg-sky-500/20 text-sky-950 !border-sky-500/50 border-dashed"],
+            extendedProps: { kind: "draft" as const },
+          },
+        ]
+      : [];
+    return [...grayFill, ...mapped, ...draft] as FullCalendarOptions["events"];
+     
+  }, [data, view, anchorDate, currentTimeZone, loMinute, hiMinute, draftSlot]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
 
@@ -1146,18 +1411,22 @@ export function ScheduleCalendarTab({
   const onSelect = useCallback(
     (arg: any) => {
       const start: Date | null = arg.start ?? null;
+      const end: Date | null = arg.end ?? null;
       if (!start) return;
-      // FC (без tz-плагина) хранит настенное время в UTC-полях даты — читаем их
-      // напрямую, без конверсии зоны, иначе datetime-local уезжает на смещение.
-      const startLocal =
-        DateTime.fromJSDate(start, { zone: "utc" }).toFormat("yyyy-MM-dd'T'HH:mm") || null;
-      setSelected(null);
-      setCreateInitialStart(startLocal);
-      setShowCreatePanel(true);
-      onDeepLinkChange("appt", null);
+      lastSelectAtRef.current = Date.now();
+      openCreateDraft(start, end ?? null);
     },
-    [onDeepLinkChange],
+    [openCreateDraft],
   );
+
+  const closeDraftOrSelectionFromGrid = useCallback((): boolean => {
+    if (createFormDirty && showCreatePanel) {
+      const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+      if (!ok) return false;
+    }
+    clearDraftAndPanel();
+    return true;
+  }, [clearDraftAndPanel, createFormDirty, showCreatePanel]);
 
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
 
@@ -1212,28 +1481,35 @@ export function ScheduleCalendarTab({
     );
   }, [data?.events, searchQuery]);
 
-  // KPI modal: predicate map + filtered items
-  const KPI_PREDICATES: Partial<Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>> = {
-    cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
-    firstVisitInPeriod: (_e) => false, // no isFirstVisit field on type; show nothing
-    repeatVisitInPeriod: (_e) => false, // same
-    bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
-    pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
-    futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
-    uniquePatientsInPeriod: (_e) => true,
-    recordsInPeriod: (_e) => true,
-    reschedulesInPeriod: (e) => e.rescheduleCount > 0,
-  };
-
+  // KPI modal: predicate map + filtered items.
+  // firstVisitInPeriod / repeatVisitInPeriod use the id-set returned by the API
+  // (kpis.firstVisitIds) so the modal shows exactly the same appointments as the
+  // tile counter — matching the SQL NOT EXISTS logic that looks across ALL time,
+  // not just the visible feed window.
   const kpiModalItems = useMemo<CalendarAppointmentEvent[]>(() => {
     if (!kpiModalFilter) return [];
+
+    const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
+
+    const KPI_PREDICATES: Partial<Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>> = {
+      cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
+      firstVisitInPeriod: (e) => firstVisitIdSet.has(e.id),
+      repeatVisitInPeriod: (e) => !isCancelledAppointmentStatus(e.status) && !firstVisitIdSet.has(e.id),
+      bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
+      pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
+      futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
+      uniquePatientsInPeriod: (_e) => true,
+      recordsInPeriod: (_e) => true,
+      reschedulesInPeriod: (e) => e.rescheduleCount > 0,
+    };
+
     const pred = KPI_PREDICATES[kpiModalFilter];
     if (!pred) return [];
     return (data?.events ?? []).filter(
       (e): e is CalendarAppointmentEvent => e.kind === "appointment" && pred(e),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kpiModalFilter, data?.events, currentTimeZone]);
+     
+  }, [kpiModalFilter, data?.events, currentTimeZone, kpis?.firstVisitIds]);
 
   const kpiModalTitle = kpiModalFilter
     ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? "")
@@ -1241,8 +1517,7 @@ export function ScheduleCalendarTab({
 
   return (
     <div className={cn(
-      "flex flex-col gap-4",
-      renderMode === "list" && "overflow-hidden h-[calc(100dvh_-_3.5rem_-_9rem)]",
+      "flex flex-col gap-4 pb-4",
     )}>
       {/* KPI row (D2) — full width, hidden in day */}
       {showKpi ? (
@@ -1416,7 +1691,27 @@ export function ScheduleCalendarTab({
           size="sm"
           className="ml-auto"
           onClick={() => {
+            if (showCreatePanel && createFormDirty) {
+              const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+              if (!ok) return;
+            }
+            const defaultBranchId =
+              calendarSettings.defaultBranchId &&
+              filters.branches.some((branch) => branch.id === calendarSettings.defaultBranchId)
+                ? calendarSettings.defaultBranchId
+                : null;
+            const defaultServiceId =
+              calendarSettings.defaultServiceId &&
+              filters.services.some((service) => service.id === calendarSettings.defaultServiceId)
+                ? calendarSettings.defaultServiceId
+                : null;
             setSelected(null);
+            setCreateInitialStart(null);
+            setCreateInitialEnd(null);
+            setCreateInitialBranchId(defaultBranchId);
+            setCreateInitialServiceId(defaultServiceId);
+            setDraftSlot(null);
+            setCreateFormDirty(false);
             setShowCreatePanel(true);
           }}
           data-testid="create-appointment-btn"
@@ -1434,14 +1729,10 @@ export function ScheduleCalendarTab({
 
       {/* Main content row: calendar/list + aside panel */}
       <div className={cn(
-        "flex flex-col gap-4 lg:flex-row",
-        renderMode === "list" && "min-h-0 flex-1 overflow-hidden",
+        "flex flex-col gap-4 lg:flex-row lg:items-start",
       )}>
         {/* Content area */}
-        <div className={cn(
-          "min-w-0 flex-1",
-          renderMode === "list" && "overflow-y-auto",
-        )}>
+        <div className="min-w-0 flex-1">
           {renderMode === "list" ? (
             // List view — period-bound, grouped by day
             <ListView
@@ -1458,7 +1749,7 @@ export function ScheduleCalendarTab({
             />
           ) : (
             // FullCalendar
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-hidden rounded-xl border border-border bg-card pb-4">
               <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
                    (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
@@ -1474,31 +1765,43 @@ export function ScheduleCalendarTab({
                    --fc-bg-event-color to transparent on the .fc root means the very first
                    paint is transparent (not green); the Tailwind bg utilities apply in the
                    same frame and set the final colour normally.
-                   CR-8: non-working = #eee/0.6 (visible grey); break = #d1d5db/0.8 (darker). */
+                   CR-8: non-working = #eee/0.6, break = #eee/0.6 (both light, owner pref). */
                 .fc {
                   --fc-bg-event-color: transparent;
                 }
 
                 .fc-timegrid-event-harness { margin-inline: 1px; }
+                /* Pointer only on real (interactive) events. Background events —
+                   non-working fill + breaks — are not clickable (dateClick is
+                   suppressed over them), so they keep the default cursor instead of
+                   the misleading «hand». */
+                .fc-event:not(.fc-bg-event) {
+                  cursor: pointer !important;
+                }
                 .fc-event {
                   box-shadow: none !important;
-                  cursor: pointer !important;
                   --fc-event-text-color: var(--foreground) !important;
                 }
+                .fc-bg-event { cursor: default !important; }
                 .fc-event .fc-event-main { color: var(--foreground) !important; }
                 /* R10 — прошедшие записи приглушаем, будущие/актуальные ярче */
                 .fc-event.fc-event-past { opacity: 0.6; }
 
                 /* §3.9 — мягкая типографика заголовков колонок/дней */
+                .fc-col-header-cell {
+                  font-size: 0.75rem !important;
+                  font-weight: 500 !important;
+                }
                 .fc-col-header-cell-cushion {
                   font-size: 0.75rem !important;
                   font-weight: 500 !important;
                   text-transform: none !important;
                   color: var(--muted-foreground, currentColor) !important;
+                  padding-block: 0.25rem !important;
                 }
-                .fc-col-header-cell {
-                  font-size: 0.75rem !important;
-                  font-weight: 500 !important;
+                .fc .fc-scrollgrid-section-header th {
+                  padding-top: 0.125rem;
+                  padding-bottom: 0.125rem;
                 }
 
                 /* §3.10 — убрать жёлтую заливку «сегодня» в месяце */
@@ -1507,20 +1810,47 @@ export function ScheduleCalendarTab({
                   background-color: transparent !important;
                 }
 
-                /* §3.10/(б) — кружок «сегодня»: приглушённый прозрачно-зелёный.
-                   ВАЖНО: тема в oklch, --primary вообще синий → используем emerald
-                   через color-mix(in oklab, var(--color-emerald-500) …), иначе цвет
-                   получался невалидным/прозрачным (today был не виден). */
-                .fc-daygrid-day-number.fc-today-circle {
+                /* Красный круг вокруг сегодняшней даты во всех режимах. */
+                .fc-today-circle {
                   display: inline-flex;
                   align-items: center;
                   justify-content: center;
-                  width: 1.5rem;
-                  height: 1.5rem;
+                  min-width: 2.05rem;
+                  min-height: 2.05rem;
+                  padding: 0.2rem 0.2rem;
                   border-radius: 9999px;
-                  background-color: color-mix(in oklab, var(--color-emerald-500) 24%, transparent);
-                  color: var(--foreground);
+                  background-color: rgba(219, 113, 93, 0.85);
+                  color: white;
                   font-weight: 600;
+                }
+                .fc-timegrid-header-link {
+                  display: flex;
+                  min-height: 2.05rem;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 0.125rem;
+                  padding-block: 0.2rem;
+                  text-decoration: none;
+                }
+                .fc-timegrid-header-link.fc-today-circle {
+                  gap: 0.1rem;
+                  margin-inline: auto;
+                }
+                .fc-timegrid-header-weekday {
+                  font-size: 0.6875rem;
+                  line-height: 1;
+                  color: var(--muted-foreground);
+                  text-transform: none;
+                }
+                .fc-timegrid-header-day {
+                  font-size: 0.75rem;
+                  line-height: 1;
+                  color: var(--foreground);
+                }
+                .fc-timegrid-header-link.fc-today-circle .fc-timegrid-header-weekday,
+                .fc-timegrid-header-link.fc-today-circle .fc-timegrid-header-day {
+                  color: inherit;
                 }
 
                 /* §3.11 — мельче цифры дат в месячном виде */
@@ -1530,23 +1860,17 @@ export function ScheduleCalendarTab({
                   line-height: 1.5 !important;
                 }
 
-                /* §3.12 / CR-3 — «сегодня» в Неделя/3 дня: синеватый фон заголовка (primary, 18%) */
-                .fc-col-header-cell.fc-day-today {
-                  background-color: oklch(from var(--primary) l c h / 0.18) !important;
-                }
-                .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
-                  display: inline;
-                  width: auto;
-                  height: auto;
-                  border-radius: 0;
-                  background-color: transparent;
-                  font-weight: 600;
+                .fc-timegrid-slot-label-cushion,
+                .fc-timegrid-axis-cushion {
+                  padding-top: 0.125rem;
+                  padding-bottom: 0.125rem;
                 }
               `}</style>
               <FullCalendar
+                ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
                 locale={ruLocale}
-                key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}`}
+                key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}:${slotMinTime}:${slotMaxTime}`}
                 initialView={fcInitialView}
                 views={fcViews}
                 initialDate={anchorDate}
@@ -1561,6 +1885,10 @@ export function ScheduleCalendarTab({
                 selectable={view !== "month"}
                 selectMirror
                 selectMinDistance={5}
+                // #225: keep FC visual slot selection while the create panel is open.
+                // Default unselectAuto=true clears the blue drag highlight on click-elsewhere,
+                // making it look like the slot choice was lost even though the form is prefilled.
+                unselectAuto={false}
                 select={onSelect}
                 nowIndicator
                 dayMaxEvents
@@ -1609,57 +1937,55 @@ export function ScheduleCalendarTab({
                         );
                       },
                     }
-                  : {})}
+                  : {
+                      dayHeaderContent: (arg: { date: Date }) => {
+                        const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
+                        const isToday = dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
+                        return (
+                          <button
+                            type="button"
+                            className={cn("fc-timegrid-header-link", isToday && "fc-today-circle")}
+                            onClick={() => {
+                              const dateKey = dt.toISODate() ?? anchorDate;
+                              drillDownDay(dateKey);
+                            }}
+                          >
+                            <span className="fc-timegrid-header-weekday">
+                              {dt.setLocale("ru").toFormat("ccc")}
+                            </span>
+                            <span className="fc-timegrid-header-day">
+                              {dt.day}
+                            </span>
+                          </button>
+                        );
+                      },
+                    })}
                 eventClick={(arg) => {
                   const appointment = arg.event.extendedProps?.appointment as
                     | CalendarAppointmentEvent
                     | undefined;
                   if (!appointment) return;
+                  if (showCreatePanel && createFormDirty) {
+                    const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+                    if (!ok) return;
+                  }
                   setSelected(appointment);
                   setShowCreatePanel(false);
+                  setCreateInitialStart(null);
+                  setCreateInitialEnd(null);
+                  setCreateInitialBranchId(null);
+                  setCreateInitialServiceId(null);
+                  setDraftSlot(null);
+                  setCreateFormDirty(false);
                   onDeepLinkChange("appt", appointment.id);
                 }}
-                // C7: клик по свободному месту сетки → открыть форму создания с подставленным временем.
-                // В month-режиме allDay=true, время не определено — подставляем только дату.
-                // CR-2: клик по нерабочей (серой) зоне НЕ открывает панель создания.
                 dateClick={(arg) => {
-                  // CR-2: block create-panel when clicking inside a non-working background event.
-                  // CR-8: also block clicks on break («Перерыв») zones.
-                  const clickedMs = arg.date.getTime();
-                  const isNonWorkingOrBreak =
-                    Array.isArray(calendarEvents) &&
-                    (
-                      calendarEvents as Array<{
-                        start?: string;
-                        end?: string;
-                        extendedProps?: { kind?: string };
-                      }>
-                    ).some(
-                      (ev) =>
-                        (ev.extendedProps?.kind === "nonworking" ||
-                          ev.extendedProps?.kind === "break") &&
-                        ev.start &&
-                        ev.end &&
-                        new Date(ev.start).getTime() <= clickedMs &&
-                        clickedMs < new Date(ev.end).getTime(),
-                    );
-                  if (isNonWorkingOrBreak) return;
-
-                  const clicked: Date | null = arg.date ?? null;
-                  const isTimeGrid = !arg.allDay;
-                  const startLocal = clicked
-                    ? isTimeGrid
-                      ? DateTime.fromJSDate(clicked, { zone: "utc" }).toFormat(
-                          "yyyy-MM-dd'T'HH:mm",
-                        )
-                      : DateTime.fromJSDate(clicked, { zone: "utc" }).toFormat(
-                          "yyyy-MM-dd'T'09:00",
-                        )
-                    : null;
-                  setSelected(null);
-                  setCreateInitialStart(startLocal);
-                  setShowCreatePanel(true);
-                  onDeepLinkChange("appt", null);
+                  if (Date.now() - lastSelectAtRef.current < 150) return;
+                  if (selected || showCreatePanel) {
+                    closeDraftOrSelectionFromGrid();
+                    return;
+                  }
+                  openCreateDraft(arg.date, null);
                 }}
                 eventDrop={onDrop}
                 eventResize={onResize}
@@ -1695,7 +2021,7 @@ export function ScheduleCalendarTab({
         </div>
 
         {/* Right panel (D5) */}
-        <aside className="w-full shrink-0 lg:w-80">
+        <aside className="w-full shrink-0 self-start lg:w-80">
           {selected || showCreatePanel ? (
             <DoctorCalendarEventPanel
               apiBase={API_BASE}
@@ -1707,17 +2033,16 @@ export function ScheduleCalendarTab({
               startInCreate={showCreatePanel && !selected}
               // R32: подставленное время старта при выделении области
               createInitialStart={createInitialStart}
+              // #225: конец drag-интервала → длительность в форме создания
+              createInitialEnd={createInitialEnd}
+              createInitialBranchId={createInitialBranchId}
+              createInitialServiceId={createInitialServiceId}
+              onCreateDirtyChange={setCreateFormDirty}
               onClose={() => {
-                setSelected(null);
-                setShowCreatePanel(false);
-                setCreateInitialStart(null);
-                onDeepLinkChange("appt", null);
+                clearDraftAndPanel();
               }}
               onChanged={() => {
-                setSelected(null);
-                setShowCreatePanel(false);
-                setCreateInitialStart(null);
-                onDeepLinkChange("appt", null);
+                clearDraftAndPanel();
                 load();
               }}
             />
@@ -1726,7 +2051,26 @@ export function ScheduleCalendarTab({
               filterMeta={filters}
               activeFilters={activeFilters}
               branchId={branchId}
-              onCreateClick={() => setShowCreatePanel(true)}
+              onCreateClick={() => {
+                setSelected(null);
+                setCreateInitialStart(null);
+                setCreateInitialEnd(null);
+                setCreateInitialBranchId(
+                  calendarSettings.defaultBranchId &&
+                    filters.branches.some((branch) => branch.id === calendarSettings.defaultBranchId)
+                    ? calendarSettings.defaultBranchId
+                    : null,
+                );
+                setCreateInitialServiceId(
+                  calendarSettings.defaultServiceId &&
+                    filters.services.some((service) => service.id === calendarSettings.defaultServiceId)
+                    ? calendarSettings.defaultServiceId
+                    : null,
+                );
+                setDraftSlot(null);
+                setCreateFormDirty(false);
+                setShowCreatePanel(true);
+              }}
             />
           )}
         </aside>
@@ -1749,18 +2093,28 @@ export function ScheduleCalendarTab({
         title={kpiModalTitle}
         count={kpiModalItems.length}
         items={kpiModalItems}
-        searchPlaceholder="Поиск по имени…"
-        searchPredicate={(item, q) =>
-          (item.patientName ?? "").toLowerCase().includes(q.toLowerCase())
-        }
-        renderItem={(item) => (
-          <div className="flex justify-between items-center py-1 text-sm">
-            <span className="font-medium">{item.patientName ?? "Запись"}</span>
-            <span className="text-xs text-muted-foreground">
-              {parseFeedInstant(item.startAt, currentTimeZone).toFormat("d MMM HH:mm")}
-            </span>
-          </div>
-        )}
+        renderItem={(item) => {
+          const dt = parseFeedInstant(item.startAt, currentTimeZone);
+          // Match the «Сегодня» etalon row format: «HH:mm DD.MM».
+          const timeLabel = dt.toFormat("HH:mm dd.MM");
+          return (
+            <AppointmentKpiItem
+              item={{
+                clientLabel: item.patientName ?? "Запись",
+                time: timeLabel,
+                typeLabel: item.serviceTitle ?? null,
+                statusLabel: appointmentStatusLabel(item.status),
+                branchName: item.branchTitle ?? null,
+                altNameNote: null,
+                cancelled: isCancelledAppointmentStatus(item.status),
+                href: item.platformUserId
+                  ? routePaths.doctorPatientCard(item.platformUserId)
+                  : null,
+                ctaLabel: item.platformUserId ? "Открыть карточку" : null,
+              }}
+            />
+          );
+        }}
       />
     </div>
   );

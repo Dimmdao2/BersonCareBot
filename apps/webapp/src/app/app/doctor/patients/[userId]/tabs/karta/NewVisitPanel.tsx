@@ -4,37 +4,40 @@
  * NewVisitPanel — «+ Новый визит» form wired to the real clinical backend.
  *
  * Props:
- *   userId         — patient user id (injected server-side at POST but needed for catalog API)
- *   activeComplaints — real ActiveComplaint[] from /clinical (used in repeat-visit dynamics)
- *   activeDiagnoses  — real ActiveDiagnosis[] from /clinical (used in repeat-visit refinements)
- *   onClose        — close without saving
- *   onSaved        — called after successful POST /visits; parent re-fetches /clinical
+ *   userId             — patient user id
+ *   activeComplaints   — real ActiveComplaint[] from /clinical
+ *   activeDiagnoses    — real ActiveDiagnosis[] from /clinical
+ *   sourceAppointment  — when created from a booking: appointment data for calendar-icon preview
+ *   onClose            — close without saving
+ *   onSaved            — called after successful POST /visits; parent re-fetches /clinical
  *
- * Visit types:
- *   first  — doctor-entered complaint rows + diagnosis rows (start empty).
- *   repeat — dynamics cards keyed by real complaint ids; diagnosis-refinement cards
- *            keyed by real diagnosis ids; captures complaintUpdates / diagnosisUpdates.
- *
- * Diagnosis autocomplete:
- *   Debounce-fetches GET /api/doctor/patients/{userId}/diagnosis-catalog?q=…
- *   «+ Создать в справочнике» calls POST /api/doctor/patients/{userId}/diagnosis-catalog
- *   then uses the returned entry (sets text + catalogId).
- *
- * Date:
- *   ISO date string derived from the selected human-label option (YYYY-MM-DD format)
- *   sent as visitedAt.  For the dropdown we generate today ± a few days; today is default.
- *   If needed the parent can later pass an appointmentDate prop to pre-fill.
- *
- * On save:
- *   POST /api/doctor/patients/{userId}/visits with the correct body for visit type.
- *   On success → onSaved() (parent re-fetches + closes panel).
- *   On error → inline error message (does not crash).
+ * Changes from prior version (#208):
+ *   - DURATION field fully removed (input, state, validation, API payload).
+ *   - Branch dropdown now filters services by location (booking-engine locationAvailability).
+ *   - Calendar icon (📅) appears next to branch/service when a source appointment is linked;
+ *     clicking it shows a read-only mini-modal with appointment details.
+ *   - appointmentRecordId sent on save when created from a booking.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActiveComplaint, ActiveDiagnosis, DiagnosisCatalogSuggestion } from "@/modules/patient-clinical/ports";
+import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import { cn } from "@/lib/utils";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/shared/ui/doctor/primitives/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/doctor/primitives/dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,35 +45,45 @@ import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 
 type VisitType = "first" | "repeat";
 
-/** A doctor-entered complaint row for a first visit. */
 type FormComplaintEntry = {
-  id: string; // local UI id only
+  id: string;
   priority: boolean;
   text: string;
-  severity: number; // 0–10
+  severity: number;
 };
 
-/** A doctor-entered diagnosis row for a first visit. */
 type FormDiagnosisEntry = {
-  id: string; // local UI id only
+  id: string;
   priority: boolean;
   text: string;
   catalogId: string | null;
 };
 
-/** Per-complaint update state for a repeat visit. */
 type RepeatComplaintUpdate = {
   complaintId: string;
   note: string;
-  severity: number; // new severity 0–10
+  severity: number;
   resolved: boolean;
 };
 
-/** Per-diagnosis update state for a repeat visit. */
 type RepeatDiagnosisUpdate = {
   diagnosisId: string;
   refinement: string;
   removed: boolean;
+};
+
+/** Service from booking-engine catalog with optional branch filter data. */
+type ServiceOption = {
+  id: string;
+  title: string;
+  isActive: boolean;
+};
+
+/** Service-location link: which services are available in which branches. */
+type LocationAvailabilityEntry = {
+  serviceId: string;
+  branchId: string;
+  isActive: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -208,7 +221,7 @@ function DiagnosisAutocomplete({
       setDraft("");
       setSuggestions([]);
     } catch {
-      // silently ignore — user can retry
+      // silently ignore
     }
   };
 
@@ -268,6 +281,84 @@ function DiagnosisAutocomplete({
 }
 
 // ---------------------------------------------------------------------------
+// Booking info mini-modal (read-only, triggered by calendar icon)
+// ---------------------------------------------------------------------------
+
+function BookingInfoModal({
+  appointment,
+  open,
+  onClose,
+}: {
+  appointment: PatientAppointmentItem;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const dt = appointment.dateTime
+    ? new Date(appointment.dateTime).toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+
+  const statusLabel: Record<string, string> = {
+    upcoming: "Предстоящая",
+    completed: "Состоялась",
+    rescheduled: "Перенесена",
+    canceled: "Отменена",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Запись на приём</DialogTitle>
+          <DialogDescription>
+            <span className="flex flex-col gap-1.5 pt-1 text-sm text-foreground">
+              <span className="flex gap-2">
+                <span className="w-24 flex-none text-muted-foreground">Дата/время</span>
+                <span>{dt}</span>
+              </span>
+              <span className="flex gap-2">
+                <span className="w-24 flex-none text-muted-foreground">Статус</span>
+                <span>{statusLabel[appointment.status] ?? appointment.status}</span>
+              </span>
+              {appointment.location && (
+                <span className="flex gap-2">
+                  <span className="w-24 flex-none text-muted-foreground">Филиал</span>
+                  <span>{appointment.location}</span>
+                </span>
+              )}
+              {appointment.serviceName && (
+                <span className="flex gap-2">
+                  <span className="w-24 flex-none text-muted-foreground">Услуга</span>
+                  <span>{appointment.serviceName}</span>
+                </span>
+              )}
+              <span className="flex gap-2">
+                <span className="w-24 flex-none text-muted-foreground">ID записи</span>
+                <span className="break-all font-mono text-xs text-muted-foreground">{appointment.id}</span>
+              </span>
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
+          >
+            Закрыть
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -276,6 +367,10 @@ export function NewVisitPanel({
   activeComplaints,
   activeDiagnoses,
   pendingVisitDate,
+  pendingLocation,
+  pendingService,
+  sourceAppointment,
+  onPendingConsumed,
   onClose,
   onSaved,
 }: {
@@ -284,33 +379,156 @@ export function NewVisitPanel({
   activeDiagnoses: ActiveDiagnosis[];
   /** ISO date string (YYYY-MM-DD) to pre-fill the visit date from the appointment. */
   pendingVisitDate?: string | null;
+  /** Location (branch name) from the source appointment — pre-fills location field. */
+  pendingLocation?: string | null;
+  /** Service name from the source appointment — pre-fills service field. */
+  pendingService?: string | null;
+  /**
+   * The booking this visit is being created from (optional).
+   * When set: appointment info is shown via calendar icon (📅).
+   * When saving: appointmentRecordId (internalId) is included in the POST body.
+   */
+  sourceAppointment?: PatientAppointmentItem | null;
+  /** Called once after this component captures pending props into state. */
+  onPendingConsumed?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [visitType, setVisitType] = useState<VisitType>("repeat");
 
-  const [selectedDate, setSelectedDate] = useState(() =>
-    pendingVisitDate ? pendingVisitDate : toIsoDate(new Date()),
-  );
+  // Derive initial date from: pendingVisitDate prop > sourceAppointment.dateTime > today
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (pendingVisitDate) return pendingVisitDate;
+    if (sourceAppointment?.dateTime) {
+      const d = new Date(sourceAppointment.dateTime);
+      return toIsoDate(d);
+    }
+    return toIsoDate(new Date());
+  });
 
-  // If pendingVisitDate changes after initial render (e.g. parent updates), sync it in.
+  // Derive initial time from: sourceAppointment.dateTime > current time
+  const [selectedTime, setSelectedTime] = useState(() => {
+    if (sourceAppointment?.dateTime) {
+      const d = new Date(sourceAppointment.dateTime);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, "0");
+    const m = String(Math.round(now.getMinutes() / 5) * 5 % 60).padStart(2, "0");
+    return `${h}:${m}`;
+  });
+
   useEffect(() => {
     if (pendingVisitDate) {
       setSelectedDate(pendingVisitDate);
     }
   }, [pendingVisitDate]);
-  const [location, setLocation] = useState("");
-  const [service, setService] = useState("");
-  const [duration, setDuration] = useState("");
 
-  // Catalog options populated from patient appointments history
+  const [location, setLocation] = useState(() => pendingLocation ?? "");
+  const [service, setService] = useState(() => pendingService ?? "");
+
+  // Booking-engine service catalog for branch-filtered dropdowns
+  const [allServices, setAllServices] = useState<ServiceOption[]>([]);
+  const [locationAvailability, setLocationAvailability] = useState<LocationAvailabilityEntry[]>([]);
+  // Historical locations from past appointments
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
-  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
-  const [durationOptions, setDurationOptions] = useState<string[]>([]);
+  // Map from branch name → branch id (for filtering services)
+  const [branchNameToId, setBranchNameToId] = useState<Record<string, string>>({});
+
   // "other" mode for each field when user selects "Другое..."
   const [locationOther, setLocationOther] = useState(false);
   const [serviceOther, setServiceOther] = useState(false);
-  const [durationOther, setDurationOther] = useState(false);
+
+  // Calendar icon modal state
+  const [bookingInfoOpen, setBookingInfoOpen] = useState(false);
+
+  // Sync pending prefill fields if they change after initial render
+  useEffect(() => {
+    if (pendingLocation) setLocation(pendingLocation);
+    if (pendingService) setService(pendingService);
+    if (pendingLocation || pendingService) {
+      onPendingConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingLocation, pendingService]);
+
+  // Derive services available in the currently selected branch
+  const servicesForCurrentBranch = (() => {
+    const branchId = branchNameToId[location] ?? null;
+    if (!branchId || locationAvailability.length === 0) {
+      // No branch-service map available: show all active services
+      return allServices.filter((s) => s.isActive);
+    }
+    const serviceIdsInBranch = new Set(
+      locationAvailability
+        .filter((la) => la.branchId === branchId && la.isActive)
+        .map((la) => la.serviceId),
+    );
+    return allServices.filter((s) => s.isActive && serviceIdsInBranch.has(s.id));
+  })();
+
+  // Populate locations + service catalog from appointments history + booking-engine
+  useEffect(() => {
+    const snapshotLocation = pendingLocation;
+    const snapshotService = pendingService;
+
+    const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string }> }>) : null))
+      .catch(() => null);
+
+    const servicesFetch = fetch(`/api/doctor/booking-engine/services`)
+      .then((r) => (r.ok ? (r.json() as Promise<{
+        ok: boolean;
+        services?: Array<{ id: string; title: string; isActive: boolean }>;
+        locationAvailability?: Array<{ serviceId: string; branchId: string; isActive: boolean }>;
+      }>) : null))
+      .catch(() => null);
+
+    // Fetch branches to build name→id map
+    const overviewFetch = fetch(`/api/doctor/booking-engine/overview`)
+      .then((r) => (r.ok ? (r.json() as Promise<{
+        ok: boolean;
+        branches?: Array<{ id: string; title: string; shortTitle: string | null; isActive: boolean }>;
+      }>) : null))
+      .catch(() => null);
+
+    void Promise.all([apptsFetch, servicesFetch, overviewFetch]).then(([apptData, servicesData, overviewData]) => {
+      const appts = apptData?.appointments ?? [];
+
+      const uniqueLocations = [...new Set(
+        appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean),
+      )];
+      setLocationOptions(uniqueLocations);
+
+      setAllServices(
+        (servicesData?.services ?? []).map((s) => ({ id: s.id, title: s.title, isActive: s.isActive })),
+      );
+      setLocationAvailability(servicesData?.locationAvailability ?? []);
+
+      // Build branch name → id map from overview
+      const nameToId: Record<string, string> = {};
+      for (const b of (overviewData?.branches ?? [])) {
+        nameToId[b.title] = b.id;
+        if (b.shortTitle) nameToId[b.shortTitle] = b.id;
+      }
+      setBranchNameToId(nameToId);
+
+      // Pre-fill location from the most recent appointment (if not already set from source)
+      const latest = appts[0];
+      if (latest) {
+        if (!snapshotLocation && (latest.branchName ?? latest.location)) {
+          setLocation(latest.branchName ?? latest.location ?? "");
+        }
+        if (!snapshotService && latest.serviceName) setService(latest.serviceName);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // ── Draft persistence (#205) ───────────────────────────────────────────────
+  const draftKey = `nvp_draft_${userId}`;
+
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
@@ -318,14 +536,12 @@ export function NewVisitPanel({
   ]);
   const [firstDiagnoses, setFirstDiagnoses] = useState<FormDiagnosisEntry[]>([]);
 
-  // Text section state (first visit)
   const [examFirst, setExamFirst] = useState("");
   const [manipulationsFirst, setManipulationsFirst] = useState("");
   const [trialResultsFirst, setTrialResultsFirst] = useState("");
   const [recommendationsFirst, setRecommendationsFirst] = useState("");
 
   // ── REPEAT VISIT state ────────────────────────────────────────────────────
-  // Keyed by real complaint id (from activeComplaints)
   const [complaintUpdates, setComplaintUpdates] = useState<Record<string, RepeatComplaintUpdate>>(
     () =>
       Object.fromEntries(
@@ -336,7 +552,6 @@ export function NewVisitPanel({
       ),
   );
 
-  // Keyed by real diagnosis id (from activeDiagnoses)
   const [diagnosisUpdates, setDiagnosisUpdates] = useState<Record<string, RepeatDiagnosisUpdate>>(
     () =>
       Object.fromEntries(
@@ -347,12 +562,10 @@ export function NewVisitPanel({
       ),
   );
 
-  // Text section state (repeat visit)
   const [examRepeat, setExamRepeat] = useState("");
   const [manipulationsRepeat, setManipulationsRepeat] = useState("");
   const [recommendationsRepeat, setRecommendationsRepeat] = useState("");
 
-  // Re-seed repeat state when activeComplaints/activeDiagnoses change (e.g. userId switch)
   useEffect(() => {
     setComplaintUpdates(
       Object.fromEntries(
@@ -375,7 +588,6 @@ export function NewVisitPanel({
     );
   }, [activeDiagnoses]);
 
-  // Auto-switch visitType based on whether patient has active complaints/diagnoses
   useEffect(() => {
     if (activeComplaints.length === 0 && activeDiagnoses.length === 0) {
       setVisitType("first");
@@ -384,50 +596,82 @@ export function NewVisitPanel({
     }
   }, [activeComplaints, activeDiagnoses]);
 
-  // Populate location/service/duration from patient appointments history + booking-engine catalog
+  // ── Draft persistence + isDirty (#205) ────────────────────────────────────
+
+  type VisitDraft = {
+    visitType: VisitType;
+    examFirst: string;
+    manipulationsFirst: string;
+    trialResultsFirst: string;
+    recommendationsFirst: string;
+    examRepeat: string;
+    manipulationsRepeat: string;
+    recommendationsRepeat: string;
+  };
+
+  const isDirty =
+    examFirst.trim() !== "" ||
+    manipulationsFirst.trim() !== "" ||
+    trialResultsFirst.trim() !== "" ||
+    recommendationsFirst.trim() !== "" ||
+    examRepeat.trim() !== "" ||
+    manipulationsRepeat.trim() !== "" ||
+    recommendationsRepeat.trim() !== "" ||
+    firstComplaints.some((c) => c.text.trim() !== "") ||
+    firstDiagnoses.length > 0 ||
+    Object.values(complaintUpdates).some((u) => u.note.trim() !== "");
+
+  const draftRestoredRef = useRef(false);
   useEffect(() => {
-    const apptsFetch = fetch(`/api/doctor/patients/${userId}/appointments`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ appointments?: Array<{ location?: string; branchName?: string; serviceName?: string; durationMin?: number }> }>) : null))
-      .catch(() => null);
+    if (draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    if (pendingVisitDate ?? pendingLocation ?? pendingService) return;
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+      if (!raw) return;
+      const d = JSON.parse(raw) as VisitDraft;
+      if (d.visitType) setVisitType(d.visitType);
+      if (d.examFirst) setExamFirst(d.examFirst);
+      if (d.manipulationsFirst) setManipulationsFirst(d.manipulationsFirst);
+      if (d.trialResultsFirst) setTrialResultsFirst(d.trialResultsFirst);
+      if (d.recommendationsFirst) setRecommendationsFirst(d.recommendationsFirst);
+      if (d.examRepeat) setExamRepeat(d.examRepeat);
+      if (d.manipulationsRepeat) setManipulationsRepeat(d.manipulationsRepeat);
+      if (d.recommendationsRepeat) setRecommendationsRepeat(d.recommendationsRepeat);
+    } catch {
+      // Malformed draft
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const servicesFetch = fetch(`/api/doctor/booking-engine/services`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ ok: boolean; services?: Array<{ title: string; durationMinutes: number; isActive: boolean }> }>) : null))
-      .catch(() => null);
+  useEffect(() => {
+    if (!isDirty) return;
+    try {
+      const draft: VisitDraft = {
+        visitType,
+        examFirst,
+        manipulationsFirst,
+        trialResultsFirst,
+        recommendationsFirst,
+        examRepeat,
+        manipulationsRepeat,
+        recommendationsRepeat,
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {
+      // localStorage unavailable
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isDirty,
+    visitType,
+    examFirst, manipulationsFirst, trialResultsFirst, recommendationsFirst,
+    examRepeat, manipulationsRepeat, recommendationsRepeat,
+  ]);
 
-    void Promise.all([apptsFetch, servicesFetch]).then(([apptData, servicesData]) => {
-      const appts = apptData?.appointments ?? [];
-
-      const uniqueLocations = [...new Set(
-        appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean)
-      )];
-
-      // Merge appointment history services with booking-engine active services
-      const apptServices = appts.map((a) => a.serviceName ?? "").filter(Boolean);
-      const catalogServices = (servicesData?.services ?? [])
-        .filter((s) => s.isActive)
-        .map((s) => s.title);
-      const uniqueServices = [...new Set([...apptServices, ...catalogServices])];
-
-      // Merge appointment history durations with booking-engine active durations
-      const apptDurations = appts.map((a) => (a.durationMin ? `${a.durationMin} мин` : "")).filter(Boolean);
-      const catalogDurations = (servicesData?.services ?? [])
-        .filter((s) => s.isActive)
-        .map((s) => `${s.durationMinutes} мин`);
-      const uniqueDurations = [...new Set([...apptDurations, ...catalogDurations])];
-
-      setLocationOptions(uniqueLocations);
-      setServiceOptions(uniqueServices);
-      setDurationOptions(uniqueDurations);
-
-      // Pre-fill from the most recent appointment
-      const latest = appts[0];
-      if (latest) {
-        if (latest.branchName ?? latest.location) setLocation(latest.branchName ?? latest.location ?? "");
-        if (latest.serviceName) setService(latest.serviceName);
-        if (latest.durationMin) setDuration(`${latest.durationMin} мин`);
-      }
-    });
-  }, [userId]);
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+  }, [draftKey]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
@@ -436,11 +680,10 @@ export function NewVisitPanel({
   const handleSave = async () => {
     setSaveError(null);
 
-    // Client-side validation — required fields (VIZ-13)
+    // Client-side validation — required fields
     const missing: string[] = [];
     if (!location.trim()) missing.push("Место приёма");
     if (!service.trim()) missing.push("Услуга");
-    if (!duration.trim()) missing.push("Длительность");
     if (missing.length > 0) {
       setSaveError(`Заполните обязательные поля: ${missing.join(", ")}`);
       return;
@@ -448,20 +691,20 @@ export function NewVisitPanel({
 
     setSaving(true);
 
-    // Build ISO visitedAt: selectedDate is already YYYY-MM-DD
-    const visitedAt = `${selectedDate}T12:00:00.000Z`;
+    const visitedAt = `${selectedDate}T${selectedTime}:00`;
 
-    // Build body — patientUserId + createdBy are injected server-side
     const body: Record<string, unknown> = {
       visitType,
-      date: visitedAt,      // API field name from task spec
+      date: visitedAt,
       location: location.trim() || undefined,
       service: service.trim() || undefined,
-      duration: duration.trim() || undefined,
+      // appointmentRecordId links the visit to the source booking (uses internalId = appointment_records.id uuid)
+      ...(sourceAppointment?.internalId
+        ? { appointmentRecordId: sourceAppointment.internalId }
+        : {}),
     };
 
     if (visitType === "first") {
-      // Filter out empty complaint rows
       const validComplaints = firstComplaints.filter((c) => c.text.trim());
       if (validComplaints.length > 0) {
         body.complaints = validComplaints.map((c) => ({
@@ -483,7 +726,6 @@ export function NewVisitPanel({
       if (trialResultsFirst.trim()) body.trialResults = trialResultsFirst;
       if (recommendationsFirst.trim()) body.recommendations = recommendationsFirst;
     } else {
-      // Repeat: only send updates that have content or changed severity
       const cuList = Object.values(complaintUpdates)
         .filter((u) => u.note.trim() || u.resolved || u.severity !== (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity))
         .map((u) => ({
@@ -518,7 +760,7 @@ export function NewVisitPanel({
         const text = await r.text().catch(() => "");
         throw new Error(`status ${r.status}${text ? `: ${text}` : ""}`);
       }
-      // Success — parent re-fetches /clinical and closes panel
+      clearDraft();
       onSaved();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Ошибка сохранения");
@@ -562,28 +804,50 @@ export function NewVisitPanel({
         </span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => {
+            if (isDirty) { setCloseConfirmOpen(true); return; }
+            onClose();
+          }}
           title="Закрыть"
           className="order-last ml-auto rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
         >
           ✕
         </button>
-        <span className="flex flex-wrap gap-1.5">
-          {/* Date picker — DoctorDatePicker (shared project picker, ISO yyyy-MM-dd) */}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {/* Date picker */}
           <DoctorDatePicker value={selectedDate} onChange={setSelectedDate} />
+          {/* Time picker */}
+          <input
+            type="time"
+            value={selectedTime}
+            onChange={(e) => setSelectedTime(e.target.value)}
+            className={cn(chipSelectClass, "w-[6.5rem]")}
+            title="Время визита"
+          />
+          {/* Branch / location */}
           {locationOptions.length > 0 && !locationOther ? (
-            <select
+            <Select
               value={location}
-              onChange={(e) => {
-                if (e.target.value === "__other__") { setLocationOther(true); setLocation(""); }
-                else setLocation(e.target.value);
+              onValueChange={(v) => {
+                if (v === "__other__") { setLocationOther(true); setLocation(""); }
+                else {
+                  setLocation(v ?? "");
+                  // When branch changes, reset service if it's no longer available
+                  setService("");
+                  setServiceOther(false);
+                }
               }}
-              className={cn(chipSelectClass, "w-32")}
             >
-              <option value="">— место приёма —</option>
-              {locationOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-              <option value="__other__">Другое...</option>
-            </select>
+              <SelectTrigger
+                displayLabel={location || "— место приёма —"}
+                className="h-[26px] min-w-[7.5rem] px-2 text-xs"
+              />
+              <SelectContent>
+                <SelectItem value="">— место приёма —</SelectItem>
+                {locationOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                <SelectItem value="__other__">Другое...</SelectItem>
+              </SelectContent>
+            </Select>
           ) : (
             <input
               type="text"
@@ -593,19 +857,25 @@ export function NewVisitPanel({
               className={cn(chipSelectClass, "w-32 placeholder:text-muted-foreground/60")}
             />
           )}
-          {serviceOptions.length > 0 && !serviceOther ? (
-            <select
+          {/* Service — filtered by selected branch */}
+          {servicesForCurrentBranch.length > 0 && !serviceOther ? (
+            <Select
               value={service}
-              onChange={(e) => {
-                if (e.target.value === "__other__") { setServiceOther(true); setService(""); }
-                else setService(e.target.value);
+              onValueChange={(v) => {
+                if (v === "__other__") { setServiceOther(true); setService(""); }
+                else setService(v ?? "");
               }}
-              className={cn(chipSelectClass, "w-28")}
             >
-              <option value="">— услуга —</option>
-              {serviceOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-              <option value="__other__">Другое...</option>
-            </select>
+              <SelectTrigger
+                displayLabel={service || "— услуга —"}
+                className="h-[26px] min-w-[7rem] px-2 text-xs"
+              />
+              <SelectContent>
+                <SelectItem value="">— услуга —</SelectItem>
+                {servicesForCurrentBranch.map((o) => <SelectItem key={o.id} value={o.title}>{o.title}</SelectItem>)}
+                <SelectItem value="__other__">Другое...</SelectItem>
+              </SelectContent>
+            </Select>
           ) : (
             <input
               type="text"
@@ -615,47 +885,47 @@ export function NewVisitPanel({
               className={cn(chipSelectClass, "w-28 placeholder:text-muted-foreground/60")}
             />
           )}
-          {durationOptions.length > 0 && !durationOther ? (
-            <select
-              value={duration}
-              onChange={(e) => {
-                if (e.target.value === "__other__") { setDurationOther(true); setDuration(""); }
-                else setDuration(e.target.value);
-              }}
-              className={cn(chipSelectClass, "w-24")}
+          {/* Calendar icon — shows source appointment info when present */}
+          {sourceAppointment && (
+            <button
+              type="button"
+              onClick={() => setBookingInfoOpen(true)}
+              title="Информация о записи"
+              className="flex-none rounded-md border border-border bg-background px-1.5 py-1 text-sm hover:bg-primary/10"
+              aria-label="Просмотр записи"
             >
-              <option value="">— длит. —</option>
-              {durationOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-              <option value="__other__">Другое...</option>
-            </select>
-          ) : (
-            <input
-              type="text"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="Длительность"
-              className={cn(chipSelectClass, "w-24 placeholder:text-muted-foreground/60")}
-            />
+              📅
+            </button>
           )}
         </span>
       </div>
-      <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
-        Если у пациента есть запись на сегодня — дата, локация, услуга и длительность подставляются из
-        неё автоматически
-      </p>
 
-      {/* body (independently scrollable) */}
+      {/* Hint: source booking label */}
+      {sourceAppointment ? (
+        <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
+          Визит создаётся из записи{sourceAppointment.dateTime
+            ? ` от ${new Date(sourceAppointment.dateTime).toLocaleDateString("ru-RU", { day: "2-digit", month: "long" })}`
+            : ""}
+          {" "}· нажмите 📅 для просмотра деталей записи
+        </p>
+      ) : (
+        <p className={cn(hintClass, "border-b border-border px-3.5 py-1.5")}>
+          Визит без привязки к записи на приём
+        </p>
+      )}
+
+      {/* body */}
       <div className="flex flex-col gap-3 overflow-y-auto px-3.5 py-3">
         {visitType === "first" ? (
           <>
-            {/* Жалобы (first visit — doctor-entered, start with one blank row) */}
+            {/* Жалобы */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
-                <span className={fieldLabelClass}>Жалобы</span>
+                <span className={fieldLabelClass}>Симптомы</span>
                 <button
                   type="button"
                   onClick={addFirstComplaint}
-                  title="Добавить жалобу"
+                  title="Добавить симптом"
                   className="grid h-[17px] w-[17px] place-items-center rounded-md border border-primary/40 text-xs text-primary"
                 >
                   +
@@ -679,7 +949,7 @@ export function NewVisitPanel({
                           prev.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x)),
                         )
                       }
-                      placeholder="Описание жалобы…"
+                      placeholder="Описание симптома…"
                       className={inputClass}
                     />
                     <span className="flex flex-none items-center gap-1 text-xs text-muted-foreground">
@@ -715,8 +985,7 @@ export function NewVisitPanel({
                 ))}
               </div>
               <p className={hintClass}>
-                Каждая строка — жалоба-сущность с выраженностью 0–10: попадает в карту как
-                «актуальная». Значение обновляется на каждом визите → график динамики. ⚑ — приоритет
+                ⚑ — приоритет · 0–10 — выраженность
               </p>
             </div>
 
@@ -728,7 +997,7 @@ export function NewVisitPanel({
               onChange={setExamFirst}
             />
 
-            {/* Предварительный диагноз (first visit — doctor-entered via catalog) */}
+            {/* Предварительный диагноз */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
                 <span className={fieldLabelClass}>Предварительный диагноз</span>
@@ -760,12 +1029,10 @@ export function NewVisitPanel({
                     </button>
                   </div>
                 ))}
-                {/* Autocomplete input */}
                 <DiagnosisAutocomplete userId={userId} onSelect={addFirstDiagnosis} />
               </div>
               <p className={hintClass}>
-                Диагнозы — из справочника клинических диагнозов: автокомплит по вводу,
-                новый создаётся в справочнике и переиспользуется у других пациентов
+                Автокомплит по справочнику, «+ Создать» — добавляет в общий справочник
               </p>
             </div>
 
@@ -790,11 +1057,11 @@ export function NewVisitPanel({
           </>
         ) : (
           <>
-            {/* Динамика симптомов — real active complaints, keyed by id */}
+            {/* Динамика симптомов */}
             <div className="flex flex-col gap-1.5">
-              <span className={fieldLabelClass}>Динамика симптомов — по актуальным жалобам</span>
+              <span className={fieldLabelClass}>Динамика симптомов</span>
               {activeComplaints.length === 0 && (
-                <p className={hintClass}>Нет активных жалоб — добавьте жалобы через первичный визит.</p>
+                <p className={hintClass}>Нет активных симптомов — добавьте через первичный визит.</p>
               )}
               <div className="flex flex-col gap-2">
                 {activeComplaints.map((c) => {
@@ -818,7 +1085,7 @@ export function NewVisitPanel({
                       </div>
                       <textarea
                         className={cn(textareaClass, "mt-1.5 min-h-[40px]")}
-                        placeholder="Динамика жалобы…"
+                        placeholder="Динамика симптома…"
                         value={upd.note}
                         onChange={(e) => setUpd({ note: e.target.value })}
                       />
@@ -858,9 +1125,9 @@ export function NewVisitPanel({
               onChange={setExamRepeat}
             />
 
-            {/* Уточнение диагноза — real active diagnoses, keyed by id */}
+            {/* Уточнение диагноза */}
             <div className="flex flex-col gap-1.5">
-              <span className={fieldLabelClass}>Уточнение диагноза — по текущим</span>
+              <span className={fieldLabelClass}>Уточнение диагноза</span>
               {activeDiagnoses.length === 0 && (
                 <p className={hintClass}>Нет активных диагнозов — добавьте через первичный визит.</p>
               )}
@@ -886,7 +1153,7 @@ export function NewVisitPanel({
                       <input
                         value={upd.refinement}
                         onChange={(e) => setUpd({ refinement: e.target.value })}
-                        placeholder="Уточнение (из справочника)..."
+                        placeholder="Уточнение..."
                         className={cn(inputClass, "mt-1.5 w-full")}
                       />
                       <label className="mt-1.5 flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
@@ -944,11 +1211,52 @@ export function NewVisitPanel({
           </button>
           {!saveError && (
             <span className={cn(hintClass, "ml-auto")}>
-              Ручное сохранение — данные не сохраняются до нажатия «Сохранить визит»
+              Ручное сохранение
             </span>
           )}
         </div>
       </div>
+
+      {/* Close-with-unsaved-changes confirm */}
+      <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Несохранённые изменения</DialogTitle>
+            <DialogDescription>
+              Введённые данные не сохранены. Закрыть форму и потерять изменения?
+              <br />
+              <span className="mt-1 block text-xs">
+                Черновик сохранён — он будет восстановлен при следующем открытии формы.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setCloseConfirmOpen(false)}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
+            >
+              Вернуться
+            </button>
+            <button
+              type="button"
+              onClick={() => { setCloseConfirmOpen(false); onClose(); }}
+              className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
+            >
+              Закрыть без сохранения
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Booking info modal (calendar icon click) */}
+      {sourceAppointment && (
+        <BookingInfoModal
+          appointment={sourceAppointment}
+          open={bookingInfoOpen}
+          onClose={() => setBookingInfoOpen(false)}
+        />
+      )}
     </div>
   );
 }

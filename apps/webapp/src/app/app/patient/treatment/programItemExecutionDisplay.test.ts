@@ -74,14 +74,20 @@ describe("resolveProgramItemExecutionDots", () => {
 
 describe("formatProgramItemLastDoneSummaryText", () => {
   it("formats reps and weight", () => {
-    expect(formatProgramItemLastDoneSummaryText({ reps: 12, weightKg: 5 })).toBe(
-      "В прошлый раз сделано 12 повторений с весом 5 кг",
+    expect(formatProgramItemLastDoneSummaryText({ reps: 12, sets: 3, weightKg: 5 })).toBe(
+      "12 × 3 с весом 5 кг",
     );
   });
 
   it("formats reps only", () => {
     expect(formatProgramItemLastDoneSummaryText({ reps: 10, weightKg: null })).toBe(
-      "В прошлый раз сделано 10 повторений",
+      "10",
+    );
+  });
+
+  it("hides empty done summary", () => {
+    expect(formatProgramItemLastDoneSummaryText({ reps: null, sets: null, weightKg: null })).toBe(
+      null,
     );
   });
 });

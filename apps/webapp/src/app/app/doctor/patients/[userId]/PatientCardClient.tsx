@@ -8,7 +8,8 @@
  */
 import { useState, useEffect, type ReactNode } from "react";
 import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
-import type { ClinicalState, Visit } from "@/modules/patient-clinical/ports";
+import type { AnamnesisState, ClinicalState, Visit } from "@/modules/patient-clinical/ports";
+import type { Comorbidity } from "@/modules/patient-comorbidities/ports";
 import type { DoctorNoteRow } from "@/modules/doctor-notes/ports";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
@@ -22,16 +23,20 @@ import {
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check, Scale } from "lucide-react";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { formatFioForDoctor } from "@/lib/parseFullName";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
 import { PatientTabKarta } from "./tabs/PatientTabKarta";
 import { PatientTabProgram } from "./tabs/PatientTabProgram";
 import { PatientTabRecords } from "./tabs/PatientTabRecords";
-import { PatientTabFiles } from "./tabs/PatientTabFiles";
-import { PatientTabAccount } from "./tabs/PatientTabAccount";
+import { PatientTabFiles, type FileRecord } from "./tabs/PatientTabFiles";
+import { PatientTabAccount, type SupplementaryContact } from "./tabs/PatientTabAccount";
 import { PatientTabComms } from "./tabs/PatientTabComms";
-import { PatientTabFinances } from "./tabs/PatientTabFinances";
+import { PatientTabFinances, type FinancesInitialData } from "./tabs/PatientTabFinances";
+import type { ApiPackage, PaymentItem, AppointmentPrefill } from "./tabs/PatientTabRecords";
+import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
 
 type Props = {
   cardHeader: PatientCardHeader | null;
@@ -50,6 +55,24 @@ type Props = {
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
   initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
+  /** SSR-provided files list (previewUrl will be null — presigning deferred to client). */
+  initialFiles?: FileRecord[] | null;
+  /** SSR-provided anamnesis for the Карта tab. */
+  initialAnamnesis?: AnamnesisState | null;
+  /** SSR-provided active comorbidities for the Карта tab. */
+  initialComorbidities?: Comorbidity[] | null;
+  /** SSR-provided payment timeline data for the Финансы tab. */
+  initialFinancesData?: FinancesInitialData | null;
+  /** SSR-provided supplementary contacts for the Учётка tab (SecondaryPhones). */
+  initialSupplementaryContacts?: SupplementaryContact[] | null;
+  /** SSR-provided patient packages for the Визиты tab (MembershipPanel) and Обзор tab. */
+  initialPackages?: ApiPackage[] | null;
+  /** SSR-provided payments summary for the Визиты tab (PaymentsPanel). */
+  initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
+  /** SSR-provided effective support policy for the Обзор tab (DoctorClientSupportPanel). */
+  initialSupportEffectivePolicy?: PatientProgramInteractionPolicy | null;
+  /** Whether the viewer is an admin — gates the «Администрирование» section in PatientTabAccount. */
+  isAdmin?: boolean;
 };
 
 type TabId = "overview" | "karta" | "program" | "records" | "files" | "account" | "comms" | "finances";
@@ -98,7 +121,7 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, isAdmin = false }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -107,6 +130,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     createVisitFrom ?? null,
   );
   const [pendingVisitDate, setPendingVisitDate] = useState<string | null>(visitDate ?? null);
+  const [pendingPrefillLocation, setPendingPrefillLocation] = useState<string | null>(null);
+  const [pendingPrefillService, setPendingPrefillService] = useState<string | null>(null);
+  const [pendingPrefillDurationMin, setPendingPrefillDurationMin] = useState<number | null>(null);
 
   // FIO inline edit state
   const [fioEditing, setFioEditing] = useState(false);
@@ -319,8 +345,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
   const hasEmail = Boolean(identity.email);
-  // Chat is available if any messaging channel is bound
-  const hasChat = hasTelegram || hasMax;
+  // Чат доступен, если привязан канал ИЛИ уже есть переписка (история сообщений):
+  // сообщение сохранится в любом случае, привязанному каналу уйдёт ещё и пуш.
+  const hasChat = hasTelegram || hasMax || identity.hasConversation;
 
   return (
     <div className="flex flex-col gap-3">
@@ -342,14 +369,15 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   <span className="text-base font-bold text-foreground leading-tight">
                     {hasFio ? fioDisplay : (identity.displayName || "—")}
                   </span>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     title="Редактировать ФИО"
                     onClick={openFioEdit}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+                    className="h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
                   >
                     <Pencil className="h-3 w-3" />
-                  </button>
+                  </Button>
                 </div>
 
                 {/* displayName as secondary label (отображаемое имя) */}
@@ -461,24 +489,24 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   <p className="text-xs text-destructive">{fioError}</p>
                 )}
                 <div className="flex gap-2 mt-0.5">
-                  <button
-                    type="button"
+                  <Button
+                    variant="default"
                     onClick={saveFio}
                     disabled={fioSaving}
-                    className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium disabled:opacity-60"
                   >
                     <Check className="h-3 w-3" />
                     {fioSaving ? "Сохранение…" : "Сохранить"}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={cancelFioEdit}
                     disabled={fioSaving}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60"
                   >
                     <X className="h-3 w-3" />
                     Отмена
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -514,14 +542,15 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     ? `${physicalWeightKg} кг`
                     : "Рост/вес: —"}
                 </span>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Редактировать рост и вес"
                   onClick={openPhysicalEdit}
-                  className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+                  className="h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
                 >
                   <Scale className="h-3 w-3" />
-                </button>
+                </Button>
               </div>
             )}
 
@@ -560,24 +589,24 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   <p className="text-xs text-destructive">{physicalError}</p>
                 )}
                 <div className="flex gap-2 mt-0.5">
-                  <button
-                    type="button"
+                  <Button
+                    variant="default"
                     onClick={savePhysical}
                     disabled={physicalSaving}
-                    className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium disabled:opacity-60"
                   >
                     <Check className="h-3 w-3" />
                     {physicalSaving ? "Сохранение…" : "Сохранить"}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={cancelPhysicalEdit}
                     disabled={physicalSaving}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60 cursor-pointer transition-colors"
+                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60"
                   >
                     <X className="h-3 w-3" />
                     Отмена
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -599,59 +628,65 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
 
               {/* Channel icon buttons — lucide-react icons; active = colored, inactive = muted */}
               <span className="flex gap-1">
-                <button
-                  type="button"
+                <DoctorOpenChatButton
+                  patientUserId={identity.userId}
+                  patientName={identity.displayName ?? undefined}
+                  variant="ghost"
+                  size="icon"
                   title="Открыть чат"
                   disabled={!hasChat}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasChat
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
+                </DoctorOpenChatButton>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Telegram"
                   disabled={!hasTelegram}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasTelegram
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <Send className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="MAX"
                   disabled={!hasMax}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasMax
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <Smartphone className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Написать email"
                   disabled={!hasEmail}
                   onClick={() => hasEmail && (window.location.href = `mailto:${identity.email}`)}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs transition-colors",
+                    "h-6 w-6 rounded-md border text-xs",
                     hasEmail
-                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 cursor-pointer"
-                      : "border-transparent bg-muted/30 text-muted-foreground/40 cursor-not-allowed",
+                      ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/15"
+                      : "border-transparent bg-muted/30 text-muted-foreground/40",
                   )}
                 >
                   <Mail className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </span>
             </div>
           </div>
@@ -707,12 +742,12 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         <div className="px-4 py-2 border-t border-border/60 bg-muted/20">
           <div className="flex gap-0.5 flex-wrap">
             {PATIENT_TABS.map((tab) => (
-              <button
+              <Button
                 key={tab.id}
-                type="button"
+                variant="ghost"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition-colors select-none cursor-pointer",
+                  "h-auto gap-1 rounded-md px-3 py-1 text-sm font-medium",
                   activeTab === tab.id
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -731,7 +766,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     {tab.badge}
                   </span>
                 )}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -752,6 +787,8 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           initialSignals={initialSignals}
           initialProgramActivity={initialProgramActivity}
           initialAppointments={initialAppointments}
+          initialPackages={initialPackages}
+          initialSupportEffectivePolicy={initialSupportEffectivePolicy}
         />
       </div>
       <div className={cn(activeTab !== "karta" && "hidden")}>
@@ -760,12 +797,20 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           header={header}
           pendingAppointmentId={pendingAppointmentId}
           pendingVisitDate={pendingVisitDate}
+          pendingPrefillLocation={pendingPrefillLocation}
+          pendingPrefillService={pendingPrefillService}
+          pendingPrefillDurationMin={pendingPrefillDurationMin}
           onPendingConsumed={() => {
             setPendingAppointmentId(null);
             setPendingVisitDate(null);
+            setPendingPrefillLocation(null);
+            setPendingPrefillService(null);
+            setPendingPrefillDurationMin(null);
           }}
           initialClinicalState={initialClinicalState}
           initialVisits={initialVisits}
+          initialAnamnesis={initialAnamnesis}
+          initialComorbidities={initialComorbidities}
         />
       </div>
       <div className={cn(activeTab !== "program" && "hidden")}>
@@ -777,24 +822,39 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         <PatientTabRecords
           userId={identity.userId}
           header={header}
-          onCreateVisitFromAppointment={(apptId) => {
-            setPendingAppointmentId(apptId);
+          onCreateVisitFromAppointment={(prefill: AppointmentPrefill) => {
+            setPendingAppointmentId(prefill.id);
+            setPendingPrefillLocation(prefill.location ?? null);
+            setPendingPrefillService(prefill.service ?? null);
+            setPendingPrefillDurationMin(prefill.durationMin ?? null);
             setActiveTab("karta");
           }}
           initialAppointments={initialAppointments}
+          initialPackages={initialPackages}
+          initialPaymentsSummary={initialPaymentsSummary}
         />
       </div>
       <div className={cn(activeTab !== "files" && "hidden")}>
-        <PatientTabFiles userId={identity.userId} header={header} />
+        <PatientTabFiles
+          userId={identity.userId}
+          header={header}
+          initialFiles={initialFiles ?? undefined}
+        />
       </div>
       <div className={cn(activeTab !== "account" && "hidden")}>
-        <PatientTabAccount userId={identity.userId} header={header} active={activeTab === "account"} />
+        <PatientTabAccount
+          userId={identity.userId}
+          header={header}
+          active={activeTab === "account"}
+          initialSupplementaryContacts={initialSupplementaryContacts}
+          isAdmin={isAdmin}
+        />
       </div>
       <div className={cn(activeTab !== "comms" && "hidden")}>
         <PatientTabComms userId={identity.userId} initialProgramInstances={initialProgramInstances} />
       </div>
       <div className={cn(activeTab !== "finances" && "hidden")}>
-        <PatientTabFinances userId={identity.userId} />
+        <PatientTabFinances userId={identity.userId} initialData={initialFinancesData} />
       </div>
     </div>
   );

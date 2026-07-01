@@ -6,7 +6,7 @@
 
 1. **Hero** — ФИО (`InlineEditField`), телефон (ссылка «Привязать» / «Изменить» → `/app/patient/bind-phone?next=…`), email (`EmailAccountPanel`).
 2. **Мессенджеры** — всегда `ConnectMessengersBlock` (Telegram / MAX, сетка 2 колонки).
-3. **Уведомления** — ссылки «Настройка» и «Расписание» (`/app/patient/notifications`, `/app/patient/reminders`).
+3. **Уведомления** — ссылки «Настройка» и «Расписание» (`/app/patient/notifications/settings`, `/app/patient/reminders`).
 4. **Календарный пояс (UTC / IANA)** — `PatientCalendarTimezoneSection` (всегда видимая секция под уведомлениями).
 5. **Удаление данных дневника** — согласие → OTP на привязанный номер.
 6. **Выход** — форма POST `/api/auth/logout` (не показывается в контексте бота).

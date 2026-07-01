@@ -3,7 +3,9 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { mediaFolders, platformUsers } from "../../../db/schema/schema";
 import {
   CLIENT_FILES_ROOT_FOLDER_NAME,
+  CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY,
   clientPatientFolderBaseName,
+  clientPatientFolderFioName,
   clientPatientFolderFallbackName,
 } from "@/modules/media/clientFilesFolders";
 import type { MediaFolderKind, MediaFolderRecord } from "@/modules/media/types";
@@ -35,6 +37,8 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
     .limit(1);
   if (hasRoot) return;
 
+  // Match either the current name ("Пациенты") or the legacy name ("Файлы клиентов")
+  // so existing root folders are recognised and promoted rather than duplicated.
   await db
     .update(mediaFolders)
     .set({ kind: "client_files_root", updatedAt: sql`now()` })
@@ -42,7 +46,7 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
       and(
         sql`${mediaFolders.parentId} IS NULL`,
         eq(mediaFolders.kind, "standard"),
-        eq(mediaFolders.nameNormalized, CLIENT_FILES_ROOT_FOLDER_NAME.toLowerCase()),
+        sql`${mediaFolders.nameNormalized} IN (${CLIENT_FILES_ROOT_FOLDER_NAME.toLowerCase()}, ${CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY.toLowerCase()})`,
       ),
     );
 }
@@ -54,7 +58,19 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
     .from(mediaFolders)
     .where(eq(mediaFolders.kind, "client_files_root"))
     .limit(1);
-  if (existing) return mapFolderRow(existing);
+  if (existing) {
+    // If the folder exists but still carries the legacy name, rename it in-place.
+    // This handles environments where the 0133 migration has not yet been applied.
+    if (existing.nameNormalized === CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY.toLowerCase()) {
+      const [renamed] = await db
+        .update(mediaFolders)
+        .set({ name: CLIENT_FILES_ROOT_FOLDER_NAME, updatedAt: sql`now()` })
+        .where(eq(mediaFolders.id, existing.id))
+        .returning();
+      if (renamed) return mapFolderRow(renamed);
+    }
+    return mapFolderRow(existing);
+  }
 
   await promoteLegacyClientFilesRootFolder(db);
 
@@ -77,20 +93,25 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
   return mapFolderRow(created);
 }
 
-async function resolvePatientDisplayName(patientUserId: string): Promise<string> {
+async function resolvePatientDisplayNameAndPhone(
+  patientUserId: string,
+): Promise<{ displayName: string; phoneNormalized: string | null }> {
   const db = getDrizzle();
   const [row] = await db
     .select({
       firstName: platformUsers.firstName,
       lastName: platformUsers.lastName,
+      patronymic: platformUsers.patronymic,
       displayName: platformUsers.displayName,
+      phoneNormalized: platformUsers.phoneNormalized,
     })
     .from(platformUsers)
     .where(eq(platformUsers.id, patientUserId))
     .limit(1);
-  if (!row) return "Клиент";
-  const full = [row.firstName, row.lastName].filter(Boolean).join(" ").trim();
-  return full || row.displayName?.trim() || "Клиент";
+  if (!row) return { displayName: "Клиент", phoneNormalized: null };
+  const fio = clientPatientFolderFioName(row.lastName, row.firstName, row.patronymic);
+  const displayName = fio !== "Клиент" ? fio : row.displayName?.trim() || "Клиент";
+  return { displayName, phoneNormalized: row.phoneNormalized ?? null };
 }
 
 async function insertClientPatientFolder(
@@ -120,9 +141,9 @@ export async function pgEnsureClientPatientFolder(patientUserId: string): Promis
   if (existing) return mapFolderRow(existing);
 
   const root = await pgEnsureClientFilesRootFolder();
-  const displayName = await resolvePatientDisplayName(patientUserId);
+  const { displayName, phoneNormalized } = await resolvePatientDisplayNameAndPhone(patientUserId);
   const primaryName = clientPatientFolderBaseName(displayName);
-  const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId);
+  const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId, phoneNormalized);
 
   try {
     return await insertClientPatientFolder(db, {
@@ -178,6 +199,38 @@ export type MediaFolderAssignmentError =
   | "client_folder_requires_patient"
   | "system_folder_readonly";
 
+/**
+ * Validates that a name-change PATCH on a system-managed folder is permitted.
+ *
+ * Rules:
+ * - `client_files_root`: name changes are never allowed → throws 409 system_folder_readonly
+ * - `client_patient`: name changes are allowed (returns void)
+ * - `standard`: not covered here; callers should skip this for standard folders
+ */
+export async function pgValidatePatientFolderRename(
+  folderId: string,
+  _newName: string,
+): Promise<void> {
+  const db = getDrizzle();
+  const [row] = await db
+    .select({ kind: mediaFolders.kind })
+    .from(mediaFolders)
+    .where(eq(mediaFolders.id, folderId))
+    .limit(1);
+
+  if (!row) {
+    // not_found is handled upstream; treat as readonly here to be safe
+    const err = Object.assign(new Error("system_folder_readonly"), { statusCode: 409 });
+    throw err;
+  }
+
+  if (row.kind !== "client_patient") {
+    const err = Object.assign(new Error("system_folder_readonly"), { statusCode: 409 });
+    throw err;
+  }
+  // client_patient rename is allowed — nothing more to check
+}
+
 export async function pgValidateUserAssignableMediaFolder(
   folderId: string | null,
 ): Promise<{ ok: true } | { ok: false; error: MediaFolderAssignmentError }> {
@@ -196,4 +249,16 @@ export async function pgValidateManualFolderParent(
   if (!parent) return { ok: false, error: "folder_not_found" };
   if (isSystemManagedMediaFolder(parent.kind)) return { ok: false, error: "system_folder_readonly" };
   return { ok: true };
+}
+
+/**
+ * Returns true if folderId is inside the client-files subtree (client_files_root or client_patient).
+ * Uses the existing recursive CTE (clientFilesSubtreeFolderIdsSql).
+ */
+export async function pgIsFolderInClientSubtree(folderId: string): Promise<boolean> {
+  const db = getDrizzle();
+  const result = await db.execute(
+    sql`SELECT EXISTS(SELECT 1 FROM (${clientFilesSubtreeFolderIdsSql()}) AS sub WHERE sub.id = ${folderId}::uuid) AS in_subtree`
+  );
+  return (result.rows[0] as { in_subtree: boolean } | undefined)?.in_subtree === true;
 }

@@ -640,6 +640,26 @@ bash deploy/host/deploy-prod.sh
 - restart API / worker / webapp (и media-worker при наличии unit)
 - health check API
 
+### Тест-деплой на `151.x` (feat → test)
+
+**Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. CI (`ci.yml`) деплоит только `main`→прод (`on: push: branches: [main]`). Тест-сервер (`151.x`) держит **зеркало** текущей dev-ветки и обновляется **вручную одной командой**.
+
+```bash
+# от пользователя dev (скрипт сам делает sudo для deploy/systemctl):
+bash deploy/host/deploy-test.sh            # ветка по умолчанию feat/doctor-ui-rebuild
+bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
+```
+
+- **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
+- **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
+- **Что делает скрипт:** bundle ветки из dev-репо → force-align тест-checkout → `pnpm install --frozen-lockfile` → `pnpm build` + `pnpm build:webapp` + media-worker build + sync standalone assets → `pnpm migrate` (integrator + webapp Drizzle, env-файлы выбирают `bersoncarebot_test`) → restart 5 тест-юнитов → health + проверка, что `awg-quick@awg0` (прод-релей) жив. Бэкап БД не делает: тест-БД восстанавливается `restore-test-db.sh` из прод-дампа.
+- **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
+- **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
+- **Пересоздание тест-БД из прод-дампа** (когда прогон дедупа/миграций испортил данные и нужна чистая копия прода): host-скрипты лежат в `/home/dev/bcb-test-setup/` — **НЕ в репозитории** (содержат креды тест-БД). Порядок:
+  1. `sudo -u postgres bash /tmp/bcb-test-setup/restore-test-db.sh` — пересоздаёт `bersoncarebot_test` из прод-hourly-дампа (restore выполняется ПОДКЛЮЧАЯСЬ ролью `bersoncarebot_test`, чтобы объекты принадлежали ей; дамп предварительно обновить `pg_dump -Fc` из свежего бэкапа);
+  2. `sudo -u postgres psql -d bersoncarebot_test -v ON_ERROR_STOP=1 -f /tmp/bcb-test-setup/test-settings-override.sql` — настройки безопасности (`app_base_url`, maintenance ON, `dev_mode`, `test_account_identifiers`, OAuth-redirects на тест-домен) + DB-lock-триггер на ключевые ключи;
+  3. `bash deploy/host/deploy-test.sh` — миграции + сборка + рестарт.
+
 ### Отдельный webapp deploy
 
 ```bash

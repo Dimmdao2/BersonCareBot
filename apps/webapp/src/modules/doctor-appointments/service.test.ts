@@ -56,6 +56,7 @@ describe("doctor-appointments service", () => {
         futureInPeriod: 0,
         bySubscriptionInPeriod: 0,
         firstVisitInPeriod: 0,
+        firstVisitIds: [],
         repeatVisitInPeriod: 0,
         uniquePatientsInPeriod: 0,
         cancellationsInPeriod: 0,
@@ -118,7 +119,7 @@ describe("doctor-appointments service", () => {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
       },
       async getScheduleKpis() {
-        return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
+        return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, firstVisitIds: [], repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
       },
       async getAppointmentDailySeries() {
         return { daySeries: [], branchSeries: [] };
@@ -168,7 +169,7 @@ describe("doctor-appointments service", () => {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
       },
       async getScheduleKpis() {
-        return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
+        return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, firstVisitIds: [], repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
       },
       async getAppointmentDailySeries() {
         return { daySeries: [], branchSeries: [] };
@@ -219,6 +220,7 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
       futureInPeriod: 7,
       bySubscriptionInPeriod: 1,
       firstVisitInPeriod: 1,
+      firstVisitIds: ["appt-x"],
       repeatVisitInPeriod: 8,
       uniquePatientsInPeriod: 5,
       cancellationsInPeriod: 3,
@@ -234,6 +236,7 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
       futureInPeriod: 7,
       bySubscriptionInPeriod: 1,
       firstVisitInPeriod: 1,
+      firstVisitIds: ["appt-x"],
       repeatVisitInPeriod: 8,
       uniquePatientsInPeriod: 5,
       cancellationsInPeriod: 3,
@@ -249,6 +252,7 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
       futureInPeriod: 0,
       bySubscriptionInPeriod: 0,
       firstVisitInPeriod: 0,
+      firstVisitIds: [],
       repeatVisitInPeriod: 0,
       uniquePatientsInPeriod: 0,
       cancellationsInPeriod: 0,
@@ -272,6 +276,7 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
       futureInPeriod: 2,
       bySubscriptionInPeriod: 1,
       firstVisitInPeriod: 2,
+      firstVisitIds: ["appt-a", "appt-b"],
       repeatVisitInPeriod: 3,
       uniquePatientsInPeriod: 4,
       cancellationsInPeriod: 1,

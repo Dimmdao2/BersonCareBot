@@ -1,3 +1,6 @@
+"use client";
+
+import { useCallback, useState } from "react";
 import { CircleHelp, Dumbbell, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { DateTime } from "luxon";
@@ -23,11 +26,12 @@ type Props = {
   data: TodayDashboardData;
   kpiStats: DoctorStatsState;
   appointmentsTodayCount: number;
+  /** #9: explicit week count so it equals the modal list length (includes cancelled). */
+  weekAppointmentsCount?: number;
   monthAppointmentCount: number;
   displayIana: string;
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
   adminRegistrationFailureBanner?: AdminRegistrationFailureAttention;
-  showAnalyticsLink?: boolean;
   /**
    * Рабочие границы дня (§1.2, S4): вычислены на сервере через deriveWorkingBounds.
    * Прокидываются в мини-календарь как базовое окно рабочего дня.
@@ -40,11 +44,11 @@ export function DoctorTodayDashboard({
   data,
   kpiStats,
   appointmentsTodayCount,
+  weekAppointmentsCount,
   monthAppointmentCount,
   displayIana,
   adminHealthBanner,
   adminRegistrationFailureBanner,
-  // showAnalyticsLink убран из шапки «Сегодня» (R3) — проп больше не читается
   todayWorkingBounds,
 }: Props) {
   // Вычисляем серверное время в бизнес-таймзоне для mini-calendar и карточки приёма
@@ -52,6 +56,16 @@ export function DoctorTodayDashboard({
   const nowMinutes = nowDt.hour * 60 + nowDt.minute;
   const todayIso = nowDt.toISODate() ?? new Date().toISOString().slice(0, 10);
   const todayDateLabel = nowDt.setLocale("ru").toFormat("EEE, d MMMM");
+
+  // SEG-07: Общий счётчик комментариев к упражнениям — синхронизирует KPI-тайл
+  // (DoctorTodayLeftKpiRow) и диалог «Сигналы пациентов» (DoctorTodaySignalsSection).
+  const [exerciseCommentTotal, setExerciseCommentTotal] = useState(
+    data.exerciseCommentAttentionTotal,
+  );
+  // stageItemId is passed by the dialog but we only need to decrement the counter
+  const handleExerciseCommentResolved = useCallback((_stageItemId: string) => {
+    setExerciseCommentTotal((prev) => Math.max(0, prev - 1));
+  }, []);
 
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
@@ -103,6 +117,7 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
+            exerciseCommentsTotalOverride={exerciseCommentTotal}
           />
 
           {/* §1.3: Задачи — поднять над «На сопровождении» */}
@@ -110,6 +125,7 @@ export function DoctorTodayDashboard({
             initialTasks={data.globalOpenTasks}
             initialTasksTotal={data.globalOpenTasksTotal}
             todayIso={todayIso}
+            displayIana={displayIana}
             className="flex-1"
           />
 
@@ -233,6 +249,7 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
+            onExerciseCommentResolved={handleExerciseCommentResolved}
           />
         </div>
 
@@ -241,11 +258,12 @@ export function DoctorTodayDashboard({
           {/* 3 KPI: Записи сегодня, Записи неделя, Записи месяц */}
           <DoctorTodayRightKpiRow
             appointmentsTodayCount={appointmentsTodayCount}
-            weekAppointmentsCount={kpiStats.appointments.total}
+            weekAppointmentsCount={weekAppointmentsCount ?? kpiStats.appointments.total}
             monthAppointmentCount={monthAppointmentCount}
             todayAppointments={data.todayAppointments}
             weekAppointments={data.weekAppointments}
             monthAppointments={data.monthAppointments}
+            displayIana={displayIana}
           />
 
           {/* §1.1: Мини-календарь — расписание на сегодня (выше «Следующей записи») */}

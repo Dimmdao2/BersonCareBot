@@ -33,6 +33,7 @@ type Props = {
   userId: string;
   instanceId: string;
   profileListScope?: string;
+  displayIana?: string;
 };
 
 type FetchState<T> =
@@ -45,6 +46,7 @@ export function DoctorProgramOverviewPanel({
   userId,
   instanceId,
   profileListScope,
+  displayIana,
 }: Props) {
   const [windowDays, setWindowDays] = useState<7 | 30>(7);
 
@@ -131,6 +133,7 @@ export function DoctorProgramOverviewPanel({
               dayBars={dayBars}
               windowDays={windowDays}
               onWindowChange={setWindowDays}
+              displayIana={displayIana}
             />
           </div>
         )}

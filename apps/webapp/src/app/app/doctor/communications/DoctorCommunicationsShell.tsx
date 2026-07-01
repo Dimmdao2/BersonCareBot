@@ -112,6 +112,8 @@ export type DoctorCommunicationsShellProps = {
   badges?: Partial<Record<CommunicationsTabId, number>>;
   /** SSR-данные конкретных табов (ключ — id таба). Сейчас используется для comments. */
   initialTabData?: Partial<Record<CommunicationsTabId, unknown>>;
+  /** IANA timezone name for display (e.g. "Europe/Moscow"). Threaded to all tab components. */
+  displayIana?: string;
 };
 
 /**
@@ -127,6 +129,7 @@ export function DoctorCommunicationsShell({
   initialTab,
   badges,
   initialTabData,
+  displayIana,
 }: DoctorCommunicationsShellProps) {
   const resolvedInit: CommunicationsTabId = (() => {
     if (initialTab) return initialTab;
@@ -242,6 +245,7 @@ export function DoctorCommunicationsShell({
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}
               initialData={initialTabData?.[tabId]}
               isActive={tabId === activeTab}
+              displayIana={displayIana}
             />
           </div>
         );

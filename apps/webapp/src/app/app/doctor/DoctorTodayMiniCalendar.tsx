@@ -79,23 +79,65 @@ export function DoctorTodayMiniCalendar({
   onCanonicalEventClick,
   onEventClick,
 }: Props) {
-  // slotMinTime/slotMaxTime из рабочих границ (с буфером по 30 мин), иначе дефолт
-  const slotMinTime = workingBounds != null
-    ? minuteToHHMM(Math.max(0, workingBounds.startMinute - 30))
-    : DEFAULT_SLOT_MIN;
-  const slotMaxTime = workingBounds != null
-    ? minuteToHHMM(Math.min(24 * 60, workingBounds.endMinute + 30))
-    : DEFAULT_SLOT_MAX;
-
   // Сегодня в бизнес-таймзоне
   const todayIso =
     DateTime.now().setZone(displayIana).toISODate() ??
     new Date().toISOString().slice(0, 10);
 
+  // #7: слот мин/макс = рабочие границы ± 1 ч, расширяем до крайних записей за пределами рабочего.
+  const { slotMinTime, slotMaxTime, slotLoMinute, slotHiMinute } = (() => {
+    // Collect appointment edge minutes from calendarEvents (canonical) or legacy list.
+    let earliestApptMin: number | null = null;
+    let latestApptMin: number | null = null;
+    if (calendarEvents && calendarEvents.length > 0) {
+      for (const ev of calendarEvents) {
+        const s = DateTime.fromISO(ev.startAt, { zone: displayIana });
+        const e = DateTime.fromISO(ev.endAt, { zone: displayIana });
+        if (s.isValid) {
+          const sm = s.hour * 60 + s.minute;
+          earliestApptMin = earliestApptMin == null ? sm : Math.min(earliestApptMin, sm);
+        }
+        if (e.isValid) {
+          const em = e.hour * 60 + e.minute;
+          latestApptMin = latestApptMin == null ? em : Math.max(latestApptMin, em);
+        }
+      }
+    }
+    if (workingBounds != null) {
+      const workStart = workingBounds.startMinute;
+      const workEnd = workingBounds.endMinute;
+      // #7: visible = [min(workStart-1h, earliestAppt), max(workEnd+1h, latestAppt)]
+      const lo = Math.max(0, Math.min(workStart - 60, earliestApptMin ?? workStart - 60));
+      const hi = Math.min(24 * 60, Math.max(workEnd + 60, latestApptMin ?? workEnd + 60));
+      return {
+        slotMinTime: minuteToHHMM(lo),
+        slotMaxTime: minuteToHHMM(hi),
+        slotLoMinute: lo,
+        slotHiMinute: hi,
+      };
+    }
+    const loMin = 9 * 60; // 09:00 default
+    const hiMin = 19 * 60; // 19:00 default
+    return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX, slotLoMinute: loMin, slotHiMinute: hiMin };
+  })();
+
+  // #6: if today has NO schedule (workingBounds === null, explicitly closed/no data),
+  // paint the whole visible column grey. When workingBounds is undefined (not yet known)
+  // we leave the calendar white — same as before.
+  const bgFillEvent = workingBounds === null
+    ? [{
+        id: "nonwork:today:all",
+        start: `${todayIso}T${minuteToHHMM(slotLoMinute)}`,
+        end: `${todayIso}T${minuteToHHMM(slotHiMinute)}`,
+        display: "background" as const,
+        classNames: ["!bg-[#eeeeee]", "!opacity-60"],
+      }]
+    : [];
+
   // Build FullCalendar events.
   // Priority: canonical events (calendarEvents prop) > legacy TodayAppointmentItem list.
   // Canonical events have be_appointments.id which is what DoctorCalendarEventPanel expects.
-  const fcEvents = (() => {
+  const fcAppointmentEvents = (() => {
     if (calendarEvents && calendarEvents.length > 0) {
       // Map CalendarAppointmentEvent → FC event (same pattern as ScheduleCalendarTab)
       return calendarEvents.map((appt) => ({
@@ -129,6 +171,8 @@ export function DoctorTodayMiniCalendar({
     });
   })();
 
+  const fcEvents = [...bgFillEvent, ...fcAppointmentEvents];
+
   return (
     <DoctorSection id="doctor-today-mini-calendar">
       <div className="flex items-center justify-between gap-2">
@@ -136,7 +180,7 @@ export function DoctorTodayMiniCalendar({
         <span className={doctorSectionSubtitleClass}>{todayDateLabel}</span>
       </div>
 
-      {/* R1: подсказка «нет записей» + ссылка на расписание, но сам FC-день всегда виден */}
+      {/* R1: empty-state hint + link to schedule; the FC day stays visible regardless */}
       {appointments.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           Записей на сегодня нет —{" "}
@@ -159,8 +203,12 @@ export function DoctorTodayMiniCalendar({
 
       <div className="overflow-hidden rounded-lg border border-border">
         <style>{`
+          /* CAL-P1: kill green flash on first paint (same fix as ScheduleCalendarTab). */
+          #doctor-today-mini-calendar .fc {
+            --fc-bg-event-color: transparent;
+          }
           /* Текст событий — тёмный (FC форсит белый через --fc-event-text-color) */
-          #doctor-today-mini-calendar .fc-event {
+          #doctor-today-mini-calendar .fc-event:not(.fc-bg-event) {
             box-shadow: none !important;
             cursor: pointer !important;
             --fc-event-text-color: var(--foreground) !important;

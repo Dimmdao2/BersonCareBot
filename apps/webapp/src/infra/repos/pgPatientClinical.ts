@@ -181,6 +181,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           status: d.status === "refined" ? "refined" : "active",
           clinicalStatus: (d.clinicalStatus ?? "предварительный") as DiagnosisClinicalStatus,
           meta,
+          comment: d.comment ?? null,
         };
       });
 
@@ -424,9 +425,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     },
 
     async updateDiagnosisFields(input: UpdateDiagnosisFieldsInput): Promise<boolean> {
-      const set: Partial<{ text: string; priority: boolean }> = {};
+      const set: Partial<{ text: string; priority: boolean; comment: string | null }> = {};
       if (input.text !== undefined) set.text = input.text;
       if (input.priority !== undefined) set.priority = input.priority;
+      if (input.comment !== undefined) set.comment = input.comment;
       if (Object.keys(set).length === 0) return false;
       const db = getDrizzle();
       const updated = await db
@@ -635,6 +637,22 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const row = rows[0];
       if (!row) throw new Error("clinical_anamnesis_lifestyle insert failed");
       return { id: row.id, date: fmtDisplayDate(row.recordDate), text: row.text };
+    },
+
+    async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ appointmentRecordId: clinicalVisit.appointmentRecordId })
+        .from(clinicalVisit)
+        .where(
+          and(
+            eq(clinicalVisit.patientUserId, patientUserId),
+            // Only non-null links
+          ),
+        );
+      return rows
+        .map((r) => r.appointmentRecordId)
+        .filter((id): id is string => id != null);
     },
   };
 }

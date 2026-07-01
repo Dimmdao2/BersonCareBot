@@ -29,7 +29,7 @@ describe("fanOutBroadcastWebPush", () => {
         intentType: "news",
         topicCode: "patient_news",
         broadcastTitle: "Акция",
-        openUrl: expect.stringContaining("/app/patient/messages"),
+        openUrl: expect.stringContaining("/app/patient?notifications=1"),
       }),
       {},
     );

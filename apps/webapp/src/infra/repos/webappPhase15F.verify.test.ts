@@ -14,6 +14,10 @@ const RAW_SQL_INVENTORY = join(
 const CLASS_B_POOL_QUERY_REL = [
   "infra/db/runWebappSql.ts",
   "infra/repos/pgAdminPlatformUserStats.ts",
+  // Added wave3 phase 15G: pool.query for Drizzle ANY-array workaround (broadcast count by user subset)
+  "infra/repos/broadcastChannelCounts.ts",
+  // Added wave3 phase 15G: simple doctor timezone GET/PATCH via pool.query
+  "app/api/doctor/account/timezone/route.ts",
 ] as const;
 
 /** Class B: healthcheck on dedicated PoolClient. */
@@ -123,7 +127,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
       }
     }
     expect(offenders).toEqual([]);
-    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(2);
+    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(4);
   });
 
   it("client.query only in Class B health + Class C allowlist (23 files)", () => {
@@ -181,7 +185,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
         runtimeTail.add(rel);
       }
     }
-    expect(runtimeTail.size).toBe(25);
+    expect(runtimeTail.size).toBe(27);
     expect([...runtimeTail].sort()).toEqual(
       [...CLASS_B_POOL_QUERY_REL, ...CLASS_B_CLIENT_QUERY_REL, ...CLASS_C_CLIENT_QUERY_REL].sort(),
     );

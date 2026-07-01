@@ -55,10 +55,10 @@ describe("BookingPoliciesSection", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     fetchMock
-      .mockResolvedValueOnce({ json: async () => policiesResponse })
-      .mockResolvedValueOnce({ json: async () => ({ ok: true, specialists: [], services: [] }) })
-      .mockResolvedValueOnce({ json: async () => ({ ok: true, products: [] }) })
-      .mockResolvedValue({ json: async () => ({ ok: true }) });
+      .mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify(policiesResponse) })
+      .mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ ok: true, specialists: [], services: [] }) })
+      .mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ ok: true, products: [] }) })
+      .mockResolvedValue({ ok: true, text: async () => JSON.stringify({ ok: true }) });
     vi.stubGlobal("fetch", fetchMock);
   });
 
@@ -87,12 +87,7 @@ describe("BookingPoliciesSection", () => {
 
   it("saves reschedule policy with full flags model", async () => {
     const user = userEvent.setup();
-    render(<BookingPoliciesSection />);
-    await screen.findByRole("button", { name: "Сохранить отмену" });
-
-    const kindSelect = screen.getAllByRole("combobox")[1];
-    await user.click(kindSelect);
-    await user.click(screen.getByRole("option", { name: "Перенос" }));
+    render(<BookingPoliciesSection defaultKind="reschedule" />);
     await user.click(await screen.findByRole("button", { name: "Сохранить перенос" }));
 
     await waitFor(() => {

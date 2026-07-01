@@ -25,6 +25,19 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
   const [historyOpen, setHistoryOpen] = useState(false);
   const [programCheckDone, setProgramCheckDone] = useState(false);
 
+  const programHref = (instanceId: string) =>
+    `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(instanceId)}`;
+
+  // PROG-50: warm the (heavy, library-fetching) program-editor route as soon as we know the
+  // active instance — even while this tab is still CSS-hidden — so the eventual tab-click
+  // navigation is near-instant instead of showing a «Загрузка программы…» wait.
+  const knownActiveInstanceId =
+    initialProgramInstances?.find((i) => i.status !== "completed")?.id ?? null;
+  useEffect(() => {
+    if (knownActiveInstanceId) router.prefetch(programHref(knownActiveInstanceId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knownActiveInstanceId, userId]);
+
   // PROG-01: if active program exists, navigate directly to its editor.
   // Guard: only trigger when this tab is actually visible — without this guard the
   // component mounts (even when CSS-hidden) and fires router.push unconditionally.
@@ -33,11 +46,10 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
     if (initialProgramInstances != null) {
       const activeInstance = initialProgramInstances.find((i) => i.status !== "completed");
       if (activeInstance) {
-        router.push(
-          `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(activeInstance.id)}`,
-        );
+        router.push(programHref(activeInstance.id));
         return;
       }
+       
       setProgramCheckDone(true);
       return;
     }
@@ -49,9 +61,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
         if (data.ok && Array.isArray(data.items)) {
           const activeInst = data.items.find((i) => i.status !== "completed");
           if (activeInst) {
-            router.push(
-              `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(activeInst.id)}`,
-            );
+            router.push(programHref(activeInst.id));
             return;
           }
         }
@@ -63,12 +73,22 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- programHref не мемоизирован; добавление в deps дало бы перезапуск эффекта каждый рендер
   }, [userId, router, active, initialProgramInstances]);
 
   if (!programCheckDone) {
+    // Skeleton mirroring the editor (toolbar + stage cards) — shown only briefly while the
+    // prefetched program route resolves; reads as intentional rather than a bare loading line.
     return (
-      <div className={cn(doctorSectionCardClass)}>
-        <p className="text-sm text-muted-foreground">Загрузка программы…</p>
+      <div className={cn(doctorSectionCardClass, "gap-3")} aria-busy="true">
+        <div className="flex items-center justify-between gap-2">
+          <div className="h-5 w-44 animate-pulse rounded-md bg-muted" />
+          <div className="h-7 w-32 animate-pulse rounded-md bg-muted" />
+        </div>
+        <div className="h-16 animate-pulse rounded-lg bg-muted/70" />
+        <div className="h-16 animate-pulse rounded-lg bg-muted/60" />
+        <div className="h-16 animate-pulse rounded-lg bg-muted/50" />
+        <span className="sr-only">Загрузка программы…</span>
       </div>
     );
   }

@@ -3382,6 +3382,8 @@ describe('executeAction', () => {
         postOccurrenceDone: vi.fn(),
         postReminderMuteUntil: vi.fn(),
         postMessengerTopicDisable: vi.fn(),
+        getNotificationSettings: vi.fn().mockResolvedValue({ ok: true, topics: [] }),
+        toggleNotificationTopic: vi.fn().mockResolvedValue({ ok: true, newState: false }),
       };
       const action: Action = {
         id: 'skip-preset-webapp',
@@ -3462,6 +3464,8 @@ describe('executeAction', () => {
         postOccurrenceDone: vi.fn(),
         postReminderMuteUntil: vi.fn(),
         postMessengerTopicDisable,
+        getNotificationSettings: vi.fn().mockResolvedValue({ ok: true, topics: [] }),
+        toggleNotificationTopic: vi.fn().mockResolvedValue({ ok: true, newState: false }),
       };
       const action: Action = {
         id: 'bot-off-tg',
@@ -3539,6 +3543,8 @@ describe('executeAction', () => {
         postOccurrenceDone: vi.fn(),
         postReminderMuteUntil: vi.fn(),
         postMessengerTopicDisable,
+        getNotificationSettings: vi.fn().mockResolvedValue({ ok: true, topics: [] }),
+        toggleNotificationTopic: vi.fn().mockResolvedValue({ ok: true, newState: false }),
       };
       const action: Action = {
         id: 'bot-off-max',
@@ -3598,6 +3604,8 @@ describe('executeAction', () => {
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
         postMessengerTopicDisable: vi.fn(),
+        getNotificationSettings: vi.fn().mockResolvedValue({ ok: true, topics: [] }),
+        toggleNotificationTopic: vi.fn().mockResolvedValue({ ok: true, newState: false }),
       };
       const action: Action = {
         id: 'done-1',
@@ -3648,6 +3656,8 @@ describe('executeAction', () => {
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
         postMessengerTopicDisable: vi.fn(),
+        getNotificationSettings: vi.fn().mockResolvedValue({ ok: true, topics: [] }),
+        toggleNotificationTopic: vi.fn().mockResolvedValue({ ok: true, newState: false }),
       };
       const action: Action = {
         id: 'done-2',
@@ -3691,6 +3701,8 @@ describe('executeAction', () => {
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
         postMessengerTopicDisable: vi.fn(),
+        getNotificationSettings: vi.fn().mockResolvedValue({ ok: true, topics: [] }),
+        toggleNotificationTopic: vi.fn().mockResolvedValue({ ok: true, newState: false }),
       };
       const action: Action = {
         id: 'done-3',
@@ -3740,6 +3752,8 @@ describe('executeAction', () => {
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
         postMessengerTopicDisable: vi.fn(),
+        getNotificationSettings: vi.fn().mockResolvedValue({ ok: true, topics: [] }),
+        toggleNotificationTopic: vi.fn().mockResolvedValue({ ok: true, newState: false }),
       };
       const action: Action = {
         id: 'done-max-1',

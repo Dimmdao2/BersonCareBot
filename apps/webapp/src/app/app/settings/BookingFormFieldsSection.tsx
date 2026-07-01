@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -58,14 +59,17 @@ export function BookingFormFieldsSection({ layout = "cards" }: { layout?: "cards
   const [draft, setDraft] = useState(emptyDraft());
 
   const load = useCallback(async () => {
-    const res = await fetch(BASE);
-    const json = (await res.json()) as { ok?: boolean; fields?: Field[]; error?: string };
-    if (!json.ok || !json.fields) {
-      setError(json.error ?? "load_failed");
-      return;
+    try {
+      const json = await apiJson<{ ok?: boolean; fields?: Field[]; error?: string }>(BASE);
+      if (!json.fields) {
+        setError("load_failed");
+        return;
+      }
+      setFields(json.fields);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "load_failed");
     }
-    setFields(json.fields);
-    setError(null);
   }, []);
 
   useEffect(() => {
@@ -76,24 +80,28 @@ export function BookingFormFieldsSection({ layout = "cards" }: { layout?: "cards
 
   function saveField(field: Field | (Omit<Field, "id"> & { id?: string })) {
     startTransition(async () => {
-      await fetch(BASE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: "id" in field ? field.id : undefined,
-          fieldKey: field.fieldKey,
-          fieldType: field.fieldType,
-          label: field.label,
-          placeholder: field.placeholder ?? undefined,
-          isRequired: field.isRequired,
-          visibleToPatient: field.visibleToPatient,
-          visibleToStaff: field.visibleToStaff,
-          sortOrder: field.sortOrder,
-          isActive: field.isActive,
-        }),
-      });
-      setDraft(emptyDraft());
-      await load();
+      try {
+        await apiJson(BASE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: "id" in field ? field.id : undefined,
+            fieldKey: field.fieldKey,
+            fieldType: field.fieldType,
+            label: field.label,
+            placeholder: field.placeholder ?? undefined,
+            isRequired: field.isRequired,
+            visibleToPatient: field.visibleToPatient,
+            visibleToStaff: field.visibleToStaff,
+            sortOrder: field.sortOrder,
+            isActive: field.isActive,
+          }),
+        });
+        setDraft(emptyDraft());
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ошибка сети");
+      }
     });
   }
 

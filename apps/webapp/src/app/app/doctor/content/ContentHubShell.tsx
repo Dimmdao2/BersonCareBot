@@ -25,6 +25,7 @@ import {
   ContentEditorRightPane,
 } from "./ContentEditorRightPane";
 import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
+import { ContentSectionsListClient, type SectionListRow } from "./sections/ContentSectionsListClient";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -292,6 +293,25 @@ export function ContentHubShell({
 
   const { activePaneKey, setActivePaneKey } = useContentNavState(articleSectionEntries);
 
+  // Sections-management pane: derive SectionListRow[] from already-loaded data
+  const sectionsForManagementPane = useMemo((): SectionListRow[] => {
+    return fullSections
+      .filter((s) => s.kind === "article")
+      .map((s) => ({
+        id: s.id,
+        slug: s.slug,
+        title: s.title,
+        sortOrder: s.sortOrder,
+        isVisible: s.isVisible,
+        requiresAuth: s.requiresAuth,
+        coverImageUrl: s.coverImageUrl ?? null,
+        iconImageUrl: s.iconImageUrl ?? null,
+        kind: s.kind,
+        systemParentCode: s.systemParentCode ?? null,
+        pagesInSection: pagesBySectionSlug[s.slug]?.length ?? 0,
+      }));
+  }, [fullSections, pagesBySectionSlug]);
+
   const renderRightPanel = () => {
     if (loadError) {
       return (
@@ -299,6 +319,23 @@ export function ContentHubShell({
           digest={loadError.digest}
           devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
         />
+      );
+    }
+
+    if (activePaneKey === "sections") {
+      return (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="m-0 text-base font-semibold">Разделы</h2>
+            <Link
+              href="/app/doctor/content/sections/new"
+              className={buttonVariants({ variant: "default", size: "sm" })}
+            >
+              + Создать раздел
+            </Link>
+          </div>
+          <ContentSectionsListClient initialSections={sectionsForManagementPane} />
+        </div>
       );
     }
 
@@ -318,8 +355,18 @@ export function ContentHubShell({
       );
     }
 
+    // Stub: media moved to Library (top-level sidebar item)
     if (activePaneKey === "media") {
-      return null;
+      return (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
+          <p className="text-sm text-muted-foreground">
+            Файлы и медиа перенесены в раздел <strong>Библиотека</strong>.
+          </p>
+          <Link href="/app/doctor/content/library" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            → Перейти в Библиотеку
+          </Link>
+        </div>
+      );
     }
 
     // Stub: lessons moved to Courses

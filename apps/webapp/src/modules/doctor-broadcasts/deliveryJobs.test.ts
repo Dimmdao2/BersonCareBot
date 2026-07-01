@@ -5,6 +5,7 @@ import {
   buildDoctorBroadcastDeliveryJobs,
   markdownToTelegramHtml,
   splitBroadcastPlainCombined,
+  stripMarkdownToPlain,
 } from "./deliveryJobs";
 import type { BroadcastNotificationPrefsFlags } from "./ports";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
@@ -259,6 +260,38 @@ describe("markdownToTelegramHtml", () => {
   });
 });
 
+describe("stripMarkdownToPlain", () => {
+  it("removes bold markers, keeps text", () => {
+    expect(stripMarkdownToPlain("say **hello** now")).toBe("say hello now");
+  });
+  it("removes italic markers but not snake_case", () => {
+    expect(stripMarkdownToPlain("a _x_ my_var_name")).toBe("a x my_var_name");
+  });
+  it("removes strikethrough and inline code markers", () => {
+    expect(stripMarkdownToPlain("~~old~~ `GET /api`")).toBe("old GET /api");
+  });
+  it("bulletises lists and preserves line breaks", () => {
+    expect(stripMarkdownToPlain("- one\n- two")).toBe("• one\n• two");
+  });
+  it("strips bold inside a bullet line", () => {
+    expect(stripMarkdownToPlain("* **важно** тут")).toBe("• важно тут");
+  });
+});
+
+describe("sms plain rendition", () => {
+  it("sms job strips markdown markers from the body", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [cl({ userId: "u1", bindings: {}, phone: "+79990001122" })],
+      channels: ["sms"],
+      messageTitle: "Заголовок",
+      messageBodyPlain: "Текст **жирный** и\n- пункт",
+    });
+    const intent = jobs[0].payloadJson.intent as { payload: { message: { text: string } } };
+    expect(intent.payload.message.text).toBe("Заголовок\n\nТекст жирный и\n• пункт");
+  });
+});
+
 describe("buildBroadcastMessengerHtml", () => {
   it("wraps title in bold and converts markdown body", () => {
     expect(buildBroadcastMessengerHtml("News", "a < b")).toBe("<b>News</b>\n\na &lt; b");
@@ -293,6 +326,25 @@ describe("messenger delivery intent", () => {
     const intent = jobs[0].payloadJson.intent as { payload: { parse_mode?: string; message: { text: string } } };
     expect(intent.payload.parse_mode).toBeUndefined();
     expect(intent.payload.message.text).toBe("Title\n\nBody");
+  });
+
+  it("threads imageUrl into telegram intent payload but not sms", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [
+        cl({ userId: "u1", phone: "+79990001122", bindings: { telegramId: "111" } }),
+      ],
+      channels: ["telegram", "sms"],
+      messageTitle: "Title",
+      messageBodyPlain: "Body",
+      imageUrl: "https://x/y.jpg",
+    });
+    const tg = jobs.find((j) => j.channel === "telegram")!;
+    const sms = jobs.find((j) => j.channel === "sms")!;
+    const tgIntent = tg.payloadJson.intent as { payload: { imageUrl?: string } };
+    const smsIntent = sms.payloadJson.intent as { payload: { imageUrl?: string } };
+    expect(tgIntent.payload.imageUrl).toBe("https://x/y.jpg");
+    expect(smsIntent.payload.imageUrl).toBeUndefined();
   });
 
   it("still enqueues telegram job when binding is marked bot-blocked", () => {

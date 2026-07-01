@@ -232,9 +232,9 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       open={open}
       onClose={() => onOpenChange(false)}
       title="Обсуждения по программе"
-      size="lg"
+      size="content"
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="grid gap-2">
             <Label htmlFor="doctor-instance-discussion-item-filter">Пункт программы</Label>
             <div data-testid="doctor-instance-discussion-item-filter">

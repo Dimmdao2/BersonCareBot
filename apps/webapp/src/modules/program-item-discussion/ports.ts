@@ -1,5 +1,6 @@
 import type {
   DoctorExerciseCommentRow,
+  DoctorExerciseCommentCursor,
   ListDoctorExerciseCommentsInput,
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionLegacyUnreadInput,
@@ -38,6 +39,16 @@ export type ProgramItemDiscussionPort = {
    * и непрочитанные). Новые сверху, keyset-пагинация. Для ленивой подгрузки в табе.
    */
   listExerciseCommentsForDoctor(input: ListDoctorExerciseCommentsInput): Promise<DoctorExerciseCommentRow[]>;
+  /**
+   * Doctor-wide полная история: все треды с хотя бы одним комментарием пациента,
+   * включая отвеченные (нет фильтра «последнее = от пациента»).
+   * Скоуп по assigned_by врача — без фан-аута по patient_user_id.
+   */
+  listAllExerciseCommentsForDoctor(input: {
+    viewerUserId: string;
+    limit: number;
+    cursor?: DoctorExerciseCommentCursor | null;
+  }): Promise<DoctorExerciseCommentRow[]>;
 
   /**
    * Batch: «всего / непрочитанных viewer'ом» по списку stageItemIds (для state B drill-down).

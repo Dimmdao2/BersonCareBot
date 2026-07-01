@@ -1,7 +1,7 @@
 import { logger } from '../../infra/observability/logger.js';
 import { maxConfig } from './config.js';
 import { setMaxBotCommands } from './client.js';
-import { getMaxApiKey } from './runtimeConfig.js';
+import { getMaxApiKey, getMaxBaseUrl } from './runtimeConfig.js';
 
 let setupStarted = false;
 
@@ -13,8 +13,9 @@ export async function setupMaxCommands(): Promise<void> {
   const apiKey = await getMaxApiKey();
   if (!apiKey) return;
 
+  const baseUrl = getMaxBaseUrl();
   /** Пустой список — убираем slash-команды из меню клиента MAX; навигация через инлайн-кнопки. */
-  const ok = await setMaxBotCommands({ apiKey }, []);
+  const ok = await setMaxBotCommands({ apiKey, ...(baseUrl ? { baseUrl } : {}) }, []);
 
   if (ok) {
     logger.info('MAX: setMyCommands ok (empty command list)');

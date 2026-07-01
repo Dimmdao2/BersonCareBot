@@ -97,6 +97,11 @@ function restoreEnv() {
   delete process.env.DEV_REDIRECT_DISABLE_DEFAULTS;
   delete process.env.DEV_DELIVERY_REDIRECT_CHAT_ID;
   delete process.env.TELEGRAM_ADMIN_ID;
+  delete process.env.DEV_REDIRECT_PASSTHROUGH_TELEGRAM;
+  delete process.env.DEV_REDIRECT_PASSTHROUGH_MAX;
+  delete process.env.DEV_REDIRECT_PASSTHROUGH_PHONES;
+  delete process.env.DEV_REDIRECT_PASSTHROUGH_EMAILS;
+  delete process.env.DEV_REDIRECT_PASSTHROUGH_WEB_PUSH;
   _resetDevRedirectActiveCache();
 }
 
@@ -409,5 +414,131 @@ describe('PRODUCTION: redirect inactive — real recipients pass through to own 
     expect((push.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.pushUserId).toBe(
       'prod-user-id-999',
     );
+  });
+});
+
+// ─── PASSTHROUGH: allowlisted test accounts deliver UNCHANGED ───────────────────
+//
+// On a real-data test env we want a doctor↔patient conversation to flow to the
+// PARTICIPANTS' OWN accounts (so chat/comments/OTP can be exercised in-vivo) while
+// real clients stay protected. The env passthrough allowlist achieves exactly that:
+// allowlisted recipients bypass the redirect; everyone else is still redirected.
+
+describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still redirected', () => {
+  // A SECOND test account (the admin), distinct from the single redirect target.
+  const ADMIN_TG = 364943522;
+  const ADMIN_PHONE = '+79643805480';
+
+  beforeEach(() => {
+    activateRedirectWithTargets();
+    process.env.DEV_REDIRECT_PASSTHROUGH_TELEGRAM = `${ADMIN_TG},${TG_TARGET}`;
+    process.env.DEV_REDIRECT_PASSTHROUGH_PHONES = `${ADMIN_PHONE},${PHONE_TARGET}`;
+    _resetDevRedirectActiveCache();
+  });
+
+  afterEach(() => {
+    restoreEnv();
+    vi.restoreAllMocks();
+  });
+
+  it('telegram to an allowlisted account → delivered UNCHANGED (real chatId, no prefix), logs PASSTHROUGH not REDIRECT', async () => {
+    const tg = buildChannelCaptureAdapter('telegram');
+    const port = createDefaultDispatchPort({ adapters: [tg.adapter] });
+
+    const { logger } = await import('../observability/logger.js');
+    const warnSpy = vi.spyOn(logger, 'warn');
+
+    await port.dispatchOutgoing({
+      type: 'message.send',
+      meta: { eventId: 'pass-tg', occurredAt: NOW, source: 'telegram' },
+      payload: {
+        recipient: { chatId: ADMIN_TG },
+        message: { text: 'Hello admin' },
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    });
+
+    expect(tg.captured).toHaveLength(1);
+    const payload = tg.captured[0]!.payload as {
+      recipient: Record<string, unknown>;
+      message: { text: string };
+    };
+    // Delivered to the REAL allowlisted recipient — NOT collapsed to the redirect target.
+    expect(payload.recipient).toEqual({ chatId: ADMIN_TG });
+    // No dev prefix prepended.
+    expect(payload.message.text).toBe('Hello admin');
+
+    const passLogs = warnSpy.mock.calls.filter((a) => a[1] === 'PRE_FORK_DEV_DELIVERY_PASSTHROUGH');
+    const redirectLogs = warnSpy.mock.calls.filter((a) => a[1] === 'PRE_FORK_DEV_DELIVERY_REDIRECT');
+    expect(passLogs.length, 'PASSTHROUGH logged').toBeGreaterThan(0);
+    expect(redirectLogs.length, 'REDIRECT NOT logged for passthrough').toBe(0);
+  });
+
+  it('telegram to a NON-allowlisted (real client) → STILL redirected to the test target', async () => {
+    const tg = buildChannelCaptureAdapter('telegram');
+    const port = createDefaultDispatchPort({ adapters: [tg.adapter] });
+
+    await port.dispatchOutgoing({
+      type: 'message.send',
+      meta: { eventId: 'pass-tg-client', occurredAt: NOW, source: 'telegram' },
+      payload: {
+        recipient: { chatId: 999111222 },
+        message: { text: 'Hello real patient' },
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    });
+
+    const recipient = (tg.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
+    expect(recipient).toEqual({ chatId: TG_TARGET });
+  });
+
+  it('sms: allowlisted phone passes through; an unknown phone is redirected', async () => {
+    const sms = buildChannelCaptureAdapter('smsc');
+    const port = createDefaultDispatchPort({ adapters: [sms.adapter] });
+
+    await port.dispatchOutgoing({
+      type: 'message.send',
+      meta: { eventId: 'pass-sms-ok', occurredAt: NOW, source: 'smsc' },
+      payload: {
+        recipient: { phoneNormalized: ADMIN_PHONE },
+        message: { text: 'code 1' },
+        delivery: { channels: ['smsc'], maxAttempts: 1 },
+      },
+    });
+    await port.dispatchOutgoing({
+      type: 'message.send',
+      meta: { eventId: 'pass-sms-client', occurredAt: NOW, source: 'smsc' },
+      payload: {
+        recipient: { phoneNormalized: '+79991234567' },
+        message: { text: 'code 2' },
+        delivery: { channels: ['smsc'], maxAttempts: 1 },
+      },
+    });
+
+    expect(sms.captured).toHaveLength(2);
+    const r0 = (sms.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
+    const r1 = (sms.captured[1]!.payload as { recipient: Record<string, unknown> }).recipient;
+    expect(r0.phoneNormalized, 'allowlisted phone passes through').toBe(ADMIN_PHONE);
+    expect(r1.phoneNormalized, 'unknown phone redirected').toBe(PHONE_TARGET);
+  });
+
+  it('empty allowlist (default) → an account is NOT passed through (collapse-safe)', async () => {
+    delete process.env.DEV_REDIRECT_PASSTHROUGH_TELEGRAM;
+    delete process.env.DEV_REDIRECT_PASSTHROUGH_PHONES;
+    const tg = buildChannelCaptureAdapter('telegram');
+    const port = createDefaultDispatchPort({ adapters: [tg.adapter] });
+
+    await port.dispatchOutgoing({
+      type: 'message.send',
+      meta: { eventId: 'pass-empty', occurredAt: NOW, source: 'telegram' },
+      payload: {
+        recipient: { chatId: ADMIN_TG },
+        message: { text: 'Hello admin' },
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    });
+
+    const recipient = (tg.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
+    expect(recipient, 'no passthrough env → collapsed to redirect target').toEqual({ chatId: TG_TARGET });
   });
 });

@@ -7,10 +7,10 @@ const envFile =
     : null;
 
 if (envFile) {
-  config({ path: path.resolve(process.cwd(), envFile) });
+  config({ path: path.resolve(/* turbopackIgnore: true */ process.cwd(), envFile) });
 } else if (process.env.NODE_ENV === "development") {
   // В dev по умолчанию грузим .env.dev (чтобы не требовать копию .env). Затем .env переопределяет при наличии.
-  config({ path: path.resolve(process.cwd(), ".env.dev") });
+  config({ path: path.resolve(/* turbopackIgnore: true */ process.cwd(), ".env.dev") });
   config();
 } else {
   config();

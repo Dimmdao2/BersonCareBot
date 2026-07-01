@@ -55,9 +55,12 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     getConversationIfOwnedByUser: async () => null,
     markInboundReadForUser: async () => undefined,
     markInboundMessagesReadForUser: async () => undefined,
+    markNotificationMessagesReadForUser: async () => undefined,
     markUserMessagesReadByAdmin: async () => undefined,
     countUnreadForUser: async () => 0,
+    countUnreadNotificationsForUser: async () => 0,
     listUnreadInboundAdminMessagesForUser: async () => [],
+    listNotificationMessagesForUser: async () => [],
     countUnreadUserMessagesForAdmin: async () => 0,
     countUnreadUserMessagesForAdminByConversation: async () => 0,
     countUnreadUserMessagesForAdminByPatient: async () => 0,
@@ -109,6 +112,69 @@ describe("doctorSupportMessagingService", () => {
       sinceCreatedAt: "2026-01-01T00:00:00.000Z",
       limit: 50,
     });
+  });
+
+  it("filters broadcast and lifecycle notifications from doctor chat messages", async () => {
+    const listMessagesSince = vi.fn(async () => [
+      {
+        id: "m1",
+        integratorMessageId: "webapp-msg:1",
+        conversationId: "conv-1",
+        senderRole: "user",
+        messageType: "text",
+        text: "hello",
+        source: "webapp",
+        externalChatId: null,
+        externalMessageId: null,
+        deliveryStatus: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        readAt: null,
+        deliveredAt: null,
+        mediaUrl: null,
+        mediaType: null,
+      },
+      {
+        id: "m2",
+        integratorMessageId: "broadcast:audit-1:user-1",
+        conversationId: "conv-1",
+        senderRole: "admin",
+        messageType: "text",
+        text: "broadcast",
+        source: "doctor_broadcast",
+        externalChatId: null,
+        externalMessageId: null,
+        deliveryStatus: null,
+        createdAt: "2026-01-01T00:01:00.000Z",
+        readAt: null,
+        deliveredAt: null,
+        mediaUrl: null,
+        mediaType: null,
+      },
+      {
+        id: "m3",
+        integratorMessageId: "booking-created:booking-1",
+        conversationId: "conv-1",
+        senderRole: "admin",
+        messageType: "text",
+        text: "booking",
+        source: "appointment_lifecycle",
+        externalChatId: null,
+        externalMessageId: null,
+        deliveryStatus: null,
+        createdAt: "2026-01-01T00:02:00.000Z",
+        readAt: null,
+        deliveredAt: null,
+        mediaUrl: null,
+        mediaType: null,
+      },
+    ]);
+    const service = createDoctorSupportMessagingService(
+      createPort({ conversationExists: async () => true, listMessagesSince }),
+    );
+
+    const res = await service.getMessages("conv-1", {});
+
+    expect(res?.messages.map((message) => message.text)).toEqual(["hello"]);
   });
 
   it("passes unreadOnly to listOpenConversationsForAdmin", async () => {

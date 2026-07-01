@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fanOutBroadcastEmail } from "./fanOutBroadcastEmail";
+import { fanOutBroadcastEmail, buildBroadcastEmailHtml } from "./fanOutBroadcastEmail";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 
 // S10: email now goes through relayOutbound instead of sendTransactionalSmtpEmail
@@ -60,6 +60,50 @@ describe("fanOutBroadcastEmail", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("passes inline-image HTML to relay when mediaUrl set; omits html otherwise (RASSL-06)", async () => {
+    relayOutboundMock.mockClear();
+    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
+    const deps = {
+      emailRecipientsPort: {
+        getVerifiedEmailsForUserIds: vi.fn().mockResolvedValue(new Map([["u1", "u1@example.com"]])),
+      },
+    };
+    await fanOutBroadcastEmail(
+      {
+        auditId: "a-img",
+        broadcastCategory: "organizational",
+        broadcastTitle: "Pic title",
+        broadcastBody: "Pic body",
+        mediaUrl: "https://cdn/x.jpg",
+        eligibleClients: [cl({ userId: "u1" })],
+      },
+      deps,
+    );
+    const arg = relayOutboundMock.mock.calls[0][0] as { html?: string };
+    expect(arg.html).toContain('<img src="https://cdn/x.jpg"');
+    expect(arg.html).toContain("Pic body");
+
+    relayOutboundMock.mockClear();
+    await fanOutBroadcastEmail(
+      {
+        auditId: "a-noimg",
+        broadcastCategory: "organizational",
+        broadcastTitle: "T",
+        broadcastBody: "B",
+        eligibleClients: [cl({ userId: "u1" })],
+      },
+      deps,
+    );
+    expect((relayOutboundMock.mock.calls[0][0] as { html?: string }).html).toBeUndefined();
+  });
+
+  it("buildBroadcastEmailHtml escapes content + embeds image", () => {
+    const html = buildBroadcastEmailHtml("<b>T</b>", "a & b", "https://cdn/y.png");
+    expect(html).toContain('<img src="https://cdn/y.png"');
+    expect(html).toContain("&lt;b&gt;T&lt;/b&gt;"); // title escaped
+    expect(html).toContain("a &amp; b"); // body escaped
   });
 
   it("skips clients without verified email", async () => {

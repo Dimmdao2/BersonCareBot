@@ -6,6 +6,10 @@ export type BroadcastDraft = {
   channels: BroadcastChannel[];
   title: string;
   body: string;
+  /** RASSL-06 phase 1: опц. прикреплённая картинка (URL из медиабиблиотеки). */
+  mediaUrl?: string | null;
+  /** MIME картинки (image/jpeg|png|webp). */
+  mediaType?: string | null;
 };
 
 export type BroadcastDraftPort = {

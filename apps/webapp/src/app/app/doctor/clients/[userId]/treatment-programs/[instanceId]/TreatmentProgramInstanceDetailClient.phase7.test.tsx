@@ -225,14 +225,17 @@ describe("TreatmentProgramInstanceDetailClient phase 7 history and unsaved gate"
     const user = userEvent.setup();
     renderClient({ initialEvents: [programChangedEvent()] });
 
-    const timeline = screen.getByRole("heading", { name: /история правок программы/i }).closest("section");
-    expect(timeline).toBeTruthy();
-    expect(within(timeline as HTMLElement).queryByText("Обновлено этапов: 1")).not.toBeInTheDocument();
+    // Open the history modal first (timeline was moved from inline to ProgramEditHistoryModal)
+    await user.click(screen.getByRole("button", { name: /история правок/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: /история правок программы/i })).toBeInTheDocument();
 
-    await user.click(within(timeline as HTMLElement).getByTestId(`doctor-program-timeline-event-${EVENT_ID}`));
+    expect(within(dialog).queryByText("Обновлено этапов: 1")).not.toBeInTheDocument();
 
-    expect(within(timeline as HTMLElement).getByText("Обновлено этапов: 1")).toBeInTheDocument();
-    expect(within(timeline as HTMLElement).getByText("Добавлено элементов: 1")).toBeInTheDocument();
+    await user.click(within(dialog).getByTestId(`doctor-program-timeline-event-${EVENT_ID}`));
+
+    expect(within(dialog).getByText("Обновлено этапов: 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("Добавлено элементов: 1")).toBeInTheDocument();
   });
 
   it("blocks complete program when metadata draft is dirty", async () => {
@@ -288,14 +291,15 @@ describe("TreatmentProgramInstanceDetailClient phase 7 history and unsaved gate"
     const user = userEvent.setup();
     renderClient({ initialEvents: [programChangedEvent()] });
 
-    const timeline = screen.getByRole("heading", { name: /история правок программы/i }).closest("section");
-    expect(timeline).toBeTruthy();
-    const eventButton = within(timeline as HTMLElement).getByTestId(`doctor-program-timeline-event-${EVENT_ID}`);
+    // Open the history modal first (timeline was moved from inline to ProgramEditHistoryModal)
+    await user.click(screen.getByRole("button", { name: /история правок/i }));
+    const dialog = await screen.findByRole("dialog");
+    const eventButton = within(dialog).getByTestId(`doctor-program-timeline-event-${EVENT_ID}`);
 
     await user.click(eventButton);
-    expect(within(timeline as HTMLElement).getByText("Обновлено этапов: 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("Обновлено этапов: 1")).toBeInTheDocument();
 
     await user.click(eventButton);
-    expect(within(timeline as HTMLElement).queryByText("Обновлено этапов: 1")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Обновлено этапов: 1")).not.toBeInTheDocument();
   });
 });

@@ -14,7 +14,14 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 
-export function SoprovozhdeniePage() {
+type Props = {
+  /** Родительный падеж мн.ч. из настройки patient_label: «пациентов» или «клиентов». */
+  patientGenPlural?: string;
+};
+
+export function SoprovozhdeniePage({ patientGenPlural = "пациентов" }: Props) {
+  // Творительный падеж: «пациентами» / «клиентами».
+  const patientInstr = patientGenPlural === "клиентов" ? "клиентами" : "пациентами";
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -24,7 +31,7 @@ export function SoprovozhdeniePage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Данные о выполнении программ пациентами появятся здесь.
+              Данные о выполнении программ {patientInstr} появятся здесь.
             </p>
           </CardContent>
         </Card>
@@ -35,7 +42,7 @@ export function SoprovozhdeniePage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Количество пациентов на активном сопровождении и динамика.
+              Количество {patientGenPlural} на активном сопровождении и динамика.
             </p>
           </CardContent>
         </Card>

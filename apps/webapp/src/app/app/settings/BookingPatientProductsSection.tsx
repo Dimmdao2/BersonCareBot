@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -64,21 +65,26 @@ export function BookingPatientProductsSection({
 
   function loadServices() {
     startTransition(async () => {
-      const res = await fetch(servicesApi);
-      const json = (await res.json()) as { ok?: boolean; services?: Array<{ id: string; title: string }> };
-      if (json.ok && json.services) setServices(json.services);
+      try {
+        const json = await apiJson<{ ok?: boolean; services?: Array<{ id: string; title: string }> }>(servicesApi);
+        if (json.services) setServices(json.services);
+      } catch {
+        // services load failure is non-critical
+      }
     });
   }
 
   async function fetchPurchases(): Promise<boolean> {
-    const res = await fetch(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`);
-    const json = (await res.json()) as { ok?: boolean; purchases?: PurchaseRow[]; error?: string };
-    if (!json.ok) {
-      setError(json.error ?? "failed");
+    try {
+      const json = await apiJson<{ ok?: boolean; purchases?: PurchaseRow[]; error?: string }>(
+        `${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`,
+      );
+      setListed(json.purchases ?? []);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed");
       return false;
     }
-    setListed(json.purchases ?? []);
-    return true;
   }
 
   function loadPurchases() {
@@ -103,17 +109,16 @@ export function BookingPatientProductsSection({
     }
     setError(null);
     startTransition(async () => {
-      const res = await fetch(`${apiBase}/${purchaseId}/consume`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platformUserId: platformUserId.trim(), serviceId: serviceId.trim() }),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
-        setError(json.error ?? "consume_failed");
-        return;
+      try {
+        await apiJson(`${apiBase}/${purchaseId}/consume`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platformUserId: platformUserId.trim(), serviceId: serviceId.trim() }),
+        });
+        await fetchPurchases();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "consume_failed");
       }
-      await fetchPurchases();
     });
   }
 

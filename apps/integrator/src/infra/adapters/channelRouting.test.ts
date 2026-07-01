@@ -257,6 +257,7 @@ describe('messageToIntent — round-trip samples', () => {
   //   pushExtras.topicCode (null)   → payload.pushExtras.topicCode (null preserved)
   //   pushExtras.intentType         → payload.pushExtras.intentType
   //   pushExtras.pushKind           → payload.pushExtras.pushKind
+  // eslint-disable-next-line no-secrets/no-secrets -- field name in comment, not a secret
   //   pushExtras.warmupSloganKey    → payload.pushExtras.warmupSloganKey
   //   recipient.pushUserId          → payload.recipient.pushUserId
   //   channel 'web_push'            → payload.delivery.channels[0] = 'web_push'
