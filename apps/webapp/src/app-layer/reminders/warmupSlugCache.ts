@@ -1,5 +1,5 @@
 import { getPool } from "@/infra/db/client";
-import { loadWarmupsSectionSlugs } from "@/modules/reminders/loadWarmupsSectionSlugs";
+import { loadWarmupsSectionSlugs } from "@/infra/repos/pgWarmupsSectionSlugs";
 
 const TTL_MS = 60_000; // 1 min — slugs change rarely; refresh on next request after expiry
 

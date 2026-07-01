@@ -2,7 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
 import { getPool } from "@/infra/db/client";
 import { pgWebPushOnlyRemindersPort } from "@/infra/repos/pgWebPushOnlyReminders";
-import { loadWarmupsSectionSlugs } from "@/modules/reminders/loadWarmupsSectionSlugs";
+import { loadWarmupsSectionSlugs } from "@/infra/repos/pgWarmupsSectionSlugs";
 import { createLoadWarmupPushContext } from "@/modules/web-push/createLoadWarmupPushContext";
 import {
   runWebPushOnlyReminderTick,

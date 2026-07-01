@@ -8,7 +8,7 @@ import { sql } from "drizzle-orm";
 import { getPool } from "@/infra/db/client";
 import { getWebappSqlDb, runWebappSql } from "@/infra/db/runWebappSql";
 import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
-import { loadWarmupsSectionSlugs } from "@/modules/reminders/loadWarmupsSectionSlugs";
+import { loadWarmupsSectionSlugs } from "@/infra/repos/pgWarmupsSectionSlugs";
 import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
 
 export type ReminderRuleListItem = {
