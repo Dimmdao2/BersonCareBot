@@ -6,7 +6,7 @@
 change** today; turning it on is a controlled cutover, not a flag.
 
 ## Documents
-**LIVE (read these):** [`CORRECTED_PLAN.md`](CORRECTED_PLAN.md) — **canonical plan** · [`ROADMAP_TO_SAAS.md`](ROADMAP_TO_SAAS.md) — global path from now to SaaS · [`scope-derivation/tiers-218.tsv`](scope-derivation/tiers-218.tsv) — authoritative 219-artifact tier map · [`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md) — historical scope derivation · [`LOG.md`](LOG.md) — execution log.
+**LIVE (read these):** [`CORRECTED_PLAN.md`](CORRECTED_PLAN.md) — **canonical plan** · [`ROADMAP_TO_SAAS.md`](ROADMAP_TO_SAAS.md) — global path from now to SaaS · [`UPSTREAM_SYNC_POLICY.md`](UPSTREAM_SYNC_POLICY.md) — how this branch stays compatible with upstream UI/product work · [`scope-derivation/tiers-218.tsv`](scope-derivation/tiers-218.tsv) — authoritative 219-artifact tier map · [`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md) — historical scope derivation · [`LOG.md`](LOG.md) — execution log.
 
 **History / rationale (superseded by CORRECTED_PLAN where they conflict):**
 1. [`00_DECISIONS_AND_SCHEMA.md`](00_DECISIONS_AND_SCHEMA.md) — settled decisions + target schema (Drizzle).
