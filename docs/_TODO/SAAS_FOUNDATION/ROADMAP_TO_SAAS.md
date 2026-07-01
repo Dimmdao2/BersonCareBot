@@ -20,6 +20,9 @@ Develop the working product in one stream and lay SaaS-capable mechanisms undern
   settings surface;
 - keep branding as configuration, not a hard fork: the likely first commercial shape is an upper
   tier with optional white-label branding for a specialist or clinic;
+- support paid custom-domain surfaces as configuration, not a fork: expensive tariffs and clinics
+  can attach verified named domains that permanently redirect to the organization's canonical public
+  booking/PWA surface, while Host-based org resolution remains only a scope hint and never authz;
 - keep feature packaging as entitlements/capability bundles, not separate apps: examples are store,
   tariffs, courses/products, media/storage, integrations, analytics, and staff seats;
 - avoid duplicated SaaS route trees or copied screens. Prefer data-driven variants, settings,
@@ -146,7 +149,11 @@ an internal multi-tenant app.
 
 Deliverables:
 - SaaS plans/quotas: staff seats, patients, storage, media minutes, channels, per-org bot/integration availability;
-- optional white-label branding: organization logo/name/colors/public surfaces, gated by plan;
+- optional white-label branding, gated by plan: organization app name, logo, colors, favicon/app icons,
+  public booking/PWA surfaces, email/web-push sender presentation where supported;
+- custom named domains for expensive tariffs and clinics: verified domain ownership, canonical
+  organization route mapping, permanent redirect rules, HTTPS/certificate lifecycle, redirect-loop
+  guard, and explicit fallback to the platform canonical domain;
 - capability bundles: store, tariffs, courses/products, advanced analytics, integrations, staff roles;
 - billing account per organization, invoices, payment provider/merchant decision, tax/legal fields;
 - subscription lifecycle: trial, active, past_due, suspended, cancelled;
@@ -157,8 +164,9 @@ Notes:
 - Existing booking payments/products/memberships help with patient-facing commerce, but SaaS billing is a separate organization-facing domain.
 - Integration secrets stay in DB-backed settings, not env.
 
-Exit gate: a clinic or specialist can subscribe to a plan, enable optional branding and bundles, be
-limited by plan, and be suspended without breaking other organizations or the original clinic.
+Exit gate: a clinic or specialist can subscribe to a plan, enable optional branding and bundles,
+attach a verified named domain with permanent redirects, be limited by plan, and be suspended
+without breaking other organizations or the original clinic.
 
 ### R6 — Marketplace, courses, and product platform revisit
 Goal: unlock scalable product revenue beyond clinic operations.
