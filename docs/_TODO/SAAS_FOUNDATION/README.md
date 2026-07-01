@@ -5,6 +5,12 @@
 (multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
 change** today; turning it on is a controlled cutover, not a flag.
 
+**Product direction (2026-07-01):** do not assume an inevitable hard product fork. Continue the
+main BersonCareBot product in one development stream while adding dormant SaaS-capable schema and
+access mechanisms. Future commercialization may remain one codebase with optional organization
+features: white-label branding in an upper-tier plan, package-gated capability bundles (store,
+tariffs, products/courses), and tenant lifecycle only when the business flow requires it.
+
 ## Documents
 **LIVE (read these):** [`CORRECTED_PLAN.md`](CORRECTED_PLAN.md) — **canonical plan** · [`ROADMAP_TO_SAAS.md`](ROADMAP_TO_SAAS.md) — global path from now to SaaS · [`UPSTREAM_SYNC_POLICY.md`](UPSTREAM_SYNC_POLICY.md) — how this branch stays compatible with upstream UI/product work · [`scope-derivation/tiers-218.tsv`](scope-derivation/tiers-218.tsv) — authoritative 219-artifact tier map · [`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md) — historical scope derivation · [`LOG.md`](LOG.md) — execution log.
 
