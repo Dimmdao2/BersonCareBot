@@ -9,10 +9,8 @@ vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
 }));
 
 const mockListActiveByUserId = vi.hoisted(() => vi.fn().mockResolvedValue([]));
-vi.mock("@/infra/repos/pgWebPushSubscriptions", () => ({
-  createPgWebPushSubscriptionsPort: () => ({
-    listActiveByUserId: mockListActiveByUserId,
-  }),
+vi.mock("@/app-layer/integrator/webPushSubscriptions", () => ({
+  listActiveWebPushSubscriptionsForIntegrator: mockListActiveByUserId,
 }));
 
 import { GET } from "./route";
