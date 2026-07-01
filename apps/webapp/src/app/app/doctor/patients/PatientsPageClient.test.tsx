@@ -205,10 +205,19 @@ describe("PatientsPageClient", () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({ ok: true, header: patientHeader }),
-      })),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("treatment-program-instances")) {
+          return {
+            ok: true,
+            json: async () => ({ ok: true, items: [{ id: "program-1", title: "Колено: этап 1", status: "active" }] }),
+          };
+        }
+        return {
+          ok: true,
+          json: async () => ({ ok: true, header: patientHeader }),
+        };
+      }),
     );
 
     await renderPatientsPage([
@@ -218,6 +227,10 @@ describe("PatientsPageClient", () => {
         firstName: "Иван",
         lastName: "Петров",
         phone: "+79990000001",
+        bindings: { telegramId: "123456", maxId: "max-1" },
+        hasEmail: true,
+        hasApp: true,
+        hasWebPush: true,
         hasConversation: true,
         activeAppointmentsCount: 1,
         activeTreatmentProgram: true,
@@ -231,11 +244,17 @@ describe("PatientsPageClient", () => {
     const listItem = document.getElementById("doctor-patients-item-u1");
     expect(listItem).not.toBeNull();
     const preview = within(listItem as HTMLElement);
-    expect(preview.getByRole("link", { name: /Чат/i })).toHaveAttribute("href", "/app/doctor/patients/u1?tab=comms");
+    expect(preview.getByRole("button", { name: /Чат/i })).toBeEnabled();
     expect(preview.getByRole("link", { name: /Позвонить/i })).toHaveAttribute("href", "tel:+79990000001");
     expect(preview.getByRole("link", { name: /Карта/i })).toHaveAttribute("href", "/app/doctor/patients/u1");
+    expect(preview.getByRole("button", { name: "Скопировать Telegram ID" })).toBeEnabled();
+    expect(preview.getByRole("button", { name: "Скопировать MAX ID" })).toBeEnabled();
+    expect(preview.getByRole("link", { name: /Вкладка/i })).toHaveAttribute("href", "/app/doctor/patients/u1?tab=comms");
 
     expect(await preview.findByRole("link", { name: /Email/i })).toHaveAttribute("href", "mailto:patient@example.test");
+    expect(await preview.findByText("Колено: этап 1")).toBeInTheDocument();
+    expect(preview.getByText("Приложение")).toBeInTheDocument();
+    expect(preview.getByText("Пуши включены")).toBeInTheDocument();
     expect(preview.getByText("01.06.2026")).toBeInTheDocument();
     expect(preview.getByText("10.07.2026 15:30")).toBeInTheDocument();
     expect(preview.getByText("3")).toBeInTheDocument();

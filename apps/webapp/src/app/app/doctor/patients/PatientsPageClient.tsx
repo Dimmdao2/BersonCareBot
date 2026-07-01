@@ -25,6 +25,8 @@ import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/do
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { formatFioForDoctor } from "@/lib/parseFullName";
+import { phoneToTelHref } from "@/shared/lib/phoneLinks";
+import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { patientCardHref } from "./patientCardHref";
 
 // ---------------------------------------------------------------------------
@@ -480,6 +482,65 @@ async function copyToClipboard(text: string) {
   }
 }
 
+type PreviewProgramSummary = {
+  id: string;
+  title: string;
+  status: string;
+};
+
+type PreviewProgramListResponse = {
+  ok: boolean;
+  items?: PreviewProgramSummary[];
+};
+
+type ChannelActionButtonProps = {
+  label: string;
+  title: string;
+  active: boolean;
+  href?: string | null;
+  onClick?: () => void;
+  children: ReactNode;
+};
+
+function channelActionClass(active: boolean): string {
+  return cn(
+    buttonVariants({ variant: active ? "outline" : "secondary", size: "sm" }),
+    channelActionExtraClass(active),
+  );
+}
+
+function channelActionExtraClass(active: boolean): string {
+  return cn(
+    "h-10 justify-center px-2 text-xs sm:h-8",
+    active
+      ? "border-primary/35 bg-primary/5 text-primary hover:bg-primary/15"
+      : "pointer-events-none border-border/50 bg-muted/30 text-muted-foreground/50",
+  );
+}
+
+function ChannelActionButton({ label, title, active, href, onClick, children }: ChannelActionButtonProps) {
+  if (active && href) {
+    return (
+      <a href={href} className={channelActionClass(true)} title={title} aria-label={label}>
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={channelActionClass(active)}
+      title={title}
+      aria-label={label}
+      disabled={!active}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
 type PatientPreviewPaneProps = {
   userId: string;
   item: ClientListItem;
@@ -489,26 +550,38 @@ type PatientPreviewPaneProps = {
 
 function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Moscow" }: PatientPreviewPaneProps) {
   const [header, setHeader] = useState<PatientCardHeader | null>(null);
+  const [activeProgram, setActiveProgram] = useState<PreviewProgramSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(false);
     setHeader(null);
-    fetch(`/api/doctor/patients/${encodeURIComponent(userId)}`)
+    setActiveProgram(null);
+    const headerRequest = fetch(`/api/doctor/patients/${encodeURIComponent(userId)}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<{ ok: boolean; header?: PatientCardHeader }>;
-      })
-      .then((data) => {
+      });
+    const programRequest = item.activeTreatmentProgram
+      ? fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`, { credentials: "include" })
+          .then((r) => (r.ok ? (r.json() as Promise<PreviewProgramListResponse>) : null))
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.all([headerRequest, programRequest])
+      .then(([headerData, programData]) => {
         if (!cancelled) {
-          if (data.ok && data.header) {
-            setHeader(data.header);
+          if (headerData.ok && headerData.header) {
+            setHeader(headerData.header);
           } else {
             setError(true);
           }
+          const active = (programData?.items ?? []).find((program) => program.status === "active") ?? null;
+          setActiveProgram(active);
           setLoading(false);
         }
       })
@@ -519,13 +592,24 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
         }
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [item.activeTreatmentProgram, userId]);
 
   const hasTelegram = Boolean(item.bindings.telegramId?.trim()) && !item.bindings.telegramBotBlocked;
   const hasMax = Boolean(item.bindings.maxId?.trim()) && !item.bindings.maxBotBlocked;
   const hasEmail = item.hasEmail === true;
+  const hasChat = item.hasApp === true || item.hasConversation === true || hasTelegram || hasMax;
   const cardHref = routePaths.doctorPatientCard(userId);
   const commsHref = patientCardHref(userId, { tab: "comms" });
+  const telHref = phoneToTelHref(item.phone);
+  const email = header?.identity.email?.trim() ?? null;
+  const telegramId = item.bindings.telegramId?.trim() ?? "";
+  const maxId = item.bindings.maxId?.trim() ?? "";
+
+  const copyChannelValue = (label: string, value: string) => {
+    void copyToClipboard(value);
+    setCopiedLabel(label);
+    window.setTimeout(() => setCopiedLabel((current) => (current === label ? null : current)), 1400);
+  };
 
   return (
     <div className={cn(doctorSectionCardClass, "flex flex-col gap-2 p-3")}>
@@ -553,83 +637,80 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
         </button>
       </div>
 
-      {/* Phone + channel icons */}
-      <div className="flex flex-wrap items-center gap-2">
-        {item.phone ? (
-          <button
-            type="button"
-            title="Скопировать телефон"
-            onClick={() => void copyToClipboard(item.phone!)}
-            className="font-mono text-xs text-foreground hover:text-primary transition-colors cursor-pointer"
-          >
-            {item.phone} ⧉
-          </button>
-        ) : (
-          <span className="text-xs text-muted-foreground font-mono">—</span>
-        )}
-        <span className="flex gap-1">
-          <span
-            title="Telegram"
-            className={cn(
-              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
-              hasTelegram
-                ? "border-primary/30 bg-primary/5 text-primary"
-                : "border-transparent bg-muted/30 text-muted-foreground/40",
-            )}
-          >
-            <Send className="h-3.5 w-3.5" />
-          </span>
-          <span
-            title="MAX (приложение)"
-            className={cn(
-              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
-              hasMax
-                ? "border-primary/30 bg-primary/5 text-primary"
-                : "border-transparent bg-muted/30 text-muted-foreground/40",
-            )}
-          >
-            <Smartphone className="h-3.5 w-3.5" />
-          </span>
-          <span
-            title="Email"
-            className={cn(
-              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
-              hasEmail
-                ? "border-primary/30 bg-primary/5 text-primary"
-                : "border-transparent bg-muted/30 text-muted-foreground/40",
-            )}
-          >
-            <Mail className="h-3.5 w-3.5" />
-          </span>
-        </span>
-      </div>
-
       {/* Fast actions */}
-      <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
-        <Link href={commsHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 justify-center px-2 text-xs")}>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <DoctorOpenChatButton
+          patientUserId={userId}
+          patientName={item.displayName}
+          variant="outline"
+          size="sm"
+          disabled={!hasChat}
+          title={hasChat ? "Открыть чат" : "Нет доступного канала для чата"}
+          className={channelActionExtraClass(hasChat)}
+        >
           <MessageSquare className="mr-1 size-3.5" aria-hidden />
           Чат
-        </Link>
-        {item.phone ? (
-          <a href={`tel:${item.phone}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 justify-center px-2 text-xs")}>
-            <Phone className="mr-1 size-3.5" aria-hidden />
-            Позвонить
-          </a>
-        ) : null}
-        {header?.identity.email ? (
-          <a href={`mailto:${header.identity.email}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 justify-center px-2 text-xs")}>
-            <Mail className="mr-1 size-3.5" aria-hidden />
-            Email
-          </a>
-        ) : null}
+        </DoctorOpenChatButton>
+        <ChannelActionButton label="Позвонить" title={item.phone ?? "Телефон не указан"} active={telHref !== null} href={telHref}>
+          <Phone className="mr-1 size-3.5" aria-hidden />
+          Звонок
+        </ChannelActionButton>
+        <ChannelActionButton label="Написать email" title={email ?? "Email не указан"} active={hasEmail && email !== null} href={email ? `mailto:${email}` : null}>
+          <Mail className="mr-1 size-3.5" aria-hidden />
+          Email
+        </ChannelActionButton>
         <Link href={cardHref} className={cn(buttonVariants({ size: "sm" }), "h-8 justify-center px-2 text-xs")}>
           <ExternalLink className="mr-1 size-3.5" aria-hidden />
           Карта
         </Link>
       </div>
 
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <ChannelActionButton
+          label="Скопировать Telegram ID"
+          title={hasTelegram ? `Скопировать Telegram ID ${telegramId}` : "Telegram не привязан"}
+          active={hasTelegram}
+          onClick={() => copyChannelValue("Telegram", telegramId)}
+        >
+          <Send className="mr-1 size-3.5" aria-hidden />
+          {copiedLabel === "Telegram" ? "Скопировано" : "Telegram"}
+        </ChannelActionButton>
+        <ChannelActionButton
+          label="Скопировать MAX ID"
+          title={hasMax ? `Скопировать MAX ID ${maxId}` : "MAX не привязан"}
+          active={hasMax}
+          onClick={() => copyChannelValue("MAX", maxId)}
+        >
+          <Smartphone className="mr-1 size-3.5" aria-hidden />
+          {copiedLabel === "MAX" ? "Скопировано" : "MAX"}
+        </ChannelActionButton>
+        <ChannelActionButton
+          label="Скопировать телефон"
+          title={item.phone ? `Скопировать ${item.phone}` : "Телефон не указан"}
+          active={Boolean(item.phone?.trim())}
+          onClick={() => item.phone && copyChannelValue("Телефон", item.phone)}
+        >
+          <Phone className="mr-1 size-3.5" aria-hidden />
+          {copiedLabel === "Телефон" ? "Скопировано" : "Копия тел."}
+        </ChannelActionButton>
+        <Link href={commsHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 justify-center px-2 text-xs sm:h-8")}>
+          <MessageSquare className="mr-1 size-3.5" aria-hidden />
+          Вкладка
+        </Link>
+      </div>
+
       {/* Quick chips */}
       <div className="flex flex-wrap gap-1">
+        {item.hasApp ? (
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            Приложение
+          </span>
+        ) : null}
+        {item.hasWebPush ? (
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            Пуши включены
+          </span>
+        ) : null}
         {item.isOnSupport ? (
           <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
             ★ На сопровождении
@@ -637,7 +718,7 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
         ) : null}
         {item.activeTreatmentProgram ? (
           <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            С программой
+            {activeProgram?.title ?? "С программой"}
           </span>
         ) : null}
         {item.hasMemberships ? (
