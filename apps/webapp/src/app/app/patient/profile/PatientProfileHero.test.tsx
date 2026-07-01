@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { routePaths } from "@/app-layer/routes/paths";
 import { PatientProfileHero } from "./PatientProfileHero";
@@ -13,6 +13,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("PatientProfileHero", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("shows bind link when no phone and redirects to bind-phone", async () => {
     pushMock.mockClear();
     const user = userEvent.setup();
@@ -60,5 +64,32 @@ describe("PatientProfileHero", () => {
     expect(pushMock).toHaveBeenCalledWith(
       `${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}`,
     );
+  });
+
+  it("starts email confirmation from saved unverified email", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      return new Response(JSON.stringify({ ok: true, challengeId: "ch-1" }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(
+      <PatientProfileHero
+        displayName="Test"
+        phone="+79991234567"
+        supportContactHref="https://support.example"
+        fallbackDisplayName="."
+        initialEmail="user@example.com"
+        emailVerified={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Подтвердить" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit | undefined];
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ email: "user@example.com" }));
+    expect(await screen.findByLabelText("Код подтверждения")).toBeInTheDocument();
   });
 });
