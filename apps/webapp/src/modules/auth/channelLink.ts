@@ -18,6 +18,7 @@ import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { loadPlatformPhoneBindingInfo, replaceChannelLinkSecret } from "@/infra/repos/pgChannelLinkStart";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
 import { notifyChannelLinkOwnershipConflictRelay } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import {
@@ -128,23 +129,15 @@ function hashToken(token: string): string {
 }
 
 async function platformPhoneBindingInfo(
+  pool: Pool,
   userId: string
 ): Promise<{ needsPhone: boolean; phoneNormalized?: string }> {
-  const pool = getPool();
-  const canonical = await resolveCanonicalUserId(pool, userId);
-  const res = await runWebappPgText<{ phone_normalized: string | null }>(
-    `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid`,
-    [canonical],
-  );
-  const p = res.rows[0]?.phone_normalized;
-  const phoneNormalized = typeof p === "string" && p.trim().length > 0 ? p.trim() : undefined;
-  return { needsPhone: phoneNormalized === undefined, phoneNormalized };
+  return loadPlatformPhoneBindingInfo(pool, userId);
 }
 
 /** Canonical platform user has no non-empty phone — мессенджер должен запросить контакт. */
 export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string): Promise<boolean> {
-  void pool;
-  const { needsPhone } = await platformPhoneBindingInfo(userId);
+  const { needsPhone } = await platformPhoneBindingInfo(pool, userId);
   return needsPhone;
 }
 
@@ -203,15 +196,12 @@ export async function startChannelLink(params: {
   }
 
   try {
-    await runWebappPgText("DELETE FROM channel_link_secrets WHERE user_id = $1 AND channel_code = $2", [
-      params.userId,
-      params.channelCode,
-    ]);
-    await runWebappPgText(
-      `INSERT INTO channel_link_secrets (user_id, channel_code, token_hash, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [params.userId, params.channelCode, hashToken(startPayload), expiresAt.toISOString()]
-    );
+    await replaceChannelLinkSecret({
+      userId: params.userId,
+      channelCode: params.channelCode,
+      tokenHash: hashToken(startPayload),
+      expiresAtIso: expiresAt.toISOString(),
+    });
     const result = buildResult();
     return { ok: true, ...result, expiresAtIso: expiresAt.toISOString() };
   } catch {
@@ -292,7 +282,7 @@ export async function completeChannelLinkFromIntegrator(params: {
           if (canonicalAfterMerge == null) {
             return { ok: false, code: "user_not_found" };
           }
-          const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(canonicalAfterMerge);
+          const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, canonicalAfterMerge);
           return {
             ok: true,
             userId: canonicalAfterMerge,
@@ -358,7 +348,7 @@ export async function completeChannelLinkFromIntegrator(params: {
       if (canonicalAfterClaim == null) {
         return { ok: false, code: "user_not_found" };
       }
-      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(canonicalAfterClaim);
+      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, canonicalAfterClaim);
       return {
         ok: true,
         userId: canonicalAfterClaim,
@@ -373,7 +363,7 @@ export async function completeChannelLinkFromIntegrator(params: {
     if (canonical == null) {
       return { ok: false, code: "user_not_found" };
     }
-    const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.user_id);
+    const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
     return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
   }
 
@@ -389,6 +379,6 @@ export async function completeChannelLinkFromIntegrator(params: {
   if (canonical == null) {
     return { ok: false, code: "user_not_found" };
   }
-  const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.user_id);
+  const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
   return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
 }

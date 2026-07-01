@@ -18,6 +18,7 @@ vi.mock("@/infra/db/client", () => ({
 vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlDb: () => ({}),
   getWebappSqlFromPgClient: () => ({}),
+  runPgPoolPgText: (_pool: unknown, ...args: unknown[]) => queryMock(...args),
   runWebappPgText: (...args: unknown[]) => queryMock(...args),
 }));
 
