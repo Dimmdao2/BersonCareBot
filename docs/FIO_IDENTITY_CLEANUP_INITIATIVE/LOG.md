@@ -69,3 +69,33 @@ No DB writes were made.
   `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/shared/lib/fio.ts src/shared/lib/fio.test.ts"`.
 - Note: an initial `pnpm --dir apps/webapp test -- src/shared/lib/fio.test.ts`
   invocation was stopped because it selected broader tests than intended.
+
+## 2026-07-02 — Phase 3 Backfill Dry Run
+
+- Added dry-run-only proposal script:
+  `apps/webapp/scripts/fio-backfill/backfill-platform-user-fio.ts`.
+- Added webapp npm script:
+  `pnpm --dir apps/webapp run fio:backfill-dry-run`.
+- The script refuses `--commit`; Phase 3 has no DB write path.
+- Generated local PII-containing reports under:
+  `.tmp/fio-backfill/reports/`.
+- Latest aggregate dev result:
+  - total users: 213;
+  - users with candidates: 213;
+  - no change: 43;
+  - fill missing: 9;
+  - replace weak partials: 24;
+  - review conflict: 65;
+  - insufficient: 72;
+  - selected high confidence: 139;
+  - selected medium confidence: 2;
+  - selected low confidence: 70;
+  - selected source Rubitime: 141;
+  - selected source display_name: 67;
+  - selected source profile_structured: 3;
+  - selected none: 2.
+- Validation:
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint scripts/fio-backfill/backfill-platform-user-fio.ts src/shared/lib/fio.ts"`;
+  `bash /home/dev/orch/run-tests.sh "bash -lc 'set -a && source apps/webapp/.env.dev && set +a && pnpm --dir apps/webapp run fio:backfill-dry-run'"`.
+
+No DB writes were made.

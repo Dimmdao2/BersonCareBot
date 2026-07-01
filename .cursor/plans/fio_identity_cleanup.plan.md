@@ -14,7 +14,7 @@ todos:
     status: completed
   - id: fio-3
     content: Build dry-run backfill report from Rubitime/booking/profile/provider sources; no DB writes.
-    status: pending
+    status: completed
   - id: fio-4
     content: Update booking form contract to collect surname/given/patronymic and prefill phone/email.
     status: pending
@@ -47,7 +47,7 @@ The work is intentionally ordered so product behavior changes happen only after 
 - [x] Local-only dataset infrastructure exists and does not commit Zenodo data.
 - [x] Name readers/writers are inventoried and documented.
 - [x] A single typed FIO model handles normalization, parsing, confidence, and labels.
-- [ ] Dry-run report proves which users can be safely backfilled.
+- [x] Dry-run report proves which users can be safely backfilled.
 - [ ] Booking form collects surname and given name as required fields and prefills known phone/email.
 - [ ] Merge/OAuth/messenger paths cannot overwrite stronger booking/manual FIO.
 - [ ] Backfill apply writes only reviewed high-confidence rows and emits an audit artifact.
@@ -243,6 +243,8 @@ Goal:
 
 Generate a reviewable migration proposal before any product or DB writes.
 
+Status: completed.
+
 Actions:
 
 - Add `apps/webapp/scripts/fio-backfill/backfill-platform-user-fio.ts`.
@@ -271,6 +273,34 @@ Validation:
 Gate:
 
 - Owner can review high/medium/low/conflict counts before any write path exists.
+
+Artifacts:
+
+- `apps/webapp/scripts/fio-backfill/backfill-platform-user-fio.ts`
+- `.tmp/fio-backfill/reports/fio-backfill-dry-run.latest.json`
+- `.tmp/fio-backfill/reports/fio-backfill-dry-run.latest.csv`
+
+Latest aggregate result from dev DB, generated 2026-07-02:
+
+- total users: 213
+- users with candidates: 213
+- no change: 43
+- fill missing: 9
+- replace weak partials: 24
+- review conflict: 65
+- insufficient: 72
+- selected high confidence: 139
+- selected medium confidence: 2
+- selected low confidence: 70
+- selected source Rubitime: 141
+- selected source display_name: 67
+- selected source profile_structured: 3
+- selected none: 2
+
+Validation run:
+
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint scripts/fio-backfill/backfill-platform-user-fio.ts src/shared/lib/fio.ts"`
+- `bash /home/dev/orch/run-tests.sh "bash -lc 'set -a && source apps/webapp/.env.dev && set +a && pnpm --dir apps/webapp run fio:backfill-dry-run'"`
 
 ## Phase 4 — Booking Form Contract
 

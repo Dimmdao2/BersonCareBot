@@ -77,3 +77,19 @@ Generated files:
 - `.tmp/fio-backfill/reports/name-field-inventory.latest.md`
 - `.tmp/fio-backfill/reports/fio-quality-report.latest.json`
 - `.tmp/fio-backfill/reports/fio-quality-report.latest.csv`
+
+## Backfill dry-run
+
+The Phase 3 dry-run proposes structured FIO updates and still performs no DB
+writes. It requires the downloaded dictionaries from `.tmp/fio-backfill/russiannames/`.
+The script intentionally has no `--commit` mode.
+
+```bash
+set -a && source apps/webapp/.env.dev && set +a
+pnpm --dir apps/webapp run fio:backfill-dry-run
+```
+
+Generated files:
+
+- `.tmp/fio-backfill/reports/fio-backfill-dry-run.latest.json`
+- `.tmp/fio-backfill/reports/fio-backfill-dry-run.latest.csv`

@@ -1,6 +1,6 @@
 # FIO / Identity Cleanup Initiative
 
-Status: execution, phase 2 shared parser complete.
+Status: execution, phase 3 dry-run complete.
 
 Master plan: `.cursor/plans/fio_identity_cleanup.plan.md`.
 
@@ -185,6 +185,8 @@ Validation:
 
 ### Phase 3 — Backfill Dry Run
 
+Status: completed.
+
 Goal: generate a reviewable migration proposal before any DB writes.
 
 Actions:
@@ -206,6 +208,29 @@ Validation:
 Gate:
 
 - High/medium/low/conflict counts are reviewable before any write path exists.
+
+Latest dev DB aggregate, generated 2026-07-02:
+
+- total users: 213
+- users with candidates: 213
+- no change: 43
+- fill missing: 9
+- replace weak partials: 24
+- review conflict: 65
+- insufficient: 72
+- selected high confidence: 139
+- selected medium confidence: 2
+- selected low confidence: 70
+- selected source Rubitime: 141
+- selected source display_name: 67
+- selected source profile_structured: 3
+- selected none: 2
+
+Artifacts:
+
+- `apps/webapp/scripts/fio-backfill/backfill-platform-user-fio.ts`
+- `.tmp/fio-backfill/reports/fio-backfill-dry-run.latest.json`
+- `.tmp/fio-backfill/reports/fio-backfill-dry-run.latest.csv`
 
 ### Phase 4 — Booking Form Contract
 
