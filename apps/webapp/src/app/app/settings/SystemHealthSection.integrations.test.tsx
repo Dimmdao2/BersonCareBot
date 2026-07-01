@@ -154,4 +154,62 @@ describe("SystemHealthSection integrations", () => {
     expect(screen.getAllByText("ошибка").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("не удалось разобрать тело вебхука")).toBeInTheDocument();
   });
+
+  it("does not degrade integrations when outbound probe is intentionally not configured", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify(
+              healthJson({
+                probeOutbound: { consecutiveFailRuns: 0 },
+                integrations: {
+                  rubitime: {
+                    outbound: { status: "skipped_not_configured", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+                    inbound: {
+                      receivedAt: "2026-06-09T09:30:00.000Z",
+                      processedOk: true,
+                      errorClass: null,
+                      httpStatusReturned: 200,
+                      detail: null,
+                    },
+                  },
+                  telegram: {
+                    outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+                    inbound: {
+                      receivedAt: "2026-06-09T09:30:00.000Z",
+                      processedOk: true,
+                      errorClass: null,
+                      httpStatusReturned: 200,
+                      detail: null,
+                    },
+                  },
+                  max: {
+                    outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+                    inbound: {
+                      receivedAt: "2026-06-09T09:30:00.000Z",
+                      processedOk: true,
+                      errorClass: null,
+                      httpStatusReturned: 200,
+                      detail: null,
+                    },
+                  },
+                  google_calendar: {
+                    outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+                  },
+                },
+              }),
+            ),
+          ),
+      }),
+    );
+
+    render(<SystemHealthSection />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Интеграции успешно/i })).toBeInTheDocument();
+    });
+  });
 });

@@ -657,7 +657,10 @@ function integrationEntryAccordionStatus(entry: IntegrationHealthEntryPayload): 
   if (entry.outbound.status === "fail") return "error";
   if (entry.inbound?.processedOk === false) return "degraded";
   if (entry.outbound.status === "no_data" && (entry.inbound?.receivedAt ?? null) === null) return "no_data";
-  if (entry.outbound.status === "ok" && (entry.inbound?.processedOk ?? true)) return "ok";
+  if (
+    (entry.outbound.status === "ok" || entry.outbound.status === "skipped_not_configured")
+    && (entry.inbound?.processedOk ?? true)
+  ) return "ok";
   return "degraded";
 }
 
