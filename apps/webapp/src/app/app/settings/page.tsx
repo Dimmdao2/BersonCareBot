@@ -15,7 +15,7 @@ import { SettingsTabsNav } from "./SettingsTabsNav";
 import type { SettingsTab } from "./SettingsTabsNav";
 import { DoctorTimezoneSection } from "./DoctorTimezoneSection";
 import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { getDoctorAccountTimezone } from "@/app-layer/doctor/accountTimezone";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -104,11 +104,7 @@ export default async function SettingsPage({
       )
     : [];
   const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
-  const tzRow = await runWebappPgText<{ calendar_timezone: string | null }>(
-    `SELECT calendar_timezone FROM platform_users WHERE id = $1::uuid`,
-    [session.user.userId],
-  );
-  const doctorCalendarTimezone = tzRow.rows[0]?.calendar_timezone ?? null;
+  const doctorCalendarTimezone = await getDoctorAccountTimezone(session.user.userId);
   const emailVerified = Boolean(accountEmail.emailVerifiedAt);
   const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
   const hasMax = Boolean(session.user.bindings.maxId?.trim());
