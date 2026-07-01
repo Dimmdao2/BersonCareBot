@@ -64,8 +64,6 @@ const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 // be_specialists или отдельную таблицу doctor_preferences. До реализации — дефолт 9–19.
 const DEFAULT_WINDOW_MIN = 9 * 60; // 540 мин = 9:00
 const DEFAULT_WINDOW_MAX = 19 * 60; // 1140 мин = 19:00
-const DEFAULT_SLOT_MIN = "09:00:00";
-const DEFAULT_SLOT_MAX = "19:00:00";
 
 // R34: понятные подписи ошибок переноса для диалога подтверждения.
 function rescheduleErrorLabel(error: string | undefined): string {
@@ -105,6 +103,25 @@ type CalendarResponse = {
 type NearestWindowResponse = {
   ok: boolean;
   window: { from: string; to: string } | null;
+};
+
+type CalendarDoctorSettings = {
+  defaultWindowStartMinute: number;
+  defaultWindowEndMinute: number;
+  defaultBranchId: string | null;
+  defaultServiceId: string | null;
+};
+
+type CalendarDraftSlot = {
+  start: string;
+  end: string;
+};
+
+const DEFAULT_CALENDAR_SETTINGS: CalendarDoctorSettings = {
+  defaultWindowStartMinute: DEFAULT_WINDOW_MIN,
+  defaultWindowEndMinute: DEFAULT_WINDOW_MAX,
+  defaultBranchId: null,
+  defaultServiceId: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -265,6 +282,38 @@ function minuteToHHMM(minute: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
 }
 
+function getSettingValue(rows: Array<{ key: string; valueJson: unknown }>, key: string): unknown {
+  const valueJson = rows.find((row) => row.key === key)?.valueJson;
+  if (valueJson && typeof valueJson === "object" && "value" in valueJson) {
+    return (valueJson as { value?: unknown }).value;
+  }
+  return null;
+}
+
+function parseCalendarDoctorSettings(rows: Array<{ key: string; valueJson: unknown }>): CalendarDoctorSettings {
+  const windowValue = getSettingValue(rows, "booking_calendar_default_window");
+  let defaultWindowStartMinute = DEFAULT_WINDOW_MIN;
+  let defaultWindowEndMinute = DEFAULT_WINDOW_MAX;
+  if (windowValue && typeof windowValue === "object") {
+    const obj = windowValue as { startMinute?: unknown; endMinute?: unknown };
+    if (typeof obj.startMinute === "number" && typeof obj.endMinute === "number") {
+      defaultWindowStartMinute = Math.max(0, Math.min(1439, Math.round(obj.startMinute)));
+      defaultWindowEndMinute = Math.max(
+        defaultWindowStartMinute + 30,
+        Math.min(24 * 60, Math.round(obj.endMinute)),
+      );
+    }
+  }
+  const defaultBranchRaw = getSettingValue(rows, "booking_calendar_default_branch_id");
+  const defaultServiceRaw = getSettingValue(rows, "booking_calendar_default_service_id");
+  return {
+    defaultWindowStartMinute,
+    defaultWindowEndMinute,
+    defaultBranchId: typeof defaultBranchRaw === "string" && defaultBranchRaw.trim() ? defaultBranchRaw : null,
+    defaultServiceId: typeof defaultServiceRaw === "string" && defaultServiceRaw.trim() ? defaultServiceRaw : null,
+  };
+}
+
 /**
  * Диапазон часовой сетки = дефолтное окно 09:00–19:00, которое при необходимости
  * расширяется по рабочим границам и по фактическим записям c буфером ±1 час.
@@ -280,9 +329,15 @@ export function deriveSlotTimes(
   workingBounds: WorkingBounds | null | undefined,
   events: CalendarEvent[] | undefined,
   timeZone: string,
+  defaultWindow: { startMinute: number; endMinute: number } = {
+    startMinute: DEFAULT_WINDOW_MIN,
+    endMinute: DEFAULT_WINDOW_MAX,
+  },
 ): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
-  let lo = DEFAULT_WINDOW_MIN;
-  let hi = DEFAULT_WINDOW_MAX;
+  const defaultLo = Math.max(0, Math.min(1439, defaultWindow.startMinute));
+  const defaultHi = Math.max(defaultLo + 30, Math.min(24 * 60, defaultWindow.endMinute));
+  let lo = defaultLo;
+  let hi = defaultHi;
   let hasAnyData = Boolean(workingBounds);
   if (workingBounds) {
     lo = Math.min(lo, workingBounds.minMinute);
@@ -307,10 +362,10 @@ export function deriveSlotTimes(
 
   if (!hasAnyData) {
     return {
-      slotMinTime: DEFAULT_SLOT_MIN,
-      slotMaxTime: DEFAULT_SLOT_MAX,
-      loMinute: DEFAULT_WINDOW_MIN,
-      hiMinute: DEFAULT_WINDOW_MAX,
+      slotMinTime: minuteToHHMM(defaultLo),
+      slotMaxTime: minuteToHHMM(defaultHi),
+      loMinute: defaultLo,
+      hiMinute: defaultHi,
     };
   }
 
@@ -778,6 +833,14 @@ export function ScheduleCalendarTab({
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
   // #225: время конца из drag-интервала → используется как начальная длительность в форме создания.
   const [createInitialEnd, setCreateInitialEnd] = useState<string | null>(null);
+  const [createInitialBranchId, setCreateInitialBranchId] = useState<string | null>(null);
+  const [createInitialServiceId, setCreateInitialServiceId] = useState<string | null>(null);
+  const [draftSlot, setDraftSlot] = useState<CalendarDraftSlot | null>(null);
+  const [createFormDirty, setCreateFormDirty] = useState(false);
+  const lastSelectAtRef = useRef(0);
+  const [calendarSettings, setCalendarSettings] = useState<CalendarDoctorSettings>(
+    DEFAULT_CALENDAR_SETTINGS,
+  );
   const [pending, startTransition] = useTransition();
 
   // R34: подтверждение переноса (drag/resize) перед применением.
@@ -950,6 +1013,22 @@ export function ScheduleCalendarTab({
   }, [loadFeed, loadKpis, view, anchorDate]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/doctor/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { ok?: boolean; settings?: Array<{ key: string; valueJson: unknown }> } | null) => {
+        if (cancelled || !json?.ok || !json.settings) return;
+        setCalendarSettings(parseCalendarDoctorSettings(json.settings));
+      })
+      .catch(() => {
+        // Non-critical: keep built-in defaults.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, anchorDate, branchId, serviceId]);
@@ -1011,7 +1090,108 @@ export function ScheduleCalendarTab({
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
-  const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(workingBounds, data?.events, currentTimeZone);
+  const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(
+    workingBounds,
+    data?.events,
+    currentTimeZone,
+    {
+      startMinute: calendarSettings.defaultWindowStartMinute,
+      endMinute: calendarSettings.defaultWindowEndMinute,
+    },
+  );
+
+  const findWorkingBranchIdForStart = useCallback(
+    (startLocal: string): string | null => {
+      const start = DateTime.fromISO(startLocal, { zone: currentTimeZone });
+      if (!start.isValid) return null;
+      const startMs = start.toMillis();
+      const event = (data?.events ?? []).find((e) => {
+        if (e.kind !== "working" || !e.branchId) return false;
+        const from = parseFeedInstant(e.startAt, currentTimeZone).toMillis();
+        const to = parseFeedInstant(e.endAt, currentTimeZone).toMillis();
+        return from <= startMs && startMs < to;
+      });
+      return event?.kind === "working" ? event.branchId : null;
+    },
+    [data?.events, currentTimeZone],
+  );
+
+  const chooseServiceForDuration = useCallback(
+    (durationMinutes: number | null): string | null => {
+      if (durationMinutes != null) {
+        const exact = filters.services.find((service) => service.durationMinutes === durationMinutes);
+        if (exact) return exact.id;
+      }
+      if (calendarSettings.defaultServiceId) {
+        const configured = filters.services.find((service) => service.id === calendarSettings.defaultServiceId);
+        if (configured) return configured.id;
+      }
+      return resolveCalendarCreateFieldValue(filters.services, serviceId, null);
+    },
+    [filters.services, calendarSettings.defaultServiceId, serviceId],
+  );
+
+  const clearDraftAndPanel = useCallback(() => {
+    setSelected(null);
+    setShowCreatePanel(false);
+    setCreateInitialStart(null);
+    setCreateInitialEnd(null);
+    setCreateInitialBranchId(null);
+    setCreateInitialServiceId(null);
+    setDraftSlot(null);
+    setCreateFormDirty(false);
+    onDeepLinkChange("appt", null);
+    calendarRef.current?.getApi().unselect();
+  }, [onDeepLinkChange]);
+
+  const openCreateDraft = useCallback(
+    (start: Date, end: Date | null) => {
+      const startLocal =
+        DateTime.fromJSDate(start).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+      if (!startLocal) return;
+      const durationFromDrag = end
+        ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 60_000))
+        : null;
+      const serviceForDraft = chooseServiceForDuration(durationFromDrag);
+      const serviceDuration =
+        serviceForDraft != null
+          ? (filters.services.find((service) => service.id === serviceForDraft)?.durationMinutes ?? null)
+          : null;
+      const durationMinutes = durationFromDrag ?? serviceDuration ?? 60;
+      const endDate = end ?? new Date(start.getTime() + durationMinutes * 60_000);
+      const endLocal =
+        DateTime.fromJSDate(endDate).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
+      if (!endLocal) return;
+      const workingBranchId = findWorkingBranchIdForStart(startLocal);
+      const branchForDraft =
+        workingBranchId ??
+        (calendarSettings.defaultBranchId && filters.branches.some((b) => b.id === calendarSettings.defaultBranchId)
+          ? calendarSettings.defaultBranchId
+          : resolveCalendarCreateFieldValue(filters.branches, branchId, null));
+      setSelected(null);
+      setCreateInitialStart(startLocal);
+      setCreateInitialEnd(endLocal);
+      setCreateInitialBranchId(branchForDraft);
+      setCreateInitialServiceId(serviceForDraft);
+      setDraftSlot({
+        start: DateTime.fromJSDate(start).toISO() ?? start.toISOString(),
+        end: DateTime.fromJSDate(endDate).toISO() ?? endDate.toISOString(),
+      });
+      setCreateFormDirty(false);
+      setShowCreatePanel(true);
+      onDeepLinkChange("appt", null);
+    },
+    [
+      currentTimeZone,
+      chooseServiceForDuration,
+      filters.services,
+      filters.branches,
+      findWorkingBranchIdForStart,
+      calendarSettings.defaultBranchId,
+      branchId,
+      onDeepLinkChange,
+    ],
+  );
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
@@ -1116,9 +1296,22 @@ export function ScheduleCalendarTab({
         },
       };
     }).filter((x): x is NonNullable<typeof x> => x !== null);
-    return [...grayFill, ...mapped] as FullCalendarOptions["events"];
+    const draft = draftSlot
+      ? [
+          {
+            id: "draft:create",
+            start: draftSlot.start,
+            end: draftSlot.end,
+            title: "Новая запись",
+            editable: false,
+            classNames: ["!bg-sky-500/20 text-sky-950 !border-sky-500/50 border-dashed"],
+            extendedProps: { kind: "draft" as const },
+          },
+        ]
+      : [];
+    return [...grayFill, ...mapped, ...draft] as FullCalendarOptions["events"];
      
-  }, [data, view, anchorDate, currentTimeZone, loMinute, hiMinute]);
+  }, [data, view, anchorDate, currentTimeZone, loMinute, hiMinute, draftSlot]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
 
@@ -1220,50 +1413,20 @@ export function ScheduleCalendarTab({
       const start: Date | null = arg.start ?? null;
       const end: Date | null = arg.end ?? null;
       if (!start) return;
-
-      // #228 / CR-2: guard против drag в нерабочую (серую) зону или перерыв.
-      // Проверяем, попадает ли начало drag-интервала в nonworking/break событие —
-      // симметрично прежнему guard в dateClick (проверка точки клика).
-      // Month-режим не трогаем (selectable={view !== "month"} → onSelect там не зовётся).
-      const startMs = start.getTime();
-      const isNonWorkingOrBreak =
-        Array.isArray(calendarEvents) &&
-        (
-          calendarEvents as Array<{
-            start?: string;
-            end?: string;
-            extendedProps?: { kind?: string };
-          }>
-        ).some(
-          (ev) =>
-            (ev.extendedProps?.kind === "nonworking" ||
-              ev.extendedProps?.kind === "break") &&
-            ev.start &&
-            ev.end &&
-            new Date(ev.start).getTime() <= startMs &&
-            startMs < new Date(ev.end).getTime(),
-        );
-      if (isNonWorkingOrBreak) {
-        // Снимаем выделение — не открываем панель
-        calendarRef.current?.getApi().unselect();
-        return;
-      }
-
-      // luxon3 plugin + timeZone prop: FC passes proper UTC Date objects (not fake-UTC
-      // wall-clock), so we convert to the doctor's display timezone via setZone.
-      const startLocal =
-        DateTime.fromJSDate(start).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
-      const endLocal = end
-        ? DateTime.fromJSDate(end).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null
-        : null;
-      setSelected(null);
-      setCreateInitialStart(startLocal);
-      setCreateInitialEnd(endLocal);
-      setShowCreatePanel(true);
-      onDeepLinkChange("appt", null);
+      lastSelectAtRef.current = Date.now();
+      openCreateDraft(start, end ?? null);
     },
-    [onDeepLinkChange, currentTimeZone, calendarEvents],
+    [openCreateDraft],
   );
+
+  const closeDraftOrSelectionFromGrid = useCallback((): boolean => {
+    if (createFormDirty && showCreatePanel) {
+      const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+      if (!ok) return false;
+    }
+    clearDraftAndPanel();
+    return true;
+  }, [clearDraftAndPanel, createFormDirty, showCreatePanel]);
 
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
 
@@ -1528,7 +1691,27 @@ export function ScheduleCalendarTab({
           size="sm"
           className="ml-auto"
           onClick={() => {
+            if (showCreatePanel && createFormDirty) {
+              const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+              if (!ok) return;
+            }
+            const defaultBranchId =
+              calendarSettings.defaultBranchId &&
+              filters.branches.some((branch) => branch.id === calendarSettings.defaultBranchId)
+                ? calendarSettings.defaultBranchId
+                : null;
+            const defaultServiceId =
+              calendarSettings.defaultServiceId &&
+              filters.services.some((service) => service.id === calendarSettings.defaultServiceId)
+                ? calendarSettings.defaultServiceId
+                : null;
             setSelected(null);
+            setCreateInitialStart(null);
+            setCreateInitialEnd(null);
+            setCreateInitialBranchId(defaultBranchId);
+            setCreateInitialServiceId(defaultServiceId);
+            setDraftSlot(null);
+            setCreateFormDirty(false);
             setShowCreatePanel(true);
           }}
           data-testid="create-appointment-btn"
@@ -1782,21 +1965,27 @@ export function ScheduleCalendarTab({
                     | CalendarAppointmentEvent
                     | undefined;
                   if (!appointment) return;
+                  if (showCreatePanel && createFormDirty) {
+                    const ok = window.confirm("Событие не сохранено, вы уверены что хотите сбросить изменения?");
+                    if (!ok) return;
+                  }
                   setSelected(appointment);
-                  setShowCreatePanel(false);
-                  onDeepLinkChange("appt", appointment.id);
-                }}
-                // #228: клик по пустому месту = СБРОС выбора (не создание).
-                // Создание — только через drag-протягивание (onSelect).
-                // CR-2: клик по нерабочей (серой) зоне также просто сбрасывает.
-                dateClick={(_arg) => {
-                  // Сбрасываем панель и выделение при клике в пустое место
-                  setSelected(null);
                   setShowCreatePanel(false);
                   setCreateInitialStart(null);
                   setCreateInitialEnd(null);
-                  onDeepLinkChange("appt", null);
-                  calendarRef.current?.getApi().unselect();
+                  setCreateInitialBranchId(null);
+                  setCreateInitialServiceId(null);
+                  setDraftSlot(null);
+                  setCreateFormDirty(false);
+                  onDeepLinkChange("appt", appointment.id);
+                }}
+                dateClick={(arg) => {
+                  if (Date.now() - lastSelectAtRef.current < 150) return;
+                  if (selected || showCreatePanel) {
+                    closeDraftOrSelectionFromGrid();
+                    return;
+                  }
+                  openCreateDraft(arg.date, null);
                 }}
                 eventDrop={onDrop}
                 eventResize={onResize}
@@ -1846,23 +2035,14 @@ export function ScheduleCalendarTab({
               createInitialStart={createInitialStart}
               // #225: конец drag-интервала → длительность в форме создания
               createInitialEnd={createInitialEnd}
+              createInitialBranchId={createInitialBranchId}
+              createInitialServiceId={createInitialServiceId}
+              onCreateDirtyChange={setCreateFormDirty}
               onClose={() => {
-                setSelected(null);
-                setShowCreatePanel(false);
-                setCreateInitialStart(null);
-                setCreateInitialEnd(null);
-                onDeepLinkChange("appt", null);
-                // #227: очищаем синий блок выделения из сетки при закрытии панели создания
-                calendarRef.current?.getApi().unselect();
+                clearDraftAndPanel();
               }}
               onChanged={() => {
-                setSelected(null);
-                setShowCreatePanel(false);
-                setCreateInitialStart(null);
-                setCreateInitialEnd(null);
-                onDeepLinkChange("appt", null);
-                // #227: снимаем синее выделение при успешном создании (симметрично onClose)
-                calendarRef.current?.getApi().unselect();
+                clearDraftAndPanel();
                 load();
               }}
             />
@@ -1871,7 +2051,26 @@ export function ScheduleCalendarTab({
               filterMeta={filters}
               activeFilters={activeFilters}
               branchId={branchId}
-              onCreateClick={() => setShowCreatePanel(true)}
+              onCreateClick={() => {
+                setSelected(null);
+                setCreateInitialStart(null);
+                setCreateInitialEnd(null);
+                setCreateInitialBranchId(
+                  calendarSettings.defaultBranchId &&
+                    filters.branches.some((branch) => branch.id === calendarSettings.defaultBranchId)
+                    ? calendarSettings.defaultBranchId
+                    : null,
+                );
+                setCreateInitialServiceId(
+                  calendarSettings.defaultServiceId &&
+                    filters.services.some((service) => service.id === calendarSettings.defaultServiceId)
+                    ? calendarSettings.defaultServiceId
+                    : null,
+                );
+                setDraftSlot(null);
+                setCreateFormDirty(false);
+                setShowCreatePanel(true);
+              }}
             />
           )}
         </aside>

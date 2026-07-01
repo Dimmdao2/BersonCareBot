@@ -59,7 +59,11 @@ export function resolveDurationAndEnd(
       return { durationMinutes, endAtIso: new Date(endMs).toISOString() };
     }
   }
-  const durationRaw = payload.duration_minutes ?? payload.durationMinutes ?? payload.service_duration;
+  const durationRaw =
+    payload.duration_minutes ??
+    payload.durationMinutes ??
+    payload.service_duration ??
+    payload.duration;
   const durationMinutes =
     typeof durationRaw === "number" && durationRaw > 0
       ? Math.round(durationRaw)
