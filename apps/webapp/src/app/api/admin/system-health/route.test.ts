@@ -384,6 +384,7 @@ describe("GET /api/admin/system-health", () => {
     expect(body.meta?.probes?.remindersPipeline?.status).toBe("ok");
     expect(loadAdminReminderPipelineMetricsMock).toHaveBeenCalled();
     expect(body.cronJobs.jobs.length).toBeGreaterThan(0);
+    expect(body.cronJobs.jobs.some((j) => j.id === "outbound_integration_probes")).toBe(true);
     expect(body.cronJobs.jobs.some((j) => j.id === "playback_retention")).toBe(true);
     expect(body.meta?.probes?.cronJobs?.status).toBeDefined();
   });

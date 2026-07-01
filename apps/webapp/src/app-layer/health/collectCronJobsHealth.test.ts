@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { collectCronJobsHealth } from "@/app-layer/health/collectCronJobsHealth";
 import {
+  OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+  OPERATOR_OUTBOUND_PROBE_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
 
 const getOperatorJobStatusMock = vi.fn();
@@ -63,6 +65,45 @@ describe("collectCronJobsHealth", () => {
     const hourly = result.jobs.find((j) => j.id === "backup_hourly");
     expect(hourly?.status).toBe("ok");
     expect(hourly?.lastTick?.jobKey).toBe("backup.hourly");
+  });
+
+  it("marks the host job aggregate degraded when outbound integration probe never ticked", async () => {
+    getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
+      if (family === OPERATOR_HEALTH_JOB_FAMILY && key === OPERATOR_OUTBOUND_PROBE_JOB_KEY) {
+        return Promise.resolve(null);
+      }
+      return Promise.resolve({
+        jobKey: key,
+        jobFamily: family,
+        lastStatus: "success",
+        lastStartedAt: null,
+        lastFinishedAt: new Date().toISOString(),
+        lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
+        lastFailureAt: null,
+        lastDurationMs: 2,
+        lastError: null,
+        metaJson: {},
+      });
+    });
+
+    const result = await collectCronJobsHealth({
+      backupJobs: {
+        "backup.hourly": {
+          lastStatus: "success",
+          lastStartedAt: null,
+          lastFinishedAt: new Date().toISOString(),
+          lastSuccessAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+          lastFailureAt: null,
+          lastDurationMs: 1000,
+          lastError: null,
+        },
+      },
+    });
+
+    const outbound = result.jobs.find((j) => j.id === "outbound_integration_probes");
+    expect(outbound?.status).toBe("no_data");
+    expect(outbound?.label).toBe("Исходящие пробы интеграций");
+    expect(result.status).toBe("degraded");
   });
 
   it("aggregate status stays ok when only optional backup jobs have no_data", async () => {

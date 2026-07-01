@@ -212,4 +212,55 @@ describe("SystemHealthSection integrations", () => {
       expect(screen.getByRole("button", { name: /Интеграции успешно/i })).toBeInTheDocument();
     });
   });
+
+  it("shows missing outbound probe tick in checker health", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify(
+              healthJson({
+                cronJobs: {
+                  status: "degraded",
+                  jobs: [
+                    {
+                      id: "outbound_integration_probes",
+                      jobFamily: "health",
+                      jobKey: "health.outbound_probe.run",
+                      label: "Исходящие пробы интеграций",
+                      scheduleHint: "ежечасно",
+                      kind: "internal_http",
+                      internalPath: "/internal/operator-health-probe",
+                      status: "no_data",
+                      lastTick: null,
+                    },
+                  ],
+                },
+                meta: {
+                  probes: {
+                    ...probeShell,
+                    cronJobs: { status: "degraded", durationMs: 3 },
+                  },
+                },
+              }),
+            ),
+          ),
+      }),
+    );
+
+    render(<SystemHealthSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Проверяльщики и cron-задачи")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Проверяльщики и cron-задачи хоста/i }));
+
+    expect(screen.getByText("Исходящие пробы интеграций")).toBeInTheDocument();
+    expect(screen.getAllByText("нет данных").length).toBeGreaterThan(0);
+    expect(screen.getByText("ежечасно")).toBeInTheDocument();
+  });
 });

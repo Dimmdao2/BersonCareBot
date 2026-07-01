@@ -39,6 +39,7 @@ async function expandAllServiceAccordions(): Promise<void> {
     /Транскод HLS и очередь/,
     /Открытые инциденты \(\d+\)/,
     /Бэкапы базы данных/,
+    /Проверяльщики и cron-задачи хоста/,
     /Очередь доставки уведомлений/,
     /Напоминания/,
     /Web Push \(PWA\)/,
@@ -242,6 +243,27 @@ function fetchHealthJson(): Record<string, unknown> {
       status: "ok",
       jobs: [
         {
+          id: "outbound_integration_probes",
+          jobFamily: "health",
+          jobKey: "health.outbound_probe.run",
+          label: "Исходящие пробы интеграций",
+          scheduleHint: "ежечасно",
+          kind: "internal_http",
+          internalPath: "/internal/operator-health-probe",
+          status: "ok",
+          lastTick: {
+            jobKey: "health.outbound_probe.run",
+            jobFamily: "health",
+            lastStatus: "success",
+            lastFinishedAt: "2026-04-16T10:05:00.000Z",
+            lastSuccessAt: "2026-04-16T10:05:00.000Z",
+            lastFailureAt: null,
+            lastDurationMs: 250,
+            lastError: null,
+            metaJson: { telegram: "ok" },
+          },
+        },
+        {
           id: "playback_retention",
           jobFamily: "media",
           jobKey: "media.playback_stats.retention",
@@ -303,6 +325,7 @@ describe("SystemHealthSection primary-layer invariants", () => {
 
     expect(primary).not.toMatch(/Probe\s+status/i);
     expect(primary).not.toMatch(/\bjob_key\b/i);
+    expect(primary).not.toMatch(/health\.outbound_probe\.run/);
     expect(primary).not.toMatch(/\bmedia_transcode\.reconcile\b/i);
     expect(primary).not.toMatch(/\bmax_probe_failed\b/);
     expect(primary).not.toMatch(/reminders\.web_push_only\.tick/);
