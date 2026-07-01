@@ -19,12 +19,13 @@ import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { formatFioForDoctor } from "@/lib/parseFullName";
+import { patientCardHref } from "./patientCardHref";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -123,7 +124,7 @@ const SEGMENTS: SegmentDef[] = [
   { key: "visited_month",        title: "Приём в этом мес.",    urlValue: "visited_month" },
 ];
 
-const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(10,1.75rem)] gap-1";
+const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(4,1.75rem)] gap-1 md:grid-cols-[repeat(10,1.75rem)]";
 
 // ---------------------------------------------------------------------------
 // Icon filter helpers (icon-rail on list header)
@@ -354,15 +355,16 @@ type IconSlotProps = {
   label: string;
   title: string;
   badge?: number;
+  className?: string;
   children: ReactNode;
 };
 
-function IconSlot({ visible, label, title, badge, children }: IconSlotProps) {
+function IconSlot({ visible, label, title, badge, className, children }: IconSlotProps) {
   if (!visible) {
-    return <span className="inline-flex size-7 shrink-0" aria-hidden />;
+    return <span className={cn("inline-flex size-7 shrink-0", className)} aria-hidden />;
   }
   return (
-    <span className="inline-flex size-7 shrink-0 items-center justify-center">
+    <span className={cn("inline-flex size-7 shrink-0 items-center justify-center", className)}>
       <span
         className="relative inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-muted-foreground"
         aria-label={label}
@@ -384,10 +386,11 @@ type HeaderIconButtonProps = {
   title: string;
   state: TriFilterState | RichFilterState;
   onClick: () => void;
+  className?: string;
   children: ReactNode;
 };
 
-function HeaderIconButton({ label, title, state, onClick, children }: HeaderIconButtonProps) {
+function HeaderIconButton({ label, title, state, onClick, className, children }: HeaderIconButtonProps) {
   const isPositive = state === "positive" || state === "new";
   const isNegative = state === "negative";
   return (
@@ -396,14 +399,15 @@ function HeaderIconButton({ label, title, state, onClick, children }: HeaderIcon
       aria-label={label}
       title={title}
       onClick={onClick}
-      className={[
+      className={cn(
         "relative inline-flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors",
         isPositive
           ? "border-primary/50 bg-primary/15 text-primary"
           : isNegative
             ? "border-slate-500/60 bg-slate-600/20 text-slate-700 dark:text-slate-300"
             : "border-border/60 bg-muted/40 text-muted-foreground",
-      ].join(" ")}
+        className,
+      )}
     >
       {children}
       {state === "new" ? (
@@ -520,6 +524,8 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
   const hasTelegram = Boolean(item.bindings.telegramId?.trim()) && !item.bindings.telegramBotBlocked;
   const hasMax = Boolean(item.bindings.maxId?.trim()) && !item.bindings.maxBotBlocked;
   const hasEmail = item.hasEmail === true;
+  const cardHref = routePaths.doctorPatientCard(userId);
+  const commsHref = patientCardHref(userId, { tab: "comms" });
 
   return (
     <div className={cn(doctorSectionCardClass, "flex flex-col gap-2 p-3")}>
@@ -598,6 +604,30 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
         </span>
       </div>
 
+      {/* Fast actions */}
+      <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+        <Link href={commsHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 justify-center px-2 text-xs")}>
+          <MessageSquare className="mr-1 size-3.5" aria-hidden />
+          Чат
+        </Link>
+        {item.phone ? (
+          <a href={`tel:${item.phone}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 justify-center px-2 text-xs")}>
+            <Phone className="mr-1 size-3.5" aria-hidden />
+            Позвонить
+          </a>
+        ) : null}
+        {header?.identity.email ? (
+          <a href={`mailto:${header.identity.email}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 justify-center px-2 text-xs")}>
+            <Mail className="mr-1 size-3.5" aria-hidden />
+            Email
+          </a>
+        ) : null}
+        <Link href={cardHref} className={cn(buttonVariants({ size: "sm" }), "h-8 justify-center px-2 text-xs")}>
+          <ExternalLink className="mr-1 size-3.5" aria-hidden />
+          Карта
+        </Link>
+      </div>
+
       {/* Quick chips */}
       <div className="flex flex-wrap gap-1">
         {item.isOnSupport ? (
@@ -651,7 +681,7 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
       {/* CTA */}
       <div className="mt-1 border-t border-border/40 pt-2">
         <Link
-          href={routePaths.doctorPatientCard(userId)}
+          href={cardHref}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
           Открыть карту <ExternalLink className="size-3" />
@@ -783,7 +813,7 @@ function PatientsContent({
       id="doctor-patients-header"
       title={patientPluralLabel}
     />
-    <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+    <div className="grid min-w-0 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* ===== LEFT: patient list ===== */}
       <section
         className={cn(
@@ -821,7 +851,7 @@ function PatientsContent({
 
         {/* Sticky header: count + icon filter rail */}
         {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
-        <div className="lg:sticky lg:top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
+        <div className="lg:sticky lg:top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/60 bg-card px-2 py-2 md:gap-3 md:px-5">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
             {isAnyFilterActive
               ? <>найдено {filtered.length} / {categoryBase.length}</>
@@ -840,16 +870,8 @@ function PatientsContent({
               <CalendarDays className="size-3.5" aria-hidden />
             </HeaderIconButton>
             <HeaderIconButton
-              label="Фильтр переписки"
-              title="Переписка: все состояния -> с перепиской -> с непрочитанными -> без переписки"
-              state={iconFilters.messages}
-              onClick={() => onCycleRichIconFilter("messages")}
-            >
-              <MessageSquare className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр комментариев"
-              title="Комментарии по упражнениям: все -> есть -> новые -> нет"
+              label="Фильтр программы упражнений"
+              title="Программа упражнений: все -> с программой -> с новыми комментариями -> без программы"
               state={iconFilters.comments}
               onClick={() => onCycleRichIconFilter("comments")}
             >
@@ -876,6 +898,7 @@ function PatientsContent({
               title="Телефон: все -> есть телефон -> нет телефона"
               state={iconFilters.phone}
               onClick={() => onCycleTriIconFilter("phone")}
+              className="hidden md:inline-flex"
             >
               <Phone className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -884,6 +907,7 @@ function PatientsContent({
               title="Telegram: все -> подключен -> не подключен"
               state={iconFilters.telegram}
               onClick={() => onCycleTriIconFilter("telegram")}
+              className="hidden md:inline-flex"
             >
               <Send className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -892,6 +916,7 @@ function PatientsContent({
               title="MAX: все -> подключен -> не подключен"
               state={iconFilters.max}
               onClick={() => onCycleTriIconFilter("max")}
+              className="hidden md:inline-flex"
             >
               <span className="text-[10px] font-semibold leading-none">М</span>
             </HeaderIconButton>
@@ -900,6 +925,7 @@ function PatientsContent({
               title="Email: все -> указан -> не указан"
               state={iconFilters.email}
               onClick={() => onCycleTriIconFilter("email")}
+              className="hidden md:inline-flex"
             >
               <Mail className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -908,6 +934,7 @@ function PatientsContent({
               title="Приложение: все -> есть приложение -> нет приложения"
               state={iconFilters.app}
               onClick={() => onCycleTriIconFilter("app")}
+              className="hidden md:inline-flex"
             >
               <Smartphone className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -937,7 +964,7 @@ function PatientsContent({
                     onClick={() => onSelectPatient(isSelected ? null : c.userId)}
                     className={cn(
                       doctorClientListRowLinkClass,
-                      "items-center w-full text-left",
+                      "w-full items-center gap-2 px-2 text-left md:gap-3 md:px-3",
                       isSelected && "bg-primary/15 hover:bg-primary/15",
                     )}
                   >
@@ -967,6 +994,7 @@ function PatientsContent({
                         label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
                         title="Переписка"
                         badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
+                        className="hidden md:inline-flex"
                       >
                         <MessageSquare className="size-3.5" aria-hidden />
                       </IconSlot>
@@ -992,13 +1020,14 @@ function PatientsContent({
                       >
                         <Ticket className="size-3.5" aria-hidden />
                       </IconSlot>
-                      <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан">
+                      <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан" className="hidden md:inline-flex">
                         <Phone className="size-3.5" aria-hidden />
                       </IconSlot>
                       <IconSlot
                         visible={Boolean(c.bindings.telegramId?.trim())}
                         label="Подключён Telegram"
                         title="Подключён Telegram"
+                        className="hidden md:inline-flex"
                       >
                         <Send className="size-3.5" aria-hidden />
                       </IconSlot>
@@ -1006,17 +1035,28 @@ function PatientsContent({
                         visible={Boolean(c.bindings.maxId?.trim())}
                         label="Подключён MAX"
                         title="Подключён MAX"
+                        className="hidden md:inline-flex"
                       >
                         <span className="text-[10px] font-semibold leading-none">М</span>
                       </IconSlot>
-                      <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email">
+                      <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email" className="hidden md:inline-flex">
                         <Mail className="size-3.5" aria-hidden />
                       </IconSlot>
-                      <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение">
+                      <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение" className="hidden md:inline-flex">
                         <Smartphone className="size-3.5" aria-hidden />
                       </IconSlot>
                     </div>
                   </button>
+                  {isSelected ? (
+                    <div className="mt-1 lg:hidden">
+                      <PatientPreviewPane
+                        userId={c.userId}
+                        item={c}
+                        onClose={() => onSelectPatient(null)}
+                        displayIana={displayIana}
+                      />
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
@@ -1025,7 +1065,7 @@ function PatientsContent({
       </section>
 
       {/* ===== RIGHT: filter panel + preview pane ===== */}
-      <div className="flex flex-col gap-3 lg:min-h-0">
+      <div className="hidden flex-col gap-3 lg:flex lg:min-h-0">
         {/* Filter panel */}
         <section
           className={cn(
