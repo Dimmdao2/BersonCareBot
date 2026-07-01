@@ -55,6 +55,7 @@ type PuRow = {
   display_name: string;
   first_name: string | null;
   last_name: string | null;
+  patronymic: string | null;
   email: string | null;
   email_verified_at: Date | null;
   role: string;
@@ -188,7 +189,7 @@ export async function mergePlatformUsersInTransaction(
 
   const lockRes = await client.query<PuRow>(
     `SELECT id, phone_normalized, patient_phone_trust_at, integrator_user_id::text AS integrator_user_id, merged_into_id,
-            display_name, first_name, last_name, email, email_verified_at, role, created_at
+            display_name, first_name, last_name, patronymic, email, email_verified_at, role, created_at
      FROM platform_users
      WHERE id IN ($1::uuid, $2::uuid)
      ORDER BY id
@@ -443,6 +444,7 @@ export async function mergePlatformUsersInTransaction(
          display_name = CASE WHEN $4::text = 'target' THEN pu.display_name ELSE dup.display_name END,
          first_name = CASE WHEN $5::text = 'target' THEN pu.first_name ELSE dup.first_name END,
          last_name = CASE WHEN $6::text = 'target' THEN pu.last_name ELSE dup.last_name END,
+         patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
          email = ${chosenEmailSql},
          email_verified_at = ${preservedEmailVerifiedAtSql(chosenEmailSql)},
          updated_at = now()
@@ -548,6 +550,7 @@ export async function mergePlatformUsersInTransaction(
            END
            ELSE COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
          END,
+         patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
          email = ${chosenEmailSql},
          email_verified_at = ${preservedEmailVerifiedAtSql(chosenEmailSql)},
          updated_at = now()

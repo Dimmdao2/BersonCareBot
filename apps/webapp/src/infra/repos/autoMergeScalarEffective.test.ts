@@ -3,6 +3,7 @@ import {
   effectiveAutoMergedDisplayName,
   effectiveAutoMergedFirstName,
   effectiveAutoMergedLastName,
+  effectiveAutoMergedPatronymic,
   pickAutoMergeNamePrimarySide,
 } from "@/infra/repos/autoMergeScalarEffective";
 
@@ -10,6 +11,7 @@ const base = {
   display_name: "",
   first_name: null as string | null,
   last_name: null as string | null,
+  patronymic: null as string | null,
 };
 
 describe("pickAutoMergeNamePrimarySide", () => {
@@ -75,5 +77,22 @@ describe("effectiveAutoMergedFirstName", () => {
     };
     expect(effectiveAutoMergedFirstName(bot, crm)).toBe("Иван");
     expect(effectiveAutoMergedLastName(bot, crm)).toBe("Name");
+  });
+
+  it("preserves target patronymic or fills it from duplicate when target is empty", () => {
+    const target = {
+      ...base,
+      phone_normalized: "+7900",
+      created_at: new Date("2020-01-01"),
+      patronymic: null,
+    };
+    const duplicate = {
+      ...base,
+      phone_normalized: "+7900",
+      created_at: new Date("2021-06-01"),
+      patronymic: "Иванович",
+    };
+    expect(effectiveAutoMergedPatronymic(target, duplicate)).toBe("Иванович");
+    expect(effectiveAutoMergedPatronymic({ ...target, patronymic: "Петрович" }, duplicate)).toBe("Петрович");
   });
 });

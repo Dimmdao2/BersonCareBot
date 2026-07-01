@@ -118,6 +118,24 @@ describe("pgUserProjectionPort (repo SQL parity)", () => {
     expect(runWebappPgTextMock.mock.calls[1]?.[2]).toBe(client);
   });
 
+  it("upsertFromProjection update path does not blindly overwrite display_name with weak displayName", async () => {
+    installPoolClient();
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ id: "pu-existing" }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    const result = await pgUserProjectionPort.upsertFromProjection({
+      integratorUserId: "99",
+      displayName: "Telegram Name",
+    });
+
+    expect(result).toEqual({ platformUserId: "pu-existing" });
+    const updateSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(updateSql).toContain("WHEN (display_name IS NULL OR trim(display_name) = '')");
+    expect(updateSql).toContain("AND $3::text IS NOT NULL");
+    expect(updateSql).toContain("AND $4::text IS NOT NULL");
+  });
+
   it("updatePhone runs UPDATE in TX and applies phone history transition", async () => {
     const { client, transportQueries } = installPoolClient();
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });

@@ -1,6 +1,6 @@
 # FIO / Identity Cleanup Initiative
 
-Status: execution, phase 4 booking form contract complete.
+Status: execution, phase 5 merge/projection priority complete.
 
 Master plan: `.cursor/plans/fio_identity_cleanup.plan.md`.
 
@@ -269,6 +269,8 @@ Implemented:
 
 ### Phase 5 — Merge, Projection, And Provider Priority
 
+Status: completed.
+
 Goal: prevent Telegram/MAX/OAuth from degrading canonical patient names.
 
 Actions:
@@ -286,6 +288,14 @@ Validation:
 Gate:
 
 - No path can replace strong structured FIO with weaker provider display data.
+
+Implemented:
+
+- projection updates preserve non-empty `display_name` when incoming data is only
+  weak display-only input;
+- structured projection with first+last can still update derived display name;
+- merge SQL preserves `patronymic`;
+- auto-merge helper and preview include patronymic effective values/conflicts.
 
 ### Phase 6 — Reviewed Backfill Apply
 

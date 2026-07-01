@@ -20,7 +20,7 @@ todos:
     status: completed
   - id: fio-5
     content: Update merge/projection/OAuth/messenger priority so stronger FIO sources cannot be overwritten.
-    status: pending
+    status: completed
   - id: fio-6
     content: Apply reviewed high-confidence backfill on dev/test with audit artifact and manual spot-checks.
     status: pending
@@ -49,7 +49,7 @@ The work is intentionally ordered so product behavior changes happen only after 
 - [x] A single typed FIO model handles normalization, parsing, confidence, and labels.
 - [x] Dry-run report proves which users can be safely backfilled.
 - [x] Booking form collects surname and given name as required fields and prefills known phone/email.
-- [ ] Merge/OAuth/messenger paths cannot overwrite stronger booking/manual FIO.
+- [x] Merge/OAuth/messenger paths cannot overwrite stronger booking/manual FIO.
 - [ ] Backfill apply writes only reviewed high-confidence rows and emits an audit artifact.
 - [ ] Doctor surfaces use full FIO; patient surfaces use first name.
 - [ ] Booking lifecycle templates are editable through DB-backed settings, not env.
@@ -363,6 +363,8 @@ Goal:
 
 Prevent Telegram/MAX/OAuth from degrading canonical patient names.
 
+Status: completed.
+
 Actions:
 
 - Update Rubitime/webapp ensure path so appointment FIO is a strong source.
@@ -385,6 +387,20 @@ Validation:
 Gate:
 
 - No path can replace strong structured FIO with weaker provider display data.
+
+Implemented:
+
+- projection update no longer blindly overwrites non-empty `display_name` with weak display-only input;
+- structured projection with first+last remains strong and can update derived display name;
+- auto/manual merge SQL preserves `patronymic` instead of dropping it;
+- auto-merge helper and preview expose effective patronymic;
+- merge preview scalar conflicts include `patronymic`.
+
+Validation run:
+
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/infra/repos/pgUserProjection.repo.test.ts src/infra/repos/autoMergeScalarEffective.test.ts src/infra/platformUserMergePreview.test.ts --project=fast"`
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/infra/repos/pgUserProjection.ts src/infra/repos/pgUserProjection.repo.test.ts src/infra/repos/autoMergeScalarEffective.ts src/infra/repos/autoMergeScalarEffective.test.ts src/infra/platformUserMergePreview.ts src/infra/platformUserMergePreview.test.ts"`
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir packages/platform-merge run typecheck"`
 
 ## Phase 6 — Reviewed Backfill Apply
 

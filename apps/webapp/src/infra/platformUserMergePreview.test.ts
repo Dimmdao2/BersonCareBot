@@ -30,6 +30,7 @@ function row(p: Partial<MergePreviewPlatformUserRow> & { id: string }): MergePre
     display_name: "A",
     first_name: null,
     last_name: null,
+    patronymic: null,
     email: null,
     email_verified_at: null,
     role: "client",
@@ -281,6 +282,7 @@ describe("analyzeMergePreviewModel", () => {
       display_name: "BotNick",
       first_name: "Wrong",
       last_name: "Name",
+      patronymic: null,
       created_at: new Date("2022-01-01T00:00:00.000Z"),
     });
     const olderCrm = row({
@@ -289,14 +291,17 @@ describe("analyzeMergePreviewModel", () => {
       display_name: "Иван П.",
       first_name: "Иван",
       last_name: "Петров",
+      patronymic: "Иванович",
       created_at: new Date("2020-06-01T00:00:00.000Z"),
     });
     const m = analyzeMergePreviewModel(newerBot, olderCrm, baseOpts({}));
     const first = m.autoMergeScalars.find((s) => s.field === "first_name");
     const last = m.autoMergeScalars.find((s) => s.field === "last_name");
     const disp = m.autoMergeScalars.find((s) => s.field === "display_name");
+    const patronymic = m.autoMergeScalars.find((s) => s.field === "patronymic");
     expect(first?.effectiveValue).toBe("Иван");
     expect(last?.effectiveValue).toBe("Петров");
+    expect(patronymic?.effectiveValue).toBe("Иванович");
     expect(disp?.effectiveValue).toBe("Иван П.");
     expect(m.recommendation.suggestedTargetId).toBe(olderCrm.id);
     expect(m.recommendation.suggestedDuplicateId).toBe(newerBot.id);

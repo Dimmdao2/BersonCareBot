@@ -71,6 +71,18 @@ No DB writes were made.
   `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx src/app/app/patient/booking/new/confirm/confirm-page.test.ts src/modules/patient-booking/createInputValidation.test.ts --project=fast"`;
   `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/app/app/patient/booking/new/confirm/page.tsx src/app/app/patient/booking/new/confirm/ConfirmStepClient.tsx src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx src/app/app/patient/cabinet/useCreateBooking.ts src/app/api/booking/create/route.ts src/modules/patient-booking/types.ts src/modules/patient-booking/ports.ts src/modules/patient-booking/createInputValidation.ts src/modules/patient-booking/createInputValidation.test.ts src/modules/patient-booking/inPersonApiSchemas.ts src/modules/patient-booking/canonicalCreate.ts src/modules/patient-booking/service.ts"`.
 
+## 2026-07-02 — Phase 5 Merge And Projection Priority
+
+- Changed projection update SQL so weak display-only inputs fill only empty
+  `display_name`; structured first+last projection remains a strong source.
+- Added repo test that guards this SQL behavior.
+- Added `patronymic` preservation to `@bersoncare/platform-merge` merge SQL.
+- Added patronymic effective-value helper and preview scalar support.
+- Validation:
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/infra/repos/pgUserProjection.repo.test.ts src/infra/repos/autoMergeScalarEffective.test.ts src/infra/platformUserMergePreview.test.ts --project=fast"`;
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/infra/repos/pgUserProjection.ts src/infra/repos/pgUserProjection.repo.test.ts src/infra/repos/autoMergeScalarEffective.ts src/infra/repos/autoMergeScalarEffective.test.ts src/infra/platformUserMergePreview.ts src/infra/platformUserMergePreview.test.ts"`;
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir packages/platform-merge run typecheck"`.
+
 ## 2026-07-02 — Phase 2 Shared FIO Parser
 
 - Added shared typed FIO helper:
