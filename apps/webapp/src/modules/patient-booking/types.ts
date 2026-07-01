@@ -79,6 +79,11 @@ export type PatientBookingRecord = {
 };
 
 export type BookingFormAnswerInput = { fieldKey: string; value: string };
+export type BookingContactFioInput = {
+  lastName: string;
+  firstName: string;
+  patronymic?: string;
+};
 
 type CreatePatientBookingCommon = {
   userId: string;
@@ -94,6 +99,7 @@ export type CreatePatientBookingInput =
       slotStart: string;
       slotEnd: string;
       contactName: string;
+      contactFio?: BookingContactFioInput;
       contactPhone: string;
       contactEmail?: string;
       formAnswers?: BookingFormAnswerInput[];
@@ -107,6 +113,7 @@ export type CreatePatientBookingInput =
       slotStart: string;
       slotEnd: string;
       contactName: string;
+      contactFio?: BookingContactFioInput;
       contactPhone: string;
       contactEmail?: string;
       formAnswers?: BookingFormAnswerInput[];

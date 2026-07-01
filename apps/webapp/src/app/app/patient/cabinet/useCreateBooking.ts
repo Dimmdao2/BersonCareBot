@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BookingSelection } from "./useBookingSelection";
-import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { BookingContactFioInput, BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
 import { mapBookingCreateErrorCodeToRu } from "./bookingCreateErrorMessages";
 import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 
@@ -13,6 +13,7 @@ type CreateBookingInput = {
   selection: BookingSelection;
   slot: BookingSlot;
   contactName: string;
+  contactFio?: BookingContactFioInput;
   contactPhone: string;
   contactEmail?: string;
   formAnswers?: FormAnswer[];
@@ -37,6 +38,7 @@ export function useCreateBooking() {
               slotStart: input.slot.startAt,
               slotEnd: input.slot.endAt,
               contactName: input.contactName,
+              contactFio: input.contactFio,
               contactPhone: input.contactPhone,
               contactEmail: input.contactEmail,
               formAnswers: input.formAnswers,
@@ -56,6 +58,7 @@ export function useCreateBooking() {
                 slotStart: input.slot.startAt,
                 slotEnd: input.slot.endAt,
                 contactName: input.contactName,
+                contactFio: input.contactFio,
                 contactPhone: input.contactPhone,
                 contactEmail: input.contactEmail,
                 formAnswers: input.formAnswers,

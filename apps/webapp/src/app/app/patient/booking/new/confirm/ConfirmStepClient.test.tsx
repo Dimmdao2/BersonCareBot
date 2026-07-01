@@ -22,7 +22,7 @@ const mockBooking = {
   gcalEventId: null,
   contactPhone: "+79990000000",
   contactEmail: null,
-  contactName: "Иван",
+  contactName: "Иванов Иван Иванович",
   reminder24hSent: false,
   reminder2hSent: false,
   createdAt: "2026-04-10T09:00:00.000Z",
@@ -79,8 +79,9 @@ vi.mock("@/shared/booking/bookingPartialOutcomeToast", () => ({
 const baseProps = {
   slotStart: "2026-04-10T10:00:00.000Z",
   slotEnd: "2026-04-10T11:00:00.000Z",
-  defaultName: "Иван",
+  defaultFio: { lastName: "Иванов", firstName: "Иван", patronymic: "Иванович" },
   defaultPhone: "+79990000000",
+  defaultEmail: "ivan@example.com",
   appDisplayTimeZone: "Europe/Moscow",
 } as const;
 
@@ -104,7 +105,7 @@ describe("ConfirmStepClient", () => {
     vi.unstubAllGlobals();
   });
 
-  it("prefills name and phone from props", () => {
+  it("prefills FIO, phone and email from props", () => {
     render(
       <ConfirmStepClient
         type="online"
@@ -112,23 +113,30 @@ describe("ConfirmStepClient", () => {
         {...baseProps}
       />,
     );
+    expect(screen.getByLabelText(/Фамилия/i)).toHaveValue("Иванов");
     expect(screen.getByLabelText(/Имя/i)).toHaveValue("Иван");
+    expect(screen.getByLabelText(/Отчество/i)).toHaveValue("Иванович");
     expect(screen.getByLabelText(/Телефон/i)).toHaveValue("+79990000000");
+    expect(screen.getByLabelText(/Email/i)).toHaveValue("ivan@example.com");
   });
 
-  it("disables submit when name is empty", async () => {
+  it("disables submit when required surname or given name is empty", async () => {
     const user = userEvent.setup();
     render(
       <ConfirmStepClient
         type="online"
         category="rehab_lfk"
         {...baseProps}
-        defaultName=""
+        defaultFio={{ lastName: "", firstName: "Иван", patronymic: null }}
       />,
     );
 
-    await user.clear(screen.getByLabelText(/Имя/i));
+    await user.clear(screen.getByLabelText(/Фамилия/i));
     const submit = screen.getByRole("button", { name: /Подтвердить запись/i });
+    expect(submit).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/Фамилия/i), "Иванов");
+    await user.clear(screen.getByLabelText(/Имя/i));
     expect(submit).toBeDisabled();
   });
 
@@ -167,8 +175,14 @@ describe("ConfirmStepClient", () => {
           startAt: baseProps.slotStart,
           endAt: baseProps.slotEnd,
         },
-        contactName: "Иван",
+        contactName: "Иванов Иван Иванович",
+        contactFio: {
+          lastName: "Иванов",
+          firstName: "Иван",
+          patronymic: "Иванович",
+        },
         contactPhone: "+79990000000",
+        contactEmail: "ivan@example.com",
       }),
     );
 

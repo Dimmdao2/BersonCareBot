@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { parseFioCandidate, type StructuredFio } from "@/shared/lib/fio";
+import type { SessionUser } from "@/shared/types/session";
 import { bookingNewHref } from "../../bookingNewHref";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
@@ -46,6 +49,44 @@ function buildSlotBackQuery(raw: Record<string, string | string[] | undefined>):
   return q.toString();
 }
 
+function looksLikePatronymic(value: string | undefined): boolean {
+  return /(вич|вна|ич|ична|оглы|кызы)$/i.test((value ?? "").toLowerCase().replace(/ё/g, "е"));
+}
+
+function deriveDefaultFio(user: SessionUser): StructuredFio {
+  const parsed = parseFioCandidate(user.displayName, "display_name").value;
+  const firstName = user.firstName?.trim() || parsed.firstName;
+  const tokens = user.displayName.trim().split(/\s+/).filter(Boolean);
+  if (firstName && tokens.length >= 2) {
+    const firstLower = firstName.toLowerCase().replace(/ё/g, "е");
+    const tokenLower = tokens.map((token) => token.toLowerCase().replace(/ё/g, "е"));
+    const firstIndex = tokenLower.indexOf(firstLower);
+    if (firstIndex >= 0) {
+      const secondLooksPatronymic = looksLikePatronymic(tokens[1]);
+      return {
+        lastName:
+          firstIndex === 0
+            ? secondLooksPatronymic
+              ? tokens[2] ?? parsed.lastName
+              : tokens[1] ?? parsed.lastName
+            : tokens[0] ?? parsed.lastName,
+        firstName,
+        patronymic:
+          firstIndex === 0
+            ? secondLooksPatronymic
+              ? tokens[1] ?? parsed.patronymic
+              : tokens[2] ?? parsed.patronymic
+            : tokens[2] ?? parsed.patronymic,
+      };
+    }
+  }
+  return {
+    lastName: parsed.lastName,
+    firstName,
+    patronymic: parsed.patronymic,
+  };
+}
+
 export default async function BookingNewConfirmPage({ searchParams }: Props) {
   const session = await getOptionalPatientSession();
   if (!session) {
@@ -85,6 +126,9 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
   const successRedirectPath = bookingNewHref(cityCodeForLinks);
 
   const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
+  const deps = buildAppDeps();
+  const profileEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const defaultFio = deriveDefaultFio(session.user);
 
   return (
     <BookingWizardShell
@@ -106,8 +150,9 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
         category={first(raw.category)}
         slotStart={slot}
         slotEnd={slotEnd}
-        defaultName={session.user.displayName}
+        defaultFio={defaultFio}
         defaultPhone={session.user.phone ?? ""}
+        defaultEmail={profileEmail.email ?? ""}
         appDisplayTimeZone={appDisplayTimeZone}
         rescheduleBookingId={rescheduleBookingId}
       />

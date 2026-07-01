@@ -27,6 +27,13 @@ export const inPersonCreateBodySchema = z
     slotStart: z.string().min(1),
     slotEnd: z.string().min(1),
     contactName: z.string().min(1),
+    contactFio: z
+      .object({
+        lastName: z.string().trim().min(1),
+        firstName: z.string().trim().min(1),
+        patronymic: z.string().trim().optional(),
+      })
+      .optional(),
     contactPhone: z.string().min(1),
     contactEmail: z.string().email().optional(),
     formAnswers: z

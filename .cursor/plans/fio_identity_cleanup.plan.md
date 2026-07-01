@@ -17,7 +17,7 @@ todos:
     status: completed
   - id: fio-4
     content: Update booking form contract to collect surname/given/patronymic and prefill phone/email.
-    status: pending
+    status: completed
   - id: fio-5
     content: Update merge/projection/OAuth/messenger priority so stronger FIO sources cannot be overwritten.
     status: pending
@@ -48,7 +48,7 @@ The work is intentionally ordered so product behavior changes happen only after 
 - [x] Name readers/writers are inventoried and documented.
 - [x] A single typed FIO model handles normalization, parsing, confidence, and labels.
 - [x] Dry-run report proves which users can be safely backfilled.
-- [ ] Booking form collects surname and given name as required fields and prefills known phone/email.
+- [x] Booking form collects surname and given name as required fields and prefills known phone/email.
 - [ ] Merge/OAuth/messenger paths cannot overwrite stronger booking/manual FIO.
 - [ ] Backfill apply writes only reviewed high-confidence rows and emits an audit artifact.
 - [ ] Doctor surfaces use full FIO; patient surfaces use first name.
@@ -308,6 +308,8 @@ Goal:
 
 Stop creating new messy names.
 
+Status: completed.
+
 Actions:
 
 - Replace the patient booking confirm contact name input with:
@@ -331,6 +333,29 @@ Validation:
 Gate:
 
 - New bookings contain structured FIO and still produce existing lifecycle payloads.
+
+Artifacts:
+
+- `apps/webapp/src/app/app/patient/booking/new/confirm/page.tsx`
+- `apps/webapp/src/app/app/patient/booking/new/confirm/ConfirmStepClient.tsx`
+- `apps/webapp/src/app/app/patient/cabinet/useCreateBooking.ts`
+- `apps/webapp/src/app/api/booking/create/route.ts`
+- `apps/webapp/src/modules/patient-booking/{types,ports,createInputValidation,inPersonApiSchemas,canonicalCreate,service}.ts`
+
+Implemented:
+
+- patient confirm step collects `lastName`, `firstName`, `patronymic`;
+- surname and given name are required before submit;
+- phone and email are prefilled from the current profile/session;
+- legacy `contactName` is still generated as `Фамилия Имя Отчество`;
+- API accepts optional `contactFio`;
+- canonical form profile prefill exposes `first_name`, `last_name`, and `patronymic`;
+- booking.created event/attribution includes `contactFio` when provided.
+
+Validation run:
+
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx src/app/app/patient/booking/new/confirm/confirm-page.test.ts src/modules/patient-booking/createInputValidation.test.ts --project=fast"`
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/app/app/patient/booking/new/confirm/page.tsx src/app/app/patient/booking/new/confirm/ConfirmStepClient.tsx src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx src/app/app/patient/cabinet/useCreateBooking.ts src/app/api/booking/create/route.ts src/modules/patient-booking/types.ts src/modules/patient-booking/ports.ts src/modules/patient-booking/createInputValidation.ts src/modules/patient-booking/createInputValidation.test.ts src/modules/patient-booking/inPersonApiSchemas.ts src/modules/patient-booking/canonicalCreate.ts src/modules/patient-booking/service.ts"`
 
 ## Phase 5 — Merge, Projection, And Provider Priority
 

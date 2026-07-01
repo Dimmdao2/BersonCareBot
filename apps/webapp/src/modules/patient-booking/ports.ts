@@ -1,5 +1,6 @@
 import type {
   BookingCategory,
+  BookingContactFioInput,
   BookingSlotsByDate,
   BookingType,
   CancelPatientBookingInput,
@@ -77,6 +78,7 @@ export type CreateBookingSyncInput =
       slotStart: string;
       slotEnd: string;
       contactName: string;
+      contactFio?: BookingContactFioInput;
       contactPhone: string;
       contactEmail?: string;
     }

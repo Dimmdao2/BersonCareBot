@@ -226,7 +226,9 @@ export async function createBookingOnCanonicalEngine(
   const profilePrefill: Record<string, string> = {
     contact_name: createInput.contactName,
     contact_phone: createInput.contactPhone,
-    first_name: createInput.contactName,
+    first_name: createInput.contactFio?.firstName ?? createInput.contactName,
+    ...(createInput.contactFio?.lastName ? { last_name: createInput.contactFio.lastName } : {}),
+    ...(createInput.contactFio?.patronymic ? { patronymic: createInput.contactFio.patronymic } : {}),
     phone: createInput.contactPhone,
     ...(createInput.contactEmail ? { contact_email: createInput.contactEmail, email: createInput.contactEmail } : {}),
   };
@@ -408,6 +410,7 @@ export async function createBookingOnCanonicalEngine(
             actorId: createInput.userId,
             attributionJson: {
               ...(createInput.attribution ?? {}),
+              ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
               ...(productPurchaseId ? { productPurchaseId } : {}),
             },
           });
@@ -641,6 +644,7 @@ export async function createBookingOnCanonicalEngine(
           slotStart: pendingRow.slotStart,
           slotEnd: pendingRow.slotEnd,
           contactName: pendingRow.contactName,
+          ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
           contactPhone: pendingRow.contactPhone,
           contactEmail: pendingRow.contactEmail ?? undefined,
           branchServiceId: pendingRow.branchServiceId,

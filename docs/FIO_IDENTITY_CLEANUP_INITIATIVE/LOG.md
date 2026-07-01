@@ -53,6 +53,24 @@ No product behavior changes and no DB writes were made.
 
 No DB writes were made.
 
+## 2026-07-02 — Phase 4 Booking Form Contract
+
+- Updated patient booking confirm UI to collect:
+  - surname (`lastName`) — required;
+  - given name (`firstName`) — required;
+  - patronymic — optional.
+- Prefills phone from session and email from profile email fields.
+- Keeps compatibility by deriving legacy `contactName` as
+  `Фамилия Имя Отчество`.
+- Added optional API/domain `contactFio` alongside `contactName`.
+- Canonical booking form prefill now exposes `first_name`, `last_name`, and
+  `patronymic` when structured FIO is provided.
+- `booking.created` event payload and canonical appointment attribution include
+  `contactFio` when present.
+- Validation:
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx src/app/app/patient/booking/new/confirm/confirm-page.test.ts src/modules/patient-booking/createInputValidation.test.ts --project=fast"`;
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/app/app/patient/booking/new/confirm/page.tsx src/app/app/patient/booking/new/confirm/ConfirmStepClient.tsx src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx src/app/app/patient/cabinet/useCreateBooking.ts src/app/api/booking/create/route.ts src/modules/patient-booking/types.ts src/modules/patient-booking/ports.ts src/modules/patient-booking/createInputValidation.ts src/modules/patient-booking/createInputValidation.test.ts src/modules/patient-booking/inPersonApiSchemas.ts src/modules/patient-booking/canonicalCreate.ts src/modules/patient-booking/service.ts"`.
+
 ## 2026-07-02 — Phase 2 Shared FIO Parser
 
 - Added shared typed FIO helper:

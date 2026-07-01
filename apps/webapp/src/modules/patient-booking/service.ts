@@ -446,6 +446,7 @@ export function createPatientBookingService(input: {
                 slotStart: finalized.slotStart,
                 slotEnd: finalized.slotEnd,
                 contactName: finalized.contactName,
+                ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
                 contactPhone: finalized.contactPhone,
                 contactEmail: finalized.contactEmail ?? undefined,
                 branchServiceId: finalized.branchServiceId,

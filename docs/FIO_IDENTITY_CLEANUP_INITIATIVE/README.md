@@ -1,6 +1,6 @@
 # FIO / Identity Cleanup Initiative
 
-Status: execution, phase 3 dry-run complete.
+Status: execution, phase 4 booking form contract complete.
 
 Master plan: `.cursor/plans/fio_identity_cleanup.plan.md`.
 
@@ -234,6 +234,8 @@ Artifacts:
 
 ### Phase 4 — Booking Form Contract
 
+Status: completed.
+
 Goal: stop creating new messy names.
 
 Actions:
@@ -254,6 +256,16 @@ Gate:
 
 - New bookings contain structured FIO and still produce existing lifecycle
   payloads.
+
+Implemented:
+
+- patient confirm step collects surname, given name, and optional patronymic;
+- surname and given name are required;
+- phone and email are prefilled from the current profile/session;
+- legacy `contactName` is derived as `Фамилия Имя Отчество`;
+- API accepts optional `contactFio`;
+- canonical profile prefill and booking event/attribution carry structured FIO
+  when provided.
 
 ### Phase 5 — Merge, Projection, And Provider Priority
 
