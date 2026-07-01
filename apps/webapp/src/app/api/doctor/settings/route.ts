@@ -17,6 +17,9 @@ const DOCTOR_SCOPE_KEYS = [
   "doctor_specialist_task_reminder_channels",
   "doctor_appointment_reminder_enabled",
   "doctor_appointment_reminder_offsets_minutes",
+  "booking_calendar_default_window",
+  "booking_calendar_default_branch_id",
+  "booking_calendar_default_service_id",
 ] as const;
 
 const patchSchema = z.object({

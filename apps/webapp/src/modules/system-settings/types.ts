@@ -98,6 +98,12 @@ export const ALLOWED_KEYS = [
   "booking_doctor_appointments_read_source",
   /** Показывать в календаре врача фон рабочего времени и перерывов (working/break layers). */
   "booking_calendar_show_working_hours",
+  /** Окно календарной сетки врача по умолчанию, если нет рабочих часов/записей: `{ startMinute, endMinute }`. Scope doctor. */
+  "booking_calendar_default_window",
+  /** UUID филиала по умолчанию для ручного создания записи в календаре. Scope doctor. */
+  "booking_calendar_default_branch_id",
+  /** UUID услуги по умолчанию для ручного создания записи в календаре. Scope doctor. */
+  "booking_calendar_default_service_id",
   /** Источник свободных слотов пациента: `rubitime` (legacy) | `canonical` (booking-scheduling). */
   "booking_slots_read_source",
   /** Вкл/выкл платёжный слой записи (предоплата, intents). */

@@ -88,17 +88,28 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
     onChanged,
     startInCreate,
     createInitialStart,
+    createInitialEnd,
+    createInitialBranchId,
+    createInitialServiceId,
+    onCreateDirtyChange,
   }: {
     selected: unknown;
     onClose: () => void;
     onChanged?: () => void;
     startInCreate?: boolean;
     createInitialStart?: string | null;
+    createInitialEnd?: string | null;
+    createInitialBranchId?: string | null;
+    createInitialServiceId?: string | null;
+    onCreateDirtyChange?: (dirty: boolean) => void;
   }) => (
     <div
       data-testid="event-panel"
       data-start-in-create={startInCreate ? "true" : "false"}
       data-create-initial-start={createInitialStart ?? ""}
+      data-create-initial-end={createInitialEnd ?? ""}
+      data-create-initial-branch-id={createInitialBranchId ?? ""}
+      data-create-initial-service-id={createInitialServiceId ?? ""}
     >
       {selected ? (
         <button data-testid="panel-close" onClick={onClose}>
@@ -109,6 +120,9 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
       )}
       <button data-testid="panel-changed" onClick={onChanged}>
         changed
+      </button>
+      <button data-testid="panel-dirty" onClick={() => onCreateDirtyChange?.(true)}>
+        dirty
       </button>
     </div>
   ),
@@ -238,6 +252,14 @@ function setupFetchMock(
               },
             ),
           ),
+      } as Response);
+    }
+    if (url.includes("/api/doctor/settings")) {
+      const response = { ok: true, settings: [] };
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(response)),
+        json: () => Promise.resolve(response),
       } as Response);
     }
     // Default: calendar feed
@@ -927,29 +949,62 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
   });
 
-  // ─── #228: dateClick = сброс выбора (НЕ создание), создание только через drag ─
+  // ─── #228: dateClick/drag create draft; side click resets active draft ─────
 
-  describe("#228 — dateClick resets selection (no longer opens create)", () => {
-    it("clicking time-grid slot closes the create panel (does NOT open it)", async () => {
+  describe("#228 — dateClick and drag create draft slots", () => {
+    it("clicking time-grid slot creates draft when no slot is active", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      // Сначала открываем панель через + Создать запись
-      await waitFor(() => screen.getByTestId("create-appointment-btn"));
-      await user.click(screen.getByTestId("create-appointment-btn"));
-      await waitFor(() => screen.getByTestId("event-panel"));
-
-      // Клик по пустому месту — панель должна закрыться
+      await waitFor(() => screen.getByTestId("fullcalendar"));
       await user.click(screen.getByTestId("fc-timegrid-click"));
+      await waitFor(() => {
+        const panel = screen.getByTestId("event-panel");
+        expect(panel).toBeInTheDocument();
+        expect(panel.getAttribute("data-start-in-create")).toBe("true");
+        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T14:00");
+        expect(panel.getAttribute("data-create-initial-end")).toBe("2026-06-17T15:00");
+      });
+    });
+
+    it("clicking time-grid slot closes active create draft", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-timegrid-click"));
+      await waitFor(() => screen.getByTestId("event-panel"));
+      await user.click(screen.getByTestId("fc-timegrid-click"));
+
       await waitFor(() => {
         expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
         expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
       });
     });
 
-    it("select (drag) opens create panel with start time (#228: only drag creates)", async () => {
+    it("keeps dirty create draft when click-away confirm is declined", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await user.click(screen.getByTestId("fc-timegrid-click"));
+      await waitFor(() => screen.getByTestId("event-panel"));
+      await user.click(screen.getByTestId("panel-dirty"));
+      await user.click(screen.getByTestId("fc-timegrid-click"));
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+      confirmSpy.mockRestore();
+    });
+
+    it("select (drag) opens create panel with start/end time and drag duration", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
@@ -964,10 +1019,11 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         expect(panel.getAttribute("data-start-in-create")).toBe("true");
         // Fixed by #225-TZ: 14:00 UTC → 17:00 Moscow (UTC+3).
         expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T17:00");
+        expect(panel.getAttribute("data-create-initial-end")).toBe("2026-06-17T18:00");
       });
     });
 
-    it("dateClick calls onDeepLinkChange(appt, null) to reset deep-link", async () => {
+    it("dateClick calls onDeepLinkChange(appt, null) when creating draft", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
@@ -1022,34 +1078,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
   });
 
-  // ─── CR-2: dateClick non-working zone guard ───────────────────────────────
-
-  // ─── CR-2 / #228: dateClick всегда = сброс (никогда не открывает создание) ──
-
-  describe("CR-2 / #228 — dateClick never opens create panel (only drag does)", () => {
-    it("click in any area (working or non-working) does NOT open create panel", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-
-      // Both working and non-working clicks must NOT open the create panel
-      await user.click(screen.getByTestId("fc-timegrid-click"));
-      await new Promise((r) => setTimeout(r, 100));
-      expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
-      expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
-
-      await user.click(screen.getByTestId("fc-nonworking-click"));
-      await new Promise((r) => setTimeout(r, 100));
-      expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
-    });
-  });
-
-  // ─── #228: onSelect guard — нерабочая зона не открывает создание ─────────
-
-  describe("#228 — onSelect guard: drag in nonworking zone does not open create panel", () => {
+  describe("#228 — onSelect creates draft in working and non-working zones", () => {
     // Helper: response with a working event 10:00-18:00 UTC on 2026-06-17.
     // Non-working zone includes 09:00-10:00 UTC (before working hours).
     // fc-select-nonworking fires at 09:30 UTC (before 10:00 UTC working start).
@@ -1071,7 +1100,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       workingBounds: { minMinute: 540, maxMinute: 1080 }, // 09:00-18:00 slot
     });
 
-    it("drag in nonworking zone (09:30 UTC, before working 10:00 UTC) does NOT open create panel", async () => {
+    it("drag in nonworking zone (09:30 UTC, before working 10:00 UTC) opens create panel", async () => {
       setupFetchMock(makeResponseWithWorkingEvent());
       const Tab = await setup();
       const user = userEvent.setup();
@@ -1085,9 +1114,9 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await user.click(screen.getByTestId("fc-select-nonworking"));
 
       await new Promise((r) => setTimeout(r, 100));
-      // Panel must NOT be opened
-      expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
-      expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+      });
     });
 
     it("drag in working zone (14:00 UTC, within 10:00-18:00) DOES open create panel", async () => {
