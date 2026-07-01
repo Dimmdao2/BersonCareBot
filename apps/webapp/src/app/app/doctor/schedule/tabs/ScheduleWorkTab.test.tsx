@@ -179,6 +179,22 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  it("keeps selected days when clicking a branch filter button", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("branch-btn-branch-msk"));
+    fireEvent.click(screen.getByTestId("branch-btn-branch-msk"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
+    });
+  });
+
   // ── E2: Карточки дней ───────────────────────────────────────────────────
 
   it("E2: renders branch filter buttons with short titles", async () => {

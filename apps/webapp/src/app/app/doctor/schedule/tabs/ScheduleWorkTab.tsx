@@ -908,10 +908,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     const interactive = target.closest("button,[role='button'],[role='combobox'],a,input,label");
     if (!interactive) {
       handleClearSelection();
-      return;
-    }
-    if (selected.size > 0 || selectedWeekday !== null) {
-      handleClearSelection();
     }
   }
 
