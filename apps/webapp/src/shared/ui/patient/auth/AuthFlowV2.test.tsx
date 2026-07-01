@@ -326,41 +326,42 @@ describe("AuthFlowV2 — browser", () => {
   it("phone login path: check-phone, messenger bind, confirm", async () => {
     const user = userEvent.setup();
     let statusCalls = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/config")) {
+        return jsonRes({
+          oauthProviders: { yandex: true, google: false, apple: false },
+          telegramBotUsername: "testbot",
+          maxBotOpenUrl: null,
+        });
+      }
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/start")) {
+        return jsonRes({
+          ok: true,
+          setupToken: "auth_flow",
+          url: "https://t.me/testbot?start=auth_flow",
+        });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/status")) {
+        statusCalls += 1;
+        return jsonRes({
+          ok: true,
+          status: "otp_ready",
+          challengeId: "ch-auth",
+          retryAfterSeconds: 60,
+        });
+      }
+      if (url.includes("/api/auth/phone/confirm")) {
+        return jsonRes({ ok: true, redirectTo: "/app/patient", role: "client" });
+      }
+      return jsonRes({});
+    });
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("/api/auth/config")) {
-          return jsonRes({
-            oauthProviders: { yandex: true, google: false, apple: false },
-            telegramBotUsername: "testbot",
-            maxBotOpenUrl: null,
-          });
-        }
-        if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/start")) {
-          return jsonRes({
-            ok: true,
-            setupToken: "auth_flow",
-            url: "https://t.me/testbot?start=auth_flow",
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/status")) {
-          statusCalls += 1;
-          return jsonRes({
-            ok: true,
-            status: "otp_ready",
-            challengeId: "ch-auth",
-            retryAfterSeconds: 60,
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/finish")) {
-          return jsonRes({ ok: true, redirectTo: "/app/patient", role: "client" });
-        }
-        return jsonRes({});
-      }),
+      fetchMock,
     );
 
     render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
@@ -369,9 +370,12 @@ describe("AuthFlowV2 — browser", () => {
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
     await user.click(await screen.findByRole("button", { name: "Telegram" }));
+    await user.type(await screen.findByLabelText("Код подтверждения"), "123456");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
     await waitFor(() => expect(locationAssign).toHaveBeenCalled());
     expect(statusCalls).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/confirm"))).toBe(true);
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/messenger-bind/finish"))).toBe(false);
   });
 
   it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {

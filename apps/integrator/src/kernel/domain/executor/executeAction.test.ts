@@ -3944,7 +3944,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(readDb).not.toHaveBeenCalled();
   });
 
-  it('webapp.phoneMessengerBind.complete login shows phoneAuthReturnToApp with main menu keyboard', async () => {
+  it('webapp.phoneMessengerBind.complete login shows phoneAuthAccountCreated with main menu keyboard', async () => {
     const completePhoneMessengerBind = vi.fn().mockResolvedValue({
       ok: true,
       purpose: 'login',
@@ -3992,7 +3992,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       params: { channelCode: 'telegram', externalId: '222' },
     };
     const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
-      if (input.templateId === 'phoneAuthReturnToApp') return { text: 'Вернитесь в приложение.' };
+      if (input.templateId === 'phoneAuthAccountCreated') return { text: 'Аккаунт создан. Код 123456.' };
       if (input.templateId === 'menu.book') return { text: 'Запись' };
       if (input.templateId === 'menu.app') return { text: 'Приложение' };
       return { text: '' };
@@ -4010,17 +4010,17 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     );
     expect(replyKeyboard).toBeDefined();
     expect(renderTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({ templateId: 'phoneAuthReturnToApp', source: 'telegram' }),
+      expect.objectContaining({ templateId: 'phoneAuthAccountCreated', source: 'telegram' }),
     );
     expect(renderTemplate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ templateId: 'phoneAuthAccountCreated' }),
+      expect.objectContaining({ templateId: 'phoneAuthReturnToApp' }),
     );
     expect(renderTemplate).not.toHaveBeenCalledWith(
       expect.objectContaining({ templateId: 'phoneAuthLoginCode' }),
     );
   });
 
-  it('webapp.phoneMessengerBind.complete login on max shows phoneAuthReturnToApp with inline main menu', async () => {
+  it('webapp.phoneMessengerBind.complete login on max shows phoneAuthAccountCreated with inline main menu', async () => {
     const completePhoneMessengerBind = vi.fn().mockResolvedValue({
       ok: true,
       purpose: 'login',
@@ -4065,7 +4065,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       },
     };
     const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
-      if (input.templateId === 'phoneAuthReturnToApp') return { text: 'Вернитесь в приложение.' };
+      if (input.templateId === 'phoneAuthAccountCreated') return { text: 'Аккаунт создан. Код 123456.' };
       if (input.templateId === 'phoneAuthOpenAppPrompt') return { text: 'Откройте приложение.' };
       if (input.templateId === 'phoneAuthOpenAppButton') return { text: 'Войти' };
       if (input.templateId === 'menu.book') return { text: 'Запись' };
@@ -4097,7 +4097,10 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     );
     expect(result.status).toBe('success');
     expect(renderTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({ templateId: 'phoneAuthReturnToApp', source: 'max' }),
+      expect.objectContaining({ templateId: 'phoneAuthAccountCreated', source: 'max' }),
+    );
+    expect(renderTemplate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthReturnToApp' }),
     );
     const urlIntent = result.intents?.find((i) => {
       const markup = (i.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ url?: string }>> } })
@@ -4170,7 +4173,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(menuIntent).toBeDefined();
   });
 
-  it('webapp.phoneMessengerBind.complete login replay shows menu without duplicate return text', async () => {
+  it('webapp.phoneMessengerBind.complete login replay shows menu without duplicate code text', async () => {
     const completePhoneMessengerBind = vi.fn().mockResolvedValue({
       ok: true,
       purpose: 'login',
@@ -4234,6 +4237,9 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       expect.objectContaining({ templateId: 'phoneAuthReturnToApp' }),
     );
     expect(renderTemplate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthLoginCode' }),
+    );
+    expect(renderTemplate).not.toHaveBeenCalledWith(
       expect.objectContaining({ templateId: 'phoneAuthOpenAppPrompt' }),
     );
     const urlIntent = result.intents?.find((i) => {
@@ -4287,7 +4293,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       },
     };
     const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
-      if (input.templateId === 'phoneAuthReturnToApp') return { text: 'Готово.' };
+      if (input.templateId === 'phoneAuthLoginCode') return { text: 'Код 123456.' };
       if (input.templateId === 'menu.book') return { text: 'Запись' };
       if (input.templateId === 'menu.app') return { text: 'Приложение' };
       return { text: '' };
@@ -4304,7 +4310,10 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     );
     expect(result.status).toBe('success');
     expect(renderTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({ templateId: 'phoneAuthReturnToApp', source: 'telegram' }),
+      expect.objectContaining({ templateId: 'phoneAuthLoginCode', source: 'telegram' }),
+    );
+    expect(renderTemplate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthReturnToApp' }),
     );
     expect(renderTemplate).not.toHaveBeenCalledWith(
       expect.objectContaining({ templateId: 'phoneAuthOpenAppPrompt' }),
@@ -4855,7 +4864,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       },
     };
     const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
-      if (input.templateId === 'phoneAuthReturnToApp') return { text: 'Готово.' };
+      if (input.templateId === 'phoneAuthLoginCode') return { text: 'Код 123456.' };
       if (input.templateId === 'phoneAuthOpenAppPrompt') return { text: 'Откройте приложение.' };
       if (input.templateId === 'phoneAuthOpenAppButton') return { text: 'Войти' };
       if (input.templateId === 'menu.book') return { text: 'Запись' };
@@ -4873,6 +4882,12 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       { webappEventsPort, templatePort: { renderTemplate }, writePort: { writeDb } },
     );
     expect(result.status).toBe('success');
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthLoginCode', source: 'telegram' }),
+    );
+    expect(renderTemplate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthReturnToApp' }),
+    );
     const urlIntent = result.intents?.find((i) => {
       const markup = (i.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ url?: string }>> } })
         .replyMarkup;

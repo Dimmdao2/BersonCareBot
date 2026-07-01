@@ -75,12 +75,11 @@ export function PhoneMessengerAuthFlow({
   const [exists, setExists] = useState(false);
   const [setupToken, setSetupToken] = useState<string | null>(null);
   const [bindChannel, setBindChannel] = useState<"telegram" | "max" | null>(null);
+  const [bindManualCommand, setBindManualCommand] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [otpChannel, setOtpChannel] = useState<"telegram" | "max">("telegram");
-  const [finishingLogin, setFinishingLogin] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const finishingRef = useRef(false);
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -91,10 +90,9 @@ export function PhoneMessengerAuthFlow({
 
   const resetBindAttempt = useCallback(() => {
     clearPoll();
-    finishingRef.current = false;
-    setFinishingLogin(false);
     setSetupToken(null);
     setBindChannel(null);
+    setBindManualCommand(null);
     setChallengeId(null);
     setStep("messenger_pick");
   }, [clearPoll]);
@@ -106,46 +104,6 @@ export function PhoneMessengerAuthFlow({
       window.location.assign(target);
     },
     [nextParam],
-  );
-
-  const finishMessengerLogin = useCallback(
-    async (token: string) => {
-      if (finishingRef.current) return;
-      finishingRef.current = true;
-      setFinishingLogin(true);
-      let succeeded = false;
-      try {
-        const res = await fetch("/api/auth/phone/messenger-bind/finish", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            setupToken: token,
-            browserCalendarIana: getBrowserCalendarIanaForAuth(),
-          }),
-        });
-        const data = (await res.json().catch(() => ({}))) as {
-          ok?: boolean;
-          redirectTo?: string;
-          role?: "client" | "doctor" | "admin";
-          message?: string;
-          error?: string;
-        };
-        if (data.ok && data.redirectTo) {
-          clearPoll();
-          redirectOk(data.redirectTo, data.role);
-          succeeded = true;
-          return;
-        }
-        toast.error(data.message ?? "Не удалось завершить вход");
-        resetBindAttempt();
-      } finally {
-        if (!succeeded) {
-          finishingRef.current = false;
-          setFinishingLogin(false);
-        }
-      }
-    },
-    [clearPoll, resetBindAttempt, redirectOk],
   );
 
   const pollBindStatus = useCallback(
@@ -168,7 +126,8 @@ export function PhoneMessengerAuthFlow({
         if (purpose === "profile_bind") {
           onProfileComplete?.();
         } else {
-          void finishMessengerLogin(token);
+          toast.error("Код уже использован. Начните вход снова.");
+          resetBindAttempt();
         }
         return;
       }
@@ -178,7 +137,10 @@ export function PhoneMessengerAuthFlow({
           onProfileComplete?.();
           return;
         }
-        void finishMessengerLogin(token);
+        setChallengeId(statusData.challengeId);
+        setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
+        setOtpChannel(_channel);
+        setStep("code");
         return;
       }
       if (statusData.status === "failed") {
@@ -192,7 +154,7 @@ export function PhoneMessengerAuthFlow({
         resetBindAttempt();
       }
     },
-    [clearPoll, resetBindAttempt, purpose, onProfileComplete, finishMessengerLogin],
+    [clearPoll, resetBindAttempt, purpose, onProfileComplete],
   );
 
   useEffect(() => () => clearPoll(), [clearPoll]);
@@ -326,6 +288,8 @@ export function PhoneMessengerAuthFlow({
       const bindToken = data.setupToken;
       setSetupToken(bindToken);
       setBindChannel(channelCode);
+      setBindManualCommand(data.manualCommand ?? null);
+      setOtpChannel(channelCode);
       finishChannelLinkNavigation({
         blankWin: null,
         url: data.url,
@@ -434,16 +398,20 @@ export function PhoneMessengerAuthFlow({
 
   if (step === "code") {
     const waitingForBot = setupToken != null && challengeId == null && purpose === "login";
-    const waitingDescription = finishingLogin
-      ? "Завершаем вход…"
-      : purpose === "profile_bind"
+    const waitingDescription = purpose === "profile_bind"
         ? `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}. После этого можно вернуться в приложение.`
-        : `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}.`;
+        : `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}, затем введите код из бота.`;
     return (
       <div id="phone-messenger-auth-code" className="flex w-full flex-col gap-3 text-left">
         {waitingForBot ? (
           <>
             <p className={patientMutedTextClass}>{waitingDescription}</p>
+            {bindManualCommand ? (
+              <p className={cn(patientMutedTextClass, "text-xs")}>
+                Если бот открылся без запроса контакта, отправьте команду:{" "}
+                <span className="font-mono text-[var(--patient-text-primary)]">{bindManualCommand}</span>
+              </p>
+            ) : null}
             <Button type="button" variant="link" className={patientInlineLinkClass} onClick={resetBindAttempt}>
               Начать снова
             </Button>

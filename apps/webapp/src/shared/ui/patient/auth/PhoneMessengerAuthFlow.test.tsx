@@ -101,43 +101,35 @@ describe("PhoneMessengerAuthFlow", () => {
     expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
   });
 
-  it("polls status until otp_ready then finishes login without otp form", async () => {
+  it("polls status until otp_ready then shows otp form without messenger finish", async () => {
     const user = userEvent.setup();
     let statusCalls = 0;
-    const assignMock = vi.fn();
-    vi.stubGlobal("location", { ...window.location, assign: assignMock });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/start")) {
+        return jsonRes({
+          ok: true,
+          setupToken: "auth_test",
+          url: "https://t.me/bot?start=auth_test",
+        });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/status")) {
+        statusCalls += 1;
+        return jsonRes({
+          ok: true,
+          status: "otp_ready",
+          challengeId: "ch-1",
+          retryAfterSeconds: 60,
+        });
+      }
+      throw new Error(`unexpected: ${url}`);
+    });
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/start")) {
-          return jsonRes({
-            ok: true,
-            setupToken: "auth_test",
-            url: "https://t.me/bot?start=auth_test",
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/status")) {
-          statusCalls += 1;
-          return jsonRes({
-            ok: true,
-            status: "otp_ready",
-            challengeId: "ch-1",
-            retryAfterSeconds: 60,
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/finish")) {
-          return jsonRes({
-            ok: true,
-            redirectTo: "/app/patient/home",
-            role: "client",
-          });
-        }
-        throw new Error(`unexpected: ${url}`);
-      }),
+      fetchMock,
     );
 
     render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
@@ -146,9 +138,9 @@ describe("PhoneMessengerAuthFlow", () => {
     await user.click(await screen.findByRole("button", { name: "Telegram" }));
 
     expect(finishNav).toHaveBeenCalled();
-    await waitFor(() => expect(assignMock).toHaveBeenCalled());
+    expect(await screen.findByLabelText("Код подтверждения")).toBeInTheDocument();
     expect(statusCalls).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/messenger-bind/finish"))).toBe(false);
   });
 
   it("refetches bind status on visibilitychange when on code step", async () => {
@@ -191,57 +183,7 @@ describe("PhoneMessengerAuthFlow", () => {
     await waitFor(() => expect(statusCalls).toBeGreaterThan(before));
   });
 
-  it("shows finishing text while messenger-bind finish is in flight", async () => {
-    const user = userEvent.setup();
-    let resolveFinish: (value: unknown) => void = () => {};
-    const finishDeferred = new Promise((resolve) => {
-      resolveFinish = resolve;
-    });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/start")) {
-          return jsonRes({
-            ok: true,
-            setupToken: "auth_test",
-            url: "https://t.me/bot?start=auth_test",
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/status")) {
-          return jsonRes({
-            ok: true,
-            status: "otp_ready",
-            challengeId: "ch-1",
-            retryAfterSeconds: 60,
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/finish")) {
-          return finishDeferred.then(() =>
-            jsonRes({
-              ok: true,
-              redirectTo: "/app/patient/home",
-              role: "client",
-            }),
-          );
-        }
-        throw new Error(`unexpected: ${url}`);
-      }),
-    );
-
-    render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
-    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
-    await user.click(screen.getByRole("button", { name: "Продолжить" }));
-    await user.click(await screen.findByRole("button", { name: "Telegram" }));
-
-    expect(await screen.findByText("Завершаем вход…")).toBeInTheDocument();
-    resolveFinish(undefined);
-  });
-
-  it("resets bind attempt when finish fails", async () => {
+  it("shows manual command while waiting for messenger contact", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -254,19 +196,12 @@ describe("PhoneMessengerAuthFlow", () => {
           return jsonRes({
             ok: true,
             setupToken: "auth_test",
-            url: "https://t.me/bot?start=auth_test",
+            url: "https://max.ru/",
+            manualCommand: "/start auth_test",
           });
         }
         if (url.includes("/api/auth/phone/messenger-bind/status")) {
-          return jsonRes({
-            ok: true,
-            status: "otp_ready",
-            challengeId: "ch-1",
-            retryAfterSeconds: 60,
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/finish")) {
-          return jsonRes({ ok: false, message: "Не удалось завершить вход" }, { ok: false, status: 409 });
+          return jsonRes({ ok: true, status: "pending_contact" });
         }
         throw new Error(`unexpected: ${url}`);
       }),
@@ -275,17 +210,14 @@ describe("PhoneMessengerAuthFlow", () => {
     render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
-    await user.click(await screen.findByRole("button", { name: "Telegram" }));
+    await user.click(await screen.findByRole("button", { name: "Max" }));
 
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
-    expect(await screen.findByRole("button", { name: "Telegram" })).toBeInTheDocument();
+    expect(await screen.findByText(/Если бот открылся без запроса контакта/)).toBeInTheDocument();
+    expect(screen.getByText("/start auth_test")).toBeInTheDocument();
   });
 
-  it("login messenger bind on consumed status calls finish without otp form", async () => {
+  it("resets bind attempt when consumed status is returned before code entry", async () => {
     const user = userEvent.setup();
-    const assignMock = vi.fn();
-    let finishCalls = 0;
-    vi.stubGlobal("location", { ...window.location, assign: assignMock });
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -303,14 +235,6 @@ describe("PhoneMessengerAuthFlow", () => {
         if (url.includes("/api/auth/phone/messenger-bind/status")) {
           return jsonRes({ ok: true, status: "consumed" });
         }
-        if (url.includes("/api/auth/phone/messenger-bind/finish")) {
-          finishCalls += 1;
-          return jsonRes({
-            ok: true,
-            redirectTo: "/app/patient/home",
-            role: "client",
-          });
-        }
         throw new Error(`unexpected: ${url}`);
       }),
     );
@@ -320,9 +244,54 @@ describe("PhoneMessengerAuthFlow", () => {
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
     await user.click(await screen.findByRole("button", { name: "Telegram" }));
 
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(await screen.findByRole("button", { name: "Telegram" })).toBeInTheDocument();
+  });
+
+  it("login messenger bind confirm submits otp code", async () => {
+    const user = userEvent.setup();
+    const assignMock = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign: assignMock });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/start")) {
+        return jsonRes({
+          ok: true,
+          setupToken: "auth_test",
+          url: "https://t.me/bot?start=auth_test",
+        });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/status")) {
+        return jsonRes({ ok: true, status: "otp_ready", challengeId: "ch-1", retryAfterSeconds: 60 });
+      }
+      if (url.includes("/api/auth/phone/confirm")) {
+        return jsonRes({
+          ok: true,
+          redirectTo: "/app/patient/home",
+          role: "client",
+        });
+      }
+      throw new Error(`unexpected: ${url}`);
+    });
+    vi.stubGlobal(
+      "fetch",
+      fetchMock,
+    );
+
+    render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.click(await screen.findByRole("button", { name: "Telegram" }));
+
+    await user.type(await screen.findByLabelText("Код подтверждения"), "123456");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
+
     await waitFor(() => expect(assignMock).toHaveBeenCalled());
-    expect(finishCalls).toBe(1);
-    expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/confirm"))).toBe(true);
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/messenger-bind/finish"))).toBe(false);
   });
 
   it("profile_bind calls onProfileComplete without redirect", async () => {
