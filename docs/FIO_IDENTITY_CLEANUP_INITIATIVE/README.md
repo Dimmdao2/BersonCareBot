@@ -1,6 +1,8 @@
 # FIO / Identity Cleanup Initiative
 
-Status: planning, infrastructure prepared.
+Status: execution, phase 2 shared parser complete.
+
+Master plan: `.cursor/plans/fio_identity_cleanup.plan.md`.
 
 ## Goal
 
@@ -14,7 +16,14 @@ Replace ambiguous patient naming with structured identity fields:
 Doctor surfaces should display full FIO when available. Patient surfaces should
 address the patient by `first_name` only.
 
-## Source priority
+## Execution Principle
+
+This initiative is executed phase-by-phase with explicit gates. The work is not
+delegated to blind batch agents: each phase starts from code inspection, keeps a
+narrow scope, and uses targeted validation. Full `pnpm run ci` is reserved for
+explicit push/pre-push requests or repo-wide risk.
+
+## Source Priority
 
 Canonical patient name resolution, from strongest to weakest:
 
@@ -27,7 +36,7 @@ Canonical patient name resolution, from strongest to weakest:
 
 Messenger/OAuth names must not overwrite a stronger booking/manual FIO.
 
-## Backfill dataset
+## Backfill Dataset
 
 Local dictionary source for the one-off parser:
 
@@ -39,139 +48,288 @@ Local dictionary source for the one-off parser:
 Downloaded data lives in `.tmp/fio-backfill/russiannames/` and is not committed.
 Runbook: `apps/webapp/scripts/fio-backfill/README.md`.
 
-## Execution Plan
+## Scope Boundaries
 
-### Phase 0 — Inventory and Safety
+Allowed:
 
-- Confirm all current name fields and writers:
-  `platform_users`, booking records, Rubitime projection, OAuth, Telegram/MAX,
-  manual doctor/admin edit, patient profile edit.
-- Identify all doctor/patient display helpers using `display_name`.
-- Produce a read-only dev DB report with counts:
-  empty names, single-token names, mixed Latin/Cyrillic names, conflicting
-  names between booking and profile, email/phone prefill gaps.
-- No DB writes in this phase.
+- `apps/webapp/scripts/fio-backfill/**`
+- `docs/FIO_IDENTITY_CLEANUP_INITIATIVE/**`
+- `.cursor/plans/fio_identity_cleanup.plan.md`
+- later phase-specific code under identity, booking, merge, doctor-client,
+  patient-display, and booking-notification modules listed in the master plan.
+
+Out of scope unless explicitly added later:
+
+- production DB writes;
+- removing `display_name` from schema;
+- committing downloaded or derived large dictionary files;
+- multi-tenant identity policy;
+- unrelated patient profile redesign;
+- real external sends from dev/test outside documented delivery redirect.
+
+## Phases
+
+### Phase 0 — Prepared Infrastructure
+
+Status: completed.
+
+Artifacts:
+
+- `apps/webapp/scripts/fio-backfill/download-russiannames-dataset.mjs`
+- `apps/webapp/scripts/fio-backfill/README.md`
+- `.tmp/fio-backfill/russiannames/jsonl/{names,midnames,surnames}.jsonl`
+
+Gate:
+
+- Dataset is local-only and ignored by git.
+- No DB writes and no product behavior changes.
+
+### Phase 1 — Inventory And Data Quality Report
+
+Status: completed.
+
+Goal: establish the real state before touching behavior.
+
+Actions:
+
+- Map all runtime readers/writers of:
+  `display_name`, `first_name`, `last_name`, `patronymic`, `email`,
+  `email_verified_at`, `contact_name`, `payload.name`.
+- Inspect platform users, booking, Rubitime projection, OAuth, Telegram/MAX,
+  merge, doctor-client, and patient-display paths.
+- Add read-only tooling:
+  `apps/webapp/scripts/fio-backfill/audit-fio-sources.ts`.
+- Emit reports under `.tmp/fio-backfill/reports/`:
+  `name-field-inventory.md`, `fio-quality-report.json`,
+  `fio-quality-report.csv`.
+
+Report metrics:
+
+- active client count;
+- missing structured names;
+- one-token/two-token/three-plus-token legacy names;
+- Cyrillic vs Latin/mixed names;
+- Rubitime full-name candidates;
+- booking/profile conflicts;
+- phone/email prefill gaps;
+- verified email candidates for booking-created email.
 
 Validation:
 
-- `rg` map of runtime writers/readers.
-- Read-only SQL/report under `.tmp/fio-backfill/reports/`.
+- Syntax/type checks needed for the script.
+- Targeted tests only if script imports app code.
+- No full CI.
 
-### Phase 1 — Shared Name Model
+Gate:
 
-- Add a typed name utility module for:
-  normalization, title-casing, full FIO formatting, patient greeting formatting,
-  and source/confidence scoring.
-- Keep compatibility with existing `display_name`.
-- Add targeted unit tests for Russian FIO, Latin hints, one/two/three-token
-  inputs, patronymics, and ambiguous cases.
+- Exact current writers and risky overwrite paths are known.
+- No DB writes.
+
+Latest dev DB aggregate, generated 2026-07-02:
+
+- active client rows: 213
+- missing all structured names: 89
+- first + last only: 124
+- first + last + patronymic: 0
+- legacy display one token: 29
+- legacy display two tokens: 120
+- legacy display three+ tokens: 64
+- legacy display Latin/mixed: 34
+- users with booking/profile name conflicts: 78
+- verified-email users: 24
+- booking rows missing email while profile email is verified: 55
+
+Artifacts:
+
+- `apps/webapp/scripts/fio-backfill/audit-fio-sources.ts`
+- `.tmp/fio-backfill/reports/name-field-inventory.latest.md`
+- `.tmp/fio-backfill/reports/fio-quality-report.latest.json`
+- `.tmp/fio-backfill/reports/fio-quality-report.latest.csv`
+
+### Phase 2 — Shared FIO Model, Parser, And Scoring
+
+Status: completed.
+
+Goal: create one typed place for name decisions before changing consumers.
+
+Actions:
+
+- Define strict types:
+  `StructuredFio`, `FioSource`, `FioConfidence`, `FioCandidate`,
+  `FioDecision`.
+- Implement normalization, casing, doctor full-FIO label, patient greeting
+  label, candidate parsing, source scoring, and conflict reason codes.
+- Use Zenodo dictionaries only in script/backfill tooling. Runtime helpers must
+  not depend on `.tmp`.
 
 Validation:
 
-- Targeted webapp unit tests for the new name utility.
-- `pnpm --dir apps/webapp typecheck` through the repo test wrapper when code is
-  changed.
+- Focused unit tests for Russian FIO, ambiguous order, two-token names,
+  one-token provider names, Latin names, hyphenated names, patronymics, and
+  conflicts.
+- Targeted tests through `/home/dev/orch/run-tests.sh`.
 
-### Phase 2 — Booking Form Contract
+Gate:
 
-- Replace one patient booking `contactName` input with separate fields:
-  surname, given name, optional patronymic.
-- Prefill surname/given name/patronymic, phone, and email from the current
-  user profile where available.
-- Make surname and given name required.
-- Preserve backward compatibility by deriving legacy `contactName` for existing
-  booking lifecycle payloads until integrator contract is migrated.
-- Store structured name snapshots in booking/appointment payloads or submissions.
+- Parser explains confidence and conflicts instead of silently guessing.
+
+Artifacts:
+
+- `apps/webapp/src/shared/lib/fio.ts`
+- `apps/webapp/src/shared/lib/fio.test.ts`
+
+Validation:
+
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/shared/lib/fio.test.ts --project=fast"`
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/shared/lib/fio.ts src/shared/lib/fio.test.ts"`
+
+### Phase 3 — Backfill Dry Run
+
+Goal: generate a reviewable migration proposal before any DB writes.
+
+Actions:
+
+- Add `apps/webapp/scripts/fio-backfill/backfill-platform-user-fio.ts`.
+- Dry-run only. `--commit` is not added in this phase.
+- Collect candidates from Rubitime, native booking snapshots, existing
+  structured fields, legacy `display_name`, and weak provider hints.
+- Produce chosen FIO, rejected candidates, confidence, source, and conflict
+  flags.
+- Keep PII in `.tmp` reports, not chat.
+
+Validation:
+
+- Synthetic unit tests for collector/scorer.
+- Dry-run on dev DB only after explicit env load from `apps/webapp/.env.dev`.
+- Confirm reports are untracked.
+
+Gate:
+
+- High/medium/low/conflict counts are reviewable before any write path exists.
+
+### Phase 4 — Booking Form Contract
+
+Goal: stop creating new messy names.
+
+Actions:
+
+- Replace single booking contact name input with:
+  surname required, given name required, patronymic optional.
+- Prefill structured names, phone, and email from the current profile.
+- Derive legacy `contactName` for existing service/integrator contracts.
+- Store structured name snapshot in booking metadata/submissions.
 
 Validation:
 
 - Patient booking create/reschedule tests.
-- UI smoke on `http://127.0.0.1:5200/app/patient/booking/new`.
+- Confirm form tests for required surname/given name.
+- UI smoke if material UI changed.
 
-### Phase 3 — Merge and Projection Priority
+Gate:
 
-- Change user ensure/merge paths so Rubitime/booking/manual structured FIO wins
-  over Telegram/MAX/OAuth profile hints.
-- Provider names may fill only empty low-confidence fields.
-- Keep supplementary contact behavior for phone/email; do not invent env config.
-- Update merge preview/audit copy to explain name-source priority.
+- New bookings contain structured FIO and still produce existing lifecycle
+  payloads.
 
-Validation:
+### Phase 5 — Merge, Projection, And Provider Priority
 
-- Merge/ensure unit tests covering:
-  booking FIO vs Telegram first name;
-  OAuth Latin display name vs existing Cyrillic FIO;
-  empty profile filled from provider hint;
-  conflicting booking names flagged for review.
+Goal: prevent Telegram/MAX/OAuth from degrading canonical patient names.
 
-### Phase 4 — Backfill Dry Run
+Actions:
 
-- Build `scripts/fio-backfill/backfill-platform-user-fio.ts`.
-- Input sources:
-  Rubitime appointment payloads / `contact_name`;
-  native booking snapshots;
-  existing `platform_users` fields;
-  legacy `display_name`.
-- Use local Zenodo JSONL dictionaries for first-name and patronymic recognition.
-- Emit report only:
-  chosen FIO, source, confidence, conflicts, skipped rows.
-- Do not print PII into chat. Reports stay under `.tmp/fio-backfill/reports/`.
+- Make appointment/Rubitime FIO a strong source in ensure/projection paths.
+- Provider names fill only empty or low-confidence fields.
+- Update platform merge logic and preview.
+- Preserve supplementary phone/email contact behavior.
 
 Validation:
 
-- Unit tests for parser/scorer with synthetic names.
-- Dry-run report manually reviewed before any commit mode.
+- Focused tests for Rubitime vs Telegram, OAuth Latin vs Cyrillic FIO, empty
+  fields filled by provider, conflict surfacing, and email contact preservation.
 
-### Phase 5 — Backfill Apply
+Gate:
 
-- Apply only reviewed `high` and explicitly approved `medium` confidence rows.
-- Write an audit JSON with before/after and row ids under `.tmp/`.
-- Never set task acceptance; mark task done only after owner review path is clear.
+- No path can replace strong structured FIO with weaker provider display data.
+
+### Phase 6 — Reviewed Backfill Apply
+
+Goal: apply only safe reviewed changes.
+
+Actions:
+
+- Add `--commit` after dry-run review.
+- Require input report id/path and confidence filter.
+- Refuse production-looking DB URLs.
+- Update only targeted fields:
+  `last_name`, `first_name`, `patronymic`, and derived `display_name` if
+  compatibility requires it.
+- Write before/after audit artifact under `.tmp/fio-backfill/applied/`.
 
 Validation:
 
-- Transactional `--commit` run on dev/test first.
-- Sample manual spot-check in doctor client list and patient profile.
+- Transactional dev/test apply.
+- Post-apply read-only diff report.
+- Manual spot-check in doctor clients and patient profile.
 
-### Phase 6 — Display Cleanup
+Gate:
 
-- Doctor client list/card/appointments use structured full FIO.
-- Patient app greeting/profile uses `first_name`.
-- Patient profile edit moves away from free-form `display_name`.
-- Keep a derived fallback while legacy routes still read `display_name`.
+- Backfill result is auditable and reversible from artifact.
+
+### Phase 7 — Display Cleanup
+
+Goal: make the app consistently use structured names.
+
+Actions:
+
+- Doctor surfaces use full FIO helper:
+  client list, patient card, appointments, broadcasts/audience previews.
+- Patient surfaces use first-name helper:
+  shell greeting, profile hero, booking prefill.
+- Keep `display_name` fallback while legacy rows exist.
+- Do not remove `display_name` schema.
 
 Validation:
 
-- Doctor clients/card tests.
-- Patient shell/profile tests.
-- Live smoke on doctor list and patient app.
+- Targeted doctor clients/card tests.
+- Targeted patient profile/shell tests.
+- UI smoke for changed views.
 
-### Phase 7 — Booking Lifecycle Templates and Email
+Gate:
 
-- Extend existing `booking_lifecycle_notifications` setting instead of adding
-  new env vars.
-- Add per-event/per-channel templates for:
+- Doctor sees full FIO where available; patient sees given name.
+
+### Phase 8 — Booking Lifecycle Templates And Verified Email
+
+Goal: make booking notifications configurable and send email only when safe.
+
+Actions:
+
+- Extend existing `booking_lifecycle_notifications` in `system_settings`.
+- Do not add env vars.
+- Add per-event/per-channel templates:
   messenger, email, SMS, web push where applicable.
-- Use verified email only: `email_verified_at IS NOT NULL`.
-- Keep Web Push as primary channel according to notification architecture.
-- Move hardcoded lifecycle message text behind template rendering.
+- Supported variables:
+  `{patientFirstName}`, `{patientFullName}`, `{date}`, `{time}`, `{service}`,
+  `{branch}`, `{address}`, `{manageUrl}`.
+- Send booking-created email only when canonical user has
+  `email_verified_at IS NOT NULL`.
+- Move hardcoded lifecycle text behind template rendering incrementally.
 
 Validation:
 
-- Settings parser/render tests.
-- Integrator lifecycle tests for messenger/email/SMS/web push branches.
-- Dev/test delivery safety checks with redirect enabled.
+- Settings parser tests.
+- Template renderer tests.
+- Integrator lifecycle tests for channel branches.
+- Dev/test delivery safety only through existing redirect protections.
 
-## Out of Scope For The First Batch
+Gate:
 
-- Production backfill.
-- Removing `display_name` from the database.
-- Multi-tenant identity policy.
-- Reworking unrelated patient profile UX.
-- Sending real external messages from dev.
+- Doctor can edit lifecycle notification templates in settings.
+- Booking-created email is attempted only for verified emails.
 
-## Current Prepared Infrastructure
+## Final Acceptance
 
-- `apps/webapp/scripts/fio-backfill/download-russiannames-dataset.mjs`
-- `apps/webapp/scripts/fio-backfill/README.md`
-- local ignored dataset directory: `.tmp/fio-backfill/russiannames/`
+- Taskdb `#24` can be `done` only after phases are implemented and targeted
+  validation is recorded.
+- `accepted` remains owner-only.
+- Full CI is run only when explicitly preparing push or when repo-wide changes
+  justify it.

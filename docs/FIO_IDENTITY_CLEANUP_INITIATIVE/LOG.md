@@ -16,3 +16,56 @@
   `docs/FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`.
 
 No product behavior changes and no DB writes were made.
+
+## 2026-07-02 — Master Plan Tightening
+
+- Reworked `.cursor/plans/fio_identity_cleanup.plan.md` into an executable
+  senior-agent master plan with phase gates, scope boundaries, exact artifacts,
+  and targeted validation per phase.
+- Synchronized this README with the same phase order.
+- Explicitly documented that full `pnpm run ci` is not a per-phase default; use
+  targeted checks unless preparing an explicit push or touching repo-wide
+  contracts.
+
+## 2026-07-02 — Phase 1 Source Audit
+
+- Added read-only source audit:
+  `apps/webapp/scripts/fio-backfill/audit-fio-sources.ts`.
+- Added webapp npm script:
+  `pnpm --dir apps/webapp run fio:audit-sources`.
+- Generated local PII-containing reports under:
+  `.tmp/fio-backfill/reports/`.
+- Latest aggregate dev result:
+  - active client rows: 213;
+  - missing all structured names: 89;
+  - first + last only: 124;
+  - first + last + patronymic: 0;
+  - legacy display one token: 29;
+  - legacy display two tokens: 120;
+  - legacy display three+ tokens: 64;
+  - legacy display Latin/mixed: 34;
+  - users with booking/profile conflicts: 78;
+  - verified-email users: 24;
+  - booking rows missing email while profile email is verified: 55.
+- Validation:
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint scripts/fio-backfill/audit-fio-sources.ts"`;
+  `bash /home/dev/orch/run-tests.sh "bash -lc 'set -a && source apps/webapp/.env.dev && set +a && pnpm --dir apps/webapp run fio:audit-sources'"`.
+
+No DB writes were made.
+
+## 2026-07-02 — Phase 2 Shared FIO Parser
+
+- Added shared typed FIO helper:
+  `apps/webapp/src/shared/lib/fio.ts`.
+- Added focused tests:
+  `apps/webapp/src/shared/lib/fio.test.ts`.
+- Covered canonical Russian FIO, non-canonical first-patronymic-last order,
+  two-token names, one-token provider names, Latin provider hints, hyphenated
+  names, patronymic suffix recognition, conflict selection, and display labels.
+- Runtime helper does not read `.tmp` dictionaries. Backfill tooling can pass
+  name/patronymic dictionaries explicitly.
+- Validation:
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/shared/lib/fio.test.ts --project=fast"`;
+  `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/shared/lib/fio.ts src/shared/lib/fio.test.ts"`.
+- Note: an initial `pnpm --dir apps/webapp test -- src/shared/lib/fio.test.ts`
+  invocation was stopped because it selected broader tests than intended.

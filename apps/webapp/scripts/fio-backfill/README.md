@@ -58,3 +58,22 @@ Use the extracted JSONL files only for dry-run scoring of existing names:
 The future product path should not depend on this dataset: new registrations
 and booking forms should collect surname, given name, and patronymic as separate
 fields.
+
+## Source audit
+
+The source audit is read-only. It scans current client profiles, booking names,
+Rubitime payload names, appointment projections, and booking-origin contacts.
+Reports contain patient data and are written only to `.tmp/fio-backfill/reports/`.
+
+From the repository root:
+
+```bash
+set -a && source apps/webapp/.env.dev && set +a
+pnpm --dir apps/webapp run fio:audit-sources
+```
+
+Generated files:
+
+- `.tmp/fio-backfill/reports/name-field-inventory.latest.md`
+- `.tmp/fio-backfill/reports/fio-quality-report.latest.json`
+- `.tmp/fio-backfill/reports/fio-quality-report.latest.csv`

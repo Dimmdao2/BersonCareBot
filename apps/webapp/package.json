@@ -49,6 +49,7 @@
     "video-hls-backfill-legacy": "tsx scripts/video-hls-backfill-legacy.ts",
     "backfill-treatment-program-editor-draft-snapshots": "tsx scripts/backfill-treatment-program-editor-draft-snapshots.ts",
     "fio:download-russiannames": "node scripts/fio-backfill/download-russiannames-dataset.mjs",
+    "fio:audit-sources": "tsx scripts/fio-backfill/audit-fio-sources.ts",
     "db:introspect": "drizzle-kit introspect && node scripts/fix-drizzle-introspect-defaults.mjs",
     "db:introspect:fix": "node scripts/fix-drizzle-introspect-defaults.mjs",
     "db:verify-public-table-count": "node scripts/verify-drizzle-public-table-count.mjs",
