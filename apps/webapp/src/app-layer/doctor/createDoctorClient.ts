@@ -1,9 +1,6 @@
-import { getPool } from "@/app-layer/db/client";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 import type { EmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
-import { findCanonicalUserIdByPhone } from "@/infra/repos/pgCanonicalPlatformUser";
-import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
+import { resolveOrCreateDoctorClientByPhone } from "@/infra/repos/pgDoctorClientCreate";
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
@@ -43,39 +40,6 @@ export async function createDoctorClient(
     return { ok: false, error: "invalid_email" };
   }
 
-  const pool = getPool();
-  const existingId = await findCanonicalUserIdByPhone(pool, phoneNormalized);
-  if (existingId) {
-    const row = await runWebappPgText<{ display_name: string; phone_normalized: string | null }>(
-      `SELECT display_name, phone_normalized FROM platform_users WHERE id = $1::uuid`,
-      [existingId],
-    );
-    const existing = row.rows[0];
-    if (!existing) return { ok: false, error: "create_failed" };
-    return {
-      ok: true,
-      userId: existingId,
-      displayName: existing.display_name,
-      phoneNormalized: existing.phone_normalized ?? phoneNormalized,
-      created: false,
-      emailSetupEnqueued: false,
-    };
-  }
-
-  if (emailNorm) {
-    const conflict = await runWebappPgText<{ id: string }>(
-      `SELECT id FROM platform_users
-       WHERE merged_into_id IS NULL
-         AND email IS NOT NULL
-         AND lower(trim(email)) = $1
-       LIMIT 1`,
-      [emailNorm],
-    );
-    if (conflict.rows.length > 0) {
-      return { ok: false, error: "email_conflict" };
-    }
-  }
-
   const displayName =
     input.displayName?.trim().slice(0, 500) ||
     emailRaw ||
@@ -83,62 +47,47 @@ export async function createDoctorClient(
 
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.DoctorStaffClientCreate);
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const ins = await runWebappPgText<{ id: string; display_name: string }>(
-      `INSERT INTO platform_users (
-         phone_normalized, display_name, email, email_normalized, role, patient_phone_trust_at
-       ) VALUES (
-         $1, $2, $3,
-         CASE WHEN $3::text IS NOT NULL AND btrim($3::text) <> '' THEN lower(btrim($3::text)) ELSE NULL END,
-         'client', now()
-       )
-       RETURNING id, display_name`,
-      [phoneNormalized, displayName, emailRaw || null],
-      getWebappSqlFromPgClient(client),
-    );
-    const userId = ins.rows[0]?.id;
-    if (!userId) {
-      await client.query("ROLLBACK");
-      return { ok: false, error: "create_failed" };
-    }
-    await applyPlatformUserPhoneHistoryTransition(client, {
-      platformUserId: userId,
-      newPhoneNormalized: phoneNormalized,
-      source: "admin",
-    });
-    await client.query("COMMIT");
-
-    let emailSetupEnqueued = false;
-    if (emailNorm) {
-      fireAndForgetContactEmailSetup(
-        emailSetupAccess,
-        {
-          userId,
-          emailNormalized: emailNorm,
-          source: "doctor_profile",
-          createdByUserId: input.createdByUserId,
-        },
-        { hook: "doctor_client_create" },
-      );
-      emailSetupEnqueued = true;
-    }
-
+  const createdClient = await resolveOrCreateDoctorClientByPhone({
+    phoneNormalized,
+    displayName,
+    emailRaw: emailRaw || null,
+    emailNormalized: emailNorm,
+  });
+  if (!createdClient.ok) return createdClient;
+  if (!createdClient.created) {
     return {
       ok: true,
-      userId,
-      displayName: ins.rows[0]!.display_name,
-      phoneNormalized,
-      created: true,
-      emailSetupEnqueued,
+      userId: createdClient.userId,
+      displayName: createdClient.displayName,
+      phoneNormalized: createdClient.phoneNormalized,
+      created: false,
+      emailSetupEnqueued: false,
     };
-  } catch {
-    await client.query("ROLLBACK");
-    return { ok: false, error: "create_failed" };
-  } finally {
-    client.release();
   }
+
+  let emailSetupEnqueued = false;
+  if (emailNorm) {
+    fireAndForgetContactEmailSetup(
+      emailSetupAccess,
+      {
+        userId: createdClient.userId,
+        emailNormalized: emailNorm,
+        source: "doctor_profile",
+        createdByUserId: input.createdByUserId,
+      },
+      { hook: "doctor_client_create" },
+    );
+    emailSetupEnqueued = true;
+  }
+
+  return {
+    ok: true,
+    userId: createdClient.userId,
+    displayName: createdClient.displayName,
+    phoneNormalized,
+    created: true,
+    emailSetupEnqueued,
+  };
 }
 
 function zEmailSafe(email: string): boolean {
