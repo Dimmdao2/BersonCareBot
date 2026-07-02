@@ -2,14 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 /**
  * Wave 3 phase 11 — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
- * (platform-merge + channel claim). Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * (disposable channel claim). Domain SQL lives in infra repos.
  */
-import {
-  classifyMergeFailure,
-  mergePlatformUsersInTransaction,
-} from "@bersoncare/platform-merge";
 import { getPool } from "@/infra/db/client";
-import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { getWebappSqlDb } from "@/infra/db/runWebappSql";
 import {
   upsertOpenConflictLog,
   computeChannelLinkOwnershipConflictKey,
@@ -33,6 +29,7 @@ import {
   classifyChannelBindingOwnerForLink,
   claimMessengerChannelBindingInTransaction,
   ChannelLinkClaimRejectedError,
+  tryMergeChannelLinkOwners,
 } from "@/infra/repos/pgChannelLinkClaim";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 
@@ -80,41 +77,6 @@ async function recordChannelLinkOwnershipConflict(
     ...ctx,
     classifiedReason: options.classifiedReason,
   });
-}
-
-async function tryMergeChannelLinkOwners(
-  pool: Pool,
-  params: {
-    tokenUserId: string;
-    existingUserId: string;
-    secretRowId: string;
-  },
-): Promise<{ ok: true } | { ok: false; reason: string; candidateIds: string[] }> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
-    await runWebappPgText(
-      `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
-      [params.secretRowId],
-      getWebappSqlFromPgClient(client),
-    );
-    await client.query("COMMIT");
-    return { ok: true };
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    const classified = classifyMergeFailure(err, [params.tokenUserId, params.existingUserId]);
-    return {
-      ok: false,
-      reason: classified.code,
-      candidateIds:
-        classified.candidateIds.length > 0
-          ? classified.candidateIds
-          : [params.tokenUserId, params.existingUserId],
-    };
-  } finally {
-    client.release();
-  }
 }
 
 /**
