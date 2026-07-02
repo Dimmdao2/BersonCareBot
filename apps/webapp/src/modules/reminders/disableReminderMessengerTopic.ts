@@ -47,10 +47,10 @@ export async function disableReminderMessengerTopicForOccurrence(
   if (!rule) {
     return { ok: false, error: "not_found" };
   }
-  const topicCode = reminderOccurrenceTopicCode(rule, rule.category);
+  const topicCode = reminderOccurrenceTopicCode(rule, rule.category ?? "");
   const label = MESSENGER_LABEL_RU[params.messengerChannel];
 
-  if (!topicCode) {
+  if (typeof topicCode !== "string" || topicCode.length === 0) {
     return {
       ok: true,
       persisted: false,

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 
 const { requireDoctorApiSessionMock, getDoctorAccountTimezoneMock, setDoctorAccountTimezoneMock } = vi.hoisted(() => ({
   requireDoctorApiSessionMock: vi.fn(),
@@ -44,7 +45,7 @@ describe("doctor account timezone route", () => {
 
   it("PATCH stores valid timezone", async () => {
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/account/timezone", {
+      new NextRequest("http://localhost/api/doctor/account/timezone", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ timezone: "Europe/Samara" }),
@@ -58,7 +59,7 @@ describe("doctor account timezone route", () => {
 
   it("PATCH rejects invalid timezone", async () => {
     const res = await PATCH(
-      new Request("http://localhost/api/doctor/account/timezone", {
+      new NextRequest("http://localhost/api/doctor/account/timezone", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ timezone: "not-a-zone" }),
