@@ -1,4 +1,3 @@
-import { getPool } from "@/infra/db/client";
 import { loadWarmupsSectionSlugs } from "@/infra/repos/pgWarmupsSectionSlugs";
 
 const TTL_MS = 60_000; // 1 min — slugs change rarely; refresh on next request after expiry
@@ -14,7 +13,7 @@ export async function getCachedWarmupSlugs(): Promise<Set<string>> {
   const now = Date.now();
   if (cache && cache.expiresAt > now) return cache.slugs;
   try {
-    const slugs = await loadWarmupsSectionSlugs(getPool());
+    const slugs = await loadWarmupsSectionSlugs();
     cache = { slugs, expiresAt: now + TTL_MS };
     return slugs;
   } catch {

@@ -1,6 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
-import { getPool } from "@/infra/db/client";
 import { pgWebPushOnlyRemindersPort } from "@/infra/repos/pgWebPushOnlyReminders";
 import { loadWarmupsSectionSlugs } from "@/infra/repos/pgWarmupsSectionSlugs";
 import { createLoadWarmupPushContext } from "@/modules/web-push/createLoadWarmupPushContext";
@@ -20,7 +19,7 @@ export async function runWebPushOnlyReminderInternalTick(options?: {
   const reconcileStartedAt = Date.now();
   const startedAtIso = new Date(reconcileStartedAt).toISOString();
   const deps = buildAppDeps();
-  const warmupsSectionSlugs = await loadWarmupsSectionSlugs(getPool());
+  const warmupsSectionSlugs = await loadWarmupsSectionSlugs();
   const loadWarmupPushContext = createLoadWarmupPushContext(deps);
 
   const result = await runWebPushOnlyReminderTick(
