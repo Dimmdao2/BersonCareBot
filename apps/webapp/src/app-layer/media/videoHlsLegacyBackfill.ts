@@ -3,18 +3,18 @@
  * (readable rows without HLS yet). Used by scripts/video-hls-backfill-legacy.ts.
  *
  * Dry-run: never calls enqueue — no writes to jobs/media via enqueue path. Final report uses
- * read-only SELECTs (`loadHistogram`, `loadFailedReasons`).
+ * read-only repo methods (`loadHistogram`, `loadFailedReasons`).
  */
 
-import type { Pool } from "pg";
 import { enqueueMediaTranscodeJob } from "@/app-layer/media/mediaTranscodeJobs";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
-import { getPool } from "@/infra/db/client";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import {
+  createPgVideoHlsLegacyBackfillReadRepo,
+  type VideoHlsLegacyBackfillCandidateRow,
+  type VideoHlsLegacyBackfillReadRepo,
+} from "@/infra/repos/pgVideoHlsLegacyBackfill";
+import {
   legacyHlsBackfillCandidateWhereClause,
-  legacyHlsReconcileEligibleForEnqueueSqlFilter,
-  mediaReadableSql,
   VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
 } from "@/infra/repos/mediaHlsLegacySqlFilters";
 export {
@@ -91,59 +91,15 @@ function resolveEffectiveLimit(limit: number, defaultRunCap: number): number {
 }
 
 export async function fetchLegacyBackfillBatch(
-  pool: Pool,
+  readRepo: VideoHlsLegacyBackfillReadRepo,
   opts: {
     batchSize: number;
     cursorAfterMediaId: string | null;
     cutoffCreatedBefore: Date | null;
     includeFailed: boolean;
   },
-): Promise<{ id: string; size_bytes: string | null }[]> {
-  const coreWhere = legacyHlsBackfillCandidateWhereClause("m", opts.includeFailed);
-  const r = await runPgPoolPgText<{ id: string; size_bytes: string | null }>(
-    pool,
-    `SELECT m.id::text AS id, m.size_bytes::text AS size_bytes
-     FROM media_files m
-     WHERE ${coreWhere}
-       AND ($1::uuid IS NULL OR m.id > $1::uuid)
-       AND ($2::timestamptz IS NULL OR m.created_at < $2::timestamptz)
-     ORDER BY m.id ASC
-     LIMIT $3::int`,
-    [
-      opts.cursorAfterMediaId,
-      opts.cutoffCreatedBefore ? opts.cutoffCreatedBefore.toISOString() : null,
-      opts.batchSize,
-    ],
-  );
-  return r.rows;
-}
-
-async function loadHistogram(pool: Pool): Promise<{ status: string; count: string }[]> {
-  const r = await runPgPoolPgText<{ status: string; count: string }>(
-    pool,
-    `SELECT COALESCE(m.video_processing_status::text, '(null)') AS status, COUNT(*)::text AS count
-     FROM media_files m
-     WHERE m.mime_type ILIKE 'video/%'
-       AND ${mediaReadableSql("m")}
-     GROUP BY 1
-     ORDER BY 1`,
-  );
-  return r.rows;
-}
-
-async function loadFailedReasons(pool: Pool): Promise<{ video_processing_error: string | null; count: string }[]> {
-  const r = await runPgPoolPgText<{ video_processing_error: string | null; count: string }>(
-    pool,
-    `SELECT m.video_processing_error, COUNT(*)::text AS count
-     FROM media_files m
-     WHERE m.mime_type ILIKE 'video/%'
-       AND ${mediaReadableSql("m")}
-       AND m.video_processing_status = 'failed'
-     GROUP BY 1
-     ORDER BY COUNT(*) DESC
-     LIMIT 25`,
-  );
-  return r.rows;
+): Promise<VideoHlsLegacyBackfillCandidateRow[]> {
+  return readRepo.fetchBatch(opts);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -153,12 +109,12 @@ function sleep(ms: number): Promise<void> {
 export async function runVideoHlsLegacyBackfill(
   opts: VideoHlsLegacyBackfillOptions,
   deps?: {
-    pool?: Pool;
+    readRepo?: VideoHlsLegacyBackfillReadRepo;
     enqueue?: typeof enqueueMediaTranscodeJob;
     sleepFn?: (ms: number) => Promise<void>;
   },
 ): Promise<VideoHlsLegacyBackfillReport> {
-  const pool = deps?.pool ?? getPool();
+  const readRepo = deps?.readRepo ?? createPgVideoHlsLegacyBackfillReadRepo();
   const enqueue = deps?.enqueue ?? enqueueMediaTranscodeJob;
   const sleepFn = deps?.sleepFn ?? sleep;
 
@@ -194,8 +150,8 @@ export async function runVideoHlsLegacyBackfill(
     } else {
       report.abortedReason = "video_hls_pipeline_enabled is false (enable in admin settings or use dry-run only)";
       report.skippedPipelineOff = 1;
-      report.statusHistogram = await loadHistogram(pool);
-      report.failedReasons = await loadFailedReasons(pool);
+      report.statusHistogram = await readRepo.loadHistogram();
+      report.failedReasons = await readRepo.loadFailedReasons();
       return report;
     }
   }
@@ -211,7 +167,7 @@ export async function runVideoHlsLegacyBackfill(
     );
     if (take <= 0) break;
 
-    const batch = await fetchLegacyBackfillBatch(pool, {
+    const batch = await fetchLegacyBackfillBatch(readRepo, {
       batchSize: take,
       cursorAfterMediaId: cursor,
       cutoffCreatedBefore: opts.cutoffCreatedBefore,
@@ -264,7 +220,7 @@ export async function runVideoHlsLegacyBackfill(
     if (sleepMs > 0) await sleepFn(sleepMs);
   }
 
-  report.statusHistogram = await loadHistogram(pool);
-  report.failedReasons = await loadFailedReasons(pool);
+  report.statusHistogram = await readRepo.loadHistogram();
+  report.failedReasons = await readRepo.loadFailedReasons();
   return report;
 }
