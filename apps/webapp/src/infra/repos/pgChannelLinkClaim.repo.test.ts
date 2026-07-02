@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Pool } from "pg";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const upsertBroadcastDefaultsAfterChannelBindMock = vi.hoisted(() => vi.fn());
@@ -17,12 +18,13 @@ import { claimMessengerChannelBinding } from "./pgChannelLinkClaim";
 
 const clientQueryMock = vi.fn();
 const releaseMock = vi.fn();
-const pool = {
+const poolLike = {
   connect: vi.fn(async () => ({
     query: clientQueryMock,
     release: releaseMock,
   })),
 };
+const pool = poolLike as unknown as Pool;
 
 function resultForSql(queryText: string) {
   if (queryText.includes("FROM platform_users WHERE id = $1::uuid")) {
@@ -64,7 +66,7 @@ describe("claimMessengerChannelBinding", () => {
     upsertBroadcastDefaultsAfterChannelBindMock.mockReset();
     clientQueryMock.mockReset();
     releaseMock.mockReset();
-    pool.connect.mockClear();
+    poolLike.connect.mockClear();
     clientQueryMock.mockResolvedValue({ rows: [] });
     upsertBroadcastDefaultsAfterChannelBindMock.mockResolvedValue(undefined);
   });

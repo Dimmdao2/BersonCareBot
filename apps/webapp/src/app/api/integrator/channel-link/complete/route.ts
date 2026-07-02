@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { completeChannelLinkFromIntegrator } from "@/modules/auth/channelLink";
 
@@ -11,6 +12,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
+
   const timestamp = request.headers.get("x-bersoncare-timestamp");
   const signature = request.headers.get("x-bersoncare-signature");
   const rawBody = await request.text();

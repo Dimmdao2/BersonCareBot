@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const completeChannelLinkFromIntegratorMock = vi.fn();
 
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: vi.fn(),
+}));
+
 vi.mock("@/modules/auth/channelLink", () => ({
   completeChannelLinkFromIntegrator: (...args: unknown[]) =>
     completeChannelLinkFromIntegratorMock(...args),
