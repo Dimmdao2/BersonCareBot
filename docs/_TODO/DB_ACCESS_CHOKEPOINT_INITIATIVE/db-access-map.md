@@ -136,16 +136,22 @@ Canonical webapp accessor:
 
 - `apps/webapp/src/infra/repos/pgSystemSettings.ts`
 
-Bypassers that S2 must close or explicitly classify:
+S2 status after `da3e4ff7` + guard stage:
 
 | File | Current query |
 |---|---|
-| `apps/webapp/src/infra/repos/pgBookingEngine.ts` | `SELECT value_json FROM system_settings ...` |
-| `apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts` | `SELECT value_json FROM system_settings ...` |
-| `apps/webapp/src/modules/system-settings/configAdapter.ts` | `SELECT value_json FROM system_settings ...` |
-| `apps/media-worker/src/pipelineEnabled.ts` | `SELECT value_json FROM public.system_settings ...` |
-| `apps/media-worker/src/watermarkEnabled.ts` | `SELECT value_json FROM public.system_settings ...` |
-| `apps/integrator/src/infra/db/publicSystemSettings.ts` | `SELECT value_json FROM public.system_settings ...` |
+| `apps/webapp/src/infra/repos/pgSystemSettings.ts` | **CANONICAL webapp accessor** for reads/writes/audit. |
+| `apps/integrator/src/infra/db/publicSystemSettings.ts` | **CANONICAL integrator accessor** for unified DB reads from `public.system_settings`. |
+| `apps/media-worker/src/pipelineEnabled.ts` | **ALLOW process accessor** until media-worker gets its own shared accessor. |
+| `apps/media-worker/src/watermarkEnabled.ts` | **ALLOW process accessor** until media-worker gets its own shared accessor. |
+
+Closed in S2:
+
+- `apps/webapp/src/infra/repos/pgBookingEngine.ts` now uses `readAdminSystemSettingString`.
+- `apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts` now uses `readAdminSystemSettingBoolean`.
+- `apps/webapp/src/infra/repos/pgBookingScheduling.ts` now uses `readAdminSystemSettingInnerValue`.
+- `apps/webapp/src/modules/system-settings/configAdapter.ts` now uses `pgSystemSettings` read helpers.
+- `apps/webapp/src/modules/analytics/analyticsAudience.ts` no longer reads `system_settings`; callers pass parsed test-account identifiers, and `pgProductAnalytics.ts` reads them through `pgSystemSettings`.
 
 Writes/mirror:
 
@@ -153,7 +159,7 @@ Writes/mirror:
 - Integrator signed sync still writes `integrator.system_settings` in `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts`.
 - `apps/webapp/src/infra/platformUserFullPurge.ts` and `apps/webapp/scripts/user-phone-admin.ts` update `system_settings.updated_by` only as purge/admin cleanup; classify before adding CI grep.
 
-S2 guard should allow canonical accessors and documented cleanup/sync paths, and fail any new direct `SELECT ... FROM system_settings`.
+S2 guard: `apps/webapp/scripts/check-system-settings-accessors.mjs`, wired into `pnpm --dir apps/webapp run lint`, allows only the accessors above and fails new direct `SELECT ... FROM system_settings` / Drizzle `.from(systemSettings)` in production `.ts`.
 
 ## Integrator `db.query` correction
 

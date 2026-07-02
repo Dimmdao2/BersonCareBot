@@ -16,5 +16,6 @@ Production uses **one PostgreSQL database** with schemas **`public`** (webapp ta
    - document a follow-up admin “save” in Settings UI to push via HTTP sync, **or**
    - call the same sync mechanism from a one-off ops script (signed POST to integrator).
 4. **Do not** add a second sync call in Next.js route handlers; sync lives in `service.ts` only.
+5. **Runtime reads:** use sanctioned accessors, not ad-hoc `SELECT ... FROM system_settings`. Webapp uses `apps/webapp/src/infra/repos/pgSystemSettings.ts`; integrator uses `apps/integrator/src/infra/db/publicSystemSettings.ts`; media-worker keeps its documented process accessors until unified separately. The webapp lint script `check-system-settings-accessors.mjs` guards this.
 
 Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.

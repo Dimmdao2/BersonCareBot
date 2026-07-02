@@ -8,7 +8,7 @@
     "dev": "bash ../../scripts/kill-local-dev-ports.sh && next dev --webpack -H 127.0.0.1 -p 5200",
     "dev:turbo": "bash ../../scripts/kill-local-dev-ports.sh && next dev -H 127.0.0.1 -p 5200",
     "dev:visual": "bash ../../scripts/kill-local-dev-ports.sh && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack -H 127.0.0.1 -p 5200",
-    "lint": "eslint . && bash scripts/check-media-preview-invariants.sh && bash scripts/check-legacy-migrations-frozen.sh && bash scripts/check-drizzle-journal-sync.sh",
+    "lint": "eslint . && bash scripts/check-media-preview-invariants.sh && bash scripts/check-legacy-migrations-frozen.sh && bash scripts/check-drizzle-journal-sync.sh && node scripts/check-system-settings-accessors.mjs",
     "check:catalog-shared-primitives": "bash scripts/check-catalog-shared-primitives.sh",
     "check:media-preview-invariants": "bash scripts/check-media-preview-invariants.sh",
     "build": "rm -rf .next/standalone && NODE_OPTIONS=\"${NODE_OPTIONS:---max-old-space-size=4096}\" NODE_ENV=production next build && bash ../../deploy/host/sync-webapp-standalone-assets.sh",
