@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/app-layer/db/client";
 import { computeMessengerPhoneBindRequestHash } from "@/app-layer/idempotency/messengerPhoneBindRequestHash";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
 import { logger } from "@/app-layer/logging/logger";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { executeMessengerPhoneHttpBind } from "@/app-layer/integrator/messengerPhoneHttpBindExecute";
+import { executeMessengerPhoneHttpBindWithDefaultPool } from "@/app-layer/integrator/messengerPhoneHttpBindExecute";
 
 const bodySchema = z.object({
   channelCode: z.enum(["telegram", "max"]),
@@ -62,8 +61,7 @@ export async function POST(request: Request) {
     return NextResponse.json(cached.body, { status: cached.status });
   }
 
-  const pool = getPool();
-  const result = await executeMessengerPhoneHttpBind(pool, {
+  const result = await executeMessengerPhoneHttpBindWithDefaultPool({
     channelCode: validated.data.channelCode,
     externalId: validated.data.externalId,
     phoneNormalized: validated.data.phoneNormalized,

@@ -2,15 +2,9 @@ import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetIdempotencyStoreForTests } from "@/infra/idempotency/store";
 
-const { verifySignatureMock, executeMessengerPhoneHttpBindMock, getPoolMock } = vi.hoisted(() => ({
+const { verifySignatureMock, executeMessengerPhoneHttpBindMock } = vi.hoisted(() => ({
   verifySignatureMock: vi.fn(),
   executeMessengerPhoneHttpBindMock: vi.fn(),
-  getPoolMock: vi.fn(() => ({
-    connect: vi.fn().mockResolvedValue({
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-      release: vi.fn(),
-    }),
-  })),
 }));
 
 vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
@@ -18,16 +12,8 @@ vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
 }));
 
 vi.mock("@/app-layer/integrator/messengerPhoneHttpBindExecute", () => ({
-  executeMessengerPhoneHttpBind: (...args: unknown[]) => executeMessengerPhoneHttpBindMock(...args),
+  executeMessengerPhoneHttpBindWithDefaultPool: (...args: unknown[]) => executeMessengerPhoneHttpBindMock(...args),
 }));
-
-vi.mock("@/app-layer/db/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/app-layer/db/client")>();
-  return {
-    ...actual,
-    getPool: () => getPoolMock(),
-  };
-});
 
 import { POST } from "./route";
 
@@ -265,7 +251,6 @@ describe("POST /api/integrator/messenger-phone/bind", () => {
 
     expect(res.status).toBe(200);
     expect(executeMessengerPhoneHttpBindMock).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({ channelCode: "max", externalId: "max-ext-1" }),
     );
   });

@@ -35,6 +35,7 @@ import {
 import { notifyMessengerPhoneBindBlockedFromWebapp } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { logger } from "@/infra/logging/logger";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
+import { getPool } from "@/app-layer/db/client";
 
 const bindInputSchema = z.object({
   channelCode: z.enum(["telegram", "max"]),
@@ -300,4 +301,13 @@ export async function executeMessengerPhoneHttpBind(
   } finally {
     tx?.release();
   }
+}
+
+export async function executeMessengerPhoneHttpBindWithDefaultPool(input: {
+  channelCode: "telegram" | "max";
+  externalId: string;
+  phoneNormalized: string;
+  correlationId?: string;
+}): Promise<MessengerPhoneHttpBindResult> {
+  return executeMessengerPhoneHttpBind(getPool(), input);
 }
