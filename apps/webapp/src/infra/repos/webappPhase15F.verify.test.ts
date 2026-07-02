@@ -16,8 +16,6 @@ const CLASS_B_POOL_QUERY_REL = [
   "infra/repos/pgAdminPlatformUserStats.ts",
   // Added wave3 phase 15G: pool.query for Drizzle ANY-array workaround (broadcast count by user subset)
   "infra/repos/broadcastChannelCounts.ts",
-  // Added wave3 phase 15G: simple doctor timezone GET/PATCH via pool.query
-  "app/api/doctor/account/timezone/route.ts",
 ] as const;
 
 /** Class B: healthcheck on dedicated PoolClient. */
@@ -25,7 +23,6 @@ const CLASS_B_CLIENT_QUERY_REL = ["infra/db/client.ts"] as const;
 
 /** Class C: `client.query` only for TX control / advisory on dedicated PoolClient. */
 const CLASS_C_CLIENT_QUERY_REL = [
-  "app-layer/doctor/createDoctorClient.ts",
   "infra/adminAuditLog.ts",
   "infra/integratorPlatformUserMerge.ts",
   "infra/multipartSessionLock.ts",
@@ -36,6 +33,8 @@ const CLASS_C_CLIENT_QUERY_REL = [
   "infra/repos/mediaUploadSessionsRepo.ts",
   "infra/repos/pgAppointmentProjection.ts",
   "infra/repos/pgChannelPreferences.ts",
+  "infra/repos/pgChannelLinkClaim.ts",
+  "infra/repos/pgDoctorClientCreate.ts",
   "infra/repos/pgDoctorBroadcastDelivery.ts",
   "infra/repos/pgDoctorMotivationQuotesEditor.ts",
   "infra/repos/pgIdentityResolution.ts",
@@ -46,7 +45,6 @@ const CLASS_C_CLIENT_QUERY_REL = [
   "infra/repos/pgUserProjection.ts",
   "infra/repos/pgWebPushSubscriptions.ts",
   "infra/repos/s3MediaStorage.ts",
-  "modules/auth/channelLink.ts",
 ] as const;
 
 /** Migrated in 15A–15E: runtime domain `pool.query`/`client.query` must stay 0. */
@@ -115,7 +113,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
   const rawSqlDoc = readFileSync(RAW_SQL_INVENTORY, "utf8");
   const prodFiles = listProdTsFiles(WEBAPP_SRC);
 
-  it("domain pool.query only in Class B allowlist (2 files)", () => {
+  it("domain pool.query only in Class B allowlist (3 files)", () => {
     const offenders: string[] = [];
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
@@ -127,7 +125,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
       }
     }
     expect(offenders).toEqual([]);
-    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(4);
+    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(3);
   });
 
   it("client.query only in Class B health + Class C allowlist (23 files)", () => {
@@ -172,7 +170,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("post-15 prod tail size is 25 runtime files (27 rg -l incl. 2 comment-only)", () => {
+  it("post-15 prod tail size is 26 runtime files", () => {
     const runtimeTail = new Set<string>();
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
@@ -185,7 +183,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
         runtimeTail.add(rel);
       }
     }
-    expect(runtimeTail.size).toBe(27);
+    expect(runtimeTail.size).toBe(26);
     expect([...runtimeTail].sort()).toEqual(
       [...CLASS_B_POOL_QUERY_REL, ...CLASS_B_CLIENT_QUERY_REL, ...CLASS_C_CLIENT_QUERY_REL].sort(),
     );
