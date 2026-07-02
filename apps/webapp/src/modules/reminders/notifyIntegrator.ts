@@ -2,8 +2,7 @@
  * Notify integrator of a reminder rule change (webapp DB is source of truth; integrator stores rules for dispatch).
  * Immediate signed POST; on failure (except missing config) enqueues {@link integrator_push_outbox} for retry.
  */
-import { getPool } from "@/infra/db/client";
-import { enqueueIntegratorPush } from "@/infra/integrator-push/integratorPushOutbox";
+import { enqueueIntegratorPushDefault } from "@/infra/integrator-push/integratorPushOutbox";
 import { postReminderRuleUpsertToIntegrator } from "@/infra/integrator-push/integratorM2mPosts";
 import type { ReminderRule } from "./types";
 
@@ -18,7 +17,7 @@ export async function notifyIntegratorRuleUpdated(rule: ReminderRule): Promise<v
       return;
     }
     try {
-      await enqueueIntegratorPush(getPool(), {
+      await enqueueIntegratorPushDefault({
         kind: "reminder_rule_upsert",
         idempotencyKey: `reminder_rule:${rule.id}`,
         payload: { ...rule } as Record<string, unknown>,

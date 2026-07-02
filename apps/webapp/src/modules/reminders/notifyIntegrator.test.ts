@@ -16,11 +16,7 @@ const enqueueIntegratorPushMock = vi.hoisted(() => vi.fn().mockResolvedValue(und
 vi.stubGlobal("fetch", mockFetch);
 
 vi.mock("@/infra/integrator-push/integratorPushOutbox", () => ({
-  enqueueIntegratorPush: enqueueIntegratorPushMock,
-}));
-
-vi.mock("@/infra/db/client", () => ({
-  getPool: () => ({ query: vi.fn() }),
+  enqueueIntegratorPushDefault: enqueueIntegratorPushMock,
 }));
 
 import { notifyIntegratorRuleUpdated } from "./notifyIntegrator";
@@ -91,7 +87,7 @@ describe("notifyIntegratorRuleUpdated", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     await notifyIntegratorRuleUpdated(baseRule);
     expect(enqueueIntegratorPushMock).toHaveBeenCalledTimes(1);
-    expect(enqueueIntegratorPushMock.mock.calls[0]![1]).toMatchObject({
+    expect(enqueueIntegratorPushMock.mock.calls[0]![0]).toMatchObject({
       kind: "reminder_rule_upsert",
       idempotencyKey: "reminder_rule:rule-abc",
     });

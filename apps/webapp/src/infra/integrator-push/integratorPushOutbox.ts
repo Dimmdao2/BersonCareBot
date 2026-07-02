@@ -66,7 +66,19 @@ export async function enqueueIntegratorPush(
   db: Pool | PoolClient,
   input: { kind: IntegratorPushKind; idempotencyKey: string; payload: Record<string, unknown> },
 ): Promise<void> {
-  const d = integratorPushExecutor(db);
+  await enqueueIntegratorPushWithExecutor(integratorPushExecutor(db), input);
+}
+
+export async function enqueueIntegratorPushDefault(
+  input: { kind: IntegratorPushKind; idempotencyKey: string; payload: Record<string, unknown> },
+): Promise<void> {
+  await enqueueIntegratorPushWithExecutor(getWebappSqlDb(), input);
+}
+
+async function enqueueIntegratorPushWithExecutor(
+  d: WebappSqlExecutor,
+  input: { kind: IntegratorPushKind; idempotencyKey: string; payload: Record<string, unknown> },
+): Promise<void> {
   await d
     .insert(integratorPushOutbox)
     .values({
