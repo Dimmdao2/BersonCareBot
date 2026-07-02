@@ -11,7 +11,7 @@
  *
  * Implemented here (not imported from `apps/integrator`) so Next.js production build does not bundle integrator sources with `.js` import paths.
  */
-import type { Pool, PoolClient } from "pg";
+import type { Pool } from "pg";
 import { z } from "zod";
 import {
   applyMessengerPhonePublicBind,
@@ -25,15 +25,12 @@ import {
 } from "@bersoncare/platform-merge";
 import { computeConflictKeyFromCandidateIds, writeAuditLog } from "@/infra/adminAuditLog";
 import {
-  createTxQuery,
   ensureIdentityForMessenger,
   loadIntegratorIdentityUserId,
   poolAsMessengerPhoneBindDb,
   resolveCanonicalIntegratorUserId,
   setUserPhone,
-  txBegin,
-  txCommit,
-  txRollback,
+  startMessengerPhoneBindTransaction,
 } from "@/infra/repos/pgMessengerPhoneHttpBind";
 import { notifyMessengerPhoneBindBlockedFromWebapp } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { logger } from "@/infra/logging/logger";
@@ -100,9 +97,9 @@ export async function executeMessengerPhoneHttpBind(
     ...(validated.correlationId?.trim() ? { correlationId: validated.correlationId.trim() } : {}),
   };
 
-  let client: PoolClient | undefined;
+  let tx: Awaited<ReturnType<typeof startMessengerPhoneBindTransaction>> | undefined;
   try {
-    client = await pool.connect();
+    tx = await startMessengerPhoneBindTransaction(pool);
   } catch (err) {
     logger.error({ err, ...bindLogBase }, "messenger_phone_http_bind: connect failed");
     return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };
@@ -113,8 +110,7 @@ export async function executeMessengerPhoneHttpBind(
   let applied = false;
 
   try {
-    await txBegin(client);
-    const txDb = createTxQuery(client);
+    const txDb = tx.txDb;
 
     try {
       if (resource === "max") {
@@ -145,7 +141,7 @@ export async function executeMessengerPhoneHttpBind(
         applied = true;
       }
     } catch (err) {
-      await txRollback(client);
+      await tx.rollback();
       if (err instanceof MessengerPhoneLinkError) {
         const cause = (err as Error & { cause?: unknown }).cause;
         const sqlState = pgSqlStateFromUnknown(cause) ?? pgSqlStateFromUnknown(err);
@@ -264,7 +260,7 @@ export async function executeMessengerPhoneHttpBind(
     }
 
     if (phoneLinkEarly) {
-      await txRollback(client);
+      await tx.rollback();
       if (!phoneLinkEarly.ok) {
         logger.warn(
           {
@@ -279,7 +275,7 @@ export async function executeMessengerPhoneHttpBind(
       return phoneLinkEarly;
     }
 
-    await txCommit(client);
+    await tx.commit();
 
     if (applied && platformUserIdForLog) {
       logger.info(
@@ -302,6 +298,6 @@ export async function executeMessengerPhoneHttpBind(
 
     return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };
   } finally {
-    if (client) client.release();
+    tx?.release();
   }
 }

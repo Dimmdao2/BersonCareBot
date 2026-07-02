@@ -12,6 +12,13 @@ export type TxQuery = {
   query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number }>;
 };
 
+export type MessengerPhoneBindTransaction = {
+  txDb: TxQuery;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  release(): void;
+};
+
 const MAX_MERGE_CHAIN_DEPTH = 32;
 const BIGINT_STRING = /^\d+$/;
 
@@ -52,6 +59,23 @@ export async function txCommit(client: PoolClient): Promise<void> {
 
 export async function txRollback(client: PoolClient): Promise<void> {
   await runPgPoolPgText(client, "ROLLBACK");
+}
+
+export async function startMessengerPhoneBindTransaction(pool: Pool): Promise<MessengerPhoneBindTransaction> {
+  const client = await pool.connect();
+  try {
+    await txBegin(client);
+  } catch (err) {
+    client.release();
+    throw err;
+  }
+
+  return {
+    txDb: createTxQuery(client),
+    commit: () => txCommit(client),
+    rollback: () => txRollback(client),
+    release: () => client.release(),
+  };
 }
 
 export async function resolveCanonicalIntegratorUserId(db: TxQuery, integratorUserId: string): Promise<string> {
