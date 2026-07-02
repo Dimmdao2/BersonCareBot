@@ -81,7 +81,7 @@ vi.mock("@/infra/repos/pgChannelLinkClaim", async (importOriginal) => {
   return {
     ...actual,
     classifyChannelBindingOwnerForLink: vi.fn(),
-    claimMessengerChannelBindingInTransaction: vi.fn(),
+    claimMessengerChannelBinding: vi.fn(),
   };
 });
 
@@ -104,7 +104,6 @@ vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
 
 import { upsertOpenConflictLog } from "@/infra/adminAuditLog";
 import * as channelLinkClaim from "@/infra/repos/pgChannelLinkClaim";
-import { ChannelLinkClaimRejectedError } from "@/infra/repos/pgChannelLinkClaim";
 import {
   completeChannelLinkFromIntegrator,
   setChannelLinkBindingConflictReporter,
@@ -112,7 +111,7 @@ import {
 } from "./channelLink";
 
 const classifyMock = vi.mocked(channelLinkClaim.classifyChannelBindingOwnerForLink);
-const claimMock = vi.mocked(channelLinkClaim.claimMessengerChannelBindingInTransaction);
+const claimMock = vi.mocked(channelLinkClaim.claimMessengerChannelBinding);
 const upsertMock = vi.mocked(upsertOpenConflictLog);
 
 function freshSecretRow(overrides: Partial<{ id: string; user_id: string }> = {}) {
@@ -209,7 +208,7 @@ describe("completeChannelLinkFromIntegrator", () => {
   it("disposable stub: claim in tx, marks success without merge or conflict audit", async () => {
     setChannelLinkBindingConflictReporter(vi.fn());
     classifyMock.mockResolvedValue({ kind: "disposable" });
-    claimMock.mockResolvedValue(undefined);
+    claimMock.mockResolvedValue({ ok: true });
     clientQueryMock.mockResolvedValue({ rows: [] });
 
     queryMock
@@ -229,9 +228,6 @@ describe("completeChannelLinkFromIntegrator", () => {
       needsPhone: false,
       phoneNormalized: "+79990001122",
     });
-    expect(connectMock).toHaveBeenCalledTimes(1);
-    expect(clientQueryMock).toHaveBeenCalledWith("BEGIN");
-    expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
     expect(claimMock).toHaveBeenCalledTimes(1);
     const claimArgs = claimMock.mock.calls[0];
     expect(claimArgs?.[1]).toMatchObject({
@@ -247,7 +243,7 @@ describe("completeChannelLinkFromIntegrator", () => {
   it("claim rejected → conflict audit + relay; rollback", async () => {
     setChannelLinkBindingConflictReporter(vi.fn());
     classifyMock.mockResolvedValue({ kind: "disposable" });
-    claimMock.mockRejectedValueOnce(new ChannelLinkClaimRejectedError("stub_has_oauth"));
+    claimMock.mockResolvedValueOnce({ ok: false, code: "rejected", reason: "stub_has_oauth" });
     clientQueryMock.mockResolvedValue({ rows: [] });
 
     queryMock
@@ -261,7 +257,6 @@ describe("completeChannelLinkFromIntegrator", () => {
     });
 
     expect(res).toMatchObject({ ok: false, code: "conflict", mergeReason: "channel_link_claim_rejected" });
-    expect(clientQueryMock).toHaveBeenCalledWith("ROLLBACK");
     expect(upsertMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -278,7 +273,7 @@ describe("completeChannelLinkFromIntegrator", () => {
   it("claim tx unexpected error → conflict without audit", async () => {
     setChannelLinkBindingConflictReporter(vi.fn());
     classifyMock.mockResolvedValue({ kind: "disposable" });
-    claimMock.mockRejectedValueOnce(new Error("simulated_db_error"));
+    claimMock.mockResolvedValueOnce({ ok: false, code: "failed", err: new Error("simulated_db_error") });
     clientQueryMock.mockResolvedValue({ rows: [] });
 
     queryMock

@@ -117,6 +117,11 @@ export type ClaimMessengerChannelBindingInput = {
   secretRowId: string;
 };
 
+export type ClaimMessengerChannelBindingResult =
+  | { ok: true }
+  | { ok: false; code: "rejected"; reason: string }
+  | { ok: false; code: "failed"; err: unknown };
+
 export type ChannelLinkOwnersMergeResult =
   | { ok: true }
   | { ok: false; reason: string; candidateIds: string[] };
@@ -151,6 +156,29 @@ export async function tryMergeChannelLinkOwners(
           ? classified.candidateIds
           : [params.tokenUserId, params.existingUserId],
     };
+  } finally {
+    client.release();
+  }
+}
+
+export async function claimMessengerChannelBinding(
+  pool: Pool,
+  input: ClaimMessengerChannelBindingInput,
+): Promise<ClaimMessengerChannelBindingResult> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    try {
+      await claimMessengerChannelBindingInTransaction(client, input);
+      await client.query("COMMIT");
+      return { ok: true };
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err instanceof ChannelLinkClaimRejectedError) {
+        return { ok: false, code: "rejected", reason: err.reason };
+      }
+      return { ok: false, code: "failed", err };
+    }
   } finally {
     client.release();
   }

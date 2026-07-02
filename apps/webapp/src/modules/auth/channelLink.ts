@@ -1,9 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Pool } from "pg";
-/**
- * Wave 3 phase 11 — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
- * (disposable channel claim). Domain SQL lives in infra repos.
- */
 import { getPool } from "@/infra/db/client";
 import { getWebappSqlDb } from "@/infra/db/runWebappSql";
 import {
@@ -26,9 +22,8 @@ import {
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
 import { notifyChannelLinkOwnershipConflictRelay } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import {
+  claimMessengerChannelBinding,
   classifyChannelBindingOwnerForLink,
-  claimMessengerChannelBindingInTransaction,
-  ChannelLinkClaimRejectedError,
   tryMergeChannelLinkOwners,
 } from "@/infra/repos/pgChannelLinkClaim";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
@@ -259,44 +254,35 @@ export async function completeChannelLinkFromIntegrator(params: {
         return { ok: false, code: "conflict", mergeReason: merged.reason };
       }
 
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        try {
-          await claimMessengerChannelBindingInTransaction(client, {
-            tokenUserId: r.userId,
-            stubUserId: boundUserId,
-            channelCode: params.channelCode,
-            externalId: params.externalId,
-            secretRowId: r.id,
-          });
-          await client.query("COMMIT");
-        } catch (err) {
-          await client.query("ROLLBACK");
-          if (err instanceof ChannelLinkClaimRejectedError) {
-            logger.warn({
-              scope: "channel_link",
-              event: "channel_link_claim_rejected",
-              reason: err.reason,
-              channelCode: params.channelCode,
-            });
-            await recordChannelLinkOwnershipConflict(pool, ctx, {
-              classifiedReason: "channel_link_claim_rejected",
-              stubClassificationReason: err.reason,
-            });
-            return { ok: false, code: "conflict", mergeReason: "channel_link_claim_rejected" };
-          }
-          logger.error({
-            err,
+      const claim = await claimMessengerChannelBinding(pool, {
+        tokenUserId: r.userId,
+        stubUserId: boundUserId,
+        channelCode: params.channelCode,
+        externalId: params.externalId,
+        secretRowId: r.id,
+      });
+      if (!claim.ok) {
+        if (claim.code === "rejected") {
+          logger.warn({
             scope: "channel_link",
-            event: "channel_link_claim_tx_error",
-            tokenUserId: r.userId,
-            stubUserId: boundUserId,
+            event: "channel_link_claim_rejected",
+            reason: claim.reason,
+            channelCode: params.channelCode,
           });
-          return { ok: false, code: "conflict", mergeReason: "channel_link_claim_failed" };
+          await recordChannelLinkOwnershipConflict(pool, ctx, {
+            classifiedReason: "channel_link_claim_rejected",
+            stubClassificationReason: claim.reason,
+          });
+          return { ok: false, code: "conflict", mergeReason: "channel_link_claim_rejected" };
         }
-      } finally {
-        client.release();
+        logger.error({
+          err: claim.err,
+          scope: "channel_link",
+          event: "channel_link_claim_tx_error",
+          tokenUserId: r.userId,
+          stubUserId: boundUserId,
+        });
+        return { ok: false, code: "conflict", mergeReason: "channel_link_claim_failed" };
       }
 
       logger.info({
