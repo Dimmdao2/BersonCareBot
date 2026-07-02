@@ -1,13 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { logger } from "@/app-layer/logging/logger";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import {
-  legacyHlsBackfillCandidateWhereClause,
-  legacyHlsReconcileEligibleForEnqueueSqlFilter,
-  mediaReadableSql,
-  VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
-} from "@/app-layer/media/videoHlsLegacyBackfill";
+import { loadAdminTranscodeMediaFileCounts } from "@/infra/repos/pgAdminTranscodeHealthMetrics";
 import { mediaTranscodeJobs } from "../../../db/schema";
 
 export type AdminTranscodeHealthMetrics = {
@@ -32,41 +26,6 @@ export type AdminTranscodeHealthMetrics = {
   /** Readable catalog videos marked ready with non-empty HLS master key (successful streaming variant present). */
   readableVideoReadyWithHlsCount: number;
 };
-
-function parseCountText(raw: string | undefined): number {
-  if (raw == null || raw.trim().length === 0) return 0;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
-async function loadMediaFilesCountsViaPool(): Promise<{
-  legacyReconcileCandidateCountWithinSizeCap: number;
-  readableVideoReadyWithHlsCount: number;
-}> {
-  const core = legacyHlsBackfillCandidateWhereClause("m", false);
-  const sz = legacyHlsReconcileEligibleForEnqueueSqlFilter("m", VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES);
-  const readable = mediaReadableSql("m");
-
-  const [candidatesResult, readyHlsResult] = await Promise.all([
-    runWebappPgText<{ c: string }>(
-      `SELECT count(*)::text AS c FROM media_files m WHERE ${core} AND ${sz}`,
-    ),
-    runWebappPgText<{ c: string }>(
-      `SELECT count(*)::text AS c
-       FROM media_files m
-       WHERE m.mime_type ILIKE 'video/%'
-         AND ${readable}
-         AND m.video_processing_status = 'ready'
-         AND m.hls_master_playlist_s3_key IS NOT NULL
-         AND trim(m.hls_master_playlist_s3_key) <> ''`,
-    ),
-  ]);
-
-  return {
-    legacyReconcileCandidateCountWithinSizeCap: parseCountText(candidatesResult.rows[0]?.c),
-    readableVideoReadyWithHlsCount: parseCountText(readyHlsResult.rows[0]?.c),
-  };
-}
 
 /**
  * Aggregates transcode queue metrics for `/api/admin/system-health` (best-effort; throws on DB errors).
@@ -161,7 +120,7 @@ export async function loadAdminTranscodeHealthMetrics(): Promise<AdminTranscodeH
       })
       .from(mediaTranscodeJobs)
       .where(eq(mediaTranscodeJobs.status, "pending")),
-    loadMediaFilesCountsViaPool(),
+    loadAdminTranscodeMediaFileCounts(),
   ]);
 
   const pendingCount = pendingRow[0]?.c ?? 0;
