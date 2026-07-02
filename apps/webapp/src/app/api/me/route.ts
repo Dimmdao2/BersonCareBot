@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
-import { getPool } from "@/app-layer/db/client";
 import { renewSessionCookieFromRequest } from "@/modules/auth/service";
 import type { PlatformAccessContext } from "@/modules/platform-access";
-import { resolvePlatformAccessContext } from "@/modules/platform-access";
+import { resolvePlatformAccessContext } from "@/app-layer/platform-access";
 
 type MePlatformAccessPayload = Pick<
   PlatformAccessContext,
@@ -27,7 +26,7 @@ export async function GET() {
   let platformAccessUnresolved = false;
   if (env.DATABASE_URL?.trim()) {
     try {
-      const ctx = await resolvePlatformAccessContext(getPool(), {
+      const ctx = await resolvePlatformAccessContext({
         sessionUserId: session.user.userId,
         sessionRoleHint: session.user.role,
       });

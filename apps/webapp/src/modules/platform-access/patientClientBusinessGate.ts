@@ -1,5 +1,4 @@
 import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
 import type { AppSession } from "@/shared/types/session";
 import { resolvePlatformAccessContext } from "./resolvePlatformAccessContext";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
@@ -16,7 +15,7 @@ export async function patientClientBusinessGate(session: AppSession): Promise<Pa
 
   if (env.DATABASE_URL?.trim()) {
     try {
-      const ctx = await resolvePlatformAccessContext(getPool(), {
+      const ctx = await resolvePlatformAccessContext({
         sessionUserId: session.user.userId,
         sessionRoleHint: session.user.role,
       });

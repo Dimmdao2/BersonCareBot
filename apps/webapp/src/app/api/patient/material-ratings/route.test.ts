@@ -11,7 +11,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
-vi.mock("@/modules/platform-access", () => ({
+vi.mock("@/app-layer/platform-access", () => ({
   patientClientBusinessGate: mockPatientClientBusinessGate,
   resolvePatientCanViewAuthOnlyContent: mockResolvePatientCanViewAuthOnlyContent,
 }));

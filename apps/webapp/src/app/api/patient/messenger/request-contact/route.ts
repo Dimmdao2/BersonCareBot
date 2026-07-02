@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/modules/auth/service";
 import { requestMessengerContactViaIntegrator } from "@/modules/messaging/requestMessengerContact";
-import { patientClientBusinessGate } from "@/modules/platform-access";
+import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { canAccessPatient } from "@/modules/roles/service";
 import { env } from "@/config/env";
 

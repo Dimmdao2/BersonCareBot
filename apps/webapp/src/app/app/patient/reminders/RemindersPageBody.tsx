@@ -10,7 +10,7 @@ import { ReminderRulesClient, type PersonalReminderRowVM } from "./ReminderRules
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
-import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
 import { resolveActiveTreatmentProgramInstanceId } from "@/modules/treatment-program/patientTreatmentProgramEntry";
 import { RemindersHashScroll } from "./RemindersHashScroll";
 import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";

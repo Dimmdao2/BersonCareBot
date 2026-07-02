@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/modules/auth/service";
-import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/modules/platform-access";
-import { getPool } from "@/infra/db/client";
+import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/app-layer/platform-access";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
@@ -145,7 +144,7 @@ export async function requirePatientBookingTrustedPhoneAccess(options?: {
   if (!gate.ok) return gate;
 
   try {
-    const ctx = await resolvePlatformAccessContext(getPool(), {
+    const ctx = await resolvePlatformAccessContext({
       sessionUserId: gate.session.user.userId,
       sessionRoleHint: gate.session.user.role,
     });

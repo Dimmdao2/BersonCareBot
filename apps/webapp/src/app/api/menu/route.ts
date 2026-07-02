@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/app-layer/logging/serverRuntimeLog";
-import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
 
 export async function GET() {
   const deps = buildAppDeps();

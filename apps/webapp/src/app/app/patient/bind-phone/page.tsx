@@ -8,8 +8,8 @@ import { redirect } from "next/navigation";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
-import { patientSessionSnapshotHasPhone, resolvePlatformAccessContext } from "@/modules/platform-access";
+import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
+import { resolvePlatformAccessContext } from "@/app-layer/platform-access";
 import { resolveSkipBindPhoneSurface } from "./resolveSkipBindPhoneSurface";
 import Link from "next/link";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
@@ -31,7 +31,7 @@ export default async function BindPhonePage({ searchParams }: Props) {
   let platformContextFailed = false;
   if (env.DATABASE_URL?.trim()) {
     try {
-      const ctx = await resolvePlatformAccessContext(getPool(), {
+      const ctx = await resolvePlatformAccessContext({
         sessionUserId: session.user.userId,
         sessionRoleHint: session.user.role,
       });

@@ -8,7 +8,7 @@ import { patientRscPersonalDataGate, requirePatientAccess } from "@/app-layer/gu
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { patientGreetingPersonalizedName } from "@/modules/patient-home/patientGreetingPersonalizedName";
-import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
 import { Suspense } from "react";

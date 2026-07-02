@@ -5,7 +5,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientClientBusinessGate } from "@/modules/platform-access/patientClientBusinessGate";
+import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { cn } from "@/lib/utils";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";

@@ -24,7 +24,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   patientRscPersonalDataGate: vi.fn(),
 }));
 
-vi.mock("@/modules/platform-access", () => ({
+vi.mock("@/app-layer/platform-access", () => ({
   resolvePatientCanViewAuthOnlyContent: vi.fn(async () => false),
   canViewPatientAuthOnlySection: vi.fn(async () => true),
   filterPatientSectionPages: vi.fn(async (_session: unknown, pages: unknown[]) => pages),

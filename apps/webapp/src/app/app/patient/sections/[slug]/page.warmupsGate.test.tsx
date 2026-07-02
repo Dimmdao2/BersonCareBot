@@ -20,7 +20,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   getOptionalPatientSession: vi.fn(async () => null),
 }));
 
-vi.mock("@/modules/platform-access", () => ({
+vi.mock("@/app-layer/platform-access", () => ({
   resolvePatientCanViewAuthOnlyContent: vi.fn(async () => false),
 }));
 
