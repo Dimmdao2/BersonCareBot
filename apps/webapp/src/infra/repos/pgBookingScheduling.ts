@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
 import type { BreakInterval } from "@/modules/booking-scheduling/ports";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
 import {
   beAppointments,
   beBranches,
@@ -16,7 +17,6 @@ import {
   beWorkingDays as beWd,
   beScheduleTemplates as beStmpl,
 } from "../../../db/schema/bookingScheduling";
-import { systemSettings } from "../../../db/schema/schema";
 import { buildSlotsForContext } from "@/modules/booking-scheduling/service";
 import {
   computeNearestFreeWindowFromData,
@@ -316,17 +316,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
     },
 
     async getMinNoticeHours(_organizationId) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ valueJson: systemSettings.valueJson })
-        .from(systemSettings)
-        .where(and(eq(systemSettings.key, "booking_min_notice_hours"), eq(systemSettings.scope, "admin")))
-        .limit(1);
-      const raw = rows[0]?.valueJson;
-      const inner =
-        raw !== null && typeof raw === "object" && "value" in (raw as Record<string, unknown>)
-          ? (raw as { value: unknown }).value
-          : raw;
+      const inner = await readAdminSystemSettingInnerValue("booking_min_notice_hours");
       const n =
         typeof inner === "number" && Number.isFinite(inner)
           ? inner

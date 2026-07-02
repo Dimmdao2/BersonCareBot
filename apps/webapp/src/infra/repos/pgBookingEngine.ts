@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { readAdminSystemSettingString } from "@/infra/repos/pgSystemSettings";
 import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
 import {
   beAppointmentEvents,
@@ -122,21 +123,10 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
   };
 }
 
-async function readSettingString(key: string): Promise<string | null> {
-  const db = getDrizzle();
-  const rows = await db.execute<{ value_json: unknown }>(
-    sql`SELECT value_json FROM system_settings WHERE key = ${key} AND scope = 'admin' LIMIT 1`,
-  );
-  const row = rows.rows[0];
-  if (!row?.value_json || typeof row.value_json !== "object") return null;
-  const envelope = row.value_json as { value?: unknown };
-  return typeof envelope.value === "string" ? envelope.value.trim() : null;
-}
-
 export function createPgBookingEnginePort(): BookingEngineCorePort {
   return {
     async getDefaultOrganizationId() {
-      const fromSettings = await readSettingString("booking_default_organization_id");
+      const fromSettings = await readAdminSystemSettingString("booking_default_organization_id");
       return fromSettings && fromSettings.length > 0 ? fromSettings : BE_DEFAULT_ORGANIZATION_ID;
     },
 

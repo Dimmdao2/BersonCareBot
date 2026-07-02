@@ -1,8 +1,11 @@
 import { and, eq, inArray, notInArray, sql, type Column, type SQL } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
+import {
+  normalizeTestAccountIdentifiersValue,
+  type TestAccountIdentifiers,
+} from "@/modules/system-settings/testAccounts";
 import type { SystemSetting } from "@/modules/system-settings/types";
-import { platformUsers, systemSettings, userChannelBindings } from "../../../db/schema/schema";
+import { platformUsers, userChannelBindings } from "../../../db/schema/schema";
 
 const STAFF_ANALYTICS_ROLES = ["admin", "doctor"] as const;
 const ALWAYS_EXCLUDED_ANALYTICS_PHONES = ["+70000000000"] as const;
@@ -20,6 +23,7 @@ export type ResolveExcludedUserIdsOptions = {
   includeTestAccounts: boolean;
   /** Product analytics: always exclude staff roles. Doctor KPIs: false. */
   excludeStaffRoles?: boolean;
+  testAccountIdentifiers?: TestAccountIdentifiers | null;
 };
 
 function readBooleanValueJson(valueJson: unknown): boolean {
@@ -29,7 +33,7 @@ function readBooleanValueJson(valueJson: unknown): boolean {
 }
 
 type SettingsReader = {
-  getSetting(key: "dev_mode", scope: "admin"): Promise<SystemSetting | null>;
+  getSetting(key: "dev_mode" | "test_account_identifiers", scope: "admin"): Promise<SystemSetting | null>;
 };
 
 /**
@@ -57,14 +61,10 @@ export function resetAnalyticsIncludeTestAccountsCacheForTests(): void {
   includeTestCache = null;
 }
 
-async function readTestAccountIdentifiersFromDb(
-  db: ReturnType<typeof getDrizzle>,
-): Promise<ReturnType<typeof normalizeTestAccountIdentifiersValue>> {
-  const [row] = await db
-    .select({ valueJson: systemSettings.valueJson })
-    .from(systemSettings)
-    .where(and(eq(systemSettings.key, "test_account_identifiers"), eq(systemSettings.scope, "admin")))
-    .limit(1);
+async function readAnalyticsTestAccountIdentifiers(deps: {
+  systemSettings: SettingsReader;
+}): Promise<TestAccountIdentifiers | null> {
+  const row = await deps.systemSettings.getSetting("test_account_identifiers", "admin");
   if (!row?.valueJson || typeof row.valueJson !== "object") return null;
   const inner = (row.valueJson as Record<string, unknown>).value;
   return normalizeTestAccountIdentifiersValue(inner);
@@ -97,7 +97,7 @@ export async function resolveAnalyticsExcludedUserIds(
     return [...excluded];
   }
 
-  const spec = await readTestAccountIdentifiersFromDb(db);
+  const spec = options.testAccountIdentifiers ?? null;
   if (!spec) return [...excluded];
 
   const phoneRowsPromise =
@@ -145,10 +145,12 @@ export async function loadAnalyticsAudienceContext(deps: {
   excludeStaffRoles?: boolean;
 }): Promise<AnalyticsAudienceContext> {
   const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
+  const testAccountIdentifiers = includeTestAccounts ? null : await readAnalyticsTestAccountIdentifiers(deps);
   const db = getDrizzle();
   const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
     includeTestAccounts,
     excludeStaffRoles: deps.excludeStaffRoles,
+    testAccountIdentifiers,
   });
   return { includeTestAccounts, excludedUserIds };
 }

@@ -5,8 +5,11 @@
  * Integration secrets (OAuth client secret и т.д.) хранятся в `system_settings` (admin), см. `integrationRuntime`.
  */
 
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { parseSettingEnvelopeValue, parseSmsFallbackEnabledValue } from "./parseSettingValueJson";
+import {
+  readAdminSystemSettingString,
+  readSystemSettingInnerValueByScopes,
+  systemSettingInnerValueToString,
+} from "@/infra/repos/pgSystemSettings";
 
 const TTL_MS = 60_000;
 
@@ -27,35 +30,9 @@ export function invalidateConfigKey(key: string): void {
   cache.delete(key);
 }
 
-function envelopeValueToString(v: unknown): string | null {
-  if (typeof v === "string") return v.trim() || null;
-  if (typeof v === "boolean") return v ? "true" : "false";
-  if (typeof v === "number") return String(v);
-  if (typeof v === "object" && v !== null && !Array.isArray(v)) {
-    try {
-      return JSON.stringify(v);
-    } catch {
-      return null;
-    }
-  }
-  if (Array.isArray(v)) {
-    const normalized = v.map((item) => String(item).trim()).filter(Boolean);
-    return normalized.length > 0 ? JSON.stringify(normalized) : null;
-  }
-  return null;
-}
-
 async function fetchFromDb(key: string): Promise<string | null> {
   try {
-    const result = await runWebappPgText<{ value_json: unknown }>(
-      `SELECT value_json FROM system_settings WHERE key = $1 AND scope = 'admin' LIMIT 1`,
-      [key],
-    );
-    const row = result.rows[0];
-    if (!row) return null;
-    const v = parseSettingEnvelopeValue(row.value_json);
-    if (v === null) return null;
-    return envelopeValueToString(v);
+    return await readAdminSystemSettingString(key);
   } catch {
     return null;
   }
@@ -125,16 +102,14 @@ export async function getConfigPositiveInt(
  */
 export async function getSmsFallbackEnabled(): Promise<boolean> {
   try {
-    const r = await runWebappPgText<{ value_json: unknown }>(
-      `SELECT value_json FROM system_settings
-       WHERE key = 'sms_fallback_enabled' AND scope IN ('doctor', 'admin')
-       ORDER BY CASE scope WHEN 'doctor' THEN 0 ELSE 1 END
-       LIMIT 1`,
+    const value = await readSystemSettingInnerValueByScopes(
+      "sms_fallback_enabled",
+      ["doctor", "admin"],
     );
-    const row = r.rows[0];
-    if (!row) return true;
-    const b = parseSmsFallbackEnabledValue(row.value_json);
-    return b ?? true;
+    const normalized = systemSettingInnerValueToString(value);
+    if (normalized === "true" || normalized === "1") return true;
+    if (normalized === "false" || normalized === "0") return false;
+    return true;
   } catch {
     return true;
   }

@@ -13,7 +13,12 @@ vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappTransaction: (...args: unknown[]) => runWebappTransactionMock(...args),
 }));
 
-import { createPgSystemSettingsPort } from "./pgSystemSettings";
+import {
+  createPgSystemSettingsPort,
+  readAdminSystemSettingBoolean,
+  readAdminSystemSettingString,
+  readSystemSettingInnerValueByScopes,
+} from "./pgSystemSettings";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,5 +69,36 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     expect(out).toHaveLength(1);
     expect(out[0]?.key).toBe("dev_mode");
+  });
+
+  it("readAdminSystemSettingString returns admin envelope value as string", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ scope: "admin", value_json: { value: " configured " } }],
+    });
+
+    await expect(readAdminSystemSettingString("support_contact_url")).resolves.toBe("configured");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("FROM system_settings");
+    expect(sql).toContain("scope = ANY($2::text[])");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["support_contact_url", ["admin"]]);
+  });
+
+  it("readSystemSettingInnerValueByScopes preserves caller scope priority", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [
+        { scope: "admin", value_json: { value: false } },
+        { scope: "doctor", value_json: { value: true } },
+      ],
+    });
+
+    await expect(readSystemSettingInnerValueByScopes("sms_fallback_enabled", ["doctor", "admin"])).resolves.toBe(true);
+  });
+
+  it("readAdminSystemSettingBoolean supports string boolean envelopes", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ scope: "admin", value_json: { value: "false" } }],
+    });
+
+    await expect(readAdminSystemSettingBoolean("booking_rubitime_bridge_enabled", true)).resolves.toBe(false);
   });
 });

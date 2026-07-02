@@ -22,6 +22,74 @@ function rowToSetting(row: SystemSettingRow): SystemSetting {
   };
 }
 
+type SystemSettingValueRow = {
+  scope: string;
+  value_json: unknown;
+};
+
+function parseSettingEnvelopeValue(valueJson: unknown): unknown | null {
+  if (valueJson === null || typeof valueJson !== "object" || Array.isArray(valueJson)) return null;
+  const envelope = valueJson as Record<string, unknown>;
+  return "value" in envelope ? envelope.value : null;
+}
+
+export async function readSystemSettingInnerValueByScopes(
+  key: string,
+  scopes: readonly SystemSettingScope[],
+): Promise<unknown | null> {
+  if (scopes.length === 0) return null;
+  const r = await runWebappPgText<SystemSettingValueRow>(
+    `SELECT scope, value_json
+       FROM system_settings
+      WHERE key = $1 AND scope = ANY($2::text[])`,
+    [key, [...scopes]],
+  );
+  for (const scope of scopes) {
+    const row = r.rows.find((candidate) => candidate.scope === scope);
+    if (!row) continue;
+    const value = parseSettingEnvelopeValue(row.value_json);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+export function systemSettingInnerValueToString(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return null;
+    }
+  }
+  if (Array.isArray(value)) {
+    const normalized = value.map((item) => String(item).trim()).filter(Boolean);
+    return normalized.length > 0 ? JSON.stringify(normalized) : null;
+  }
+  return null;
+}
+
+export async function readAdminSystemSettingInnerValue(key: string): Promise<unknown | null> {
+  return readSystemSettingInnerValueByScopes(key, ["admin"]);
+}
+
+export async function readAdminSystemSettingString(key: string): Promise<string | null> {
+  return systemSettingInnerValueToString(await readAdminSystemSettingInnerValue(key));
+}
+
+export async function readAdminSystemSettingBoolean(
+  key: string,
+  defaultValue: boolean,
+): Promise<boolean> {
+  const value = await readAdminSystemSettingInnerValue(key);
+  if (typeof value === "boolean") return value;
+  if (value === "true" || value === "1") return true;
+  if (value === "false" || value === "0") return false;
+  return defaultValue;
+}
+
 /**
  * Single chokepoint for all system_settings writes.
  * Reads the current value, performs the upsert, and records an audit row —

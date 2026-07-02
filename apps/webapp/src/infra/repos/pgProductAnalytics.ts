@@ -6,6 +6,11 @@ import {
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { resolveAnalyticsExcludedUserIds } from "@/modules/analytics/analyticsAudience";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
+import {
+  normalizeTestAccountIdentifiersValue,
+  type TestAccountIdentifiers,
+} from "@/modules/system-settings/testAccounts";
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
@@ -23,6 +28,12 @@ import type {
 } from "@/modules/product-analytics/types";
 import { AUTH_REGISTRATION_EVENT_TYPES } from "@/modules/product-analytics/types";
 import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
+
+async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
+  return normalizeTestAccountIdentifiersValue(
+    await readAdminSystemSettingInnerValue("test_account_identifiers"),
+  );
+}
 import {
   productAnalyticsEventsRecent,
   productAnalyticsHourly,
@@ -232,6 +243,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
         includeTestAccounts,
         excludeStaffRoles: true,
+        testAccountIdentifiers: includeTestAccounts ? null : await loadProductAnalyticsTestAccountIdentifiers(),
       });
 
       const recentEventConditions = [gte(productAnalyticsEventsRecent.occurredAt, startHour)];
@@ -466,6 +478,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
         includeTestAccounts: false,
         excludeStaffRoles: true,
+        testAccountIdentifiers: await loadProductAnalyticsTestAccountIdentifiers(),
       });
       const conditions = [
         gte(productAnalyticsEventsRecent.occurredAt, params.startIso),

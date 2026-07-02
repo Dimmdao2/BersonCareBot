@@ -112,26 +112,21 @@ describe("analyticsAudience", () => {
       const db = createMockDb([
         async () => [{ id: "staff-1" }],
         async () => [{ id: "placeholder-phone-user" }],
-        () => ({
-          limit: async () => [
-            {
-              valueJson: {
-                value: {
-                  phones: ["+79001234567"],
-                  telegramIds: ["tg-1"],
-                  maxIds: ["max-1"],
-                },
-              },
-            },
-          ],
-        }),
         async () => [{ id: "phone-user" }],
         async () => [{ id: "tg-user" }],
         async () => [{ id: "max-user" }],
       ]);
 
       await expect(
-        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: false, excludeStaffRoles: true }),
+        resolveAnalyticsExcludedUserIds(db, {
+          includeTestAccounts: false,
+          excludeStaffRoles: true,
+          testAccountIdentifiers: {
+            phones: ["+79001234567"],
+            telegramIds: ["tg-1"],
+            maxIds: ["max-1"],
+          },
+        }),
       ).resolves.toEqual(
         expect.arrayContaining(["staff-1", "placeholder-phone-user", "phone-user", "tg-user", "max-user"]),
       );
@@ -140,22 +135,17 @@ describe("analyticsAudience", () => {
     it("skips staff lookup when excludeStaffRoles is false", async () => {
       const db = createMockDb([
         async () => [],
-        () => ({
-          limit: async () => [
-            {
-              valueJson: {
-                value: { phones: ["+79009998877"], telegramIds: [], maxIds: [] },
-              },
-            },
-          ],
-        }),
         async () => [{ id: "phone-only-user" }],
         async () => [],
         async () => [],
       ]);
 
       await expect(
-        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: false, excludeStaffRoles: false }),
+        resolveAnalyticsExcludedUserIds(db, {
+          includeTestAccounts: false,
+          excludeStaffRoles: false,
+          testAccountIdentifiers: { phones: ["+79009998877"], telegramIds: [], maxIds: [] },
+        }),
       ).resolves.toEqual(["phone-only-user"]);
     });
   });

@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { readAdminSystemSettingBoolean } from "@/infra/repos/pgSystemSettings";
 import {
   buildLegacyAppointmentPayload,
   type ExternalMappingLookup,
@@ -48,17 +49,6 @@ async function resolveSoloSpecialistId(organizationId: string): Promise<string |
     .from(beSpecialists)
     .where(and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.isActive, true)));
   return rows.length === 1 ? rows[0]!.id : null;
-}
-
-async function readSettingBoolean(key: string, defaultValue: boolean): Promise<boolean> {
-  const db = getDrizzle();
-  const rows = await db.execute<{ value_json: unknown }>(
-    sql`SELECT value_json FROM system_settings WHERE key = ${key} AND scope = 'admin' LIMIT 1`,
-  );
-  const row = rows.rows[0];
-  if (!row?.value_json || typeof row.value_json !== "object") return defaultValue;
-  const envelope = row.value_json as { value?: unknown };
-  return typeof envelope.value === "boolean" ? envelope.value : defaultValue;
 }
 
 export async function loadExternalMappingLookup(organizationId: string): Promise<ExternalMappingLookup> {
@@ -593,7 +583,7 @@ async function projectRows(
 export function createPgBookingRubitimeBridgePort(): RubitimeBridgePort {
   return {
     async isBridgeEnabled() {
-      return readSettingBoolean("booking_rubitime_bridge_enabled", false);
+      return readAdminSystemSettingBoolean("booking_rubitime_bridge_enabled", false);
     },
 
     async upsertCanonicalFromRubitimeRecord(input) {
