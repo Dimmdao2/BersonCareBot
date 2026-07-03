@@ -8,7 +8,7 @@
 2. Пользователь открывает бота (Telegram / Max), state `await_phoneauth:<token>`.
 3. Пользователь отправляет контакт → integrator `webapp.phoneMessengerBind.complete` → `POST /api/integrator/phone-messenger-bind/complete`.
 4. **После контакта (ветка по `purpose`):**
-   - **`login`** (вход по номеру в PWA, без сессии): webapp сначала пробует auto-merge через общий merge-engine, если мессенджер уже привязан к одной `platform_users`, а введённый телефон принадлежит другой. При успехе создаёт OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` (интервал 2.5 s + **немедленный** poll при `visibilitychange` на шаге ожидания) → **`POST /api/auth/phone/messenger-bind/finish`** (server-side confirm по challenge, без ввода кода в браузере) → secret `consumed`. Бот после контакта: **`phoneAuthReturnToApp`** + главное меню; при наличии `facts.links.webappHomeUrl` — отдельное сообщение **`phoneAuthOpenAppPrompt`** с inline **browser URL** (`/app/tg?t=…` / `/app/max?t=…`, не `web_app`). OTP в мессенджер **не** шлётся. Путь **`POST /api/auth/phone/confirm`** — для `phone/start` (уже привязанный TG/Max).
+   - **`login`** (вход по номеру в PWA, без сессии): webapp сначала пробует auto-merge через общий merge-engine, если мессенджер уже привязан к одной `platform_users`, а введённый телефон принадлежит другой. При успехе создаёт OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` (интервал 2.5 s + **немедленный** poll при `visibilitychange` на шаге ожидания) → показывает форму ввода кода → **`POST /api/auth/phone/confirm`** → secret `consumed`. Бот после контакта: **`phoneAuthAccountCreated`** или **`phoneAuthLoginCode`** с кодом + главное меню; при наличии `facts.links.webappHomeUrl` — отдельное сообщение **`phoneAuthOpenAppPrompt`** с inline **browser URL** (`/app/tg?t=…` / `/app/max?t=…`, не `web_app`).
    - **`profile_bind`** (привязка к уже залогиненному аккаунту): если телефон уже на другой карточке, webapp сначала пробует auto-merge session user + phone owner; при hard blocker пишет audit и возвращает conflict. OTP **не** создаётся, secret сразу → `consumed`; integrator `user.phone.link` выставляет `patient_phone_trust_at`; бот шлёт `*:phoneAuthPhoneLinked` и главное меню (Telegram — reply keyboard «Запись» + «Приложение»); PWA poll до `consumed` → redirect без кода.
 5. Integrator complete API возвращает **`purpose`**; код в ответе только для `login`.
 
@@ -25,7 +25,7 @@
 | Catch-all excludes | `menu.default`, `draft.replace`, `max.default`, `max.draft.replace` — exclude `phone.request.cancel`, `start.phoneauth`, «Отмена», «Вернуться в меню» |
 | Max inline menu | Executor `expandContentMenuParam` — `menu: main` → `inlineKeyboard` (как в orchestrator `buildPlan`) |
 | `start.onboarding` | `excludeActions` включает `start.phoneauth` |
-| Шаблоны | `phoneAuthWelcome`, `phoneAuthReturnToApp`, `phoneAuthOpenAppPrompt`, `phoneAuthOpenAppButton`, `phoneAuthPhoneLinked`, `phoneAuthCancelled`, `phoneAuthMismatch`, … |
+| Шаблоны | `phoneAuthWelcome`, `phoneAuthAccountCreated`, `phoneAuthLoginCode`, `phoneAuthOpenAppPrompt`, `phoneAuthOpenAppButton`, `phoneAuthPhoneLinked`, `phoneAuthCancelled`, `phoneAuthMismatch`, … |
 | Failure bind UX | После любой ошибки complete — главное меню без `request_contact` (`appendPhoneMessengerBindFailureRecovery`) |
 | Max `phone.link` | Script `max.contact.phone.link` priority **10**, не матчит `await_phoneauth:` / `await_contact:` (`$notStartsWith`) |
 
@@ -71,6 +71,6 @@
 1. Применить миграции webapp на хосте (`pnpm migrate` из корня репозитория на production — подхватывает `api.prod` + `webapp.prod`). Убедиться, что в логе Drizzle применилась **`0078_phone_messenger_bind_secrets`** (не путать с legacy `078_reference_items_deleted_at.sql`). Проверка: `SELECT to_regclass('public.phone_messenger_bind_secrets');` → не `NULL`.
 2. Задать `telegram_login_bot_username` / `max_login_bot_nickname` в admin Settings.
 3. Деплой webapp + integrator (scripts/templates).
-4. Smoke: см. **`LOG.md` §Приёмка A+B** — PWA login (TG/Max) → контакт → автовход + меню; cancel без `confirmQuestion`; `profile_bind` без OTP.
+4. Smoke: PWA login (TG/Max) → контакт → бот присылает код → приложение показывает ввод кода → вход + меню; cancel без `confirmQuestion`; `profile_bind` без OTP.
 
 Контракт M2M: `apps/webapp/INTEGRATOR_CONTRACT.md`. Модуль: `apps/webapp/src/modules/auth/auth.md` (§ Phone messenger bind).

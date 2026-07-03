@@ -22,6 +22,13 @@ const onlineBody = z.object({
   slotStart: z.string().min(1),
   slotEnd: z.string().min(1),
   contactName: z.string().min(1),
+  contactFio: z
+    .object({
+      lastName: z.string().trim().min(1),
+      firstName: z.string().trim().min(1),
+      patronymic: z.string().trim().optional(),
+    })
+    .optional(),
   contactPhone: z.string().min(1),
   contactEmail: z.string().email().optional(),
   formAnswers: z.array(formAnswerSchema).optional(),
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
             slotStart: body.slotStart,
             slotEnd: body.slotEnd,
             contactName: body.contactName,
+            contactFio: body.contactFio,
             contactPhone: body.contactPhone,
             contactEmail: body.contactEmail,
             formAnswers: body.formAnswers,
@@ -71,6 +79,7 @@ export async function POST(request: Request) {
               slotStart: body.slotStart,
               slotEnd: body.slotEnd,
               contactName: body.contactName,
+              contactFio: body.contactFio,
               contactPhone: body.contactPhone,
               contactEmail: body.contactEmail,
               formAnswers: body.formAnswers,

@@ -21,6 +21,16 @@ export function validateCreatePatientBookingInput(input: CreatePatientBookingInp
     throw new Error("invalid_slot_range");
   }
   if (!input.contactName.trim()) throw new Error("invalid_contact_name");
+  const contactFio = input.contactFio
+    ? {
+        lastName: input.contactFio.lastName.trim(),
+        firstName: input.contactFio.firstName.trim(),
+        patronymic: input.contactFio.patronymic?.trim() || undefined,
+      }
+    : undefined;
+  if (contactFio && (!contactFio.lastName || !contactFio.firstName)) {
+    throw new Error("invalid_contact_name");
+  }
   if (!input.contactPhone.trim()) throw new Error("invalid_contact_phone");
 
   if (input.type === "online") {
@@ -29,6 +39,7 @@ export function validateCreatePatientBookingInput(input: CreatePatientBookingInp
       slotStart,
       slotEnd,
       contactName: input.contactName.trim(),
+      contactFio,
       contactPhone: input.contactPhone.trim(),
       contactEmail: input.contactEmail?.trim() || undefined,
     };
@@ -46,6 +57,7 @@ export function validateCreatePatientBookingInput(input: CreatePatientBookingInp
     slotStart,
     slotEnd,
     contactName: input.contactName.trim(),
+    contactFio,
     contactPhone: input.contactPhone.trim(),
     contactEmail: input.contactEmail?.trim() || undefined,
   };

@@ -16,6 +16,7 @@ import {
   OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
   OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
   OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
+  OPERATOR_OUTBOUND_PROBE_JOB_KEY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
 
@@ -119,6 +120,16 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     staleAfterSec: 2 * 60 * 60,
     kind: "internal_http",
     internalPath: "/api/internal/operator-health-digest/tick",
+  },
+  {
+    id: "outbound_integration_probes",
+    jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+    jobKey: OPERATOR_OUTBOUND_PROBE_JOB_KEY,
+    label: "Исходящие пробы интеграций",
+    scheduleHint: "ежечасно",
+    staleAfterSec: 2 * 60 * 60,
+    kind: "internal_http",
+    internalPath: "/internal/operator-health-probe",
   },
   {
     id: "playback_retention",

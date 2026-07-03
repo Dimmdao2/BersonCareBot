@@ -644,12 +644,15 @@ export async function executeAction(
             })),
           );
         } else if (!isReplay) {
+          const loginTemplateKey = result.accountCreated === true
+            ? `${source}:phoneAuthAccountCreated`
+            : `${source}:phoneAuthLoginCode`;
           successIntents.push(
             ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
               source,
               externalId,
-              templateKey: `${source}:phoneAuthReturnToApp`,
-              actionIdSuffix: 'phone-auth-return',
+              templateKey: loginTemplateKey,
+              actionIdSuffix: 'phone-auth-code',
               showLoginUrlButton: bindPurpose === 'login',
             })),
           );
@@ -658,8 +661,10 @@ export async function executeAction(
             ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
               source,
               externalId,
-              templateKey: `${source}:phoneAuthReturnToApp`,
-              actionIdSuffix: 'phone-auth-return-replay',
+              templateKey: result.accountCreated === true
+                ? `${source}:phoneAuthAccountCreated`
+                : `${source}:phoneAuthLoginCode`,
+              actionIdSuffix: 'phone-auth-code-replay',
               menuOnly: true,
             })),
           );

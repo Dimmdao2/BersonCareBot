@@ -70,6 +70,7 @@
 - **Reminders / settings — процесс Drizzle:** [`RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md`](RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md).
 - **Онлайн-консультации (реабилитация/нутрициология):** [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) — черновик ТЗ, в scope own-booking.
 - **Операционный backlog:** [`TODO.md`](TODO.md) · хвосты продукта [`BACKLOG_TAILS.md`](BACKLOG_TAILS.md) · отложенное [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md).
+- **ФИО / identity cleanup:** [`FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`](FIO_IDENTITY_CLEANUP_INITIATIVE/README.md) — структурирование фамилии/имени/отчества, Rubitime-first backfill, уход от `display_name` как источника истины, шаблоны lifecycle-уведомлений.
 
 ### Закрытые инициативы (справочник, код в main)
 

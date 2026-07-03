@@ -9,6 +9,7 @@ import {
   effectiveAutoMergedDisplayName,
   effectiveAutoMergedFirstName,
   effectiveAutoMergedLastName,
+  effectiveAutoMergedPatronymic,
 } from "@/infra/repos/autoMergeScalarEffective";
 import { pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
 import { logger } from "@/infra/logging/logger";
@@ -23,6 +24,7 @@ export type MergePreviewPlatformUserRow = {
   display_name: string;
   first_name: string | null;
   last_name: string | null;
+  patronymic: string | null;
   email: string | null;
   email_verified_at: Date | null;
   role: string;
@@ -97,6 +99,7 @@ export type MergePreviewScalarFieldKey =
   | "display_name"
   | "first_name"
   | "last_name"
+  | "patronymic"
   | "email";
 
 export type MergePreviewScalarConflict = {
@@ -185,6 +188,7 @@ const SCALAR_FIELDS: MergePreviewScalarFieldKey[] = [
   "display_name",
   "first_name",
   "last_name",
+  "patronymic",
   "email",
 ];
 
@@ -225,6 +229,10 @@ function scalarConflict(
       tv = normStr(target.last_name);
       dv = normStr(duplicate.last_name);
       break;
+    case "patronymic":
+      tv = normStr(target.patronymic);
+      dv = normStr(duplicate.patronymic);
+      break;
     case "email":
       tv = normStr(target.email);
       dv = normStr(duplicate.email);
@@ -238,7 +246,7 @@ function scalarConflict(
   const pT = normStr(target.phone_normalized);
   const pD = normStr(duplicate.phone_normalized);
   if (
-    (field === "display_name" || field === "first_name" || field === "last_name") &&
+    (field === "display_name" || field === "first_name" || field === "last_name" || field === "patronymic") &&
     pT != null &&
     pD != null &&
     pT === pD
@@ -481,6 +489,10 @@ export function analyzeMergePreviewModel(
         effective = effectiveAutoMergedLastName(mergePu, mergeDup);
         note = "Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).";
         break;
+      case "patronymic":
+        effective = effectiveAutoMergedPatronymic(mergePu, mergeDup);
+        note = "Target patronymic, then duplicate patronymic — matches mergePlatformUsersInTransaction (auto).";
+        break;
       case "email":
         effective = normStr(mergePu.email) ?? normStr(mergeDup.email);
         note = "COALESCE after pickMergeTargetId — matches merge engine (auto).";
@@ -531,6 +543,7 @@ async function loadPlatformUser(pool: Pool, id: string): Promise<MergePreviewPla
             display_name,
             first_name,
             last_name,
+            patronymic,
             email,
             email_verified_at,
             role,
