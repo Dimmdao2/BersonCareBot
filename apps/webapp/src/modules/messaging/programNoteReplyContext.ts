@@ -1,12 +1,3 @@
-import { eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import {
-  treatmentProgramInstanceStageItems,
-  treatmentProgramInstanceStages,
-  treatmentProgramInstances,
-} from "../../../db/schema/treatmentProgramInstances";
-import { webappPlatformConversationId } from "@/modules/messaging/supportConversationIds";
-
 export const PROGRAM_NOTE_REPLY_STATE_SUFFIX = "#pn:";
 
 export type ProgramNoteReplyContext = {
@@ -29,47 +20,6 @@ export function exerciseTitleFromSnapshot(snapshot: unknown): string {
     if (typeof title === "string" && title.trim()) return title.trim();
   }
   return "Пункт программы";
-}
-
-export async function resolveProgramNoteReplyContext(
-  stageItemId: string,
-): Promise<ProgramNoteReplyContext | null> {
-  const id = stageItemId.trim();
-  if (!id) return null;
-
-  const db = getDrizzle();
-  const rows = await db
-    .select({
-      patientUserId: treatmentProgramInstances.patientUserId,
-      assignmentSource: treatmentProgramInstances.assignmentSource,
-      itemStatus: treatmentProgramInstanceStageItems.status,
-      snapshot: treatmentProgramInstanceStageItems.snapshot,
-    })
-    .from(treatmentProgramInstanceStageItems)
-    .innerJoin(
-      treatmentProgramInstanceStages,
-      eq(treatmentProgramInstanceStageItems.stageId, treatmentProgramInstanceStages.id),
-    )
-    .innerJoin(
-      treatmentProgramInstances,
-      eq(treatmentProgramInstanceStages.instanceId, treatmentProgramInstances.id),
-    )
-    .where(eq(treatmentProgramInstanceStageItems.id, id))
-    .limit(1);
-
-  const row = rows[0];
-  if (!row?.patientUserId) return null;
-
-  const integratorConversationId = webappPlatformConversationId(row.patientUserId);
-  return {
-    platformUserId: row.patientUserId,
-    stageItemId: id,
-    exerciseTitle: exerciseTitleFromSnapshot(row.snapshot),
-    integratorConversationId,
-    programNoteReplyState: buildProgramNoteReplyState(integratorConversationId, id),
-    assignmentSource: row.assignmentSource,
-    itemStatus: row.itemStatus,
-  };
 }
 
 export function formatPatientExerciseCommentReplyText(input: {

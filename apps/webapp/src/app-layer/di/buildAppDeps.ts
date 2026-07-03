@@ -191,6 +191,7 @@ import { pgOperatorHealthAlertSentPort } from "@/infra/repos/pgOperatorHealthAle
 import { inMemoryOperatorHealthAlertSentPort } from "@/infra/repos/inMemoryOperatorHealthAlertSent";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
 import { createSendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
+import { resolveProgramNoteReplyContext } from "@/app-layer/messaging/programNoteReplyContext";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
@@ -1038,6 +1039,7 @@ const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
 const sendProgramNoteReply = createSendProgramNoteReply({
   supportCommunication: supportCommunicationPort,
   discussion: programItemDiscussionService,
+  resolveProgramNoteReplyContext,
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
 

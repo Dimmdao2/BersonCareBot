@@ -4,7 +4,7 @@ import {
   productAnalyticsWindowStartHour,
 } from "@/modules/product-analytics/buildAdminDashboard";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { resolveAnalyticsExcludedUserIds } from "@/modules/analytics/analyticsAudience";
+import { resolveAnalyticsExcludedUserIds } from "@/infra/repos/pgAnalyticsAudience";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
 import {
@@ -28,12 +28,6 @@ import type {
 } from "@/modules/product-analytics/types";
 import { AUTH_REGISTRATION_EVENT_TYPES } from "@/modules/product-analytics/types";
 import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
-
-async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
-  return normalizeTestAccountIdentifiersValue(
-    await readAdminSystemSettingInnerValue("test_account_identifiers"),
-  );
-}
 import {
   productAnalyticsEventsRecent,
   productAnalyticsHourly,
@@ -41,6 +35,12 @@ import {
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
 import { platformUsers } from "../../../db/schema/schema";
+
+async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
+  return normalizeTestAccountIdentifiersValue(
+    await readAdminSystemSettingInnerValue("test_account_identifiers"),
+  );
+}
 
 function pgErrCode(e: unknown): string | undefined {
   if (typeof e === "object" && e !== null && "code" in e) {
