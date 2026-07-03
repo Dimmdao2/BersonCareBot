@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { PoolClient } from "pg";
 /**
- * Wave 3 phase 12A — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
- * with shared advisory lock per user id. Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * Wave 3 phase 12A + R0/S3P — multipart tx with shared advisory lock per user id.
+ * Checkout/tx control goes through `withPoolTransaction`.
+ * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
  * Wave 3 phase 15G — getDoctorStats migrated from pool.query to Drizzle db.execute(sql).
  */
 import { sql } from "drizzle-orm";
@@ -11,6 +12,7 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { resolveMediaFileForLfkAttachment } from "@/infra/repos/pgMediaFileIntakeResolve";
 import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
 import type {
@@ -148,9 +150,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
   return {
     async createLfkRequest(input: CreateLfkIntakeInput): Promise<IntakeRequest> {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
+      return withPoolTransaction(pool, async (client) => {
         await pgAdvisoryXactLockShared(client, input.userId);
         const id = randomUUID();
         const summary = input.description.slice(0, 200);
@@ -205,21 +205,13 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           [randomUUID(), id],
         );
 
-        await client.query("COMMIT");
         return request;
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async createNutritionRequest(input: CreateNutritionIntakeInput): Promise<IntakeRequest> {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
+      return withPoolTransaction(pool, async (client) => {
         await pgAdvisoryXactLockShared(client, input.userId);
         const id = randomUUID();
         const summary = input.description.slice(0, 200);
@@ -247,14 +239,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           [randomUUID(), id],
         );
 
-        await client.query("COMMIT");
         return request;
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async getById(id: string): Promise<IntakeRequestFull | null> {
@@ -420,10 +406,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
     async changeStatus(input: ChangeIntakeStatusInput): Promise<IntakeRequest> {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-
+      return withPoolTransaction(pool, async (client) => {
         const { rows: cur } = await runIntakePgText<RequestRow>(
           client,
           `SELECT * FROM online_intake_requests WHERE id = $1 FOR UPDATE`,
@@ -457,14 +440,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           ],
         );
 
-        await client.query("COMMIT");
         return mapRequest(rows[0]);
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async getDoctorStats(days: number): Promise<IntakeDoctorStats> {
