@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { Logger } from "../logger.js";
+import { startMediaWorkerTransaction } from "../withClient.js";
 
 export type ClaimedJob = {
   id: string;
@@ -38,9 +39,9 @@ export async function reclaimStaleProcessing(
  * Claim one pending job using `FOR UPDATE SKIP LOCKED` + transition to `processing`.
  */
 export async function claimNextJob(pool: Pool, lockedBy: string): Promise<ClaimedJob | null> {
-  const client = await pool.connect();
+  const tx = await startMediaWorkerTransaction(pool);
+  const client = tx.client;
   try {
-    await client.query("BEGIN");
     const sel = await client.query<{ id: string }>(
       `SELECT id FROM media_transcode_jobs
        WHERE status = 'pending'
@@ -51,7 +52,7 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
     );
     const row = sel.rows[0];
     if (!row) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       return null;
     }
     const upd = await client.query<{
@@ -73,19 +74,19 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
     );
     const job = upd.rows[0];
     if (!job) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       return null;
     }
-    await client.query("COMMIT");
+    await tx.commit();
     return { id: job.id, mediaId: job.media_id, attempts: job.attempts };
   } catch (e) {
     try {
-      await client.query("ROLLBACK");
+      await tx.rollback();
     } catch {
       /* ignore */
     }
     throw e;
   } finally {
-    client.release();
+    tx.release();
   }
 }

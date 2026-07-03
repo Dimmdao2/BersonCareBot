@@ -40,7 +40,7 @@
 | Integrator `rubitimeApiThrottle` throttle row | **0** `client.query` (было 2) | **B** — Drizzle `execute` на том же `PoolClient` (фаза **09E**) | — |
 | Webapp `pool.query` \| `client.query` (без `*.test.ts`) | **25** runtime prod-файлов (**15F** 2026-06-06; было 78 baseline) | **A** закрыто фазой **15**; остаток **B/C** — в таблицах ниже | — |
 | Webapp `integratorPushOutbox.ts` | **0** `db.query` (было 4; P15D done) | **A** закрыто **15D** | — |
-| media-worker `jobs/claim.ts` | **8** `pool.query` | **C** (`SKIP LOCKED` на dedicated pg session) | — |
+| media-worker `jobs/claim.ts` | **0** direct checkout; claim SQL remains on checked-out client via helper | **C** (`SKIP LOCKED` на dedicated pg session) | R0/S3Z |
 | media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **0** direct `pool.query` (фаза **10** done) | **B** — `runMediaWorkerPgText` | — |
 | media-worker settings (`watermarkEnabled`, `pipelineEnabled`) | **0** direct `pool.query` (фаза **10** done) | **B** — `runMediaWorkerPgText` + Zod | — |
 | `packages/platform-merge` | **85** `.query(` (79 + 2 + 4) | **C** (merge engine; Drizzle rewrite out of scope) | ADR |
@@ -542,7 +542,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 | `src/processProgramSubmissionTranscode.ts` | Статусы program submission transcode. | **B** | С | **Wave 3 фаза 10 done:** `runMediaWorkerPgText` | Двойной claim / статусы |
 | `src/watermarkEnabled.ts` | Чтение `public.system_settings` watermark flag. | **B** | Н | **Wave 3 фаза 10 done:** `runMediaWorkerPgText` + Zod | Неверный watermark |
 | `src/pipelineEnabled.ts` | Чтение `public.system_settings` pipeline flag. | **B** | Н | **Wave 3 фаза 10 done:** `runMediaWorkerPgText` + Zod | Неверный pipeline gate |
-| `src/jobs/claim.ts`          | Claim транскодинг-джоба в транзакции (**8** `pool.query`, `FOR UPDATE SKIP LOCKED` + update).                                      | **C** | В      | **ADR permanent:** pg на dedicated session; unit `claim.test.ts` (**4 tests**) | Двойной claim                                              |
+| `src/jobs/claim.ts`          | Claim транскодинг-джоба в транзакции (`FOR UPDATE SKIP LOCKED` + update).                                      | **C** | В      | **ADR permanent + R0/S3Z:** pg on dedicated session; checkout/TX control via `withClient.ts`; unit `claim.test.ts` (**4 tests**) | Двойной claim                                              |
 
 ---
 
