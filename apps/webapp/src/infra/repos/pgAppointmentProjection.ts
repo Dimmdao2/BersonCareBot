@@ -6,6 +6,7 @@
 import { getPool } from "@/infra/db/client";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import {
   nativeIntegratorRecordId,
   resolveDoctorProjectionIntegratorRecordId,
@@ -32,6 +33,13 @@ export type AppointmentRecordRow = {
   /** Этап 9: soft-delete (только админ). */
   deletedAt: string | null;
 };
+
+class AppointmentProjectionRecordNotFoundError extends Error {
+  constructor() {
+    super("appointment_projection_record_not_found");
+    this.name = "AppointmentProjectionRecordNotFoundError";
+  }
+}
 
 export type AppointmentProjectionPort = {
   upsertRecordFromProjection(params: {
@@ -98,11 +106,9 @@ async function purgeCanonicalStaffDeleteTombstone(
   rubitimeFromMapping?: string | null,
 ): Promise<boolean> {
   const pool = getPool();
-  const client = await pool.connect();
   const tombstoneId = nativeIntegratorRecordId(appointmentId);
   const rubitimeId = rubitimeFromMapping?.trim() || null;
-  try {
-    await client.query("BEGIN");
+  await withPoolTransaction(pool, async (client) => {
     const tx = getWebappSqlFromPgClient(client);
     await runWebappPgText(
       `INSERT INTO appointment_records (
@@ -122,14 +128,8 @@ async function purgeCanonicalStaffDeleteTombstone(
       [appointmentId],
       tx,
     );
-    await client.query("COMMIT");
-    return true;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
+  return true;
 }
 
 export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
@@ -271,76 +271,73 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       opts?: SoftDeleteByIntegratorIdOpts,
     ): Promise<boolean> {
       const pool = getPool();
-      const client = await pool.connect();
       const cancelReason = opts?.cancelReason ?? "admin_soft_delete";
       const purgePatientBookings = opts?.purgePatientBookings === true;
       try {
-        await client.query("BEGIN");
-        const tx = getWebappSqlFromPgClient(client);
-        const existing = await runWebappPgText<{ deleted_at: Date | null }>(
-          `SELECT deleted_at FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
-          [integratorRecordId],
-          tx,
-        );
-        const row = existing.rows[0];
-        if (!row) {
-          await client.query("ROLLBACK");
-          return false;
-        }
-
-        if (!row.deleted_at) {
-          await runWebappPgText(
-            `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
-             WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
+        await withPoolTransaction(pool, async (client) => {
+          const tx = getWebappSqlFromPgClient(client);
+          const existing = await runWebappPgText<{ deleted_at: Date | null }>(
+            `SELECT deleted_at FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
             [integratorRecordId],
             tx,
           );
-        }
+          const row = existing.rows[0];
+          if (!row) {
+            throw new AppointmentProjectionRecordNotFoundError();
+          }
 
-        if (purgePatientBookings) {
-          await runWebappPgText(
-            `DELETE FROM patient_bookings WHERE rubitime_id = $1`,
-            [integratorRecordId],
-            tx,
-          );
-          if (opts?.canonicalAppointmentId) {
+          if (!row.deleted_at) {
             await runWebappPgText(
-              `DELETE FROM patient_bookings WHERE canonical_appointment_id = $1::uuid`,
-              [opts.canonicalAppointmentId],
+              `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
+               WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
+              [integratorRecordId],
               tx,
             );
           }
-        } else if (!row.deleted_at) {
-          await runWebappPgText(
-            `UPDATE patient_bookings
-             SET status = 'cancelled',
-                 cancelled_at = COALESCE(cancelled_at, now()),
-                 cancel_reason = CASE
-                   WHEN cancel_reason IS NULL OR TRIM(cancel_reason) = '' THEN $2
-                   ELSE cancel_reason
-                 END,
-                 updated_at = now()
-             WHERE rubitime_id = $1
-               AND status IN (
-                 'creating',
-                 'confirmed',
-                 'rescheduled',
-                 'cancelling',
-                 'cancel_failed',
-                 'failed_sync'
-               )`,
-            [integratorRecordId, cancelReason],
-            tx,
-          );
-        }
 
-        await client.query("COMMIT");
+          if (purgePatientBookings) {
+            await runWebappPgText(
+              `DELETE FROM patient_bookings WHERE rubitime_id = $1`,
+              [integratorRecordId],
+              tx,
+            );
+            if (opts?.canonicalAppointmentId) {
+              await runWebappPgText(
+                `DELETE FROM patient_bookings WHERE canonical_appointment_id = $1::uuid`,
+                [opts.canonicalAppointmentId],
+                tx,
+              );
+            }
+          } else if (!row.deleted_at) {
+            await runWebappPgText(
+              `UPDATE patient_bookings
+               SET status = 'cancelled',
+                   cancelled_at = COALESCE(cancelled_at, now()),
+                   cancel_reason = CASE
+                     WHEN cancel_reason IS NULL OR TRIM(cancel_reason) = '' THEN $2
+                     ELSE cancel_reason
+                   END,
+                   updated_at = now()
+               WHERE rubitime_id = $1
+                 AND status IN (
+                   'creating',
+                   'confirmed',
+                   'rescheduled',
+                   'cancelling',
+                   'cancel_failed',
+                   'failed_sync'
+                 )`,
+              [integratorRecordId, cancelReason],
+              tx,
+            );
+          }
+        });
         return true;
       } catch (err) {
-        await client.query("ROLLBACK");
+        if (err instanceof AppointmentProjectionRecordNotFoundError) {
+          return false;
+        }
         throw err;
-      } finally {
-        client.release();
       }
     },
 
