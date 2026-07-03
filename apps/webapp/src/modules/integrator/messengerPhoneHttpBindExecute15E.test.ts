@@ -73,6 +73,13 @@ function mockBindSqlHappyPath() {
   };
 }
 
+function createTxClient() {
+  return {
+    query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+    release: vi.fn(),
+  };
+}
+
 describe("Wave3 phase 15E messengerPhoneHttpBindExecute (runtime constraints)", () => {
   it("keeps SQL transport outside messengerPhoneHttpBindExecute.ts", () => {
     const src = readFileSync(
@@ -113,7 +120,7 @@ describe("executeMessengerPhoneHttpBind", () => {
   });
 
   it("runs BEGIN/COMMIT and applies bind on happy path", async () => {
-    const client = { release: vi.fn() };
+    const client = createTxClient();
     connectMock.mockResolvedValueOnce(client);
     applyMessengerPhonePublicBindMock.mockResolvedValueOnce({ platformUserId: "pu-1" });
     runWebappPgTextMock.mockImplementation(mockBindSqlHappyPath());
@@ -125,14 +132,12 @@ describe("executeMessengerPhoneHttpBind", () => {
     });
 
     expect(result).toEqual({ ok: true, platformUserId: "pu-1" });
-    expect(runPgPoolPgTextMock.mock.calls.map((c) => String(c[1]))).toEqual(
-      expect.arrayContaining(["BEGIN", "COMMIT"]),
-    );
+    expect(client.query.mock.calls.map((c: unknown[]) => String(c[0]))).toEqual(expect.arrayContaining(["BEGIN", "COMMIT"]));
     expect(applyMessengerPhonePublicBindMock).toHaveBeenCalled();
   });
 
   it("runs ensureIdentityForMessenger CTE on max channel before bind", async () => {
-    const client = { release: vi.fn() };
+    const client = createTxClient();
     const sqlCalls: string[] = [];
     connectMock.mockResolvedValueOnce(client);
     applyMessengerPhonePublicBindMock.mockResolvedValueOnce({ platformUserId: "pu-max" });
@@ -159,7 +164,7 @@ describe("executeMessengerPhoneHttpBind", () => {
   });
 
   it("returns no_integrator_identity when identity row fails Zod", async () => {
-    const client = { release: vi.fn() };
+    const client = createTxClient();
     connectMock.mockResolvedValueOnce(client);
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [{ user_id: 42 }],
@@ -173,14 +178,12 @@ describe("executeMessengerPhoneHttpBind", () => {
     });
 
     expect(result).toEqual({ ok: false, reason: "no_integrator_identity" });
-    expect(runPgPoolPgTextMock.mock.calls.map((c) => String(c[1]))).toEqual(
-      expect.arrayContaining(["BEGIN", "ROLLBACK"]),
-    );
+    expect(client.query.mock.calls.map((c: unknown[]) => String(c[0]))).toEqual(expect.arrayContaining(["BEGIN", "ROLLBACK"]));
     expect(applyMessengerPhonePublicBindMock).not.toHaveBeenCalled();
   });
 
   it("returns no_integrator_identity when identity row missing", async () => {
-    const client = { release: vi.fn() };
+    const client = createTxClient();
     connectMock.mockResolvedValueOnce(client);
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
@@ -191,13 +194,11 @@ describe("executeMessengerPhoneHttpBind", () => {
     });
 
     expect(result).toEqual({ ok: false, reason: "no_integrator_identity" });
-    expect(runPgPoolPgTextMock.mock.calls.map((c) => String(c[1]))).toEqual(
-      expect.arrayContaining(["BEGIN", "ROLLBACK"]),
-    );
+    expect(client.query.mock.calls.map((c: unknown[]) => String(c[0]))).toEqual(expect.arrayContaining(["BEGIN", "ROLLBACK"]));
   });
 
   it("rolls back and writes audit when bind is blocked by MessengerPhoneLinkError", async () => {
-    const client = { release: vi.fn() };
+    const client = createTxClient();
     connectMock.mockResolvedValueOnce(client);
     applyMessengerPhonePublicBindMock.mockRejectedValueOnce(
       new MessengerPhoneLinkError("merge_blocked_ambiguous_candidates", {
@@ -213,9 +214,7 @@ describe("executeMessengerPhoneHttpBind", () => {
     });
 
     expect(result).toEqual({ ok: false, reason: "merge_blocked_ambiguous_candidates" });
-    expect(runPgPoolPgTextMock.mock.calls.map((c) => String(c[1]))).toEqual(
-      expect.arrayContaining(["BEGIN", "ROLLBACK"]),
-    );
+    expect(client.query.mock.calls.map((c: unknown[]) => String(c[0]))).toEqual(expect.arrayContaining(["BEGIN", "ROLLBACK"]));
 
     await vi.waitFor(() => {
       expect(writeAuditLog).toHaveBeenCalledWith(

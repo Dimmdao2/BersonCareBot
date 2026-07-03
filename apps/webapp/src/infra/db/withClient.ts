@@ -22,25 +22,53 @@ export async function withClient<T>(fn: (client: PoolClient) => Promise<T>): Pro
   return withPoolClient(getPool(), fn);
 }
 
+export type PoolTransactionHandle = {
+  client: PoolClient;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  release(): void;
+};
+
+export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
+  const client = await pool.connect();
+  try {
+    await prepareClientForRequest(client);
+    await client.query("BEGIN");
+  } catch (err) {
+    client.release();
+    throw err;
+  }
+  return {
+    client,
+    commit: async () => {
+      await client.query("COMMIT");
+    },
+    rollback: async () => {
+      await client.query("ROLLBACK");
+    },
+    release: () => client.release(),
+  };
+}
+
 export async function withPoolTransaction<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  return withPoolClient(pool, async (client) => {
-    await client.query("BEGIN");
+  const tx = await startPoolTransaction(pool);
+  try {
+    const out = await fn(tx.client);
+    await tx.commit();
+    return out;
+  } catch (err) {
     try {
-      const out = await fn(client);
-      await client.query("COMMIT");
-      return out;
-    } catch (err) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {
-        /* ignore rollback failures; preserve original error */
-      }
-      throw err;
+      await tx.rollback();
+    } catch {
+      /* ignore rollback failures; preserve original error */
     }
-  });
+    throw err;
+  } finally {
+    tx.release();
+  }
 }
 
 export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {

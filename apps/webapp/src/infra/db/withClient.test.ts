@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withPoolClient, withPoolTransaction } from "@/infra/db/withClient";
+import { startPoolTransaction, withPoolClient, withPoolTransaction } from "@/infra/db/withClient";
 
 describe("withClient helpers", () => {
   beforeEach(() => {
@@ -26,6 +26,20 @@ describe("withClient helpers", () => {
     const pool = { connect: vi.fn(async () => client) };
 
     await expect(withPoolTransaction(pool as never, async () => "tx-ok")).resolves.toBe("tx-ok");
+
+    expect(query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a manual transaction handle through the same checkout path", async () => {
+    const release = vi.fn();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    const tx = await startPoolTransaction(pool as never);
+    await tx.commit();
+    tx.release();
 
     expect(query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
     expect(release).toHaveBeenCalledTimes(1);

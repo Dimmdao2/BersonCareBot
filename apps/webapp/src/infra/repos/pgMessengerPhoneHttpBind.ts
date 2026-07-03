@@ -6,6 +6,7 @@ import {
   runPgPoolPgText,
   runWebappPgText,
 } from "@/infra/db/runWebappSql";
+import { startPoolTransaction } from "@/infra/db/withClient";
 import { logger } from "@/infra/logging/logger";
 
 export type TxQuery = {
@@ -49,32 +50,13 @@ export function createTxQuery(client: PoolClient): TxQuery {
   };
 }
 
-export async function txBegin(client: PoolClient): Promise<void> {
-  await runPgPoolPgText(client, "BEGIN");
-}
-
-export async function txCommit(client: PoolClient): Promise<void> {
-  await runPgPoolPgText(client, "COMMIT");
-}
-
-export async function txRollback(client: PoolClient): Promise<void> {
-  await runPgPoolPgText(client, "ROLLBACK");
-}
-
 export async function startMessengerPhoneBindTransaction(pool: Pool): Promise<MessengerPhoneBindTransaction> {
-  const client = await pool.connect();
-  try {
-    await txBegin(client);
-  } catch (err) {
-    client.release();
-    throw err;
-  }
-
+  const tx = await startPoolTransaction(pool);
   return {
-    txDb: createTxQuery(client),
-    commit: () => txCommit(client),
-    rollback: () => txRollback(client),
-    release: () => client.release(),
+    txDb: createTxQuery(tx.client),
+    commit: () => tx.commit(),
+    rollback: () => tx.rollback(),
+    release: () => tx.release(),
   };
 }
 
