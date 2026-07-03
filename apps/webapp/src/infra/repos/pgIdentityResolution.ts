@@ -29,6 +29,7 @@ import {
 } from "@/infra/repos/identityPhoneRowSchemas";
 import { runIdentityClientPgText, runIdentityPoolPgText } from "@/infra/repos/identityPhoneSql";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
+import { withPoolTransaction } from "@/infra/db/withClient";
 
 async function collectMessengerResolutionCandidates(
   client: PoolClient,
@@ -83,9 +84,7 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
   async findOrCreateByChannelBinding(params) {
     const parsed = parseFindOrCreateByChannelBindingParams(params);
     const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+    const txResult = await withPoolTransaction(pool, async (client) => {
       const existing = await runIdentityClientPgText(
         client,
         "SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE",
@@ -173,17 +172,15 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
           userId = ownerId;
         }
       }
-      await client.query("COMMIT");
       return {
-        user: await loadSessionUserForId(userId, parsed.externalId),
         accountOutcome,
+        userId,
       };
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
+    return {
+      user: await loadSessionUserForId(txResult.userId, parsed.externalId),
+      accountOutcome: txResult.accountOutcome,
+    };
   },
 
   async findByChannelBinding(params): Promise<SessionUser | null> {
