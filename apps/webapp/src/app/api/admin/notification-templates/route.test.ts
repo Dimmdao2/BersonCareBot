@@ -20,12 +20,20 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { GET, PUT } from "./route";
-import { NOTIF_TEMPLATE_DEFAULTS, NOTIF_TEMPLATE_VARIABLES } from "@/modules/notif-templates/notifTemplatesService";
+import {
+  NOTIF_TEMPLATE_DEFAULTS,
+  NOTIF_TEMPLATE_VARIABLES,
+  createNotifTemplatesService,
+} from "@/modules/notif-templates/notifTemplatesService";
 
 const ADMIN_SESSION = { ok: true as const, session: { user: { userId: "admin1", role: "admin" } } };
 const FORBIDDEN = {
   ok: false as const,
   response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+};
+const UNAUTHORIZED = {
+  ok: false as const,
+  response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
 };
 
 const DEFAULT_TEMPLATES = [
@@ -41,6 +49,12 @@ describe("GET /api/admin/notification-templates", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
     getAllTemplatesMock.mockReset();
+  });
+
+  it("returns 401 when no session", async () => {
+    requireAdminModeSessionMock.mockResolvedValue(UNAUTHORIZED);
+    const res = await GET();
+    expect(res.status).toBe(401);
   });
 
   it("returns 403 when not admin", async () => {
@@ -81,6 +95,17 @@ describe("PUT /api/admin/notification-templates", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
     saveTemplateMock.mockReset();
+  });
+
+  it("returns 401 when no session", async () => {
+    requireAdminModeSessionMock.mockResolvedValue(UNAUTHORIZED);
+    const req = new Request("http://localhost/api/admin/notification-templates", {
+      method: "PUT",
+      body: JSON.stringify({ event: "created", audience: "patient", text: "Test" }),
+      headers: { "content-type": "application/json" },
+    });
+    const res = await PUT(req);
+    expect(res.status).toBe(401);
   });
 
   it("returns 403 when not admin", async () => {
@@ -201,5 +226,23 @@ describe("notifTemplatesService unit", () => {
         expect(NOTIF_TEMPLATE_DEFAULTS[event][audience].length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("createNotifTemplatesService falls back to defaults when getSetting returns null", async () => {
+    const mockSettings = {
+      getSetting: vi.fn().mockResolvedValue(null),
+      updateSetting: vi.fn(),
+    };
+    const svc = createNotifTemplatesService(mockSettings);
+    const entries = await svc.getAllTemplates();
+
+    expect(entries).toHaveLength(6);
+    expect(entries.every((t) => t.isDefault)).toBe(true);
+
+    const created = entries.find((t) => t.event === "created" && t.audience === "patient");
+    expect(created?.text).toBe(NOTIF_TEMPLATE_DEFAULTS.created.patient);
+
+    const cancelled = entries.find((t) => t.event === "cancelled" && t.audience === "doctor");
+    expect(cancelled?.text).toBe(NOTIF_TEMPLATE_DEFAULTS.cancelled.doctor);
   });
 });
