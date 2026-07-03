@@ -5,6 +5,7 @@ import {
   mergePlatformUsersInTransaction,
 } from "@bersoncare/platform-merge";
 import { getWebappSqlFromPgClient, runWebappPgText, type WebappSqlExecutor } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 
 export class ChannelLinkClaimRejectedError extends Error {
@@ -134,19 +135,17 @@ export async function tryMergeChannelLinkOwners(
     secretRowId: string;
   },
 ): Promise<ChannelLinkOwnersMergeResult> {
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-    await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
-    await runWebappPgText(
-      `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
-      [params.secretRowId],
-      getWebappSqlFromPgClient(client),
-    );
-    await client.query("COMMIT");
+    await withPoolTransaction(pool, async (client) => {
+      await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
+      await runWebappPgText(
+        `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
+        [params.secretRowId],
+        getWebappSqlFromPgClient(client),
+      );
+    });
     return { ok: true };
   } catch (err) {
-    await client.query("ROLLBACK").catch(() => undefined);
     const classified = classifyMergeFailure(err, [params.tokenUserId, params.existingUserId]);
     return {
       ok: false,
@@ -156,8 +155,6 @@ export async function tryMergeChannelLinkOwners(
           ? classified.candidateIds
           : [params.tokenUserId, params.existingUserId],
     };
-  } finally {
-    client.release();
   }
 }
 
@@ -165,22 +162,16 @@ export async function claimMessengerChannelBinding(
   pool: Pool,
   input: ClaimMessengerChannelBindingInput,
 ): Promise<ClaimMessengerChannelBindingResult> {
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-    try {
+    await withPoolTransaction(pool, async (client) => {
       await claimMessengerChannelBindingInTransaction(client, input);
-      await client.query("COMMIT");
-      return { ok: true };
-    } catch (err) {
-      await client.query("ROLLBACK");
-      if (err instanceof ChannelLinkClaimRejectedError) {
-        return { ok: false, code: "rejected", reason: err.reason };
-      }
-      return { ok: false, code: "failed", err };
+    });
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ChannelLinkClaimRejectedError) {
+      return { ok: false, code: "rejected", reason: err.reason };
     }
-  } finally {
-    client.release();
+    return { ok: false, code: "failed", err };
   }
 }
 
