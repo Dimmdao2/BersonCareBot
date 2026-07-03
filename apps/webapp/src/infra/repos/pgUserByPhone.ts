@@ -1,9 +1,10 @@
 import type { Pool, PoolClient } from "pg";
 /**
- * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK"|SET CONSTRAINTS)`.
+ * Wave 3 phase 12B + R0/S3Q — create/bind transaction checkout goes through `withPoolTransaction`.
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
  */
 import { getPool } from "@/infra/db/client";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import type { SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import type { UserByPhonePort, CreateOrBindResult } from "@/modules/auth/userByPhonePort";
@@ -133,10 +134,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const key = channelToBindingKey(parsedContext.channel);
     const channelCode = parsedContext.channel;
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(
+    const bound = await withPoolTransaction(pool, async (client) => {
+      await runIdentityClientPgText(
+        client,
         `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
       );
 
@@ -161,8 +161,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
           "UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid",
           [userId],
         );
-        await client.query("COMMIT");
-        return { user: await loadSessionUser(pool, userId), wasCreated: false };
+        return { userId, wasCreated: false };
       }
 
       const phoneRow = await runIdentityClientPgText(
@@ -247,13 +246,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
         "UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid",
         [userId],
       );
-      await client.query("COMMIT");
-      return { user: await loadSessionUser(pool, userId), wasCreated };
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+      return { userId, wasCreated };
+    });
+
+    return { user: await loadSessionUser(pool, bound.userId), wasCreated: bound.wasCreated };
   },
 };

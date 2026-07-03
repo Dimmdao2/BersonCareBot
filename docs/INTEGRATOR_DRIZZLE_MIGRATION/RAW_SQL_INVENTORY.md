@@ -217,9 +217,9 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
 | Domain `pool.query` (runtime) | **0** вне allowlist (**3** Class B `pool.query`) |
 | Class B `pool.query` | `runWebappSql.ts` (transport), `pgAdminPlatformUserStats.ts` (uuid[] workaround), `broadcastChannelCounts.ts` (Drizzle ANY-array workaround) |
 | Class B `client.query` | `client.ts` (healthcheck `select 1` через `withPoolClient`) |
-| Class C `client.query` | **8** файлов — TX `BEGIN`/`COMMIT`/`ROLLBACK`; R0/S3 moves checkout to `withClient.ts` |
+| Class C `client.query` | **7** файлов — TX `BEGIN`/`COMMIT`/`ROLLBACK`; R0/S3 moves checkout to `withClient.ts` |
 | `rg -l` (incl. JSDoc) | legacy snapshot; current R0/S3 gate uses `webappPhase15F.verify.test.ts` |
-| Runtime tail (unique) | **12** файлов = Class B pool (**3**) + Class B client (**1**) + Class C (**8**) |
+| Runtime tail (unique) | **11** файлов = Class B pool (**3**) + Class B client (**1**) + Class C (**7**) |
 | 15A–15E migrated scope | runtime `pool.query`/`client.query` = **0** (Drizzle `db.query.*` relational API — вне gate) |
 | Verify test | `webappPhase15F.verify.test.ts` — **5 passed** (fast) |
 | Phase 15 closure bundle | 15F verify + 15E (incl. bind route) + 15A–15D + analytics read-source — **93 passed** (fast) |
@@ -409,7 +409,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 | `src/infra/repos/pgPatientBookings.ts`               | Записи пациента: createPending/list; Rubitime upsert — `@bersoncare/booking-rubitime-sync` (+ revive guard). | С | **Wave 3 P13B done:** port SQL → `runWebappPgText`; Rubitime upsert — `getPool()` → package (P8) | Календарь пациента |
 | `src/infra/repos/pgUserProjection.ts`                | Связка webapp user ↔ integrator / platform_users: выборки, insert, merge-апдейты, транзакции.                                                         | В      | **Wave 3 P14B done:** `runWebappPgText`/`txPgText`; Class C TX + SET CONSTRAINTS | Идентичности пользователей                         |
 | `src/infra/repos/pgIdentityResolution.ts`            | Разрешение идентичностей по телефону/привязкам.                                                                                                       | С      | **Wave 3 P12B:** `runIdentity*PgText` + Zod rows; Class C TX | Неверный матч пользователя                         |
-| `src/infra/repos/pgUserByPhone.ts`                   | Поиск пользователя по телефону и привязкам.                                                                                                           | С      | **Wave 3 P12B:** `runIdentity*PgText` + Zod rows; Class C TX + SET CONSTRAINTS | Логин/чужой аккаунт                                |
+| `src/infra/repos/pgUserByPhone.ts`                   | Поиск пользователя по телефону и привязкам.                                                                                                           | С      | **Wave 3 P12B + R0/S3Q:** `runIdentity*PgText` + Zod rows; create/bind transaction checkout via `withPoolTransaction` | Логин/чужой аккаунт                                |
 | `src/infra/repos/pgPhoneMessengerBind.ts`            | Messenger phone bind secrets + pre-OTP contact apply.                                                                                                 | С      | **Wave 3 P12B + R0/S3M:** `runIdentity*PgText` / merge bridge executor; TX checkout via `withPoolTransaction` | OTP/bind race                                      |
 | `src/infra/repos/pgMessageLog.ts`                    | Логи сообщений (агрегаты/списки).                                                                                                                     | С      | **Wave 3 P14D done:** `runWebappPgText`; Class B dynamic filters in `buildWhere` | Отчёты доставки                                    |
 | `src/infra/repos/pgChannelPreferences.ts`            | Настройки каналов уведомлений.                                                                                                                        | Н      | **Wave 3 P14D done:** `runWebappPgText`; Class C TX on `setPreferredAuthChannel` | Доставка уведомлений                               |
