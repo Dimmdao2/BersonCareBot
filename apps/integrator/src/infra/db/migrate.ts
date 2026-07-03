@@ -3,10 +3,11 @@ import '../../config/loadEnv.js';
 import { readdir, readFile, stat } from 'fs/promises'; // Работа с файловой системой
 import { join } from 'path'; // Склейка путей
 import { fileURLToPath } from 'url';
-import { Pool } from 'pg'; // Работа с PostgreSQL
+import type { Pool } from 'pg'; // Работа с PostgreSQL
 import { getAppRoot } from '../../config/appRoot.js';
 import { env } from '../../config/env.js'; // Переменные окружения
 import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
+import { createIntegratorMigrationPoolProvider } from './integratorMigrationPoolProvider.js';
 
 /** Учёт SQL-миграций integrator; всегда с квалификатором схемы — не совпадает с `public.schema_migrations` webapp (`filename`). */
 const INTEGRATOR_MIGRATIONS_TABLE = 'integrator.schema_migrations';
@@ -304,7 +305,7 @@ export async function runMigrations(): Promise<void> {
     throw new Error('DATABASE_URL is not set');
   }
 
-  const db = new Pool({ connectionString: env.DATABASE_URL });
+  const db = createIntegratorMigrationPoolProvider({ connectionString: env.DATABASE_URL });
 
   try {
     await ensureMigrationsTable(db); // Создаём таблицу учёта миграций
