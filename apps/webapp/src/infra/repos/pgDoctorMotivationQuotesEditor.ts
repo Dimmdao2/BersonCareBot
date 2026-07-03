@@ -2,6 +2,7 @@ import { asc } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import type { DoctorMotivationQuotesEditorPort } from "@/modules/doctor-motivation-quotes/ports";
 import { motivationalQuotes } from "../../../db/schema";
 
@@ -59,9 +60,7 @@ export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuot
 
     async reorderQuotes(orderedIds) {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
+      await withPoolTransaction(pool, async (client) => {
         const check = await runWebappPgText<{ id: string }>(
           `SELECT id::text AS id FROM motivational_quotes`,
           [],
@@ -79,17 +78,7 @@ export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuot
             getWebappSqlFromPgClient(client),
           );
         }
-        await client.query("COMMIT");
-      } catch (e) {
-        try {
-          await client.query("ROLLBACK");
-        } catch {
-          /* ignore */
-        }
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
   };
 }
