@@ -1,5 +1,6 @@
 import { getPool } from "@/infra/db/client";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { findCanonicalUserIdByPhone } from "@/infra/repos/pgCanonicalPlatformUser";
 import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
 
@@ -25,6 +26,13 @@ export type ResolveOrCreateDoctorClientByPhoneResult =
       displayName: string;
     }
   | { ok: false; error: "email_conflict" | "create_failed" };
+
+class DoctorClientCreateFailedError extends Error {
+  constructor() {
+    super("doctor_client_create_failed");
+    this.name = "DoctorClientCreateFailedError";
+  }
+}
 
 export async function resolveOrCreateDoctorClientByPhone(
   input: ResolveOrCreateDoctorClientByPhoneInput,
@@ -61,42 +69,37 @@ export async function resolveOrCreateDoctorClientByPhone(
     }
   }
 
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-    const inserted = await runWebappPgText<{ id: string; display_name: string }>(
-      `INSERT INTO platform_users (
-         phone_normalized, display_name, email, email_normalized, role, patient_phone_trust_at
-       ) VALUES (
-         $1, $2, $3,
-         CASE WHEN $3::text IS NOT NULL AND btrim($3::text) <> '' THEN lower(btrim($3::text)) ELSE NULL END,
-         'client', now()
-       )
-       RETURNING id, display_name`,
-      [input.phoneNormalized, input.displayName, input.emailRaw],
-      getWebappSqlFromPgClient(client),
-    );
-    const userId = inserted.rows[0]?.id;
-    if (!userId) {
-      await client.query("ROLLBACK");
-      return { ok: false, error: "create_failed" };
-    }
-    await applyPlatformUserPhoneHistoryTransition(client, {
-      platformUserId: userId,
-      newPhoneNormalized: input.phoneNormalized,
-      source: "admin",
+    return await withPoolTransaction(pool, async (client) => {
+      const inserted = await runWebappPgText<{ id: string; display_name: string }>(
+        `INSERT INTO platform_users (
+           phone_normalized, display_name, email, email_normalized, role, patient_phone_trust_at
+         ) VALUES (
+           $1, $2, $3,
+           CASE WHEN $3::text IS NOT NULL AND btrim($3::text) <> '' THEN lower(btrim($3::text)) ELSE NULL END,
+           'client', now()
+         )
+         RETURNING id, display_name`,
+        [input.phoneNormalized, input.displayName, input.emailRaw],
+        getWebappSqlFromPgClient(client),
+      );
+      const userId = inserted.rows[0]?.id;
+      if (!userId) {
+        throw new DoctorClientCreateFailedError();
+      }
+      await applyPlatformUserPhoneHistoryTransition(client, {
+        platformUserId: userId,
+        newPhoneNormalized: input.phoneNormalized,
+        source: "admin",
+      });
+      return {
+        ok: true,
+        created: true,
+        userId,
+        displayName: inserted.rows[0]!.display_name,
+      };
     });
-    await client.query("COMMIT");
-    return {
-      ok: true,
-      created: true,
-      userId,
-      displayName: inserted.rows[0]!.display_name,
-    };
   } catch {
-    await client.query("ROLLBACK");
     return { ok: false, error: "create_failed" };
-  } finally {
-    client.release();
   }
 }
