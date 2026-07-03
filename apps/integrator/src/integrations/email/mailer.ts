@@ -12,6 +12,15 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 
+export type MailAttachment = {
+  /** Имя файла вложения (например, `booking.ics`). */
+  filename: string;
+  /** Содержимое вложения (строка или Buffer). */
+  content: string | Buffer;
+  /** MIME-тип вложения (например, `text/calendar`). */
+  contentType: string;
+};
+
 export type SendMailParams = {
   to: string | string[];
   subject: string;
@@ -19,6 +28,8 @@ export type SendMailParams = {
   html?: string;
   from?: string;
   replyTo?: string;
+  /** Опциональные вложения (например, .ics-файл). */
+  attachments?: MailAttachment[];
 };
 
 export type SendMailResult = {
@@ -79,6 +90,7 @@ export async function sendMail(
     text: params.text,
     html: params.html,
     replyTo: params.replyTo,
+    ...(params.attachments?.length ? { attachments: params.attachments } : {}),
   });
 
   return {

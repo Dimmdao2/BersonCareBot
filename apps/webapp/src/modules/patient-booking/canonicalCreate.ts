@@ -37,6 +37,7 @@ import {
   rollbackFailedRubitimeCreate,
   waitForRubitimeProjectionMapping,
 } from "./rubitimeCreateRollback";
+import { sendBookingConfirmationEmail } from "./sendBookingConfirmationEmail";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
@@ -653,6 +654,19 @@ export async function createBookingOnCanonicalEngine(
   } catch {
     // Notifications are best-effort.
   }
+
+  // #81: отправить пациенту письмо с .ics-вложением (best-effort, не роняет booking).
+  await sendBookingConfirmationEmail(
+    {
+      bookingId: (confirmed ?? pending).id,
+      contactEmail: createInput.contactEmail,
+      slotStart: pendingRow.slotStart,
+      slotEnd: pendingRow.slotEnd,
+      serviceTitle: pendingRow.serviceTitleSnapshot ?? pendingRow.category,
+      locationLabel: pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === "online" ? "Онлайн" : null),
+      contactName: createInput.contactName,
+    },
+  );
 
   await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;

@@ -19,6 +19,7 @@ import type { ClientHistoryService } from "@/modules/client-history/service";
 import type { PlatformUserContactsService } from "@/modules/platform-user-contacts/service";
 import type { IdentityContactFields } from "@/modules/platform-user-contacts/identityContactMatch";
 import { upsertBookingFormContactsBestEffort } from "@/modules/platform-user-contacts/bookingContactUpsert";
+import { sendBookingConfirmationEmail } from "./sendBookingConfirmationEmail";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -458,6 +459,16 @@ export function createPatientBookingService(input: {
         } catch {
           // Integration notifications/reminders are best-effort and must not fail booking confirmation.
         }
+        // #81: отправить пациенту письмо с .ics-вложением (best-effort, не роняет booking).
+        await sendBookingConfirmationEmail({
+          bookingId: finalized.id,
+          contactEmail: createInput.contactEmail,
+          slotStart: finalized.slotStart,
+          slotEnd: finalized.slotEnd,
+          serviceTitle: finalized.serviceTitleSnapshot ?? finalized.category,
+          locationLabel: finalized.branchTitleSnapshot ?? (finalized.bookingType === "online" ? "Онлайн" : null),
+          contactName: createInput.contactName,
+        });
         const identity =
           input.getPlatformUserIdentityContacts != null
             ? await input.getPlatformUserIdentityContacts(createInput.userId)

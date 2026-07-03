@@ -30,6 +30,15 @@ export type RelayOutboundParams = {
    * Передаются в integrator relay-outbound в поле `metadata`.
    */
   metadata?: Record<string, unknown>;
+  /**
+   * Base64-encoded .ics файл для вложения к email-письму (подтверждение записи).
+   * Integrator email delivery adapter читает его из payload.icsContent и прикрепляет как вложение.
+   */
+  icsContent?: string;
+  /**
+   * Имя файла .ics вложения (по умолчанию `bersoncare-booking.ics`).
+   */
+  icsFilename?: string;
 };
 
 export type RelayOutboundDeps = {
@@ -131,6 +140,12 @@ export async function relayOutbound(
   }
   if (params.html) {
     bodyObj.html = params.html;
+  }
+  if (params.icsContent) {
+    bodyObj.icsContent = params.icsContent;
+  }
+  if (params.icsFilename) {
+    bodyObj.icsFilename = params.icsFilename;
   }
   const rawBody = JSON.stringify(bodyObj);
 

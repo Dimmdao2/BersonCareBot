@@ -3,6 +3,11 @@ import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
 import type { PatientBookingRecord } from "./types";
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from "./canonicalCreate";
 
+// sendBookingConfirmationEmail — best-effort side-effect, тестируется отдельно (#81).
+vi.mock("./sendBookingConfirmationEmail", () => ({
+  sendBookingConfirmationEmail: vi.fn().mockResolvedValue(false),
+}));
+
 const bookingsPort = {
   createPending: vi.fn(),
   markConfirmed: vi.fn(),

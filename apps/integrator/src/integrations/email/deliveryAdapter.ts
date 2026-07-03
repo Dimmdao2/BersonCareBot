@@ -10,6 +10,9 @@
  * call sites via UnifiedContent.fromOverride → messageToIntent → payload.fromOverride), the
  * adapter uses it as the envelope From. Otherwise falls back to the system SMTP fromAddress.
  *
+ * icsContent: when payload.icsContent (base64-encoded .ics string) is present, it is attached
+ * as `bersoncare-booking.ics` (text/calendar; charset=utf-8). Used for booking confirmation emails.
+ *
  * Error: if SMTP is not configured, throws EMAIL_NOT_CONFIGURED so the worker's retry/log
  * can surface the misconfiguration without a silent no-op.
  */
@@ -18,6 +21,7 @@ import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { sendMail } from './mailer.js';
+import type { MailAttachment } from './mailer.js';
 
 type EmailDeliveryPayload = {
   recipient?: { email?: unknown };
@@ -29,6 +33,15 @@ type EmailDeliveryPayload = {
   title?: unknown;
   fromOverride?: unknown;
   delivery?: { channels?: unknown };
+  /**
+   * Base64-encoded .ics file content for booking confirmation emails.
+   * When present, attached as `bersoncare-booking.ics` (text/calendar; charset=utf-8).
+   */
+  icsContent?: unknown;
+  /**
+   * Optional filename for the .ics attachment (default: `bersoncare-booking.ics`).
+   */
+  icsFilename?: unknown;
 } & Record<string, unknown>;
 
 function asString(value: unknown): string | undefined {
@@ -62,6 +75,19 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
       // N2: per-specialist fromOverride > system SMTP from.
       const fromOverride = asString(payload.fromOverride);
 
+      // ICS attachment: base64-encoded calendar file for booking confirmation emails.
+      const icsBase64 = asString(payload.icsContent);
+      const icsFilename = asString(payload.icsFilename) ?? 'bersoncare-booking.ics';
+      const attachments: MailAttachment[] = icsBase64
+        ? [
+            {
+              filename: icsFilename,
+              content: Buffer.from(icsBase64, 'base64'),
+              contentType: 'text/calendar; charset=utf-8',
+            },
+          ]
+        : [];
+
       const db = deps.getDb();
       const smtpConfig = await resolveSmtpOutboundConfig(db);
 
@@ -75,6 +101,7 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         ...(text !== undefined ? { text } : {}),
         ...(html !== undefined ? { html } : {}),
         ...(fromOverride !== undefined ? { from: fromOverride } : {}),
+        ...(attachments.length > 0 ? { attachments } : {}),
       });
 
       return {};
