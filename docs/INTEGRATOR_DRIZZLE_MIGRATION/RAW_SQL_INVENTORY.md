@@ -466,7 +466,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 | `src/app/api/internal/media-multipart/cleanup/route.ts` | Удаление pending `media_files` при очистке multipart.                                        | Н      | **Wave 2 P5 done:** repo `lockExpiredSessionForCleanupTx` / `deletePendingMediaFileTx` | Зависшие файлы              |
 | `src/app/api/media/multipart/init/route.ts`             | При ошибке инициализации multipart — rollback pending через `deletePendingMediaFileById`. | Н      | **Wave 2 P5 done**                         | Утечки pending              |
 | `src/app/api/doctor/clients/integrator-merge/route.ts`  | Thin route → `executeIntegratorPlatformUserMerge`.                                              | В      | **Wave 3 P12C done:** SQL в `integratorPlatformUserMerge.ts` | Клинические данные клиентов |
-| `src/infra/integratorPlatformUserMerge.ts`              | Integrator M2M merge + precheck TX; domain SQL via `runIdentityClientPgText`; Class C TX.       | В      | **Wave 3 P12C done**                               | Клинические данные клиентов |
+| `src/infra/integratorPlatformUserMerge.ts`              | Integrator M2M merge + precheck TX; domain SQL via `runIdentityClientPgText`; TX control through `startPoolTransaction`. | В      | **Wave 3 P12C + R0/S3T done**                      | Клинические данные клиентов |
 
 ### 2.6 App-layer (health / media)
 
