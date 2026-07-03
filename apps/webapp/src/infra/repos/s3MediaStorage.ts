@@ -3,6 +3,7 @@ import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
+import { withPoolClient } from "@/infra/db/withClient";
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
 import {
   getWebappSqlDb,
@@ -452,8 +453,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async deleteHard(mediaId: string) {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
+      return withPoolClient(pool, async (client) => {
         await pgSessionAdvisoryLock(client, mediaId);
         try {
           const db = getWebappSqlFromPgClient(client);
@@ -484,9 +484,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         } finally {
           await pgSessionAdvisoryUnlock(client, mediaId);
         }
-      } finally {
-        client.release();
-      }
+      });
     },
   };
 }
