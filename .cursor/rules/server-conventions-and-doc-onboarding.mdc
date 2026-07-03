@@ -5,6 +5,7 @@ alwaysApply: true
 
 # Server Conventions And Doc Onboarding
 
+- **Единая точка входа правил агентов — `AGENTS.md` (корень репо): ЖЁСТКО читать при старте.** Он — мастер-оглавление и индексирует эти `.cursor/rules/*.mdc` (канон scoped-правил). Правила НЕ дублировать в других файлах (CLAUDE.md и т.п.) — только ссылаться сюда, чтобы не было рассинхрона у агентов разных моделей.
 - At the start of every new chat, first familiarize yourself with core project docs before giving substantial guidance:
   - `README.md`
   - `docs/README.md`

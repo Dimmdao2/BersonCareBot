@@ -147,6 +147,13 @@ export const ALLOWED_KEYS = [
   "operator_health_alert_config",
   /** Пороги projection outbox для debounce строк в суточной сводке (retries / stale pending). */
   "operator_health_projection_thresholds",
+  // Notification templates (scope admin); text with {{var}} placeholders, fallback to hardcoded defaults.
+  "notif_template:created:patient",
+  "notif_template:created:doctor",
+  "notif_template:cancelled:patient",
+  "notif_template:cancelled:doctor",
+  "notif_template:rescheduled:patient",
+  "notif_template:rescheduled:doctor",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

@@ -6,7 +6,7 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
-import { parseSystemSettingStringValue } from '../publicSystemSettings.js';
+import { fetchPublicSystemSettingValueJson, parseSystemSettingStringValue } from '../publicSystemSettings.js';
 import { interpolateTemplate } from '../../../kernel/orchestrator/templateInterpolation.js';
 
 export type NotifTemplateEvent = 'created' | 'cancelled' | 'rescheduled';
@@ -54,13 +54,9 @@ export async function getNotifTemplate(
 ): Promise<string> {
   try {
     const key = notifTemplateKey(event, audience);
-    const res = await runIntegratorSql<{ value_json: unknown }>(
-      db,
-      sql`SELECT value_json FROM public.system_settings WHERE key = ${key} AND scope = 'admin' LIMIT 1`,
-    );
-    const row = res.rows[0];
-    if (row) {
-      const text = parseSystemSettingStringValue(row.value_json);
+    const valueJson = await fetchPublicSystemSettingValueJson(db, key, 'admin');
+    if (valueJson !== null) {
+      const text = parseSystemSettingStringValue(valueJson);
       if (text !== null) return text;
     }
   } catch {

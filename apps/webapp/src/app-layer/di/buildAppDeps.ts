@@ -226,6 +226,7 @@ import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemor
 import { createPgSystemSettingsPort } from "@/infra/repos/pgSystemSettings";
 import { inMemorySystemSettingsPort } from "@/infra/repos/inMemorySystemSettings";
 import { createSystemSettingsService } from "@/modules/system-settings/service";
+import { createNotifTemplatesService } from "@/modules/notif-templates/notifTemplatesService";
 import { createLfkExercisesService } from "@/modules/lfk-exercises/service";
 import { pgLfkExercisesPort } from "@/infra/repos/pgLfkExercises";
 import { inMemoryLfkExercisesPort } from "@/infra/repos/inMemoryLfkExercises";
@@ -599,6 +600,7 @@ const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPor
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const notifTemplatesService = createNotifTemplatesService(systemSettingsService);
 const resolveDoctorAppointmentsReadSource = async () => {
   if (inMemoryRepos) return "rubitime_legacy" as const;
   const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
@@ -1562,6 +1564,7 @@ function _buildAppDeps() {
     oauthBindings: oauthBindingsPort,
     loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,
+    notifTemplates: notifTemplatesService,
     lfkExercises: lfkExercisesService,
     clinicalTests: clinicalTestsService,
     measureKinds: clinicalTestMeasureKindsService,
