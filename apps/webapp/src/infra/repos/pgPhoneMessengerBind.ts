@@ -16,6 +16,7 @@ import {
   type AuditLogStatus,
 } from "@/infra/adminAuditLog";
 import { getPool } from "@/infra/db/client";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
@@ -434,18 +435,7 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
     },
 
     async withTransaction(fn) {
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const result = await fn(client);
-        await client.query("COMMIT");
-        return result;
-      } catch (e) {
-        await client.query("ROLLBACK").catch(() => undefined);
-        throw e;
-      } finally {
-        client.release();
-      }
+      return withPoolTransaction(pool, fn);
     },
 
     applyMessengerContactPreOtp: applyMessengerContactPreOtpImpl,
