@@ -3,7 +3,7 @@ import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
-import { withPoolClient } from "@/infra/db/withClient";
+import { startPoolTransaction, withPoolClient } from "@/infra/db/withClient";
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
 import {
   getWebappSqlDb,
@@ -927,10 +927,10 @@ export async function purgePendingMediaDeleteBatch(
   let errors = 0;
 
   for (let i = 0; i < take; i++) {
-    const client = await pool.connect();
+    const tx = await startPoolTransaction(pool);
+    const client = tx.client;
     const db = getWebappSqlFromPgClient(client);
     try {
-      await client.query("BEGIN");
       const claim = await runWebappSql<{
         id: string;
         s3_key: string;
@@ -955,13 +955,13 @@ export async function purgePendingMediaDeleteBatch(
       );
       const rows = claim.rows;
       if (rows.length === 0) {
-        await client.query("COMMIT");
+        await tx.commit();
         break;
       }
 
       const row = rows[0]!;
       if (row.status !== "pending_delete" && row.status !== "deleting") {
-        await client.query("ROLLBACK");
+        await tx.rollback();
         continue;
       }
 
@@ -971,7 +971,7 @@ export async function purgePendingMediaDeleteBatch(
       } catch (e) {
         logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] failed to list keys");
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await client.query("COMMIT");
+        await tx.commit();
         errors += 1;
         continue;
       }
@@ -982,7 +982,7 @@ export async function purgePendingMediaDeleteBatch(
         }
       } catch (e) {
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await client.query("COMMIT");
+        await tx.commit();
         errors += 1;
         logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] s3 delete failed");
         continue;
@@ -993,14 +993,14 @@ export async function purgePendingMediaDeleteBatch(
           db,
           sql`DELETE FROM media_files WHERE id = ${row.id}::uuid AND ${mediaS3PurgeStatusPredicate}`,
         );
-        await client.query("COMMIT");
+        await tx.commit();
         if ((del.rowCount ?? 0) > 0) removed += 1;
       } catch (e) {
         if (!isDeterministicDeleteConstraintFailure(e)) {
           throw e;
         }
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await client.query("COMMIT");
+        await tx.commit();
         errors += 1;
         logger.warn(
           {
@@ -1015,13 +1015,13 @@ export async function purgePendingMediaDeleteBatch(
       }
     } catch (e) {
       try {
-        await client.query("ROLLBACK");
+        await tx.rollback();
       } catch {
         /* ignore */
       }
       throw e;
     } finally {
-      client.release();
+      tx.release();
     }
   }
 
