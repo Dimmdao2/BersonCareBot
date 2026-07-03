@@ -25,6 +25,23 @@ const allowedConnectFiles = new Set([
   "apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts",
 ]);
 
+const allowedLayerRawSqlFiles = new Set([
+  // S1 residual: SQL fragments intentionally kept until dedicated cleanup/guard allowlist decision.
+  "apps/webapp/src/modules/analytics/analyticsAudience.ts",
+  "apps/webapp/src/modules/booking-rubitime-bridge/recoverExistingProjection.ts",
+  "apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts",
+  // App-layer Drizzle SQL metric fragments; S5 protects against growth while preserving current behavior.
+  "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
+  "apps/webapp/src/app-layer/health/adminWebPushHealthMetrics.ts",
+  "apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts",
+  "apps/webapp/src/app-layer/media/hlsProxyErrorEvents.ts",
+  "apps/webapp/src/app-layer/media/playbackClientEvents.ts",
+  "apps/webapp/src/app-layer/media/playbackHourlyRetention.ts",
+  "apps/webapp/src/app-layer/media/playbackStatsHourly.ts",
+  "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+  "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
+]);
+
 function listTsFiles(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
@@ -58,9 +75,24 @@ function countRuntimeMatches(src, pattern) {
     .filter((line) => !isCommentOrDocLine(line) && pattern.test(line)).length;
 }
 
+function isGuardedLayerFile(rel) {
+  if (rel.startsWith("apps/webapp/src/modules/")) return true;
+  if (rel.startsWith("apps/webapp/src/app-layer/")) return true;
+  if (!rel.startsWith("apps/webapp/src/app/")) return false;
+  return rel.endsWith("/route.ts") || rel.endsWith("/page.tsx") || rel.endsWith("/actions.ts");
+}
+
+function countLayerRawSqlMatches(src) {
+  return countRuntimeMatches(
+    src,
+    /runWebappPgText|runWebappSql|runPgPoolPgText|\bpool\.query\b|\bclient\.query\b|sql`|\bSELECT\s|\bINSERT\s+INTO\b|\bUPDATE\s|\bDELETE\s+FROM\b/i,
+  );
+}
+
 function collectOffenders(files) {
   const poolOffenders = [];
   const connectOffenders = [];
+  const layerRawSqlOffenders = [];
 
   for (const abs of files) {
     const rel = relative(repoRoot, abs).replace(/\\/g, "/");
@@ -74,9 +106,14 @@ function collectOffenders(files) {
     if (connectCount > 0 && !allowedConnectFiles.has(rel)) {
       connectOffenders.push(`${rel} (${connectCount}x .connect())`);
     }
+
+    const rawSqlCount = isGuardedLayerFile(rel) ? countLayerRawSqlMatches(src) : 0;
+    if (rawSqlCount > 0 && !allowedLayerRawSqlFiles.has(rel)) {
+      layerRawSqlOffenders.push(`${rel} (${rawSqlCount}x layer SQL signal)`);
+    }
   }
 
-  return { poolOffenders, connectOffenders };
+  return { poolOffenders, connectOffenders, layerRawSqlOffenders };
 }
 
 function printOffenders(label, offenders) {
@@ -94,10 +131,12 @@ if (process.argv.includes("--self-test")) {
     import { Pool } from "pg";
     const pool = new Pool({ connectionString: "${syntheticConnectionString}" });
     await pool.connect();
+    await pool.query("SELECT 1");
   `;
   const files = [virtualAbs];
   const poolOffenders = [];
   const connectOffenders = [];
+  const layerRawSqlOffenders = [];
   for (const abs of files) {
     const rel = relative(repoRoot, abs).replace(/\\/g, "/");
     const src = abs === virtualAbs ? syntheticSource : originalReadFileSync(abs, "utf8");
@@ -109,8 +148,12 @@ if (process.argv.includes("--self-test")) {
     if (connectCount > 0 && !allowedConnectFiles.has(rel)) {
       connectOffenders.push(`${rel} (${connectCount}x .connect())`);
     }
+    const rawSqlCount = isGuardedLayerFile(rel) ? countLayerRawSqlMatches(src) : 0;
+    if (rawSqlCount > 0 && !allowedLayerRawSqlFiles.has(rel)) {
+      layerRawSqlOffenders.push(`${rel} (${rawSqlCount}x layer SQL signal)`);
+    }
   }
-  if (poolOffenders.length === 1 && connectOffenders.length === 1) {
+  if (poolOffenders.length === 1 && connectOffenders.length === 1 && layerRawSqlOffenders.length === 1) {
     console.log("check-db-chokepoint self-test: OK");
     process.exit(0);
   }
@@ -119,12 +162,13 @@ if (process.argv.includes("--self-test")) {
 }
 
 const files = scanRoots.flatMap((root) => listTsFiles(join(repoRoot, root)));
-const { poolOffenders, connectOffenders } = collectOffenders(files);
+const { poolOffenders, connectOffenders, layerRawSqlOffenders } = collectOffenders(files);
 
 printOffenders("new Pool outside named DB pool providers:", poolOffenders);
 printOffenders(".connect() outside checkout helpers / documented ops KEEP:", connectOffenders);
+printOffenders("raw SQL in guarded layers outside S5 allowlist:", layerRawSqlOffenders);
 
-if (poolOffenders.length > 0 || connectOffenders.length > 0) {
+if (poolOffenders.length > 0 || connectOffenders.length > 0 || layerRawSqlOffenders.length > 0) {
   process.exit(1);
 }
 
