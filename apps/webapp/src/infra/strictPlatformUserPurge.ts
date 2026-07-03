@@ -3,6 +3,7 @@ import { env } from "@/config/env";
 import { isS3MediaEnabled } from "@/config/env";
 import { writeAuditLog } from "@/infra/adminAuditLog";
 import { getPool } from "@/infra/db/client";
+import { startPoolTransaction } from "@/infra/db/withClient";
 import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { pgAdvisoryXactLock } from "@/infra/db/pgAdvisoryLock";
 import {
@@ -283,17 +284,17 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
   let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [] };
   let messengerBindings: MessengerBindingForIntegratorCleanup[] = [];
 
-  const client = await pool.connect();
+  const tx = await startPoolTransaction(pool);
+  const client = tx.client;
   try {
-    await client.query("BEGIN");
     await pgAdvisoryXactLock(client, userSnapshot.id);
     artifact = await collectPurgeArtifactKeys(client, userSnapshot.id);
     messengerBindings = await fetchMessengerBindingsForIntegratorCleanup(client, userSnapshot.id);
     await runWebappPurgeCoreInTransaction(client, userSnapshot);
-    await client.query("COMMIT");
+    await tx.commit();
   } catch (e) {
     try {
-      await client.query("ROLLBACK");
+      await tx.rollback();
     } catch {
       /* ignore */
     }
@@ -309,7 +310,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
     }
     return { ok: false, error: "transaction_failed", transactionError: message };
   } finally {
-    client.release();
+    tx.release();
   }
 
   const digs = userSnapshot.phone_normalized?.trim() ? phoneDigits(userSnapshot.phone_normalized) : "";
