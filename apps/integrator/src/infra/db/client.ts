@@ -5,6 +5,7 @@ import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
 import { integratorDrizzleSchema } from './integratorDrizzleSchema.js';
+import { checkoutIntegratorPoolClient } from './withClient.js';
 
 function databaseUrlDiagnostics(): {
   databaseUrlConfigured: boolean;
@@ -89,7 +90,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 		async tx<T>(fn: (txDb: DbPort) => Promise<T>): Promise<T> {
 			let client;
 			try {
-				client = await pool.connect();
+				client = await checkoutIntegratorPoolClient(pool);
 			} catch (err) {
 				const dbDiag = databaseUrlDiagnostics();
 				logger.error({
