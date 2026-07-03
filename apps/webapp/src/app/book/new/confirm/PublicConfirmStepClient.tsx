@@ -30,8 +30,9 @@ export function PublicConfirmStepClient(props: InPersonProps | OnlineProps) {
   return (
     <ConfirmStepClient
       {...props}
-      defaultName=""
+      defaultFio={{ lastName: null, firstName: null, patronymic: null }}
       defaultPhone=""
+      defaultEmail=""
       formFieldsApiPath="/api/booking/public/form-fields"
       successRedirectPath={publicBookPaths.done}
       buildAwaitingPaymentHref={(booking, contactPhone) =>
