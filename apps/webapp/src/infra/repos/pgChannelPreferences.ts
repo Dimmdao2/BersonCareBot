@@ -3,6 +3,7 @@
  */
 import { getPool } from "@/infra/db/client";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import {
@@ -139,16 +140,13 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     assertChannelAllowedForPreferredAuth(channelCode);
     const pool = getPool();
     const now = new Date();
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+    await withPoolTransaction(pool, async (client) => {
       await txPgText(
         client,
         `UPDATE user_channel_preferences SET is_preferred_for_auth = false WHERE ${userMatchSql(1)}`,
         [userId],
       );
       if (channelCode == null) {
-        await client.query("COMMIT");
         return;
       }
       await txPgText(
@@ -163,12 +161,6 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
            updated_at = EXCLUDED.updated_at`,
         [userId, channelCode, now],
       );
-      await client.query("COMMIT");
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   },
 };
