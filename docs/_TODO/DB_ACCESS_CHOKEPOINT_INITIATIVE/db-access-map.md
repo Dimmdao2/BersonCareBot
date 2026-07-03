@@ -177,5 +177,9 @@ Runtime repos now use `runIntegratorSql(...)` or `DbPort.query` through the tran
 - **S2:** centralize `system_settings` reads and add grep guard after the surface is closed.
 - **S3:** add process-local `withClient()` / `withTransaction()` and migrate runtime dedicated-client files. Queue/advisory/tx paths should go through the helper, not disappear.
 - **S4:** name pool providers and add dormant identity hooks to webapp, integrator, media-worker and purge/migration provider paths.
-- **S5:** encode the final allowlist in CI guards only after S1-S4 reduce noise.
+- **S5:** status after `0aedaaef` + `c4b2827b`: root `pnpm lint` runs `scripts/check-db-chokepoint.mjs`, and root `pnpm ci` starts with `pnpm lint`. The guard blocks:
+  - `new Pool` / `new PgPool` outside named provider files;
+  - `.connect()` outside checkout helpers and documented `stage6-historical-time-backfill.ts` KEEP;
+  - raw SQL signals in guarded webapp layers (`modules/**`, `app-layer/**`, `app/**/route.ts`, `page.tsx`, `actions.ts`) outside the explicit S5 residual allowlist.
+  `apps/webapp/scripts/check-system-settings-accessors.mjs` remains wired through webapp lint for the `system_settings` guard.
 - **S6:** produce final funnel coverage report and full validation.
