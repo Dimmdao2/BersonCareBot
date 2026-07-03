@@ -18,6 +18,25 @@ describe("validateCreatePatientBookingInput", () => {
     expect(v.contactName).toBe("Ann");
   });
 
+  it("trims structured contact FIO", () => {
+    const v = validateCreatePatientBookingInput({
+      ...baseOnline,
+      contactName: " Иванов Иван ",
+      contactFio: { lastName: " Иванов ", firstName: " Иван ", patronymic: " Иванович " },
+    });
+    expect(v.contactName).toBe("Иванов Иван");
+    expect(v.contactFio).toEqual({ lastName: "Иванов", firstName: "Иван", patronymic: "Иванович" });
+  });
+
+  it("rejects incomplete structured contact FIO", () => {
+    expect(() =>
+      validateCreatePatientBookingInput({
+        ...baseOnline,
+        contactFio: { lastName: "", firstName: "Иван" },
+      }),
+    ).toThrow("invalid_contact_name");
+  });
+
   it("rejects in_person without UUID branchServiceId", () => {
     expect(() =>
       validateCreatePatientBookingInput({

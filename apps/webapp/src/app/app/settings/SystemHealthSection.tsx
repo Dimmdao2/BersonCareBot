@@ -1435,8 +1435,12 @@ export function SystemHealthSection() {
               )}
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Cron-задачи хоста" status={cronJobsAccordionStatus}>
+            <HealthAccordionItem name="Проверяльщики и cron-задачи хоста" status={cronJobsAccordionStatus}>
               <DetailRow label="Итог" value={techProbeStatusHuman(cronJobsAccordionStatus)} />
+              <DetailRow
+                label="Смысл"
+                value="Показывает, живы ли сами периодические проверки и служебные tick-задачи, которые наполняют эту панель."
+              />
               <ProbeInfo probe={data?.meta?.probes?.cronJobs} />
               {cronJobRows.length === 0 ? (
                 <DetailRow label="Задачи" value="нет данных" />
@@ -1787,6 +1791,16 @@ export function SystemHealthSection() {
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
             <span>Сервер веб-приложения</span>
             <StatusPill status={workers.webapp} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
+            <span>Проверяльщики и cron-задачи</span>
+            <StatusPill status={cronJobsAccordionStatus} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
+            <span>Доставка уведомлений</span>
+            <StatusPill
+              status={data?.meta?.probes?.notificationDelivery?.status ?? data?.notificationDelivery?.status ?? "no_data"}
+            />
           </div>
         </CardContent>
       </Card>

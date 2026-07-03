@@ -262,7 +262,20 @@ async function upsertFromProjectionTx(
     await txPgText(
       client,
       `UPDATE platform_users SET
-         display_name = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE display_name END,
+         display_name = CASE
+           WHEN $2::text IS NOT NULL
+            AND trim($2::text) <> ''
+            AND $3::text IS NOT NULL
+            AND trim($3::text) <> ''
+            AND $4::text IS NOT NULL
+            AND trim($4::text) <> ''
+           THEN $2::text
+           WHEN (display_name IS NULL OR trim(display_name) = '')
+            AND $2::text IS NOT NULL
+            AND trim($2::text) <> ''
+           THEN $2::text
+           ELSE display_name
+         END,
          first_name = COALESCE($3::text, first_name),
          last_name = COALESCE($4::text, last_name),
          email = COALESCE($5::text, email),

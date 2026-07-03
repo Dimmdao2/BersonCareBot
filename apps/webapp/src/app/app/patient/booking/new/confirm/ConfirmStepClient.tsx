@@ -14,6 +14,7 @@ import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,
 } from "@/shared/lib/formatBusinessDateTime";
+import { formatDoctorFio, type StructuredFio } from "@/shared/lib/fio";
 import toast from "react-hot-toast";
 import { showBookingPartialOutcomeToast } from "@/shared/booking/bookingPartialOutcomeToast";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,8 @@ type FormField = {
 const CONTACT_FIELD_KEYS = new Set([
   "contact_name",
   "first_name",
+  "last_name",
+  "patronymic",
   "contact_phone",
   "phone",
   "contact_email",
@@ -70,8 +73,9 @@ type Props = ConfirmStepOptions & {
   category?: string;
   slotStart: string;
   slotEnd: string;
-  defaultName: string;
+  defaultFio: StructuredFio;
   defaultPhone: string;
+  defaultEmail: string;
   appDisplayTimeZone: string;
 };
 
@@ -86,8 +90,9 @@ export function ConfirmStepClient({
   category,
   slotStart,
   slotEnd,
-  defaultName,
+  defaultFio,
   defaultPhone,
+  defaultEmail,
   appDisplayTimeZone,
   formFieldsApiPath = "/api/booking/form-fields",
   successRedirectPath = routePaths.bookingNew,
@@ -97,9 +102,11 @@ export function ConfirmStepClient({
   rescheduleBookingId,
 }: Props & { rescheduleBookingId?: string }) {
   const router = useRouter();
-  const [name, setName] = useState(defaultName);
+  const [lastName, setLastName] = useState(defaultFio.lastName ?? "");
+  const [firstName, setFirstName] = useState(defaultFio.firstName ?? "");
+  const [patronymic, setPatronymic] = useState(defaultFio.patronymic ?? "");
   const [phone, setPhone] = useState(defaultPhone);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
   const [extraFields, setExtraFields] = useState<FormField[]>([]);
   const [extraValues, setExtraValues] = useState<Record<string, string>>({});
   const [fieldsLoading, setFieldsLoading] = useState(true);
@@ -253,7 +260,27 @@ export function ConfirmStepClient({
     (f) => f.isRequired && !(extraValues[f.fieldKey] ?? "").trim(),
   );
 
-  const canSubmit = Boolean(selection && name.trim() && phone.trim() && !submitting && !missingRequiredExtra);
+  const contactFio: StructuredFio = {
+    lastName: lastName.trim() || null,
+    firstName: firstName.trim() || null,
+    patronymic: patronymic.trim() || null,
+  };
+  const contactName = formatDoctorFio(contactFio);
+  const contactFioInput =
+    contactFio.lastName && contactFio.firstName
+      ? {
+          lastName: contactFio.lastName,
+          firstName: contactFio.firstName,
+          ...(contactFio.patronymic ? { patronymic: contactFio.patronymic } : {}),
+        }
+      : undefined;
+  const canSubmit = Boolean(
+    selection &&
+      contactFioInput &&
+      phone.trim() &&
+      !submitting &&
+      !missingRequiredExtra,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -274,6 +301,7 @@ export function ConfirmStepClient({
         onSubmit={(event) => {
           event.preventDefault();
           if (!selection) return;
+          if (!contactFioInput) return;
           const formAnswers = extraFields.map((f) => ({
             fieldKey: f.fieldKey,
             value: (extraValues[f.fieldKey] ?? "").trim(),
@@ -297,7 +325,8 @@ export function ConfirmStepClient({
             .createBooking({
               selection,
               slot,
-              contactName: name.trim(),
+              contactName,
+              contactFio: contactFioInput,
               contactPhone: phone.trim(),
               contactEmail: email.trim() || undefined,
               formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
@@ -336,8 +365,16 @@ export function ConfirmStepClient({
         <h2 className={patientSectionTitleClass}>Контакты</h2>
 
         <label className="flex flex-col gap-1">
+          <span className={cn(patientMutedTextClass, "text-xs")}>Фамилия</span>
+          <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+        </label>
+        <label className="flex flex-col gap-1">
           <span className={cn(patientMutedTextClass, "text-xs")}>Имя</span>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className={cn(patientMutedTextClass, "text-xs")}>Отчество</span>
+          <Input value={patronymic} onChange={(e) => setPatronymic(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
           <span className={cn(patientMutedTextClass, "text-xs")}>Телефон</span>
