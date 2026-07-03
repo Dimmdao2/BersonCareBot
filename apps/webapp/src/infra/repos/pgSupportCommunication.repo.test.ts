@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runMergeLegacySupportConversationsMock = vi.hoisted(() => vi.fn());
+const getPoolMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
 }));
 
 vi.mock("@/infra/db/client", () => ({
-  getPool: vi.fn(),
+  getPool: getPoolMock,
+}));
+
+vi.mock("@/infra/repos/mergeLegacySupportConversations", () => ({
+  mergeLegacySupportConversationsForPlatformUser: runMergeLegacySupportConversationsMock,
 }));
 
 import { createPgSupportCommunicationPort } from "./pgSupportCommunication";
@@ -17,6 +23,8 @@ const TS = "2025-06-01T10:00:00.000Z";
 describe("createPgSupportCommunicationPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    runMergeLegacySupportConversationsMock.mockReset();
+    getPoolMock.mockReset();
   });
 
   describe("upsertConversationFromProjection", () => {
@@ -120,6 +128,68 @@ describe("createPgSupportCommunicationPort", () => {
       await expect(
         port.conversationExists("00000000-0000-4000-8000-000000000099"),
       ).resolves.toBe(false);
+    });
+  });
+
+  describe("mergeLegacySupportConversationsForPlatformUser", () => {
+    it("runs legacy merge in a shared transaction helper", async () => {
+      const client = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        release: vi.fn(),
+      };
+      const pool = {
+        connect: vi.fn().mockResolvedValue(client),
+      };
+      getPoolMock.mockReturnValue(pool);
+      runMergeLegacySupportConversationsMock.mockResolvedValue({
+        mergedConversationCount: 1,
+        movedMessageCount: 2,
+      });
+
+      const port = createPgSupportCommunicationPort();
+      expect(port.mergeLegacySupportConversationsForPlatformUser).toBeDefined();
+      const result = await port.mergeLegacySupportConversationsForPlatformUser!(
+        "00000000-0000-4000-8000-000000000001",
+      );
+
+      expect(result).toEqual({
+        mergedConversationCount: 1,
+        movedMessageCount: 2,
+      });
+      expect(pool.connect).toHaveBeenCalledTimes(1);
+      expect(client.query).toHaveBeenCalledWith("BEGIN");
+      expect(client.query).toHaveBeenCalledWith("COMMIT");
+      expect(client.query).not.toHaveBeenCalledWith("ROLLBACK");
+      expect(client.release).toHaveBeenCalledTimes(1);
+      expect(runMergeLegacySupportConversationsMock).toHaveBeenCalledWith(
+        client,
+        "00000000-0000-4000-8000-000000000001",
+      );
+    });
+
+    it("rolls back when legacy merge fails", async () => {
+      const client = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        release: vi.fn(),
+      };
+      const pool = {
+        connect: vi.fn().mockResolvedValue(client),
+      };
+      getPoolMock.mockReturnValue(pool);
+      runMergeLegacySupportConversationsMock.mockRejectedValue(new Error("merge failed"));
+
+      const port = createPgSupportCommunicationPort();
+      expect(port.mergeLegacySupportConversationsForPlatformUser).toBeDefined();
+      await expect(
+        port.mergeLegacySupportConversationsForPlatformUser!(
+          "00000000-0000-4000-8000-000000000001",
+        ),
+      ).rejects.toThrow("merge failed");
+
+      expect(client.query).toHaveBeenCalledWith("BEGIN");
+      expect(client.query).toHaveBeenCalledWith("ROLLBACK");
+      expect(client.query).not.toHaveBeenCalledWith("COMMIT");
+      expect(client.release).toHaveBeenCalledTimes(1);
     });
   });
 });

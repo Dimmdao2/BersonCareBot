@@ -214,12 +214,12 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
 
 | Gate (15F) | Итог |
 |------------|------|
-| Domain `pool.query` (runtime) | **0** вне allowlist (**2** Class B `pool.query`) |
-| Class B `pool.query` | `runWebappSql.ts` (transport), `pgAdminPlatformUserStats.ts` (uuid[] workaround) |
+| Domain `pool.query` (runtime) | **0** вне allowlist (**3** Class B `pool.query`) |
+| Class B `pool.query` | `runWebappSql.ts` (transport), `pgAdminPlatformUserStats.ts` (uuid[] workaround), `broadcastChannelCounts.ts` (Drizzle ANY-array workaround) |
 | Class B `client.query` | `client.ts` (healthcheck `select 1` через `withPoolClient`) |
-| Class C `client.query` | **11** файлов — TX `BEGIN`/`COMMIT`/`ROLLBACK`; R0/S3 moves checkout to `withClient.ts` |
+| Class C `client.query` | **10** файлов — TX `BEGIN`/`COMMIT`/`ROLLBACK`; R0/S3 moves checkout to `withClient.ts` |
 | `rg -l` (incl. JSDoc) | legacy snapshot; current R0/S3 gate uses `webappPhase15F.verify.test.ts` |
-| Runtime tail (unique) | **15** файлов = Class B pool (**3**) + Class B client (**1**) + Class C (**11**) |
+| Runtime tail (unique) | **14** файлов = Class B pool (**3**) + Class B client (**1**) + Class C (**10**) |
 | 15A–15E migrated scope | runtime `pool.query`/`client.query` = **0** (Drizzle `db.query.*` relational API — вне gate) |
 | Verify test | `webappPhase15F.verify.test.ts` — **5 passed** (fast) |
 | Phase 15 closure bundle | 15F verify + 15E (incl. bind route) + 15A–15D + analytics read-source — **93 passed** (fast) |
@@ -402,7 +402,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 | `src/infra/repos/pgMediaFileIntakeResolve.ts`        | Resolve `media_files` для LFK intake в tx (ownership + readable status).                                                                              | Н      | **Wave 2 P5 done:** `runWebappSql` на `PoolClient`                          | Вложения intake                                    |
 | `src/infra/repos/pgMediaUsageSummary.ts`               | Агрегаты usage по `mediaId` (materials/exercises/tests/recommendations).                                                                              | С      | **Wave 2 P5 done:** `runWebappSql`                                          | Ссылки на медиа в CMS                              |
 | `src/infra/repos/pgBroadcastAudit.ts`                | Аудит рассылок.                                                                                                                                       | Н      | **Wave 3 P14D done:** `runWebappPgText`                                      | Аудит                                              |
-| `src/infra/repos/pgSupportCommunication.ts`          | Поддержка: диалоги, сообщения, служебные проверки `SELECT 1`, статусы.                                                                                | В      | **Wave 3 P14A done:** `runWebappPgText`; Class C TX merge wrapper (3×) | Поддержка пациентов                                |
+| `src/infra/repos/pgSupportCommunication.ts`          | Поддержка: диалоги, сообщения, служебные проверки `SELECT 1`, статусы.                                                                                | В      | **Wave 3 P14A + R0/S3N:** `runWebappPgText`; legacy merge checkout via `withPoolTransaction` | Поддержка пациентов                                |
 | `src/infra/repos/mergeLegacySupportConversations.ts` | Legacy merge support threads into canonical conversation (6 SQL steps).                                                                               | С      | **Wave 3 P14A done:** `runWebappPgText` + `getWebappSqlFromPgClient`; verify-only in 14C/14E | Regression-only merge helper                       |
 | `src/infra/repos/pgReferences.ts`                    | Справочники reference data: выборки, транзакции reorder, soft-delete.                                                                                 | С      | **Wave 3 P15A done:** `runWebappPgText` + `runWebappTransaction` (`saveCatalog`) | Порядок элементов                                  |
 | `src/infra/repos/pgAppointmentProjection.ts`         | Проекция записей на приём (транзакция с несколькими шагами).                                                                                          | С      | **Wave 3 P13B done:** `runWebappPgText`; Class C TX on soft-delete | Запись на приём                                    |

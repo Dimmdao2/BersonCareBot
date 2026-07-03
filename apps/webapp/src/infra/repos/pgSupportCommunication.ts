@@ -7,6 +7,7 @@
 
 import { getPool } from "@/infra/db/client";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { mergeLegacySupportConversationsForPlatformUser as runMergeLegacySupportConversations } from "@/infra/repos/mergeLegacySupportConversations";
 
 export type SupportConversationRow = {
@@ -955,18 +956,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async mergeLegacySupportConversationsForPlatformUser(platformUserId) {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const result = await runMergeLegacySupportConversations(client, platformUserId);
-        await client.query("COMMIT");
-        return result;
-      } catch (err) {
-        await client.query("ROLLBACK");
-        throw err;
-      } finally {
-        client.release();
-      }
+      return withPoolTransaction(pool, (client) =>
+        runMergeLegacySupportConversations(client, platformUserId),
+      );
     },
 
     async appendWebappMessage(params) {
