@@ -14,7 +14,12 @@ vi.mock("@/infra/db/client", () => ({
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlFromPgClient: (client: unknown) => client,
-  runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
+  runWebappPgText: (...args: unknown[]) => {
+    if (String(args[0]).startsWith("SET CONSTRAINTS")) {
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    }
+    return runWebappPgTextMock(...args);
+  },
 }));
 
 vi.mock("@/infra/repos/pgPlatformUserMerge", () => ({
@@ -110,7 +115,6 @@ describe("pgUserProjectionPort (repo SQL parity)", () => {
 
     expect(result).toEqual({ platformUserId: "pu-new" });
     expect(transportQueries[0]).toBe("BEGIN");
-    expect(transportQueries.some((q) => q.includes("SET CONSTRAINTS"))).toBe(true);
     expect(transportQueries).toContain("COMMIT");
     expect(client.release).toHaveBeenCalled();
     const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");

@@ -1,8 +1,9 @@
 /**
- * Wave 3 phase 14B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK"|SET CONSTRAINTS)` on PoolClient.
+ * Wave 3 phase 14B + R0/S3R — projection transactions go through `withPoolTransaction`.
  * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
  */
 import { getPool } from "@/infra/db/client";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { findCanonicalUserIdByChannelBinding } from "@/infra/repos/pgCanonicalPlatformUser";
@@ -26,6 +27,19 @@ function txPgText<T = unknown>(
   values: readonly unknown[] = [],
 ) {
   return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+}
+
+function deferPlatformUserUniqueConstraints(client: PoolClient) {
+  return txPgText(
+    client,
+    `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
+  );
+}
+
+class PatchAdminClientProfileNoRowsError extends Error {
+  constructor() {
+    super("patch_admin_client_profile_no_rows");
+  }
 }
 
 export type UserProjectionPort = {
@@ -507,49 +521,31 @@ async function ensureAppointmentClientTx(
 export const pgUserProjectionPort: UserProjectionPort = {
   async upsertFromProjection(params) {
     const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(
-        `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
-      );
+    const id = await withPoolTransaction(pool, async (client) => {
+      await deferPlatformUserUniqueConstraints(client);
       const id = await upsertFromProjectionTx(client, params);
-      await client.query("COMMIT");
-      if (params.phoneNormalized?.trim()) {
-        trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
-      }
-      return { platformUserId: id };
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
+      return id;
+    });
+    if (params.phoneNormalized?.trim()) {
+      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
     }
+    return { platformUserId: id };
   },
 
   async ensureClientFromAppointmentProjection(params) {
     const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(
-        `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
-      );
+    const ensured = await withPoolTransaction(pool, async (client) => {
+      await deferPlatformUserUniqueConstraints(client);
       const ensured = await ensureAppointmentClientTx(client, params);
-      await client.query("COMMIT");
-      if (params.phoneNormalized?.trim()) {
-        trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
-      }
-      return {
-        platformUserId: ensured.userId,
-        contactEmailSetup: ensured.contactEmailSetup,
-      };
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
+      return ensured;
+    });
+    if (params.phoneNormalized?.trim()) {
+      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
     }
+    return {
+      platformUserId: ensured.userId,
+      contactEmailSetup: ensured.contactEmailSetup,
+    };
   },
 
   async findByIntegratorId(integratorUserId) {
@@ -577,9 +573,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   async updatePhone(platformUserId, phoneNormalized) {
     const pool = getPool();
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpdatePhone);
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+    await withPoolTransaction(pool, async (client) => {
       await txPgText(
         client,
         "UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2",
@@ -590,13 +584,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
         newPhoneNormalized: phoneNormalized,
         source: "projection",
       });
-      await client.query("COMMIT");
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   },
 
   async updateDisplayName(platformUserId, displayName) {
@@ -800,40 +788,38 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const idPlaceholder = n;
     vals.push(platformUserId);
 
-    const client = await pool.connect();
     try {
-      await client.query("BEGIN");
-      const result = await txPgText(
-        client,
-        `UPDATE platform_users SET ${sets.join(", ")}
-         WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
-        vals,
-      );
+      return await withPoolTransaction(pool, async (client) => {
+        const result = await txPgText(
+          client,
+          `UPDATE platform_users SET ${sets.join(", ")}
+           WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
+          vals,
+        );
 
-      if ((result.rowCount ?? 0) === 0) {
-        await client.query("ROLLBACK");
+        if ((result.rowCount ?? 0) === 0) {
+          throw new PatchAdminClientProfileNoRowsError();
+        }
+
+        if (patch.phoneNormalized !== undefined) {
+          const pn =
+            patch.phoneNormalized != null && String(patch.phoneNormalized).trim().length > 0
+              ? String(patch.phoneNormalized).trim()
+              : null;
+          await applyPlatformUserPhoneHistoryTransition(client, {
+            platformUserId,
+            newPhoneNormalized: pn,
+            source: "admin",
+          });
+        }
+
+        return { ok: true as const };
+      });
+    } catch (e) {
+      if (e instanceof PatchAdminClientProfileNoRowsError) {
         return { ok: false as const, reason: "not_found_or_not_client" as const };
       }
-
-      if (patch.phoneNormalized !== undefined) {
-        const pn =
-          patch.phoneNormalized != null && String(patch.phoneNormalized).trim().length > 0
-            ? String(patch.phoneNormalized).trim()
-            : null;
-        await applyPlatformUserPhoneHistoryTransition(client, {
-          platformUserId,
-          newPhoneNormalized: pn,
-          source: "admin",
-        });
-      }
-
-      await client.query("COMMIT");
-      return { ok: true as const };
-    } catch (e) {
-      await client.query("ROLLBACK");
       throw e;
-    } finally {
-      client.release();
     }
   },
 
