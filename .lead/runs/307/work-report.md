@@ -36,7 +36,27 @@
 - `npx eslint` по обоим файлам — 0 замечаний
 
 ## Что осталось
-- **Ф2**: API (admin) `GET/PUT /api/admin/notification-templates`
 - **Ф3**: UI-секция в настройках доктора
 - **Ф4**: Заменить хардкод в `recordM2mRoute.ts` на `getNotifTemplate` + `renderNotifTemplate`
-  - При этом нужно передавать `city` как ` (${cityRaw})` или `''`, `reason` как `\nПричина: ${reason}` или `''`
+
+---
+
+# Ф2-fix — Отчёт воркера
+
+## Коммит 1: `1b9e72f7` — #307 Ф2
+Закоммитил готовый код Ф2 (был на диске, не закоммичен):
+- `apps/webapp/src/app/api/admin/notification-templates/route.ts` — GET/PUT под admin-гейтом
+- `apps/webapp/src/app/api/admin/notification-templates/route.test.ts` — 13 тестов
+- `apps/webapp/src/modules/notif-templates/notifTemplatesService.ts` — createNotifTemplatesService
+- `apps/webapp/src/app-layer/di/buildAppDeps.ts` — подключение notifTemplates
+- `apps/webapp/src/modules/system-settings/types.ts` — ключи notif_template:*
+
+## Коммит 2: `18d38338` — #307 Ф2-fix
+Добавлены 2 недостающих теста (итого 15):
+1. GET 401 без сессии (UNAUTHORIZED mock)
+2. PUT 401 без сессии
+3. `createNotifTemplatesService` unit — `getSetting → null` даёт все 6 записей с `isDefault: true` и дефолтными текстами
+
+## Проверки
+- `pnpm --dir apps/webapp typecheck` — зелёный (rc=0)
+- `pnpm --dir apps/webapp test -- route.test.ts` (cap-wrapper) — 6704 passed, 0 failed
