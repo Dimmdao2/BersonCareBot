@@ -6,7 +6,6 @@ export type BookingAdminTabId =
   | "overview"
   | "form-public"
   | "payments"
-  | "notifications"
   | "integrations";
 
 export type BookingAdminTab = {
@@ -20,7 +19,6 @@ export const BOOKING_ADMIN_TABS: BookingAdminTab[] = [
   { id: "overview",     label: "Обзор и настройка",        href: BOOKING_ADMIN_BASE },
   { id: "form-public",  label: "Форма и публичная запись",  href: `${BOOKING_ADMIN_BASE}/form-public` },
   { id: "payments",     label: "Оплата",                   href: `${BOOKING_ADMIN_BASE}/payments` },
-  { id: "notifications", label: "Тексты уведомлений",       href: `${BOOKING_ADMIN_BASE}/notifications` },
   { id: "integrations", label: "Интеграция Rubitime",      href: `${BOOKING_ADMIN_BASE}/integrations` },
 ];
 
