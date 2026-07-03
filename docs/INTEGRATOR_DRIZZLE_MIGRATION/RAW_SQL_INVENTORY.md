@@ -317,8 +317,8 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 
 | Файл                                               | Назначение                                                             | Class | Сложн. | Вариант                                        | Риски                                |
 | -------------------------------------------------- | ---------------------------------------------------------------------- | ----- | ------ | ---------------------------------------------- | ------------------------------------ |
-| `src/integrations/rubitime/rubitimeApiThrottle.ts` | `pg_advisory_lock` / unlock + throttle row read/update.                | **B** | С      | **P9 done (09E):** advisory (P3) + Drizzle `execute` на том же `PoolClient` | Взаимная блокировка API Rubitime     |
-| `src/infra/db/repos/schedulerLocks.ts`             | `pg_try_advisory_lock` / `pg_advisory_unlock` для слотов планировщика. | С      | **Wave 2 P3 done:** `pgAdvisoryLock.ts`                                      | Двойной запуск джоба / пропуск слота |
+| `src/integrations/rubitime/rubitimeApiThrottle.ts` | `pg_advisory_lock` / unlock + throttle row read/update.                | **B** | С      | **P9 done (09E) + R0/S3Y:** advisory (P3) + Drizzle `execute` на `PoolClient`; checkout via `withIntegratorPoolClient` | Взаимная блокировка API Rubitime     |
+| `src/infra/db/repos/schedulerLocks.ts`             | `pg_try_advisory_lock` / `pg_advisory_unlock` для слотов планировщика. | С      | **Wave 2 P3 + R0/S3Y:** `pgAdvisoryLock.ts`; checkout via `checkoutIntegratorPoolClient` | Двойной запуск джоба / пропуск слота |
 
 ### 1.5 Скрипты и операции
 
