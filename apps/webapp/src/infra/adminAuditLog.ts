@@ -1,11 +1,12 @@
 /**
- * Wave 3 phase 14C — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` in `upsertOpenConflictLog`.
- * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * Wave 3 phase 14C — domain SQL via `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * R0/S3S routes the open-conflict transaction through `withPoolTransaction`.
  */
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS } from "@/modules/admin/adminAuditListQuery";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { logger } from "@/infra/logging/logger";
 
 function txPgText<T = unknown>(
@@ -216,43 +217,41 @@ export async function upsertOpenConflictLog(
     typeof baseDetails.eventType === "string" ? [baseDetails.eventType] : [],
   );
 
-  let client: PoolClient | null = null;
-  let insertedFirst = false;
   try {
-    client = await pool.connect();
-    if (!client) return { kind: "skipped" };
-    await client.query("BEGIN");
-    const existing = await txPgText<{
-      id: string;
-      details: Record<string, unknown>;
-      repeat_count: number;
-    }>(
-      client,
-      `SELECT id, details, repeat_count
-       FROM admin_audit_log
-       WHERE conflict_key = $1 AND resolved_at IS NULL
-       FOR UPDATE`,
-      [conflictKey],
-    );
-
-    if (existing.rows.length > 0) {
-      const row = existing.rows[0]!;
-      const mergedDetails = {
-        ...row.details,
-        ...baseDetails,
-        seenEventTypes: mergeSeenEventTypes(row.details.seenEventTypes, incomingSeenEventTypes),
-      };
-      await txPgText(
+    const insertedFirst = await withPoolTransaction(pool, async (client) => {
+      const existing = await txPgText<{
+        id: string;
+        details: Record<string, unknown>;
+        repeat_count: number;
+      }>(
         client,
-        `UPDATE admin_audit_log
-         SET details = $2::jsonb,
-             status = $3,
-             repeat_count = $4 + 1,
-             last_seen_at = now()
-         WHERE id = $1::uuid`,
-        [row.id, JSON.stringify(mergedDetails), status, row.repeat_count],
+        `SELECT id, details, repeat_count
+         FROM admin_audit_log
+         WHERE conflict_key = $1 AND resolved_at IS NULL
+         FOR UPDATE`,
+        [conflictKey],
       );
-    } else {
+
+      if (existing.rows.length > 0) {
+        const row = existing.rows[0]!;
+        const mergedDetails = {
+          ...row.details,
+          ...baseDetails,
+          seenEventTypes: mergeSeenEventTypes(row.details.seenEventTypes, incomingSeenEventTypes),
+        };
+        await txPgText(
+          client,
+          `UPDATE admin_audit_log
+           SET details = $2::jsonb,
+               status = $3,
+               repeat_count = $4 + 1,
+               last_seen_at = now()
+           WHERE id = $1::uuid`,
+          [row.id, JSON.stringify(mergedDetails), status, row.repeat_count],
+        );
+        return false;
+      }
+
       const firstDetails = {
         ...baseDetails,
         seenEventTypes: incomingSeenEventTypes,
@@ -264,7 +263,7 @@ export async function upsertOpenConflictLog(
            VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6, 1, now())`,
           [input.actorId, action, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
         );
-        insertedFirst = true;
+        return true;
       } catch (err) {
         if (!isPgUniqueViolation(err)) throw err;
         // Race-safe fallback: another tx inserted open row with same conflict_key.
@@ -297,22 +296,13 @@ export async function upsertOpenConflictLog(
            WHERE id = $1::uuid`,
           [row.id, JSON.stringify(mergedDetails), status, row.repeat_count],
         );
+        return false;
       }
-    }
-    await client.query("COMMIT");
+    });
     return { kind: "conflict", insertedFirst };
   } catch (err) {
-    if (client) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {
-        /* ignore */
-      }
-    }
     logger.error({ err }, "upsertOpenConflictLog failed");
     return { kind: "skipped" };
-  } finally {
-    client?.release();
   }
 }
 
