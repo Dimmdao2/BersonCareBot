@@ -38,6 +38,32 @@
 - (б) Параллельный тест double-debit проходит зелёным.
 - (в) Advisory-lock оборачивает ВЕСЬ проход recalc: от `listRecalcCandidateAppointments` до `return summary` включительно — читаем usages и балансы ПОСЛЕ получения лока.
 
+## 2026-07-04 — ST-05 (Sonnet), UI: бейдж «По абонементу» на карточке визита
+
+### Что сделано
+
+**Трассировка потока данных (verified, без изменений в маппинге):**
+- `pgPatientClinical.ts` `listVisits` (строка 315) уже устанавливает `package: pkgTitle ? { title: pkgTitle } : null` — поле добавлено в ST-03.
+- `GET /api/doctor/patients/[userId]/clinical` (route.ts) передаёт `visits` напрямую через `NextResponse.json({ ok, state, visits })` — никакого белого-листа полей нет, поле `package` проходит без изменений.
+- SSR: `page.tsx` вызывает `deps.patientClinical.listVisits(userId)` и кладёт результат в `initialVisits` → `PatientCardClient` → `PatientTabKarta`. Никакого маппинга полей нет.
+- Runtime fetch: `PatientTabKarta.fetchClinical()` читает `/clinical`, кастует к `ClinicalApiResponse` (тип `{ visits: Visit[] }`); `Visit` уже содержит `package?: { title: string } | null` (ports.ts строка 106). Поле доходит до компонента в обоих путях.
+
+**Изменения кода:**
+- `PatientTabKarta.tsx` — добавлен import `Badge` из `@/shared/ui/doctor/primitives/badge`.
+- `PatientTabKarta.tsx`, `VisitCard` (~строка 1003): если `visit.package != null` — рендерим `<Badge variant="secondary" className="bg-violet-500/15 text-violet-900" title={visit.package.title}>По абонементу</Badge>`. Размещение: в header-кнопке карточки визита, после типа (Первичный/Повторный), перед локацией. Тот же цвет фона `violet-500/15`, что у записей по абонементу в `ScheduleCalendarTab` (строка 486). `title` атрибут содержит название конкретного абонемента.
+- Состояния: `visit.package` непустой → бейдж есть; `visit.package === null` или `undefined` → бейджа нет.
+
+**Тест:**
+- Создан `PatientTabKarta.visitBadge.test.tsx` (4 теста): наличие бейджа при `visit.package !== null`, `title` атрибут = название абонемента, отсутствие бейджа при `null`, отсутствие при `undefined`.
+
+### Проверки
+- 4/4 тестов `PatientTabKarta.visitBadge.test.tsx` зелёные.
+- ESLint (`PatientTabKarta.tsx` + тест): 0 ошибок.
+- TypeScript (`tsc --noEmit`): 0 ошибок в изменённых файлах.
+
+### Поле package: где доходит до клиента
+Поле уже присутствовало в маппинге (ST-03). Маппинг добавлять не потребовалось — поле проходит сквозь API и SSR без фильтрации. ST-05 сделал только UI-рендер.
+
 ## 2026-07-04 — ST-04 (Sonnet), UI: Финансы + «Пересчитать» + Records manual-only
 
 ### Что сделано

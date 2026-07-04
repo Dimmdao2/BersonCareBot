@@ -65,6 +65,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/doctor/primitives/dialog";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
 
 type Props = {
   userId: string;
@@ -1001,6 +1002,15 @@ function VisitCard({
         >
           {visit.type === "first" ? "Первичный" : "Повторный"}
         </span>
+        {visit.package ? (
+          <Badge
+            variant="secondary"
+            className="bg-violet-500/15 text-violet-900"
+            title={visit.package.title}
+          >
+            По абонементу
+          </Badge>
+        ) : null}
         <span className={doctorSectionSubtitleClass}>
           {visit.location}
           {visit.filesCount ? ` · 📎 ${visit.filesCount}` : ""}
