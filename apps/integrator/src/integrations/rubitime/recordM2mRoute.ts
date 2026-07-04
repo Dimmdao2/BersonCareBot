@@ -439,14 +439,9 @@ async function handleBookingLifecycleEvent(
       eventId: `booking-created:${bookingId}`,
     });
     await sendDoctorMessage(dispatchPort, doctorCreatedText(payload, timeZone), `booking-created:${bookingId}`);
-    await sendBookingWebPush({
-      ...(webappEventsPort ? { webappEventsPort } : {}),
-      phoneNormalized: contactPhone,
-      intentType: 'appointment_lifecycle',
-      variant: 'created',
-      slotStartIso: payload.slotStart,
-      stableKey: `booking-created:${bookingId}`,
-    });
+    // Web-push не отправляем при создании записи: пациент, записавшийся через приложение,
+    // уже видит подтверждение на экране (#306). Канальное подтверждение идёт email+.ics
+    // (sendBookingConfirmationEmail в webapp) и Telegram/MAX (sendLinkedChannelMessage выше).
     await cancelPendingBookingReminders(bookingId);
     await scheduleBookingReminders({
       bookingId,
