@@ -269,26 +269,35 @@ function PatientDetail({ header, userId, hasApp }: PatientDetailProps) {
 // ---------------------------------------------------------------------------
 
 export function PatientPreviewPane({ patient }: PatientPreviewPaneProps) {
+  // Placeholder when nothing selected
+  if (!patient) {
+    return (
+      <div
+        className={cn(
+          "flex min-h-[180px] items-center justify-center rounded-lg border border-primary/20 bg-primary/5 p-4",
+        )}
+      >
+        <div className="flex flex-col items-center gap-2 text-center">
+          <User className="size-8 text-muted-foreground/40" aria-hidden />
+          <p className="text-sm text-muted-foreground">Выберите пациента, чтобы открыть превью</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <LoadedPatientPreviewPane key={patient.userId} patient={patient} />;
+}
+
+function LoadedPatientPreviewPane({ patient }: { patient: ClientListItem }) {
   const [header, setHeader] = useState<PatientCardHeader | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   // Track which userId we last started loading to guard against stale responses
   const lastRequestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!patient) {
-      setHeader(null);
-      setIsLoading(false);
-      setFetchError(false);
-      lastRequestIdRef.current = null;
-      return;
-    }
-
     const userId = patient.userId;
     lastRequestIdRef.current = userId;
-    setHeader(null);
-    setFetchError(false);
-    setIsLoading(true);
 
     const controller = new AbortController();
 
@@ -318,22 +327,6 @@ export function PatientPreviewPane({ patient }: PatientPreviewPaneProps) {
       controller.abort();
     };
   }, [patient]);
-
-  // Placeholder when nothing selected
-  if (!patient) {
-    return (
-      <div
-        className={cn(
-          "flex min-h-[180px] items-center justify-center rounded-lg border border-primary/20 bg-primary/5 p-4",
-        )}
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <User className="size-8 text-muted-foreground/40" aria-hidden />
-          <p className="text-sm text-muted-foreground">Выберите пациента, чтобы открыть превью</p>
-        </div>
-      </div>
-    );
-  }
 
   // Instant render from list item while API loads
   const hasTelegram =
