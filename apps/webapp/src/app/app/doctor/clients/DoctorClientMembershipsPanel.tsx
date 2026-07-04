@@ -8,6 +8,8 @@ import { Label } from "@/shared/ui/doctor/primitives/label";
 import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 
+import { DateTime } from "luxon";
+
 type AppointmentOption = { id: string; label: string };
 
 const ERROR_LABELS: Record<string, string> = {
@@ -63,7 +65,7 @@ export function DoctorClientMembershipsPanel({
   const [serviceId, setServiceId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [items, setItems] = useState<Array<{ serviceId: string; quantity: number }>>([]);
-  const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
+  const [services, setServices] = useState<Array<{ id: string; title: string; isActive: boolean; usableInPackages: boolean }>>([]);
   const [catalog, setCatalog] = useState<Array<{ id: string; title: string; priceMinor: number }>>([]);
   const [catalogId, setCatalogId] = useState("");
   const [catalogSoldDate, setCatalogSoldDate] = useState("");
@@ -78,6 +80,7 @@ export function DoctorClientMembershipsPanel({
   const apiBase = "/api/doctor/booking-engine/patient-packages";
   const servicesApi = "/api/doctor/booking-engine/services";
   const catalogApi = "/api/doctor/booking-engine/packages";
+  const today = DateTime.now().toFormat("yyyy-MM-dd");
 
   function showError(code: string | null) {
     if (!code) {
@@ -114,7 +117,7 @@ export function DoctorClientMembershipsPanel({
       void Promise.all([fetch(servicesApi), fetch(catalogApi)]).then(async ([svcRes, catRes]) => {
         const svcJson = (await svcRes.json()) as {
           ok?: boolean;
-          services?: Array<{ id: string; title: string }>;
+          services?: Array<{ id: string; title: string; isActive: boolean; usableInPackages: boolean }>;
         };
         const catJson = (await catRes.json()) as {
           ok?: boolean;
@@ -165,6 +168,7 @@ export function DoctorClientMembershipsPanel({
         showError(json.error ?? "create_failed");
         return;
       }
+      toast.success("Абонемент создан");
       setPriceRub("");
       setPaidRub("");
       setSoldDate("");
@@ -202,6 +206,7 @@ export function DoctorClientMembershipsPanel({
         showError(json.error ?? "create_failed");
         return;
       }
+      toast.success("Абонемент создан");
       setCatalogId("");
       setCatalogPaidRub("");
       setCatalogSoldDate("");
@@ -307,7 +312,7 @@ export function DoctorClientMembershipsPanel({
                 onChange={(e) => setCatalogNotes(e.target.value)}
               />
               <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
-              <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} />
+              <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} max={today} />
               <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
               <Input
                 id="pkg-catalog-paid"
@@ -332,7 +337,7 @@ export function DoctorClientMembershipsPanel({
               <Label htmlFor="pkg-price">Цена, ₽</Label>
               <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
               <Label htmlFor="pkg-sold">Дата продажи</Label>
-              <DoctorDatePicker value={soldDate} onChange={setSoldDate} />
+              <DoctorDatePicker value={soldDate} onChange={setSoldDate} max={today} />
               <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
               <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
               <div className="flex flex-wrap items-end gap-2">
@@ -345,11 +350,13 @@ export function DoctorClientMembershipsPanel({
                     onChange={(e) => setServiceId(e.target.value)}
                   >
                     <option value="">—</option>
-                    {services.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.title}
-                      </option>
-                    ))}
+                    {services
+                      .filter((s) => s.isActive && s.usableInPackages)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.title}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div className="w-20">
@@ -361,7 +368,25 @@ export function DoctorClientMembershipsPanel({
                 </Button>
               </div>
               {items.length > 0 ? (
-                <p className="text-muted-foreground text-xs">Позиций: {items.length}</p>
+                <ul className="m-0 list-none space-y-1 p-0">
+                  {items.map((it, idx) => {
+                    const svc = services.find((s) => s.id === it.serviceId);
+                    return (
+                      <li key={idx} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-foreground">
+                          {svc?.title ?? it.serviceId} — {it.quantity} шт.
+                        </span>
+                        <button
+                          type="button"
+                          className="text-destructive hover:underline"
+                          onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               ) : null}
               <Button type="button" size="sm" disabled={pending} onClick={createManual}>
                 Сохранить

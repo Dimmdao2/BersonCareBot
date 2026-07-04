@@ -2,6 +2,34 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-05 — #386 приёмочные фиксы #5-#8 (Sonnet)
+
+### Что сделано
+
+**#5 — запрет будущей даты оплаты:**
+- `DoctorDatePicker.tsx` — добавлен проп `max?: string` (формат "yyyy-MM-dd"). При наличии пробрасывается в `DayPicker` как `disabled={{ after: maxDate }}` — будущие даты визуально отключены и недоступны.
+- `DoctorClientMembershipsPanel.tsx` — вычисляется `today = DateTime.now().toFormat("yyyy-MM-dd")` и передаётся как `max={today}` в оба `DoctorDatePicker` (каталог ~стр 315, индивидуальный ~стр 340).
+
+**#6 — фильтр выключенных услуг:**
+- Тип состояния `services` расширен: `isActive: boolean; usableInPackages: boolean` (поля приходят от API, тип `BeClinicService` их содержит).
+- В рендере услуг добавлен `.filter((s) => s.isActive && s.usableInPackages)` — только активные и помеченные «usableInPackages» попадают в дропдаун. Флаг: API `/booking-engine/services` возвращает `BeClinicService[]`, оба поля документированы в `src/modules/booking-engine/types.ts`.
+
+**#7 — расшифровка позиции:**
+- Блок `Позиций: {items.length}` заменён списком `<ul>` — каждая позиция показывает название услуги (по `services.find`) и количество: `«ЛФК — 3 шт.»`. Рядом кнопка `✕` для удаления позиции из списка.
+
+**#8 — тост «Абонемент создан»:**
+- `createManual` и `offerCatalog` — после успешного ответа API вызывается `toast.success("Абонемент создан")` перед сбросом формы. Использован тот же `react-hot-toast`, что в `recalcPackage`.
+
+### Проверки
+- `DoctorClientMembershipsPanel.test.tsx`: **5/5 passed** (тесты не потребовали правки — мок возвращает пустой `services: []`; старый текст «Позиций:» нигде в тестах не проверялся).
+- ESLint (оба изменённых файла): **0 ошибок**.
+- TypeScript (`tsc --noEmit`): **0 ошибок**.
+
+### Спорные моменты / решения
+- **#6 фильтр двойной**: фильтруем по `isActive && usableInPackages` (не только `isActive`). Логика: абонемент состоит из позиций — услуга должна быть и активна, и явно разрешена для пакетов. Если владелец захочет фильтровать только по `isActive`, убрать `&& s.usableInPackages`.
+
+---
+
 ## 2026-07-04 — #386 polish (Sonnet), UI-аудит: 3 MINOR правки
 
 ### Что сделано
