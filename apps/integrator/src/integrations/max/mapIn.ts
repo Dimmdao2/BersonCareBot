@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
+import { logger } from '../../infra/observability/logger.js';
 import { canonicalizeMessengerStartText, parseMessengerStartCommand } from '../common/messengerStartParse.js';
 import { normalizeChannelCallbackPayload, normalizeTelegramContactPhone } from '../telegram/mapIn.js';
 
@@ -73,10 +74,16 @@ function getCallbackMessageId(body: MaxUpdateValidated): string | null {
   return root.length > 0 ? root : null;
 }
 
-/** Extract first TEL value from a vCard string (handles TYPE=...: variants and CRLF/LF). */
+/** Literal two-char escape sequences "\r\n"/"\n" → real newlines (some transports double-escape vcf_info). */
+function unescapeVcfLiterals(vcf: string): string {
+  return vcf.replace(/\\r\\n/g, '\r\n').replace(/\\n/g, '\n');
+}
+
+/** Extract first TEL value from a vCard string (handles TYPE=...: variants, CRLF/LF, literal-escaped newlines). */
 function extractPhoneFromVcf(vcf: string): string {
-  // vCard lines may use \r\n or \n; split on either
-  const lines = vcf.replace(/\r\n/g, '\n').split('\n');
+  // Tolerate transports delivering literal "\r\n"/"\n" sequences instead of real newlines
+  const text = !/[\r\n]/.test(vcf) && /\\r\\n|\\n/.test(vcf) ? unescapeVcfLiterals(vcf) : vcf;
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
   for (const line of lines) {
     // Match: TEL[;TYPE=...]:+79001234567 or TEL:+79001234567
     const m = /^TEL(?:;[^:]*)?:(.+)$/i.exec(line.trim());
@@ -88,12 +95,22 @@ function extractPhoneFromVcf(vcf: string): string {
 /**
  * Verify the MAX contact attachment hash.
  * Formula (dev.max.ru docs): HMAC-SHA256(key=botApiToken, data=vcf_info), hex-encoded.
- * Returns 'valid' | 'mismatch' | 'missing'.
+ * Docs are ambiguous about vcf_info canonicalization, so the HMAC is computed over both the raw
+ * string and (when it contains literal "\r\n"/"\n" sequences) the unescaped form — either match
+ * accepts. Security unchanged: both HMACs are keyed by the bot token an attacker cannot know.
  */
-function verifyContactHash(vcfInfo: string, hash: string | undefined, botToken: string): 'valid' | 'mismatch' | 'missing' {
-  if (!hash) return 'missing';
-  const expected = createHmac('sha256', botToken).update(vcfInfo).digest('hex');
-  return expected === hash ? 'valid' : 'mismatch';
+function verifyContactHash(
+  vcfInfo: string,
+  hash: string | undefined,
+  botToken: string,
+): { status: 'valid' | 'mismatch' | 'missing'; expectedPrefixes: string[] } {
+  if (!hash) return { status: 'missing', expectedPrefixes: [] };
+  const candidates = [vcfInfo];
+  const unescaped = unescapeVcfLiterals(vcfInfo);
+  if (unescaped !== vcfInfo) candidates.push(unescaped);
+  const expected = candidates.map((c) => createHmac('sha256', botToken).update(c).digest('hex'));
+  if (expected.includes(hash)) return { status: 'valid', expectedPrefixes: [] };
+  return { status: 'mismatch', expectedPrefixes: expected.map((e) => e.slice(0, 8)) };
 }
 
 /**
@@ -118,21 +135,27 @@ function getContactPhoneFromMaxMessage(
     // Real MAX payload: vcf_info + hash
     if (typeof p.vcf_info === 'string' && p.vcf_info.trim().length > 0) {
       const vcf = p.vcf_info;
-      const hashResult = botToken ? verifyContactHash(vcf, p.hash, botToken) : 'missing';
+      const check = botToken
+        ? verifyContactHash(vcf, p.hash, botToken)
+        : { status: 'missing' as const, expectedPrefixes: [] };
 
-      if (hashResult === 'mismatch') {
-        const expected = createHmac('sha256', botToken).update(vcf).digest('hex');
-        console.warn(
-          '[max/contact] hash mismatch — rejecting contact; vcf_present=true hash_present=%s expected_prefix=%s received_prefix=%s',
-          p.hash ? 'true' : 'false',
-          expected.slice(0, 8),
-          typeof p.hash === 'string' ? p.hash.slice(0, 8) : 'n/a',
+      if (check.status === 'mismatch') {
+        logger.warn(
+          {
+            vcfPresent: true,
+            receivedHashPrefix: typeof p.hash === 'string' ? p.hash.slice(0, 8) : 'n/a',
+            expectedHashPrefixes: check.expectedPrefixes,
+          },
+          'max contact hash mismatch — rejecting contact phone',
         );
         return null;
       }
 
-      if (hashResult === 'missing') {
-        console.warn('[max/contact] hash absent — accepting phone for telemetry; vcf_present=true');
+      if (check.status === 'missing') {
+        logger.warn(
+          { vcfPresent: true, hashPresent: typeof p.hash === 'string' },
+          'max contact hash absent — accepting phone (telemetry only)',
+        );
       }
 
       const phone = extractPhoneFromVcf(vcf);
