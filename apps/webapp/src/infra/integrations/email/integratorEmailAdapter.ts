@@ -27,15 +27,20 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = signPayload(timestamp, body, deps.sharedSecret);
 
-    const res = await fetchImpl(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Bersoncare-Timestamp": timestamp,
-        "X-Bersoncare-Signature": signature,
-      },
-      body,
-    });
+    let res: Response;
+    try {
+      res = await fetchImpl(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Bersoncare-Timestamp": timestamp,
+          "X-Bersoncare-Signature": signature,
+        },
+        body,
+      });
+    } catch (err) {
+      return { ok: false, error: "network_error" };
+    }
     if (!res.ok) {
       return { ok: false, error: `http_${res.status}` };
     }

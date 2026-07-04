@@ -164,11 +164,21 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
   const codeHash = hashCode(code);
   const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
 
+  // Dev-only: log the OTP code to server console for local testing (no integrator required).
+  if (env.NODE_ENV === "development") {
+    console.log(`[DEV] Email OTP code for ${email}: ${code}`);
+  }
+
   const challengeId = await db.insertEmailChallenge({ userId, email, codeHash, expiresAt });
   const sent = await sendEmailAuthCode(email, code);
   if (!sent.ok) {
-    await db.deleteEmailChallengeById(challengeId);
-    return { ok: false, code: "email_send_failed" };
+    if (env.NODE_ENV === "development") {
+      // In dev, tolerate send failure (e.g. no integrator running). Code was logged above.
+      console.warn(`[DEV] Email send failed for ${email}: ${sent.error}. Use the code from the log.`);
+    } else {
+      await db.deleteEmailChallengeById(challengeId);
+      return { ok: false, code: "email_send_failed" };
+    }
   }
   await db.upsertEmailSendCooldown(userId, email);
 

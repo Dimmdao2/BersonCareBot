@@ -29,7 +29,7 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
         const ins = await runWebappPgText<{ id: string }>(
           `INSERT INTO platform_users (email, email_normalized, display_name, role)
            VALUES ($1, $1, $2, 'client')
-           ON CONFLICT DO NOTHING
+           ON CONFLICT (email_normalized) WHERE merged_into_id IS NULL AND email_normalized IS NOT NULL DO NOTHING
            RETURNING id`,
           [emailNorm, displayName],
           tx,
