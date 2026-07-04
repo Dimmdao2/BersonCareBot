@@ -132,4 +132,65 @@ describe("confirmPublicEmailOtpChallenge (in-memory path via emailAuth)", () => 
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("invalid_code");
   });
+
+  it("happy path: correct code → ok:true with userId", async () => {
+    const db = makeInMemDb();
+
+    // Start challenge — populates in-memory store and captures userId
+    const startResult = await startPublicEmailOtpChallenge("happy@example.com", db);
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) return;
+
+    const challengeId = startResult.challengeId;
+    const sentCode = sendEmailCodeMock.mock.calls[0]?.[1] as string;
+
+    // db.findOrCreatePublicEmailUser is idempotent — returns same userId created during start
+    const { userId } = await db.findOrCreatePublicEmailUser("happy@example.com");
+
+    // Provide a confirm db that returns the challenge row created by startEmailChallenge
+    const confirmDb: EmailOtpPublicDbPort = {
+      ...db,
+      async findLatestEmailChallengeByEmail(_emailNorm, _nowSec) {
+        return {
+          id: challengeId,
+          user_id: userId,
+          code_hash: "", // in-memory path checks plain code, not hash
+          expires_at: String(Math.floor(Date.now() / 1000) + 600),
+          attempts: "0",
+        };
+      },
+    };
+
+    const result = await confirmPublicEmailOtpChallenge("happy@example.com", sentCode, confirmDb);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.userId).toBe(userId);
+      expect(typeof result.redirectTo).toBe("string");
+    }
+  });
+
+  it("returns invalid_code when wrong code is submitted", async () => {
+    const db = makeInMemDb();
+    const startResult = await startPublicEmailOtpChallenge("wrong@example.com", db);
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) return;
+
+    const { userId } = await db.findOrCreatePublicEmailUser("wrong@example.com");
+    const confirmDb: EmailOtpPublicDbPort = {
+      ...db,
+      async findLatestEmailChallengeByEmail(_emailNorm, _nowSec) {
+        return {
+          id: startResult.challengeId,
+          user_id: userId,
+          code_hash: "",
+          expires_at: String(Math.floor(Date.now() / 1000) + 600),
+          attempts: "0",
+        };
+      },
+    };
+
+    const result = await confirmPublicEmailOtpChallenge("wrong@example.com", "000000", confirmDb);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("invalid_code");
+  });
 });
