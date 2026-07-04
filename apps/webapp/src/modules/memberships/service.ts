@@ -26,7 +26,14 @@ import {
   computeAppointmentPackageLinkage,
   resolvePackageSessionMappingStatus,
 } from "./packageSessionLinkage";
-import type { PatientPackageSessionRow } from "./types";
+import type { PatientPackageSessionRow, RecalcPastSessionsSummary } from "./types";
+
+/**
+ * ST-01: statuses that count as a «состоявшийся визит» for bulk «Пересчитать»
+ * (owner decision OQ-5/OQ-7). Cancellations / no-show / not-yet-closed past
+ * appointments are NOT auto-debited — they stay for manual handling.
+ */
+const RECALC_ELIGIBLE_STATUSES: ReadonlySet<string> = new Set(["completed", "visit_confirmed"]);
 
 export type PackageDetachOutcome = "release_reserve" | "charge_as_delivered" | "refund_consumed";
 
@@ -870,6 +877,148 @@ export function createMembershipsService(deps: {
         appointmentId: input.appointmentId,
         createdByPlatformUserId: input.createdByPlatformUserId,
       });
+    },
+
+    /**
+     * ST-01 — bulk «Пересчитать» for a single patient package.
+     *
+     * Finds the patient's PAST appointments (`startsAt ∈ [soldAt; now)`) for services that
+     * the package covers, that are состоявшиеся (status completed / visit_confirmed) and NOT
+     * yet linked to any package (`linkage === "none"`), and consumes one session per such
+     * appointment against the matching package item — until that item's balance hits zero
+     * (no minus, OQ-6). Idempotent: appointments already carrying a package usage are skipped,
+     * so a repeated call is a no-op.
+     *
+     * Every debit writes a `consume` row to the append-only ledger, links the appointment
+     * (`setAppointmentPackageUsageRef`), records a history event, and best-effort refreshes
+     * the calendar — mirroring `consumeForAppointment`. Balance is always DERIVED from the
+     * ledger; nothing is mutated directly.
+     */
+    async recalcPastSessionsForPackage(input: {
+      organizationId: string;
+      patientPackageId: string;
+      createdByPlatformUserId?: string | null;
+      nowIso?: string;
+    }): Promise<RecalcPastSessionsSummary> {
+      const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
+      if (!raw) throw new Error("package_not_found");
+      const pkg = await refreshPatientPackageRecord(raw);
+
+      const summary: RecalcPastSessionsSummary = {
+        patientPackageId: pkg.id,
+        debited: [],
+        skipped: [],
+        outOfBalance: [],
+      };
+
+      // Only active packages within validity can be debited. Nothing to do otherwise.
+      if (pkg.status !== "active" || !isPatientPackageWithinValidity(pkg)) {
+        return summary;
+      }
+
+      const soldAtIso = pkg.soldAt ?? pkg.validFrom ?? pkg.createdAt;
+      const nowIso = input.nowIso ?? new Date().toISOString();
+      if (soldAtIso >= nowIso) {
+        return summary;
+      }
+
+      const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
+      const serviceIds = [...packageServiceIds];
+      if (serviceIds.length === 0) return summary;
+
+      const candidates = await deps.port.listRecalcCandidateAppointments({
+        organizationId: input.organizationId,
+        platformUserId: pkg.platformUserId,
+        serviceIds,
+        soldAtIso,
+        nowIso,
+      });
+
+      // Derive current per-item balances from the ledger once, then decrement locally as we
+      // consume so we never over-debit within this single pass (no extra round-trips, no minus).
+      const usages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
+      const balances = computeItemBalances(pkg.items, usages);
+      const remainingByItemId = new Map<string, number>(
+        balances.map((b) => [b.patientPackageItemId, b.remaining]),
+      );
+
+      // Deterministic order: oldest appointment first (fair FIFO of past visits).
+      const ordered = [...candidates].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+
+      for (const cand of ordered) {
+        const linkage = computeAppointmentPackageLinkage(cand.usages);
+        if (linkage !== "none") {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "already_debited",
+          });
+          continue;
+        }
+        if (!RECALC_ELIGIBLE_STATUSES.has(cand.status)) {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "status_not_eligible",
+          });
+          continue;
+        }
+        if (!cand.serviceId || !packageServiceIds.has(cand.serviceId)) {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "service_not_in_package",
+          });
+          continue;
+        }
+
+        // Pick a package item for this service with remaining balance > 0.
+        const item = pkg.items.find(
+          (it) =>
+            it.serviceId === cand.serviceId && (remainingByItemId.get(it.id) ?? 0) >= 1,
+        );
+        if (!item) {
+          // Eligible visit, but the package for this service is exhausted → stop-at-zero (OQ-6).
+          summary.outOfBalance.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+          });
+          continue;
+        }
+
+        const usage = await deps.port.appendUsage({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          patientPackageItemId: item.id,
+          appointmentId: cand.appointmentId,
+          usageKind: "consume",
+          quantity: 1,
+          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+        });
+        remainingByItemId.set(item.id, (remainingByItemId.get(item.id) ?? 0) - 1);
+
+        await deps.port.setAppointmentPackageUsageRef(cand.appointmentId, usage.id);
+        await deps.port.appendHistoryEvent({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          eventType: "recalc_consumed",
+          payloadJson: {
+            appointmentId: cand.appointmentId,
+            usageId: usage.id,
+            serviceId: cand.serviceId,
+          },
+        });
+        await refreshPackageCalendarForAppointment(cand.appointmentId);
+
+        summary.debited.push({
+          appointmentId: cand.appointmentId,
+          patientPackageItemId: item.id,
+          serviceId: cand.serviceId,
+          usageId: usage.id,
+        });
+      }
+
+      return summary;
     },
 
     async onVisitConfirmed(appointmentId: string, organizationId: string) {

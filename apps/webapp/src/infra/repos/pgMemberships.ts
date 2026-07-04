@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   bePackageHistoryEvents,
@@ -442,6 +442,60 @@ export function createPgMembershipsPort(): MembershipsPort {
           usages: usagesByAppointment.get(appt.id) ?? [],
         }))
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    },
+
+    async listRecalcCandidateAppointments(input) {
+      const db = getDrizzle();
+      if (input.serviceIds.length === 0) return [];
+
+      const apptRows = await db
+        .select({
+          id: beAppointments.id,
+          startAt: beAppointments.startAt,
+          status: beAppointments.status,
+          serviceId: beAppointments.serviceId,
+        })
+        .from(beAppointments)
+        .where(
+          and(
+            eq(beAppointments.organizationId, input.organizationId),
+            eq(beAppointments.platformUserId, input.platformUserId),
+            inArray(beAppointments.serviceId, input.serviceIds),
+            gte(beAppointments.startAt, input.soldAtIso),
+            lt(beAppointments.startAt, input.nowIso),
+          ),
+        )
+        .orderBy(asc(beAppointments.startAt));
+
+      if (apptRows.length === 0) return [];
+
+      const appointmentIds = apptRows.map((a) => a.id);
+      const usageRows = await db
+        .select()
+        .from(bePackageUsages)
+        .where(
+          and(
+            eq(bePackageUsages.organizationId, input.organizationId),
+            inArray(bePackageUsages.appointmentId, appointmentIds),
+          ),
+        )
+        .orderBy(asc(bePackageUsages.occurredAt));
+
+      const usagesByAppointment = new Map<string, PackageUsageRecord[]>();
+      for (const row of usageRows) {
+        if (!row.appointmentId) continue;
+        const list = usagesByAppointment.get(row.appointmentId) ?? [];
+        list.push(mapUsage(row));
+        usagesByAppointment.set(row.appointmentId, list);
+      }
+
+      return apptRows.map((appt) => ({
+        appointmentId: appt.id,
+        startsAt: appt.startAt,
+        status: appt.status,
+        serviceId: appt.serviceId,
+        usages: usagesByAppointment.get(appt.id) ?? [],
+      }));
     },
 
     async setPatientPackageStatus(id, organizationId, status, patch) {
