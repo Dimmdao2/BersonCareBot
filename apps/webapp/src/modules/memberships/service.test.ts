@@ -71,6 +71,16 @@ function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
     updatePatientPackageNotes: vi.fn(),
     listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([]),
     listRecalcCandidateAppointments: vi.fn().mockResolvedValue([]),
+    recalcConsumeForAppointment: vi.fn().mockImplementation(async (input) => ({
+      id: `u-consume`,
+      patientPackageId: input.patientPackageId,
+      patientPackageItemId: input.patientPackageItemId,
+      appointmentId: input.appointmentId,
+      usageKind: "consume" as const,
+      quantity: 1,
+      comment: null,
+      occurredAt: new Date().toISOString(),
+    })),
     ...overrides,
   };
 }
@@ -687,10 +697,7 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
     });
     expect(res.debited.map((d) => d.appointmentId)).toEqual(["a1", "a2"]);
     expect(res.outOfBalance).toEqual([{ appointmentId: "a3", serviceId: "svc-1" }]);
-    expect(port.appendUsage).toHaveBeenCalledTimes(2);
-    expect(port.appendUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ usageKind: "consume", quantity: 1 }),
-    );
+    expect(port.recalcConsumeForAppointment).toHaveBeenCalledTimes(2);
   });
 
   it("debits ledger + links appointment + history + calendar for each debit", async () => {
@@ -709,17 +716,18 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
       nowIso: NOW,
     });
     expect(res.debited).toHaveLength(1);
-    expect(port.appendUsage).toHaveBeenCalledWith(
+    expect(port.recalcConsumeForAppointment).toHaveBeenCalledWith(
       expect.objectContaining({
-        usageKind: "consume",
         appointmentId: "a1",
         createdByPlatformUserId: "doc-1",
+        serviceId: "svc-1",
       }),
     );
-    expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledWith("a1", "u-consume");
-    expect(port.appendHistoryEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "recalc_consumed" }),
-    );
+    // appendUsage, setAppointmentPackageUsageRef, and appendHistoryEvent are now handled
+    // atomically inside recalcConsumeForAppointment — not called directly by the service.
+    expect(port.appendUsage).not.toHaveBeenCalled();
+    expect(port.setAppointmentPackageUsageRef).not.toHaveBeenCalled();
+    expect(port.appendHistoryEvent).not.toHaveBeenCalled();
     expect(refreshPackageCalendar).toHaveBeenCalledWith("a1");
   });
 
@@ -736,7 +744,7 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
     });
     expect(res.debited.map((d) => d.appointmentId)).toEqual(["a1", "a2"]);
     expect(res.outOfBalance).toHaveLength(0);
-    expect(port.appendUsage).toHaveBeenCalledTimes(2);
+    expect(port.recalcConsumeForAppointment).toHaveBeenCalledTimes(2);
   });
 
   it("second call is a no-op once sessions already consumed (idempotency)", async () => {

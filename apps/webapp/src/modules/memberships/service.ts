@@ -986,28 +986,30 @@ export function createMembershipsService(deps: {
           continue;
         }
 
-        const usage = await deps.port.appendUsage({
-          organizationId: input.organizationId,
-          patientPackageId: pkg.id,
-          patientPackageItemId: item.id,
-          appointmentId: cand.appointmentId,
-          usageKind: "consume",
-          quantity: 1,
-          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-        });
+        let usage;
+        try {
+          usage = await deps.port.recalcConsumeForAppointment({
+            organizationId: input.organizationId,
+            patientPackageId: pkg.id,
+            patientPackageItemId: item.id,
+            appointmentId: cand.appointmentId,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+            serviceId: cand.serviceId,
+          });
+        } catch (err) {
+          const code = (err as { code?: string; message?: string })?.code ?? (err as Error)?.message;
+          if (code === "duplicate_consume") {
+            summary.skipped.push({
+              appointmentId: cand.appointmentId,
+              serviceId: cand.serviceId,
+              reason: "already_debited",
+            });
+            continue;
+          }
+          throw err;
+        }
         remainingByItemId.set(item.id, (remainingByItemId.get(item.id) ?? 0) - 1);
 
-        await deps.port.setAppointmentPackageUsageRef(cand.appointmentId, usage.id);
-        await deps.port.appendHistoryEvent({
-          organizationId: input.organizationId,
-          patientPackageId: pkg.id,
-          eventType: "recalc_consumed",
-          payloadJson: {
-            appointmentId: cand.appointmentId,
-            usageId: usage.id,
-            serviceId: cand.serviceId,
-          },
-        });
         await refreshPackageCalendarForAppointment(cand.appointmentId);
 
         summary.debited.push({

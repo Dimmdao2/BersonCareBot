@@ -151,4 +151,24 @@ export type MembershipsPort = {
   >;
 
   setAppointmentPackageUsageRef(appointmentId: string, usageRef: string | null): Promise<void>;
+
+  /**
+   * ST-01 atomic consume for a single appointment during bulk «Пересчитать».
+   * Executes in a single DB transaction:
+   *   1. INSERT consume into be_package_usages
+   *   2. UPDATE appointment.packageUsageRef
+   *   3. INSERT recalc_consumed history event
+   * Returns the created usage record.
+   * Throws an Error with message "duplicate_consume" if a consume row for this
+   * appointment already exists (UNIQUE constraint violation — concurrent double-debit guard).
+   */
+  recalcConsumeForAppointment(input: {
+    organizationId: string;
+    patientPackageId: string;
+    patientPackageItemId: string;
+    appointmentId: string;
+    createdByPlatformUserId: string | null;
+    serviceId: string;
+    payloadJson?: Record<string, unknown>;
+  }): Promise<PackageUsageRecord>;
 };

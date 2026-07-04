@@ -609,5 +609,57 @@ export function createPgMembershipsPort(): MembershipsPort {
         .set({ packageUsageRef: usageRef, updatedAt: new Date().toISOString() })
         .where(eq(beAppointments.id, appointmentId));
     },
+
+    async recalcConsumeForAppointment(input) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      try {
+        return await db.transaction(async (tx) => {
+          const inserted = await tx
+            .insert(bePackageUsages)
+            .values({
+              organizationId: input.organizationId,
+              patientPackageId: input.patientPackageId,
+              patientPackageItemId: input.patientPackageItemId,
+              appointmentId: input.appointmentId,
+              usageKind: "consume",
+              quantity: 1,
+              createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+              occurredAt: now,
+              createdAt: now,
+            })
+            .returning();
+          const usage = mapUsage(inserted[0]!);
+
+          await tx
+            .update(beAppointments)
+            .set({ packageUsageRef: usage.id, updatedAt: now })
+            .where(eq(beAppointments.id, input.appointmentId));
+
+          await tx.insert(bePackageHistoryEvents).values({
+            organizationId: input.organizationId,
+            patientPackageId: input.patientPackageId,
+            eventType: "recalc_consumed",
+            payloadJson: {
+              appointmentId: input.appointmentId,
+              usageId: usage.id,
+              serviceId: input.serviceId,
+              ...(input.payloadJson ?? {}),
+            },
+            occurredAt: now,
+          });
+
+          return usage;
+        });
+      } catch (err) {
+        // PostgreSQL unique_violation (23505): concurrent parallel call already inserted consume
+        // for the same appointment — treat as duplicate_consume so the caller can skip gracefully.
+        const code = (err as { code?: string })?.code;
+        if (code === "23505") {
+          throw Object.assign(new Error("duplicate_consume"), { code: "duplicate_consume" });
+        }
+        throw err;
+      }
+    },
   };
 }
