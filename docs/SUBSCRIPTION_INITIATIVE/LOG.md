@@ -2,6 +2,38 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-05 — #386 приёмочные фиксы #1/#2 + #9a (Sonnet): router.refresh + стоимость в карточке
+
+### Что сделано
+
+**#1/#2 — блоки абонемента не обновлялись без перезагрузки** (Финансы / Обзор / Визиты):
+- `DoctorClientMembershipsPanel.tsx` — добавлен `const router = useRouter()` (import `useRouter` из `next/navigation`).
+- `router.refresh()` вызывается ПОСЛЕ каждой успешной мутации:
+  - `createManual` (индивидуальный абонемент) — после `void loadPackages()`
+  - `offerCatalog` (из каталога) — после `void loadPackages()`
+  - `manualConsume` (ручное списание) — после `void loadPackages()`
+  - `recalcPackage` (пересчёт) — после `void loadPackages()`
+- `loadPackages()` оставлен (обновляет панель мгновенно); `router.refresh()` рядом инвалидирует SSR на вкладках Обзор/Записи.
+- Колбэк `onChanged` в `PatientPackageSessionsList` уже проксирован из панели (карточка → `onChanged={onChanged}`) — refund/detach из списка записей тоже вызывают `loadPackages()` через этот колбэк; `router.refresh()` туда не добавлялся (колбэк вызывается с уровня панели).
+
+**#9a — в карточке абонемента не отображалась стоимость:**
+- `PatientPackageCard.tsx` — в тип `PatientPackageCardRow` добавлено поле `priceMinor?: number | null` (поле структурно приходило из API, тип его не объявлял — cast `as PatientPackageCardRow[]` его отбрасывал).
+- Вычислен `priceLabel` через уже существующий `formatPaid()`.
+- В JSX (subtitle строка) добавлен вывод `· стоимость <сумма>` между датой и оплаченной суммой.
+- Отображение notes: заменён `line-clamp-2` на явный обрез `slice(0, 80) + "…"` для длинных комментариев.
+
+### Проверки
+- `DoctorClientMembershipsPanel.test.tsx`: **5/5 passed** (добавлен мок `next/navigation` → `useRouter: () => ({ refresh: vi.fn(), ... })`).
+- `PatientPackageSessionsList.test.tsx`: **1/1 passed** (без изменений).
+- ESLint (оба файла): **0 ошибок**.
+- TypeScript (`tsc --noEmit`): **0 ошибок**.
+
+### Спорные моменты / решения
+- `router.refresh()` вызывается синхронно (не awaited) — это корректно, Next.js обрабатывает его асинхронно в фоне. Добавление `await` потребовало бы `async` в `recalcPackage` (он уже async) и в `startTransition`-callbacks (не ждут).
+- `onChanged` из `PatientPackageSessionsList` (detach/refund) не получил `router.refresh()` напрямую — колбэк проксируется через `DoctorClientMembershipsPanel.onChanged` → `loadPackages()`. Если понадобится refresh и оттуда, прокинуть через `onChanged` панели.
+
+---
+
 ## 2026-07-05 — #386 приёмочные фиксы #5-#8 (Sonnet)
 
 ### Что сделано

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -57,6 +58,7 @@ export function DoctorClientMembershipsPanel({
   appointments = [],
   showCreateForm = true,
 }: Props) {
+  const router = useRouter();
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
   const [priceRub, setPriceRub] = useState("");
   const [soldDate, setSoldDate] = useState("");
@@ -175,6 +177,7 @@ export function DoctorClientMembershipsPanel({
       setManualNotes("");
       setItems([]);
       void loadPackages();
+      router.refresh();
     });
   }
 
@@ -212,6 +215,7 @@ export function DoctorClientMembershipsPanel({
       setCatalogSoldDate("");
       setCatalogNotes("");
       void loadPackages();
+      router.refresh();
     });
   }
 
@@ -233,6 +237,7 @@ export function DoctorClientMembershipsPanel({
       }
       setError(null);
       void loadPackages();
+      router.refresh();
     });
   }
 
@@ -256,6 +261,7 @@ export function DoctorClientMembershipsPanel({
           : "Нет новых сеансов для списания";
       toast.success(msg);
       void loadPackages();
+      router.refresh();
     } catch {
       toast.error("Ошибка сети при пересчёте");
     }

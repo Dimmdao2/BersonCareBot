@@ -10,6 +10,12 @@ vi.mock("react-hot-toast", () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/app/doctor/clients",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const platformUserId = "00000000-0000-4000-8000-000000000099";
 let packagesResponse: unknown[] = [];
 let sessionsResponse: unknown[] = [];

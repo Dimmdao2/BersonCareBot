@@ -14,6 +14,7 @@ export type PatientPackageCardRow = {
   status: string;
   soldAt: string | null;
   validUntil: string | null;
+  priceMinor?: number | null;
   paidAmountMinor: number | null;
   paidCurrency?: string | null;
   notes?: string | null;
@@ -77,6 +78,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
 
   const soldLabel = formatDate(pkg.soldAt);
   const validLabel = formatDate(pkg.validUntil);
+  const priceLabel = pkg.priceMinor != null ? formatPaid(pkg.priceMinor, pkg.paidCurrency) : null;
   const paidLabel = formatPaid(pkg.paidAmountMinor, pkg.paidCurrency);
 
   const loadHistory = useCallback(async () => {
@@ -128,10 +130,13 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
             {STATUS_LABELS[pkg.status] ?? pkg.status}
             {soldLabel ? ` · продажа ${soldLabel}` : ""}
             {validLabel ? ` · до ${validLabel}` : ""}
+            {priceLabel ? ` · стоимость ${priceLabel}` : ""}
             {paidLabel ? ` · оплачено ${paidLabel}` : ""}
           </p>
           {pkg.notes?.trim() ? (
-            <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{pkg.notes}</p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {pkg.notes.length > 80 ? `${pkg.notes.slice(0, 80)}…` : pkg.notes}
+            </p>
           ) : null}
         </div>
         <div className="flex items-center gap-1.5 flex-none">
