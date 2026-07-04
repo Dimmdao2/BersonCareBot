@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
@@ -72,20 +73,74 @@ function getCallbackMessageId(body: MaxUpdateValidated): string | null {
   return root.length > 0 ? root : null;
 }
 
-function getContactPhoneFromMaxMessage(msg: MaxUpdateValidated['message']): string | null {
+/** Extract first TEL value from a vCard string (handles TYPE=...: variants and CRLF/LF). */
+function extractPhoneFromVcf(vcf: string): string {
+  // vCard lines may use \r\n or \n; split on either
+  const lines = vcf.replace(/\r\n/g, '\n').split('\n');
+  for (const line of lines) {
+    // Match: TEL[;TYPE=...]:+79001234567 or TEL:+79001234567
+    const m = /^TEL(?:;[^:]*)?:(.+)$/i.exec(line.trim());
+    if (m?.[1]) return m[1].trim();
+  }
+  return '';
+}
+
+/**
+ * Verify the MAX contact attachment hash.
+ * Formula (dev.max.ru docs): HMAC-SHA256(key=botApiToken, data=vcf_info), hex-encoded.
+ * Returns 'valid' | 'mismatch' | 'missing'.
+ */
+function verifyContactHash(vcfInfo: string, hash: string | undefined, botToken: string): 'valid' | 'mismatch' | 'missing' {
+  if (!hash) return 'missing';
+  const expected = createHmac('sha256', botToken).update(vcfInfo).digest('hex');
+  return expected === hash ? 'valid' : 'mismatch';
+}
+
+/**
+ * Parse contact attachment and return normalized phone or null.
+ * Logs WARN on hash mismatch (spoofed contact → reject) and on missing hash (accept, telemetry only).
+ * botToken is used for HMAC verification; pass '' to skip verification (tests without token).
+ */
+function getContactPhoneFromMaxMessage(
+  msg: MaxUpdateValidated['message'],
+  botToken: string,
+): string | null {
   const attachments = Array.isArray(msg?.body?.attachments) ? msg.body.attachments : [];
   for (const raw of attachments) {
-    const a = raw as { type?: string; payload?: { phone?: string; phone_number?: string } };
-    if (a?.type === 'contact') {
-      const p = a.payload ?? {};
-      const rawPhone =
-        typeof p.phone === 'string'
-          ? p.phone
-          : typeof p.phone_number === 'string'
-            ? p.phone_number
-            : '';
-      return normalizeTelegramContactPhone(rawPhone);
+    const a = raw as {
+      type?: string;
+      payload?: { vcf_info?: string; max_info?: Record<string, unknown>; hash?: string; phone?: string };
+    };
+    if (a?.type !== 'contact') continue;
+
+    const p = a.payload ?? {};
+
+    // Real MAX payload: vcf_info + hash
+    if (typeof p.vcf_info === 'string' && p.vcf_info.trim().length > 0) {
+      const vcf = p.vcf_info;
+      const hashResult = botToken ? verifyContactHash(vcf, p.hash, botToken) : 'missing';
+
+      if (hashResult === 'mismatch') {
+        const expected = createHmac('sha256', botToken).update(vcf).digest('hex');
+        console.warn(
+          '[max/contact] hash mismatch — rejecting contact; vcf_present=true hash_present=%s expected_prefix=%s received_prefix=%s',
+          p.hash ? 'true' : 'false',
+          expected.slice(0, 8),
+          typeof p.hash === 'string' ? p.hash.slice(0, 8) : 'n/a',
+        );
+        return null;
+      }
+
+      if (hashResult === 'missing') {
+        console.warn('[max/contact] hash absent — accepting phone for telemetry; vcf_present=true');
+      }
+
+      const phone = extractPhoneFromVcf(vcf);
+      if (phone) return normalizeTelegramContactPhone(phone);
     }
+
+    // Fallback: no vcf_info — return null (no parseable phone)
+    return null;
   }
   return null;
 }
@@ -117,8 +172,10 @@ function getRelayMessageTypeFromMaxMessage(msg: MaxUpdateValidated['message']): 
 /**
  * Maps validated MAX webhook/long-poll Update to internal IncomingUpdate.
  * Real payload: message.body.text, message.sender, message.recipient; callback.*.
+ * @param botToken  Bot API key for HMAC-SHA256 contact-hash verification. Defaults to MAX_API_KEY env.
  */
-export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
+export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUpdate | null {
+  const resolvedToken = botToken ?? '';
   if (body.update_type === 'message_callback' && body.callback) {
     const callbackId = body.callback.callback_id;
     const payload = typeof body.callback.payload === 'string' ? body.callback.payload : '';
@@ -163,7 +220,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const chatId = getChatIdFromMessage(msg);
     const userId = getUserIdFromMessage(msg);
     if (chatId === null || userId == null) return null;
-    const contactPhone = getContactPhoneFromMaxMessage(msg);
+    const contactPhone = getContactPhoneFromMaxMessage(msg, resolvedToken);
     const canonical = canonicalizeMessengerStartText(text);
     const trimmedStart = canonical.replace(/^\uFEFF+/, '').trim();
     let action: string;

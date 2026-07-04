@@ -177,7 +177,7 @@ export async function registerMaxWebhookRoutes(
         );
       }
 
-      const incoming = fromMax(data);
+      const incoming = fromMax(data, maxConfig.apiKey);
       if (!incoming) {
         if (verbose) {
           reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
