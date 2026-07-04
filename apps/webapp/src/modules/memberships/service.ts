@@ -29,11 +29,40 @@ import {
 import type { PatientPackageSessionRow, RecalcPastSessionsSummary } from "./types";
 
 /**
- * ST-01: statuses that count as a «состоявшийся визит» for bulk «Пересчитать»
- * (owner decision OQ-5/OQ-7). Cancellations / no-show / not-yet-closed past
- * appointments are NOT auto-debited — they stay for manual handling.
+ * ST-01: statuses that mean "the appointment definitely did NOT happen" — these are excluded
+ * from auto-recalc and from manual-consume candidates. Everything else that is past by
+ * clock time is treated as potentially delivered (doctor decides).
+ *
+ * Note: we previously used an allowlist ["completed","visit_confirmed"] but appointments
+ * in the current data often stay in intermediate statuses (confirmed, paid, etc.) because
+ * there is no automated status-transition to "completed". Switching to a denylist ensures
+ * past visits are surfaced to the doctor.
+ *
+ * "rescheduled" is excluded because it means the appointment was moved to a new slot — the
+ * original slot never happened.
  */
-const RECALC_ELIGIBLE_STATUSES: ReadonlySet<string> = new Set(["completed", "visit_confirmed"]);
+const APPOINTMENT_INELIGIBLE_STATUSES: ReadonlySet<string> = new Set([
+  "cancelled_by_patient",
+  "cancelled_by_specialist",
+  "late_cancellation",
+  "no_show",
+  "rescheduled",
+]);
+
+/**
+ * Returns true if an appointment is eligible for package deduction: it is past by clock
+ * time and its status is not in the explicitly-not-happened set.
+ */
+function isAppointmentEligibleForConsume(
+  status: string,
+  startsAt: string,
+  endsAt: string | null,
+  nowIso: string,
+): boolean {
+  if (APPOINTMENT_INELIGIBLE_STATUSES.has(status)) return false;
+  const pastBoundary = endsAt ?? startsAt;
+  return pastBoundary < nowIso;
+}
 
 export type PackageDetachOutcome = "release_reserve" | "charge_as_delivered" | "refund_consumed";
 
@@ -768,9 +797,16 @@ export function createMembershipsService(deps: {
       const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!pkg) throw new Error("package_not_found");
       const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
+      const serviceIds = pkg.items.map((i) => i.serviceId).filter((id): id is string => id != null);
       const nowIso = new Date().toISOString();
+      // soldAt may be null for legacy packages; fall back to createdAt or epoch so the window
+      // is as inclusive as possible.
+      const soldAtIso = pkg.soldAt ?? pkg.createdAt ?? "2000-01-01T00:00:00Z";
       const sources = await deps.port.listPackageAppointmentSessionSources(patientPackageId, organizationId, {
         nowIso,
+        platformUserId: pkg.platformUserId,
+        serviceIds,
+        soldAtIso,
       });
 
       const rows: PatientPackageSessionRow[] = sources.map((src) => {
@@ -780,12 +816,20 @@ export function createMembershipsService(deps: {
           serviceId: src.serviceId,
           packageServiceIds,
         });
-        const pastActionsAllowed = !isPast || options.allowPastUnlink;
-        const canUnlinkReserve = pastActionsAllowed && linkage === "reserved";
+        // Past unlink/refund guard: controlled by admin setting (allowPastUnlink).
+        const pastEditAllowed = !isPast || options.allowPastUnlink;
+        const canUnlinkReserve = pastEditAllowed && linkage === "reserved";
         const canRefundConsumed =
-          pastActionsAllowed && (linkage === "consumed" || linkage === "penalty");
+          pastEditAllowed && (linkage === "consumed" || linkage === "penalty");
+        // Manual consume of a past visit is intentional doctor action — always allowed
+        // regardless of allowPastUnlink. This is a new debit (not editing past billing).
+        // For past appointments: only eligible if not in the explicitly-not-happened status set.
+        // Future appointments are always eligible (doctor may pre-mark them).
+        const eligibleForConsume =
+          !isPast ||
+          isAppointmentEligibleForConsume(src.status, src.startsAt, src.endsAt, nowIso);
         const canManualConsume =
-          pastActionsAllowed &&
+          eligibleForConsume &&
           linkage === "none" &&
           src.serviceId != null &&
           packageServiceIds.has(src.serviceId);
@@ -977,7 +1021,7 @@ export function createMembershipsService(deps: {
           });
           continue;
         }
-        if (!RECALC_ELIGIBLE_STATUSES.has(cand.status)) {
+        if (!isAppointmentEligibleForConsume(cand.status, cand.startsAt, null, nowIso)) {
           summary.skipped.push({
             appointmentId: cand.appointmentId,
             serviceId: cand.serviceId,

@@ -71,10 +71,28 @@ export type MembershipsPort = {
     notes: string | null,
   ): Promise<PatientPackageRecord | null>;
 
+  /**
+   * Returns ALL appointments of the patient whose service belongs to the package,
+   * within the package's active window [soldAtIso; validUntil or now+future], including
+   * past ones that have no usage row yet (linkage="none"). Used to let the doctor manually
+   * consume past visits.
+   *
+   * Previously only returned appointments already linked via be_package_usages. New
+   * behaviour: finds all candidate appointments (like listRecalcCandidateAppointments) and
+   * LEFT JOINs usages so unlinked ones appear with usages=[].
+   */
   listPackageAppointmentSessionSources(
     patientPackageId: string,
     organizationId: string,
-    options: { nowIso?: string },
+    options: {
+      nowIso?: string;
+      /** Patient's platform user id — required to find unlinked candidate appointments. */
+      platformUserId: string;
+      /** Service ids covered by this package — used to scope the appointment query. */
+      serviceIds: string[];
+      /** Package sold/created date — lower bound for the appointment window. */
+      soldAtIso: string;
+    },
   ): Promise<
     Array<{
       appointmentId: string;

@@ -2,6 +2,47 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-05 — #386 fix #3/#9b (Sonnet): список кандидатов для ручного списания + разблокировка прошлого
+
+### Что сделано
+
+**#3 — `listPackageAppointmentSessionSources` возвращала только уже привязанные записи:**
+- Переписана реализация в `apps/webapp/src/infra/repos/pgMemberships.ts:379`.
+  - Было: запрос начинался от `bePackageUsages` (WHERE patientPackageId=X AND appointmentId IS NOT NULL) → только привязанные записи → `appointmentIds.length === 0 → return []`.
+  - Стало: запрос начинается от `beAppointments` (platformUserId + serviceIds + startAt >= soldAtIso), LEFT JOIN usages по appointmentId. Непривязанные записи появляются с `usages=[]` → `linkage="none"` → кнопка «Списать» видна.
+- Сигнатура порта расширена (новые обязательные опции): `platformUserId`, `serviceIds`, `soldAtIso`.
+  - Контракт обновлён в `apps/webapp/src/modules/memberships/ports.ts:74`.
+  - Сервис (`service.ts:805`) передаёт эти поля из объекта `pkg` (уже загружен через `getPatientPackage`).
+  - `soldAt ?? createdAt ?? "2000-01-01T00:00:00Z"` — fallback для legacy-пакетов без `soldAt`.
+
+**#9b — `canManualConsume` для прошлых записей = false (блокировала `allowPastUnlink`):**
+- В `service.ts:820` разведены два флага:
+  - `pastEditAllowed = !isPast || options.allowPastUnlink` — только для `canUnlinkReserve` и `canRefundConsumed` (отвязка/возврат прошлого биллинга — контролируется системной настройкой).
+  - `canManualConsume` — теперь не зависит от `allowPastUnlink`. Новый debit (не редактирование прошлого), поэтому всегда разрешён если запись «состоялась».
+
+**Смена модели eligible-статусов (coordinator-clarification):**
+- Ранее: allowlist `["completed", "visit_confirmed"]` (константа `RECALC_ELIGIBLE_STATUSES`). Проблема: автоперехода в `completed` нет, записи остаются в `confirmed`/`paid`/etc. → ноль кандидатов.
+- Теперь: denylist `APPOINTMENT_INELIGIBLE_STATUSES = {cancelled_by_patient, cancelled_by_specialist, late_cancellation, no_show, rescheduled}`.
+- Функция `isAppointmentEligibleForConsume(status, startsAt, endsAt, nowIso)` — используется в обоих путях:
+  - `recalcPastSessionsForPackage` (bulk) — вместо `RECALC_ELIGIBLE_STATUSES.has(...)`.
+  - `listPatientPackageSessions` (ручное) — `eligibleForConsume` проверяется перед `canManualConsume`.
+
+**UI — `includePast` по умолчанию `true`:**
+- `PatientPackageSessionsList.tsx:36` — `useState(false)` → `useState(true)`. Доктор сразу видит прошлые записи без включения чекбокса.
+
+### Проверки
+- `service.test.ts`: **32/32 passed** (4 новых теста, 1 обновлён под denylist).
+- TypeScript (`tsc --noEmit`): **0 ошибок**.
+- ESLint, vitest full: pending.
+
+### Спорные / развилки
+- `rescheduled` исключён из eligible: запись была перенесена — оригинальный слот не состоялся. Если владелец захочет иначе — убрать из denylist.
+- `manual_review_required` — оставлен eligible (запись, возможно, состоялась но требует проверки; доктор решает сам).
+- Для recalc `endsAt` не передаётся в `listRecalcCandidateAppointments` (не выбирается в том запросе). Т.к. recalc уже гарантирует `startAt < nowIso`, `isAppointmentEligibleForConsume(..., null, nowIso)` корректно.
+- `charged_to_package` — в кандидатах появится с `linkage="consumed"` (из usages) → `canManualConsume=false` автоматически. Статус не блокирует.
+
+---
+
 ## 2026-07-05 — #386 приёмочные фиксы #1/#2 + #9a (Sonnet): router.refresh + стоимость в карточке
 
 ### Что сделано

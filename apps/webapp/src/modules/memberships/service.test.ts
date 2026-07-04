@@ -455,6 +455,103 @@ describe("createMembershipsService", () => {
     expect(rows[0]?.appointmentId).toBe("appt-future");
   });
 
+  it("past unlinked appointment for package service → canManualConsume=true regardless of allowPastUnlink", async () => {
+    const pastIso = new Date(Date.now() - 86400000).toISOString();
+    const port = makePort({
+      listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([
+        {
+          appointmentId: "appt-past-unlinked",
+          startsAt: pastIso,
+          endsAt: null,
+          status: "confirmed",
+          branchTitle: null,
+          serviceTitle: "Массаж",
+          serviceId: "svc-1",
+          usages: [],
+        },
+      ]),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const rows = await svc.listPatientPackageSessions("pp-1", "org-1", {
+      includePast: true,
+      allowPastUnlink: false, // NOT set — must not matter for consume
+    });
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    expect(row.appointmentId).toBe("appt-past-unlinked");
+    expect(row.linkage).toBe("none");
+    expect(row.isPast).toBe(true);
+    expect(row.actions.canManualConsume).toBe(true);
+  });
+
+  it("past appointment with cancelled status → canManualConsume=false", async () => {
+    const pastIso = new Date(Date.now() - 86400000).toISOString();
+    const port = makePort({
+      listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([
+        {
+          appointmentId: "appt-cancelled",
+          startsAt: pastIso,
+          endsAt: null,
+          status: "cancelled_by_patient",
+          branchTitle: null,
+          serviceTitle: "Массаж",
+          serviceId: "svc-1",
+          usages: [],
+        },
+      ]),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const rows = await svc.listPatientPackageSessions("pp-1", "org-1", {
+      includePast: true,
+      allowPastUnlink: false,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.actions.canManualConsume).toBe(false);
+  });
+
+  it("past already-consumed appointment → canManualConsume=false, canRefundConsumed depends on allowPastUnlink", async () => {
+    const pastIso = new Date(Date.now() - 86400000).toISOString();
+    const port = makePort({
+      listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([
+        {
+          appointmentId: "appt-consumed",
+          startsAt: pastIso,
+          endsAt: null,
+          status: "charged_to_package",
+          branchTitle: null,
+          serviceTitle: "Массаж",
+          serviceId: "svc-1",
+          usages: [
+            {
+              id: "u-c",
+              patientPackageId: "pp-1",
+              patientPackageItemId: "i1",
+              appointmentId: "appt-consumed",
+              usageKind: "consume" as const,
+              quantity: 1,
+              comment: null,
+              occurredAt: pastIso,
+            },
+          ],
+        },
+      ]),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const rowsNoAllow = await svc.listPatientPackageSessions("pp-1", "org-1", {
+      includePast: true,
+      allowPastUnlink: false,
+    });
+    expect(rowsNoAllow[0]!.actions.canManualConsume).toBe(false);
+    expect(rowsNoAllow[0]!.actions.canRefundConsumed).toBe(false); // blocked by allowPastUnlink
+
+    const rowsAllow = await svc.listPatientPackageSessions("pp-1", "org-1", {
+      includePast: true,
+      allowPastUnlink: true,
+    });
+    expect(rowsAllow[0]!.actions.canManualConsume).toBe(false); // already consumed
+    expect(rowsAllow[0]!.actions.canRefundConsumed).toBe(true); // allowed with flag
+  });
+
   it("detachAppointmentPackage blocks past when flag off", async () => {
     const pastStart = new Date(Date.now() - 3600000).toISOString();
     const bookingEngine = {
@@ -690,10 +787,12 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
     ]);
   });
 
-  it("non-eligible status (no_show / confirmed) is skipped", async () => {
+  it("explicitly-not-happened statuses (no_show, cancelled_*) are skipped", async () => {
+    // With the denylist approach, cancelled/no_show are excluded; "confirmed" (past by time)
+    // is now eligible because doctors don't always transition statuses explicitly.
     const port = recalcPort([
       candidate({ id: "a-noshow", status: "no_show" }),
-      candidate({ id: "a-planned", status: "confirmed" }),
+      candidate({ id: "a-cancelled", status: "cancelled_by_patient" }),
     ]);
     const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
     const res = await svc.recalcPastSessionsForPackage({
@@ -704,6 +803,20 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
     expect(res.debited).toHaveLength(0);
     expect(res.skipped.map((s) => s.reason)).toEqual(["status_not_eligible", "status_not_eligible"]);
     expect(port.appendUsage).not.toHaveBeenCalled();
+  });
+
+  it("confirmed-status past appointment is debited (denylist approach)", async () => {
+    // "confirmed" stays in this status because there is no auto-transition to "completed";
+    // the denylist allows it through so doctors can use bulk-recalc without manual status fixes.
+    const port = recalcPort([candidate({ id: "a-conf", status: "confirmed" })]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited.map((d) => d.appointmentId)).toEqual(["a-conf"]);
+    expect(res.skipped).toHaveLength(0);
   });
 
   it("balance exhaustion → stop at zero, no minus, surplus to outOfBalance", async () => {

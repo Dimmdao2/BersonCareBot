@@ -33,7 +33,8 @@ type Props = {
 };
 
 export function PatientPackageSessionsList({ packageId, apiBase, onError, onChanged }: Props) {
-  const [includePast, setIncludePast] = useState(false);
+  // Default to true so doctors immediately see past visits available for manual consume.
+  const [includePast, setIncludePast] = useState(true);
   const [sessions, setSessions] = useState<PatientPackageSessionRow[]>([]);
   const [pending, startTransition] = useTransition();
   const [confirmStep, setConfirmStep] = useState<0 | 1 | 2>(0);

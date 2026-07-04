@@ -379,28 +379,11 @@ export function createPgMembershipsPort(): MembershipsPort {
     async listPackageAppointmentSessionSources(patientPackageId, organizationId, options) {
       const db = getDrizzle();
       const nowIso = options.nowIso ?? new Date().toISOString();
-      void nowIso;
 
-      const usageRows = await db
-        .select()
-        .from(bePackageUsages)
-        .where(
-          and(
-            eq(bePackageUsages.patientPackageId, patientPackageId),
-            eq(bePackageUsages.organizationId, organizationId),
-            isNotNull(bePackageUsages.appointmentId),
-          ),
-        )
-        .orderBy(asc(bePackageUsages.occurredAt));
-
-      const appointmentIds = [
-        ...new Set(
-          usageRows
-            .map((u) => u.appointmentId)
-            .filter((id): id is string => typeof id === "string" && id.length > 0),
-        ),
-      ];
-      if (appointmentIds.length === 0) return [];
+      // Step 1: find ALL appointments for this patient whose service is in the package,
+      // starting from the package's sold date. This mirrors listRecalcCandidateAppointments
+      // but includes future appointments too (no upper bound on startAt).
+      if (options.serviceIds.length === 0) return [];
 
       const apptRows = await db
         .select({
@@ -418,9 +401,33 @@ export function createPgMembershipsPort(): MembershipsPort {
         .where(
           and(
             eq(beAppointments.organizationId, organizationId),
-            inArray(beAppointments.id, appointmentIds),
+            eq(beAppointments.platformUserId, options.platformUserId),
+            inArray(beAppointments.serviceId, options.serviceIds),
+            gte(beAppointments.startAt, options.soldAtIso),
           ),
-        );
+        )
+        .orderBy(asc(beAppointments.startAt));
+
+      if (apptRows.length === 0) return [];
+
+      // Step 2: collect usages for these appointments (from ANY package) plus usages linked
+      // to this specific package with no appointment (manual consumes without appointment).
+      // We only need appointment-linked usages here; non-appointment usages don't affect the
+      // session list.
+      const apptIds = apptRows.map((a) => a.id);
+      const usageRows = await db
+        .select()
+        .from(bePackageUsages)
+        .where(
+          and(
+            eq(bePackageUsages.organizationId, organizationId),
+            isNotNull(bePackageUsages.appointmentId),
+            inArray(bePackageUsages.appointmentId, apptIds),
+          ),
+        )
+        .orderBy(asc(bePackageUsages.occurredAt));
+
+      void nowIso; // available if callers need upper-bound filtering in future
 
       const usagesByAppointment = new Map<string, PackageUsageRecord[]>();
       for (const row of usageRows) {
@@ -430,18 +437,16 @@ export function createPgMembershipsPort(): MembershipsPort {
         usagesByAppointment.set(row.appointmentId, list);
       }
 
-      return apptRows
-        .map((appt) => ({
-          appointmentId: appt.id,
-          startsAt: appt.startAt,
-          endsAt: appt.endAt,
-          status: appt.status,
-          branchTitle: appt.branchTitle,
-          serviceTitle: appt.serviceTitle,
-          serviceId: appt.serviceId,
-          usages: usagesByAppointment.get(appt.id) ?? [],
-        }))
-        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+      return apptRows.map((appt) => ({
+        appointmentId: appt.id,
+        startsAt: appt.startAt,
+        endsAt: appt.endAt,
+        status: appt.status,
+        branchTitle: appt.branchTitle,
+        serviceTitle: appt.serviceTitle,
+        serviceId: appt.serviceId,
+        usages: usagesByAppointment.get(appt.id) ?? [],
+      }));
     },
 
     async listRecalcCandidateAppointments(input) {
