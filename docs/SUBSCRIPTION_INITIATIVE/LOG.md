@@ -2,6 +2,42 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-04 — #386 fix (Sonnet), ST-02 advisory-lock backport + ST-03 badge filter
+
+### Что сделано
+Перенесена гонко-безопасная защита из эталонного коммита `b5f3d55d` (ветка feat/subscription-recalc) на рабочую ветку feat/doctor-ui-rebuild. Исправлен BLOCKER: параллельные вызовы `recalcPastSessionsForPackage` могли дважды дебетовать один appointment через разные транзакции.
+
+**ST-02 — advisory lock (gapless double-debit protection):**
+- `ports.ts` — добавлен метод `runWithPackageLock<T>(patientPackageId, organizationId, fn)` с JSDoc.
+- `pgMemberships.ts` — реализация через `db.transaction` + `sql\`SELECT pg_advisory_xact_lock(hashtextextended(...))\`` (единственный raw SQL — разрешённый паттерн эталона). Добавлен `sql` import из drizzle-orm.
+- `service.ts` — тело `recalcPastSessionsForPackage` (от `listRecalcCandidateAppointments` до `return summary`) обёрнуто в `deps.port.runWithPackageLock(...)`. Добавлен `debitedApptIds` Set (строится из freshly-read usages внутри лока) для idempotency-guard: appointment, уже дебетованный первым проходом, немедленно пропускается вторым без повторной проверки linkage.
+- `service.test.ts` — добавлен `makeSerializingLock()` (per-key promise chain, fake mutex); добавлен в `makePort`; добавлен тест «two parallel recalc passes do NOT double-debit».
+
+**Admin recalc route:**
+- Создан `apps/webapp/src/app/api/admin/booking-engine/patient-packages/[id]/recalc/route.ts` — зеркало doctor-роута с `requireAdminBookingEngine`; возвращает **полный `summary` объект** (не числа как в b5f3d55d), контракт идентичен doctor-роуту.
+- Создан `route.test.ts` по образцу doctor-версии (4 теста: happy-path, 403, 503, 400-throw).
+
+**MAJOR-1 / ST-03 — badge filter:**
+- `pgPatientClinical.ts`, `listVisits` (~стр 256): join к `be_package_usages` добавлен фильтр `usageKind IN ('consume', 'penalty')` (drizzle `inArray`). Reserve-only визит (ещё не списан в manual-режиме) больше НЕ показывает бейдж «по абонементу».
+- `inMemoryPatientClinical` возвращает `package: null` unconditionally (DB lookup не реализован в fake) — тест badge/reserve в fake-слое недостижим; задокументировано в отчёте.
+
+**Docs:**
+- `memberships.md` — добавлена секция «Race safety — ST-02 advisory lock».
+- `docs/SUBSCRIPTION_INITIATIVE/LOG.md` — текущая запись.
+
+### Проверки
+- `service.test.ts`: **28/28 passed** (включая «two parallel recalc passes do NOT double-debit»).
+- `doctor recalc route.test.ts`: **4/4 passed** (контракт не изменён).
+- `admin recalc route.test.ts`: **4/4 passed**.
+- `inMemoryPatientClinical.test.ts`: **17/17 passed**.
+- ESLint (все изменённые файлы): **0 ошибок/предупреждений**.
+- TypeScript (`tsc --noEmit`): **0 ошибок**.
+
+### Подтверждения
+- (а) Контракт doctor-роута НЕ изменён: route.ts не тронут, возвращает тот же `{ ok, summary }` где summary = полный объект.
+- (б) Параллельный тест double-debit проходит зелёным.
+- (в) Advisory-lock оборачивает ВЕСЬ проход recalc: от `listRecalcCandidateAppointments` до `return summary` включительно — читаем usages и балансы ПОСЛЕ получения лока.
+
 ## 2026-07-04 — ST-04 (Sonnet), UI: Финансы + «Пересчитать» + Records manual-only
 
 ### Что сделано

@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   bePackageHistoryEvents,
@@ -496,6 +496,20 @@ export function createPgMembershipsPort(): MembershipsPort {
         serviceId: appt.serviceId,
         usages: usagesByAppointment.get(appt.id) ?? [],
       }));
+    },
+
+    async runWithPackageLock(patientPackageId, _organizationId, fn) {
+      const db = getDrizzle();
+      // ST-02: serialize concurrent «Пересчитать» passes for one package. A transaction-scoped
+      // advisory lock (auto-released at COMMIT/ROLLBACK) keyed on a stable 64-bit hash of the
+      // package id. Postgres blocks the second transaction until the first commits, so the second
+      // pass reads balances AFTER the first pass's debits landed — no double-debit.
+      return db.transaction(async () => {
+        await db.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${patientPackageId}, 0))`,
+        );
+        return fn();
+      });
     },
 
     async setPatientPackageStatus(id, organizationId, status, patch) {

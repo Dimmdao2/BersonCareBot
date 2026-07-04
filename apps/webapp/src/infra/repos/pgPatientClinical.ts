@@ -254,7 +254,14 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           })
           .from(bePackageUsages)
           .innerJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
-          .where(inArray(bePackageUsages.appointmentId, appointmentRecordIds));
+          .where(
+            and(
+              inArray(bePackageUsages.appointmentId, appointmentRecordIds),
+              // ST-03: only show package badge when the visit is actually debited (consume/penalty).
+              // A reserve-only row (manual deduction mode, not yet confirmed) must NOT show the badge.
+              inArray(bePackageUsages.usageKind, ["consume", "penalty"]),
+            ),
+          );
         for (const row of pkgRows) {
           if (row.appointmentId && !packageTitleByApptId.has(row.appointmentId)) {
             packageTitleByApptId.set(row.appointmentId, row.title);
