@@ -562,6 +562,32 @@ describe('max mapIn', () => {
     warnSpy.mockRestore();
   });
 
+  it('accepts contact carrying a valid hash when botToken is empty and warns token not configured', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const vcf = VCF_SIMPLE;
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 510 },
+        body: {
+          mid: 'mid-contact-notoken',
+          text: '',
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf, hash: makeHash(vcf) } }],
+        },
+        sender: { user_id: 510 },
+      },
+    };
+    const incoming = fromMax(body, '');
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79001112233');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ vcfPresent: true, hashPresent: true }),
+      expect.stringContaining('token not configured'),
+    );
+    warnSpy.mockRestore();
+  });
+
   it('accepts contact with absent hash (no botToken) and emits WARN', () => {
     const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
     const vcf = VCF_SIMPLE;
@@ -578,7 +604,7 @@ describe('max mapIn', () => {
         sender: { user_id: 505 },
       },
     };
-    // no botToken passed → hash treated as missing → accept + warn
+    // neither hash nor botToken → genuinely 'hash absent' → accept + warn
     const incoming = fromMax(body, '');
     expect(incoming?.kind).toBe('message');
     if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79001112233');

@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
@@ -92,31 +92,40 @@ function extractPhoneFromVcf(vcf: string): string {
   return '';
 }
 
+/** Constant-time hex-digest comparison (timingSafeEqual throws on unequal lengths — guard first). */
+function safeHashEquals(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
 /**
  * Verify the MAX contact attachment hash.
  * Formula (dev.max.ru docs): HMAC-SHA256(key=botApiToken, data=vcf_info), hex-encoded.
  * Docs are ambiguous about vcf_info canonicalization, so the HMAC is computed over both the raw
  * string and (when it contains literal "\r\n"/"\n" sequences) the unescaped form — either match
  * accepts. Security unchanged: both HMACs are keyed by the bot token an attacker cannot know.
+ * Single chokepoint for all skip-verification cases: distinguishes hash-missing from token-missing.
  */
 function verifyContactHash(
   vcfInfo: string,
   hash: string | undefined,
   botToken: string,
-): { status: 'valid' | 'mismatch' | 'missing'; expectedPrefixes: string[] } {
-  if (!hash) return { status: 'missing', expectedPrefixes: [] };
+): { status: 'valid' | 'mismatch' | 'hash_missing' | 'token_missing'; expectedPrefixes: string[] } {
+  if (!hash) return { status: 'hash_missing', expectedPrefixes: [] };
+  if (!botToken) return { status: 'token_missing', expectedPrefixes: [] };
   const candidates = [vcfInfo];
   const unescaped = unescapeVcfLiterals(vcfInfo);
   if (unescaped !== vcfInfo) candidates.push(unescaped);
   const expected = candidates.map((c) => createHmac('sha256', botToken).update(c).digest('hex'));
-  if (expected.includes(hash)) return { status: 'valid', expectedPrefixes: [] };
+  if (expected.some((e) => safeHashEquals(e, hash))) return { status: 'valid', expectedPrefixes: [] };
   return { status: 'mismatch', expectedPrefixes: expected.map((e) => e.slice(0, 8)) };
 }
 
 /**
  * Parse contact attachment and return normalized phone or null.
- * Logs WARN on hash mismatch (spoofed contact → reject) and on missing hash (accept, telemetry only).
- * botToken is used for HMAC verification; pass '' to skip verification (tests without token).
+ * Logs WARN on hash mismatch (spoofed contact → reject); accepts with WARN when the hash is
+ * absent in the payload or when botToken is not configured (telemetry only in both cases).
  */
 function getContactPhoneFromMaxMessage(
   msg: MaxUpdateValidated['message'],
@@ -126,7 +135,7 @@ function getContactPhoneFromMaxMessage(
   for (const raw of attachments) {
     const a = raw as {
       type?: string;
-      payload?: { vcf_info?: string; max_info?: Record<string, unknown>; hash?: string; phone?: string };
+      payload?: { vcf_info?: string; hash?: string; phone?: string };
     };
     if (a?.type !== 'contact') continue;
 
@@ -135,9 +144,7 @@ function getContactPhoneFromMaxMessage(
     // Real MAX payload: vcf_info + hash
     if (typeof p.vcf_info === 'string' && p.vcf_info.trim().length > 0) {
       const vcf = p.vcf_info;
-      const check = botToken
-        ? verifyContactHash(vcf, p.hash, botToken)
-        : { status: 'missing' as const, expectedPrefixes: [] };
+      const check = verifyContactHash(vcf, p.hash, botToken);
 
       if (check.status === 'mismatch') {
         logger.warn(
@@ -151,10 +158,15 @@ function getContactPhoneFromMaxMessage(
         return null;
       }
 
-      if (check.status === 'missing') {
+      if (check.status === 'hash_missing') {
         logger.warn(
-          { vcfPresent: true, hashPresent: typeof p.hash === 'string' },
+          { vcfPresent: true, hashPresent: false },
           'max contact hash absent — accepting phone (telemetry only)',
+        );
+      } else if (check.status === 'token_missing') {
+        logger.warn(
+          { vcfPresent: true, hashPresent: true },
+          'max contact token not configured — hash not verified, accepting phone',
         );
       }
 
