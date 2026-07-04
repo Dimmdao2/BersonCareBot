@@ -133,64 +133,49 @@ describe("confirmPublicEmailOtpChallenge (in-memory path via emailAuth)", () => 
     if (!r.ok) expect(r.code).toBe("invalid_code");
   });
 
-  it("happy path: correct code → ok:true with userId", async () => {
-    const db = makeInMemDb();
+  it("happy path confirms once, then REJECTS replay of the consumed code (expired_code)", async () => {
+    // Full start → confirm → replay cycle on the in-memory emailAuth challenge store.
+    let sentCode = "";
+    sendEmailCodeMock.mockImplementation(async (_to: string, code: string) => {
+      sentCode = code;
+      return { ok: true };
+    });
 
-    // Start challenge — populates in-memory store and captures userId
-    const startResult = await startPublicEmailOtpChallenge("happy@example.com", db);
-    expect(startResult.ok).toBe(true);
-    if (!startResult.ok) return;
-
-    const challengeId = startResult.challengeId;
-    const sentCode = sendEmailCodeMock.mock.calls[0]?.[1] as string;
-
-    // db.findOrCreatePublicEmailUser is idempotent — returns same userId created during start
-    const { userId } = await db.findOrCreatePublicEmailUser("happy@example.com");
-
-    // Provide a confirm db that returns the challenge row created by startEmailChallenge
-    const confirmDb: EmailOtpPublicDbPort = {
-      ...db,
-      async findLatestEmailChallengeByEmail(_emailNorm, _nowSec) {
-        return {
-          id: challengeId,
-          user_id: userId,
-          code_hash: "", // in-memory path checks plain code, not hash
-          expires_at: String(Math.floor(Date.now() / 1000) + 600),
-          attempts: "0",
-        };
+    let userId = "";
+    const challengeRowRef: { id: string } = { id: "" };
+    const db = makeInMemDb({
+      async findOrCreatePublicEmailUser() {
+        userId = userId || randomUUID();
+        return { userId, wasCreated: true };
       },
-    };
-
-    const result = await confirmPublicEmailOtpChallenge("happy@example.com", sentCode, confirmDb);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.userId).toBe(userId);
-      expect(typeof result.redirectTo).toBe("string");
-    }
-  });
-
-  it("returns invalid_code when wrong code is submitted", async () => {
-    const db = makeInMemDb();
-    const startResult = await startPublicEmailOtpChallenge("wrong@example.com", db);
-    expect(startResult.ok).toBe(true);
-    if (!startResult.ok) return;
-
-    const { userId } = await db.findOrCreatePublicEmailUser("wrong@example.com");
-    const confirmDb: EmailOtpPublicDbPort = {
-      ...db,
-      async findLatestEmailChallengeByEmail(_emailNorm, _nowSec) {
+      async findLatestEmailChallengeByEmail() {
+        // Simulates the DB row still being visible to the lookup; the challenge
+        // store itself (emailAuth in-memory) is the replay gate.
+        if (!challengeRowRef.id) return null;
         return {
-          id: startResult.challengeId,
+          id: challengeRowRef.id,
           user_id: userId,
           code_hash: "",
           expires_at: String(Math.floor(Date.now() / 1000) + 600),
           attempts: "0",
         };
       },
-    };
+    });
 
-    const result = await confirmPublicEmailOtpChallenge("wrong@example.com", "000000", confirmDb);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("invalid_code");
+    const started = await startPublicEmailOtpChallenge("replay@example.com", db);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    challengeRowRef.id = started.challengeId;
+    expect(sentCode).toMatch(/^\d{6}$/);
+
+    // First confirm: succeeds and consumes the challenge.
+    const first = await confirmPublicEmailOtpChallenge("replay@example.com", sentCode, db);
+    expect(first.ok).toBe(true);
+    if (first.ok) expect(first.userId).toBe(userId);
+
+    // Replay with the SAME code: challenge is consumed → expired_code, no second login.
+    const replay = await confirmPublicEmailOtpChallenge("replay@example.com", sentCode, db);
+    expect(replay.ok).toBe(false);
+    if (!replay.ok) expect(replay.code).toBe("expired_code");
   });
 });

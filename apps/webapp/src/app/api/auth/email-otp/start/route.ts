@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { isEmailOtpStartRateLimitedByKey } from "@/modules/auth/authRateLimits";
 import { startPublicEmailOtpChallenge } from "@/modules/auth/emailOtpPublic";
 import { formatOtpRetryAfterMessage } from "@/modules/auth/otpConstants";
+import { resolveRealIpRateLimitClientKey } from "@/modules/auth/realIpRateLimitClientKey";
 
 const bodySchema = z.object({
   email: z.string().min(1),
 });
+
+/** Общий bucket только в non-production, если прокси не передал X-Real-Ip. */
+const EMAIL_OTP_START_FALLBACK_CLIENT_KEY = "email_otp_start:missing_x_real_ip";
 
 /**
  * POST /api/auth/email-otp/start
@@ -16,6 +22,36 @@ const bodySchema = z.object({
  * Distinguishing errors: rate_limited (timing), invalid_email (format), email_send_failed (infra).
  */
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
+
+  // Per-IP limit (trusted X-Real-Ip only) — generic response, no enumeration signal.
+  const identity = resolveRealIpRateLimitClientKey(request, {
+    scope: "auth.email_otp_start",
+    logPrefix: "email_otp_start",
+    fallbackKey: EMAIL_OTP_START_FALLBACK_CLIENT_KEY,
+  });
+  if (!identity.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "proxy_configuration",
+        message: "Запрос должен проходить через reverse proxy с заголовком X-Real-IP.",
+      },
+      { status: 503 },
+    );
+  }
+  if (await isEmailOtpStartRateLimitedByKey(identity.key)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "rate_limited",
+        retryAfterSeconds: 60,
+        message: formatOtpRetryAfterMessage(60),
+      },
+      { status: 429, headers: { "Retry-After": "60" } },
+    );
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

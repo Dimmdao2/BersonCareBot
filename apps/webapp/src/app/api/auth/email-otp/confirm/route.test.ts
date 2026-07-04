@@ -46,7 +46,6 @@ describe("POST /api/auth/email-otp/confirm", () => {
     confirmPublicEmailOtpChallengeMock.mockResolvedValue({
       ok: true as const,
       userId: testUser.userId,
-      redirectTo: "/app/patient",
     });
   });
 
@@ -141,7 +140,6 @@ describe("POST /api/auth/email-otp/confirm", () => {
     confirmPublicEmailOtpChallengeMock.mockResolvedValueOnce({
       ok: true as const,
       userId: doctorUser.userId,
-      redirectTo: "/app/doctor",
     });
     findByUserIdMock.mockResolvedValueOnce(doctorUser);
 
@@ -172,7 +170,6 @@ describe("POST /api/auth/email-otp/confirm", () => {
     confirmPublicEmailOtpChallengeMock.mockResolvedValueOnce({
       ok: true as const,
       userId: newUser.userId,
-      redirectTo: "/app/patient",
     });
     findByUserIdMock.mockResolvedValueOnce(newUser);
 

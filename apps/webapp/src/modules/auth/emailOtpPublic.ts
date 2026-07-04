@@ -12,7 +12,6 @@
 import { startEmailChallenge, normalizeEmail, confirmEmailChallenge } from "./emailAuth";
 import { OTP_RESEND_COOLDOWN_SEC } from "./otpConstants";
 import type { EmailOtpPublicDbPort } from "./emailOtpPublicPort";
-import { getRedirectPathForRole } from "./redirectPolicy";
 
 export type StartPublicEmailOtpResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
@@ -23,7 +22,8 @@ export type StartPublicEmailOtpResult =
     };
 
 export type ConfirmPublicEmailOtpResult =
-  | { ok: true; userId: string; redirectTo: string }
+  /** No redirectTo here on purpose: the route derives the redirect from the REAL user role after loading the session user. */
+  | { ok: true; userId: string }
   | { ok: false; code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict"; retryAfterSeconds?: number };
 
 /**
@@ -88,9 +88,5 @@ export async function confirmPublicEmailOtpChallenge(
     return result;
   }
 
-  return {
-    ok: true,
-    userId: row.user_id,
-    redirectTo: getRedirectPathForRole("client"),
-  };
+  return { ok: true, userId: row.user_id };
 }
