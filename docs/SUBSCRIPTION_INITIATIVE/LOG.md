@@ -2,6 +2,89 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-04 — #386 polish (Sonnet), UI-аудит: 3 MINOR правки
+
+### Что сделано
+
+**MINOR-1 — тост-склонение (user-visible):**
+- `DoctorClientMembershipsPanel.tsx` — добавлена функция `pluralizeSessions(n)` (стандартное русское склонение: 1→«сеанс», 2-4→«сеанса», 5-20/остальные→«сеансов»).
+- Тост `recalcPackage` теперь использует `pluralizeSessions`: «Списано 1 сеанс», «Списано 3 сеанса», «Списано 5 сеансов».
+- `DoctorClientMembershipsPanel.test.tsx` (~строка 211) обновлён под грамматически верный вывод: `"Списано 1 сеанс"` (не регрессия — тест следует за исправлением кода).
+
+**MINOR-2 — lazy-fetch форм заведения:**
+- `DoctorClientMembershipsPanel.tsx` — fetch `/booking-engine/services` и `/booking-engine/packages` обёрнуты в `if (showCreateForm) { ... }`. При `showCreateForm=false` (вкладка «Записи») эти запросы не уходят. Зависимость `showCreateForm` добавлена в массив deps `useEffect`. Поведение при `showCreateForm=true` не изменено.
+
+**MINOR-3 — type-gap ApiPackageItemBalance:**
+- `PatientTabRecords.tsx` — тип `ApiPackageItemBalance` расширен: добавлено опциональное поле `displayRemaining?: number | null` (runtime поле уже приходило, тип был неполным).
+
+### Проверки
+- `DoctorClientMembershipsPanel.test.tsx`: **5/5 passed**.
+- `PatientTab*` тесты (7 файлов): **34/34 passed**.
+- ESLint (все 3 изменённых файла): **0 ошибок**.
+- TypeScript (`tsc --noEmit`): **0 ошибок**.
+- Violet-цвет бейджа (MINOR-4) **НЕ трогался** — осознанное согласование с календарём, миграция токенов = отдельная #312.
+
+---
+
+## 2026-07-04 — #386 ST-06 (Sonnet, верификатор), Календарь: код-only подтверждение пометки «по абонементу»
+
+### Вердикт: ПОМЕТКА ДОХОДИТ — ДА (цепочка цела). Ничего не менялось.
+
+### Доказательная трассировка
+
+**1. Запись → packageUsageRef (запись в БД)**
+
+`recalcPastSessionsForPackage` (service.ts:1013) вызывает `deps.port.recalcConsumeForAppointment(...)`.
+`pgMemberships.ts:627-677` — `recalcConsumeForAppointment` выполняет одну транзакцию:
+  - `INSERT INTO be_package_usages` (usageKind="consume") → возвращает usage.id
+  - `UPDATE be_appointments SET package_usage_ref = usage.id` (строка 649-651)
+  - `INSERT INTO be_package_history_events` (eventType="recalc_consumed")
+
+Итог: у списанной прошлой записи `be_appointments.package_usage_ref` = UUID usage-строки.
+
+**2. packageUsageRef → CalendarAppointmentEvent (канонический путь)**
+
+`pgBookingCalendar.ts:185` — `packageUsageRef: beAppointments.packageUsageRef` явно выбирается в SELECT.
+`pgBookingCalendar.ts:326` — `packageUsageRef: row.packageUsageRef ?? null` передаётся в CalendarAppointmentEvent.
+Параллельно строится `packageTitleByAppt` через JOIN:
+  `bePackageUsages → bePatientPackages → beSubscriptionPackages.title` (строки 234-244).
+  NB: innerJoin на beSubscriptionPackages → для РУЧНЫХ абонементов (subscriptionPackageId=null) title будет null,
+  но `packageUsageRef` всё равно не null → ✅-пометка и фильтр «По абонементу» работают через OR.
+
+**3. packageUsageRef → ✅ + фильтр (ScheduleCalendarTab.tsx)**
+
+Строка 485: `if (event.packageUsageRef || event.packageTitle)` → CSS violet-класс.
+Строка 497: `const packagePrefix = event.packageUsageRef || event.packageTitle ? "✅ " : "";` → заголовок события.
+Строка 1495: `bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle)` → KPI-фильтр.
+
+**4. Прошедшие записи не выпадают**
+
+`pgBookingCalendar.ts` не фильтрует по статусу — кроме `deletedAt IS NULL` и range-overlap.
+Прошедшие записи (status=completed/visit_confirmed) возвращаются в `listAppointmentsInRange`,
+если `startAt <= rangeEnd` и `endAt >= rangeStart`. Никакого условия «только будущие» нет.
+
+**5. Legacy-путь (Rubitime, pgBookingCalendarLegacy.ts)**
+
+SQL-запрос строки 24-25: `COALESCE(be_from_map.package_usage_ref, be_from_id.package_usage_ref)` и `COALESCE(pp_from_map.title, pp_from_id.title)`.
+Оба пути (по entity-mapping и по `be:UUID` формату id) подтягивают `package_usage_ref` из be_appointments.
+`mapLegacyRecordToCalendarEvent.ts:86-87` → `packageUsageRef`/`packageTitle` → CalendarAppointmentEvent.
+
+**6. best-effort calendar sync после recalc**
+
+`service.ts:1036` — `await refreshPackageCalendarForAppointment(cand.appointmentId)` после каждого consume.
+`recalc/route.ts:24-28` — дополнительно после recalc: для каждого `entry.debited` вызов `emitPackageLinkedCalendarSync`.
+Этот sync — best-effort GCal; для UI-калиндаря в приложении пометка работает через `package_usage_ref` в БД напрямую.
+
+### Проверки
+- Трассировка кода: READ-ONLY, баги не обнаружены. Код не менялся.
+- Тесты существующие: service.test.ts (28/28), mapLegacyRecordToCalendarEvent.test.ts — packageUsageRef/packageTitle проходят через mapper (строки 56-60 теста).
+- service.test.ts строки 750-755: явно подтверждают, что `recalcConsumeForAppointment` (порт) атомарно делает INSERT usage + UPDATE appointment.packageUsageRef + INSERT history — и `setAppointmentPackageUsageRef` отдельно НЕ вызывается (всё внутри порта).
+
+### Что менялось
+Ничего. Код-only верификация. Все 3 вопроса ST-06 подтверждены доказательно по коду.
+
+---
+
 ## 2026-07-04 — #386 ST-07 (Sonnet), Обзор: название + остаток абонемента в KPI-виджете
 
 ### Что сделано

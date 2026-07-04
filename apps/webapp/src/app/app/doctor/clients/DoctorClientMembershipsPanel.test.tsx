@@ -208,7 +208,7 @@ describe("DoctorClientMembershipsPanel", () => {
     await user.click(recalcBtn);
 
     await waitFor(() => {
-      expect(toastMock.default.success).toHaveBeenCalledWith("Списано 1 сеансов");
+      expect(toastMock.default.success).toHaveBeenCalledWith("Списано 1 сеанс");
     });
   });
 

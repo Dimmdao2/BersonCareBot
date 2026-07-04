@@ -486,7 +486,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
 // Membership panel — real data from be_patient_packages
 // ---------------------------------------------------------------------------
 
-type ApiPackageItemBalance = { quantityInitial: number; remaining: number; serviceTitle?: string | null };
+type ApiPackageItemBalance = {
+  quantityInitial: number;
+  remaining: number;
+  serviceTitle?: string | null;
+  displayRemaining?: number | null;
+};
 export type ApiPackage = {
   id: string;
   title: string;

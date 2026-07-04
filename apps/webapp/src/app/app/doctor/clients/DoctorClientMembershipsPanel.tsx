@@ -30,6 +30,15 @@ type RecalcSummary = {
   outOfBalance: unknown[];
 };
 
+function pluralizeSessions(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return "сеансов";
+  if (mod10 === 1) return "сеанс";
+  if (mod10 >= 2 && mod10 <= 4) return "сеанса";
+  return "сеансов";
+}
+
 type Props = {
   platformUserId: string;
   appointments?: AppointmentOption[];
@@ -101,19 +110,21 @@ export function DoctorClientMembershipsPanel({
     queueMicrotask(() => {
       void loadPackages();
     });
-    void Promise.all([fetch(servicesApi), fetch(catalogApi)]).then(async ([svcRes, catRes]) => {
-      const svcJson = (await svcRes.json()) as {
-        ok?: boolean;
-        services?: Array<{ id: string; title: string }>;
-      };
-      const catJson = (await catRes.json()) as {
-        ok?: boolean;
-        packages?: Array<{ id: string; title: string; priceMinor: number }>;
-      };
-      if (svcJson.ok && svcJson.services) setServices(svcJson.services);
-      if (catJson.ok && catJson.packages) setCatalog(catJson.packages);
-    });
-  }, [loadPackages]);
+    if (showCreateForm) {
+      void Promise.all([fetch(servicesApi), fetch(catalogApi)]).then(async ([svcRes, catRes]) => {
+        const svcJson = (await svcRes.json()) as {
+          ok?: boolean;
+          services?: Array<{ id: string; title: string }>;
+        };
+        const catJson = (await catRes.json()) as {
+          ok?: boolean;
+          packages?: Array<{ id: string; title: string; priceMinor: number }>;
+        };
+        if (svcJson.ok && svcJson.services) setServices(svcJson.services);
+        if (catJson.ok && catJson.packages) setCatalog(catJson.packages);
+      });
+    }
+  }, [loadPackages, showCreateForm]);
 
   const compact = packages.filter((p) => p.status === "active" || p.status === "awaiting_payment");
 
@@ -234,7 +245,10 @@ export function DoctorClientMembershipsPanel({
         return;
       }
       const debitedCount = json.summary?.debited.length ?? 0;
-      const msg = debitedCount > 0 ? `Списано ${debitedCount} сеансов` : "Нет новых сеансов для списания";
+      const msg =
+        debitedCount > 0
+          ? `Списано ${debitedCount} ${pluralizeSessions(debitedCount)}`
+          : "Нет новых сеансов для списания";
       toast.success(msg);
       void loadPackages();
     } catch {
