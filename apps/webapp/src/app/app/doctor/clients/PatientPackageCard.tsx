@@ -62,9 +62,11 @@ type Props = {
   apiBase: string;
   onError?: (code: string | null) => void;
   onChanged?: () => void;
+  /** Called when doctor clicks «Пересчитать» on an active package. */
+  onRecalc?: () => void;
 };
 
-export function PatientPackageCard({ pkg, apiBase, onError, onChanged }: Props) {
+export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc }: Props) {
   const [open, setOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
@@ -132,9 +134,22 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged }: Props) 
             <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{pkg.notes}</p>
           ) : null}
         </div>
-        <Button type="button" size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-          {open ? "Свернуть" : "Записи"}
-        </Button>
+        <div className="flex items-center gap-1.5 flex-none">
+          {onRecalc ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onRecalc}
+              disabled={pending}
+            >
+              Пересчитать
+            </Button>
+          ) : null}
+          <Button type="button" size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
+            {open ? "Свернуть" : "Записи"}
+          </Button>
+        </div>
       </div>
       <ul className="mt-2 space-y-1 text-sm">
         {pkg.balance.items.map((it) => (

@@ -23,6 +23,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { cn } from "@/lib/utils";
+import { DoctorClientMembershipsPanel } from "@/app/app/doctor/clients/DoctorClientMembershipsPanel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -345,7 +346,15 @@ export function PatientTabFinances({ userId, initialData }: Props) {
       </div>
 
       {/* ================================================================
-          SECTION 2 — Timeline
+          SECTION 2 — Абонементы
+      ================================================================ */}
+      <div className={doctorSectionCardClass}>
+        <p className={doctorSectionTitleClass}>Абонементы</p>
+        <DoctorClientMembershipsPanel platformUserId={userId} showCreateForm />
+      </div>
+
+      {/* ================================================================
+          SECTION 3 — Timeline
       ================================================================ */}
       <div className={doctorSectionCardClass}>
         <p className={doctorSectionTitleClass}>История платежей</p>
@@ -404,7 +413,7 @@ export function PatientTabFinances({ userId, initialData }: Props) {
       </div>
 
       {/* ================================================================
-          SECTION 3 — Внести платёж
+          SECTION 4 — Внести платёж
       ================================================================ */}
       <div className={doctorSectionCardClass}>
         <p className={doctorSectionTitleClass}>Внести платёж</p>

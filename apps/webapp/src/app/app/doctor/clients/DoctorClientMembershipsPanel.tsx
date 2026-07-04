@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import toast from "react-hot-toast";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
@@ -23,12 +24,28 @@ const ERROR_LABELS: Record<string, string> = {
   past_unlink_not_allowed: "Отвязка прошедших записей отключена в настройках.",
 };
 
+type RecalcSummary = {
+  debited: Array<{ appointmentId: string; patientPackageItemId: string; serviceId: string; usageId: string }>;
+  skipped: unknown[];
+  outOfBalance: unknown[];
+};
+
 type Props = {
   platformUserId: string;
   appointments?: AppointmentOption[];
+  /**
+   * When false, the «Назначить из каталога» and «Индивидуальный абонемент» create-forms
+   * are hidden. The manual consume section and active-package cards remain.
+   * Defaults to true (full panel).
+   */
+  showCreateForm?: boolean;
 };
 
-export function DoctorClientMembershipsPanel({ platformUserId, appointments = [] }: Props) {
+export function DoctorClientMembershipsPanel({
+  platformUserId,
+  appointments = [],
+  showCreateForm = true,
+}: Props) {
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
   const [priceRub, setPriceRub] = useState("");
   const [soldDate, setSoldDate] = useState("");
@@ -205,6 +222,26 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
 
   const selectedPkg = packages.find((p) => p.id === consumePackageId);
 
+  async function recalcPackage(packageId: string) {
+    try {
+      const res = await fetch(`${apiBase}/${packageId}/recalc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = (await res.json()) as { ok?: boolean; summary?: RecalcSummary; error?: string };
+      if (!json.ok) {
+        toast.error("Не удалось пересчитать абонемент");
+        return;
+      }
+      const debitedCount = json.summary?.debited.length ?? 0;
+      const msg = debitedCount > 0 ? `Списано ${debitedCount} сеансов` : "Нет новых сеансов для списания";
+      toast.success(msg);
+      void loadPackages();
+    } catch {
+      toast.error("Ошибка сети при пересчёте");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -220,100 +257,105 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
               apiBase={apiBase}
               onError={showError}
               onChanged={() => void loadPackages()}
+              onRecalc={pkg.status === "active" ? () => void recalcPackage(pkg.id) : undefined}
             />
           ))}
         </ul>
       )}
 
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium">Назначить из каталога</summary>
-        <div className="mt-3 flex flex-col gap-2">
-          <Label htmlFor="pkg-catalog">Шаблон</Label>
-          <select
-            id="pkg-catalog"
-            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-            value={catalogId}
-            onChange={(e) => {
-              setCatalogId(e.target.value);
-              const row = catalog.find((c) => c.id === e.target.value);
-              if (row) setCatalogPaidRub(String(row.priceMinor / 100));
-            }}
-          >
-            <option value="">—</option>
-            {catalog.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-          <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
-          <Input
-            id="pkg-catalog-notes"
-            value={catalogNotes}
-            onChange={(e) => setCatalogNotes(e.target.value)}
-          />
-          <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
-          <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} />
-          <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
-          <Input
-            id="pkg-catalog-paid"
-            value={catalogPaidRub}
-            onChange={(e) => setCatalogPaidRub(e.target.value)}
-          />
-          <Button type="button" size="sm" disabled={pending} onClick={offerCatalog}>
-            Назначить
-          </Button>
-        </div>
-      </details>
-
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium">Индивидуальный абонемент</summary>
-        <div className="mt-3 flex flex-col gap-2">
-          <Label htmlFor="pkg-manual-notes">Комментарий</Label>
-          <Input
-            id="pkg-manual-notes"
-            value={manualNotes}
-            onChange={(e) => setManualNotes(e.target.value)}
-          />
-          <Label htmlFor="pkg-price">Цена, ₽</Label>
-          <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
-          <Label htmlFor="pkg-sold">Дата продажи</Label>
-          <DoctorDatePicker value={soldDate} onChange={setSoldDate} />
-          <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
-          <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[8rem] flex-1">
-              <Label htmlFor="pkg-svc">Услуга</Label>
+      {showCreateForm ? (
+        <>
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium">Назначить из каталога</summary>
+            <div className="mt-3 flex flex-col gap-2">
+              <Label htmlFor="pkg-catalog">Шаблон</Label>
               <select
-                id="pkg-svc"
+                id="pkg-catalog"
                 className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-                value={serviceId}
-                onChange={(e) => setServiceId(e.target.value)}
+                value={catalogId}
+                onChange={(e) => {
+                  setCatalogId(e.target.value);
+                  const row = catalog.find((c) => c.id === e.target.value);
+                  if (row) setCatalogPaidRub(String(row.priceMinor / 100));
+                }}
               >
                 <option value="">—</option>
-                {services.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title}
+                {catalog.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
                   </option>
                 ))}
               </select>
+              <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
+              <Input
+                id="pkg-catalog-notes"
+                value={catalogNotes}
+                onChange={(e) => setCatalogNotes(e.target.value)}
+              />
+              <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
+              <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} />
+              <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
+              <Input
+                id="pkg-catalog-paid"
+                value={catalogPaidRub}
+                onChange={(e) => setCatalogPaidRub(e.target.value)}
+              />
+              <Button type="button" size="sm" disabled={pending} onClick={offerCatalog}>
+                Назначить
+              </Button>
             </div>
-            <div className="w-20">
-              <Label htmlFor="pkg-qty">Кол-во</Label>
-              <Input id="pkg-qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          </details>
+
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium">Индивидуальный абонемент</summary>
+            <div className="mt-3 flex flex-col gap-2">
+              <Label htmlFor="pkg-manual-notes">Комментарий</Label>
+              <Input
+                id="pkg-manual-notes"
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+              />
+              <Label htmlFor="pkg-price">Цена, ₽</Label>
+              <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
+              <Label htmlFor="pkg-sold">Дата продажи</Label>
+              <DoctorDatePicker value={soldDate} onChange={setSoldDate} />
+              <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
+              <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[8rem] flex-1">
+                  <Label htmlFor="pkg-svc">Услуга</Label>
+                  <select
+                    id="pkg-svc"
+                    className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                    value={serviceId}
+                    onChange={(e) => setServiceId(e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-20">
+                  <Label htmlFor="pkg-qty">Кол-во</Label>
+                  <Input id="pkg-qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={addItem}>
+                  Добавить позицию
+                </Button>
+              </div>
+              {items.length > 0 ? (
+                <p className="text-muted-foreground text-xs">Позиций: {items.length}</p>
+              ) : null}
+              <Button type="button" size="sm" disabled={pending} onClick={createManual}>
+                Сохранить
+              </Button>
             </div>
-            <Button type="button" variant="secondary" size="sm" onClick={addItem}>
-              Добавить позицию
-            </Button>
-          </div>
-          {items.length > 0 ? (
-            <p className="text-muted-foreground text-xs">Позиций: {items.length}</p>
-          ) : null}
-          <Button type="button" size="sm" disabled={pending} onClick={createManual}>
-            Сохранить
-          </Button>
-        </div>
-      </details>
+          </details>
+        </>
+      ) : null}
 
       <details className="group">
         <summary className="cursor-pointer text-sm font-medium">Списать сеанс по абонементу</summary>

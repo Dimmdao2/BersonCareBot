@@ -31,7 +31,11 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
       <section id="doctor-client-section-memberships" className={doctorClientTabSectionClass}>
         <div className="flex flex-col gap-3">
           <h2 className={doctorClientSectionTitleClass}>Абонементы</h2>
-          <DoctorClientMembershipsPanel platformUserId={userId} appointments={appointmentOptions} />
+          <DoctorClientMembershipsPanel
+            platformUserId={userId}
+            appointments={appointmentOptions}
+            showCreateForm={false}
+          />
         </div>
       </section>
 
