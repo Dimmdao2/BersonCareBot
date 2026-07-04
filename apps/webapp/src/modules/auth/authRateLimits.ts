@@ -33,6 +33,14 @@ export const isOAuthStartRateLimitedByKey = createSlidingWindowRateLimit({
   db: authRateLimitDb,
 });
 
+/** Per-IP limit for public email-OTP start (anti abuse/enumeration probing). */
+export const isEmailOtpStartRateLimitedByKey = createSlidingWindowRateLimit({
+  scope: "auth.email_otp_start",
+  windowMs: 60 * 1000,
+  maxPerWindow: 10,
+  db: authRateLimitDb,
+});
+
 export const isMessengerStartRateLimited = createSlidingWindowRateLimit({
   scope: "auth.messenger_start",
   windowMs: 60 * 60 * 1000,

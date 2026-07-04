@@ -38,7 +38,7 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
         },
         body,
       });
-    } catch (err) {
+    } catch {
       return { ok: false, error: "network_error" };
     }
     if (!res.ok) {

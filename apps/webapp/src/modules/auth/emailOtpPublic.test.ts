@@ -132,4 +132,50 @@ describe("confirmPublicEmailOtpChallenge (in-memory path via emailAuth)", () => 
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("invalid_code");
   });
+
+  it("happy path confirms once, then REJECTS replay of the consumed code (expired_code)", async () => {
+    // Full start → confirm → replay cycle on the in-memory emailAuth challenge store.
+    let sentCode = "";
+    sendEmailCodeMock.mockImplementation(async (_to: string, code: string) => {
+      sentCode = code;
+      return { ok: true };
+    });
+
+    let userId = "";
+    const challengeRowRef: { id: string } = { id: "" };
+    const db = makeInMemDb({
+      async findOrCreatePublicEmailUser() {
+        userId = userId || randomUUID();
+        return { userId, wasCreated: true };
+      },
+      async findLatestEmailChallengeByEmail() {
+        // Simulates the DB row still being visible to the lookup; the challenge
+        // store itself (emailAuth in-memory) is the replay gate.
+        if (!challengeRowRef.id) return null;
+        return {
+          id: challengeRowRef.id,
+          user_id: userId,
+          code_hash: "",
+          expires_at: String(Math.floor(Date.now() / 1000) + 600),
+          attempts: "0",
+        };
+      },
+    });
+
+    const started = await startPublicEmailOtpChallenge("replay@example.com", db);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    challengeRowRef.id = started.challengeId;
+    expect(sentCode).toMatch(/^\d{6}$/);
+
+    // First confirm: succeeds and consumes the challenge.
+    const first = await confirmPublicEmailOtpChallenge("replay@example.com", sentCode, db);
+    expect(first.ok).toBe(true);
+    if (first.ok) expect(first.userId).toBe(userId);
+
+    // Replay with the SAME code: challenge is consumed → expired_code, no second login.
+    const replay = await confirmPublicEmailOtpChallenge("replay@example.com", sentCode, db);
+    expect(replay.ok).toBe(false);
+    if (!replay.ok) expect(replay.code).toBe("expired_code");
+  });
 });

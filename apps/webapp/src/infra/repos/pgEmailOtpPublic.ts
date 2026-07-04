@@ -2,7 +2,9 @@
  * DB implementation for the public email-OTP login flow port.
  * Satisfies EmailOtpPublicDbPort from modules/auth/emailOtpPublicPort.ts.
  */
+import { getPool } from "@/infra/db/client";
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
+import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type { EmailOtpPublicDbPort } from "@/modules/auth/emailOtpPublicPort";
 
 export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
@@ -20,6 +22,23 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
         );
         if (existing.rows[0]) {
           return { userId: existing.rows[0].id, wasCreated: false };
+        }
+
+        // Email belongs to a merged-away row? Follow the merge chain to the canonical
+        // user (same helper pgUserByPhone uses) instead of creating a ghost duplicate.
+        const merged = await runWebappPgText<{ id: string }>(
+          `SELECT id FROM platform_users
+           WHERE email_normalized = $1 AND merged_into_id IS NOT NULL
+           ORDER BY created_at ASC
+           LIMIT 1`,
+          [emailNorm],
+          tx,
+        );
+        if (merged.rows[0]) {
+          const canonical = await resolveCanonicalUserId(getPool(), merged.rows[0].id);
+          if (canonical) {
+            return { userId: canonical, wasCreated: false };
+          }
         }
 
         // None found — insert a new 'client' row with unverified email.

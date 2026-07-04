@@ -31,6 +31,7 @@ describe("checkInsecureSecretsForStartup", () => {
     INTEGRATOR_WEBAPP_ENTRY_SECRET: "",
     INTEGRATOR_WEBHOOK_SECRET: "",
     ALLOW_DEV_AUTH_BYPASS: false,
+    DEV_EMAIL_OTP_DEBUG: false,
     ALLOWED_TELEGRAM_IDS: "",
     ALLOWED_MAX_IDS: "",
     ADMIN_TELEGRAM_ID: undefined,

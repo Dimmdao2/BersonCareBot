@@ -32,7 +32,6 @@ import {
 import {
   clearAuthFlowPending,
   readAuthFlowPending,
-  savePasswordResetPending,
   saveRegisterVerifyPending,
 } from "@/shared/ui/patient/auth/authFlowPendingStorage";
 import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
@@ -222,7 +221,6 @@ export function AuthFlowV2({
   const [otpChannel, setOtpChannel] = useState<OtpChannel>("telegram");
   const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
   const [emailLoginEmail, setEmailLoginEmail] = useState("");
-  const [emailLoginPassword, setEmailLoginPassword] = useState("");
   const [emailRegPassword, setEmailRegPassword] = useState("");
   const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify">("login");
   const [emailVerifyPurpose, setEmailVerifyPurpose] = useState<"registration" | "setup" | "email_otp">("registration");
@@ -232,7 +230,7 @@ export function AuthFlowV2({
   const [emailPasswordReturn, setEmailPasswordReturn] =
     useState<"oauth_first" | "phone" | "email_password">("oauth_first");
   const [emailRegDisplayName, setEmailRegDisplayName] = useState("");
-  const [pwRecoveryPhase, setPwRecoveryPhase] = useState<"none" | "forgot_email" | "reset_code">("none");
+  const [pwRecoveryPhase, setPwRecoveryPhase] = useState<"none" | "reset_code">("none");
   const [pwRecoveryPurpose, setPwRecoveryPurpose] = useState<"reset" | "setup">("reset");
   const [pwResetEmail, setPwResetEmail] = useState("");
   const [pwResetChallengeId, setPwResetChallengeId] = useState<string | null>(null);
@@ -344,7 +342,6 @@ export function AuthFlowV2({
     setEmailRegPassword("");
     setEmailRegDisplayName("");
     setEmailLoginEmail("");
-    setEmailLoginPassword("");
     setPwRecoveryPhase("none");
     setPwRecoveryPurpose("reset");
     setPwResetEmail("");
@@ -352,40 +349,6 @@ export function AuthFlowV2({
     setPwResetCode("");
     setPwNewPassword("");
     setEmailSetupPromptEmail(null);
-  };
-
-  const lookupEmailAuthState = async (
-    email: string,
-  ): Promise<
-    | "free"
-    | "pending_registration"
-    | "verified_with_password"
-    | "needs_email_setup"
-    | "email_conflict"
-    | "network_error"
-    | null
-  > => {
-    const lookupResult = await fetchJsonSafe<{ ok?: boolean; state?: string }>(
-      "/api/auth/email-password/lookup",
-      {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
-      },
-    );
-    if (!lookupResult.ok) {
-      return "network_error";
-    }
-    const { response: res, data } = lookupResult;
-    if (!res.ok || !data.ok || typeof data.state !== "string") {
-      return null;
-    }
-    return data.state as
-      | "free"
-      | "pending_registration"
-      | "verified_with_password"
-      | "needs_email_setup"
-      | "email_conflict";
   };
 
   const startEmailSetupCode = async (
@@ -501,326 +464,11 @@ export function AuthFlowV2({
     }
   };
 
-  const submitEmailPasswordLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    engageInteractive();
-    const email = emailLoginEmail.trim();
-    if (!email || !emailLoginPassword) {
-      toast.error("Введите email и пароль");
-      return;
-    }
-    setLoading(true);
-    try {
-      const loginResult = await fetchJsonSafe<{
-        ok?: boolean;
-        redirectTo?: string;
-        role?: "client" | "doctor" | "admin";
-        error?: string;
-      }>("/api/auth/email-password/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password: emailLoginPassword }),
-      });
-      if (!loginResult.ok) {
-        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-        return;
-      }
-      const { response: res, data } = loginResult;
-      if (data.ok && data.redirectTo) {
-        redirectOk(data.redirectTo, data.role);
-        return;
-      }
-      if (res.status === 409 || data.error === "email_not_verified") {
-        const dn = email.split("@")[0] || "Пациент";
-        const registerResult = await fetchJsonSafe<{
-          ok?: boolean;
-          challengeId?: string;
-          attemptId?: string;
-          retryAfterSeconds?: number;
-          message?: string;
-          error?: string;
-        }>("/api/auth/email-password/register", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password: emailLoginPassword, displayName: dn }),
-        });
-        if (!registerResult.ok) {
-          toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-          return;
-        }
-        const { response: resReg, data: regData } = registerResult;
-        if (regData.ok && regData.error === "existing_account_needs_email_setup") {
-          if (regData.challengeId) {
-            setEmailSetupPromptEmail(null);
-            setEmailRegPassword(emailLoginPassword);
-            setEmailRegChallengeId(regData.challengeId);
-            setEmailRegAttemptId(regData.attemptId ?? null);
-            setEmailRegRetrySec(regData.retryAfterSeconds ?? 60);
-            setEmailVerifyPurpose("setup");
-            setEmailAuthMode("verify");
-            toast.success("Отправили код на почту.");
-          } else {
-            setEmailSetupPromptEmail(email);
-          }
-          return;
-        }
-        if (regData.ok && regData.challengeId) {
-          saveRegisterVerifyPending({
-            email,
-            challengeId: regData.challengeId,
-            attemptId: regData.attemptId,
-            retryAfterSeconds: regData.retryAfterSeconds ?? 60,
-            displayName: dn,
-          });
-          setEmailRegDisplayName("");
-          setEmailRegPassword(emailLoginPassword);
-          setEmailRegChallengeId(regData.challengeId);
-          setEmailRegAttemptId(regData.attemptId ?? null);
-          setEmailRegRetrySec(regData.retryAfterSeconds ?? 60);
-          setEmailVerifyPurpose("registration");
-          setEmailAuthMode("verify");
-          toast.success("Подтвердите email — отправили код.");
-          return;
-        }
-        if (resReg.status === 409 || regData.error === "duplicate_email") {
-          toast.error("Войдите с паролем или восстановите доступ.");
-          return;
-        }
-        toast.error(regData.message ?? "Не удалось отправить код");
-        return;
-      }
-      if (res.status === 401 || data.error === "invalid_credentials") {
-        const lookupState = await lookupEmailAuthState(email);
-        if (lookupState === "network_error") {
-          toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-          return;
-        }
-        if (lookupState === "needs_email_setup") {
-          const setup = await startEmailSetupCode(email);
-          if (setup.kind === "network_error") {
-            toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-            return;
-          }
-          if (setup.kind === "ok") {
-            setEmailSetupPromptEmail(null);
-            setEmailRegPassword(emailLoginPassword);
-            setEmailRegChallengeId(setup.challengeId);
-            setEmailRegAttemptId(null);
-            setEmailRegRetrySec(setup.retryAfterSeconds);
-            setEmailVerifyPurpose("setup");
-            setEmailAuthMode("verify");
-            toast.success("Отправили код на почту.");
-            return;
-          }
-          if (setup.kind === "rate_limited") {
-            setEmailRegRetrySec(setup.retryAfterSeconds);
-            toast.error("Код уже отправлен. Проверьте почту.");
-            return;
-          }
-          setEmailSetupPromptEmail(email);
-          return;
-        }
-        if (lookupState === "email_conflict") {
-          toast.error("Обратитесь в поддержку.");
-          return;
-        }
-        toast.error("Неверный email или пароль");
-        return;
-      }
-      toast.error("Не удалось войти");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitEmailRegister = async (e: FormEvent) => {
-    e.preventDefault();
-    engageInteractive();
-    const email = emailLoginEmail.trim();
-    const password = emailRegPassword;
-    const displayName = emailRegDisplayName.trim();
-    if (!displayName) {
-      toast.error("Введите имя");
-      return;
-    }
-    if (displayName.length > 200) {
-      toast.error("Имя не длиннее 200 символов");
-      return;
-    }
-    if (!email || !password) {
-      toast.error("Введите email и пароль");
-      return;
-    }
-    if (password.length < 8) {
-      toast.error("Пароль не менее 8 символов");
-      return;
-    }
-    setLoading(true);
-    try {
-      const registerResult = await fetchJsonSafe<{
-        ok?: boolean;
-        challengeId?: string;
-        attemptId?: string;
-        retryAfterSeconds?: number;
-        error?: string;
-        message?: string;
-      }>("/api/auth/email-password/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password, displayName }),
-      });
-      if (!registerResult.ok) {
-        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-        return;
-      }
-      const { response: res, data } = registerResult;
-      if (data.ok && data.error === "existing_account_needs_email_setup") {
-        if (data.challengeId) {
-          setEmailSetupPromptEmail(null);
-          setEmailRegChallengeId(data.challengeId);
-          setEmailRegAttemptId(data.attemptId ?? null);
-          setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
-          setEmailVerifyPurpose("setup");
-          setEmailAuthMode("verify");
-          toast.success("Отправили код на почту.");
-        } else {
-          setEmailSetupPromptEmail(email);
-        }
-        return;
-      }
-      if (res.status === 409 || data.error === "duplicate_email") {
-        toast.error("Войдите с паролем или восстановите доступ.");
-        return;
-      }
-      if (res.status === 409 || data.error === "email_conflict") {
-        toast.error("Обратитесь в поддержку.");
-        return;
-      }
-      if (data.ok && data.challengeId) {
-        saveRegisterVerifyPending({
-          email,
-          challengeId: data.challengeId,
-          attemptId: data.attemptId,
-          retryAfterSeconds: data.retryAfterSeconds ?? 60,
-          displayName,
-        });
-        setEmailRegChallengeId(data.challengeId);
-        setEmailRegAttemptId(data.attemptId ?? null);
-        setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
-        setEmailVerifyPurpose("registration");
-        setEmailAuthMode("verify");
-        return;
-      }
-      if (res.status === 429 || data.error === "rate_limited") {
-        toast.error(data.message ?? "Слишком частые запросы");
-        return;
-      }
-      toast.error(data.message ?? "Не удалось отправить код");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
     clearAuthFlowPending();
     markFreshLoginAfterAuth();
     const target = getPostAuthRedirectTarget(role ?? "client", nextParam, redirectTo);
     router.replace(target);
-  };
-
-  const submitPasswordForgotRequest = async (e: FormEvent) => {
-    e.preventDefault();
-    engageInteractive();
-    const email = (pwRecoveryPhase === "forgot_email" ? pwResetEmail : emailLoginEmail).trim();
-    if (!email) {
-      toast.error("Введите email");
-      return;
-    }
-    setLoading(true);
-    try {
-      const lookupState = await lookupEmailAuthState(email);
-      if (lookupState === "network_error") {
-        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-        return;
-      }
-      if (lookupState === "needs_email_setup") {
-        const forgotForSetupResult = await fetchJsonSafe<{
-          ok?: boolean;
-          challengeId?: string;
-          retryAfterSeconds?: number;
-        }>("/api/auth/email-password/forgot", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        if (!forgotForSetupResult.ok) {
-          toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-          return;
-        }
-        const { data } = forgotForSetupResult;
-        if (!data.ok) {
-          toast.error("Не удалось выполнить запрос");
-          return;
-        }
-        if (!data.challengeId) {
-          setPwRecoveryPhase("none");
-          setEmailSetupPromptEmail(email);
-          toast.error("Код уже отправлен. Проверьте почту или запросите повторно позже.");
-          return;
-        }
-        setEmailSetupPromptEmail(null);
-        setPwResetEmail(email);
-        setPwResetChallengeId(data.challengeId);
-        setPwResetCode("");
-        setPwNewPassword("");
-        setPwRecoveryPurpose("setup");
-        setPwRecoveryPhase("reset_code");
-        savePasswordResetPending({
-          email,
-          retryAfterSeconds: data.retryAfterSeconds ?? 60,
-          challengeId: data.challengeId,
-        });
-        toast.success("Отправили код на почту.");
-        return;
-      }
-      if (lookupState === "email_conflict") {
-        toast.error("Обратитесь в поддержку.");
-        return;
-      }
-
-      const forgotResult = await fetchJsonSafe<{ ok?: boolean; retryAfterSeconds?: number }>(
-        "/api/auth/email-password/forgot",
-        {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
-        },
-      );
-      if (!forgotResult.ok) {
-        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-        return;
-      }
-      const { data } = forgotResult;
-      if (!data.ok) {
-        toast.error("Не удалось выполнить запрос");
-        return;
-      }
-      if (lookupState !== "verified_with_password") {
-        toast.success("Если такой email есть в системе, на почту отправлено письмо. Проверьте «Спам».");
-        return;
-      }
-      const sec = Math.max(1, Math.ceil(Number(data.retryAfterSeconds) || 60));
-      savePasswordResetPending({ email, retryAfterSeconds: sec });
-      setPwResetEmail(email);
-      setPwResetChallengeId(null);
-      setPwRecoveryPurpose("reset");
-      setPwRecoveryPhase("reset_code");
-      toast.success(
-        "Если такой email есть в системе, на почту отправлен код. Проверьте папку «Спам».",
-      );
-    } finally {
-      setLoading(false);
-    }
   };
 
   const submitEmailSetupAccessResend = async () => {
@@ -908,8 +556,7 @@ export function AuthFlowV2({
         setPwNewPassword("");
         toast.success(pwRecoveryPurpose === "setup" ? "Доступ настроен." : "Пароль обновлён. Войдите.");
         setEmailLoginEmail(email);
-        setEmailLoginPassword("");
-        setEmailAuthMode("login");
+            setEmailAuthMode("login");
         return;
       }
       if (res.status === 429 || data.error === "too_many_attempts") {
@@ -1101,27 +748,6 @@ export function AuthFlowV2({
               Отправить код
             </Button>
           </div>
-        ) : pwRecoveryPhase === "forgot_email" ? (
-          <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitPasswordForgotRequest(e)}>
-            <p className={patientMutedTextClass}>Укажите email учётной записи. Ответ будет одинаковым независимо от наличия почты.</p>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="auth-pw-forgot-email" className={authFormFieldLabelClass}>
-                Email
-              </label>
-              <Input
-                id="auth-pw-forgot-email"
-                type="email"
-                autoComplete="email"
-                value={pwResetEmail}
-                onChange={(e) => setPwResetEmail(e.target.value)}
-                disabled={loading}
-                className={authEmailInputClass}
-              />
-            </div>
-            <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
-              Отправить код
-            </Button>
-          </form>
         ) : pwRecoveryPhase === "reset_code" ? (
           <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitPasswordResetFinalize(e)}>
             <p className={patientMutedTextClass}>Код отправлен на {pwResetEmail.trim()}</p>

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { env, integratorWebhookSecret } from "@/config/env";
 import { OTP_LOCK_DURATION_SEC, OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
 import type { EmailAuthDbPort } from "@/modules/auth/emailAuthPort";
@@ -48,7 +48,17 @@ function hashCode(code: string): string {
 }
 
 function generateEmailCode(): string {
-  return String(100000 + Math.floor(Math.random() * 900000));
+  // CSPRNG: Math.random() is predictable and unsuitable for auth codes.
+  return String(randomInt(100000, 1000000));
+}
+
+/**
+ * Opt-in local-dev aid: log OTP codes + tolerate send failure.
+ * DOUBLE-gated: requires DEV_EMAIL_OTP_DEBUG=true AND NODE_ENV=development,
+ * so it can never activate on test/prod hosts even if the flag leaks there.
+ */
+function isEmailOtpDebugEnabled(): boolean {
+  return env.DEV_EMAIL_OTP_DEBUG && env.NODE_ENV === "development";
 }
 
 export type PendingEmailChallenge = { email: string; expiresAt: string } | null;
@@ -164,16 +174,17 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
   const codeHash = hashCode(code);
   const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
 
-  // Dev-only: log the OTP code to server console for local testing (no integrator required).
-  if (env.NODE_ENV === "development") {
+  // Opt-in dev aid (DEV_EMAIL_OTP_DEBUG=true AND NODE_ENV=development only):
+  // log the OTP code to server console for local testing without the integrator.
+  if (isEmailOtpDebugEnabled()) {
     console.log(`[DEV] Email OTP code for ${email}: ${code}`);
   }
 
   const challengeId = await db.insertEmailChallenge({ userId, email, codeHash, expiresAt });
   const sent = await sendEmailAuthCode(email, code);
   if (!sent.ok) {
-    if (env.NODE_ENV === "development") {
-      // In dev, tolerate send failure (e.g. no integrator running). Code was logged above.
+    if (isEmailOtpDebugEnabled()) {
+      // Opt-in dev aid: tolerate send failure (no integrator running). Code was logged above.
       console.warn(`[DEV] Email send failed for ${email}: ${sent.error}. Use the code from the log.`);
     } else {
       await db.deleteEmailChallengeById(challengeId);
