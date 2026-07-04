@@ -12,6 +12,7 @@ import { BookingSoloFormFieldsSection } from "@/app/app/settings/BookingSoloForm
 import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocationsSection";
 import { RubitimeSection } from "@/app/app/settings/RubitimeSection";
 import { BookingRulesPageClient } from "@/app/app/doctor/admin/booking/BookingRulesPageClient";
+import { ScheduleNotificationsSection } from "./notifications/ScheduleNotificationsSection";
 import { parseBookingPaymentSettingsValue } from "@/modules/payments/bookingPaymentSettings";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
@@ -39,6 +40,7 @@ type SetupSectionId =
   | "form"
   | "payments"
   | "rules"
+  | "notifications"
   | "integrations";
 
 type SetupSectionDef = {
@@ -52,6 +54,7 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: "form",          label: "Публичная форма" },
   { id: "payments",      label: "Оплаты" },
   { id: "rules",         label: "Правила записи" },
+  { id: "notifications", label: "Тексты уведомлений" },
   { id: "integrations",  label: "Интеграции · Rubitime" },
 ];
 
@@ -484,6 +487,10 @@ function SectionRules() {
   return <BookingRulesLoader />;
 }
 
+function SectionNotifications() {
+  return <ScheduleNotificationsSection />;
+}
+
 function SectionIntegrations() {
   return (
     <div className="flex flex-col gap-4">
@@ -557,6 +564,7 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         {activeSection === "form"         && <SectionForm />}
         {activeSection === "payments"     && <SectionPayments />}
         {activeSection === "rules"        && <SectionRules />}
+        {activeSection === "notifications" && <SectionNotifications />}
         {activeSection === "integrations" && <SectionIntegrations />}
       </div>
     </div>

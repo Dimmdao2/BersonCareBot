@@ -77,7 +77,7 @@ async function renderSetupTab(deepLinkParams: Record<string, string> = {}) {
 // ---------------------------------------------------------------------------
 
 describe("ScheduleSetupTab", () => {
-  it("renders the sub-nav with all 6 sections", async () => {
+  it("renders the sub-nav with all 7 sections", async () => {
     await renderSetupTab();
     expect(screen.getByTestId("setup-subnav")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-calendar")).toBeInTheDocument();
@@ -85,6 +85,7 @@ describe("ScheduleSetupTab", () => {
     expect(screen.getByTestId("setup-nav-form")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-payments")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-rules")).toBeInTheDocument();
+    expect(screen.getByTestId("setup-nav-notifications")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-integrations")).toBeInTheDocument();
   });
 
@@ -203,6 +204,29 @@ describe("ScheduleSetupTab", () => {
     await waitFor(() => {
       expect(screen.getByTestId("section-rules")).toBeInTheDocument();
     });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("notifications section mounts and loads doctor notification templates", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        templates: [
+          { event: "booking_confirmed", audience: "patient", text: "Запись подтверждена", isDefault: true },
+        ],
+        variables: ["date", "time"],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderSetupTab({ section: "notifications" });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("setup-section-notifications")).toBeInTheDocument();
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/doctor/notification-templates");
 
     vi.unstubAllGlobals();
   });
