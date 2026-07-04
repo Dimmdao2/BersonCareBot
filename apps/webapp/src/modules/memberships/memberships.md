@@ -21,6 +21,10 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 - Cancel: `applyCancelPackageOutcome` — release or penalty; patient late cancel uses `policyResolver` (`chargePackageSessionOnLate` → `package_charged`).
 - Visit: `wrapBookingEngineMembershipHooks` calls `onVisitConfirmed` after transition to `visit_confirmed` or `completed` when `deductionMode=auto_on_visit_confirmed`.
 
+## Bulk «Пересчитать» (backfill past sessions) — ST-01
+
+`recalcPastSessionsForPackage({ organizationId, patientPackageId, createdByPlatformUserId?, nowIso? })` — idempotent bulk backfill for a package sold задним числом (owner pain #2). Finds the patient's PAST appointments (`startsAt ∈ [soldAt; now)`, `soldAt`←`validFrom`←`createdAt` fallback) for the package's services via new port `listRecalcCandidateAppointments` (drizzle join over `be_appointments` by `platformUserId` + service + window — NOT `listPackageAppointmentSessionSources`, which only returns already-linked rows), then for each **completed / visit_confirmed** appointment with `linkage === "none"` appends a `consume` to `be_package_usages`, sets `package_usage_ref`, records `recalc_consumed` history, and best-effort refreshes the calendar (mirrors `consumeForAppointment`). Stops at zero per item (no minus, OQ-6). Returns `{ debited[], skipped[], outOfBalance[] }` for the doctor toast. Repeated call = no-op (already-debited → `skipped: already_debited`). Cancellations / no-show / not-yet-closed past appointments are left for manual consume (OQ-5/OQ-7). Multiple packages → call per package (FEFO ordering at the API layer, ST-02).
+
 ## Patient APIs (`requirePatientApiBusinessAccess`)
 
 | Method | Path |
