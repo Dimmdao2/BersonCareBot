@@ -68,9 +68,18 @@ interface PackageItem {
   title?: string | null;
   quantityInitial?: number | null;
   remaining?: number | null;
+  /** Display remaining: reserved sessions count as still-owned (better for patient-facing copy). */
+  displayRemaining?: number | null;
   validUntil?: string | null;
   status?: string | null;
-  balance?: { items: Array<{ quantityInitial?: number | null; remaining?: number | null }> } | null;
+  balance?: {
+    items: Array<{
+      quantityInitial?: number | null;
+      remaining?: number | null;
+      /** Display remaining: reserved sessions count as still-owned. */
+      displayRemaining?: number | null;
+    }>;
+  } | null;
 }
 
 interface PackagesApiResponse {
@@ -768,9 +777,15 @@ export function PatientTabOverview({
         (p) => p.status === "active" || p.status === "activated",
       );
       const activePackageRaw = activePackages[0] ?? null;
-      const sumBalance = (key: "quantityInitial" | "remaining", pkg: PackageItem): number | null => {
+      const sumBalance = (key: "quantityInitial" | "remaining" | "displayRemaining", pkg: PackageItem): number | null => {
         const items = pkg.balance?.items;
-        if (items && items.length > 0) return items.reduce((acc, it) => acc + (it[key] ?? 0), 0);
+        if (items && items.length > 0) {
+          // Return null when none of the items actually carry this field
+          // (avoids treating absent displayRemaining as 0 and masking the real remaining).
+          const hasField = items.some((it) => it[key] != null);
+          if (!hasField) return null;
+          return items.reduce((acc, it) => acc + (it[key] ?? 0), 0);
+        }
         return pkg[key] ?? null;
       };
       const activePackage: PackageItem | null = activePackageRaw
@@ -778,6 +793,7 @@ export function PatientTabOverview({
             ...activePackageRaw,
             quantityInitial: sumBalance("quantityInitial", activePackageRaw),
             remaining: sumBalance("remaining", activePackageRaw),
+            displayRemaining: sumBalance("displayRemaining", activePackageRaw),
           }
         : null;
       const packageStatus: WidgetStatus = !packages ? "error" : activePackage === null ? "empty" : "ok";
@@ -1037,17 +1053,27 @@ export function PatientTabOverview({
             value={
               data?.packageStatus === "empty" || !data?.activePackage
                 ? "—"
-                : data.activePackage.remaining !== null && data.activePackage.remaining !== undefined &&
-                  data.activePackage.quantityInitial
-                  ? `${data.activePackage.remaining} из ${data.activePackage.quantityInitial}`
-                  : "активен"
+                : (() => {
+                    const pkg = data.activePackage;
+                    // Prefer displayRemaining (reserved sessions count as still-owned),
+                    // fall back to remaining if displayRemaining not provided by API yet.
+                    const disp = pkg.displayRemaining ?? pkg.remaining;
+                    if (disp !== null && disp !== undefined && pkg.quantityInitial) {
+                      return `${disp} из ${pkg.quantityInitial}`;
+                    }
+                    return "активен";
+                  })()
             }
             hint={
-              data?.activePackage?.validUntil
-                ? `осталось · до ${fmtDateShort(data.activePackage.validUntil)}`
-                : data?.packageStatus === "empty"
-                  ? "абонемент не активен"
-                  : "осталось занятий"
+              data?.packageStatus === "empty"
+                ? "абонемент не активен"
+                : data?.activePackage?.title
+                  ? data.activePackage.title.length > 28
+                    ? data.activePackage.title.slice(0, 28) + "…"
+                    : data.activePackage.title
+                  : data?.activePackage?.validUntil
+                    ? `до ${fmtDateShort(data.activePackage.validUntil)}`
+                    : "осталось занятий"
             }
           />
         </div>

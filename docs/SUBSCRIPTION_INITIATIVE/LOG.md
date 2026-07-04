@@ -2,6 +2,53 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-04 — #386 ST-07 (Sonnet), Обзор: название + остаток абонемента в KPI-виджете
+
+### Что сделано
+
+**Диагноз (до правок):**
+- KPI-виджет «Абонемент» уже существовал и показывал `remaining из quantityInitial` через `sumBalance`.
+- Поле `balance.items[].remaining` доходило корректно через API → `PatientPackageListItem.balance.items`.
+- Однако `displayRemaining` (для показа: зарезервированные сеансы считаются как «в наличии») **не передавался** — ни в `PackageItem.balance.items` типе, ни в SSR-маппинге `page.tsx`.
+- **Название абонемента** (поле `title`) в PackageItem было, но **не рендерилось** — виджет показывал только число, без подписи что это за абонемент.
+
+**Изменения кода:**
+
+1. **`PatientTabOverview.tsx`:**
+   - `PackageItem.balance.items` тип: добавлен `displayRemaining?: number | null`.
+   - `PackageItem` тип: добавлен `displayRemaining?: number | null`.
+   - `sumBalance` — расширен на `"displayRemaining"` ключ + защита: возвращает `null` (а не `0`) когда ни одна позиция не несёт это поле, чтобы не маскировать `remaining`.
+   - `activePackage` — теперь включает `displayRemaining: sumBalance("displayRemaining", ...)`.
+   - Рендер KPI `value`: приоритет `displayRemaining ?? remaining` (зарезервированные считаются owned), формат `"X из Y"`.
+   - Рендер KPI `hint`: теперь показывает **название абонемента** (`title`, с обрезкой >28 символов + "…"); fallback → дата действия → "осталось занятий".
+
+2. **`page.tsx`** (SSR-маппинг):
+   - В `initialPackagesForTabs` добавлен `displayRemaining: item.displayRemaining` — поле теперь доходит при SSR.
+
+3. **`PatientTabOverview.packageWidget.test.tsx`** (новый файл):
+   - 6 тестов: активный абонемент → "X из Y" + название; displayRemaining > remaining приоритет; fallback на remaining; нет абонемента → "—" + "абонемент не активен"; нет items → "активен"; обрезка длинного title; суммирование нескольких позиций.
+
+### Откуда берётся остаток
+- Остаток вычисляется в `modules/memberships/balanceCalculator.ts` → `computeItemBalances()` → поля `remaining` (доступно для брони) и `displayRemaining` (для показа пациенту; зарезервированные ещё не списаны = считаются).
+- `listPatientPackagesForUser` в service.ts вызывает `withBalance()` → `computeItemBalances()` → включает оба поля в `balance.items[]`.
+- API GET `/patient-packages` возвращает `PatientPackageListItem[]` с полным `balance`.
+- SSR в `page.tsx` формирует `initialPackagesForTabs` и теперь прокидывает `displayRemaining`.
+- После «Пересчитать» (ST-04) следующий fetch `/patient-packages` вернёт обновлённый баланс (новые `consume`-записи в ledger) — виджет обновится при следующей загрузке вкладки или полном рефреше. Inline-рефреш после recalc (без перезагрузки вкладки) не реализован в Overview — рекомендован как улучшение.
+
+### Проверки
+- `PatientTabOverview.packageWidget.test.tsx`: **6/6 passed** (новые тесты ST-07).
+- `PatientTabOverview.calNav.test.tsx`: **6/6 passed** (регрессия не введена).
+- `PatientTabOverview.obzor-thumbs.test.ts`: **6/6 passed** (регрессия не введена).
+- ESLint (PatientTabOverview.tsx + test + page.tsx): **0 ошибок**.
+- TypeScript (`tsc --noEmit`): **0 ошибок**.
+
+### Покрытые состояния
+1. Нет активного абонемента → "—" / "абонемент не активен"
+2. Активный абонемент с balances → "X из Y" + название в hint
+3. После «Пересчитать» → при следующем fetch `/patient-packages` показывает обновлённый остаток
+
+---
+
 ## 2026-07-04 — #386 fix (Sonnet), ST-02 advisory-lock backport + ST-03 badge filter
 
 ### Что сделано
