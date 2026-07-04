@@ -161,6 +161,10 @@ import {
   createPgEmailPasswordLookupPort,
   inMemoryEmailPasswordLookupPort,
 } from "@/infra/repos/pgEmailPasswordLookup";
+import {
+  createPgEmailOtpPublicPort,
+  inMemoryEmailOtpPublicPort,
+} from "@/infra/repos/pgEmailOtpPublic";
 import { createEmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
 import { createNoopEmailSetupAccessPort } from "@/modules/auth/emailSetupAccess/noopPort";
 import { createPgEmailSetupAccessPort } from "@/infra/repos/pgEmailSetupAccessPort";
@@ -414,6 +418,9 @@ const userPasswordCredentialsPort = !inMemoryRepos
 const emailPasswordLookupPort = !inMemoryRepos
   ? createPgEmailPasswordLookupPort()
   : inMemoryEmailPasswordLookupPort;
+const emailOtpPublicDbPort = !inMemoryRepos
+  ? createPgEmailOtpPublicPort()
+  : inMemoryEmailOtpPublicPort;
 const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
 const loginTokensPort = !inMemoryRepos ? pgLoginTokensPort : inMemoryLoginTokensPort;
 const identityResolutionPort = !inMemoryRepos ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
@@ -1559,6 +1566,7 @@ function _buildAppDeps() {
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,
     emailPasswordLookup: emailPasswordLookupPort,
+    emailOtpPublicDb: emailOtpPublicDbPort,
     emailSetupAccess: emailSetupAccessService,
     emailSetupFlow: emailSetupFlowService,
     oauthBindings: oauthBindingsPort,

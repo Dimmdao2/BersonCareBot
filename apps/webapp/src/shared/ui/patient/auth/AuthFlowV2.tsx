@@ -225,7 +225,7 @@ export function AuthFlowV2({
   const [emailLoginPassword, setEmailLoginPassword] = useState("");
   const [emailRegPassword, setEmailRegPassword] = useState("");
   const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify">("login");
-  const [emailVerifyPurpose, setEmailVerifyPurpose] = useState<"registration" | "setup">("registration");
+  const [emailVerifyPurpose, setEmailVerifyPurpose] = useState<"registration" | "setup" | "email_otp">("registration");
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
   const [emailRegAttemptId, setEmailRegAttemptId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
@@ -459,6 +459,46 @@ export function AuthFlowV2({
     setEmailPasswordReturn(returnTo);
     resetEmailAuthFields();
     setStep("email_password");
+  };
+
+  /** New passwordless email-OTP start handler. */
+  const submitEmailOtpStart = async (e: FormEvent) => {
+    e.preventDefault();
+    engageInteractive();
+    const email = emailLoginEmail.trim();
+    if (!email) {
+      toast.error("Введите email");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await fetchJsonSafe<{
+        ok?: boolean;
+        challengeId?: string;
+        retryAfterSeconds?: number;
+        error?: string;
+        message?: string;
+      }>("/api/auth/email-otp/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!result.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { data } = result;
+      if (!data.ok) {
+        toast.error(data.message ?? "Не удалось отправить код");
+        return;
+      }
+      setEmailRegChallengeId(data.challengeId ?? null);
+      setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+      setEmailVerifyPurpose("email_otp");
+      setEmailAuthMode("verify");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const submitEmailPasswordLogin = async (e: FormEvent) => {
@@ -1120,60 +1160,20 @@ export function AuthFlowV2({
           </form>
         ) : (
           <>
-            {emailAuthMode !== "verify" ? (
-              <div
-                role="tablist"
-                aria-label="Режим входа по email"
-                className="mt-3 grid grid-cols-2 gap-1.5"
-              >
-                <button
-                  id="auth-email-tab-login"
-                  type="button"
-                  role="tab"
-                  aria-selected={emailAuthMode === "login"}
-                  disabled={loading}
-                  className={cn(
-                    "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                    emailAuthMode === "login"
-                      ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
-                      : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
-                  )}
-                  onClick={() => setEmailAuthMode("login")}
-                >
-                  Вход
-                </button>
-                <button
-                  id="auth-email-tab-register"
-                  type="button"
-                  role="tab"
-                  aria-selected={emailAuthMode === "register"}
-                  disabled={loading}
-                  className={cn(
-                    "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                    emailAuthMode === "register"
-                      ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
-                      : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
-                  )}
-                  onClick={() => setEmailAuthMode("register")}
-                >
-                  Регистрация
-                </button>
-              </div>
-            ) : null}
-
             {emailAuthMode === "login" ? (
           <form
-            role="tabpanel"
-            aria-labelledby="auth-email-tab-login"
             className="mt-3 flex w-full flex-col gap-3"
-            onSubmit={(e) => void submitEmailPasswordLogin(e)}
+            onSubmit={(e) => void submitEmailOtpStart(e)}
           >
+            <p className={authStepMutedParagraphClass}>
+              Отправим 6-значный код на вашу почту.
+            </p>
             <div className="flex flex-col gap-1">
-              <label htmlFor="auth-email-login" className={authFormFieldLabelClass}>
+              <label htmlFor="auth-email-otp-input" className={authFormFieldLabelClass}>
                 Email
               </label>
               <Input
-                id="auth-email-login"
+                id="auth-email-otp-input"
                 type="email"
                 name="email"
                 autoComplete="email"
@@ -1184,95 +1184,8 @@ export function AuthFlowV2({
                 className={authEmailInputClass}
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="auth-password-login" className={authFormFieldLabelClass}>
-                Пароль
-              </label>
-              <Input
-                id="auth-password-login"
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={emailLoginPassword}
-                onChange={(e) => setEmailLoginPassword(e.target.value)}
-                disabled={loading}
-                className={authEmailInputClass}
-              />
-            </div>
             <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
-              Войти
-            </Button>
-            <button
-              type="button"
-              className={cn(authLinkButtonClass, "self-start")}
-              disabled={loading}
-              onClick={() => {
-                setPwResetEmail(emailLoginEmail);
-                setPwRecoveryPhase("forgot_email");
-              }}
-            >
-              Забыли пароль?
-            </button>
-          </form>
-        ) : null}
-
-        {emailAuthMode === "register" ? (
-          <form
-            role="tabpanel"
-            aria-labelledby="auth-email-tab-register"
-            className="mt-3 flex w-full flex-col gap-3"
-            onSubmit={(e) => void submitEmailRegister(e)}
-          >
-            <div className="flex flex-col gap-1">
-              <label htmlFor="auth-reg-name" className={authFormFieldLabelClass}>
-                Имя
-              </label>
-              <Input
-                id="auth-reg-name"
-                type="text"
-                name="reg-name"
-                autoComplete="name"
-                aria-label="Имя"
-                value={emailRegDisplayName}
-                maxLength={200}
-                onChange={(e) => setEmailRegDisplayName(e.target.value)}
-                disabled={loading}
-                className={authEmailInputClass}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="auth-reg-email" className={authFormFieldLabelClass}>
-                Email
-              </label>
-              <Input
-                id="auth-reg-email"
-                type="email"
-                name="reg-email"
-                autoComplete="email"
-                inputMode="email"
-                value={emailLoginEmail}
-                onChange={(e) => setEmailLoginEmail(e.target.value)}
-                disabled={loading}
-                className={authEmailInputClass}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="auth-reg-password" className={authFormFieldLabelClass}>
-                Пароль
-              </label>
-              <Input
-                id="auth-reg-password"
-                type="password"
-                name="reg-password"
-                autoComplete="new-password"
-                value={emailRegPassword}
-                onChange={(e) => setEmailRegPassword(e.target.value)}
-                disabled={loading}
-                className={authEmailInputClass}
-              />
-            </div>
-            <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
-              Продолжить
+              Получить код
             </Button>
           </form>
         ) : null}
@@ -1287,6 +1200,31 @@ export function AuthFlowV2({
               description="Введите код из письма."
               onConfirm={async (code) => {
                 engageInteractive();
+                if (emailVerifyPurpose === "email_otp") {
+                  // Passwordless email-OTP confirm
+                  const r = await fetchJsonSafe<{
+                    ok?: boolean;
+                    redirectTo?: string;
+                    role?: "client" | "doctor" | "admin";
+                    error?: string;
+                    message?: string;
+                    retryAfterSeconds?: number;
+                  }>("/api/auth/email-otp/confirm", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ email: emailLoginEmail.trim(), code }),
+                  });
+                  if (!r.ok) return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+                  const { response: res, data } = r;
+                  if (data.ok && data.redirectTo) {
+                    redirectOk(data.redirectTo, data.role);
+                    return { ok: true as const, redirectTo: data.redirectTo };
+                  }
+                  if (res.status === 429 || data.error === "too_many_attempts") {
+                    return { ok: false as const, message: data.message ?? "", code: "too_many_attempts", retryAfterSeconds: data.retryAfterSeconds };
+                  }
+                  return { ok: false as const, message: data.message ?? "Неверный код" };
+                }
                 if (emailVerifyPurpose === "setup" && emailRegPassword.length < 8) {
                   return { ok: false as const, message: "Пароль — не менее 8 символов." };
                 }
@@ -1340,6 +1278,34 @@ export function AuthFlowV2({
               }}
               onResend={async () => {
                 const email = emailLoginEmail.trim();
+                if (emailVerifyPurpose === "email_otp") {
+                  // Passwordless resend
+                  if (!email) return { kind: "error" as const, message: "Нет email для повторной отправки" };
+                  const r = await fetchJsonSafe<{
+                    ok?: boolean;
+                    challengeId?: string;
+                    retryAfterSeconds?: number;
+                    error?: string;
+                    message?: string;
+                  }>("/api/auth/email-otp/start", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ email }),
+                  });
+                  if (!r.ok) return { kind: "error" as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+                  const { response: res, data } = r;
+                  if (data.ok && data.challengeId) {
+                    setEmailRegChallengeId(data.challengeId);
+                    setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+                    return { kind: "ok" as const };
+                  }
+                  if (res.status === 429 || data.error === "rate_limited") {
+                    const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
+                    setEmailRegRetrySec(sec);
+                    return { kind: "rate_limited" as const, retryAfterSeconds: sec };
+                  }
+                  return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
+                }
                 const password = emailRegPassword;
                 if (!email || !password) {
                   return { kind: "error" as const, message: "Нет данных для повторной отправки" };
@@ -1406,25 +1372,27 @@ export function AuthFlowV2({
                   clearAuthFlowPending();
                   setEmailRegChallengeId(null);
                   setEmailVerifyPurpose("registration");
-                  setEmailAuthMode("register");
+                  setEmailAuthMode("login");
                 }}
               >
                 Изменить email
               </button>
-              <div className="flex flex-col gap-1 pt-2">
-                <label htmlFor="auth-verify-resend-pwd" className={authFormFieldLabelClass}>
-                  {emailVerifyPurpose === "setup" ? "Пароль" : "Пароль (для повторной отправки кода)"}
-                </label>
-                <Input
-                  id="auth-verify-resend-pwd"
-                  type="password"
-                  autoComplete="new-password"
-                  value={emailRegPassword}
-                  onChange={(e) => setEmailRegPassword(e.target.value)}
-                  disabled={loading}
-                  className={authEmailInputClass}
-                />
-              </div>
+              {emailVerifyPurpose !== "email_otp" ? (
+                <div className="flex flex-col gap-1 pt-2">
+                  <label htmlFor="auth-verify-resend-pwd" className={authFormFieldLabelClass}>
+                    {emailVerifyPurpose === "setup" ? "Пароль" : "Пароль (для повторной отправки кода)"}
+                  </label>
+                  <Input
+                    id="auth-verify-resend-pwd"
+                    type="password"
+                    autoComplete="new-password"
+                    value={emailRegPassword}
+                    onChange={(e) => setEmailRegPassword(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}

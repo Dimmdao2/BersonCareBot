@@ -1,0 +1,94 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { confirmPublicEmailOtpChallenge } from "@/modules/auth/emailOtpPublic";
+import { setSessionFromUser } from "@/modules/auth/service";
+import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
+import { formatOtpRetryAfterMessage, OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
+
+const bodySchema = z.object({
+  email: z.string().min(1),
+  code: z.string().trim().min(1),
+  browserCalendarIana: z.string().max(120).optional(),
+});
+
+/**
+ * POST /api/auth/email-otp/confirm
+ *
+ * Public (unauthenticated) endpoint: verify OTP code and establish a session.
+ * On success: sets session cookie, returns redirectTo + role (mirrors phone/confirm shape).
+ */
+export async function POST(request: Request) {
+  const raw = (await request.json().catch(() => null)) as unknown;
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "email_and_code_required", message: "Email и код обязательны" },
+      { status: 400 },
+    );
+  }
+
+  const { email, code } = parsed.data;
+  const deps = buildAppDeps();
+  const result = await confirmPublicEmailOtpChallenge(email, code, deps.emailOtpPublicDb);
+
+  if (!result.ok) {
+    const status =
+      result.code === "too_many_attempts" ? 429 : 400;
+    return NextResponse.json(
+      {
+        ok: false,
+        error: result.code,
+        retryAfterSeconds: result.retryAfterSeconds,
+        message: errorMessage(result.code, result.retryAfterSeconds),
+      },
+      {
+        status,
+        ...(result.retryAfterSeconds != null
+          ? { headers: { "Retry-After": String(result.retryAfterSeconds) } }
+          : {}),
+      },
+    );
+  }
+
+  // Load full session user — we have userId but need role/bindings/displayName.
+  const user = await deps.userByPhone.findByUserId(result.userId);
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, error: "user_not_found", message: "Ошибка входа. Попробуйте снова." },
+      { status: 500 },
+    );
+  }
+
+  await setSessionFromUser(user);
+
+  const tz = parsed.data.browserCalendarIana?.trim();
+  if (tz) {
+    await deps.patientCalendarTimezone.trySetInitialIfEmpty(user.userId, tz);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    redirectTo: getRedirectPathForRole(user.role),
+    role: user.role,
+  });
+}
+
+function errorMessage(code: string, retryAfterSeconds?: number): string {
+  switch (code) {
+    case "invalid_code":
+      return "Неверный код";
+    case "expired_code":
+      return "Код истёк. Запросите новый.";
+    case "too_many_attempts":
+      return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
+    case "rate_limited":
+      return retryAfterSeconds != null
+        ? formatOtpRetryAfterMessage(retryAfterSeconds)
+        : "Слишком много запросов. Попробуйте позже.";
+    case "email_conflict":
+      return "Конфликт email. Обратитесь в поддержку.";
+    default:
+      return "Ошибка подтверждения.";
+  }
+}
