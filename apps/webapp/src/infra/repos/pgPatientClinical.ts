@@ -45,6 +45,8 @@ import {
   clinicalAnamnesisLifestyle,
 } from "../../../db/schema/patientClinicalAnamnesis";
 import { patientFiles } from "../../../db/schema/patientFiles";
+import { beAppointments } from "../../../db/schema/bookingEngine";
+import { bePackageUsages, bePatientPackages } from "../../../db/schema/bookingMemberships";
 
 const RU_MONTHS = [
   "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -238,6 +240,28 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(inArray(patientFiles.visitId, visitIds))
         .orderBy(asc(patientFiles.createdAt));
 
+      // Package title by appointmentRecordId: clinical_visit.appointmentRecordId →
+      // be_appointments.id → be_package_usages.appointmentId → be_patient_packages.title
+      const packageTitleByApptId = new Map<string, string>();
+      const appointmentRecordIds = visitRows
+        .map((v) => v.appointmentRecordId)
+        .filter((id): id is string => id != null);
+      if (appointmentRecordIds.length > 0) {
+        const pkgRows = await db
+          .select({
+            appointmentId: bePackageUsages.appointmentId,
+            title: bePatientPackages.title,
+          })
+          .from(bePackageUsages)
+          .innerJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
+          .where(inArray(bePackageUsages.appointmentId, appointmentRecordIds));
+        for (const row of pkgRows) {
+          if (row.appointmentId && !packageTitleByApptId.has(row.appointmentId)) {
+            packageTitleByApptId.set(row.appointmentId, row.title);
+          }
+        }
+      }
+
       return visitRows.map((v) => {
         const dynamics = cuRows
           .filter((u) => u.visitId === v.id)
@@ -267,6 +291,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .filter((f) => f.visitId === v.id)
           .map((f) => ({ id: f.id, icon: fileIconForMime(f.mimeType), name: f.fileName }));
 
+        const pkgTitle = v.appointmentRecordId
+          ? (packageTitleByApptId.get(v.appointmentRecordId) ?? null)
+          : null;
+
         return {
           id: v.id,
           date: fmtVisitDate(v.visitedAt),
@@ -277,6 +305,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           dynamics: dynamics.length > 0 ? dynamics : undefined,
           sections: sections.length > 0 ? sections : undefined,
           files: files.length > 0 ? files : undefined,
+          package: pkgTitle ? { title: pkgTitle } : null,
         };
       });
     },

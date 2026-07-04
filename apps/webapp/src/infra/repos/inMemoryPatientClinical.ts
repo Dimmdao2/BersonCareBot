@@ -289,6 +289,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         dynamics: dynamics.length > 0 ? dynamics : undefined,
         sections: sections.length > 0 ? sections : undefined,
         files: undefined, // files joined from patient_files in pg repo; n/a in memory
+        package: null, // package lookup requires DB; n/a in memory
       };
     });
   },
