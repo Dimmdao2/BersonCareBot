@@ -1,0 +1,644 @@
+/* ============================================================
+   E redesign — patient card: header · tabs · Карта sections · «Создание визита»
+   Scope: #app-shell-content (inherits from e-tokens.css)
+   Palette: canvas #f9f9f6, card #fff, border #e7e3db, ink #16202e,
+            muted #5a6675, faint #8b95a3, accent #42608a
+   ============================================================ */
+
+/* ─── 1. CARD SHELL ─── */
+/* The outermost white card that wraps the entire patient card */
+#app-shell-content > section > div > div {
+  background: #fff !important;
+  border-color: #e7e3db !important;
+  border-radius: 9px !important;
+  box-shadow: 0 1px 2px rgba(28,24,18,.05), 0 3px 10px rgba(28,24,18,.07) !important;
+  overflow: hidden !important;
+}
+
+/* ─── 2. CARD HEADER ─── */
+
+/* Header area: name, stats, channels */
+#app-shell-content .rounded-xl.border.border-border.bg-card.overflow-hidden
+  > div:first-child {
+  padding: 18px 22px 14px !important;
+  background: #fff !important;
+  gap: 16px !important;
+}
+
+/* Patient name */
+#app-shell-content span.text-base.font-bold.text-foreground.leading-tight {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+  letter-spacing: -0.015em !important;
+}
+
+/* «На сопровождении» pill */
+#app-shell-content span.inline-flex.items-center.gap-1.rounded-md.bg-primary\/10 {
+  background: #eef2f7 !important;
+  color: #42608a !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 3px 10px !important;
+}
+
+/* Full name subtitle */
+#app-shell-content div.text-muted-foreground.mt-0\.5.text-xs {
+  color: #8b95a3 !important;
+  font-size: 12px !important;
+}
+
+/* ДР / Пол rows */
+#app-shell-content div.mt-1\.5.text-xs.text-muted-foreground,
+#app-shell-content div.mt-1.text-xs.text-muted-foreground {
+  color: #8b95a3 !important;
+  font-size: 12px !important;
+}
+
+/* Channel icon buttons (Telegram, chat etc) */
+#app-shell-content button.inline-flex.h-6.w-6.items-center.justify-center.rounded-md.border.text-xs.transition-colors.border-primary\/30 {
+  border-color: #d1dae7 !important;
+  background: #f4f7fb !important;
+  color: #42608a !important;
+  border-radius: 6px !important;
+}
+#app-shell-content button.inline-flex.h-6.w-6.items-center.justify-center.rounded-md.border.text-xs.transition-colors.border-primary\/30:hover {
+  background: #e0e8f3 !important;
+}
+
+/* Disabled channel buttons */
+#app-shell-content button.inline-flex.h-6.w-6.items-center.justify-center.rounded-md.border.text-xs.transition-colors.border-transparent.bg-muted\/30 {
+  opacity: 0.3 !important;
+}
+
+/* Stats group on the right: ПРОШЛЫЙ ВИЗИТ / СЛЕДУЮЩАЯ ЗАПИСЬ / ВИЗИТОВ */
+#app-shell-content div.flex.gap-4.items-start.pt-0\.5.shrink-0 {
+  gap: 22px !important;
+  padding-top: 4px !important;
+}
+
+#app-shell-content div.flex.gap-4.items-start.pt-0\.5.shrink-0
+  span.font-medium.uppercase.tracking-wide.text-muted-foreground {
+  font-size: 9px !important;
+  color: #8b95a3 !important;
+  letter-spacing: 0.07em !important;
+  font-weight: 600 !important;
+}
+
+#app-shell-content div.flex.gap-4.items-start.pt-0\.5.shrink-0
+  span.text-sm.font-semibold.text-foreground {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+  line-height: 1.2 !important;
+  margin-top: 2px !important;
+}
+
+#app-shell-content div.flex.gap-4.items-start.pt-0\.5.shrink-0
+  span.text-\[11px\].text-muted-foreground {
+  color: #8b95a3 !important;
+  font-size: 11px !important;
+}
+
+#app-shell-content div.flex.gap-4.items-start.pt-0\.5.shrink-0 .text-primary {
+  color: #42608a !important;
+}
+
+/* ─── 3. TABS ─── */
+/* Tabs bar */
+#app-shell-content div.px-4.py-2.border-t.border-border\/60.bg-muted\/20 {
+  background: #f9f9f6 !important;
+  border-top-color: #e7e3db !important;
+  padding: 8px 18px !important;
+}
+
+/* Tab buttons — inactive */
+#app-shell-content div.px-4.py-2.border-t.border-border\/60.bg-muted\/20
+  button.inline-flex.items-center.gap-1.rounded-md.px-3.py-1.text-sm.font-medium.transition-colors.select-none.cursor-pointer.text-muted-foreground {
+  color: #5a6675 !important;
+  background: transparent !important;
+  border-radius: 999px !important;
+  padding: 5px 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  transition: background 0.15s, color 0.15s !important;
+}
+#app-shell-content div.px-4.py-2.border-t.border-border\/60.bg-muted\/20
+  button.inline-flex.items-center.gap-1.rounded-md.px-3.py-1.text-sm.font-medium.transition-colors.select-none.cursor-pointer.text-muted-foreground:hover {
+  background: #eef2f7 !important;
+  color: #42608a !important;
+}
+
+/* Tab buttons — active */
+#app-shell-content div.px-4.py-2.border-t.border-border\/60.bg-muted\/20
+  button.inline-flex.items-center.gap-1.rounded-md.px-3.py-1.text-sm.font-medium.transition-colors.select-none.cursor-pointer.bg-primary\/15 {
+  background: #42608a !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+  padding: 5px 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+/* ─── 4. КАРТА LAYOUT — two columns ─── */
+
+/* Column gap */
+#app-shell-content div.grid.items-start.gap-2\.5 {
+  gap: 14px !important;
+}
+
+/* Left col (blurred adding state) */
+#app-shell-content div.flex.flex-col.gap-2\.5.transition-all.duration-200.opacity-50.blur-\[1\.5px\] {
+  opacity: 0.5 !important;
+  filter: blur(1.2px) saturate(0.7) !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+/* Left section cards */
+#app-shell-content div.grid.items-start section.rounded-xl.border.border-border.bg-card.p-3 {
+  background: #fff !important;
+  border-color: #e7e3db !important;
+  border-radius: 9px !important;
+  box-shadow: 0 1px 2px rgba(28,24,18,.04), 0 2px 6px rgba(28,24,18,.05) !important;
+  padding: 14px 16px !important;
+  gap: 8px !important;
+}
+
+/* Section h3 */
+#app-shell-content div.grid.items-start section h3.text-sm.font-semibold.text-foreground {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+}
+
+/* Small + add buttons */
+#app-shell-content div.grid.items-start section button.grid.h-\[18px\].w-\[18px\] {
+  border-color: rgba(66,96,138,.4) !important;
+  color: #42608a !important;
+  border-radius: 4px !important;
+}
+
+/* Section filter pills (active) */
+#app-shell-content div.grid.items-start section span.cursor-pointer.rounded-md.px-1\.5.py-0\.5.text-xs.bg-primary\/15 {
+  background: #eef2f7 !important;
+  color: #42608a !important;
+  font-weight: 600 !important;
+  border-radius: 999px !important;
+}
+
+/* Section filter pills (inactive) */
+#app-shell-content div.grid.items-start section span.cursor-pointer.rounded-md.px-1\.5.py-0\.5.text-xs.text-muted-foreground {
+  color: #8b95a3 !important;
+  border-radius: 999px !important;
+}
+
+/* Section body text */
+#app-shell-content div.grid.items-start section p.text-xs.text-muted-foreground {
+  font-size: 12px !important;
+  color: #5a6675 !important;
+  line-height: 1.5 !important;
+}
+
+/* Sub-section labels in Анамнез */
+#app-shell-content div.grid.items-start section span.text-xs.font-semibold.text-foreground {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #8b95a3 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.045em !important;
+}
+
+/* ─── 5. RIGHT COLUMN — VISIT PANEL ─── */
+
+/* Right column gap */
+#app-shell-content div.grid.items-start > div.flex.flex-col.gap-2\.5 {
+  gap: 8px !important;
+}
+
+/* «История визитов» heading */
+#app-shell-content div.grid.items-start > div.flex.flex-col.gap-2\.5
+  > div.flex.items-center.gap-2 > h2.text-sm.font-semibold {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+}
+
+#app-shell-content div.grid.items-start > div.flex.flex-col.gap-2\.5
+  > div.flex.items-center.gap-2 > span.text-xs.text-muted-foreground {
+  color: #8b95a3 !important;
+}
+
+/* History toggle button (◀) */
+#app-shell-content div.flex.items-center.gap-2 > button.rounded-md.border.border-border.bg-background.px-2.py-1.text-xs.text-muted-foreground {
+  border-color: #e7e3db !important;
+  background: #fff !important;
+  color: #5a6675 !important;
+  border-radius: 7px !important;
+  padding: 4px 8px !important;
+}
+
+/* Panel outer card */
+#app-shell-content div.flex.h-full.flex-col.overflow-hidden.rounded-xl.border.border-primary\/30.bg-card.shadow-lg {
+  border-radius: 9px !important;
+  border: 1px solid rgba(66,96,138,.25) !important;
+  box-shadow: 0 2px 8px rgba(28,24,18,.07), 0 10px 28px rgba(28,24,18,.10) !important;
+  background: #fff !important;
+}
+
+/* ══ PANEL HEADER BAR (Новый визит + controls) ══ */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5 {
+  background: #f4f7fb !important;
+  border-bottom: 1px solid #e7e3db !important;
+  padding: 14px 18px 10px !important;
+  row-gap: 10px !important;
+  column-gap: 10px !important;
+  align-items: center !important;
+}
+
+/* «Новый визит» title */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.text-sm.font-semibold.text-foreground {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1 !important;
+}
+
+/* Segmented control wrapper */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.gap-1 {
+  display: inline-flex !important;
+  gap: 0 !important;
+  background: #fff !important;
+  border: 1px solid #e7e3db !important;
+  border-radius: 999px !important;
+  padding: 2px !important;
+  overflow: hidden !important;
+}
+
+/* Segment — inactive */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.gap-1
+  button.bg-background.text-muted-foreground {
+  background: transparent !important;
+  color: #8b95a3 !important;
+  border: none !important;
+  border-radius: 999px !important;
+  padding: 4px 14px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+/* Segment — active */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.gap-1
+  button.bg-primary {
+  background: #42608a !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 999px !important;
+  padding: 4px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}
+
+/* Close ✕ button */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > button[title="Закрыть"] {
+  order: 10 !important;
+  margin-left: auto !important;
+  background: #fff !important;
+  border: 1px solid #e7e3db !important;
+  color: #8b95a3 !important;
+  border-radius: 7px !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+}
+
+/* Fields row container: make a stable 2×2 grid */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.flex-wrap.gap-1\.5 {
+  display: grid !important;
+  grid-template-columns: 1fr 1.5fr 1.3fr 1fr !important;
+  gap: 8px !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+}
+
+/* All inputs/selects in the fields row */
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.flex-wrap.gap-1\.5 select,
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.flex-wrap.gap-1\.5 input[type="text"] {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  border: 1px solid #e7e3db !important;
+  border-radius: 9px !important;
+  color: #16202e !important;
+  font-size: 12.5px !important;
+  font-family: inherit !important;
+  padding: 7px 10px !important;
+  height: 34px !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+  appearance: auto !important;
+}
+
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.flex-wrap.gap-1\.5 select:focus,
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.flex-wrap.gap-1\.5 input[type="text"]:focus {
+  outline: none !important;
+  border-color: #42608a !important;
+  box-shadow: 0 0 0 3px rgba(66,96,138,.14) !important;
+}
+
+#app-shell-content div.flex.flex-wrap.items-center.gap-2\.5.border-b.border-border.bg-primary\/10.px-3\.5.py-2\.5
+  > span.flex.flex-wrap.gap-1\.5 input::placeholder {
+  color: #b0b9c4 !important;
+}
+
+/* ══ HINT LINE below panel header ══ */
+#app-shell-content p.text-xs.text-muted-foreground.border-b.border-border.px-3\.5.py-1\.5 {
+  background: #fafaf8 !important;
+  border-bottom-color: #e7e3db !important;
+  color: #8b95a3 !important;
+  font-size: 11.5px !important;
+  line-height: 1.45 !important;
+  padding: 9px 18px !important;
+  font-style: italic !important;
+}
+
+/* ══ PANEL BODY: visit sections ══ */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3 {
+  padding: 16px 18px !important;
+  gap: 14px !important;
+  overflow-y: auto !important;
+  background: #f9f9f6 !important;
+}
+
+/* Each visit section block */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3
+  > div.flex.flex-col.gap-1\.5 {
+  gap: 8px !important;
+  padding: 14px 16px !important;
+  background: #fff !important;
+  border: 1px solid #e7e3db !important;
+  border-radius: 9px !important;
+  box-shadow: 0 1px 3px rgba(28,24,18,.04) !important;
+}
+
+/* Section label */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3
+  > div.flex.flex-col.gap-1\.5 > span.text-xs.font-semibold.text-foreground {
+  display: block !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  color: #8b95a3 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.07em !important;
+  margin-bottom: 2px !important;
+}
+
+/* Section empty/descriptive text */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3
+  > div.flex.flex-col.gap-1\.5 > p.text-xs.text-muted-foreground {
+  font-size: 12.5px !important;
+  color: #8b95a3 !important;
+  line-height: 1.5 !important;
+  font-style: italic !important;
+}
+
+/* Textareas */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3 textarea {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  background: #fafaf8 !important;
+  border: 1px solid #e7e3db !important;
+  border-radius: 7px !important;
+  color: #16202e !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  padding: 10px 12px !important;
+  font-family: inherit !important;
+  resize: vertical !important;
+  min-height: 72px !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3 textarea:focus {
+  outline: none !important;
+  border-color: #42608a !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(66,96,138,.13) !important;
+}
+
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3 textarea::placeholder {
+  color: #b8c0ca !important;
+  font-style: italic !important;
+}
+
+/* ══ PANEL FOOTER ══ */
+#app-shell-content div.flex.items-center.gap-2.border-t.border-border.bg-muted\/20.px-3\.5.py-2\.5 {
+  background: #fff !important;
+  border-top: 1px solid #e7e3db !important;
+  padding: 12px 18px !important;
+  gap: 10px !important;
+}
+
+/* «Сохранить визит» */
+#app-shell-content div.flex.items-center.gap-2.border-t.border-border.bg-muted\/20.px-3\.5.py-2\.5
+  > button.rounded-md.bg-primary {
+  background: #42608a !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 9px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  padding: 8px 18px !important;
+  cursor: pointer !important;
+  transition: background 0.15s !important;
+  letter-spacing: 0.01em !important;
+}
+
+#app-shell-content div.flex.items-center.gap-2.border-t.border-border.bg-muted\/20.px-3\.5.py-2\.5
+  > button.rounded-md.bg-primary:hover:not(:disabled) {
+  background: #34507a !important;
+}
+
+/* «Прикрепить файлы» */
+#app-shell-content div.flex.items-center.gap-2.border-t.border-border.bg-muted\/20.px-3\.5.py-2\.5
+  > button.rounded-md.border.border-border.bg-background {
+  background: #fff !important;
+  border: 1px solid #e7e3db !important;
+  color: #16202e !important;
+  border-radius: 9px !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  padding: 8px 16px !important;
+  cursor: pointer !important;
+  transition: background 0.15s, border-color 0.15s, color 0.15s !important;
+}
+
+#app-shell-content div.flex.items-center.gap-2.border-t.border-border.bg-muted\/20.px-3\.5.py-2\.5
+  > button.rounded-md.border.border-border.bg-background:hover {
+  background: #eef2f7 !important;
+  border-color: #42608a !important;
+  color: #42608a !important;
+}
+
+/* Footer note */
+#app-shell-content div.flex.items-center.gap-2.border-t.border-border.bg-muted\/20.px-3\.5.py-2\.5
+  > span.text-xs.text-muted-foreground {
+  color: #b0b9c4 !important;
+  font-size: 11px !important;
+  margin-left: auto !important;
+}
+
+/* ─── 6. LEFT COL MINI STAT CARDS (Контроль / Абонемент) ─── */
+#app-shell-content div.grid.grid-cols-2.gap-2 > div.rounded-lg.border {
+  background: #fff !important;
+  border-color: #e7e3db !important;
+  border-radius: 9px !important;
+  box-shadow: 0 1px 2px rgba(28,24,18,.04) !important;
+  padding: 11px 13px !important;
+}
+
+#app-shell-content div.grid.grid-cols-2.gap-2 span.text-\[10px\].font-medium.uppercase {
+  font-size: 9.5px !important;
+  color: #8b95a3 !important;
+  letter-spacing: 0.06em !important;
+}
+
+#app-shell-content div.grid.grid-cols-2.gap-2 span.font-semibold.tabular-nums {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+}
+
+#app-shell-content div.grid.grid-cols-2.gap-2 span.text-xs.text-muted-foreground.leading-tight {
+  font-size: 11px !important;
+  color: #8b95a3 !important;
+}
+
+/* ─── 7. INLINE SECTION CARDS in left col (Актуальные симптомы etc.) ─── */
+#app-shell-content div.flex.flex-col.gap-2\.5
+  > div.rounded-xl.border.border-border.bg-card.p-3 {
+  background: #fff !important;
+  border-color: #e7e3db !important;
+  border-radius: 9px !important;
+  box-shadow: 0 1px 2px rgba(28,24,18,.04), 0 2px 6px rgba(28,24,18,.05) !important;
+  padding: 14px 16px !important;
+  gap: 8px !important;
+}
+
+#app-shell-content div.flex.flex-col.gap-2\.5
+  > div.rounded-xl.border.border-border.bg-card.p-3
+  span.text-sm.font-semibold.text-foreground {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #16202e !important;
+}
+
+#app-shell-content div.flex.flex-col.gap-2\.5
+  > div.rounded-xl.border.border-border.bg-card.p-3
+  p.text-xs.text-muted-foreground {
+  color: #8b95a3 !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+/* ─── 8. GLOBAL TOKEN OVERRIDES for primary color ─── */
+/* Ensure primary is always the right accent in this context */
+#app-shell-content {
+  --primary: #42608a;
+  --primary-foreground: #ffffff;
+  --border: #e7e3db;
+  --background: #f9f9f6;
+  --foreground: #16202e;
+  --muted: #eef0f2;
+  --muted-foreground: #5a6675;
+  --card: #ffffff;
+  --card-foreground: #16202e;
+}
+
+/* ─── 9. SUBTLE POLISH ─── */
+
+/* Ensure card sections in left col have proper spacing */
+#app-shell-content div.grid.items-start section.rounded-xl.border.border-border.bg-card.p-3
+  > div.flex.items-center.justify-between {
+  margin-bottom: 4px !important;
+}
+
+/* Visit panel: the body sections gap from panel top */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3 {
+  padding-top: 18px !important;
+  padding-bottom: 18px !important;
+}
+
+/* The first section header of the panel has more top context */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3
+  > div.flex.flex-col.gap-1\.5:first-child {
+  /* slightly elevated label color for the first section */
+}
+
+/* Visit panel: the scrollable area should clip at a comfortable height
+   (component-level sizing only, not page container) */
+#app-shell-content div.max-h-\[78vh\] {
+  max-height: 78vh !important;
+  overflow: hidden !important;
+}
+
+/* Ensure the panel body flex grows to fill space */
+#app-shell-content div.flex.h-full.flex-col.overflow-hidden.rounded-xl.border.border-primary\/30.bg-card.shadow-lg {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Panel body flex-grow */
+#app-shell-content div.flex.flex-col.gap-3.overflow-y-auto.px-3\.5.py-3 {
+  flex: 1 1 auto !important;
+}
+
+/* ─── 10. «ДР» / «Пол» row styling ─── */
+/* Soften existing pill-like appearance from app CSS */
+#app-shell-content div.mt-1\.5.text-xs.text-muted-foreground span,
+#app-shell-content div.mt-1.text-xs.text-muted-foreground span {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  color: #8b95a3 !important;
+  font-size: 12px !important;
+}
+
+/* ─── 11. History button row refinements ─── */
+#app-shell-content div.grid.items-start > div.flex.flex-col.gap-2\.5
+  > div.flex.items-center.gap-2 {
+  padding: 4px 0 6px !important;
+}
+
+/* «Визитов пока нет» empty note */
+#app-shell-content div.grid.items-start > div.flex.flex-col.gap-2\.5
+  > p.text-xs.text-muted-foreground {
+  color: #b0b9c4 !important;
+  font-size: 12px !important;
+  padding: 8px 2px !important;
+  font-style: italic !important;
+}
+
+/* ─── 12. SECTION mini-cards inside visit columns at overview view ─── */
+/* The two-column sections inside the overview tab (Заметки, Задания etc.) */
+#app-shell-content div.flex.flex-col.gap-2\.5
+  > div.rounded-xl.border.border-border.bg-card.p-3 .text-xs.text-muted-foreground {
+  color: #8b95a3 !important;
+  font-size: 12px !important;
+}
