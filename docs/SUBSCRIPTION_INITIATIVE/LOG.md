@@ -29,3 +29,26 @@
 - `soldAt` fallback: если `null`, берём `validFrom`, затем `createdAt`.
 - Concurrency: списание идёт последовательно, баланс декрементируется локально в пределах одного прохода. При двух ОДНОВРЕМЕННЫХ вызовах «Пересчитать» на один пакет теоретически возможно двойное списание одной записи (нет транзакционного локирования на уровне записи) — API-слой (ST-02) должен исключить параллельный повторный вызов, либо добавить unique-guard на (appointmentId, consume). Пометить для Opus-аудита.
 - `charged_to_package` НЕ входит в eligible-статусы: такие записи уже несут consume-usage → отсекаются по `linkage!=none` (двойная защита).
+
+## 2026-07-04 — ST-02: API «Пересчитать» (доктор) + закрытие гонки `backend` `complex`
+Воркер (Opus). Тот же worktree `/tmp/st01-recalc`, ветка `feat/subscription-recalc` поверх ST-01 (HEAD ff2cb715). Предыдущий запуск был прерван вхолостую (0 коммитов) — переделано заново.
+
+**Реализовано:**
+- `apps/webapp/src/app/api/doctor/booking-engine/patient-packages/[id]/recalc/route.ts` — `POST` по шаблону соседнего `consume/route.ts`: гейт `requireDoctorBookingEngine()`, `id` пакета из params (body не требуется), вызов `deps.memberships.recalcPastSessionsForPackage({ organizationId (из гейта), patientPackageId, createdByPlatformUserId })`, best-effort calendar-sync (`emitPackageLinkedCalendarSync`) по каждой списанной записи, возврат сводки для тоста `{ ok, summary: { debited, skipped, outOfBalance } }` (счётчики). 503 если memberships недоступен, 400 на ошибку сервиса.
+- `apps/webapp/src/app/api/admin/booking-engine/patient-packages/[id]/recalc/route.ts` — admin-зеркало (у `consume` есть admin-пара → мостим ту же структуру; гейт `requireAdminBookingEngine`, без calendar-sync — как в admin/consume).
+
+**IDOR/владение (OQ-1):** как в `consume/route.ts` — `organizationId` берётся из аутентифицированного гейта, а сервис грузит пакет через `getPatientPackage(id, organizationId)`. Пакет чужой организации резолвится в `null` → `package_not_found` (400). Recalc не может тронуть чужой пакет. Дублирующей проверки на роуте `consume` не делает — не плодим и мы (единый organizationId-фильтр в методе).
+
+**Закрытие гонки (обязательный acceptance аудита):**
+- Новый порт-метод `runWithPackageLock<T>(patientPackageId, organizationId, fn)` (`ports.ts`). PG-реализация (`pgMemberships.ts`): `db.transaction()` + `SELECT pg_advisory_xact_lock(hashtextextended(<packageId>, 0))` — транзакционно-скоупленный advisory-lock, авто-снимается на COMMIT/ROLLBACK. Второй параллельный POST recalc БЛОКИРУЕТСЯ до коммита первого, поэтому читает баланс из ledger УЖЕ после списаний первого прохода → двойного списания нет.
+- Сервис (`service.ts`): весь проход «прочитать баланс → списать» обёрнут в `runWithPackageLock`. Чтение `listUsagesForPackage` перенесено ВНУТРЬ лока (не до), плюс внутри лока — свежая пере-проверка `already_debited` по только что прочитанным usages (второй проход пропускает записи, списанные первым). ST-01 сервис-слой доработан минимально, 27 тестов ST-01 сохранены зелёными.
+- Fake-порт (`makePort`) получил `runWithPackageLock` = сериализующий per-key promise-mutex (семантика PG advisory-lock для теста).
+- **Доказательство:** тест «two parallel recalc passes do NOT double-debit» — пакет с остатком 1 + 1 подходящая запись, два `Promise.all` вызова recalc на общий stateful-порт (ledger, который `listUsagesForPackage` отдаёт, а `appendUsage` пополняет). Проверка: ровно 1 `consume` в ledger, `appendUsage` вызван 1 раз, суммарно `debited=1`. ⛔ Жёсткий unique-constraint на consume НЕ добавлялся (сломал бы refund→re-consume).
+
+**Тесты:** `recalc/route.test.ts` (+4: happy-path со счётчиками+org+calendar-sync per debit; 403 без роли — сервис не вызван; идемпотентный повтор=no-op пустая сводка без sync; ошибка сервиса→400) + `service.test.ts` (+1: race). Прогон через `/home/dev/orch/run-tests.sh`: **service.test.ts 28 passed (27 ST-01 + 1 race)**, **recalc/route.test.ts 4 passed**. `tsc --noEmit` по webapp — чисто (exit 0).
+
+**Сомнения для аудитора:**
+- Порт-методы списания (`appendUsage`/`setAppointmentPackageUsageRef`/`appendHistoryEvent`) внутри `fn` идут через `getDrizzle()` (пул), НЕ через tx-хендл транзакции лока — каждый авто-коммитится. Advisory-lock всё равно корректен: он сериализует проходы (второй ждёт коммита первого), и т.к. пул-запросы авто-коммитятся, списания первого видны второму после снятия лока. Транзакция-обёртка нужна только чтобы дать advisory-lock время жизни до конца прохода. Полноценная единая транзакция потребовала бы прокинуть tx-хендл во все порт-методы (крупный рефактор ST-01) — не делал.
+- `hashtextextended(text, int8)` — стандарт PG 12+; коллизия хэша дала бы лишнюю сериализацию двух разных пакетов (безопасно, лишь чуть медленнее), не пропуск лока.
+- Race-тест — на fake-мьютексе (семантика advisory-lock), не на живой БД. Живую сериализацию подтвердит интеграционный/трассировочный аудит на реальном Postgres.
+- Admin-зеркало добавлено по факту наличия admin/consume; если admin-путь для recalc не нужен продукту — удалить один файл.

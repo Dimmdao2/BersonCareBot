@@ -71,7 +71,31 @@ function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
     updatePatientPackageNotes: vi.fn(),
     listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([]),
     listRecalcCandidateAppointments: vi.fn().mockResolvedValue([]),
+    runWithPackageLock: makeSerializingLock(),
     ...overrides,
+  };
+}
+
+/**
+ * Fake of the pg advisory lock: a per-key promise chain so overlapping recalc passes run
+ * strictly one-after-another (matches Postgres advisory-lock semantics for the double-debit test).
+ */
+function makeSerializingLock(): MembershipsPort["runWithPackageLock"] {
+  const chains = new Map<string, Promise<unknown>>();
+  return async <T>(packageId: string, _org: string, fn: () => Promise<T>): Promise<T> => {
+    const prev = chains.get(packageId) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    chains.set(
+      packageId,
+      prev.then(() => gate),
+    );
+    await prev.catch(() => {});
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
   };
 }
 
@@ -761,6 +785,60 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
     expect(res.debited).toHaveLength(0);
     expect(res.skipped.every((s) => s.reason === "already_debited")).toBe(true);
     expect(port.appendUsage).not.toHaveBeenCalled();
+  });
+
+  it("two parallel recalc passes do NOT double-debit (race closed by runWithPackageLock)", async () => {
+    // Package with a single remaining session and one eligible past visit. Without the per-package
+    // lock, both passes would read balance=1, both appendUsage → double debit. The lock serializes
+    // them; the second pass reads the ledger AFTER the first committed and sees the visit already
+    // debited (both via the ledger balance = 0 and the already_debited linkage check).
+    const onePkg: PatientPackageRecord = {
+      ...recalcPkg,
+      items: [{ id: "i1", serviceId: "svc-1", quantityInitial: 1, sortOrder: 0 }],
+    };
+    // Stateful ledger the fake port reads/writes, so serialized passes observe each other.
+    const ledger: Array<{
+      id: string;
+      patientPackageId: string;
+      patientPackageItemId: string;
+      appointmentId: string | null;
+      usageKind: string;
+      quantity: number;
+      comment: null;
+      occurredAt: string;
+    }> = [];
+    let seq = 0;
+    const port = makePort({
+      getPatientPackage: vi.fn().mockResolvedValue(onePkg),
+      listRecalcCandidateAppointments: vi.fn().mockResolvedValue([candidate({ id: "a1" })]),
+      listUsagesForPackage: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      appendUsage: vi.fn().mockImplementation(async (input) => {
+        const row = {
+          id: `u-${seq++}`,
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId ?? null,
+          usageKind: input.usageKind,
+          quantity: input.quantity ?? 1,
+          comment: null as null,
+          occurredAt: new Date().toISOString(),
+        };
+        ledger.push(row);
+        return row;
+      }),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const [a, b] = await Promise.all([
+      svc.recalcPastSessionsForPackage({ organizationId: "org-1", patientPackageId: "pp-r", nowIso: NOW }),
+      svc.recalcPastSessionsForPackage({ organizationId: "org-1", patientPackageId: "pp-r", nowIso: NOW }),
+    ]);
+    // Exactly one consume total across both passes.
+    const consumes = ledger.filter((u) => u.usageKind === "consume");
+    expect(consumes).toHaveLength(1);
+    expect(port.appendUsage).toHaveBeenCalledTimes(1);
+    // One pass debited a1; the other saw it already debited (no-op).
+    const totalDebited = a.debited.length + b.debited.length;
+    expect(totalDebited).toBe(1);
   });
 
   it("inactive / expired package → no-op", async () => {

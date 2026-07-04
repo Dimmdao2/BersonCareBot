@@ -1,0 +1,48 @@
+import { NextResponse } from "next/server";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { emitPackageLinkedCalendarSync } from "@/app-layer/booking/emitPackageCalendarSync";
+import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
+import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+// ST-02: bulk «Пересчитать» endpoint over the ST-01 core. Body is minimal — the package id
+// comes from the route params; the eligible window/statuses are derived server-side (OQ-5/OQ-7).
+export async function POST(_request: Request, context: RouteContext) {
+  const gate = await requireDoctorBookingEngine();
+  if (!gate.ok) return gate.response;
+  const { id: patientPackageId } = await context.params;
+  const deps = buildAppDeps();
+  if (!deps.memberships) {
+    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+  }
+  try {
+    // IDOR/ownership (OQ-1): organizationId comes from the authenticated gate, and the service
+    // loads the package with `getPatientPackage(id, organizationId)` — a package belonging to
+    // another org resolves to null → `package_not_found`. Recalc can never touch a foreign package.
+    const summary = await deps.memberships.recalcPastSessionsForPackage({
+      organizationId: gate.ctx.organizationId,
+      patientPackageId,
+      createdByPlatformUserId: gate.ctx.session.user.userId,
+    });
+    // best-effort calendar sync for each newly-debited past appointment (as in consume route).
+    for (const debit of summary.debited) {
+      const appointment = await gate.ctx.service.getAppointment(debit.appointmentId);
+      if (appointment) {
+        await emitPackageLinkedCalendarSync(createBookingSyncPort(), appointment);
+      }
+    }
+    // Summary for the toast: how many debited / skipped / hit stop-at-zero.
+    return NextResponse.json({
+      ok: true,
+      summary: {
+        debited: summary.debited.length,
+        skipped: summary.skipped.length,
+        outOfBalance: summary.outOfBalance.length,
+      },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "recalc_failed";
+    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+  }
+}

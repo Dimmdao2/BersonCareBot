@@ -110,6 +110,19 @@ export type MembershipsPort = {
     }>
   >;
 
+  /**
+   * ST-02: serialize the bulk «Пересчитать» pass for a single patient package so two
+   * concurrent recalc requests can never read the same balance and double-debit. The pg
+   * port takes a Postgres transaction-scoped advisory lock keyed on the package id and runs
+   * `fn` inside that transaction; the in-memory/fake port serializes with a simple mutex.
+   * All debits for one pass happen inside `fn`.
+   */
+  runWithPackageLock<T>(
+    patientPackageId: string,
+    organizationId: string,
+    fn: () => Promise<T>,
+  ): Promise<T>;
+
   setPatientPackageStatus(
     id: string,
     organizationId: string,

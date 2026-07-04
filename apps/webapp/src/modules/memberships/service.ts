@@ -926,6 +926,10 @@ export function createMembershipsService(deps: {
       const serviceIds = [...packageServiceIds];
       if (serviceIds.length === 0) return summary;
 
+      // ST-02: serialize the whole read-balance→debit pass under a per-package lock so two
+      // concurrent «Пересчитать» requests can never both read the same balance and double-debit.
+      // The pg port runs this inside an advisory-locked transaction; the fake port mutexes it.
+      return deps.port.runWithPackageLock(pkg.id, pkg.organizationId, async () => {
       const candidates = await deps.port.listRecalcCandidateAppointments({
         organizationId: input.organizationId,
         platformUserId: pkg.platformUserId,
@@ -934,18 +938,36 @@ export function createMembershipsService(deps: {
         nowIso,
       });
 
-      // Derive current per-item balances from the ledger once, then decrement locally as we
-      // consume so we never over-debit within this single pass (no extra round-trips, no minus).
+      // Derive current per-item balances from the ledger once (inside the lock), then decrement
+      // locally as we consume so we never over-debit within this single pass (no minus). Reading
+      // usages here (not before the lock) is what makes concurrent passes see each other's debits.
       const usages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
       const balances = computeItemBalances(pkg.items, usages);
       const remainingByItemId = new Map<string, number>(
         balances.map((b) => [b.patientPackageItemId, b.remaining]),
       );
 
+      // Idempotency inside the lock: re-check each candidate's linkage against the freshly-read
+      // usages, so a second concurrent pass skips appointments the first one already debited.
+      const debitedApptIds = new Set(
+        usages
+          .filter((u) => u.usageKind === "consume" || u.usageKind === "penalty" || u.usageKind === "reserve")
+          .map((u) => u.appointmentId)
+          .filter((a): a is string => Boolean(a)),
+      );
+
       // Deterministic order: oldest appointment first (fair FIFO of past visits).
       const ordered = [...candidates].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 
       for (const cand of ordered) {
+        if (debitedApptIds.has(cand.appointmentId)) {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "already_debited",
+          });
+          continue;
+        }
         const linkage = computeAppointmentPackageLinkage(cand.usages);
         if (linkage !== "none") {
           summary.skipped.push({
@@ -1019,6 +1041,7 @@ export function createMembershipsService(deps: {
       }
 
       return summary;
+      });
     },
 
     async onVisitConfirmed(appointmentId: string, organizationId: string) {
