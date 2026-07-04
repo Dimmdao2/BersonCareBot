@@ -168,7 +168,7 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "max:welcome",
+					"templateKey": "max:afterPhoneLinked",
 					"menu": "main",
 					"delivery": {
 						"channels": [
@@ -184,7 +184,7 @@
 		"id": "max.contact.link.cancel",
 		"source": "max",
 		"event": "message.received",
-		"priority": 57,
+		"priority": 55,
 		"match": {
 			"context": {
 				"conversationState": "await_contact:subscription"
@@ -232,7 +232,7 @@
 		"id": "max.contact.link.remind",
 		"source": "max",
 		"event": "message.received",
-		"priority": 52,
+		"priority": 53,
 		"match": {
 			"context": {
 				"conversationState": "await_contact:subscription"
