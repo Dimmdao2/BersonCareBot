@@ -23,15 +23,10 @@ const CLASS_B_CLIENT_QUERY_REL = ["infra/db/client.ts"] as const;
 
 /** Class C: `client.query` only for TX control / advisory on dedicated PoolClient. */
 const CLASS_C_CLIENT_QUERY_REL = [
-  "infra/adminAuditLog.ts",
   "infra/db/withClient.ts",
-  "infra/integratorPlatformUserMerge.ts",
-  "infra/platformUserFullPurge.ts",
-  "infra/strictPlatformUserPurge.ts",
   "infra/repos/pgOnlineIntake.ts",
   "infra/repos/pgUserByPhone.ts",
   "infra/repos/pgUserProjection.ts",
-  "infra/repos/s3MediaStorage.ts",
 ] as const;
 
 /** Migrated in 15A–15E: runtime domain `pool.query`/`client.query` must stay 0. */
@@ -115,7 +110,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(CLASS_B_POOL_QUERY_REL).toHaveLength(3);
   });
 
-  it("client.query only in Class B health + Class C allowlist (10 files)", () => {
+  it("client.query only in Class B health + Class C allowlist (5 files)", () => {
     const allowed = new Set<string>([...CLASS_B_CLIENT_QUERY_REL, ...CLASS_C_CLIENT_QUERY_REL]);
     const offenders: string[] = [];
     for (const abs of prodFiles) {
@@ -128,7 +123,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
       }
     }
     expect(offenders).toEqual([]);
-    expect(allowed.size).toBe(10);
+    expect(allowed.size).toBe(5);
   });
 
   it("every Class B/C tail file is documented in RAW_SQL_INVENTORY.md", () => {
@@ -157,7 +152,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("post-15 prod tail size is 13 runtime files", () => {
+  it("post-15 prod tail size is 8 runtime files", () => {
     const runtimeTail = new Set<string>();
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
@@ -170,7 +165,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
         runtimeTail.add(rel);
       }
     }
-    expect(runtimeTail.size).toBe(13);
+    expect(runtimeTail.size).toBe(8);
     expect([...runtimeTail].sort()).toEqual(
       [...CLASS_B_POOL_QUERY_REL, ...CLASS_B_CLIENT_QUERY_REL, ...CLASS_C_CLIENT_QUERY_REL].sort(),
     );

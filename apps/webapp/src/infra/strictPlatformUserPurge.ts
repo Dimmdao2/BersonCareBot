@@ -19,6 +19,7 @@ import {
   type PurgePlatformUserRow,
 } from "@/infra/platformUserFullPurge";
 import { deleteS3ObjectsWithPerKeyResults, type S3PerKeyDeleteResult } from "@/infra/s3/client";
+import { startPoolTransaction } from "@/infra/db/withClient";
 
 /**
  * - `completed` — webapp commit + S3 + integrator cleanup successful (or integrator work not required).
@@ -283,17 +284,17 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
   let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [] };
   let messengerBindings: MessengerBindingForIntegratorCleanup[] = [];
 
-  const client = await pool.connect();
+  const tx = await startPoolTransaction(pool);
+  const client = tx.client;
   try {
-    await client.query("BEGIN");
     await pgAdvisoryXactLock(client, userSnapshot.id);
     artifact = await collectPurgeArtifactKeys(client, userSnapshot.id);
     messengerBindings = await fetchMessengerBindingsForIntegratorCleanup(client, userSnapshot.id);
     await runWebappPurgeCoreInTransaction(client, userSnapshot);
-    await client.query("COMMIT");
+    await tx.commit();
   } catch (e) {
     try {
-      await client.query("ROLLBACK");
+      await tx.rollback();
     } catch {
       /* ignore */
     }
@@ -309,7 +310,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
     }
     return { ok: false, error: "transaction_failed", transactionError: message };
   } finally {
-    client.release();
+    tx.release();
   }
 
   const digs = userSnapshot.phone_normalized?.trim() ? phoneDigits(userSnapshot.phone_normalized) : "";

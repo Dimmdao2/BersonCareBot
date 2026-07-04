@@ -4,14 +4,11 @@
  *
  * Строгий сценарий (S3, advisory lock, audit): `runStrictPurgePlatformUser` в `strictPlatformUserPurge.ts`.
  */
-import pg, { type Pool, type PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { getPool } from "@/infra/db/client";
+import { getIntegratorPurgePoolProvider } from "@/infra/db/integratorPurgePoolProvider";
+import { startPoolTransaction } from "@/infra/db/withClient";
 import { runPurgeClientPgText, runPurgePoolPgText } from "@/infra/platformUserPurgeSql";
-
-const { Pool: PgPool } = pg;
-
-/** Pools keyed by final connection string (unified DB uses `search_path=integrator,public`). */
-const integratorPurgePools = new Map<string, Pool>();
 
 function trimEnv(name: string): string {
   return process.env[name]?.trim() ?? "";
@@ -72,12 +69,7 @@ export function getIntegratorPoolForPurge(): Pool | null {
 
   const connectionString = useIntegratorSearchPath ? appendIntegratorSearchPathToConnectionString(baseUrl) : baseUrl;
 
-  let pool = integratorPurgePools.get(connectionString);
-  if (!pool) {
-    pool = new PgPool({ connectionString, max: 3 });
-    integratorPurgePools.set(connectionString, pool);
-  }
-  return pool;
+  return getIntegratorPurgePoolProvider(connectionString);
 }
 
 /** Только цифры; для сопоставления записей по номеру. */
@@ -375,10 +367,9 @@ export async function deleteIntegratorPhoneData(
   integratorUserIds: string[],
   messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<void> {
-  const client = await integratorDb.connect();
+  const tx = await startPoolTransaction(integratorDb);
+  const client = tx.client;
   try {
-    await client.query("BEGIN");
-
     if (messengerBindings && messengerBindings.length > 0) {
       await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
     }
@@ -413,12 +404,16 @@ export async function deleteIntegratorPhoneData(
       await runPurgeClientPgText(client, `DELETE FROM users WHERE id = ANY($1::bigint[])`, [integratorUserIds]);
     }
 
-    await client.query("COMMIT");
+    await tx.commit();
   } catch (err) {
-    await client.query("ROLLBACK");
+    try {
+      await tx.rollback();
+    } catch {
+      /* ignore rollback failure; preserve original error */
+    }
     throw err;
   } finally {
-    client.release();
+    tx.release();
   }
 }
 

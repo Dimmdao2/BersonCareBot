@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { callIntegratorUserMerge } from "@/infra/integrations/integratorUserMergeM2mClient";
 import { writeAuditLog } from "@/infra/adminAuditLog";
+import { startPoolTransaction } from "@/infra/db/withClient";
 import { logger } from "@/infra/logging/logger";
 import { fetchMergePartyDisplayLabels } from "@/infra/mergeAuditLabels";
 import { runIdentityClientPgText } from "@/infra/repos/identityPhoneSql";
@@ -94,7 +95,7 @@ async function clearDuplicateIntegratorUserId(
 
 /**
  * Integrator-side canonical user merge with row lock held through M2M decision.
- * Class C TX: `BEGIN` / `COMMIT` / `ROLLBACK` on dedicated `PoolClient`; domain SQL via unified executor.
+ * Transaction checkout/control is centralized in `startPoolTransaction`; domain SQL uses unified executor.
  */
 export async function executeIntegratorPlatformUserMerge(params: {
   pool: Pool;
@@ -106,15 +107,15 @@ export async function executeIntegratorPlatformUserMerge(params: {
   const { pool, actorId, targetId, duplicateId } = params;
   const dryRun = params.dryRun === true;
 
-  const client = await pool.connect();
+  const tx = await startPoolTransaction(pool);
+  const client = tx.client;
   let txOpen = false;
   try {
-    await client.query("BEGIN");
     txOpen = true;
 
     const rows = await loadPlatformUsersForMergePrecheck(client, targetId, duplicateId);
     if (rows.length !== 2) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       txOpen = false;
       await recordIntegratorMergeFailure({
         pool,
@@ -132,7 +133,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
     const tRow = byId.get(targetId);
     const dRow = byId.get(duplicateId);
     if (!tRow || !dRow) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       txOpen = false;
       await recordIntegratorMergeFailure({
         pool,
@@ -147,7 +148,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
     }
 
     if (tRow.role !== "client" || dRow.role !== "client") {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       txOpen = false;
       await recordIntegratorMergeFailure({
         pool,
@@ -162,7 +163,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
     }
 
     if (tRow.merged_into_id != null || dRow.merged_into_id != null) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       txOpen = false;
       await recordIntegratorMergeFailure({
         pool,
@@ -179,7 +180,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
     const winner = tRow.integrator_user_id?.trim() || "";
     const loser = dRow.integrator_user_id?.trim() || "";
     if (!winner || !loser || winner === loser) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       txOpen = false;
       await recordIntegratorMergeFailure({
         pool,
@@ -208,7 +209,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
     });
 
     if (!merged.ok) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       txOpen = false;
 
       if (merged.reason === "unconfigured") {
@@ -281,7 +282,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
         const rowCount = await clearDuplicateIntegratorUserId(client, duplicateId, loser);
         if (rowCount !== 1) {
           try {
-            await client.query("ROLLBACK");
+            await tx.rollback();
           } catch {
             /* no active tx after autocommit UPDATE failure path */
           }
@@ -305,7 +306,8 @@ export async function executeIntegratorPlatformUserMerge(params: {
           };
         }
 
-        await client.query("COMMIT");
+        await tx.commit();
+        txOpen = false;
         const labels = await fetchMergePartyDisplayLabels(pool, targetId, duplicateId);
         await writeAuditLog(pool, {
           actorId,
@@ -366,13 +368,13 @@ export async function executeIntegratorPlatformUserMerge(params: {
       };
     }
 
-    await client.query("COMMIT");
+    await tx.commit();
     txOpen = false;
     return { ok: true, status: 200, body: { ok: true, result: merged.result } };
   } catch (error) {
     if (txOpen) {
       try {
-        await client.query("ROLLBACK");
+        await tx.rollback();
       } catch {
         /* ignore rollback errors */
       }
@@ -384,6 +386,6 @@ export async function executeIntegratorPlatformUserMerge(params: {
     );
     throw error;
   } finally {
-    client.release();
+    tx.release();
   }
 }
