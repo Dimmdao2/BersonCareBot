@@ -418,6 +418,122 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79004445566');
   });
 
+  it('parses vcf_info vCard TEL from real MAX contact attachment', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 503 },
+        body: {
+          mid: 'mid-vcf',
+          text: '',
+          attachments: [
+            {
+              type: 'contact',
+              payload: {
+                vcf_info:
+                  'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Sergei Deryabin\r\nTEL:+79001112148\r\nEND:VCARD',
+              },
+            },
+          ],
+        },
+        sender: { user_id: 503 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.phone).toBe('+79001112148');
+      expect(incoming.relayMessageType).toBe('contact');
+    }
+  });
+
+  it('parses vcf_info TEL with TYPE parameter from MAX contact', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 507 },
+        body: {
+          mid: 'mid-tel-type',
+          text: '',
+          attachments: [
+            {
+              type: 'contact',
+              payload: {
+                vcf_info:
+                  'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Test\r\nTEL;TYPE=CELL,VOICE:89001112233\r\nEND:VCARD',
+              },
+            },
+          ],
+        },
+        sender: { user_id: 507 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.phone).toBe('+79001112233');
+    }
+  });
+
+  it('falls back to max_info.phone when no vcf_info in MAX contact', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 504 },
+        body: {
+          mid: 'mid-maxinfo',
+          text: '',
+          attachments: [
+            {
+              type: 'contact',
+              payload: {
+                max_info: { user_id: 123, phone: '+79002223344' },
+              },
+            },
+          ],
+        },
+        sender: { user_id: 504 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.phone).toBe('+79002223344');
+    }
+  });
+
+  it('prefers vcf_info TEL over max_info.phone in MAX contact', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 505 },
+        body: {
+          mid: 'mid-both',
+          text: '',
+          attachments: [
+            {
+              type: 'contact',
+              payload: {
+                vcf_info: 'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL:+79003334455\r\nEND:VCARD',
+                max_info: { phone: '+79009998877' },
+              },
+            },
+          ],
+        },
+        sender: { user_id: 505 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.phone).toBe('+79003334455');
+    }
+  });
+
   it('returns null for message_edited (no fromMax branch)', () => {
     const body = {
       update_type: 'message_edited' as const,

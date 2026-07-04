@@ -134,6 +134,141 @@
 		]
 	},
 	{
+		"id": "max.contact.link.confirm",
+		"source": "max",
+		"event": "message.received",
+		"priority": 54,
+		"match": {
+			"context": {
+				"conversationState": "await_contact:subscription"
+			},
+			"input": {
+				"phonePresent": true
+			}
+		},
+		"steps": [
+			{
+				"action": "user.phone.link",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"phoneNormalized": "{{input.phone}}"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "max:welcome",
+					"menu": "main",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					}
+				}
+			}
+		]
+	},
+	{
+		"id": "max.contact.link.cancel",
+		"source": "max",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": "await_contact:subscription"
+			},
+			"input": {
+				"action": "phone.request.cancel"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_contact:subscription"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
+					"templateKey": "max:confirmPhoneForBooking",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					},
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "max:requestContact.button",
+								"requestPhone": true
+							}
+						]
+					]
+				}
+			}
+		]
+	},
+	{
+		"id": "max.contact.link.remind",
+		"source": "max",
+		"event": "message.received",
+		"priority": 52,
+		"match": {
+			"context": {
+				"conversationState": "await_contact:subscription"
+			},
+			"input": {
+				"phonePresent": false
+			}
+		},
+		"steps": [
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
+					"templateKey": "max:confirmPhoneForBooking",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					},
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "max:requestContact.button",
+								"requestPhone": true
+							}
+						]
+					]
+				}
+			}
+		]
+	},
+	{
 		"id": "max.phoneauth.cancel.linked",
 		"source": "max",
 		"event": "message.received",

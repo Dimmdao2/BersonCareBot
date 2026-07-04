@@ -72,12 +72,39 @@ function getCallbackMessageId(body: MaxUpdateValidated): string | null {
   return root.length > 0 ? root : null;
 }
 
+/** Extract the first TEL value from a vCard string (real MAX API contact format). */
+function parseVcfPhone(vcf: string): string | null {
+  for (const line of vcf.split(/[\r\n]+/)) {
+    const m = line.match(/^TEL(?:;[^:]*)?:(.+)$/i);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
 function getContactPhoneFromMaxMessage(msg: MaxUpdateValidated['message']): string | null {
   const attachments = Array.isArray(msg?.body?.attachments) ? msg.body.attachments : [];
   for (const raw of attachments) {
-    const a = raw as { type?: string; payload?: { phone?: string; phone_number?: string } };
+    const a = raw as {
+      type?: string;
+      payload?: {
+        phone?: string;
+        phone_number?: string;
+        vcf_info?: string;
+        max_info?: { phone?: string };
+      };
+    };
     if (a?.type === 'contact') {
       const p = a.payload ?? {};
+      // Primary: parse TEL from vCard (real MAX API format)
+      if (typeof p.vcf_info === 'string' && p.vcf_info.length > 0) {
+        const vcfPhone = parseVcfPhone(p.vcf_info);
+        if (vcfPhone) return normalizeTelegramContactPhone(vcfPhone);
+      }
+      // Secondary: max_info.phone
+      if (typeof p.max_info?.phone === 'string' && p.max_info.phone.length > 0) {
+        return normalizeTelegramContactPhone(p.max_info.phone);
+      }
+      // Legacy fallback: payload.phone / payload.phone_number
       const rawPhone =
         typeof p.phone === 'string'
           ? p.phone
