@@ -56,12 +56,9 @@ const API_BASE = "/api/doctor/booking-engine";
 const KPIS_API = "/api/doctor/schedule-kpis";
 const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 
-// #231: стандартное окно сетки 9:00–19:00.
-// Если записи/рабочие часы не укладываются — окно только РАСШИРЯЕТСЯ наружу.
-// TODO(owner-decision): «настройка доктором» (хранение personalized window bounds)
-// не реализована — нет существующего хранилища настроек доктора для этого параметра.
-// Рекомендация: добавить поле default_slot_start_minute/default_slot_end_minute в
-// be_specialists или отдельную таблицу doctor_preferences. До реализации — дефолт 9–19.
+// #231/#237: окно сетки по умолчанию 9:00–19:00. Хранится в system_settings (scope=doctor,
+// key=booking_calendar_default_window). Настраивается в «Настройки → Календарь».
+// Если записи/рабочие часы выходят за дефолтное окно — сетка только расширяется наружу.
 const DEFAULT_WINDOW_MIN = 9 * 60; // 540 мин = 9:00
 const DEFAULT_WINDOW_MAX = 19 * 60; // 1140 мин = 19:00
 
