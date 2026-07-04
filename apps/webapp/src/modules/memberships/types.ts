@@ -107,6 +107,34 @@ export type PatientPackageSessionLinkage =
 
 export type PatientPackageSessionMappingStatus = "ok" | "mapping_missing" | "not_applicable";
 
+/** Why a candidate past appointment was NOT debited during bulk «Пересчитать». */
+export type RecalcSkipReason =
+  | "already_debited"
+  | "service_not_in_package"
+  | "status_not_eligible";
+
+export type RecalcDebitedEntry = {
+  appointmentId: string;
+  patientPackageItemId: string;
+  serviceId: string;
+  usageId: string;
+};
+
+export type RecalcSkippedEntry = {
+  appointmentId: string;
+  serviceId: string | null;
+  reason: RecalcSkipReason;
+};
+
+/** Summary returned by `recalcPastSessionsForPackage` (feeds the doctor toast). */
+export type RecalcPastSessionsSummary = {
+  patientPackageId: string;
+  debited: RecalcDebitedEntry[];
+  skipped: RecalcSkippedEntry[];
+  /** Appointments eligible by status+service but not debited because the package ran out. */
+  outOfBalance: Array<{ appointmentId: string; serviceId: string }>;
+};
+
 export type PatientPackageSessionRow = {
   appointmentId: string;
   startsAt: string;

@@ -88,6 +88,28 @@ export type MembershipsPort = {
     }>
   >;
 
+  /**
+   * ST-01 bulk «Пересчитать»: past appointments of a patient for the package's services
+   * within `[soldAtIso; nowIso)`, joined with any existing package usages (to skip already
+   * debited ones). Unlike `listPackageAppointmentSessionSources`, this does NOT require a
+   * pre-existing usage row — it finds appointments that were never linked to the package.
+   */
+  listRecalcCandidateAppointments(input: {
+    organizationId: string;
+    platformUserId: string;
+    serviceIds: string[];
+    soldAtIso: string;
+    nowIso: string;
+  }): Promise<
+    Array<{
+      appointmentId: string;
+      startsAt: string;
+      status: string;
+      serviceId: string | null;
+      usages: PackageUsageRecord[];
+    }>
+  >;
+
   setPatientPackageStatus(
     id: string,
     organizationId: string,

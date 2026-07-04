@@ -70,6 +70,7 @@ function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
     setAppointmentPackageUsageRef: vi.fn(),
     updatePatientPackageNotes: vi.fn(),
     listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([]),
+    listRecalcCandidateAppointments: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -545,5 +546,234 @@ describe("createMembershipsService", () => {
       "active",
       expect.any(Object),
     );
+  });
+});
+
+describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)", () => {
+  // Package valid far into the real future so refreshPatientPackageRecord keeps it active.
+  const recalcPkg: PatientPackageRecord = {
+    ...basePkg,
+    id: "pp-r",
+    status: "active",
+    soldAt: "2020-01-01T00:00:00Z",
+    validFrom: "2020-01-01T00:00:00Z",
+    validUntil: "2999-01-01T00:00:00Z",
+    items: [{ id: "i1", serviceId: "svc-1", quantityInitial: 2, sortOrder: 0 }],
+  };
+  const NOW = "2100-01-01T00:00:00Z";
+  const candidate = (over: {
+    id: string;
+    startsAt?: string;
+    status?: string;
+    serviceId?: string | null;
+    usageRows?: Array<{ usageKind: string }>;
+  }) => ({
+    appointmentId: over.id,
+    startsAt: over.startsAt ?? "2050-01-01T00:00:00Z",
+    status: over.status ?? "completed",
+    serviceId: over.serviceId === undefined ? "svc-1" : over.serviceId,
+    usages: (over.usageRows ?? []).map((u, idx) => ({
+      id: `${over.id}-u${idx}`,
+      patientPackageId: "pp-r",
+      patientPackageItemId: "i1",
+      appointmentId: over.id,
+      usageKind: u.usageKind,
+      quantity: 1,
+      comment: null,
+      occurredAt: "2050-01-01T00:00:00Z",
+    })),
+  });
+
+  function recalcPort(candidates: ReturnType<typeof candidate>[], over: Partial<MembershipsPort> = {}) {
+    return makePort({
+      getPatientPackage: vi.fn().mockResolvedValue(recalcPkg),
+      listUsagesForPackage: vi.fn().mockResolvedValue([]),
+      listRecalcCandidateAppointments: vi.fn().mockResolvedValue(candidates),
+      ...over,
+    });
+  }
+
+  it("empty window → no debit", async () => {
+    const port = recalcPort([]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(res.skipped).toHaveLength(0);
+    expect(port.appendUsage).not.toHaveBeenCalled();
+  });
+
+  it("appointment before soldAt is not fetched (repo windows it) → not debited", async () => {
+    // The repo already filters startsAt >= soldAt; assert the service passes the correct window.
+    const port = recalcPort([]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(port.listRecalcCandidateAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platformUserId: "user-1",
+        serviceIds: ["svc-1"],
+        soldAtIso: "2020-01-01T00:00:00Z",
+        nowIso: NOW,
+      }),
+    );
+  });
+
+  it("already-debited appointment (linkage=consumed) is skipped → idempotent", async () => {
+    const port = recalcPort([
+      candidate({ id: "a-consumed", usageRows: [{ usageKind: "consume" }] }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(res.skipped).toEqual([
+      { appointmentId: "a-consumed", serviceId: "svc-1", reason: "already_debited" },
+    ]);
+    expect(port.appendUsage).not.toHaveBeenCalled();
+  });
+
+  it("service outside package is skipped", async () => {
+    const port = recalcPort([candidate({ id: "a-other", serviceId: "svc-OTHER" })]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(res.skipped).toEqual([
+      { appointmentId: "a-other", serviceId: "svc-OTHER", reason: "service_not_in_package" },
+    ]);
+  });
+
+  it("non-eligible status (no_show / confirmed) is skipped", async () => {
+    const port = recalcPort([
+      candidate({ id: "a-noshow", status: "no_show" }),
+      candidate({ id: "a-planned", status: "confirmed" }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(res.skipped.map((s) => s.reason)).toEqual(["status_not_eligible", "status_not_eligible"]);
+    expect(port.appendUsage).not.toHaveBeenCalled();
+  });
+
+  it("balance exhaustion → stop at zero, no minus, surplus to outOfBalance", async () => {
+    // 3 eligible visits, package has 2 sessions for svc-1.
+    const port = recalcPort([
+      candidate({ id: "a1", startsAt: "2050-01-01T00:00:00Z" }),
+      candidate({ id: "a2", startsAt: "2050-01-02T00:00:00Z" }),
+      candidate({ id: "a3", startsAt: "2050-01-03T00:00:00Z" }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited.map((d) => d.appointmentId)).toEqual(["a1", "a2"]);
+    expect(res.outOfBalance).toEqual([{ appointmentId: "a3", serviceId: "svc-1" }]);
+    expect(port.appendUsage).toHaveBeenCalledTimes(2);
+    expect(port.appendUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ usageKind: "consume", quantity: 1 }),
+    );
+  });
+
+  it("debits ledger + links appointment + history + calendar for each debit", async () => {
+    const refreshPackageCalendar = vi.fn().mockResolvedValue(undefined);
+    const port = recalcPort([candidate({ id: "a1" })]);
+    const svc = createMembershipsService({
+      port,
+      payments: null,
+      bookingEngine: null,
+      refreshPackageCalendar,
+    });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      createdByPlatformUserId: "doc-1",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(1);
+    expect(port.appendUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usageKind: "consume",
+        appointmentId: "a1",
+        createdByPlatformUserId: "doc-1",
+      }),
+    );
+    expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledWith("a1", "u-consume");
+    expect(port.appendHistoryEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "recalc_consumed" }),
+    );
+    expect(refreshPackageCalendar).toHaveBeenCalledWith("a1");
+  });
+
+  it("multiple eligible sessions within balance are all debited", async () => {
+    const port = recalcPort([
+      candidate({ id: "a1", startsAt: "2050-01-01T00:00:00Z" }),
+      candidate({ id: "a2", startsAt: "2050-01-02T00:00:00Z" }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited.map((d) => d.appointmentId)).toEqual(["a1", "a2"]);
+    expect(res.outOfBalance).toHaveLength(0);
+    expect(port.appendUsage).toHaveBeenCalledTimes(2);
+  });
+
+  it("second call is a no-op once sessions already consumed (idempotency)", async () => {
+    // First pass debits both; simulate the ledger now carrying those consumes on re-fetch.
+    const debitedUsages = [
+      { id: "u1", patientPackageId: "pp-r", patientPackageItemId: "i1", appointmentId: "a1", usageKind: "consume" as const, quantity: 1, comment: null, occurredAt: "2050-01-01T00:00:00Z" },
+      { id: "u2", patientPackageId: "pp-r", patientPackageItemId: "i1", appointmentId: "a2", usageKind: "consume" as const, quantity: 1, comment: null, occurredAt: "2050-01-02T00:00:00Z" },
+    ];
+    const port = recalcPort(
+      [
+        candidate({ id: "a1", usageRows: [{ usageKind: "consume" }] }),
+        candidate({ id: "a2", usageRows: [{ usageKind: "consume" }] }),
+      ],
+      { listUsagesForPackage: vi.fn().mockResolvedValue(debitedUsages) },
+    );
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(res.skipped.every((s) => s.reason === "already_debited")).toBe(true);
+    expect(port.appendUsage).not.toHaveBeenCalled();
+  });
+
+  it("inactive / expired package → no-op", async () => {
+    const port = recalcPort([candidate({ id: "a1" })], {
+      getPatientPackage: vi.fn().mockResolvedValue({ ...recalcPkg, status: "cancelled" }),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(port.listRecalcCandidateAppointments).not.toHaveBeenCalled();
   });
 });
