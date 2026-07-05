@@ -2,6 +2,7 @@
 
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +13,6 @@ import type { ClientIdentity } from "@/modules/doctor-clients/ports";
 import type { AppointmentSummary } from "@/modules/appointments/service";
 import type { SpecialistTaskPatientSummary } from "@/modules/specialist-tasks/types";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
-import { cn } from "@/lib/utils";
 import { DoctorClientSupportCareBar } from "./DoctorClientSupportCareBar";
 import {
   doctorClientDisplayNameClass,
@@ -102,9 +102,10 @@ export function PatientCareBar({
               <p className="text-muted-foreground">Нет ближайших записей</p>
             )}
             {taskSummary && taskSummary.openCount > 0 ? (
-              <button
+              <Button
                 type="button"
-                className={cn("mt-2 w-full text-left text-xs", doctorInlineLinkClass)}
+                variant="ghost"
+                className={cn("mt-2 h-auto w-full justify-start p-0 text-left text-xs", doctorInlineLinkClass)}
                 onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
               >
                 Задачи: {taskSummary.openCount} невып.
@@ -112,7 +113,7 @@ export function PatientCareBar({
                 {taskSummary.nextImportantOrOverdue?.title
                   ? ` · ${taskSummary.nextImportantOrOverdue.title}`
                   : ""}
-              </button>
+              </Button>
             ) : null}
           </div>
 
@@ -172,16 +173,17 @@ export function PatientCareBar({
           <DoctorClientSupportCareBar patientUserId={identity.userId} />
         </div>
         {taskSummary && taskSummary.openCount > 0 ? (
-          <button
+          <Button
             type="button"
-            className={cn("text-left text-sm md:hidden", doctorInlineLinkClass)}
+            variant="ghost"
+            className={cn("h-auto justify-start p-0 text-left text-sm md:hidden", doctorInlineLinkClass)}
             onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
           >
             Задачи: {taskSummary.openCount} невып.
             {taskSummary.nextImportantOrOverdue?.title
               ? ` · ${taskSummary.nextImportantOrOverdue.title}`
               : ""}
-          </button>
+          </Button>
         ) : null}
       </div>
     </header>

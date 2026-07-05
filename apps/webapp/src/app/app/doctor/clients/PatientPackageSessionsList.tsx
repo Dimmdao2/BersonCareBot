@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import type { PatientPackageSessionRow } from "@/modules/memberships/types";
 
@@ -153,17 +153,13 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
 
   return (
     <div className="mt-2 space-y-2">
-      <div className="flex items-center gap-2">
-        <input
-          id={`past-${packageId}`}
-          type="checkbox"
-          className="size-4 rounded border"
+      <div className="flex cursor-pointer items-center gap-2 text-xs font-normal">
+        <Checkbox
+          aria-label="Показать прошедшие"
           checked={includePast}
-          onChange={(e) => setIncludePast(e.target.checked)}
+          onCheckedChange={(checked) => setIncludePast(checked === true)}
         />
-        <Label htmlFor={`past-${packageId}`} className="text-xs font-normal">
-          Показать прошедшие
-        </Label>
+        <span aria-hidden="true">Показать прошедшие</span>
       </div>
       {sessions.length === 0 ? (
         <p className="text-muted-foreground text-xs">Нет записей по абонементу.</p>

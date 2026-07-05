@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
   Select,
   SelectContent,
@@ -192,20 +193,18 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
           {dayFilter === "weekly_mask" && (
             <div className="flex gap-1">
               {WEEKDAY_LABELS.map((label, i) => (
-                <button
+                <Button
                   key={label}
                   type="button"
                   onClick={() => toggleDay(i)}
-                  className={`h-7 w-7 rounded text-xs font-medium transition-colors ${
-                    daysMask[i] === "1"
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-input bg-background text-muted-foreground hover:bg-accent"
-                  }`}
+                  variant={daysMask[i] === "1" ? "default" : "outline"}
+                  size="icon"
+                  className="h-7 w-7 text-xs font-medium"
                   aria-pressed={daysMask[i] === "1"}
                   aria-label={label}
                 >
                   {label}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -215,11 +214,11 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
             <span className="text-xs text-muted-foreground">Время</span>
             {times.map((t, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input
+                <Input
                   type="time"
                   value={t}
                   onChange={(e) => updateSlot(i, e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="h-8 px-2 text-sm"
                 />
                 <Button
                   type="button"
