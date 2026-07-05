@@ -116,13 +116,14 @@ function SortablePageRow({
       <DragHandle listeners={listeners as never} attributes={attributes as never} />
       <div className="min-w-0 flex-1">
         {onSelectPage ? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => onSelectPage(page.id)}
-            className="block w-full truncate text-left font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block h-auto w-full truncate px-0 text-left font-medium text-foreground hover:underline"
           >
             {page.title}
-          </button>
+          </Button>
         ) : (
           <Link
             href={`/app/doctor/content/edit/${page.id}`}

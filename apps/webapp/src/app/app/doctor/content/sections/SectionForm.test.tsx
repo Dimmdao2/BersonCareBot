@@ -90,7 +90,9 @@ describe("SectionForm", () => {
 
   it("preselects placement from initialSystemParentCode", () => {
     render(<SectionForm initialSystemParentCode="situations" />);
-    const placement = document.querySelector('select[name="placement"]') as HTMLSelectElement;
+    // base-ui Select renders a hidden input for form submission; no native <select>
+    const placement = document.querySelector('input[name="placement"]') as HTMLInputElement;
+    expect(placement).not.toBeNull();
     expect(placement.value).toBe("situations");
   });
 

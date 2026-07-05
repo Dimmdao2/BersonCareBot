@@ -22,6 +22,13 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/ui/doctor/primitives/dropdown-menu";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/doctor/primitives/select";
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { libraryMultipartAbort, libraryMultipartUpload } from "./libraryMultipartUpload";
 import { UploadRequestError, uploadWithProgress } from "@/shared/ui/doctor/media/uploadWithProgress";
@@ -121,21 +128,21 @@ function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void
   const thumbMedia = libraryMediaRowToPreviewUi(item);
   if (item.kind !== "image" && item.kind !== "video") {
     return (
-      <button type="button" onClick={onOpen} className="rounded border border-border">
+      <Button type="button" variant="ghost" onClick={onOpen} className="h-auto rounded border border-border p-0">
         <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">—</div>
-      </button>
+      </Button>
     );
   }
 
   return (
-    <button type="button" onClick={onOpen} className="rounded border border-border">
+    <Button type="button" variant="ghost" onClick={onOpen} className="h-auto rounded border border-border p-0">
       <MediaThumb
         media={thumbMedia}
         className="flex h-16 w-28 items-center justify-center rounded"
         imgClassName="max-h-16 max-w-28 rounded object-contain bg-muted/30"
         labels={{ skipped: "—", failed: "—" }}
       />
-    </button>
+    </Button>
   );
 }
 
@@ -1003,23 +1010,27 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               </DialogHeader>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs text-muted-foreground">Папка</span>
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-2"
+                <Select
                   value={moveFolderDialog.folderId ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  onValueChange={(v) => {
+                    const next = v ?? "";
                     setMoveFolderDialog((c) =>
-                      c ? { ...c, folderId: v === "" ? null : v } : c,
+                      c ? { ...c, folderId: next === "" ? null : next } : c,
                     );
                   }}
                 >
-                  <option value="">Корень</option>
-                  {allFoldersFlat.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Корень</SelectItem>
+                    {allFoldersFlat.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </label>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => setMoveFolderDialog(null)}>
@@ -1075,27 +1086,31 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               </DialogHeader>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs text-muted-foreground">Новый родитель</span>
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-2"
+                <Select
                   value={folderMoveDialog.newParentId ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setFolderMoveDialog((c) => (c ? { ...c, newParentId: v === "" ? null : v } : c));
+                  onValueChange={(v) => {
+                    const next = v ?? "";
+                    setFolderMoveDialog((c) => (c ? { ...c, newParentId: next === "" ? null : next } : c));
                   }}
                 >
-                  <option value="">Корень</option>
-                  {foldersFlatForCrud
-                    .filter(
-                      (f) =>
-                        f.id !== folderMoveDialog.id &&
-                        !isDescendantOfFolder(foldersFlatForCrud, folderMoveDialog.id, f.id),
-                    )
-                    .map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Корень</SelectItem>
+                    {foldersFlatForCrud
+                      .filter(
+                        (f) =>
+                          f.id !== folderMoveDialog.id &&
+                          !isDescendantOfFolder(foldersFlatForCrud, folderMoveDialog.id, f.id),
+                      )
+                      .map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </label>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => setFolderMoveDialog(null)}>
@@ -1136,7 +1151,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           ) : null}
         </DialogContent>
       </Dialog>
-      <input
+      <Input
         ref={desktopUploadInputRef}
         type="file"
         multiple
@@ -1145,7 +1160,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         onChange={onUploadFile}
         disabled={uploading}
       />
-      <input
+      <Input
         ref={mobileFilesInputRef}
         type="file"
         multiple
@@ -1154,7 +1169,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         onChange={onUploadFile}
         disabled={uploading}
       />
-      <input
+      <Input
         ref={mobileCaptureInputRef}
         type="file"
         accept="image/*,video/*"
@@ -1169,16 +1184,17 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           {crumbs.map((c, idx) => (
             <span key={`${c.id ?? "root"}-${idx}`} className="inline-flex items-center gap-0.5">
               {idx > 0 ? <span aria-hidden>/</span> : null}
-              <button
+              <Button
                 type="button"
-                className="rounded px-1 hover:bg-muted hover:text-foreground"
+                variant="ghost"
+                className="h-auto rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   setViewAllFiles(false);
                   setCrumbs(crumbs.slice(0, idx + 1));
                 }}
               >
                 {c.label}
-              </button>
+              </Button>
               {c.id && !isClientFilesFolderKind(flatFolderRecords.find((f) => f.id === c.id)?.kind) ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger
@@ -1296,17 +1312,21 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Категория</span>
-          <select
+          <Select
             value={kind}
-            onChange={(e) => setKind(e.target.value as MediaKindFilter)}
-            className="h-10 rounded-md border border-input bg-background px-2"
+            onValueChange={(v) => setKind((v ?? "all") as MediaKindFilter)}
           >
-            <option value="all">Все</option>
-            <option value="image">Изображения</option>
-            <option value="video">Видео</option>
-            <option value="audio">Аудио</option>
-            <option value="file">Файлы</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все</SelectItem>
+              <SelectItem value="image">Изображения</SelectItem>
+              <SelectItem value="video">Видео</SelectItem>
+              <SelectItem value="audio">Аудио</SelectItem>
+              <SelectItem value="file">Файлы</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
 
         <MediaLibraryFolderScopeSelect
@@ -1321,28 +1341,36 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Сортировать по</span>
-          <select
+          <Select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortBy)}
-            className="h-10 rounded-md border border-input bg-background px-2"
+            onValueChange={(v) => setSortBy((v ?? "date") as SortBy)}
           >
-            <option value="date">Дате загрузки</option>
-            <option value="name">Названию</option>
-            <option value="size">Размеру</option>
-            <option value="type">Типу (MIME)</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">Дате загрузки</SelectItem>
+              <SelectItem value="name">Названию</SelectItem>
+              <SelectItem value="size">Размеру</SelectItem>
+              <SelectItem value="type">Типу (MIME)</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
 
         <label className="flex min-w-[8rem] flex-col gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Порядок</span>
-          <select
+          <Select
             value={sortDir}
-            onChange={(e) => setSortDir(e.target.value as SortDir)}
-            className="h-10 rounded-md border border-input bg-background px-2"
+            onValueChange={(v) => setSortDir((v ?? "desc") as SortDir)}
           >
-            <option value="desc">По убыванию</option>
-            <option value="asc">По возрастанию</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desc">По убыванию</SelectItem>
+              <SelectItem value="asc">По возрастанию</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
 
         <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm">
@@ -1521,13 +1549,13 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                       ) : item.kind === "video" ? (
                         <TableMediaThumb item={item} onOpen={() => openLightboxByItemId(item.id)} />
                       ) : item.kind === "audio" ? (
-                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="text-primary underline">
+                        <Button type="button" variant="ghost" onClick={() => openLightboxByItemId(item.id)} className="h-auto p-0 text-primary underline">
                           Прослушать
-                        </button>
+                        </Button>
                       ) : (
-                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="text-primary underline">
+                        <Button type="button" variant="ghost" onClick={() => openLightboxByItemId(item.id)} className="h-auto p-0 text-primary underline">
                           Открыть
-                        </button>
+                        </Button>
                       )}
                     </td>
                     <td className="px-3 py-2">
