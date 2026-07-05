@@ -225,26 +225,28 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
         >
           {loading ? <p className="px-3 py-2 text-muted-foreground">Поиск…</p> : null}
           {!loading && isDoctorClientSearchQueryAllowed(query.trim()) && results.length === 0 ? (
-            <button
+            <Button
               type="button"
-              className="flex w-full cursor-pointer px-3 py-2 text-left hover:bg-muted"
+              variant="ghost"
+              className="h-auto w-full justify-start px-3 py-2 text-left"
               onMouseDown={(ev) => ev.preventDefault()}
               onClick={openCreate}
             >
               Новый пациент…
-            </button>
+            </Button>
           ) : null}
           {!loading && minQueryHint && !value ? (
             <p className="px-3 py-2 text-muted-foreground">{minQueryHint}</p>
           ) : null}
           {results.map((item, idx) => (
-            <button
+            <Button
               key={item.id}
               type="button"
+              variant="ghost"
               role="option"
               aria-selected={idx === activeIdx}
               className={cn(
-                "flex w-full cursor-pointer px-3 py-2 text-left hover:bg-muted",
+                "h-auto w-full justify-start px-3 py-2 text-left",
                 idx === activeIdx && "bg-muted",
               )}
               onMouseEnter={() => setActiveIdx(idx)}
@@ -252,7 +254,7 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
               onClick={() => pick(item)}
             >
               {formatPatientLabel(item)}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
