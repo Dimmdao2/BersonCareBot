@@ -128,9 +128,10 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
                     className={doctorSectionCardClass}
                     style={{ cursor: "pointer" }}
                   >
-                    <button
+                    <Button
                       type="button"
-                      className="w-full text-left"
+                      variant="ghost"
+                      className="h-auto w-full justify-start px-0 py-0 text-left"
                       onClick={() => setExpandedId((prev) => (prev === a.id ? null : a.id))}
                     >
                       <div className="flex flex-col gap-1">
@@ -150,7 +151,7 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
                           </span>
                         ) : null}
                       </div>
-                    </button>
+                    </Button>
                     {expandedId === a.id ? (
                       <div className="border-t border-border pt-2">
                         <DoctorAppointmentActions

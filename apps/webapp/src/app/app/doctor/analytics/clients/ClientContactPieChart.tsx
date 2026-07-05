@@ -5,6 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import type { ClientContactBreakdown, ClientContactPieSegment } from "@/modules/doctor-clients/clientContactSegments";
 import { CLIENT_CONTACT_PIE_SEGMENT_LABELS } from "@/modules/doctor-clients/clientContactSegments";
 import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 
 const SEGMENT_COLORS: Record<ClientContactPieSegment, string> = {
   telegram_only: "hsl(200 70% 48%)",
@@ -110,12 +111,13 @@ export function ClientContactPieChart({
         <ul className="w-full space-y-1.5 text-xs">
           {slices.map((s) => (
             <li key={s.segment} className="min-w-0">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 className={
                   onSegmentClick
-                    ? "flex w-full cursor-pointer items-center gap-2 rounded-sm px-0.5 py-0.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                    : "flex w-full items-center gap-2 rounded-sm px-0.5 py-0.5 text-left"
+                    ? "h-auto w-full cursor-pointer justify-start gap-2 rounded-sm px-0.5 py-0.5 text-left"
+                    : "h-auto w-full justify-start gap-2 rounded-sm px-0.5 py-0.5 text-left hover:bg-transparent"
                 }
                 aria-label={onSegmentClick ? `${s.name}: ${s.value} — открыть список` : undefined}
                 onClick={() => onSegmentClick?.(s.segment, s.name)}
@@ -127,7 +129,7 @@ export function ClientContactPieChart({
                 />
                 <span className="min-w-0 flex-1 text-muted-foreground">{s.name}</span>
                 <span className="shrink-0 font-semibold tabular-nums text-foreground">{s.value}</span>
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
