@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMembershipsService } from "./service";
 import type { MembershipsPort } from "./ports";
-import type { PatientPackageRecord } from "./types";
+import type { CanonicalAppointmentStatus, PatientPackageRecord } from "./types";
 
 const basePkg: PatientPackageRecord = {
   id: "pp-1",
@@ -696,12 +696,15 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
     id: string;
     startsAt?: string;
     status?: string;
+    canonicalStatus?: CanonicalAppointmentStatus;
     serviceId?: string | null;
     usageRows?: Array<{ usageKind: string }>;
   }) => ({
     appointmentId: over.id,
     startsAt: over.startsAt ?? "2050-01-01T00:00:00Z",
     status: over.status ?? "completed",
+    // Default "none" → eligibility falls back to be_appointments.status denylist (legacy semantics).
+    canonicalStatus: over.canonicalStatus ?? ("none" as CanonicalAppointmentStatus),
     serviceId: over.serviceId === undefined ? "svc-1" : over.serviceId,
     usages: (over.usageRows ?? []).map((u, idx) => ({
       id: `${over.id}-u${idx}`,
@@ -817,6 +820,88 @@ describe("recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)",
     });
     expect(res.debited.map((d) => d.appointmentId)).toEqual(["a-conf"]);
     expect(res.skipped).toHaveLength(0);
+  });
+
+  it("canonical 'canceled' overrides be-status 'confirmed' → NOT debited (root data-bug fix)", async () => {
+    // The 923df858 bug: be_appointments.status froze at "confirmed" for a visit the doctor sees
+    // cancelled. Canonical projection is authoritative → eligibility must exclude it.
+    const port = recalcPort([
+      candidate({ id: "a-frozen", status: "confirmed", canonicalStatus: "canceled" }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(res.skipped).toEqual([
+      { appointmentId: "a-frozen", serviceId: "svc-1", reason: "status_not_eligible" },
+    ]);
+    expect(port.recalcConsumeForAppointment).not.toHaveBeenCalled();
+  });
+
+  it("canonical 'happened' overrides be-status 'cancelled_by_patient' → debited (1c312a64 case)", async () => {
+    // eaa5d368: be says cancelled_by_patient, but the canonical record maps to a completed visit
+    // — the doctor sees it состоявшимся, so it must be consumed.
+    const port = recalcPort([
+      candidate({ id: "a-stale", status: "cancelled_by_patient", canonicalStatus: "happened" }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited.map((d) => d.appointmentId)).toEqual(["a-stale"]);
+    expect(port.recalcConsumeForAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: "a-stale" }),
+    );
+  });
+
+  it("T3 correction: a consume on a canonical-cancelled visit is refunded (self-heal)", async () => {
+    // The visit was consumed before its cancellation was reflected. Recalc must reverse it.
+    const port = recalcPort([
+      candidate({
+        id: "a-wrong",
+        status: "confirmed",
+        canonicalStatus: "canceled",
+        usageRows: [{ usageKind: "consume" }],
+      }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.debited).toHaveLength(0);
+    expect(res.corrected).toEqual([
+      { appointmentId: "a-wrong", serviceId: "svc-1", refundUsageId: "u-refund" },
+    ]);
+    expect(port.appendUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: "a-wrong", usageKind: "refund" }),
+    );
+    expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledWith("a-wrong", null);
+  });
+
+  it("T3 correction is idempotent: already-refunded cancelled consume is left alone", async () => {
+    const port = recalcPort([
+      candidate({
+        id: "a-done",
+        status: "confirmed",
+        canonicalStatus: "canceled",
+        usageRows: [{ usageKind: "consume" }, { usageKind: "refund" }],
+      }),
+    ]);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: "org-1",
+      patientPackageId: "pp-r",
+      nowIso: NOW,
+    });
+    expect(res.corrected).toHaveLength(0);
+    expect(port.appendUsage).not.toHaveBeenCalled();
   });
 
   it("balance exhaustion → stop at zero, no minus, surplus to outOfBalance", async () => {

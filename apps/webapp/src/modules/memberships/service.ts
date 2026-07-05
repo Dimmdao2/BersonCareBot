@@ -26,17 +26,19 @@ import {
   computeAppointmentPackageLinkage,
   resolvePackageSessionMappingStatus,
 } from "./packageSessionLinkage";
-import type { PatientPackageSessionRow, RecalcPastSessionsSummary } from "./types";
+import type {
+  CanonicalAppointmentStatus,
+  PatientPackageSessionRow,
+  RecalcPastSessionsSummary,
+} from "./types";
 
 /**
- * ST-01: statuses that mean "the appointment definitely did NOT happen" — these are excluded
- * from auto-recalc and from manual-consume candidates. Everything else that is past by
- * clock time is treated as potentially delivered (doctor decides).
- *
- * Note: we previously used an allowlist ["completed","visit_confirmed"] but appointments
- * in the current data often stay in intermediate statuses (confirmed, paid, etc.) because
- * there is no automated status-transition to "completed". Switching to a denylist ensures
- * past visits are surfaced to the doctor.
+ * FALLBACK denylist of `be_appointments.status` values meaning "definitely did NOT happen",
+ * used ONLY when the canonical projection has no record for the appointment (`canonicalStatus
+ * === "none"`). The primary truth is the canonical projection (`canonicalStatus`), which is
+ * the SAME verdict the doctor sees in the patient card — `be_appointments.status` drifts when
+ * the rubitime bridge is offline (it froze at "confirmed" for visits the doctor sees cancelled),
+ * so it must not be the gate. See CanonicalAppointmentStatus.
  *
  * "rescheduled" is excluded because it means the appointment was moved to a new slot — the
  * original slot never happened.
@@ -50,18 +52,23 @@ const APPOINTMENT_INELIGIBLE_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Returns true if an appointment is eligible for package deduction: it is past by clock
- * time and its status is not in the explicitly-not-happened set.
+ * Returns true if a PAST appointment is eligible for package deduction — i.e. the doctor sees
+ * it as состоявшийся. The canonical projection (`canonicalStatus`) is authoritative: `canceled`
+ * → never eligible, `happened` → eligible. Only when no canonical record maps (`none`) do we
+ * fall back to the (possibly stale) `be_appointments.status` denylist.
  */
 function isAppointmentEligibleForConsume(
   status: string,
+  canonicalStatus: CanonicalAppointmentStatus,
   startsAt: string,
   endsAt: string | null,
   nowIso: string,
 ): boolean {
-  if (APPOINTMENT_INELIGIBLE_STATUSES.has(status)) return false;
   const pastBoundary = endsAt ?? startsAt;
-  return pastBoundary < nowIso;
+  if (pastBoundary >= nowIso) return false;
+  if (canonicalStatus === "canceled") return false;
+  if (canonicalStatus === "happened") return true;
+  return !APPOINTMENT_INELIGIBLE_STATUSES.has(status);
 }
 
 export type PackageDetachOutcome = "release_reserve" | "charge_as_delivered" | "refund_consumed";
@@ -827,7 +834,13 @@ export function createMembershipsService(deps: {
         // Future appointments are always eligible (doctor may pre-mark them).
         const eligibleForConsume =
           !isPast ||
-          isAppointmentEligibleForConsume(src.status, src.startsAt, src.endsAt, nowIso);
+          isAppointmentEligibleForConsume(
+            src.status,
+            src.canonicalStatus,
+            src.startsAt,
+            src.endsAt,
+            nowIso,
+          );
         const canManualConsume =
           eligibleForConsume &&
           linkage === "none" &&
@@ -953,6 +966,7 @@ export function createMembershipsService(deps: {
         debited: [],
         skipped: [],
         outOfBalance: [],
+        corrected: [],
       };
 
       // Only active packages within validity can be debited. Nothing to do otherwise.
@@ -1003,6 +1017,53 @@ export function createMembershipsService(deps: {
       // Deterministic order: oldest appointment first (fair FIFO of past visits).
       const ordered = [...candidates].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 
+      // T3 CORRECTION PASS (before debiting): a visit that is CANCELLED in the canonical
+      // projection must not hold a package `consume`. This reverses debits made before the
+      // cancellation was reflected (the root bug: recalc consumed a visit the doctor sees as
+      // «отмена»). Append-only `refund`, balance is restored, so a later eligible visit can
+      // reuse the freed session in the same pass. `penalty` rows are intentional late-cancel
+      // charges and are left untouched.
+      for (const cand of ordered) {
+        if (cand.canonicalStatus !== "canceled") continue;
+        const consume = cand.usages.find((u) => u.usageKind === "consume");
+        if (!consume) continue;
+        const alreadyRefunded = cand.usages.some((u) => u.usageKind === "refund");
+        if (alreadyRefunded) continue;
+        const refund = await deps.port.appendUsage({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          patientPackageItemId: consume.patientPackageItemId,
+          appointmentId: cand.appointmentId,
+          usageKind: "refund",
+          quantity: consume.quantity,
+          comment: "recalc_correction_canceled_visit",
+          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+        });
+        await deps.port.setAppointmentPackageUsageRef(cand.appointmentId, null);
+        await deps.port.appendHistoryEvent({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          eventType: "recalc_corrected_canceled",
+          payloadJson: {
+            appointmentId: cand.appointmentId,
+            consumeUsageId: consume.id,
+            refundUsageId: refund.id,
+            serviceId: cand.serviceId,
+          },
+        });
+        remainingByItemId.set(
+          consume.patientPackageItemId,
+          (remainingByItemId.get(consume.patientPackageItemId) ?? 0) + consume.quantity,
+        );
+        debitedApptIds.delete(cand.appointmentId);
+        await refreshPackageCalendarForAppointment(cand.appointmentId);
+        summary.corrected.push({
+          appointmentId: cand.appointmentId,
+          serviceId: cand.serviceId,
+          refundUsageId: refund.id,
+        });
+      }
+
       for (const cand of ordered) {
         if (debitedApptIds.has(cand.appointmentId)) {
           summary.skipped.push({
@@ -1021,7 +1082,15 @@ export function createMembershipsService(deps: {
           });
           continue;
         }
-        if (!isAppointmentEligibleForConsume(cand.status, cand.startsAt, null, nowIso)) {
+        if (
+          !isAppointmentEligibleForConsume(
+            cand.status,
+            cand.canonicalStatus,
+            cand.startsAt,
+            null,
+            nowIso,
+          )
+        ) {
           summary.skipped.push({
             appointmentId: cand.appointmentId,
             serviceId: cand.serviceId,

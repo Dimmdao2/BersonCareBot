@@ -107,6 +107,19 @@ export type PatientPackageSessionLinkage =
 
 export type PatientPackageSessionMappingStatus = "ok" | "mapping_missing" | "not_applicable";
 
+/**
+ * Canonical "did it happen" verdict derived from the doctor-facing projection
+ * (`appointment_records` reached via `be_external_entity_mappings` for rubitime rows and
+ * the native `be:{id}` projection). This is the SAME truth the doctor sees in the patient
+ * card — NOT the raw `be_appointments.status`, which can drift (the rubitime bridge that
+ * syncs cancellations is not always live). Consumption/eligibility must key on this.
+ *
+ * - `happened`  — at least one non-cancelled canonical record maps to this appointment.
+ * - `canceled`  — canonical records exist and ALL of them are cancelled.
+ * - `none`      — no canonical record maps to this appointment (fall back to `be_appointments.status`).
+ */
+export type CanonicalAppointmentStatus = "happened" | "canceled" | "none";
+
 /** Why a candidate past appointment was NOT debited during bulk «Пересчитать». */
 export type RecalcSkipReason =
   | "already_debited"
@@ -126,6 +139,14 @@ export type RecalcSkippedEntry = {
   reason: RecalcSkipReason;
 };
 
+/** A consume auto-reversed by «Пересчитать» because the visit is cancelled in the canonical projection. */
+export type RecalcCorrectedEntry = {
+  appointmentId: string;
+  serviceId: string | null;
+  /** The refund usage id written to reverse the erroneous consume. */
+  refundUsageId: string;
+};
+
 /** Summary returned by `recalcPastSessionsForPackage` (feeds the doctor toast). */
 export type RecalcPastSessionsSummary = {
   patientPackageId: string;
@@ -133,6 +154,12 @@ export type RecalcPastSessionsSummary = {
   skipped: RecalcSkippedEntry[];
   /** Appointments eligible by status+service but not debited because the package ran out. */
   outOfBalance: Array<{ appointmentId: string; serviceId: string }>;
+  /**
+   * Consumes reversed this pass because the visit is cancelled in the canonical projection —
+   * self-correction of earlier erroneous debits (e.g. a visit consumed before its cancellation
+   * was reflected). Append-only refund; never worsens balance.
+   */
+  corrected: RecalcCorrectedEntry[];
 };
 
 export type PatientPackageSessionRow = {

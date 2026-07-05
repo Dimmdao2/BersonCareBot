@@ -15,6 +15,7 @@ import type {
   UpsertSubscriptionPackageInput,
 } from "@/modules/memberships/ports";
 import type {
+  CanonicalAppointmentStatus,
   PackageUsageRecord,
   PatientPackageItemRecord,
   PatientPackageRecord,
@@ -82,6 +83,75 @@ function mapUsage(row: typeof bePackageUsages.$inferSelect): PackageUsageRecord 
     comment: row.comment,
     occurredAt: row.occurredAt,
   };
+}
+
+/**
+ * Resolve the canonical "did it happen" verdict for a set of `be_appointments` from the
+ * doctor-facing projection (`appointment_records`) — the SAME truth the doctor sees in the
+ * patient card, NOT the raw `be_appointments.status` (which drifts when the rubitime bridge
+ * is offline). A be_appointment maps to canonical records two ways:
+ *   1. native projection — `appointment_records.integrator_record_id = 'be:' || id`
+ *   2. rubitime rows      — via `be_external_entity_mappings` (external_id → integrator_record_id)
+ * One be_appointment can map to several canonical records (e.g. two cancellation rows for the
+ * same slot). Verdict: `happened` if ANY mapped record is non-cancelled; `canceled` if records
+ * exist and all are cancelled; `none` if no canonical record maps (caller falls back to be status).
+ *
+ * Deleted / remove-record projections are excluded, mirroring the doctor appointments list
+ * (`pgDoctorClients.listPatientAppointments`).
+ */
+async function loadCanonicalAppointmentStatuses(
+  organizationId: string,
+  appointmentIds: string[],
+): Promise<Map<string, CanonicalAppointmentStatus>> {
+  const out = new Map<string, CanonicalAppointmentStatus>();
+  if (appointmentIds.length === 0) return out;
+  const db = getDrizzle();
+  const idValues = sql.join(
+    appointmentIds.map((id) => sql`(${id}::uuid)`),
+    sql`, `,
+  );
+  const rows = await db.execute<{
+    appointment_id: string;
+    has_happened: boolean | null;
+    canon_count: string | number;
+  }>(sql`
+    WITH appt(id) AS (
+      SELECT * FROM (VALUES ${idValues}) v(id)
+    ),
+    canon AS (
+      SELECT a.id AS appointment_id, ar.status AS status
+      FROM appt a
+      JOIN appointment_records ar
+        ON ar.integrator_record_id = 'be:' || a.id::text
+      WHERE ar.deleted_at IS NULL
+        AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+      UNION ALL
+      SELECT a.id AS appointment_id, ar.status AS status
+      FROM appt a
+      JOIN be_external_entity_mappings m
+        ON m.canonical_id = a.id
+       AND m.entity_type = 'appointment'
+       AND m.external_system = 'rubitime'
+       AND m.organization_id = ${organizationId}::uuid
+      JOIN appointment_records ar
+        ON ar.integrator_record_id = m.external_id
+      WHERE ar.deleted_at IS NULL
+        AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+    )
+    SELECT a.id AS appointment_id,
+           bool_or(c.status IN ('created', 'updated')) AS has_happened,
+           COUNT(c.status) AS canon_count
+    FROM appt a
+    LEFT JOIN canon c ON c.appointment_id = a.id
+    GROUP BY a.id
+  `);
+  for (const r of rows.rows) {
+    const count = Number(r.canon_count ?? 0);
+    const verdict: CanonicalAppointmentStatus =
+      count === 0 ? "none" : r.has_happened ? "happened" : "canceled";
+    out.set(r.appointment_id, verdict);
+  }
+  return out;
 }
 
 export function createPgMembershipsPort(): MembershipsPort {
@@ -437,11 +507,14 @@ export function createPgMembershipsPort(): MembershipsPort {
         usagesByAppointment.set(row.appointmentId, list);
       }
 
+      const canonicalStatuses = await loadCanonicalAppointmentStatuses(organizationId, apptIds);
+
       return apptRows.map((appt) => ({
         appointmentId: appt.id,
         startsAt: appt.startAt,
         endsAt: appt.endAt,
         status: appt.status,
+        canonicalStatus: canonicalStatuses.get(appt.id) ?? "none",
         branchTitle: appt.branchTitle,
         serviceTitle: appt.serviceTitle,
         serviceId: appt.serviceId,
@@ -494,10 +567,16 @@ export function createPgMembershipsPort(): MembershipsPort {
         usagesByAppointment.set(row.appointmentId, list);
       }
 
+      const canonicalStatuses = await loadCanonicalAppointmentStatuses(
+        input.organizationId,
+        appointmentIds,
+      );
+
       return apptRows.map((appt) => ({
         appointmentId: appt.id,
         startsAt: appt.startAt,
         status: appt.status,
+        canonicalStatus: canonicalStatuses.get(appt.id) ?? "none",
         serviceId: appt.serviceId,
         usages: usagesByAppointment.get(appt.id) ?? [],
       }));

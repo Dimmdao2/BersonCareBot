@@ -2,6 +2,35 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-05 — #386 КОРНЕВОЙ БАГ данных: списание опирается на be_appointments.status (Opus, автономный проход)
+
+### Диагноз (живая dev-БД bcb_webapp_dev)
+- Правда «состоялась/отменена» = **каноническая проекция `appointment_records`** (её видит доктор в карточке;
+  строит `pgDoctorClients.listPatientAppointments`). `be_appointments.status` **расходится** с ней: rubitime-мост
+  (`booking_rubitime_bridge_enabled`) выключен → статус «замёрз» на `confirmed` для визитов, которые доктор видит «отмена».
+- Связь `be_appointment ↔ каноника`: нативная — `appointment_records.integrator_record_id = 'be:'||id`; rubitime —
+  через `be_external_entity_mappings` (external_id → integrator_record_id). Один be_appointment → несколько
+  канонических строк (напр. две «отмены» на один слот).
+- **Пациент 923df858** (пакет 14475542, sold 29.05): каноника = 29.05 happened, **06.06 canceled**, 20.06 happened,
+  04.07 happened, 25.07 future. Recalc ранее списал 4 (включая ошибочно 06.06). Должно быть 3.
+- **Пациент 1c312a64** (пакет f24da286, sold 13.06, услуга bb4cb10e): в окне канон = 13.06 10:00 canceled,
+  **13.06 11:00 happened** (be_status=cancelled_by_patient — стухший!), 28.06 canceled → recalc должен списать **1**.
+  Владелец ждал 2, но 2-й состоявшийся визит 13.06 10:00:02 существует ТОЛЬКО как legacy `appointment_records`
+  (canonical id 8446509) БЕЗ be_appointment → **списать нечем** (ledger.appointment_id FK→be_appointments). ⚠️ на владельца.
+
+### T1+T3 (backend, сделано — коммит ниже)
+- **Каноническая правда как источник eligibility.** Новый резолвер `loadCanonicalAppointmentStatuses` в
+  `pgMemberships.ts`: по набору be_appointment_id возвращает `happened|canceled|none` из `appointment_records`
+  (native `be:` + rubitime-mapping). Проброшен `canonicalStatus` в `listRecalcCandidateAppointments` и
+  `listPackageAppointmentSessionSources` (ports + типы `CanonicalAppointmentStatus`).
+- `isAppointmentEligibleForConsume` теперь: `canceled`→never, `happened`→eligible, `none`→fallback на прежний
+  denylist `be_appointments.status`. Каноника ПОБЕЖДАЕТ стухший be-статус (и в recalc, и в списке сессий).
+- **T3 самокоррекция:** recalc перед списанием делает correction-pass — для кандидата с `canonicalStatus=canceled`,
+  у которого есть `consume`, пишет append-only `refund`, чистит `package_usage_ref`, событие `recalc_corrected_canceled`,
+  возвращает баланс (переиспользуется в этом же проходе). `penalty` (штраф за поздний late-cancel) не трогаем.
+  Идемпотентно (если уже есть refund — пропуск). Итог: повторный recalc после фикса статусов сам снимет ошибочное 06.06.
+- Тесты `service.test.ts`: +4 (canon canceled↔be confirmed; canon happened↔be cancelled; correction refund; correction idempotent). 36/36 зелёные. TypeCheck: 0 новых ошибок.
+
 ## 2026-07-05 — #386 fix #4 (Sonnet): UI управления шаблонами абонементов в Расписание→Настройки
 
 ### Что сделано

@@ -1,4 +1,5 @@
 import type {
+  CanonicalAppointmentStatus,
   PackageDeductionMode,
   PackageItemInput,
   PackageUsageRecord,
@@ -99,6 +100,8 @@ export type MembershipsPort = {
       startsAt: string;
       endsAt: string | null;
       status: string;
+      /** Canonical "did it happen" verdict (doctor-facing truth), see CanonicalAppointmentStatus. */
+      canonicalStatus: CanonicalAppointmentStatus;
       branchTitle: string | null;
       serviceTitle: string | null;
       serviceId: string | null;
@@ -123,6 +126,8 @@ export type MembershipsPort = {
       appointmentId: string;
       startsAt: string;
       status: string;
+      /** Canonical "did it happen" verdict (doctor-facing truth), see CanonicalAppointmentStatus. */
+      canonicalStatus: CanonicalAppointmentStatus;
       serviceId: string | null;
       usages: PackageUsageRecord[];
     }>
