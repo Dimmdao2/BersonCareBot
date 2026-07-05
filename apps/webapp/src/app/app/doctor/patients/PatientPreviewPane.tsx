@@ -15,7 +15,7 @@ import { Phone, Mail, Send, Smartphone, Loader2, User, Heart, Ban } from "lucide
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, PatientCardHeader } from "@/modules/doctor-clients/ports";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,20 +59,21 @@ type ChannelChipProps = {
 
 function ChannelChip({ active, label, onClick, children }: ChannelChipProps) {
   return (
-    <button
+    <Button
       type="button"
       title={label}
       aria-label={label}
       onClick={onClick}
+      variant="ghost"
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs transition-colors",
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs transition-colors h-auto",
         active
           ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"
           : "cursor-default border-border/40 bg-muted/30 text-muted-foreground/60",
       )}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
