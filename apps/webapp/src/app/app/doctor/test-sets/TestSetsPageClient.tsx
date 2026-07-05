@@ -254,8 +254,9 @@ export function TestSetsPageClient({
         </DoctorCatalogToolbarFiltersSlot>
       }
       end={
-        <button
+        <Button
           type="button"
+          size="sm"
           className={doctorCatalogToolbarPrimaryActionClassName}
           onClick={() => {
             setCreating(true);
@@ -264,7 +265,7 @@ export function TestSetsPageClient({
           }}
         >
           Создать
-        </button>
+        </Button>
       }
     />
   );

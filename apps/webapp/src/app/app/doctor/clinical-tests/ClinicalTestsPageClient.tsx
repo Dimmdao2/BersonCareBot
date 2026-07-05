@@ -101,9 +101,10 @@ function ClinicalTestTileCard({
 }) {
   const firstMedia = test.media[0];
   return (
-    <button
+    <Button
       type="button"
-      className="flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      variant="ghost"
+      className="flex h-auto w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] border-0 bg-transparent p-0 text-left"
       onClick={() => onSelect(test.id)}
     >
       <Card
@@ -135,7 +136,7 @@ function ClinicalTestTileCard({
           ) : null}
         </CardContent>
       </Card>
-    </button>
+    </Button>
   );
 }
 
@@ -272,14 +273,15 @@ function ClinicalTestsContent({
           return (
             <li key={t.id}>
               <div style={LIST_ROW_VISIBILITY_STYLE}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => opts.onRowSelect(t.id)}
                   className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
                 >
                   {mediaThumbRow(t)}
                   <span className="line-clamp-2">{t.title}</span>
-                </button>
+                </Button>
               </div>
             </li>
           );
@@ -369,8 +371,9 @@ function ClinicalTestsContent({
             </DoctorCatalogToolbarFiltersSlot>
           }
           end={
-            <button
+            <Button
               type="button"
+              size="sm"
               id="doctor-clinical-tests-create"
               className={doctorCatalogToolbarPrimaryActionClassName}
               onClick={() => {
@@ -379,7 +382,7 @@ function ClinicalTestsContent({
               }}
             >
               Создать тест
-            </button>
+            </Button>
           }
         />
       }

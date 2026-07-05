@@ -63,16 +63,18 @@ function SortableMeasureRow({
       className="space-y-2 rounded-md border border-border/60 p-3"
     >
       <div className="flex items-center justify-between gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           {...attributes}
           {...listeners}
           disabled={disabled}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+          className="h-8 w-8 shrink-0 text-muted-foreground"
           aria-label="Переместить строку"
         >
           <GripVertical className="h-4 w-4" />
-        </button>
+        </Button>
         <Button
           type="button"
           variant="ghost"
