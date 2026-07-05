@@ -95,7 +95,7 @@ function PushOnboardingActions({
     <div className="mt-5 flex flex-col gap-2">
       <Button
         type="button"
-        className={patientModalPortalPrimaryCtaClass}
+        className={cn(patientModalPortalPrimaryCtaClass, "border-0")}
         disabled={busy}
         onClick={() => void onEnable()}
       >

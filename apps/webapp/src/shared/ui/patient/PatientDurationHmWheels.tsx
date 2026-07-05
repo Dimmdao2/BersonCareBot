@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { Label } from "@/shared/ui/patient/primitives/label";
-import { inputFieldSurfaceClassName } from "@/shared/ui/primitives/input";
+import { inputFieldSurfaceClassName } from "@/shared/ui/patient/primitives/input";
 import { cn } from "@/lib/utils";
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
