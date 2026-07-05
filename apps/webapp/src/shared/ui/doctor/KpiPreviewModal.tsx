@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from "react";
 import { DoctorModal } from "./DoctorModal";
+import { Button } from "./primitives/button";
 import { Input } from "./primitives/input";
 import { cn } from "@/lib/utils";
 
@@ -104,7 +105,7 @@ export function KpiPreviewModal<T>({
         {/* Quick filter chips */}
         {hasQuickFilters && quickFilters ? (
           <div className="flex flex-wrap gap-1.5">
-            <button
+            <Button
               type="button"
               onClick={() => setActiveFilter(null)}
               className={cn(
@@ -115,9 +116,9 @@ export function KpiPreviewModal<T>({
               )}
             >
               Все
-            </button>
+            </Button>
             {quickFilters.map((f, idx) => (
-              <button
+              <Button
                 key={f.label}
                 type="button"
                 onClick={() => setActiveFilter(activeFilter === idx ? null : idx)}
@@ -129,7 +130,7 @@ export function KpiPreviewModal<T>({
                 )}
               >
                 {f.label}
-              </button>
+              </Button>
             ))}
           </div>
         ) : null}

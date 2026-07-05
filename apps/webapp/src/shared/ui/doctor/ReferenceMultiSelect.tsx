@@ -148,15 +148,16 @@ export function ReferenceMultiSelect({
               className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs"
             >
               <span className="truncate">{titleById.get(rid) ?? rid}</span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                 onClick={() => remove(rid)}
                 disabled={disabled}
                 aria-label="Удалить"
               >
                 <X className="size-3.5" />
-              </button>
+              </Button>
             </span>
           ))
         )}

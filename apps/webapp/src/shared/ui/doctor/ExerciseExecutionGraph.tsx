@@ -15,6 +15,7 @@
  */
 
 import { useState } from "react";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { ExerciseMetricPoint } from "./ExerciseMicroChart";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -232,7 +233,7 @@ export function ExerciseExecutionGraph({
       {/* Window toggle */}
       <div className="mb-3 flex gap-1">
         {([7, 30] as const).map((d) => (
-          <button
+          <Button
             key={d}
             type="button"
             onClick={() => onWindowChange?.(d)}
@@ -243,7 +244,7 @@ export function ExerciseExecutionGraph({
             }`}
           >
             {d} дней
-          </button>
+          </Button>
         ))}
       </div>
 

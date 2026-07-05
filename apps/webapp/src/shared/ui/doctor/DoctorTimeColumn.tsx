@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -68,7 +69,7 @@ export function DoctorTimeColumn({
       {slots.map((slot) => {
         const isSelected = slot === value;
         return (
-          <button
+          <Button
             key={slot}
             ref={isSelected ? selectedRef : undefined}
             type="button"
@@ -86,7 +87,7 @@ export function DoctorTimeColumn({
             )}
           >
             {slot}
-          </button>
+          </Button>
         );
       })}
     </div>

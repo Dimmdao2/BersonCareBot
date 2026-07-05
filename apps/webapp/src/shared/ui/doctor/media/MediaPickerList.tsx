@@ -90,8 +90,9 @@ const MediaPickerListItem = memo(function MediaPickerListItem({
       <div className="relative min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
         {item.kind === "image" || item.kind === "video" ? (
           enableQuickPreview ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               className="block h-24 w-full cursor-zoom-in p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={`Предпросмотр: ${title}`}
               onClick={() => onQuickPreview(item)}
@@ -102,7 +103,7 @@ const MediaPickerListItem = memo(function MediaPickerListItem({
                 imgClassName="h-24 w-full object-contain bg-muted/30"
                 labels={{ skipped: "Без превью", failed: "Нет превью" }}
               />
-            </button>
+            </Button>
           ) : (
             <MediaThumb
               media={libraryMediaRowToPreviewUi(item)}
