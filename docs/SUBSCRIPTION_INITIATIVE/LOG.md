@@ -2,6 +2,28 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-05 — #386 T4(c) Переверстка карточки PatientPackageCard (Финансы) → человеческий вид + shared component
+
+### Что сделано
+- **Создан** `apps/webapp/src/shared/ui/doctor/MembershipCardHeader.tsx` — общий презентационный блок:
+  заголовок, дата покупки (жирная), остаток N из M, Состав (список), Списания (даты).
+- **PatientPackageCard.tsx** (Финансы) переверстан: использует `MembershipCardHeader` + добавлен fetch
+  `/sessions?includePast=true` для получения дат списаний (linkage=consumed). Тип `PatientPackageCardRow`
+  дополнен опциональным полем `quantityInitial` в balance.items.
+- **PatientTabRecords.tsx** (Визиты/MembershipPanel) также использует `MembershipCardHeader` — убрано дублирование
+  inline-блока ~50 строк. Локальные переменные `totalSessions/remainingSessions/consumeSessions` переданы в пропах.
+- **DoctorClientMembershipsPanel.test.tsx**: обновлён селектор `/продажа/` → `/дата покупки/` (новый markup).
+  Все 5 тестов проходят.
+- **Обзор**: использует только KPI-карточку (`1 из 4`), не рендерит полный карточный блок — изменений не требуется.
+- TypeCheck: 3 пред-существующих ошибки (getCatalogPackage ×2, ScheduleSetupTab ×1), новых нет.
+- Живая проверка: пациент 923df858, вкладка Финансы — карточка «Индивидуальный · 1 позиция · 29.05.2026»,
+  «дата покупки: 29.05.2026», «остаток: 1 из 4 занятий», «Состав: Сеанс 90 мин ×4 шт»,
+  «Списания (3): 29.05.2026, 20.06.2026, 04.07.2026», кнопки Пересчитать/Записи на месте.
+- Скрины: `.shots/finances_after.png`, `.shots/overview_after.png`.
+
+### Осталось от дубля
+Полная унификация выполнена: обе точки (Финансы + Визиты) используют `MembershipCardHeader`.
+
 ## 2026-07-05 — #386 КОРНЕВОЙ БАГ данных: списание опирается на be_appointments.status (Opus, автономный проход)
 
 ### Диагноз (живая dev-БД bcb_webapp_dev)

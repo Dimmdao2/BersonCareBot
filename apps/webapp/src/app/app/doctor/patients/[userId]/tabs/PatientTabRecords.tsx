@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import type { PatientAppointmentItem, PatientCardHeader } from "@/modules/doctor-clients/ports";
+import { MembershipCardHeader } from "@/shared/ui/doctor/MembershipCardHeader";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -603,63 +604,25 @@ function MembershipPanel({
       ) : error ? (
         <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Не удалось загрузить абонементы.</p>
       ) : active ? (
-        <div className="rounded-xl border border-border bg-muted/10 p-3 flex flex-col gap-1.5">
-          {/* Package title */}
-          <p className="text-sm font-semibold text-foreground">{active.title}</p>
-
-          {/* Purchase date */}
-          {active.soldAt ? (
-            <p className="text-xs text-muted-foreground">
-              дата покупки: <strong className="text-foreground">{fmtDate(active.soldAt.slice(0, 10))}</strong>
-            </p>
-          ) : null}
-
-          {/* Balance */}
-          <p className="text-xs text-muted-foreground">
-            остаток: <span className="text-lg font-extrabold text-foreground tabular-nums">{remainingSessions}</span>
-            {" "}из {totalSessions} занятий
-          </p>
-
-          {/* Composition */}
-          {balanceItems.length > 0 ? (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-0.5">Состав:</p>
-              <ul className="flex flex-col gap-0.5">
-                {balanceItems.map((it, idx) => (
-                  <li key={it.serviceTitle ?? idx} className="text-xs text-foreground">
-                    {it.serviceTitle ?? "Услуга"} ×{it.quantityInitial} шт
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {/* Consume dates from sessions */}
-          {consumeLoading ? (
-            <p className="text-xs text-muted-foreground animate-pulse">Загрузка списаний…</p>
-          ) : consumeSessions && consumeSessions.length > 0 ? (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-0.5">
-                Списания ({consumeSessions.length}):
-              </p>
-              <p className="text-xs text-foreground">
-                {consumeSessions
-                  .slice()
-                  .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
-                  .map((s) => fmtDate(s.startsAt.slice(0, 10)))
-                  .join(", ")}
-              </p>
-            </div>
-          ) : consumeSessions && consumeSessions.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Списаний нет.</p>
-          ) : null}
-
+        <>
+          <MembershipCardHeader
+            title={active.title}
+            soldAt={active.soldAt ?? null}
+            totalSessions={totalSessions}
+            remainingSessions={remainingSessions}
+            items={balanceItems.map((it) => ({
+              serviceTitle: it.serviceTitle,
+              quantityInitial: it.quantityInitial,
+            }))}
+            consumeDates={consumeSessions ? consumeSessions.map((s) => s.startsAt) : null}
+            consumeLoading={consumeLoading}
+          />
           {active.validUntil ? (
             <p className="text-xs text-muted-foreground">
               действует до: {fmtDate(active.validUntil.slice(0, 10))}
             </p>
           ) : null}
-        </div>
+        </>
       ) : (
         <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Активного абонемента нет.</p>
       )}

@@ -7,6 +7,7 @@ import { Label } from "@/shared/ui/doctor/primitives/label";
 import { doctorClientStackedCardClass } from "./doctorClientCardChrome";
 import { packageHistoryEventLabel } from "./packageHistoryLabels";
 import { PatientPackageSessionsList } from "./PatientPackageSessionsList";
+import { MembershipCardHeader } from "@/shared/ui/doctor/MembershipCardHeader";
 
 export type PatientPackageCardRow = {
   id: string;
@@ -23,17 +24,12 @@ export type PatientPackageCardRow = {
       patientPackageItemId: string;
       serviceId: string;
       serviceTitle?: string | null;
+      quantityInitial?: number;
       remaining: number;
       displayRemaining: number;
       reserved: number;
     }>;
   };
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  active: "Активен",
-  awaiting_payment: "Ожидает оплаты",
-  offered: "Предложен",
 };
 
 type HistoryRow = {
@@ -49,13 +45,6 @@ function formatDate(iso: string | null): string | null {
   } catch {
     return iso;
   }
-}
-
-function formatPaid(minor: number | null, currency?: string | null): string | null {
-  if (minor == null) return null;
-  const cur = currency ?? "RUB";
-  if (cur === "RUB") return `${(minor / 100).toLocaleString("ru-RU")} ₽`;
-  return `${minor / 100} ${cur}`;
 }
 
 type Props = {
@@ -74,12 +63,38 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Consume sessions for the human-readable date list
+  const [consumeDates, setConsumeDates] = useState<string[] | null>(null);
+  const [consumeLoading, setConsumeLoading] = useState(false);
+
   const notes = notesDraft ?? (pkg.notes ?? "");
 
-  const soldLabel = formatDate(pkg.soldAt);
-  const validLabel = formatDate(pkg.validUntil);
-  const priceLabel = pkg.priceMinor != null ? formatPaid(pkg.priceMinor, pkg.paidCurrency) : null;
-  const paidLabel = formatPaid(pkg.paidAmountMinor, pkg.paidCurrency);
+  const isActive = pkg.status === "active" || pkg.status === "activated";
+
+  // Fetch consumed session dates for the active package header
+  useEffect(() => {
+    if (!isActive) { setConsumeDates(null); return; }
+    let alive = true;
+    setConsumeLoading(true);
+    fetch(
+      `${apiBase}/${pkg.id}/sessions?includePast=true`,
+      { credentials: "include" },
+    )
+      .then((r) => r.ok ? (r.json() as Promise<{ ok: boolean; sessions?: Array<{ linkage: string; startsAt: string }> }>) : null)
+      .catch(() => null)
+      .then((data) => {
+        if (!alive) return;
+        const sessions = data?.sessions ?? [];
+        setConsumeDates(
+          sessions
+            .filter((s) => s.linkage === "consumed")
+            .map((s) => s.startsAt),
+        );
+        setConsumeLoading(false);
+      });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pkg.id, isActive]);
 
   const loadHistory = useCallback(async () => {
     const res = await fetch(`${apiBase}/${pkg.id}`);
@@ -121,50 +136,58 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
     });
   }
 
+  // Derive totals from balance items
+  const balanceItems = pkg.balance.items;
+  const totalSessions = balanceItems.reduce((s, it) => s + (it.quantityInitial ?? it.displayRemaining + (it.reserved ?? 0)), 0);
+  const remainingSessions = balanceItems.reduce((s, it) => s + it.displayRemaining, 0);
+
   return (
     <li className={doctorClientStackedCardClass}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-medium">{pkg.title}</p>
-          <p className="text-muted-foreground text-xs">
-            {STATUS_LABELS[pkg.status] ?? pkg.status}
-            {soldLabel ? ` · продажа ${soldLabel}` : ""}
-            {validLabel ? ` · до ${validLabel}` : ""}
-            {priceLabel ? ` · стоимость ${priceLabel}` : ""}
-            {paidLabel ? ` · оплачено ${paidLabel}` : ""}
-          </p>
-          {pkg.notes?.trim() ? (
-            <p className="text-muted-foreground mt-1 text-xs">
-              {pkg.notes.length > 80 ? `${pkg.notes.slice(0, 80)}…` : pkg.notes}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1.5 flex-none">
-          {onRecalc ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={onRecalc}
-              disabled={pending}
-            >
-              Пересчитать
-            </Button>
-          ) : null}
-          <Button type="button" size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-            {open ? "Свернуть" : "Записи"}
+      {/* Human-readable card header (shared component) */}
+      <MembershipCardHeader
+        title={pkg.title}
+        soldAt={pkg.soldAt}
+        totalSessions={totalSessions}
+        remainingSessions={remainingSessions}
+        items={balanceItems.map((it) => ({
+          serviceTitle: it.serviceTitle,
+          serviceId: it.serviceId,
+          quantityInitial: it.quantityInitial ?? it.displayRemaining + (it.reserved ?? 0),
+        }))}
+        consumeDates={consumeDates}
+        consumeLoading={consumeLoading}
+      />
+
+      {/* Action buttons row */}
+      <div className="flex items-center gap-1.5">
+        {onRecalc ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={onRecalc}
+            disabled={pending}
+          >
+            Пересчитать
           </Button>
-        </div>
+        ) : null}
+        <Button type="button" size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
+          {open ? "Свернуть" : "Записи"}
+        </Button>
       </div>
-      <ul className="mt-2 space-y-1 text-sm">
+
+      {/* Balance detail — still shown for reserved info */}
+      <ul className="space-y-1 text-sm">
         {pkg.balance.items.map((it) => (
-          <li key={it.patientPackageItemId}>
+          <li key={it.patientPackageItemId} className="text-xs text-muted-foreground">
             {it.serviceTitle ?? it.serviceId}: остаток {it.displayRemaining}
             {it.reserved > 0 ? ` (зарезервировано ${it.reserved})` : ""}
           </li>
         ))}
       </ul>
-      <div className="mt-2 space-y-1">
+
+      {/* Notes field */}
+      <div className="space-y-1">
         <Label htmlFor={`notes-${pkg.id}`} className="text-xs">
           Комментарий
         </Label>
@@ -176,6 +199,8 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
           disabled={pending}
         />
       </div>
+
+      {/* Expandable: sessions list + history */}
       {open ? (
         <>
           <PatientPackageSessionsList

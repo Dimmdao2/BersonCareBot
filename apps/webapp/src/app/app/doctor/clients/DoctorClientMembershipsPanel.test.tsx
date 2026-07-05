@@ -125,7 +125,7 @@ describe("DoctorClientMembershipsPanel", () => {
     const user = userEvent.setup();
     render(<DoctorClientMembershipsPanel platformUserId={platformUserId} />);
 
-    expect(await screen.findByText(/продажа/)).toBeTruthy();
+    expect(await screen.findByText(/дата покупки/)).toBeTruthy();
     expect(screen.getByText("ЛФК: остаток 3 (зарезервировано 1)")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Записи" }));
     expect(await screen.findByLabelText("Показать прошедшие")).toBeTruthy();
