@@ -40,6 +40,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PatientCardHeader, PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/shared/ui/doctor/primitives/select";
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -232,9 +241,9 @@ function ComplaintRow({
       <span className="flex-1">{c.text}</span>
       <span className={severityBadgeClass}>{c.currentSeverity}/10</span>
       <Sparkline points={c.trend} />
-      <button type="button" className={editIconClass} title="Редактировать" onClick={open}>
+      <Button type="button" variant="ghost" size="icon-xs" className={editIconClass} title="Редактировать" onClick={open}>
         ✎
-      </button>
+      </Button>
       <span className={dateMetaClass}>{c.since}</span>
     </div>
   );
@@ -272,18 +281,20 @@ function InlineFieldEditor({
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-primary/40 bg-background px-2.5 py-2 text-sm">
       <div className="flex items-center gap-1.5">
-        <button
+        <Button
           type="button"
           title={priority ? "Снять приоритет" : "Сделать приоритетным"}
           onClick={onTogglePriority}
+          variant="ghost"
+          size="icon-xs"
           className={cn(
             "flex-none self-center text-base",
             priority ? "text-primary" : "text-muted-foreground/50 hover:text-muted-foreground",
           )}
         >
           ⚑
-        </button>
-        <input
+        </Button>
+        <Input
           autoFocus
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -297,31 +308,34 @@ function InlineFieldEditor({
             }
           }}
           placeholder={placeholder}
-          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+          className="flex-1"
         />
-        <button
+        <Button
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="flex-none rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          size="xs"
+          className="flex-none"
         >
           {saving ? "…" : "Сохранить"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="flex-none rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          variant="outline"
+          size="xs"
+          className="flex-none"
         >
           Отмена
-        </button>
+        </Button>
       </div>
       {onCommentChange !== undefined && (
-        <input
+        <Input
           value={comment ?? ""}
           onChange={(e) => onCommentChange(e.target.value)}
           placeholder="Комментарий (напр. слева, L5-S1)"
-          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+          className="flex-1"
         />
       )}
       {error && <span className="text-xs text-destructive">Не удалось сохранить. Текст обязателен.</span>}
@@ -539,9 +553,9 @@ function DiagnosisRow({
         <span className={cn("flex-none", badge.className)} title={`Клинический статус: ${clinicalStatus}`}>
           {badge.label}
         </span>
-        <button type="button" className={editIconClass} title="Редактировать" onClick={open}>
+        <Button type="button" variant="ghost" size="icon-xs" className={editIconClass} title="Редактировать" onClick={open}>
           ✎
-        </button>
+        </Button>
         <span className={dateMetaClass}>{d.meta}</span>
       </div>
 
@@ -552,42 +566,50 @@ function DiagnosisRow({
       {/* Status action buttons */}
       <div className="flex items-center gap-1.5 pl-4">
         {clinicalStatus !== "подтверждённый" && (
-          <button
+          <Button
             type="button"
             disabled={statusSaving}
             onClick={() => changeStatus("подтверждённый")}
-            className="rounded border border-emerald-400/60 px-1.5 py-px text-[10px] text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            variant="ghost"
+            size="xs"
+            className="rounded border border-emerald-400/60 text-[10px] text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
           >
             Подтвердить
-          </button>
+          </Button>
         )}
         {clinicalStatus !== "закрытый" && (
-          <button
+          <Button
             type="button"
             disabled={statusSaving}
             onClick={() => changeStatus("закрытый")}
-            className="rounded border border-border px-1.5 py-px text-[10px] text-muted-foreground hover:bg-muted/30 disabled:opacity-50"
+            variant="ghost"
+            size="xs"
+            className="rounded border border-border text-[10px] text-muted-foreground hover:bg-muted/30"
           >
             Закрыть
-          </button>
+          </Button>
         )}
         {clinicalStatus === "закрытый" && (
-          <button
+          <Button
             type="button"
             disabled={statusSaving}
             onClick={() => changeStatus("предварительный")}
-            className="rounded border border-amber-400/60 px-1.5 py-px text-[10px] text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700/50 dark:text-amber-400"
+            variant="ghost"
+            size="xs"
+            className="rounded border border-amber-400/60 text-[10px] text-amber-700 hover:bg-amber-50 dark:border-amber-700/50 dark:text-amber-400"
           >
             Переоткрыть
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           type="button"
           onClick={toggleHistory}
+          variant="ghost"
+          size="xs"
           className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
         >
           {showHistory ? "скрыть историю ▴" : "история ▾"}
-        </button>
+        </Button>
         {statusSaving && (
           <span className="text-[10px] text-muted-foreground">сохранение…</span>
         )}
@@ -734,30 +756,32 @@ function Comorbidities({
         <span className="flex items-center gap-1.5">
           <h3 className={doctorSectionTitleClass}>Сопутствующие заболевания</h3>
           {tab === "active" && !adding && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               className={plusBtnClass}
               title="Добавить"
               onClick={() => setAdding(true)}
             >
               +
-            </button>
+            </Button>
           )}
         </span>
         <span className={miniTabRowClass}>
-          <button type="button" onClick={() => setTab("active")}>
+          <Button type="button" variant="ghost" size="xs" onClick={() => setTab("active")}>
             <MiniTab active={tab === "active"}>Текущие</MiniTab>
-          </button>
-          <button type="button" onClick={() => setTab("removed")}>
+          </Button>
+          <Button type="button" variant="ghost" size="xs" onClick={() => setTab("removed")}>
             <MiniTab active={tab === "removed"}>Снятые</MiniTab>
-          </button>
+          </Button>
         </span>
       </div>
 
       <div className="flex flex-col gap-1.5">
         {adding && tab === "active" && (
           <div className="flex flex-col gap-1 rounded-lg border border-primary/40 bg-background px-2.5 py-2">
-            <input
+            <Input
               autoFocus
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -768,31 +792,33 @@ function Comorbidities({
                 } else if (e.key === "Escape") setAdding(false);
               }}
               placeholder="Заболевание"
-              className="rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
             />
             <div className="flex items-center gap-1.5">
-              <input
+              <Input
                 value={since}
                 onChange={(e) => setSince(e.target.value)}
                 placeholder="с какого времени (необяз.)"
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+                className="flex-1 text-xs"
               />
-              <button
+              <Button
                 type="button"
                 onClick={add}
                 disabled={saving}
-                className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                size="xs"
+                className="text-[11px]"
               >
                 {saving ? "…" : "Добавить"}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => setAdding(false)}
                 disabled={saving}
-                className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+                variant="outline"
+                size="xs"
+                className="text-[11px]"
               >
                 Отмена
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -815,7 +841,7 @@ function Comorbidities({
               key={co.id}
               className="flex flex-col gap-1 rounded-lg border border-primary/40 bg-background px-2.5 py-2"
             >
-              <input
+              <Input
                 autoFocus
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
@@ -825,31 +851,33 @@ function Comorbidities({
                     saveEdit(co.id);
                   } else if (e.key === "Escape") setEditingId(null);
                 }}
-                className="rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
               />
               <div className="flex items-center gap-1.5">
-                <input
+                <Input
                   value={editSince}
                   onChange={(e) => setEditSince(e.target.value)}
                   placeholder="с какого времени (необяз.)"
-                  className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+                  className="flex-1 text-xs"
                 />
-                <button
+                <Button
                   type="button"
                   onClick={() => saveEdit(co.id)}
                   disabled={saving}
-                  className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  size="xs"
+                  className="text-[11px]"
                 >
                   {saving ? "…" : "Сохранить"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setEditingId(null)}
                   disabled={saving}
-                  className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  variant="outline"
+                  size="xs"
+                  className="text-[11px]"
                 >
                   Отмена
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -873,8 +901,10 @@ function Comorbidities({
               <span className="flex-1">{co.text}</span>
               {tab === "active" && (
                 <>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     className={editIconClass}
                     title="Редактировать"
                     onClick={() => {
@@ -884,26 +914,30 @@ function Comorbidities({
                     }}
                   >
                     ✎
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     className={editIconClass}
                     title="Снять (в историю)"
                     onClick={() => markRemoved(co.id)}
                   >
                     ×
-                  </button>
+                  </Button>
                 </>
               )}
               {tab === "removed" && (
-                <button
+                <Button
                   type="button"
-                  className="flex-none cursor-pointer self-center text-xs text-primary hover:underline"
+                  variant="link"
+                  size="xs"
+                  className="flex-none self-center text-xs"
                   title="Восстановить"
                   onClick={() => restore(co.id)}
                 >
                   восстановить
-                </button>
+                </Button>
               )}
               {co.since && <span className={dateMetaClass}>{co.since}</span>}
             </div>
@@ -986,8 +1020,9 @@ function VisitCard({
 
   return (
     <div className="rounded-xl border border-border bg-card">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setExpanded((v) => !v)}
         className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left"
       >
@@ -1018,7 +1053,7 @@ function VisitCard({
         <span className="ml-auto text-xs text-muted-foreground">
           {expanded ? "свернуть ▴" : "развернуть ▾"}
         </span>
-      </button>
+      </Button>
       {expanded ? (
         <div className="flex flex-col gap-2.5 border-t border-border px-3 py-2.5">
           {visit.dynamics && visit.dynamics.length > 0 ? (
@@ -1045,42 +1080,42 @@ function VisitCard({
             <div className="flex flex-col gap-2">
               <label className="flex flex-col gap-0.5">
                 <span className="text-xs font-semibold text-foreground">Локация</span>
-                <input
+                <Input
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Например: Кабинет 3"
-                  className="rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
                 />
               </label>
               {VISIT_SECTION_FIELDS.map((f) => (
                 <label key={f.key} className="flex flex-col gap-0.5">
                   <span className="text-xs font-semibold text-foreground">{f.title}</span>
-                  <textarea
+                  <Textarea
                     value={fields[f.key]}
                     onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
                     rows={2}
-                    className="resize-y rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                    className="resize-y"
                   />
                 </label>
               ))}
               {error && <span className="text-xs text-destructive">Не удалось сохранить.</span>}
               <div className="flex items-center gap-1.5">
-                <button
+                <Button
                   type="button"
                   onClick={save}
                   disabled={saving}
-                  className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  size="xs"
                 >
                   {saving ? "Сохранение…" : "Сохранить"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setEditing(false)}
                   disabled={saving}
-                  className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  variant="outline"
+                  size="xs"
                 >
                   Отмена
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -1105,13 +1140,15 @@ function VisitCard({
                   <span className={doctorSectionSubtitleClass}>— файлы, прикреплённые к визиту</span>
                 </div>
               ) : null}
-              <button
+              <Button
                 type="button"
                 onClick={openEdit}
+                variant="ghost"
+                size="xs"
                 className="self-start text-xs text-muted-foreground hover:text-primary"
               >
                 ✎ править записи визита
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -1212,12 +1249,13 @@ function CreateVisitModeModal({
             {!loading && appointments !== null && appointments.length > 0 && (
               <div className="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto">
                 {appointments.map((a) => (
-                  <button
+                  <Button
                     key={a.id}
                     type="button"
                     onClick={() => setSelected(a.id)}
+                    variant="ghost"
                     className={cn(
-                      "flex flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left text-xs",
+                      "flex flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left text-xs h-auto",
                       selected === a.id
                         ? "border-primary bg-primary/10 font-medium"
                         : "border-border hover:border-primary/40 hover:bg-muted/30",
@@ -1229,19 +1267,20 @@ function CreateVisitModeModal({
                     <span className="text-muted-foreground">
                       {[a.location, a.serviceName].filter(Boolean).join(" · ") || "—"}
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
             {!loading && appointments !== null && appointments.length > 0 && (
-              <button
+              <Button
                 type="button"
                 disabled={!selectedAppt}
                 onClick={() => selectedAppt && onSelectMode("from_booking", selectedAppt)}
-                className="self-start rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                size="sm"
+                className="self-start text-xs"
               >
                 Создать из выбранной записи
-              </button>
+              </Button>
             )}
           </div>
 
@@ -1252,24 +1291,28 @@ function CreateVisitModeModal({
               Пациент пришёл без предварительной записи — дата=сегодня, время=сейчас,
               филиал из последней записи (если была)
             </p>
-            <button
+            <Button
               type="button"
               onClick={() => onSelectMode("walk_in")}
-              className="self-start rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/30"
+              variant="outline"
+              size="sm"
+              className="self-start text-xs"
             >
               Создать без записи
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="flex justify-end pt-1">
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+            variant="outline"
+            size="sm"
+            className="text-xs"
           >
             Отмена
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -1285,14 +1328,16 @@ function HistoryToggleBtn({
   onToggle: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onToggle}
       title={visible ? "Скрыть историю — увидеть карту" : "Показать историю визитов"}
-      className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+      variant="outline"
+      size="xs"
+      className="text-xs text-muted-foreground"
     >
       {visible ? "◀" : "▶"}
-    </button>
+    </Button>
   );
 }
 
@@ -1358,43 +1403,42 @@ function AddTraumaForm({
     }
   }
 
-  const inputClass = "h-8 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary/50";
+  const TRAUMA_TYPES = ["Травма", "Операция", "Перелом", "Растяжение", "Разрыв", "Вывих", "Контузия"] as const;
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Год</label>
-          <input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="Год" className={inputClass} />
+          <Input ref={yearRef} value={year} onChange={e => setYear(e.target.value)} placeholder="Год" />
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Тип</label>
-          <select value={type} onChange={e => setType(e.target.value)} className={inputClass}>
-            <option value="Травма">Травма</option>
-            <option value="Операция">Операция</option>
-            <option value="Перелом">Перелом</option>
-            <option value="Растяжение">Растяжение</option>
-            <option value="Разрыв">Разрыв</option>
-            <option value="Вывих">Вывих</option>
-            <option value="Контузия">Контузия</option>
-          </select>
+          <Select value={type} onValueChange={(v) => setType(v ?? "Травма")}>
+            <SelectTrigger displayLabel={type} className="w-full" />
+            <SelectContent>
+              {TRAUMA_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Что произошло</label>
-        <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Опишите травму или операцию…" className={inputClass} />
+        <Input value={what} onChange={e => setWhat(e.target.value)} placeholder="Опишите травму или операцию…" />
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Иммобилизация / восстановление</label>
-        <input value={immob} onChange={e => setImmob(e.target.value)} placeholder="Длительность, режим восстановления…" className={inputClass} />
+        <Input value={immob} onChange={e => setImmob(e.target.value)} placeholder="Длительность, режим восстановления…" />
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
-        <button type="submit" disabled={saving} className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
+        <Button type="submit" disabled={saving} size="xs">
           {saving ? "Сохранение…" : "Добавить"}
-        </button>
-        <button type="button" onClick={onCancel} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+        </Button>
+        <Button type="button" onClick={onCancel} variant="outline" size="xs">
           Отмена
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -1439,31 +1483,30 @@ function AddIllnessForm({
     }
   }
 
-  const inputClass = "h-8 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary/50";
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Период</label>
-          <input ref={periodRef} value={period} onChange={e => setPeriod(e.target.value)} placeholder="Год или период" className={inputClass} />
+          <Input ref={periodRef} value={period} onChange={e => setPeriod(e.target.value)} placeholder="Год или период" />
         </div>
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Что</label>
-          <input value={what} onChange={e => setWhat(e.target.value)} placeholder="Что произошло, длительность…" className={inputClass} />
+          <Input value={what} onChange={e => setWhat(e.target.value)} placeholder="Что произошло, длительность…" />
         </div>
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Комментарий</label>
-        <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Описание, последствия, примечание…" className={inputClass} />
+        <Input value={comment} onChange={e => setComment(e.target.value)} placeholder="Описание, последствия, примечание…" />
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
-        <button type="submit" disabled={saving} className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
+        <Button type="submit" disabled={saving} size="xs">
           {saving ? "Сохранение…" : "Добавить"}
-        </button>
-        <button type="button" onClick={onCancel} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+        </Button>
+        <Button type="button" onClick={onCancel} variant="outline" size="xs">
           Отмена
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -1510,7 +1553,6 @@ function AddLifestyleForm({
     }
   }
 
-  const inputClass = "h-8 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary/50";
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
       <div className="flex flex-col gap-0.5">
@@ -1519,22 +1561,22 @@ function AddLifestyleForm({
       </div>
       <div className="flex flex-col gap-0.5">
         <label className="text-xs text-muted-foreground">Образ жизни / привычки</label>
-        <textarea
+        <Textarea
           ref={textRef}
           value={text}
           onChange={e => setText(e.target.value)}
           placeholder="Работа сидячая, 8–10 часов. В выходные прогулки…"
-          className="min-h-[60px] w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+          className="min-h-[60px]"
         />
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex gap-1.5">
-        <button type="submit" disabled={saving} className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
+        <Button type="submit" disabled={saving} size="xs">
           {saving ? "Сохранение…" : "Добавить"}
-        </button>
-        <button type="button" onClick={onCancel} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+        </Button>
+        <Button type="button" onClick={onCancel} variant="outline" size="xs">
           Отмена
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -1770,14 +1812,16 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
           <div className="flex items-center gap-1.5">
             <span className={sectionLabelClass}>Травмы и операции</span>
             {anamnesisAddOpen !== "trauma" && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 className={plusBtnClass}
                 title="Добавить запись"
                 onClick={() => setAnamnesisAddOpen("trauma")}
               >
                 +
-              </button>
+              </Button>
             )}
           </div>
           {anamnesisAddOpen === "trauma" && (
@@ -1818,14 +1862,16 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
           <div className="flex items-center gap-1.5">
             <span className={sectionLabelClass}>Болезни, стрессы</span>
             {anamnesisAddOpen !== "illness" && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 className={plusBtnClass}
                 title="Добавить запись"
                 onClick={() => setAnamnesisAddOpen("illness")}
               >
                 +
-              </button>
+              </Button>
             )}
           </div>
           {anamnesisAddOpen === "illness" && (
@@ -1864,14 +1910,16 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
           <div className="flex items-center gap-1.5">
             <span className={sectionLabelClass}>Образ жизни</span>
             {anamnesisAddOpen !== "lifestyle" && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 className={plusBtnClass}
                 title="Добавить запись"
                 onClick={() => setAnamnesisAddOpen("lifestyle")}
               >
                 +
-              </button>
+              </Button>
             )}
           </div>
           {anamnesisAddOpen === "lifestyle" && (
@@ -1920,13 +1968,14 @@ export function PatientTabKarta({ userId, header: _header, pendingAppointmentId,
             <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
           )}
           {!panelOpen && (
-            <button
+            <Button
               type="button"
               onClick={() => setModePickerOpen(true)}
-              className="ml-auto rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+              size="xs"
+              className="ml-auto"
             >
               + Новый визит
-            </button>
+            </Button>
           )}
         </div>
 
