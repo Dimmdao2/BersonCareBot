@@ -36,6 +36,13 @@ import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/doctor/primitives/select";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   Dialog,
@@ -227,18 +234,22 @@ function SortableRow({
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
           <div className="flex min-w-[6.5rem] flex-col gap-1">
             <Label className="text-xs">Сторона</Label>
-            <select
-              className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <Select
               value={line.side}
-              onChange={(ev) => onChange(line.sortId, { side: ev.target.value })}
+              onValueChange={(v) => onChange(line.sortId, { side: v ?? "" })}
             >
-              <option value="">—</option>
-              {LFK_EXERCISE_SIDE_SELECT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="w-full min-w-0">
+                <SelectValue placeholder="—">{line.side ? (LFK_EXERCISE_SIDE_SELECT_OPTIONS.find((o) => o.value === line.side)?.label ?? line.side) : "—"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">—</SelectItem>
+                {LFK_EXERCISE_SIDE_SELECT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Повторы</Label>
@@ -259,24 +270,27 @@ function SortableRow({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-xs" htmlFor={`tpl-line-maxpain-${line.sortId}`}>
+            <Label className="text-xs">
               Боль макс
             </Label>
-            <select
-              id={`tpl-line-maxpain-${line.sortId}`}
-              className="h-8 w-14 min-w-[3.25rem] rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <Select
               value={editorMaxPainValue(line.maxPain)}
-              onChange={(ev) => onChange(line.sortId, { maxPain: ev.target.value })}
+              onValueChange={(v) => onChange(line.sortId, { maxPain: v ?? LFK_TEMPLATE_MAX_PAIN_DEFAULT })}
             >
-              {LFK_TEMPLATE_MAX_PAIN_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>
-                  {n}
-                </option>
-              ))}
-              {line.maxPain === "9" || line.maxPain === "10" ? (
-                <option value={line.maxPain}>{line.maxPain}</option>
-              ) : null}
-            </select>
+              <SelectTrigger size="sm" className="w-14 min-w-[3.25rem]">
+                <SelectValue placeholder={LFK_TEMPLATE_MAX_PAIN_DEFAULT}>{editorMaxPainValue(line.maxPain)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {LFK_TEMPLATE_MAX_PAIN_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+                {line.maxPain === "9" || line.maxPain === "10" ? (
+                  <SelectItem value={line.maxPain}>{line.maxPain}</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
