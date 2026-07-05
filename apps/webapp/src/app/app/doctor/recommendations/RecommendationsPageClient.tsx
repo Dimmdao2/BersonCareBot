@@ -144,9 +144,10 @@ function RecommendationTileCard({
 }) {
   const firstMedia = firstRecommendationMedia(r);
   return (
-    <button
+    <Button
       type="button"
-      className="flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      variant="ghost"
+      className="flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left"
       onClick={() => onSelect(r.id)}
     >
       <Card
@@ -178,7 +179,7 @@ function RecommendationTileCard({
           ) : null}
         </CardContent>
       </Card>
-    </button>
+    </Button>
   );
 }
 
@@ -324,8 +325,9 @@ function RecommendationsContent({
           return (
             <li key={r.id}>
               <div style={LIST_ROW_VISIBILITY_STYLE}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => opts.onRowSelect(r.id)}
                   className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
                 >
@@ -336,7 +338,7 @@ function RecommendationsContent({
                       <span className="text-xs text-muted-foreground">В архиве</span>
                     ) : null}
                   </span>
-                </button>
+                </Button>
               </div>
             </li>
           );
@@ -419,7 +421,7 @@ function RecommendationsContent({
             </DoctorCatalogToolbarFiltersSlot>
           }
           end={
-            <button
+            <Button
               type="button"
               id="doctor-recommendations-create"
               className={doctorCatalogToolbarPrimaryActionClassName}
@@ -429,7 +431,7 @@ function RecommendationsContent({
               }}
             >
               Создать рекомендацию
-            </button>
+            </Button>
           }
         />
       }

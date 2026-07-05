@@ -249,14 +249,15 @@ function ExercisesContent({
           return (
             <li key={ex.id}>
               <div style={LIST_ROW_VISIBILITY_STYLE}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => opts.onRowSelect(ex.id)}
                   className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
                 >
                   {mediaNode(ex)}
                   <span className="line-clamp-2">{ex.title}</span>
-                </button>
+                </Button>
               </div>
             </li>
           );
