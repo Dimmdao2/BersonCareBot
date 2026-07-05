@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Star } from "lucide-react";
 import { Rating, Star as RatingStarShape } from "@smastrom/react-rating";
 import "@smastrom/react-rating/style.css";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { ruRatingCountLabel } from "@/shared/lib/ruRatingCountLabel";
@@ -294,8 +295,9 @@ export function MaterialRatingBlock({
             })}
           </span>
           {showChangeLink ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               className={cn(
                 patientMutedTextClass,
                 "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-normal underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90",
@@ -307,7 +309,7 @@ export function MaterialRatingBlock({
               }}
             >
               Изменить оценку
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}

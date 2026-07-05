@@ -990,8 +990,9 @@ export function AuthFlowV2({
               <p className={cn(patientMutedTextClass, "break-all text-sm")}>
                 Код отправлен на {emailLoginEmail.trim()}
               </p>
-              <button
+              <Button
                 type="button"
+                variant="link"
                 className={authLinkButtonClass}
                 disabled={loading}
                 onClick={() => {
@@ -1002,7 +1003,7 @@ export function AuthFlowV2({
                 }}
               >
                 Изменить email
-              </button>
+              </Button>
               {emailVerifyPurpose !== "email_otp" ? (
                 <div className="flex flex-col gap-1 pt-2">
                   <label htmlFor="auth-verify-resend-pwd" className={authFormFieldLabelClass}>
@@ -1075,14 +1076,15 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
-        <button
+        <Button
           type="button"
+          variant="link"
           className={authLinkButtonClass}
           disabled={loading}
           onClick={() => setStep("phone_login")}
         >
           Войти по номеру телефона
-        </button>
+        </Button>
       </div>
     );
   }

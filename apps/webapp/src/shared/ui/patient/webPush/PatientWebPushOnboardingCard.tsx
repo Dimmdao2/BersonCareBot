@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/patient/primitives/dialog";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
@@ -92,15 +93,15 @@ function PushOnboardingActions({
 }) {
   return (
     <div className="mt-5 flex flex-col gap-2">
-      <button
+      <Button
         type="button"
         className={patientModalPortalPrimaryCtaClass}
         disabled={busy}
         onClick={() => void onEnable()}
       >
         Включить уведомления
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         className={cn(
           patientButtonSecondaryClass,
@@ -110,7 +111,7 @@ function PushOnboardingActions({
         onClick={onDismiss}
       >
         Не сейчас
-      </button>
+      </Button>
     </div>
   );
 }

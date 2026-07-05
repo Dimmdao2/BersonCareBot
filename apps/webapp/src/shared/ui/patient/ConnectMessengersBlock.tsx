@@ -163,8 +163,9 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
                 {maxOpenUrl ? (
                   <p className="text-xs text-muted-foreground">
                     Если окно не открылось:{" "}
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
                       className="inline h-auto min-h-0 p-0 text-xs font-normal text-primary underline"
                       onClick={() =>
                         finishChannelLinkNavigation({
@@ -176,7 +177,7 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
                       }
                     >
                       открыть бота в MAX
-                    </button>
+                    </Button>
                   </p>
                 ) : null}
                 {maxManualCommand ? (

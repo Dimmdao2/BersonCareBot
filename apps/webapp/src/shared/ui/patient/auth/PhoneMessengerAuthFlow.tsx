@@ -492,8 +492,9 @@ export function PhoneMessengerAuthFlow({
           <p className={cn(patientMutedTextClass, "text-center")}>Ожидание подтверждения в мессенджере…</p>
         )}
         {!waitingForBot ? (
-          <button
+          <Button
             type="button"
+            variant="link"
             className={cn(
               "border-none bg-transparent text-sm font-medium underline-offset-2",
               patientInlineLinkClass,
@@ -507,7 +508,7 @@ export function PhoneMessengerAuthFlow({
             }}
           >
             Другой мессенджер
-          </button>
+          </Button>
         ) : null}
       </div>
     );
