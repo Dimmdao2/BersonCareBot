@@ -373,21 +373,23 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
             const active = selectedChannels.has(ch);
             const count = channelCounts ? channelCounts[ch as keyof BroadcastChannelCounts] : null;
             return (
-              <Button
+              <label
                 key={ch}
-                type="button"
-                role="checkbox"
-                aria-checked={active}
-                variant="ghost"
-                disabled={isFormLocked}
-                onClick={() => toggleChannel(ch)}
                 className={cn(
-                  "flex h-auto flex-col items-center gap-0.5 rounded-lg border px-1.5 py-2.5",
+                  "flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-1.5 py-2.5 transition-colors",
                   active
-                    ? "border-primary bg-primary/10 hover:bg-primary/15"
+                    ? "border-primary bg-primary/10"
                     : "border-border bg-background hover:bg-muted/30",
+                  isFormLocked && "pointer-events-none opacity-60",
                 )}
               >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  disabled={isFormLocked}
+                  onChange={() => toggleChannel(ch)}
+                  className="sr-only"
+                />
                 {count !== null ? (
                   <span className={cn("text-sm font-bold leading-none", active ? "text-primary" : "text-foreground")}>
                     {count}
@@ -398,7 +400,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
                 <span className={cn("mt-0.5 text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
                   {CHANNEL_TILE_LABELS[ch]}
                 </span>
-              </Button>
+              </label>
             );
           })}
         </div>
