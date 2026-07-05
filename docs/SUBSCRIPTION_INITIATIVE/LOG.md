@@ -2,6 +2,41 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-05 — #386 fix #4 (Sonnet): UI управления шаблонами абонементов в Расписание→Настройки
+
+### Что сделано
+
+**Backend — уже был готов (переиспользовано без изменений):**
+- `upsertCatalogPackage` в `pgMemberships.ts` поддерживает create и update (передать `id` для update).
+- `GET /api/doctor/booking-engine/packages` — уже был.
+- `POST /api/doctor/booking-engine/packages` — уже был.
+
+**Новый API роут:**
+- `PATCH /api/doctor/booking-engine/packages/[id]` (`apps/webapp/src/app/api/doctor/booking-engine/packages/[id]/route.ts`):
+  - Загружает существующий пакет `getCatalogPackage`, мёрджит патч с существующими полями, вызывает `upsertCatalogPackage`.
+  - Поддерживает: `isActive`, `title`, `description`, `priceMinor`, `currency`, `validityDays`, `deductionMode`, `items`.
+  - Гейт `requireDoctorBookingEngine`, 404 если не найден, 400 на невалидный body.
+- `GET /api/doctor/booking-engine/packages/[id]` — возвращает один шаблон.
+
+**UI-секция «Абонементы (шаблоны)» в Расписание→Настройки:**
+- Добавлен пункт `packages` в `SETUP_SECTIONS` в `ScheduleSetupTab.tsx`.
+- Компонент `SectionPackages`: список шаблонов с бейджем активен/нет + кнопка активировать/деактивировать; форма создания (название, цена ₽→копейки, срок дней, режим авто/ручной, позиции услуга×кол-во с добавить/убрать). Тост «Шаблон создан» при успехе.
+- URL-секция: `/app/doctor/schedule?tab=setup&section=packages`.
+
+**Пустое состояние в «Назначить из каталога»:**
+- `DoctorClientMembershipsPanel.tsx`: если `catalog.length === 0` — отображается подсказка «Нет шаблонов — создайте в Расписание → Настройки → Абонементы (шаблоны)» вместо пустого select.
+
+**Тесты (все зелёные):**
+- `packages/route.test.ts` — 4 теста: GET list (вкл. неактивных), POST create, 400 на пустые items, 403.
+- `packages/[id]/route.test.ts` — 6 тестов: GET found, GET 404, PATCH deactivate, PATCH 404, PATCH 403, PATCH invalid body.
+- Все 151 тестов в `src/app/app/doctor/schedule` — зелёные.
+- Все 48 тестов в `src/modules/memberships` — зелёные.
+
+**На полиш-потом:**
+- Редактирование существующего шаблона (сейчас только деактивировать/активировать).
+- Удаление шаблона (soft-delete через `isActive=false` уже работает).
+- Показ количества назначений из каталога (linkage с `be_patient_packages.subscriptionPackageId`).
+
 ## 2026-07-05 — #386 fix #3/#9b (Sonnet): список кандидатов для ручного списания + разблокировка прошлого
 
 ### Что сделано

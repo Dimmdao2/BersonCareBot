@@ -293,41 +293,50 @@ export function DoctorClientMembershipsPanel({
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium">Назначить из каталога</summary>
             <div className="mt-3 flex flex-col gap-2">
-              <Label htmlFor="pkg-catalog">Шаблон</Label>
-              <select
-                id="pkg-catalog"
-                className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-                value={catalogId}
-                onChange={(e) => {
-                  setCatalogId(e.target.value);
-                  const row = catalog.find((c) => c.id === e.target.value);
-                  if (row) setCatalogPaidRub(String(row.priceMinor / 100));
-                }}
-              >
-                <option value="">—</option>
-                {catalog.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-              <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
-              <Input
-                id="pkg-catalog-notes"
-                value={catalogNotes}
-                onChange={(e) => setCatalogNotes(e.target.value)}
-              />
-              <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
-              <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} max={today} />
-              <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
-              <Input
-                id="pkg-catalog-paid"
-                value={catalogPaidRub}
-                onChange={(e) => setCatalogPaidRub(e.target.value)}
-              />
-              <Button type="button" size="sm" disabled={pending} onClick={offerCatalog}>
-                Назначить
-              </Button>
+              {catalog.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Нет шаблонов — создайте в{" "}
+                  <span className="font-medium">Расписание → Настройки → Абонементы (шаблоны)</span>
+                </p>
+              ) : (
+                <>
+                  <Label htmlFor="pkg-catalog">Шаблон</Label>
+                  <select
+                    id="pkg-catalog"
+                    className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                    value={catalogId}
+                    onChange={(e) => {
+                      setCatalogId(e.target.value);
+                      const row = catalog.find((c) => c.id === e.target.value);
+                      if (row) setCatalogPaidRub(String(row.priceMinor / 100));
+                    }}
+                  >
+                    <option value="">—</option>
+                    {catalog.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                  <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
+                  <Input
+                    id="pkg-catalog-notes"
+                    value={catalogNotes}
+                    onChange={(e) => setCatalogNotes(e.target.value)}
+                  />
+                  <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
+                  <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} max={today} />
+                  <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
+                  <Input
+                    id="pkg-catalog-paid"
+                    value={catalogPaidRub}
+                    onChange={(e) => setCatalogPaidRub(e.target.value)}
+                  />
+                  <Button type="button" size="sm" disabled={pending} onClick={offerCatalog}>
+                    Назначить
+                  </Button>
+                </>
+              )}
             </div>
           </details>
 
