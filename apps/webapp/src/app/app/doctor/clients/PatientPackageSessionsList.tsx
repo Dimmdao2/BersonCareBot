@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import type { PatientPackageSessionRow } from "@/modules/memberships/types";
 
@@ -153,13 +154,19 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
 
   return (
     <div className="mt-2 space-y-2">
-      <div className="flex cursor-pointer items-center gap-2 text-xs font-normal">
+      <div className="flex cursor-pointer items-center gap-2">
         <Checkbox
           aria-label="Показать прошедшие"
           checked={includePast}
           onCheckedChange={(checked) => setIncludePast(checked === true)}
         />
-        <span aria-hidden="true">Показать прошедшие</span>
+        <Label
+          aria-hidden="true"
+          className="cursor-pointer text-xs font-normal"
+          onClick={() => setIncludePast((v) => !v)}
+        >
+          Показать прошедшие
+        </Label>
       </div>
       {sessions.length === 0 ? (
         <p className="text-muted-foreground text-xs">Нет записей по абонементу.</p>
