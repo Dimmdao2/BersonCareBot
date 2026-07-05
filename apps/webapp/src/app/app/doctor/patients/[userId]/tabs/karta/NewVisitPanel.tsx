@@ -24,6 +24,10 @@ import type { ActiveComplaint, ActiveDiagnosis, DiagnosisCatalogSuggestion } fro
 import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import { cn } from "@/lib/utils";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import {
   Select,
   SelectContent,
@@ -98,13 +102,7 @@ function toIsoDate(d: Date): string {
 // Shared style constants
 // ---------------------------------------------------------------------------
 
-const chipSelectClass =
-  "rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground";
 const fieldLabelClass = "text-xs font-semibold text-foreground";
-const inputClass =
-  "flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
-const textareaClass =
-  "w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 resize-y";
 const hintClass = "text-xs text-muted-foreground";
 
 // ---------------------------------------------------------------------------
@@ -113,14 +111,16 @@ const hintClass = "text-xs text-muted-foreground";
 
 function PriorityFlag({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onToggle}
       title={on ? "Приоритет: вкл" : "Приоритет: выкл"}
+      variant="ghost"
+      size="icon-xs"
       className={cn("flex-none text-sm leading-none", on ? "text-primary" : "text-muted-foreground")}
     >
       ⚑
-    </button>
+    </Button>
   );
 }
 
@@ -140,8 +140,8 @@ function FormTextarea({
   return (
     <div className="flex flex-col gap-1.5">
       <span className={fieldLabelClass}>{label}</span>
-      <textarea
-        className={cn(textareaClass, minH)}
+      <Textarea
+        className={cn(minH)}
         placeholder={placeholder}
         value={value}
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
@@ -231,21 +231,23 @@ function DiagnosisAutocomplete({
     <div>
       <div className="flex items-center gap-2">
         <span className="flex-none text-sm text-muted-foreground">⚑</span>
-        <input
+        <Input
           type="search"
           value={draft}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="Начните вводить — поиск по справочнику..."
           autoComplete="off"
-          className="flex-1 rounded-t-lg border border-primary bg-background px-2.5 py-1.5 text-sm text-foreground focus-visible:outline-none"
+          className="flex-1 rounded-t-lg"
         />
-        <button
+        <Button
           type="button"
           onClick={() => { setDraft(""); setSuggestions([]); }}
+          variant="ghost"
+          size="icon-xs"
           className="flex-none text-sm text-muted-foreground"
         >
           ✕
-        </button>
+        </Button>
       </div>
       {showDropdown && (
         <div className="mx-[19px] overflow-hidden rounded-b-lg border border-t-0 border-primary bg-background text-sm">
@@ -253,27 +255,29 @@ function DiagnosisAutocomplete({
             <div className="px-2.5 py-1.5 text-xs text-muted-foreground animate-pulse">Поиск…</div>
           )}
           {!loading && suggestions.map((s, idx) => (
-            <button
+            <Button
               type="button"
               key={s.id}
               onClick={() => handleSelect(s)}
+              variant="ghost"
               className={cn(
-                "flex w-full items-center gap-1 px-2.5 py-1.5 text-left hover:bg-primary/10",
+                "flex w-full items-center gap-1 px-2.5 py-1.5 text-left h-auto rounded-none hover:bg-primary/10",
                 idx === 0 && "bg-primary/10",
                 idx > 0 && "border-t border-border",
               )}
             >
               <span className="font-semibold text-foreground">{s.label}</span>
               {s.note && <span className={hintClass}>· {s.note}</span>}
-            </button>
+            </Button>
           ))}
-          <button
+          <Button
             type="button"
             onClick={handleCreate}
-            className="flex w-full items-center px-2.5 py-1.5 text-left font-medium text-primary hover:bg-primary/10 border-t border-border"
+            variant="ghost"
+            className="flex w-full items-center px-2.5 py-1.5 text-left h-auto rounded-none font-medium text-primary hover:bg-primary/10 border-t border-border"
           >
             + Создать в справочнике: «{draft}»
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -345,13 +349,15 @@ function BookingInfoModal({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
+            variant="outline"
+            size="sm"
+            className="text-xs"
           >
             Закрыть
-          </button>
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -787,41 +793,43 @@ export function NewVisitPanel({
         <span className="text-sm font-semibold text-foreground">Новый визит</span>
         <span className="flex gap-1">
           {(["first", "repeat"] as const).map((vt) => (
-            <button
+            <Button
               key={vt}
               type="button"
               onClick={() => setVisitType(vt)}
+              size="xs"
+              variant={visitType === vt ? "default" : "ghost"}
               className={cn(
-                "rounded-md px-2 py-1 text-xs font-medium",
-                visitType === vt
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:text-foreground",
+                "text-xs",
+                visitType !== vt && "text-muted-foreground hover:text-foreground",
               )}
             >
               {vt === "first" ? "Первичный" : "Повторный"}
-            </button>
+            </Button>
           ))}
         </span>
-        <button
+        <Button
           type="button"
           onClick={() => {
             if (isDirty) { setCloseConfirmOpen(true); return; }
             onClose();
           }}
           title="Закрыть"
-          className="order-last ml-auto rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+          variant="outline"
+          size="xs"
+          className="order-last ml-auto text-xs text-muted-foreground"
         >
           ✕
-        </button>
+        </Button>
         <span className="flex flex-wrap items-center gap-1.5">
           {/* Date picker */}
           <DoctorDatePicker value={selectedDate} onChange={setSelectedDate} />
           {/* Time picker */}
-          <input
+          <Input
             type="time"
             value={selectedTime}
             onChange={(e) => setSelectedTime(e.target.value)}
-            className={cn(chipSelectClass, "w-[6.5rem]")}
+            className="w-[6.5rem] h-[26px] px-2 text-xs"
             title="Время визита"
           />
           {/* Branch / location */}
@@ -849,12 +857,12 @@ export function NewVisitPanel({
               </SelectContent>
             </Select>
           ) : (
-            <input
+            <Input
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Место приёма"
-              className={cn(chipSelectClass, "w-32 placeholder:text-muted-foreground/60")}
+              className="w-32 h-[26px] px-2 text-xs"
             />
           )}
           {/* Service — filtered by selected branch */}
@@ -877,25 +885,27 @@ export function NewVisitPanel({
               </SelectContent>
             </Select>
           ) : (
-            <input
+            <Input
               type="text"
               value={service}
               onChange={(e) => setService(e.target.value)}
               placeholder="Услуга"
-              className={cn(chipSelectClass, "w-28 placeholder:text-muted-foreground/60")}
+              className="w-28 h-[26px] px-2 text-xs"
             />
           )}
           {/* Calendar icon — shows source appointment info when present */}
           {sourceAppointment && (
-            <button
+            <Button
               type="button"
               onClick={() => setBookingInfoOpen(true)}
               title="Информация о записи"
-              className="flex-none rounded-md border border-border bg-background px-1.5 py-1 text-sm hover:bg-primary/10"
+              variant="outline"
+              size="xs"
+              className="flex-none text-sm"
               aria-label="Просмотр записи"
             >
               📅
-            </button>
+            </Button>
           )}
         </span>
       </div>
@@ -922,14 +932,16 @@ export function NewVisitPanel({
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
                 <span className={fieldLabelClass}>Симптомы</span>
-                <button
+                <Button
                   type="button"
                   onClick={addFirstComplaint}
                   title="Добавить симптом"
+                  variant="ghost"
+                  size="icon-xs"
                   className="grid h-[17px] w-[17px] place-items-center rounded-md border border-primary/40 text-xs text-primary"
                 >
                   +
-                </button>
+                </Button>
               </div>
               <div className="flex flex-col gap-1.5">
                 {firstComplaints.map((c) => (
@@ -942,7 +954,7 @@ export function NewVisitPanel({
                         )
                       }
                     />
-                    <input
+                    <Input
                       value={c.text}
                       onChange={(e) =>
                         setFirstComplaints((prev) =>
@@ -950,10 +962,10 @@ export function NewVisitPanel({
                         )
                       }
                       placeholder="Описание симптома…"
-                      className={inputClass}
+                      className="flex-1"
                     />
                     <span className="flex flex-none items-center gap-1 text-xs text-muted-foreground">
-                      <input
+                      <Input
                         type="number"
                         min={0}
                         max={10}
@@ -965,21 +977,23 @@ export function NewVisitPanel({
                             ),
                           )
                         }
-                        className="w-11 rounded-md border border-border bg-background px-1 py-1 text-center text-sm text-foreground"
+                        className="w-11 px-1 text-center"
                       />
                       /10
                     </span>
                     {firstComplaints.length > 1 && (
-                      <button
+                      <Button
                         type="button"
                         onClick={() =>
                           setFirstComplaints((prev) => prev.filter((x) => x.id !== c.id))
                         }
                         title="Удалить"
+                        variant="ghost"
+                        size="icon-xs"
                         className="flex-none text-sm text-muted-foreground hover:text-destructive"
                       >
                         ✕
-                      </button>
+                      </Button>
                     )}
                   </div>
                 ))}
@@ -1019,14 +1033,16 @@ export function NewVisitPanel({
                         <span className="ml-1 text-xs text-muted-foreground">· справочник</span>
                       )}
                     </span>
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setFirstDiagnoses((prev) => prev.filter((x) => x.id !== d.id))}
                       title="Удалить"
+                      variant="ghost"
+                      size="icon-xs"
                       className="flex-none text-sm text-muted-foreground hover:text-destructive"
                     >
                       ✕
-                    </button>
+                    </Button>
                   </div>
                 ))}
                 <DiagnosisAutocomplete userId={userId} onSelect={addFirstDiagnosis} />
@@ -1083,8 +1099,8 @@ export function NewVisitPanel({
                         <span>{c.text}</span>
                         <span className="ml-auto">{c.since}</span>
                       </div>
-                      <textarea
-                        className={cn(textareaClass, "mt-1.5 min-h-[40px]")}
+                      <Textarea
+                        className="mt-1.5 min-h-[40px]"
                         placeholder="Динамика симптома…"
                         value={upd.note}
                         onChange={(e) => setUpd({ note: e.target.value })}
@@ -1092,21 +1108,20 @@ export function NewVisitPanel({
                       <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           Выраженность: <span>было {c.currentSeverity}/10</span> →
-                          <input
+                          <Input
                             type="number"
                             min={0}
                             max={10}
                             value={upd.severity}
                             onChange={(e) => setUpd({ severity: Number(e.target.value) })}
-                            className="w-11 rounded-md border border-border bg-background px-1 py-1 text-center text-sm text-foreground"
+                            className="w-11 px-1 text-center"
                           />
                           /10
                         </span>
                         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={upd.resolved}
-                            onChange={(e) => setUpd({ resolved: e.target.checked })}
+                            onCheckedChange={(checked) => setUpd({ resolved: checked === true })}
                           />
                           Решена — снять
                         </label>
@@ -1150,17 +1165,16 @@ export function NewVisitPanel({
                         <span>{d.text}</span>
                         <span className="ml-auto text-[11px]">{d.meta}</span>
                       </div>
-                      <input
+                      <Input
                         value={upd.refinement}
                         onChange={(e) => setUpd({ refinement: e.target.value })}
                         placeholder="Уточнение..."
-                        className={cn(inputClass, "mt-1.5 w-full")}
+                        className="mt-1.5 w-full"
                       />
                       <label className="mt-1.5 flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={upd.removed}
-                          onChange={(e) => setUpd({ removed: e.target.checked })}
+                          onCheckedChange={(checked) => setUpd({ removed: checked === true })}
                         />
                         Снять диагноз
                       </label>
@@ -1195,20 +1209,23 @@ export function NewVisitPanel({
           </div>
         )}
         <div className="flex items-center gap-2 bg-muted/20 px-3.5 py-2.5">
-          <button
+          <Button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60"
+            size="sm"
+            className="text-xs"
           >
             {saving ? "Сохранение…" : "Сохранить визит"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
+            variant="outline"
+            size="sm"
+            className="text-xs"
           >
             Прикрепить файлы
-          </button>
+          </Button>
           {!saveError && (
             <span className={cn(hintClass, "ml-auto")}>
               Ручное сохранение
@@ -1231,20 +1248,23 @@ export function NewVisitPanel({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button
+            <Button
               type="button"
               onClick={() => setCloseConfirmOpen(false)}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground"
+              variant="outline"
+              size="sm"
+              className="text-xs"
             >
               Вернуться
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => { setCloseConfirmOpen(false); onClose(); }}
-              className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
+              size="sm"
+              className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Закрыть без сохранения
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
