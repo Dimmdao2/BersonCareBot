@@ -121,15 +121,17 @@ export function NotificationTemplatesPageClient({ templates, variables }: Props)
 
                 <div className="flex flex-wrap gap-1.5">
                   {variables.map((variable) => (
-                    <button
+                    <Button
                       key={variable}
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => insertVariable(key, variable)}
                       className="rounded-md border border-border/60 bg-muted px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-primary/15 hover:text-primary"
                       title={NOTIF_VARIABLE_LABELS[variable] ?? variable}
                     >
                       {`{{${variable}}}`}
-                    </button>
+                    </Button>
                   ))}
                 </div>
 

@@ -716,13 +716,15 @@ function SectionPackages() {
                     <span>
                       {svc?.title ?? it.serviceId} × {it.quantity}
                     </span>
-                    <button
+                    <Button
                       type="button"
-                      className="text-destructive hover:underline text-xs"
+                      variant="link"
+                      size="sm"
+                      className="text-destructive text-xs h-auto p-0"
                       onClick={() => removeFormItem(idx)}
                     >
                       Убрать
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
@@ -732,7 +734,7 @@ function SectionPackages() {
             <div className="min-w-[10rem] flex-1">
               <Select
                 value={itemServiceId}
-                onValueChange={setItemServiceId}
+                onValueChange={(v) => setItemServiceId(v ?? "")}
               >
                 <SelectTrigger
                   displayLabel={activeServices.find((s) => s.id === itemServiceId)?.title ?? "Выберите услугу"}

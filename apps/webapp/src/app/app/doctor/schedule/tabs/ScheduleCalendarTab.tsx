@@ -600,9 +600,10 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
           return (
-            <button
+            <Button
               key={appt.id}
               type="button"
+              variant="ghost"
               onClick={() => onSelect(appt)}
               className={cn(
                 "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm",
@@ -630,7 +631,7 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
               {appt.branchTitle ? (
                 <span className="ml-auto shrink-0 text-xs opacity-70">{appt.branchTitle}</span>
               ) : null}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -1915,8 +1916,9 @@ export function ScheduleCalendarTab({
                           DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
                           DateTime.now().setZone(currentTimeZone).toISODate();
                         return (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={cn(
                               "fc-daygrid-day-number hover:underline cursor-pointer",
                               isToday && "fc-today-circle",
@@ -1930,7 +1932,7 @@ export function ScheduleCalendarTab({
                             }}
                           >
                             {arg.date.getDate()}
-                          </button>
+                          </Button>
                         );
                       },
                     }
@@ -1939,8 +1941,9 @@ export function ScheduleCalendarTab({
                         const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
                         const isToday = dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
                         return (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={cn("fc-timegrid-header-link", isToday && "fc-today-circle")}
                             onClick={() => {
                               const dateKey = dt.toISODate() ?? anchorDate;
@@ -1953,7 +1956,7 @@ export function ScheduleCalendarTab({
                             <span className="fc-timegrid-header-day">
                               {dt.day}
                             </span>
-                          </button>
+                          </Button>
                         );
                       },
                     })}
