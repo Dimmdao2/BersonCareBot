@@ -49,6 +49,8 @@ interface DisplayAppointment {
   hasVisitRecord?: boolean;
   cancelReason?: string;
   durationMin?: number;
+  /** Запись списана с абонемента (be_appointments.package_usage_ref IS NOT NULL). */
+  isPackage?: boolean | null;
 }
 
 /** Маппинг PatientAppointmentItem → DisplayAppointment. */
@@ -69,6 +71,7 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     status: item.status === "rescheduled" ? "rescheduled" : item.status,
     durationMin: item.durationMin ?? undefined,
     hasVisitRecord: false, // PatientAppointmentItem doesn't include visit-record presence yet
+    isPackage: item.isPackage ?? null,
   };
 }
 
@@ -256,7 +259,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
         <div className={doctorStatCardShellClass}>
           <p className={doctorMetricLabelClass}>Состоялись</p>
           <p className={cn(doctorMetricValueClass, "mt-0.5")}>{completedCount}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">визитов оформлено {Math.max(0, completedCount - 1)}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">посещений за всё время</p>
         </div>
 
         {/* Отмены — clickable, highlights when there are no-shows */}
@@ -364,6 +367,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                 <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-foreground/80">
                   {appt.location} · {appt.service}
                 </span>
+                {/* Package badge */}
+                {appt.isPackage ? (
+                  <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap bg-[#e8f0fd] text-[#2563eb] flex-none">
+                    абонемент
+                  </span>
+                ) : null}
                 {/* Status chip */}
                 <StatusChip status={appt.status} rescheduledToDate={appt.rescheduledToDate} />
                 {/* Action */}
@@ -496,22 +505,18 @@ export type ApiPackage = {
   id: string;
   title: string;
   status: string;
+  soldAt?: string | null;
   validUntil: string | null;
   balance?: { items: ApiPackageItemBalance[] } | null;
+  /** Items with service info from PatientPackageRecord.items. */
+  items?: Array<{ serviceId: string; quantityInitial: number; sortOrder: number }> | null;
 };
 
-/** Sum sessions across a package's service items. */
-function summarizePackage(pkg: ApiPackage) {
-  const items = pkg.balance?.items ?? [];
-  const total = items.reduce((s, it) => s + (it.quantityInitial ?? 0), 0);
-  const remaining = items.reduce((s, it) => s + (it.remaining ?? 0), 0);
-  const services = Array.from(
-    new Set(items.map((it) => it.serviceTitle).filter((s): s is string => Boolean(s))),
-  );
-  return { total, remaining, services };
-}
-
 const isActivePackageStatus = (s: string) => s === "active" || s === "activated";
+
+type ConsumeSession = {
+  startsAt: string;
+};
 
 function MembershipPanel({
   userId,
@@ -524,6 +529,8 @@ function MembershipPanel({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [packages, setPackages] = useState<ApiPackage[] | null>(() => initialPackages ?? null);
   const [error, setError] = useState(false);
+  const [consumeSessions, setConsumeSessions] = useState<ConsumeSession[] | null>(null);
+  const [consumeLoading, setConsumeLoading] = useState(false);
 
   useEffect(() => {
     // Skip initial fetch when SSR data provided.
@@ -551,7 +558,34 @@ function MembershipPanel({
   const activePackages = (packages ?? []).filter((p) => isActivePackageStatus(p.status));
   const pastPackages = (packages ?? []).filter((p) => !isActivePackageStatus(p.status));
   const active = activePackages[0] ?? null;
-  const activeSummary = active ? summarizePackage(active) : null;
+  const balanceItems = active?.balance?.items ?? [];
+  const totalSessions = balanceItems.reduce((s, it) => s + (it.quantityInitial ?? 0), 0);
+  const remainingSessions = balanceItems.reduce((s, it) => s + (it.remaining ?? 0), 0);
+
+  // Fetch sessions for active package to show consume dates (startsAt of consumed sessions)
+  useEffect(() => {
+    if (!active) { setConsumeSessions(null); return; }
+    let alive = true;
+    setConsumeLoading(true);
+    fetch(
+      `/api/doctor/booking-engine/patient-packages/${active.id}/sessions?includePast=true`,
+      { credentials: "include" },
+    )
+      .then((r) => r.ok ? (r.json() as Promise<{ ok: boolean; sessions?: Array<{ linkage: string; startsAt: string }> }>) : null)
+      .catch(() => null)
+      .then((data) => {
+        if (!alive) return;
+        const sessions = data?.sessions ?? [];
+        setConsumeSessions(
+          sessions
+            .filter((s) => s.linkage === "consumed")
+            .map((s) => ({ startsAt: s.startsAt })),
+        );
+        setConsumeLoading(false);
+      });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id]);
 
   return (
     <div className={doctorSectionCardClass}>
@@ -568,19 +602,63 @@ function MembershipPanel({
         <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Загрузка…</p>
       ) : error ? (
         <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Не удалось загрузить абонементы.</p>
-      ) : active && activeSummary ? (
-        <div className="rounded-xl border border-border bg-muted/10 p-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-lg font-extrabold text-foreground">
-              {activeSummary.remaining} из {activeSummary.total}
-            </span>
-            <span className={cn(doctorSectionSubtitleClass, "text-xs")}>занятий осталось</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            «{active.title}»
-            {active.validUntil ? ` · до ${fmtDate(active.validUntil.slice(0, 10))}` : ""}
-            {activeSummary.services.length ? ` · применяется к: ${activeSummary.services.join(", ")}` : ""}
+      ) : active ? (
+        <div className="rounded-xl border border-border bg-muted/10 p-3 flex flex-col gap-1.5">
+          {/* Package title */}
+          <p className="text-sm font-semibold text-foreground">{active.title}</p>
+
+          {/* Purchase date */}
+          {active.soldAt ? (
+            <p className="text-xs text-muted-foreground">
+              дата покупки: <strong className="text-foreground">{fmtDate(active.soldAt.slice(0, 10))}</strong>
+            </p>
+          ) : null}
+
+          {/* Balance */}
+          <p className="text-xs text-muted-foreground">
+            остаток: <span className="text-lg font-extrabold text-foreground tabular-nums">{remainingSessions}</span>
+            {" "}из {totalSessions} занятий
           </p>
+
+          {/* Composition */}
+          {balanceItems.length > 0 ? (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-0.5">Состав:</p>
+              <ul className="flex flex-col gap-0.5">
+                {balanceItems.map((it, idx) => (
+                  <li key={it.serviceTitle ?? idx} className="text-xs text-foreground">
+                    {it.serviceTitle ?? "Услуга"} ×{it.quantityInitial} шт
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {/* Consume dates from sessions */}
+          {consumeLoading ? (
+            <p className="text-xs text-muted-foreground animate-pulse">Загрузка списаний…</p>
+          ) : consumeSessions && consumeSessions.length > 0 ? (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-0.5">
+                Списания ({consumeSessions.length}):
+              </p>
+              <p className="text-xs text-foreground">
+                {consumeSessions
+                  .slice()
+                  .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+                  .map((s) => fmtDate(s.startsAt.slice(0, 10)))
+                  .join(", ")}
+              </p>
+            </div>
+          ) : consumeSessions && consumeSessions.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Списаний нет.</p>
+          ) : null}
+
+          {active.validUntil ? (
+            <p className="text-xs text-muted-foreground">
+              действует до: {fmtDate(active.validUntil.slice(0, 10))}
+            </p>
+          ) : null}
         </div>
       ) : (
         <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Активного абонемента нет.</p>
@@ -603,13 +681,16 @@ function MembershipPanel({
           {historyOpen ? (
             <div className="flex flex-col gap-1 mt-0.5">
               {pastPackages.map((pkg) => {
-                const s = summarizePackage(pkg);
+                const items = pkg.balance?.items ?? [];
+                const total = items.reduce((s, it) => s + (it.quantityInitial ?? 0), 0);
+                const remaining = items.reduce((s, it) => s + (it.remaining ?? 0), 0);
                 return (
                   <div key={pkg.id} className={cn(doctorSectionItemClass, "text-xs bg-muted/5")}>
                     <span className="font-medium text-foreground">«{pkg.title}»</span>
                     <span className="ml-2 text-muted-foreground">
+                      {pkg.soldAt ? `куплен ${fmtDate(pkg.soldAt.slice(0, 10))} · ` : ""}
                       {pkg.validUntil ? `до ${fmtDate(pkg.validUntil.slice(0, 10))} · ` : ""}
-                      {s.total - s.remaining}/{s.total}
+                      использовано {total - remaining}/{total}
                     </span>
                   </div>
                 );

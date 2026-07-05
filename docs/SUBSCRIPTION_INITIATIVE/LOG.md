@@ -395,3 +395,28 @@ SQL-запрос строки 24-25: `COALESCE(be_from_map.package_usage_ref, be
 
 ### НАШЁЛ/ИЗМЕНИЛ (инструментация §⚖️)
 `НАШЁЛ: да | Существующая система абонементов modules/memberships + be_*_packages (миграции 0094/0095/0105): создание с soldAt, ledger be_package_usages, balanceCalculator, FEFO, doctor-панель DoctorClientMembershipsPanel на вкладке «Записи», календарь ✅-пометка+фильтр «По абонементу» (ScheduleCalendarTab), KPI-виджет Package в «Обзоре». Финансы-вкладка (PatientTabFinances) работает с ОТДЕЛЬНОЙ patient_payment (cash/acquiring) — абонемента там нет. Net-new: bulk-«Пересчитать» (списать прошедшие записи в окне [soldAt; now]), вывод во «Финансы», признак абонемента в проекции визита (listVisits). ИЗМЕНИЛ КОД: нет (планирование, READ-ONLY).`
+
+## 2026-07-05 — #386 T4(a)/(b)/(c) UI-недоделки, живая приёмка (Sonnet агент)
+
+### T4(a) Маркер «по абонементу» на записях (PatientTabRecords)
+- Добавил `isPackage?: boolean | null` в `PatientAppointmentItem` (ports.ts)
+- В `listPatientAppointments` (pgDoctorClients.ts) — COALESCE из двух путей:
+  1. native: `integrator_record_id LIKE 'be:%'` → subquery к `be_appointments`
+  2. rubitime: subquery через `be_external_entity_mappings` → `be_appointments.package_usage_ref IS NOT NULL`
+- UI: синий бейдж «абонемент» в строке визита (PatientTabRecords.tsx historyList)
+- Проверено: `isPackage: true` для 29.05, 20.06, 04.07 у пациента 923df858 (rubitime-записи с package_usage_ref)
+
+### T4(b) KPI-подпись «визитов оформлено M»
+- Было: `визитов оформлено {completedCount - 1}` — формула бессмысленна, совпадала с отменами
+- Стало: `посещений за всё время` — прямая расшифровка числа completedCount (SQL: status IN created/updated AND record_at < now)
+
+### T4(c) Верстка блока абонемента (MembershipPanel в PatientTabRecords)
+- Было: одна строка «Индивидуальный · 1 позиция · 29.05.2026 · применяется к: Сеанс 90 мин»
+- Стало: название, «остаток N из M занятий», «Состав: Сеанс 90 мин ×4 шт», «Списания (N): дд.мм, дд.мм, …»
+- Данные списаний: GET /patient-packages/{id}/sessions?includePast=true → sessions с linkage='consumed', startsAt = дата визита
+- Добавил `soldAt`, расширенный `items` в тип ApiPackage; показываем дату покупки жирной
+
+### Живая проверка (скриншоты)
+- .shots/patient_923_records.png — пациент 923df858 (3 бейджа, 3 списания 29.05/20.06/04.07)
+- .shots/patient_1c3_records.png — пациент 1c312a64 (1 бейдж, 1 списание 13.06, «действует до 03.10.2026»)
+- TypeScript: только 3 предсуществующих ошибки, новых нет

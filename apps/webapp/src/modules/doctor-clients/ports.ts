@@ -223,6 +223,12 @@ export type PatientAppointmentItem = {
   location: string | null;
   /** Продолжительность (мин) из payload_json.duration_minutes или null. */
   durationMin: number | null;
+  /**
+   * Запись списана с абонемента: be_appointments.package_usage_ref IS NOT NULL.
+   * Доступно только для нативных be-записей (integrator_record_id = 'be:' || id);
+   * для Rubitime-проекций — null (нет be-связи).
+   */
+  isPackage?: boolean | null;
 };
 
 export type DoctorClientsPort = {

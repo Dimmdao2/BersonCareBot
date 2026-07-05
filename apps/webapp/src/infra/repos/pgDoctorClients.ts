@@ -449,7 +449,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
 
-      // Fetch appointment_records attributed to this user via the canonical join
+      // Fetch appointment_records attributed to this user via the canonical join.
+      // LEFT JOIN be_appointments (two paths) to surface package_usage_ref:
+      //   1. native: integrator_record_id = 'be:' || be_appointments.id
+      //   2. rubitime: via be_external_entity_mappings (external_id = integrator_record_id)
       const rows = await runWebappPgText<{
         internal_id: string;
         id: string;
@@ -458,6 +461,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         last_event: string | null;
         payload_json: { service_title?: string; duration_minutes?: number } | null;
         branch_name: string | null;
+        is_package: boolean | null;
       }>(
         `SELECT
            ar.id AS internal_id,
@@ -466,7 +470,29 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            ar.status,
            ar.last_event,
            ar.payload_json,
-           b.name AS branch_name
+           b.name AS branch_name,
+           COALESCE(
+             -- native be: path
+             CASE
+               WHEN ar.integrator_record_id LIKE 'be:%'
+               THEN (
+                 SELECT bea_n.package_usage_ref IS NOT NULL
+                 FROM be_appointments bea_n
+                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                 LIMIT 1
+               )
+             END,
+             -- rubitime path via be_external_entity_mappings
+             (
+               SELECT bea_r.package_usage_ref IS NOT NULL
+               FROM be_external_entity_mappings m
+               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
+               WHERE m.external_id = ar.integrator_record_id
+                 AND m.entity_type = 'appointment'
+                 AND m.external_system = 'rubitime'
+               LIMIT 1
+             )
+           ) AS is_package
          FROM platform_users pu
          LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
          LEFT JOIN branches b ON ar.branch_id = b.id
@@ -510,6 +536,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           serviceName: (payload.service_title && payload.service_title.trim()) || null,
           location: row.branch_name ?? null,
           durationMin,
+          isPackage: row.is_package ?? null,
         };
       });
     },
