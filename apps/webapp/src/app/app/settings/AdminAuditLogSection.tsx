@@ -224,7 +224,7 @@ export function AdminAuditLogSection() {
             <Label htmlFor="audit-action">Тип действия</Label>
             <Select
               value={draft.action}
-              onValueChange={(v) => setDraft((d) => ({ ...d, action: v }))}
+              onValueChange={(v) => setDraft((d) => ({ ...d, action: v ?? "" }))}
             >
               <SelectTrigger id="audit-action" className="w-full" displayLabel={ACTION_FILTER_OPTIONS.find((o) => o.value === draft.action)?.label}>
               </SelectTrigger>

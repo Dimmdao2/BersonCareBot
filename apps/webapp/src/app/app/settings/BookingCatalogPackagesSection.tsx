@@ -102,7 +102,7 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
           <Label htmlFor="pkg-price">Цена (₽)</Label>
           <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="flex flex-wrap gap-2">
-            <Select value={serviceId} onValueChange={setServiceId}>
+            <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")}>
               <SelectTrigger displayLabel={services.find((s) => s.id === serviceId)?.title ?? "Услуга"}>
               </SelectTrigger>
               <SelectContent>

@@ -208,7 +208,7 @@ export function BookingPatientPackagesSection({
         ) : null}
         <div className="border-t pt-3">
           <p className="mb-2 text-sm font-medium">Из каталога</p>
-          <Select value={catalogId} onValueChange={setCatalogId}>
+          <Select value={catalogId} onValueChange={(v) => setCatalogId(v ?? "")}>
             <SelectTrigger className="mb-2 w-full" displayLabel={catalog.find((c) => c.id === catalogId)?.title ?? "Продукт"}>
             </SelectTrigger>
             <SelectContent>
@@ -239,7 +239,7 @@ export function BookingPatientPackagesSection({
           />
           <Input className="mt-2" placeholder="Цена ₽" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="mt-2 flex gap-2">
-            <Select value={serviceId} onValueChange={setServiceId}>
+            <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")}>
               <SelectTrigger className="flex-1" displayLabel={services.find((s) => s.id === serviceId)?.title ?? "Услуга"}>
               </SelectTrigger>
               <SelectContent>

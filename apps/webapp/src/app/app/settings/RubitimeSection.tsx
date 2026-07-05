@@ -516,7 +516,7 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить / обновить филиал</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Select value={cityCode} onValueChange={setCityCode} disabled={isPending}>
+        <Select value={cityCode} onValueChange={(v) => setCityCode(v ?? "")} disabled={isPending}>
           <SelectTrigger className="w-full" displayLabel={cities.find((c) => c.code === cityCode)?.title ?? (cityCode ? cityCode : undefined)}>
           </SelectTrigger>
           <SelectContent>
@@ -865,7 +865,7 @@ function SpecialistForm({
       <p className="text-sm font-medium">Добавить / обновить специалиста</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Select value={branchId} onValueChange={setBranchId} disabled={isPending}>
+          <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")} disabled={isPending}>
             <SelectTrigger className="w-full" displayLabel={branches.find((b) => b.id === branchId)?.title ?? (branchId ? branchId : undefined)}>
             </SelectTrigger>
             <SelectContent>

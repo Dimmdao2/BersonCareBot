@@ -143,7 +143,7 @@ export function BookingPatientProductsSection({
           </>
         ) : null}
         <Label htmlFor="pp-svc">Услуга для списания</Label>
-        <Select value={serviceId} onValueChange={setServiceId} aria-label="Услуга">
+        <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")} aria-label="Услуга">
           <SelectTrigger id="pp-svc" className="w-full" displayLabel={services.find((s) => s.id === serviceId)?.title ?? "—"}>
           </SelectTrigger>
           <SelectContent>

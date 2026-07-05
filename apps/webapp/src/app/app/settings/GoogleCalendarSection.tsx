@@ -239,7 +239,7 @@ export function GoogleCalendarSection({
             {calError && <p className="text-xs text-destructive">{calError}</p>}
             {calendarSaveError && <p className="text-xs text-destructive">{calendarSaveError}</p>}
             {calendars.length > 0 && (
-              <Select value={calendarId} onValueChange={selectCalendar} disabled={isPending}>
+              <Select value={calendarId} onValueChange={(v) => selectCalendar(v ?? "")} disabled={isPending}>
                 <SelectTrigger className="w-full font-mono text-xs" displayLabel={calendarId ? (calendars.find((c) => c.id === calendarId)?.summary ?? calendarId) : "— выберите календарь —"}>
                 </SelectTrigger>
                 <SelectContent>
