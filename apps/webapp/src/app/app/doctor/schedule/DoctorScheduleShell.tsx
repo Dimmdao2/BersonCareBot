@@ -81,6 +81,7 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
           <Button
             key={tab.id}
             type="button"
+            variant="ghost"
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
             className={itemClass}
