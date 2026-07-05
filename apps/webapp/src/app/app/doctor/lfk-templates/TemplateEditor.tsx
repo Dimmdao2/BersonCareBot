@@ -270,14 +270,14 @@ function SortableRow({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-xs">
+            <Label className="text-xs" htmlFor={`tpl-line-maxpain-${line.sortId}`}>
               Боль макс
             </Label>
             <Select
               value={editorMaxPainValue(line.maxPain)}
               onValueChange={(v) => onChange(line.sortId, { maxPain: v ?? LFK_TEMPLATE_MAX_PAIN_DEFAULT })}
             >
-              <SelectTrigger size="sm" className="w-14 min-w-[3.25rem]">
+              <SelectTrigger id={`tpl-line-maxpain-${line.sortId}`} size="sm" className="w-14 min-w-[3.25rem]">
                 <SelectValue placeholder={LFK_TEMPLATE_MAX_PAIN_DEFAULT}>{editorMaxPainValue(line.maxPain)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
