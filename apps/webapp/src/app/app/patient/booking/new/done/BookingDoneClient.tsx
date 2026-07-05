@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import {
   patientButtonPrimaryClass,
   patientButtonSecondaryClass,
@@ -117,13 +118,13 @@ export function BookingDoneClient({
           <span>Яндекс Календарь</span>
         </a>
 
-        <button
+        <Button
           type="button"
           onClick={handleDownloadIcs}
           className={cn(patientButtonSecondaryClass, "flex items-center justify-center gap-2 text-sm")}
         >
           <span>Скачать .ics (Apple, Outlook…)</span>
-        </button>
+        </Button>
       </div>
 
       {/* Back to hub */}

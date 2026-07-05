@@ -161,8 +161,9 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
       {telegramUrl ? (
         <p className={cn(patientMutedTextClass, "text-xs")}>
           Если окно не открылось, перейдите по ссылке:{" "}
-          <button
+          <Button
             type="button"
+            variant="link"
             className="inline h-auto min-h-0 p-0 text-xs font-normal text-primary underline"
             onClick={() =>
               finishChannelLinkNavigation({
@@ -174,14 +175,15 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
             }
           >
             открыть бота
-          </button>
+          </Button>
         </p>
       ) : null}
       {maxOpenUrl ? (
         <p className={cn(patientMutedTextClass, "text-xs")}>
           Если окно не открылось:{" "}
-          <button
+          <Button
             type="button"
+            variant="link"
             className="inline h-auto min-h-0 p-0 text-xs font-normal text-primary underline"
             onClick={() =>
               finishChannelLinkNavigation({
@@ -193,7 +195,7 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
             }
           >
             открыть бота в MAX
-          </button>
+          </Button>
         </p>
       ) : null}
       {maxCommand ? (

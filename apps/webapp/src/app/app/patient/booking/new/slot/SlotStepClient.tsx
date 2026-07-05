@@ -137,7 +137,7 @@ export function SlotStepClient(props: Props) {
         />
       ) : null}
 
-      <button
+      <Button
         type="button"
         className={patientButtonPrimaryClass}
         disabled={!canContinue || !effectiveDate || !selectedSlot}
@@ -148,7 +148,7 @@ export function SlotStepClient(props: Props) {
         }}
       >
         Продолжить
-      </button>
+      </Button>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
 import { cn } from "@/lib/utils";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
@@ -105,21 +106,20 @@ function AnalyticsTabsNav({ activeTab, onTabClick, clientsLabel }: AnalyticsTabs
       {ANALYTICS_TABS.map((tab) => {
         const active = tab.id === activeTab;
         return (
-          <button
+          <Button
             key={tab.id}
             type="button"
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
+            variant={active ? "default" : "ghost"}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-              active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap",
+              !active && "text-muted-foreground hover:text-foreground",
             )}
             data-testid={`tab-btn-${tab.id}`}
           >
             {tab.id === "clients" && clientsLabel ? clientsLabel : tab.label}
-          </button>
+          </Button>
         );
       })}
     </div>

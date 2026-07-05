@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
@@ -104,9 +105,9 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
                   <CabinetBookingActions row={row} />
                 ) : null}
                 {canManageRubitime ? (
-                  <button type="button" className={bookingReminderManageCtaClass} onClick={openRubitime}>
+                  <Button type="button" className={bookingReminderManageCtaClass} onClick={openRubitime}>
                     Управлять
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </div>
