@@ -26,6 +26,8 @@ import {
   doctorPageStackClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -264,8 +266,9 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
         </div>
 
         {/* Отмены — clickable, highlights when there are no-shows */}
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => setCancelsPanelOpen((v) => !v)}
           className={cn(
             "text-left",
@@ -283,7 +286,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {hasNoShows ? "есть неявка · детали ↓" : "за всё время"}
           </p>
-        </button>
+        </Button>
 
         {/* Переносы */}
         <div className={doctorStatCardShellClass}>
@@ -378,8 +381,9 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                 <StatusChip status={appt.status} rescheduledToDate={appt.rescheduledToDate} />
                 {/* Action */}
                 {appt.status === "completed" && !appt.hasVisitRecord && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => {
                       if (onCreateVisitFromAppointment) {
                         onCreateVisitFromAppointment({
@@ -392,14 +396,15 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                         openTab("karta");
                       }
                     }}
-                    className="inline-flex items-center rounded-md bg-primary/15 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/25 transition-colors whitespace-nowrap flex-none cursor-pointer"
+                    className="rounded-md bg-primary/15 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/25 whitespace-nowrap flex-none"
                   >
                     Оформить визит
-                  </button>
+                  </Button>
                 )}
                 {appt.status === "completed" && appt.hasVisitRecord && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => {
                       if (onCreateVisitFromAppointment) {
                         onCreateVisitFromAppointment({
@@ -412,10 +417,10 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                         openTab("karta");
                       }
                     }}
-                    className="text-[11px] text-muted-foreground whitespace-nowrap flex-none hover:text-primary transition-colors cursor-pointer"
+                    className="text-[11px] text-muted-foreground whitespace-nowrap flex-none hover:text-primary"
                   >
                     визит {fmtDateShort(appt.date)} →
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
@@ -462,14 +467,15 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                     </p>
                     <div className="flex gap-1.5 mt-3 flex-wrap">
                       {["Перенести", "Отменить", "Комментарий"].map((label) => (
-                        <button
+                        <Button
                           key={label}
                           type="button"
+                          variant="outline"
+                          size="xs"
                           onClick={() => undefined}
-                          className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
                         >
                           {label}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </div>
@@ -629,17 +635,18 @@ function MembershipPanel({
 
       {pastPackages.length > 0 ? (
         <>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setHistoryOpen((v) => !v)}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/60 transition-colors cursor-pointer text-left w-full"
+            className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground text-left w-full"
           >
             <span className="flex-1">Прошлые абонементы</span>
             <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
               {pastPackages.length}
             </span>
             <span className="text-muted-foreground/60">{historyOpen ? "▾" : "▸"}</span>
-          </button>
+          </Button>
 
           {historyOpen ? (
             <div className="flex flex-col gap-1 mt-0.5">
@@ -820,13 +827,14 @@ function PaymentsPanel({
       <div className="flex items-center gap-2 flex-wrap">
         <p className={doctorSectionTitleClass}>Финансы · Платежи</p>
         {!unavailable && payments !== null && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setFetched(false)}
-            className="ml-auto text-xs text-muted-foreground hover:text-primary cursor-pointer"
+            className="ml-auto text-xs text-muted-foreground hover:text-primary"
           >
             обновить
-          </button>
+          </Button>
         )}
       </div>
 
@@ -885,16 +893,16 @@ function PaymentsPanel({
 
           {/* Manual cash form */}
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => {
                 setShowCashForm((v) => !v);
                 setCashError(null);
               }}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
             >
               Внести наличные
-            </button>
+            </Button>
             <span className="text-[11px] text-muted-foreground">Эквайринг — скоро</span>
           </div>
 
@@ -904,34 +912,31 @@ function PaymentsPanel({
               <div className="flex gap-2 items-end flex-wrap">
                 <div className="flex flex-col gap-0.5 flex-1 min-w-[100px]">
                   <label className="text-[11px] text-muted-foreground">Сумма, ₽</label>
-                  <input
+                  <Input
                     type="number"
                     min={0}
                     step={1}
                     placeholder="4000"
                     value={cashAmountRub}
                     onChange={(e) => setCashAmountRub(e.target.value)}
-                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
                   <label className="text-[11px] text-muted-foreground">Услуга</label>
-                  <input
+                  <Input
                     type="text"
                     placeholder="Приём · 60 мин"
                     value={cashService}
                     onChange={(e) => setCashService(e.target.value)}
-                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
                   <label className="text-[11px] text-muted-foreground">Комментарий</label>
-                  <input
+                  <Input
                     type="text"
                     placeholder="доп. инфо…"
                     value={cashComment}
                     onChange={(e) => setCashComment(e.target.value)}
-                    className="h-7 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                   />
                 </div>
               </div>
@@ -939,22 +944,24 @@ function PaymentsPanel({
                 <p className="text-[11px] text-destructive">{cashError}</p>
               )}
               <div className="flex gap-2 justify-end">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={cashPending}
                   onClick={() => { setShowCashForm(false); setCashError(null); }}
-                  className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted cursor-pointer"
                 >
                   Отмена
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="default"
+                  size="sm"
                   disabled={cashPending}
                   onClick={() => void handleSubmitCash()}
-                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-60"
                 >
                   {cashPending ? "…" : "Сохранить"}
-                </button>
+                </Button>
               </div>
             </div>
           )}
