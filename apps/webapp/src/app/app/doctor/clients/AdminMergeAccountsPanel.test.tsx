@@ -139,11 +139,19 @@ describe("AdminMergeAccountsPanel", () => {
 
     render(<AdminMergeAccountsPanel anchorUserId={T1} enabled />);
 
-    const select = screen.getByLabelText(/вторая запись/i);
+    // Wait for candidates to load (trigger button becomes enabled with option text)
+    const trigger = screen.getByLabelText(/вторая запись/i);
     await waitFor(() => {
-      expect(select.querySelector(`option[value="${T2}"]`)).not.toBeNull();
+      // candidates loaded when fetch has been called with merge-candidates
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/merge-candidates"),
+        expect.anything(),
+      );
     });
-    await user.selectOptions(select, T2);
+    // Open the Select dropdown and click the candidate option
+    await user.click(trigger);
+    const candidateOption = await screen.findByRole("option", { name: new RegExp(T2.slice(0, 8)) });
+    await user.click(candidateOption);
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByText(/жёсткие блокировки/i)).toBeInTheDocument();
@@ -271,13 +279,26 @@ describe("AdminMergeAccountsPanel", () => {
     });
 
     render(<AdminMergeAccountsPanel anchorUserId={T1} enabled />);
-    const select2 = screen.getByLabelText(/вторая запись/i);
+
+    // Wait for candidates to load
     await waitFor(() => {
-      expect(select2.querySelector(`option[value="${T2}"]`)).not.toBeNull();
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/merge-candidates"),
+        expect.anything(),
+      );
     });
-    await user.selectOptions(select2, T2);
+    // Open Select dropdown and pick candidate
+    const trigger2 = screen.getByLabelText(/вторая запись/i);
+    await user.click(trigger2);
+    const candidateOption2 = await screen.findByRole("option", { name: new RegExp(T2.slice(0, 8)) });
+    await user.click(candidateOption2);
 
     await screen.findByText(/Каналы \(telegram \/ max \/ vk\)/i);
-    expect(document.querySelectorAll('input[name="ch-telegram"]')).toHaveLength(2);
+    // RadioGroup for telegram channel conflict renders 2 radio items (целевой / дубликат)
+    // The channel row is a grid div containing CH_LABELS text and the RadioGroup
+    const telegramRow = screen.getByText("Telegram").closest('[class*="grid"]');
+    expect(telegramRow).not.toBeNull();
+    const radioItems = telegramRow!.querySelectorAll('[data-slot="radio-group-item"]');
+    expect(radioItems).toHaveLength(2);
   });
 });

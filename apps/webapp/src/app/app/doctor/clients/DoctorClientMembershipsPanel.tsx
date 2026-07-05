@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 
@@ -301,23 +302,29 @@ export function DoctorClientMembershipsPanel({
               ) : (
                 <>
                   <Label htmlFor="pkg-catalog">Шаблон</Label>
-                  <select
-                    id="pkg-catalog"
-                    className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                  <Select
                     value={catalogId}
-                    onChange={(e) => {
-                      setCatalogId(e.target.value);
-                      const row = catalog.find((c) => c.id === e.target.value);
+                    onValueChange={(v) => {
+                      const val = v ?? "";
+                      setCatalogId(val);
+                      const row = catalog.find((c) => c.id === val);
                       if (row) setCatalogPaidRub(String(row.priceMinor / 100));
                     }}
                   >
-                    <option value="">—</option>
-                    {catalog.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.title}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger
+                      id="pkg-catalog"
+                      displayLabel={catalog.find((c) => c.id === catalogId)?.title ?? "—"}
+                      className="w-full"
+                    />
+                    <SelectContent>
+                      <SelectItem value="">—</SelectItem>
+                      {catalog.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
                   <Input
                     id="pkg-catalog-notes"
@@ -358,21 +365,28 @@ export function DoctorClientMembershipsPanel({
               <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-[8rem] flex-1">
                   <Label htmlFor="pkg-svc">Услуга</Label>
-                  <select
-                    id="pkg-svc"
-                    className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                  <Select
                     value={serviceId}
-                    onChange={(e) => setServiceId(e.target.value)}
+                    onValueChange={(v) => setServiceId(v ?? "")}
                   >
-                    <option value="">—</option>
-                    {services
-                      .filter((s) => s.isActive && s.usableInPackages)
-                      .map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.title}
-                        </option>
-                      ))}
-                  </select>
+                    <SelectTrigger
+                      id="pkg-svc"
+                      displayLabel={
+                        services.find((s) => s.id === serviceId)?.title ?? "—"
+                      }
+                      className="w-full"
+                    />
+                    <SelectContent>
+                      <SelectItem value="">—</SelectItem>
+                      {services
+                        .filter((s) => s.isActive && s.usableInPackages)
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.title}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="w-20">
                   <Label htmlFor="pkg-qty">Кол-во</Label>
@@ -391,13 +405,15 @@ export function DoctorClientMembershipsPanel({
                         <span className="text-foreground">
                           {svc?.title ?? it.serviceId} — {it.quantity} шт.
                         </span>
-                        <button
+                        <Button
                           type="button"
-                          className="text-destructive hover:underline"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-destructive hover:text-destructive hover:underline"
                           onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
                         >
                           ✕
-                        </button>
+                        </Button>
                       </li>
                     );
                   })}
@@ -415,53 +431,74 @@ export function DoctorClientMembershipsPanel({
         <summary className="cursor-pointer text-sm font-medium">Списать сеанс по абонементу</summary>
         <div className="mt-3 flex flex-col gap-2">
           <Label>Абонемент</Label>
-          <select
-            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+          <Select
             value={consumePackageId}
-            onChange={(e) => {
-              setConsumePackageId(e.target.value);
+            onValueChange={(v) => {
+              setConsumePackageId(v ?? "");
               setConsumeItemId("");
             }}
           >
-            <option value="">—</option>
-            {packages
-              .filter((p) => p.status === "active")
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-          </select>
+            <SelectTrigger
+              displayLabel={packages.find((p) => p.id === consumePackageId)?.title ?? "—"}
+              className="w-full"
+            />
+            <SelectContent>
+              <SelectItem value="">—</SelectItem>
+              {packages
+                .filter((p) => p.status === "active")
+                .map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
           {selectedPkg ? (
             <>
               <Label>Позиция</Label>
-              <select
-                className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+              <Select
                 value={consumeItemId}
-                onChange={(e) => setConsumeItemId(e.target.value)}
+                onValueChange={(v) => setConsumeItemId(v ?? "")}
               >
-                <option value="">—</option>
-                {selectedPkg.balance.items.map((it) => (
-                  <option key={it.patientPackageItemId} value={it.patientPackageItemId}>
-                    {(it.serviceTitle ?? it.serviceId) + ` (остаток ${it.remaining})`}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  displayLabel={
+                    selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)
+                      ? (selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.serviceTitle ??
+                          selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.serviceId) +
+                        ` (остаток ${selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.remaining})`
+                      : "—"
+                  }
+                  className="w-full"
+                />
+                <SelectContent>
+                  <SelectItem value="">—</SelectItem>
+                  {selectedPkg.balance.items.map((it) => (
+                    <SelectItem key={it.patientPackageItemId} value={it.patientPackageItemId}>
+                      {(it.serviceTitle ?? it.serviceId) + ` (остаток ${it.remaining})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </>
           ) : null}
           <Label>Запись</Label>
-          <select
-            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+          <Select
             value={consumeAppointmentId}
-            onChange={(e) => setConsumeAppointmentId(e.target.value)}
+            onValueChange={(v) => setConsumeAppointmentId(v ?? "")}
           >
-            <option value="">Без записи</option>
-            {appointments.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              displayLabel={appointments.find((a) => a.id === consumeAppointmentId)?.label ?? "Без записи"}
+              className="w-full"
+            />
+            <SelectContent>
+              <SelectItem value="">Без записи</SelectItem>
+              {appointments.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button type="button" size="sm" disabled={pending} onClick={manualConsume}>
             Списать
           </Button>
