@@ -19,6 +19,8 @@
 import { useEffect, useState } from "react";
 import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
 import { Phone, Send, Smartphone, Mail, Key } from "lucide-react";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -158,13 +160,14 @@ function ChannelRow({
         {chipText}
       </span>
       {actionLabel && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={onAction}
-          className="inline-flex h-5 items-center justify-center rounded border border-border bg-muted/30 px-1.5 text-[10px] text-muted-foreground hover:bg-muted cursor-pointer"
+          className="inline-flex h-5 items-center justify-center px-1.5 text-[10px] text-muted-foreground"
         >
           {actionLabel}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -289,14 +292,15 @@ function SecondaryPhones({
           </span>
           <span className="flex-1 min-w-0 truncate font-mono">{p.value}</span>
           <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>доп. телефон</span>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             title="Удалить"
             onClick={() => remove(p.id)}
-            className="inline-flex h-5 w-5 items-center justify-center rounded border border-border bg-muted/30 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+            className="h-5 w-5 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           >
             ×
-          </button>
+          </Button>
         </div>
       ))}
 
@@ -306,7 +310,7 @@ function SecondaryPhones({
 
       {adding ? (
         <div className="flex items-center gap-1.5">
-          <input
+          <Input
             autoFocus
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -319,33 +323,36 @@ function SecondaryPhones({
               }
             }}
             placeholder="+7 999 000-00-00"
-            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+            className="flex-1 text-xs py-1"
           />
-          <button
+          <Button
             type="button"
+            variant="default"
             onClick={() => void add()}
             disabled={saving}
-            className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="px-2 py-1 text-[11px]"
           >
             {saving ? "…" : "Добавить"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setAdding(false)}
             disabled={saving}
-            className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="px-2 py-1 text-[11px] text-muted-foreground"
           >
             Отмена
-          </button>
+          </Button>
         </div>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="link"
           onClick={() => setAdding(true)}
-          className="self-start text-[11px] text-primary hover:underline cursor-pointer"
+          className="self-start text-[11px] h-auto p-0"
         >
           + доп. телефон
-        </button>
+        </Button>
       )}
       {addError && <span className="text-[11px] text-destructive">{addError}</span>}
     </div>
@@ -445,19 +452,20 @@ function EmailChange({ userId }: { userId: string }) {
           )}
         </div>
         {!editing && (
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => setEditing(true)}
-            className="flex-none text-[11px] text-primary hover:underline cursor-pointer"
+            className="flex-none text-[11px] h-auto p-0"
           >
             {pending ? "сменить другой" : "сменить email"}
-          </button>
+          </Button>
         )}
       </div>
 
       {editing && (
         <div className="flex items-center gap-1.5">
-          <input
+          <Input
             autoFocus
             type="email"
             value={input}
@@ -469,24 +477,26 @@ function EmailChange({ userId }: { userId: string }) {
               } else if (e.key === "Escape") setEditing(false);
             }}
             placeholder="новый email пациента"
-            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+            className="flex-1 text-xs py-1"
           />
-          <button
+          <Button
             type="button"
+            variant="default"
             onClick={() => void submit()}
             disabled={saving}
-            className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="px-2 py-1 text-[11px]"
           >
             {saving ? "…" : "Отправить код"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setEditing(false)}
             disabled={saving}
-            className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="px-2 py-1 text-[11px] text-muted-foreground"
           >
             Отмена
-          </button>
+          </Button>
         </div>
       )}
       {error && <span className="text-[11px] text-destructive">{error}</span>}
@@ -636,14 +646,15 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
               {/* Phone */}
               <KVRow label="Телефон">
                 {identity?.phone ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     title="Скопировать"
                     onClick={() => void copyText(identity.phone!)}
-                    className="font-mono text-[11px] hover:text-primary cursor-pointer"
+                    className="h-auto p-0 font-mono text-[11px] hover:text-primary"
                   >
                     {identity.phone} ⧉
-                  </button>
+                  </Button>
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
@@ -677,9 +688,9 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
         <SectionCard
           title="Контакты и каналы"
           titleRight={
-            <button type="button" className="text-xs text-primary hover:underline cursor-pointer">
+            <Button type="button" variant="link" className="text-xs h-auto p-0">
               + добавить
-            </button>
+            </Button>
           }
         >
           <div className="flex flex-col gap-1.5">
@@ -803,52 +814,54 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
           {/* Action buttons */}
           <div className="flex gap-2 flex-wrap">
             {/* Block / Unblock — POST /api/doctor/clients/{userId}/block {blocked, reason?} */}
-            <button
+            <Button
               type="button"
+              variant={isBlocked ? "destructive" : "outline"}
               disabled={blockPending}
               onClick={() => void handleBlockToggle()}
               className={cn(
-                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors disabled:opacity-60",
-                isBlocked
-                  ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
-                  : "border-border bg-muted/30 text-foreground hover:bg-muted",
+                "px-2.5 py-1 text-xs",
+                isBlocked && "bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/40",
               )}
             >
               {blockPending ? "…" : isBlocked ? "Снять блокировку" : "Ограничить доступ"}
-            </button>
+            </Button>
 
             {/* Archive / Unarchive — PATCH /api/doctor/clients/{userId}/archive {archived} */}
             {!archiveConfirm ? (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 disabled={archivePending}
                 onClick={() => setArchiveConfirm(true)}
                 className={cn(
-                  "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors disabled:opacity-60",
+                  "px-2.5 py-1 text-xs",
                   isArchived
                     ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
-                    : "border-border bg-muted/30 text-foreground hover:bg-muted",
+                    : "",
                 )}
               >
                 {archivePending ? "…" : isArchived ? "Вернуть из архива" : "В архив"}
-              </button>
+              </Button>
             ) : (
               <span className="flex items-center gap-1.5 text-xs text-destructive">
                 Подтвердить?{" "}
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => void handleArchiveToggle()}
-                  className="underline cursor-pointer"
+                  className="h-auto p-0 text-xs underline text-destructive"
                 >
                   Да
-                </button>{" "}
-                <button
+                </Button>{" "}
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => setArchiveConfirm(false)}
-                  className="text-muted-foreground underline cursor-pointer"
+                  className="h-auto p-0 text-xs text-muted-foreground underline"
                 >
                   Нет
-                </button>
+                </Button>
               </span>
             )}
           </div>
@@ -876,14 +889,15 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
               <KVRow label="ID пациента">
                 <span className="font-mono text-[11px]">
                   {userId.slice(0, 12)}…{userId.slice(-4)}{" "}
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     title="Скопировать"
                     onClick={() => void copyText(userId)}
-                    className="inline-flex h-4 w-4 items-center justify-center rounded border border-border bg-muted/30 text-[10px] hover:bg-muted cursor-pointer ml-0.5 align-middle"
+                    className="inline-flex h-4 w-4 text-[10px] ml-0.5 align-middle p-0"
                   >
                     ⧉
-                  </button>
+                  </Button>
                 </span>
               </KVRow>
               <KVRow label="Rubitime ID">

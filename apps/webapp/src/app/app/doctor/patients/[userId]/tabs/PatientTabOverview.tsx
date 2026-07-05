@@ -32,6 +32,8 @@ import {
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -1339,13 +1341,13 @@ export function PatientTabOverview({
 
           {addingNote && (
             <div className="flex flex-col gap-1.5 mb-2">
-              <textarea
+              <Textarea
                 autoFocus
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 rows={3}
                 placeholder="Текст заметки…"
-                className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full resize-none text-xs"
               />
               <div className="flex gap-1.5">
                 <Button
@@ -1413,14 +1415,14 @@ export function PatientTabOverview({
 
           {addingTask && (
             <div className="flex flex-col gap-1.5 mb-2">
-              <input
+              <Input
                 autoFocus
                 type="text"
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { void handleTaskSubmit(); } }}
                 placeholder="Название задачи…"
-                className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full text-xs"
               />
               <div className="flex gap-1.5">
                 <Button

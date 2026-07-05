@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check, Scale } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { formatFioForDoctor } from "@/lib/parseFullName";
@@ -416,7 +417,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <div className="grid grid-cols-3 gap-2">
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Фамилия</label>
-                    <input
+                    <Input
                       type="text"
                       value={fioLastName}
                       onChange={(e) => setFioLastName(e.target.value)}
@@ -426,7 +427,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Имя</label>
-                    <input
+                    <Input
                       type="text"
                       value={fioFirstName}
                       onChange={(e) => setFioFirstName(e.target.value)}
@@ -436,7 +437,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Отчество</label>
-                    <input
+                    <Input
                       type="text"
                       value={fioPatronymic}
                       onChange={(e) => setFioPatronymic(e.target.value)}
@@ -447,7 +448,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Отображаемое имя</label>
-                  <input
+                  <Input
                     type="text"
                     value={fioDisplayName}
                     onChange={(e) => setFioDisplayName(e.target.value)}
@@ -458,7 +459,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Дата рождения</label>
-                    <input
+                    <Input
                       type="date"
                       value={fioBirthDate}
                       onChange={(e) => setFioBirthDate(e.target.value)}
@@ -560,7 +561,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Рост (см)</label>
-                    <input
+                    <Input
                       type="number"
                       min={50}
                       max={250}
@@ -573,7 +574,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Вес (кг)</label>
-                    <input
+                    <Input
                       type="number"
                       min={10}
                       max={500}
@@ -614,14 +615,15 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
             {/* Phone + channel icons */}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {identity.phone ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   title="Скопировать телефон"
                   onClick={() => copyToClipboard(identity.phone!)}
                   className="font-mono text-xs text-foreground hover:text-primary transition-colors cursor-pointer select-text"
                 >
                   {identity.phone} ⧉
-                </button>
+                </Button>
               ) : (
                 <span className="text-xs text-muted-foreground font-mono">—</span>
               )}
