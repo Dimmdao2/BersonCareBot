@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -101,31 +102,23 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             <span className="mr-2">Проба</span>
-            <select
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+            <Select
               value={probe}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "all") setProbe("all");
-                else if (v === HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE) setProbe(HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE);
-                else if (v === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE) {
-                  setProbe(HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE);
-                } else if (v === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE) {
-                  setProbe(HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE);
-                } else if (v === HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE) {
-                  setProbe(HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE);
-                }
-              }}
+              onValueChange={(v) => setProbe(v as HealthFailureArchiveProbe | "all")}
             >
-              <option value="all">Все</option>
-              <option value={HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE}>Очередь доставки</option>
-              <option value={HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}>Синк в integrator</option>
-              <option value={HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}>Синхронизация событий</option>
-              <option value={HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}>Напоминания (reminder_dispatch)</option>
-            </select>
-          </label>
+              <SelectTrigger displayLabel={probe === "all" ? "Все" : probe}>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все</SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE}>Очередь доставки</SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}>Синк в integrator</SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}>Синхронизация событий</SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}>Напоминания (reminder_dispatch)</SelectItem>
+              </SelectContent>
+            </Select>
+          </span>
           <Button type="button" variant="outline" size="sm" onClick={() => void loadPage(null, false)} disabled={loading}>
             Обновить
           </Button>

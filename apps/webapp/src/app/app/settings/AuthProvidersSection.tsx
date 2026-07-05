@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { patchAdminSetting } from "./patchAdminSetting";
 
@@ -371,8 +372,8 @@ export function AuthProvidersSection({
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">Private key (.p8 PEM)</span>
-              <textarea
-                className="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              <Textarea
+                className="min-h-28 font-mono text-xs"
                 value={aPem}
                 onChange={(e) => setAPem(e.target.value)}
                 disabled={isPending}

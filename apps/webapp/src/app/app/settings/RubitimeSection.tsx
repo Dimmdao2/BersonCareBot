@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { mapBookingCatalogApiError } from "@/app/app/settings/rubitimeCatalogErrors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { apiJson } from "@/shared/lib/apiJson";
 
 type CatalogCity = {
@@ -379,22 +381,19 @@ function CityForm({ onDone }: { onDone: () => void }) {
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить / обновить город</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <input
-          className="input-base"
+        <Input
           placeholder="Код (moscow, spb)"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base"
+        <Input
           placeholder="Название"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base"
+        <Input
           placeholder="Порядок сортировки"
           type="number"
           value={sortOrder}
@@ -453,8 +452,8 @@ function BranchTimezoneEditor({ branch, onSaved }: { branch: CatalogBranch; onSa
     <div className="mt-1 flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground">timezone (IANA):</span>
-        <input
-          className="input-base min-w-[200px] flex-1 font-mono text-[11px]"
+        <Input
+          className="min-w-[200px] flex-1 font-mono text-[11px]"
           placeholder="Europe/Moscow"
           value={tz}
           onChange={(e) => setTz(e.target.value)}
@@ -517,42 +516,41 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить / обновить филиал</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <select
-          className="input-base"
-          value={cityCode}
-          onChange={(e) => setCityCode(e.target.value)}
-          disabled={isPending}
-        >
-          <option value="">— город —</option>
-          {cities.map((c) => (
-            <option key={c.id} value={c.code}>
-              {c.title} ({c.code})
-            </option>
-          ))}
-        </select>
-        <input
-          className="input-base font-mono"
+        <Select value={cityCode} onValueChange={(v) => setCityCode(v ?? "")} disabled={isPending}>
+          <SelectTrigger className="w-full" displayLabel={cities.find((c) => c.code === cityCode)?.title ?? (cityCode ? cityCode : undefined)}>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">— город —</SelectItem>
+            {cities.map((c) => (
+              <SelectItem key={c.id} value={c.code}>
+                {c.title} ({c.code})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          className="font-mono"
           placeholder="rubitime_branch_id"
           value={rubitimeBranchId}
           onChange={(e) => setRubitimeBranchId(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base sm:col-span-2"
+        <Input
+          className="sm:col-span-2"
           placeholder="Название филиала"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base sm:col-span-2"
+        <Input
+          className="sm:col-span-2"
           placeholder="Адрес (необязательно)"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base sm:col-span-2 font-mono text-[11px]"
+        <Input
+          className="sm:col-span-2 font-mono text-[11px]"
           placeholder="Europe/Moscow"
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
@@ -675,16 +673,15 @@ function ServiceEditor({
   return (
     <div className="mt-1 flex flex-col gap-1">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <input
+        <Input
           ref={titleInputRef}
-          className="input-base sm:col-span-2"
+          className="sm:col-span-2"
           placeholder="Название"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base"
+        <Input
           placeholder="Длительность (мин)"
           type="number"
           min={1}
@@ -692,8 +689,7 @@ function ServiceEditor({
           onChange={(e) => setDurationMinutes(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base"
+        <Input
           placeholder="Цена (копейки)"
           type="number"
           min={0}
@@ -701,8 +697,8 @@ function ServiceEditor({
           onChange={(e) => setPriceMinor(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base sm:col-span-2"
+        <Input
+          className="sm:col-span-2"
           placeholder="Описание (необязательно)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -778,15 +774,14 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить услугу</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <input
-          className="input-base sm:col-span-2"
+        <Input
+          className="sm:col-span-2"
           placeholder="Название"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base"
+        <Input
           placeholder="Длительность (мин)"
           type="number"
           min={1}
@@ -794,8 +789,7 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
           onChange={(e) => setDurationMinutes(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base"
+        <Input
           placeholder="Цена (копейки)"
           type="number"
           min={0}
@@ -803,8 +797,8 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
           onChange={(e) => setPriceMinor(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base sm:col-span-2"
+        <Input
+          className="sm:col-span-2"
           placeholder="Описание (необязательно)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -870,35 +864,35 @@ function SpecialistForm({
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить / обновить специалиста</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <select
-          className="input-base sm:col-span-2"
-          value={branchId}
-          onChange={(e) => setBranchId(e.target.value)}
-          disabled={isPending}
-        >
-          <option value="">— филиал —</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.title} · rubitime {b.rubitimeBranchId}
-            </option>
-          ))}
-        </select>
-        <input
-          className="input-base font-mono"
+        <div className="sm:col-span-2">
+          <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")} disabled={isPending}>
+            <SelectTrigger className="w-full" displayLabel={branches.find((b) => b.id === branchId)?.title ?? (branchId ? branchId : undefined)}>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">— филиал —</SelectItem>
+              {branches.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.title} · rubitime {b.rubitimeBranchId}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Input
+          className="font-mono"
           placeholder="rubitime_cooperator_id"
           value={rubitimeCooperatorId}
           onChange={(e) => setRubitimeCooperatorId(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base"
+        <Input
           placeholder="ФИО"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           disabled={isPending}
         />
-        <input
-          className="input-base sm:col-span-2"
+        <Input
+          className="sm:col-span-2"
           placeholder="Описание (необязательно)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}

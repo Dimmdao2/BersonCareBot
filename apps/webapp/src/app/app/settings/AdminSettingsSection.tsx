@@ -6,6 +6,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
@@ -405,19 +406,21 @@ export function AdminSettingsSection({
           <label className="text-sm font-medium" htmlFor="integrator-linked-phone-source">
             Integrator: источник linkedPhone
           </label>
-          <select
-            id="integrator-linked-phone-source"
-            className="max-w-xl rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          <Select
             value={linkedPhoneSource}
-            onChange={(e) => setLinkedPhoneSource(e.target.value as IntegratorLinkedPhoneSource)}
+            onValueChange={(v) => setLinkedPhoneSource(v as IntegratorLinkedPhoneSource)}
             disabled={isPending}
           >
-            <option value="public_then_contacts">
-              public_then_contacts — сначала public.platform_users, иначе legacy contacts (по умолчанию)
-            </option>
-            <option value="public_only">public_only — только канон webapp (целевой режим)</option>
-            <option value="contacts_only">contacts_only — только legacy contacts (аварийный откат)</option>
-          </select>
+            <SelectTrigger id="integrator-linked-phone-source" className="max-w-xl" displayLabel={linkedPhoneSource}>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="public_then_contacts">
+                public_then_contacts — сначала public.platform_users, иначе legacy contacts (по умолчанию)
+              </SelectItem>
+              <SelectItem value="public_only">public_only — только канон webapp (целевой режим)</SelectItem>
+              <SelectItem value="contacts_only">contacts_only — только legacy contacts (аварийный откат)</SelectItem>
+            </SelectContent>
+          </Select>
           <p className="text-xs text-muted-foreground">
             Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже если номер остался
             только в integrator.contacts.
@@ -428,12 +431,12 @@ export function AdminSettingsSection({
           <label className="text-sm font-medium" htmlFor="fallback-delay-input">
             Задержка SMS fallback для важных сообщений (минут)
           </label>
-          <input
+          <Input
             id="fallback-delay-input"
             type="number"
             min={1}
             max={1440}
-            className="w-32 rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-32"
             value={fallbackDelay}
             onChange={(e) => setFallbackDelay(Math.max(1, Number(e.target.value)))}
             disabled={isPending}

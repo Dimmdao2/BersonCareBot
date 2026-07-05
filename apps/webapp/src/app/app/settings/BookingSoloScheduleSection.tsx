@@ -11,6 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { apiJson } from "@/shared/lib/apiJson";
 import {
   ensureDefaultSpecialist,
@@ -349,10 +350,9 @@ export function BookingSoloScheduleSection() {
                 const checked = copyTargets.includes(w.value);
                 return (
                   <label key={w.value} className="flex items-center gap-1 text-sm">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={checked}
-                      onChange={() =>
+                      onCheckedChange={() =>
                         setCopyTargets((prev) =>
                           checked ? prev.filter((v) => v !== w.value) : [...prev, w.value],
                         )

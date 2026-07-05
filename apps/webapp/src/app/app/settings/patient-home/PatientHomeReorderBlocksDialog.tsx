@@ -26,15 +26,17 @@ function SortableBlockRow({ block }: { block: PatientHomeBlock }) {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className="flex items-center gap-2 rounded-lg border border-border p-2"
     >
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         {...attributes}
         {...listeners}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+        className="inline-flex h-8 w-8 items-center justify-center"
         aria-label="Переместить"
       >
         <GripVertical className="h-4 w-4" />
-      </button>
+      </Button>
       <div className="text-sm font-medium">{block.title}</div>
     </li>
   );
