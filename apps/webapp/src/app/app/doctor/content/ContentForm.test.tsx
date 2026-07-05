@@ -138,21 +138,21 @@ describe("ContentForm", () => {
 
   it("includes linked_course_id in FormData when publishedCourses provided", async () => {
     const courseId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const user = userEvent.setup();
     render(
       <ContentForm
         sections={testSections}
         publishedCourses={[{ id: courseId, title: "Курс А" }]}
       />,
     );
-    // base-ui Select renders a hidden input for form submission; no native <select>
-    const hidden = document.querySelector("input[name=linked_course_id]") as HTMLInputElement;
-    expect(hidden).not.toBeNull();
-    // Default value is empty (no course selected)
+    // base-ui Select: click trigger to open, then click item (canonical pattern)
+    await user.click(screen.getByLabelText(/связан с курсом/i));
+    await user.click(screen.getByRole("option", { name: /Курс А/i }));
+    // Verify the SELECTED VALUE is transmitted in FormData (not just field presence)
     const ta = screen.getByRole("textbox", { name: /редактор/i });
     const form = ta.closest("form");
     expect(form).not.toBeNull();
-    const fd = new FormData(form!);
-    expect(fd.has("linked_course_id")).toBe(true);
+    expect(new FormData(form!).get("linked_course_id")).toBe(courseId);
   });
 
   it("shows page preview block when toggled", async () => {
