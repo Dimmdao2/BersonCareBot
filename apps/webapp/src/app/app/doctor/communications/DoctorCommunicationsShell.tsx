@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import {
   COMMUNICATIONS_BASE,
@@ -60,9 +61,10 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
             </span>
           ) : null;
         return (
-          <button
+          <Button
             key={tab.id}
             type="button"
+            variant="ghost"
             data-testid={`btn-${tab.id}`}
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
@@ -70,7 +72,7 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
           >
             {tab.label}
             {badgeEl}
-          </button>
+          </Button>
         );
       })}
     </div>

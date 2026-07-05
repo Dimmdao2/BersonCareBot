@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   COMMUNICATIONS_TABS,
   type CommunicationsTabId,
@@ -59,16 +60,17 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
             ) : null;
 
           return onTabClick ? (
-            <button
+            <Button
               key={tab.id}
               type="button"
+              variant="ghost"
               aria-current={active ? "page" : undefined}
               onClick={() => onTabClick(tab.id)}
               className={itemClass}
             >
               {tab.label}
               {badgeEl}
-            </button>
+            </Button>
           ) : (
             <Link
               key={tab.id}
