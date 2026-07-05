@@ -288,8 +288,9 @@ type DayCellProps = {
 function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onToggle, onClearSelection, effectiveHours }: DayCellProps) {
   if (!dateKey) {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
         className="min-h-[52px] rounded-md border border-dashed border-transparent bg-transparent transition-colors hover:border-border/70 hover:bg-muted/20"
         aria-label="Сбросить выбор дней"
         onClick={() => onClearSelection?.()}
@@ -923,8 +924,10 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       >
         {/* E3: Branch filter switcher (Все + individual branches) */}
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setGridBranchFilter("all")}
               className={cn(
                 "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium transition-colors",
@@ -935,14 +938,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               data-testid="branch-filter-all"
             >
               Все
-            </button>
+            </Button>
             {branches.map((b) => {
               const color = getBranchColor(branches, b.id);
               const isActive = b.id === gridBranchFilter;
               return (
-                <button
+                <Button
                   key={b.id}
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setGridBranchFilter(b.id)}
                   className={cn(
                     "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
@@ -951,7 +956,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   data-testid={`branch-btn-${b.id}`}
                 >
                   ● {getBranchDisplayLabel(b)}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -997,9 +1002,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
                 const isActiveWd = selectionMode === "weekday" && selectedWeekday === wd;
                 return (
-                  <button
+                  <Button
                     key={d}
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleWeekdayHeaderClick(colIndex)}
                     className={cn(
                       // #236: border как у DayCell — видно что кликабельна
@@ -1012,7 +1019,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     aria-pressed={isActiveWd}
                   >
                     {d}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -1099,14 +1106,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     />
                   ))}
                   {panelBreaks.length < 6 && (
-                    <button
+                    <Button
                       type="button"
-                      className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
+                      variant="link"
+                      size="sm"
+                      className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
                       onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
                       data-testid="btn-add-break"
                     >
                       + перерыв
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -1304,14 +1313,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 />
               ))}
               {tplBreaks.length < 6 && (
-                <button
+                <Button
                   type="button"
-                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
+                  variant="link"
+                  size="sm"
+                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
                   onClick={() => setTplBreaks(addBreakRow(tplBreaks))}
                   data-testid="tpl-btn-add-break"
                 >
                   + перерыв
-                </button>
+                </Button>
               )}
             </div>
           </div>

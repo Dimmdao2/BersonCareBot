@@ -295,10 +295,11 @@ export function InstanceAddLibraryItemDialog(props: {
             role="radiogroup"
             aria-label="Способ добавления"
           >
-            <button
+            <Button
               type="button"
               role="radio"
               aria-checked={phaseZeroSource === "catalog"}
+              variant="ghost"
               className={cn(
                 "text-xs font-medium transition-colors",
                 phaseZeroSource === "catalog"
@@ -311,11 +312,12 @@ export function InstanceAddLibraryItemDialog(props: {
               }}
             >
               Каталог
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               role="radio"
               aria-checked={phaseZeroSource === "freeform"}
+              variant="ghost"
               className={cn(
                 "text-xs font-medium transition-colors",
                 phaseZeroSource === "freeform"
@@ -330,7 +332,7 @@ export function InstanceAddLibraryItemDialog(props: {
               }}
             >
               Свой текст
-            </button>
+            </Button>
           </div>
         ) : null}
         {isPhaseZero && phaseZeroSource === "freeform" ? (
@@ -371,10 +373,11 @@ export function InstanceAddLibraryItemDialog(props: {
                 role="radiogroup"
                 aria-label="Тип элемента"
               >
-                <button
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={customKind === "exercise"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     customKind === "exercise"
@@ -389,11 +392,12 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Упражнение ЛФК
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={customKind === "lfk_complex"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     customKind === "lfk_complex"
@@ -408,7 +412,7 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Комплекс ЛФК
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -420,10 +424,11 @@ export function InstanceAddLibraryItemDialog(props: {
                 role="radiogroup"
                 aria-label="Режим добавления тестов"
               >
-                <button
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={testsAddMode === "expand_set"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     testsAddMode === "expand_set"
@@ -436,11 +441,12 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Набор тестов
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={testsAddMode === "single_test"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     testsAddMode === "single_test"
@@ -453,7 +459,7 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Один тест
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -476,8 +482,9 @@ export function InstanceAddLibraryItemDialog(props: {
             ) : (
               pickerList.map((row) => (
                 <li key={row.id}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     disabled={editLocked}
                     onClick={() => submitPick(row)}
                     className="flex w-full items-start gap-3 rounded-md border border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50"
@@ -498,7 +505,7 @@ export function InstanceAddLibraryItemDialog(props: {
                         </span>
                       ) : null}
                     </span>
-                  </button>
+                  </Button>
                 </li>
               ))
             )}
