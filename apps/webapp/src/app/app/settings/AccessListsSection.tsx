@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { patchAdminSetting } from "./patchAdminSetting";
 
@@ -95,8 +96,8 @@ export function AccessListsSection({
           {FIELDS.map(([k, label]) => (
             <label key={k} className="flex flex-col gap-1">
               <span className="text-xs font-medium">{label}</span>
-              <textarea
-                className="min-h-16 rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              <Textarea
+                className="font-mono text-xs"
                 placeholder="узнайте через /show_my_id в боте"
                 value={vals[k]}
                 onChange={set(k)}

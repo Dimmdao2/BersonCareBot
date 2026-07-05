@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { BE_PRODUCT_TYPES, type ProductAccessRules, type ProductComposition } from "@/modules/products/types";
 import { apiJson } from "@/shared/lib/apiJson";
 
@@ -192,18 +194,21 @@ export function BookingCatalogProductsSection({
         <div className="grid gap-2">
           <Label htmlFor="prod-title">Название</Label>
           <Input id="prod-title" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <select
-            className="rounded-md border px-2 py-1 text-sm"
+          <Select
             value={productType}
-            onChange={(e) => setProductType(e.target.value as (typeof BE_PRODUCT_TYPES)[number])}
+            onValueChange={(v) => setProductType(v as (typeof BE_PRODUCT_TYPES)[number])}
             aria-label="Тип продукта"
           >
-            {BE_PRODUCT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger displayLabel={TYPE_LABELS[productType]}>
+            </SelectTrigger>
+            <SelectContent>
+              {BE_PRODUCT_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TYPE_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {productType === "course" ? (
             <Input
               value={courseId}
@@ -255,10 +260,9 @@ export function BookingCatalogProductsSection({
           <Label htmlFor="prod-price">Цена (₽)</Label>
           <Input id="prod-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={payByLinkEnabled}
-              onChange={(e) => setPayByLinkEnabled(e.target.checked)}
+              onCheckedChange={(v) => setPayByLinkEnabled(Boolean(v))}
             />
             Покупка по ссылке
           </label>

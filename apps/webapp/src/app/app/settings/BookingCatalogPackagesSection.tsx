@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 
 const API = "/api/admin/booking-engine/packages";
 const SERVICES_API = "/api/admin/booking-engine/services";
@@ -101,18 +102,18 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
           <Label htmlFor="pkg-price">Цена (₽)</Label>
           <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="flex flex-wrap gap-2">
-            <select
-              className="rounded-md border px-2 py-1 text-sm"
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-            >
-              <option value="">Услуга</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
+            <Select value={serviceId} onValueChange={setServiceId}>
+              <SelectTrigger displayLabel={services.find((s) => s.id === serviceId)?.title ?? "Услуга"}>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Услуга</SelectItem>
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               className="w-20"
               value={quantity}

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { apiJson } from "@/shared/lib/apiJson";
 
 type Props = {
@@ -207,18 +208,18 @@ export function BookingPatientPackagesSection({
         ) : null}
         <div className="border-t pt-3">
           <p className="mb-2 text-sm font-medium">Из каталога</p>
-          <select
-            className="mb-2 w-full rounded-md border px-2 py-1 text-sm"
-            value={catalogId}
-            onChange={(e) => setCatalogId(e.target.value)}
-          >
-            <option value="">Продукт</option>
-            {catalog.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
+          <Select value={catalogId} onValueChange={setCatalogId}>
+            <SelectTrigger className="mb-2 w-full" displayLabel={catalog.find((c) => c.id === catalogId)?.title ?? "Продукт"}>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Продукт</SelectItem>
+              {catalog.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             className="mb-2"
             placeholder="Комментарий"
@@ -238,18 +239,18 @@ export function BookingPatientPackagesSection({
           />
           <Input className="mt-2" placeholder="Цена ₽" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="mt-2 flex gap-2">
-            <select
-              className="flex-1 rounded-md border px-2 py-1 text-sm"
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-            >
-              <option value="">Услуга</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
+            <Select value={serviceId} onValueChange={setServiceId}>
+              <SelectTrigger className="flex-1" displayLabel={services.find((s) => s.id === serviceId)?.title ?? "Услуга"}>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Услуга</SelectItem>
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input className="w-16" value={quantity} onChange={(e) => setQuantity(e.target.value)} aria-label="Кол-во" />
             <Button type="button" variant="outline" size="sm" onClick={addItem}>
               +

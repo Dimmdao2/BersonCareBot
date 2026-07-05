@@ -7,7 +7,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
 import { CopyForAiButton } from "./CopyForAiButton";
@@ -222,21 +222,20 @@ export function AdminAuditLogSection() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="audit-action">Тип действия</Label>
-            <select
-              id="audit-action"
+            <Select
               value={draft.action}
-              onChange={(e) => setDraft((d) => ({ ...d, action: e.target.value }))}
-              className={cn(
-                "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
-                "ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              )}
+              onValueChange={(v) => setDraft((d) => ({ ...d, action: v }))}
             >
-              {ACTION_FILTER_OPTIONS.map((opt) => (
-                <option key={opt.value || "_all"} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="audit-action" className="w-full" displayLabel={ACTION_FILTER_OPTIONS.find((o) => o.value === draft.action)?.label}>
+              </SelectTrigger>
+              <SelectContent>
+                {ACTION_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value || "_all"} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="audit-target">Цель (target_id)</Label>
@@ -250,20 +249,19 @@ export function AdminAuditLogSection() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="audit-status">Статус</Label>
-            <select
-              id="audit-status"
+            <Select
               value={draft.status}
-              onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as FilterState["status"] }))}
-              className={cn(
-                "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
-                "ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              )}
+              onValueChange={(v) => setDraft((d) => ({ ...d, status: v as FilterState["status"] }))}
             >
-              <option value="">Все</option>
-              <option value="ok">ok</option>
-              <option value="partial_failure">partial_failure</option>
-              <option value="error">error</option>
-            </select>
+              <SelectTrigger id="audit-status" className="w-full" displayLabel={draft.status || "Все"}>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Все</SelectItem>
+                <SelectItem value="ok">ok</SelectItem>
+                <SelectItem value="partial_failure">partial_failure</SelectItem>
+                <SelectItem value="error">error</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="audit-from">Дата с</Label>

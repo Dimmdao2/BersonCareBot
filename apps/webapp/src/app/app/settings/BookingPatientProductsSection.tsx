@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 
 type Props = {
   apiBase?: string;
@@ -142,20 +143,18 @@ export function BookingPatientProductsSection({
           </>
         ) : null}
         <Label htmlFor="pp-svc">Услуга для списания</Label>
-        <select
-          id="pp-svc"
-          className="rounded-md border px-2 py-1 text-sm"
-          value={serviceId}
-          onChange={(e) => setServiceId(e.target.value)}
-          aria-label="Услуга"
-        >
-          <option value="">—</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.title}
-            </option>
-          ))}
-        </select>
+        <Select value={serviceId} onValueChange={setServiceId} aria-label="Услуга">
+          <SelectTrigger id="pp-svc" className="w-full" displayLabel={services.find((s) => s.id === serviceId)?.title ?? "—"}>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">—</SelectItem>
+            {services.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button type="button" disabled={pending} onClick={loadPurchases}>
           Показать покупки
         </Button>

@@ -156,14 +156,16 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
           <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "Сохранение…" : "Сохранить"}
           </Button>
-          <button
+          <Button
             type="button"
-            className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:pointer-events-none disabled:opacity-50"
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:underline disabled:pointer-events-none disabled:opacity-50"
             disabled={saving}
             onClick={() => void handleDetectFromBrowser()}
           >
             Определить автоматически
-          </button>
+          </Button>
         </div>
         {saved && <span className="text-xs text-green-600">Сохранено</span>}
         {error && <span className="text-xs text-destructive">{error}</span>}
