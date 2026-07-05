@@ -5,6 +5,13 @@ import { useState } from "react";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/doctor/primitives/select";
 import { cn } from "@/lib/utils";
 import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 
@@ -117,19 +124,22 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
       </div>
       <div className="space-y-1">
         <Label htmlFor="course-template">Шаблон программы лечения</Label>
-        <select
-          id="course-template"
-          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        <Select
           value={programTemplateId}
-          onChange={(e) => setProgramTemplateId(e.target.value)}
+          onValueChange={(v) => setProgramTemplateId(v ?? "")}
           required
         >
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.title} ({t.status})
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="course-template" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.title} ({t.status})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <p className="text-xs text-muted-foreground">
         Курс создаётся как <strong>черновик</strong> через существующий API. Публикация и вступительный урок — в

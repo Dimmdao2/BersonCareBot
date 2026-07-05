@@ -164,7 +164,9 @@ describe("DoctorCourseEditForm", () => {
       expect(screen.getByRole("link", { name: /черновик страницы/i })).toBeInTheDocument();
     });
 
-    await user.selectOptions(screen.getByLabelText(/статус/i), "archived");
+    // base-ui Select: click trigger to open, then click item
+    await user.click(screen.getByLabelText(/статус/i));
+    await user.click(screen.getByRole("option", { name: /архив/i }));
     await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
 
     await waitFor(() => {
@@ -229,7 +231,9 @@ describe("DoctorCourseEditForm", () => {
       expect(screen.getByRole("link", { name: /программа пациента/i })).toBeInTheDocument();
     });
 
-    await user.selectOptions(screen.getByLabelText(/статус/i), "archived");
+    // base-ui Select: click trigger to open, then click item
+    await user.click(screen.getByLabelText(/статус/i));
+    await user.click(screen.getByRole("option", { name: /архив/i }));
     await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
 
     await waitFor(() => {

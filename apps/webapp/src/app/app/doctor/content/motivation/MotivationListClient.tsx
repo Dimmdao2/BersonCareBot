@@ -20,6 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { EllipsisVertical, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
@@ -162,7 +163,7 @@ function SortableQuoteRow({
             <Input name="author" defaultValue={q.author ?? ""} />
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="is_active" defaultChecked={q.is_active} />
+            <Checkbox name="is_active" defaultChecked={q.is_active} />
             Активна
           </label>
           <Button type="submit" className="w-fit" disabled={quotePending}>
@@ -247,7 +248,7 @@ export function MotivationListClient({ quoteRows }: { quoteRows: QuoteRow[] }) {
           <Textarea name="body_text" className="text-sm" rows={2} placeholder="Текст" required />
           <Input name="author" placeholder="Автор (необязательно)" />
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="is_active" defaultChecked />
+            <Checkbox name="is_active" defaultChecked />
             Активна
           </label>
           <Button type="submit" disabled={quotePending}>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Separator } from "@/shared/ui/doctor/primitives/separator";
 import { Eye, EyeOff } from "lucide-react";
 import {
@@ -76,14 +77,15 @@ function NavRow({
 }) {
   return (
     <div className="group relative flex items-center">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         aria-current={active ? "page" : undefined}
         onClick={onClick}
         className={cn(
-          "flex flex-1 min-w-0 items-center gap-1 rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal text-left transition-colors",
+          "flex flex-1 min-w-0 h-auto items-center gap-1 rounded-md py-1.5 pl-2.5 pr-2 text-sm whitespace-normal text-left transition-colors justify-start",
           active
-            ? "border-l-2 border-primary bg-primary/10 font-medium text-foreground"
+            ? "border-l-2 border-primary bg-primary/10 font-medium text-foreground hover:bg-primary/10"
             : "border-l-2 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         )}
       >
@@ -91,7 +93,7 @@ function NavRow({
         {typeof count === "number" && count > 0 ? (
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{count}</span>
         ) : null}
-      </button>
+      </Button>
       {trailingSlot ? (
         <div className="shrink-0 pl-0.5">{trailingSlot}</div>
       ) : null}
@@ -119,8 +121,10 @@ function SectionVisibilityToggle({
   disabled: boolean;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       aria-label={isVisible ? "Скрыть раздел" : "Показать раздел"}
       title={isVisible ? "Скрыть раздел" : "Показать раздел"}
       disabled={disabled}
@@ -128,19 +132,14 @@ function SectionVisibilityToggle({
         e.stopPropagation();
         onToggle(slug, !isVisible);
       }}
-      className={cn(
-        "inline-flex size-7 shrink-0 items-center justify-center rounded border border-transparent",
-        "hover:bg-muted hover:border-border",
-        "disabled:pointer-events-none disabled:opacity-40",
-        "transition-colors",
-      )}
+      className="size-7 rounded border border-transparent hover:border-border"
     >
       {isVisible ? (
         <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
       ) : (
         <EyeOff className="size-4 text-muted-foreground" aria-hidden />
       )}
-    </button>
+    </Button>
   );
 }
 

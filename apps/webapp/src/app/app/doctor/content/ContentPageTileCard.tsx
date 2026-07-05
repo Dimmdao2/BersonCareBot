@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
 import { cn } from "@/lib/utils";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
@@ -82,13 +83,14 @@ export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props)
 
   if (onSelect) {
     return (
-      <button
+      <Button
         type="button"
-        className="flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        variant="ghost"
+        className="flex h-auto w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left focus-visible:ring-offset-2"
         onClick={() => onSelect(page.id)}
       >
         {inner}
-      </button>
+      </Button>
     );
   }
 
