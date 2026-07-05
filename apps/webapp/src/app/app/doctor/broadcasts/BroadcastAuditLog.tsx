@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   formatAudienceLabel,
   formatBroadcastDate,
@@ -47,8 +48,9 @@ export function BroadcastAuditLog({ entries, onArchive, onCreateFrom }: Props) {
         return (
           <div key={entry.id} className="group">
             {/* Шапка строки: кликабельная сводка */}
-            <button
+            <Button
               type="button"
+              variant="ghost"
               aria-expanded={isOpen}
               onClick={() => setOpenId(isOpen ? null : entry.id)}
               className="flex w-full cursor-pointer select-none flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1 py-2.5 text-left"
@@ -67,7 +69,7 @@ export function BroadcastAuditLog({ entries, onArchive, onCreateFrom }: Props) {
               <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground">
                 {deliveryProgressLine(entry)}
               </span>
-            </button>
+            </Button>
 
             {/* Раскрытый блок */}
             {isOpen && (
@@ -106,22 +108,24 @@ export function BroadcastAuditLog({ entries, onArchive, onCreateFrom }: Props) {
                 ) : null}
                 <p className="flex flex-wrap gap-x-3 gap-y-1">
                   {onArchive && (
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
+                      size="sm"
                       onClick={onArchive}
-                      className="text-xs underline hover:no-underline"
                     >
                       Открыть ошибки →
-                    </button>
+                    </Button>
                   )}
                   {onCreateFrom && (
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
+                      size="sm"
                       onClick={() => onCreateFrom(entry)}
-                      className="text-xs underline hover:no-underline"
                     >
                       Создать на основе
-                    </button>
+                    </Button>
                   )}
                 </p>
               </div>

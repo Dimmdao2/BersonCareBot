@@ -1,6 +1,7 @@
 "use client";
 
 import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { MarkdownPreview } from "@/shared/ui/doctor/markdown/MarkdownPreview";
 import {
   formatAudienceLabel,
@@ -83,23 +84,22 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
       </p>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={onCancel}
           disabled={isLoading}
-          className="rounded-md border border-border px-4 py-2 text-sm disabled:opacity-50"
         >
           Назад
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           id="broadcast-confirm-button"
           onClick={onConfirm}
           disabled={isLoading}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
         >
           {isLoading ? "Отправка…" : `Отправить ${preview.audienceSize} получателям`}
-        </button>
+        </Button>
       </div>
     </div>
   );
