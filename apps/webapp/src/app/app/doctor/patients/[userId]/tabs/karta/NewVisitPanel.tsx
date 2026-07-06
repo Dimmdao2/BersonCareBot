@@ -466,6 +466,7 @@ export function NewVisitPanel({
   const [duration, setDuration] = useState(() =>
     sourceAppointment?.durationMin ? String(sourceAppointment.durationMin) : "",
   );
+  const initialHeaderRef = useRef({ selectedDate, selectedTime, location, service, duration });
 
   // Booking-engine service catalog for branch-filtered dropdowns
   const [allServices, setAllServices] = useState<ServiceOption[]>([]);
@@ -622,7 +623,14 @@ export function NewVisitPanel({
   const [manipulationsRepeat, setManipulationsRepeat] = useState("");
   const [recommendationsRepeat, setRecommendationsRepeat] = useState("");
 
+  const restoredComplaintDraftRef = useRef(false);
+  const restoredDiagnosisDraftRef = useRef(false);
+
   useEffect(() => {
+    if (restoredComplaintDraftRef.current) {
+      restoredComplaintDraftRef.current = false;
+      return;
+    }
     setComplaintUpdates(
       Object.fromEntries(
         activeComplaints.map((c) => [
@@ -634,6 +642,10 @@ export function NewVisitPanel({
   }, [activeComplaints]);
 
   useEffect(() => {
+    if (restoredDiagnosisDraftRef.current) {
+      restoredDiagnosisDraftRef.current = false;
+      return;
+    }
     setDiagnosisUpdates(
       Object.fromEntries(
         activeDiagnoses.map((d) => [
@@ -656,7 +668,17 @@ export function NewVisitPanel({
 
   type VisitDraft = {
     visitType: VisitType;
+    selectedDate: string;
+    selectedTime: string;
+    location: string;
+    service: string;
     duration: string;
+    locationOther: boolean;
+    serviceOther: boolean;
+    firstComplaints: FormComplaintEntry[];
+    firstDiagnoses: FormDiagnosisEntry[];
+    complaintUpdates: Record<string, RepeatComplaintUpdate>;
+    diagnosisUpdates: Record<string, RepeatDiagnosisUpdate>;
     anamnesisText: string;
     examFirst: string;
     manipulationsFirst: string;
@@ -667,8 +689,15 @@ export function NewVisitPanel({
     recommendationsRepeat: string;
   };
 
+  const headerDirty =
+    selectedDate !== initialHeaderRef.current.selectedDate ||
+    selectedTime !== initialHeaderRef.current.selectedTime ||
+    location !== initialHeaderRef.current.location ||
+    service !== initialHeaderRef.current.service ||
+    duration !== initialHeaderRef.current.duration;
+
   const isDirty =
-    duration.trim() !== "" ||
+    headerDirty ||
     anamnesisText.trim() !== "" ||
     examFirst.trim() !== "" ||
     manipulationsFirst.trim() !== "" ||
@@ -677,9 +706,19 @@ export function NewVisitPanel({
     examRepeat.trim() !== "" ||
     manipulationsRepeat.trim() !== "" ||
     recommendationsRepeat.trim() !== "" ||
-    firstComplaints.some((c) => c.text.trim() !== "") ||
+    firstComplaints.some((c) => (
+      c.text.trim() !== "" ||
+      c.description.trim() !== "" ||
+      c.priority ||
+      c.severity !== 0
+    )) ||
     firstDiagnoses.length > 0 ||
-    Object.values(complaintUpdates).some((u) => u.note.trim() !== "");
+    Object.values(complaintUpdates).some((u) => (
+      u.note.trim() !== "" ||
+      u.resolved ||
+      u.severity !== (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity)
+    )) ||
+    Object.values(diagnosisUpdates).some((u) => u.refinement.trim() !== "" || u.removed);
 
   const draftRestoredRef = useRef(false);
   useEffect(() => {
@@ -691,7 +730,25 @@ export function NewVisitPanel({
       if (!raw) return;
       const d = JSON.parse(raw) as VisitDraft;
       if (d.visitType) setVisitType(d.visitType);
+      if (d.selectedDate) setSelectedDate(d.selectedDate);
+      if (d.selectedTime) setSelectedTime(d.selectedTime);
+      if (d.location !== undefined) setLocation(d.location);
+      if (d.service !== undefined) setService(d.service);
       if (d.duration) setDuration(d.duration);
+      if (d.locationOther !== undefined) setLocationOther(d.locationOther);
+      if (d.serviceOther !== undefined) setServiceOther(d.serviceOther);
+      if (Array.isArray(d.firstComplaints) && d.firstComplaints.length > 0) {
+        setFirstComplaints(d.firstComplaints);
+      }
+      if (Array.isArray(d.firstDiagnoses)) setFirstDiagnoses(d.firstDiagnoses);
+      if (d.complaintUpdates) {
+        setComplaintUpdates(d.complaintUpdates);
+        restoredComplaintDraftRef.current = true;
+      }
+      if (d.diagnosisUpdates) {
+        setDiagnosisUpdates(d.diagnosisUpdates);
+        restoredDiagnosisDraftRef.current = true;
+      }
       if (d.anamnesisText) setAnamnesisText(d.anamnesisText);
       if (d.examFirst) setExamFirst(d.examFirst);
       if (d.manipulationsFirst) setManipulationsFirst(d.manipulationsFirst);
@@ -711,7 +768,17 @@ export function NewVisitPanel({
     try {
       const draft: VisitDraft = {
         visitType,
+        selectedDate,
+        selectedTime,
+        location,
+        service,
         duration,
+        locationOther,
+        serviceOther,
+        firstComplaints,
+        firstDiagnoses,
+        complaintUpdates,
+        diagnosisUpdates,
         anamnesisText,
         examFirst,
         manipulationsFirst,
@@ -729,7 +796,17 @@ export function NewVisitPanel({
   }, [
     isDirty,
     visitType,
+    selectedDate,
+    selectedTime,
+    location,
+    service,
     duration,
+    locationOther,
+    serviceOther,
+    firstComplaints,
+    firstDiagnoses,
+    complaintUpdates,
+    diagnosisUpdates,
     anamnesisText,
     examFirst, manipulationsFirst, trialResultsFirst, recommendationsFirst,
     examRepeat, manipulationsRepeat, recommendationsRepeat,
