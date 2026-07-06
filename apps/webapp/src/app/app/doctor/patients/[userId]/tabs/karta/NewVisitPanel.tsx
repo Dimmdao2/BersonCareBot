@@ -107,6 +107,32 @@ function toIsoDate(d: Date): string {
 
 const fieldLabelClass = "text-xs font-semibold text-foreground";
 const hintClass = "text-xs text-muted-foreground";
+const ONLINE_LOCATION = "Онлайн";
+
+type LocationSourceAppointment = {
+  location?: string;
+  branchName?: string;
+};
+
+type LocationSourceBranch = {
+  title: string;
+  shortTitle: string | null;
+  isActive: boolean;
+};
+
+export function buildVisitLocationOptions(
+  appointments: LocationSourceAppointment[],
+  branches: LocationSourceBranch[],
+): string[] {
+  const catalogLocations = branches
+    .filter((b) => b.isActive)
+    .flatMap((b) => [b.title, b.shortTitle ?? ""])
+    .filter(Boolean);
+  const appointmentLocations = appointments
+    .map((a) => a.branchName ?? a.location ?? "")
+    .filter(Boolean);
+  return Array.from(new Set([...catalogLocations, ...appointmentLocations, ONLINE_LOCATION]));
+}
 
 // ---------------------------------------------------------------------------
 // Small sub-components
@@ -510,9 +536,10 @@ export function NewVisitPanel({
     void Promise.all([apptsFetch, servicesFetch, overviewFetch]).then(([apptData, servicesData, overviewData]) => {
       const appts = apptData?.appointments ?? [];
 
-      const uniqueLocations = [...new Set(
-        appts.map((a) => a.branchName ?? a.location ?? "").filter(Boolean),
-      )];
+      const uniqueLocations = buildVisitLocationOptions(
+        appts,
+        overviewData?.branches ?? [],
+      );
       setLocationOptions(uniqueLocations);
 
       setAllServices(
