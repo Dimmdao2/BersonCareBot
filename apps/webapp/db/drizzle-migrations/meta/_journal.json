@@ -967,6 +967,13 @@
       "when": 1787664000000,
       "tag": "0137_be_package_usages_consume_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1787750400000,
+      "tag": "0138_clinical_visit_complaint_details",
+      "breakpoints": true
     }
   ]
 }

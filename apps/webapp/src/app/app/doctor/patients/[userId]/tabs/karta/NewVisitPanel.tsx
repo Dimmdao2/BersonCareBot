@@ -11,8 +11,8 @@
  *   onClose            — close without saving
  *   onSaved            — called after successful POST /visits; parent re-fetches /clinical
  *
- * Changes from prior version (#208):
- *   - DURATION field fully removed (input, state, validation, API payload).
+ * Changes from prior version (#511):
+ *   - Duration is stored again and auto-filled from booking/service catalog.
  *   - Branch dropdown now filters services by location (booking-engine locationAvailability).
  *   - Calendar icon (📅) appears next to branch/service when a source appointment is linked;
  *     clicking it shows a read-only mini-modal with appointment details.
@@ -53,6 +53,7 @@ type FormComplaintEntry = {
   id: string;
   priority: boolean;
   text: string;
+  description: string;
   severity: number;
 };
 
@@ -61,6 +62,7 @@ type FormDiagnosisEntry = {
   priority: boolean;
   text: string;
   catalogId: string | null;
+  comment: string;
 };
 
 type RepeatComplaintUpdate = {
@@ -81,6 +83,7 @@ type ServiceOption = {
   id: string;
   title: string;
   isActive: boolean;
+  durationMinutes: number | null;
 };
 
 /** Service-location link: which services are available in which branches. */
@@ -196,6 +199,7 @@ function DiagnosisAutocomplete({
       priority: false,
       text: s.label,
       catalogId: s.id,
+      comment: "",
     });
     setDraft("");
     setSuggestions([]);
@@ -217,6 +221,7 @@ function DiagnosisAutocomplete({
         priority: false,
         text: data.entry.label,
         catalogId: data.entry.id,
+        comment: "",
       });
       setDraft("");
       setSuggestions([]);
@@ -432,6 +437,9 @@ export function NewVisitPanel({
 
   const [location, setLocation] = useState(() => pendingLocation ?? "");
   const [service, setService] = useState(() => pendingService ?? "");
+  const [duration, setDuration] = useState(() =>
+    sourceAppointment?.durationMin ? String(sourceAppointment.durationMin) : "",
+  );
 
   // Booking-engine service catalog for branch-filtered dropdowns
   const [allServices, setAllServices] = useState<ServiceOption[]>([]);
@@ -452,6 +460,7 @@ export function NewVisitPanel({
   useEffect(() => {
     if (pendingLocation) setLocation(pendingLocation);
     if (pendingService) setService(pendingService);
+    if (sourceAppointment?.durationMin) setDuration(String(sourceAppointment.durationMin));
     if (pendingLocation || pendingService) {
       onPendingConsumed?.();
     }
@@ -485,7 +494,7 @@ export function NewVisitPanel({
     const servicesFetch = fetch(`/api/doctor/booking-engine/services`)
       .then((r) => (r.ok ? (r.json() as Promise<{
         ok: boolean;
-        services?: Array<{ id: string; title: string; isActive: boolean }>;
+        services?: Array<{ id: string; title: string; isActive: boolean; durationMinutes?: number | null }>;
         locationAvailability?: Array<{ serviceId: string; branchId: string; isActive: boolean }>;
       }>) : null))
       .catch(() => null);
@@ -507,7 +516,12 @@ export function NewVisitPanel({
       setLocationOptions(uniqueLocations);
 
       setAllServices(
-        (servicesData?.services ?? []).map((s) => ({ id: s.id, title: s.title, isActive: s.isActive })),
+        (servicesData?.services ?? []).map((s) => ({
+          id: s.id,
+          title: s.title,
+          isActive: s.isActive,
+          durationMinutes: s.durationMinutes ?? null,
+        })),
       );
       setLocationAvailability(servicesData?.locationAvailability ?? []);
 
@@ -531,6 +545,14 @@ export function NewVisitPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  useEffect(() => {
+    if (!service || serviceOther) return;
+    const selected = allServices.find((s) => s.title === service);
+    if (selected?.durationMinutes) {
+      setDuration(String(selected.durationMinutes));
+    }
+  }, [allServices, service, serviceOther]);
+
   // ── Draft persistence (#205) ───────────────────────────────────────────────
   const draftKey = `nvp_draft_${userId}`;
 
@@ -538,10 +560,11 @@ export function NewVisitPanel({
 
   // ── FIRST VISIT state ─────────────────────────────────────────────────────
   const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
-    { id: "fc_init", priority: false, text: "", severity: 0 },
+    { id: "fc_init", priority: false, text: "", description: "", severity: 0 },
   ]);
   const [firstDiagnoses, setFirstDiagnoses] = useState<FormDiagnosisEntry[]>([]);
 
+  const [anamnesisText, setAnamnesisText] = useState("");
   const [examFirst, setExamFirst] = useState("");
   const [manipulationsFirst, setManipulationsFirst] = useState("");
   const [trialResultsFirst, setTrialResultsFirst] = useState("");
@@ -606,6 +629,8 @@ export function NewVisitPanel({
 
   type VisitDraft = {
     visitType: VisitType;
+    duration: string;
+    anamnesisText: string;
     examFirst: string;
     manipulationsFirst: string;
     trialResultsFirst: string;
@@ -616,6 +641,8 @@ export function NewVisitPanel({
   };
 
   const isDirty =
+    duration.trim() !== "" ||
+    anamnesisText.trim() !== "" ||
     examFirst.trim() !== "" ||
     manipulationsFirst.trim() !== "" ||
     trialResultsFirst.trim() !== "" ||
@@ -637,6 +664,8 @@ export function NewVisitPanel({
       if (!raw) return;
       const d = JSON.parse(raw) as VisitDraft;
       if (d.visitType) setVisitType(d.visitType);
+      if (d.duration) setDuration(d.duration);
+      if (d.anamnesisText) setAnamnesisText(d.anamnesisText);
       if (d.examFirst) setExamFirst(d.examFirst);
       if (d.manipulationsFirst) setManipulationsFirst(d.manipulationsFirst);
       if (d.trialResultsFirst) setTrialResultsFirst(d.trialResultsFirst);
@@ -655,6 +684,8 @@ export function NewVisitPanel({
     try {
       const draft: VisitDraft = {
         visitType,
+        duration,
+        anamnesisText,
         examFirst,
         manipulationsFirst,
         trialResultsFirst,
@@ -671,6 +702,8 @@ export function NewVisitPanel({
   }, [
     isDirty,
     visitType,
+    duration,
+    anamnesisText,
     examFirst, manipulationsFirst, trialResultsFirst, recommendationsFirst,
     examRepeat, manipulationsRepeat, recommendationsRepeat,
   ]);
@@ -704,6 +737,8 @@ export function NewVisitPanel({
       date: visitedAt,
       location: location.trim() || undefined,
       service: service.trim() || undefined,
+      duration: duration.trim() || undefined,
+      anamnesisText: anamnesisText.trim() || undefined,
       // appointmentRecordId links the visit to the source booking (uses internalId = appointment_records.id uuid)
       ...(sourceAppointment?.internalId
         ? { appointmentRecordId: sourceAppointment.internalId }
@@ -715,6 +750,7 @@ export function NewVisitPanel({
       if (validComplaints.length > 0) {
         body.complaints = validComplaints.map((c) => ({
           text: c.text,
+          description: c.description.trim() || undefined,
           priority: c.priority,
           severity: c.severity,
         }));
@@ -724,6 +760,7 @@ export function NewVisitPanel({
         body.diagnoses = validDiagnoses.map((d) => ({
           text: d.text,
           priority: d.priority,
+          comment: d.comment.trim() || undefined,
           ...(d.catalogId ? { catalogId: d.catalogId } : {}),
         }));
       }
@@ -779,7 +816,7 @@ export function NewVisitPanel({
   const addFirstComplaint = () =>
     setFirstComplaints((prev) => [
       ...prev,
-      { id: `fc${Date.now()}`, priority: false, text: "", severity: 0 },
+      { id: `fc${Date.now()}`, priority: false, text: "", description: "", severity: 0 },
     ]);
 
   const addFirstDiagnosis = (entry: FormDiagnosisEntry) =>
@@ -871,7 +908,12 @@ export function NewVisitPanel({
               value={service}
               onValueChange={(v) => {
                 if (v === "__other__") { setServiceOther(true); setService(""); }
-                else setService(v ?? "");
+                else {
+                  const next = v ?? "";
+                  setService(next);
+                  const selected = allServices.find((s) => s.title === next);
+                  if (selected?.durationMinutes) setDuration(String(selected.durationMinutes));
+                }
               }}
             >
               <SelectTrigger
@@ -893,6 +935,15 @@ export function NewVisitPanel({
               className="w-28 h-[26px] px-2 text-xs"
             />
           )}
+          <Input
+            type="number"
+            min={1}
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            placeholder="Мин"
+            className="w-16 h-[26px] px-2 text-xs"
+            title="Длительность, минут"
+          />
           {/* Calendar icon — shows source appointment info when present */}
           {sourceAppointment && (
             <Button
@@ -926,6 +977,14 @@ export function NewVisitPanel({
 
       {/* body */}
       <div className="flex flex-col gap-3 overflow-y-auto px-3.5 py-3">
+        <FormTextarea
+          label="Анамнез / история появления жалобы"
+          placeholder="Когда и как появилась жалоба, что предшествовало, как менялась…"
+          minH="min-h-[54px]"
+          value={anamnesisText}
+          onChange={setAnamnesisText}
+        />
+
         {visitType === "first" ? (
           <>
             {/* Жалобы */}
@@ -945,56 +1004,68 @@ export function NewVisitPanel({
               </div>
               <div className="flex flex-col gap-1.5">
                 {firstComplaints.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2">
-                    <PriorityFlag
-                      on={c.priority}
-                      onToggle={() =>
-                        setFirstComplaints((prev) =>
-                          prev.map((x) => (x.id === c.id ? { ...x, priority: !x.priority } : x)),
-                        )
-                      }
-                    />
-                    <Input
-                      value={c.text}
-                      onChange={(e) =>
-                        setFirstComplaints((prev) =>
-                          prev.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x)),
-                        )
-                      }
-                      placeholder="Описание симптома…"
-                      className="flex-1"
-                    />
-                    <span className="flex flex-none items-center gap-1 text-xs text-muted-foreground">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={c.severity}
-                        onChange={(e) =>
+                  <div key={c.id} className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2">
+                    <div className="flex items-center gap-2">
+                      <PriorityFlag
+                        on={c.priority}
+                        onToggle={() =>
                           setFirstComplaints((prev) =>
-                            prev.map((x) =>
-                              x.id === c.id ? { ...x, severity: Number(e.target.value) } : x,
-                            ),
+                            prev.map((x) => (x.id === c.id ? { ...x, priority: !x.priority } : x)),
                           )
                         }
-                        className="w-11 px-1 text-center"
                       />
-                      /10
-                    </span>
-                    {firstComplaints.length > 1 && (
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          setFirstComplaints((prev) => prev.filter((x) => x.id !== c.id))
+                      <Input
+                        value={c.text}
+                        onChange={(e) =>
+                          setFirstComplaints((prev) =>
+                            prev.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x)),
+                          )
                         }
-                        title="Удалить"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="flex-none text-sm text-muted-foreground hover:text-destructive"
-                      >
-                        ✕
-                      </Button>
-                    )}
+                        placeholder="Симптом…"
+                        className="flex-1"
+                      />
+                      <span className="flex flex-none items-center gap-1 text-xs text-muted-foreground">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10}
+                          value={c.severity}
+                          onChange={(e) =>
+                            setFirstComplaints((prev) =>
+                              prev.map((x) =>
+                                x.id === c.id ? { ...x, severity: Number(e.target.value) } : x,
+                              ),
+                            )
+                          }
+                          className="w-11 px-1 text-center"
+                        />
+                        /10
+                      </span>
+                      {firstComplaints.length > 1 && (
+                        <Button
+                          type="button"
+                          onClick={() =>
+                            setFirstComplaints((prev) => prev.filter((x) => x.id !== c.id))
+                          }
+                          title="Удалить"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="flex-none text-sm text-muted-foreground hover:text-destructive"
+                        >
+                          ✕
+                        </Button>
+                      )}
+                    </div>
+                    <Textarea
+                      value={c.description}
+                      onChange={(e) =>
+                        setFirstComplaints((prev) =>
+                          prev.map((x) => (x.id === c.id ? { ...x, description: e.target.value } : x)),
+                        )
+                      }
+                      placeholder="Описание под симптомом…"
+                      className="min-h-[40px]"
+                    />
                   </div>
                 ))}
               </div>
@@ -1018,31 +1089,43 @@ export function NewVisitPanel({
               </div>
               <div className="flex flex-col gap-1.5">
                 {firstDiagnoses.map((d) => (
-                  <div key={d.id} className="flex items-center gap-2">
-                    <PriorityFlag
-                      on={d.priority}
-                      onToggle={() =>
+                  <div key={d.id} className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2">
+                    <div className="flex items-center gap-2">
+                      <PriorityFlag
+                        on={d.priority}
+                        onToggle={() =>
+                          setFirstDiagnoses((prev) =>
+                            prev.map((x) => (x.id === d.id ? { ...x, priority: !x.priority } : x)),
+                          )
+                        }
+                      />
+                      <span className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground">
+                        {d.text}
+                        {d.catalogId && (
+                          <span className="ml-1 text-xs text-muted-foreground">· справочник</span>
+                        )}
+                      </span>
+                      <Button
+                        type="button"
+                        onClick={() => setFirstDiagnoses((prev) => prev.filter((x) => x.id !== d.id))}
+                        title="Удалить"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="flex-none text-sm text-muted-foreground hover:text-destructive"
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={d.comment}
+                      onChange={(e) =>
                         setFirstDiagnoses((prev) =>
-                          prev.map((x) => (x.id === d.id ? { ...x, priority: !x.priority } : x)),
+                          prev.map((x) => (x.id === d.id ? { ...x, comment: e.target.value } : x)),
                         )
                       }
+                      placeholder="Комментарий под диагнозом: сторона, уровень, уточнение…"
+                      className="min-h-[40px]"
                     />
-                    <span className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground">
-                      {d.text}
-                      {d.catalogId && (
-                        <span className="ml-1 text-xs text-muted-foreground">· справочник</span>
-                      )}
-                    </span>
-                    <Button
-                      type="button"
-                      onClick={() => setFirstDiagnoses((prev) => prev.filter((x) => x.id !== d.id))}
-                      title="Удалить"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="flex-none text-sm text-muted-foreground hover:text-destructive"
-                    >
-                      ✕
-                    </Button>
                   </div>
                 ))}
                 <DiagnosisAutocomplete userId={userId} onSelect={addFirstDiagnosis} />

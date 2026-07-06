@@ -58,6 +58,11 @@ function fmtVisitDate(iso: string): string {
   return `${d.getUTCDate()} ${RU_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
+function fmtVisitTime(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
 function fmtDayMonth(iso: string): string {
   const d = new Date(iso);
   const dd = String(d.getUTCDate()).padStart(2, "0");
@@ -160,6 +165,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         return {
           id: c.id,
           text: c.text,
+          description: c.description ?? null,
           priority: c.priority,
           currentSeverity: trend.length > 0 ? trend[trend.length - 1] : 0,
           trend,
@@ -289,6 +295,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           });
 
         const sections: { title: string; body: string }[] = [];
+        if (v.anamnesisText) sections.push({ title: "Анамнез / история жалобы", body: v.anamnesisText });
         if (v.exam) sections.push({ title: "Осмотр", body: v.exam });
         if (v.manipulations) sections.push({ title: "Проведённые манипуляции", body: v.manipulations });
         if (v.trialResults) sections.push({ title: "Результаты проб", body: v.trialResults });
@@ -305,9 +312,11 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         return {
           id: v.id,
           date: fmtVisitDate(v.visitedAt),
+          time: fmtVisitTime(v.visitedAt),
           type: v.visitType as "first" | "repeat",
           location: v.location ?? "",
           duration: v.duration ?? "",
+          anamnesisText: v.anamnesisText ?? null,
           filesCount: files.length > 0 ? files.length : undefined,
           dynamics: dynamics.length > 0 ? dynamics : undefined,
           sections: sections.length > 0 ? sections : undefined,
@@ -357,6 +366,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             location: input.location ?? null,
             service: input.service ?? null,
             duration: input.duration ?? null,
+            anamnesisText: input.anamnesisText ?? null,
             appointmentRecordId: input.appointmentRecordId ?? null,
             exam: input.exam ?? null,
             manipulations: input.manipulations ?? null,
@@ -375,6 +385,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
               .values({
                 patientUserId: input.patientUserId,
                 text: c.text,
+                description: c.description ?? null,
                 priority: c.priority,
                 status: "active",
                 sourceVisitId: visitId,
@@ -396,6 +407,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
               catalogId: d.catalogId ?? null,
               text: d.text,
               priority: d.priority,
+              comment: d.comment ?? null,
               status: "active",
               sourceVisitId: visitId,
             });
@@ -484,6 +496,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const set: Partial<{
         location: string | null;
         duration: string | null;
+        anamnesisText: string | null;
         exam: string | null;
         manipulations: string | null;
         trialResults: string | null;
@@ -491,6 +504,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       }> = {};
       if (input.location !== undefined) set.location = input.location;
       if (input.duration !== undefined) set.duration = input.duration;
+      if (input.anamnesisText !== undefined) set.anamnesisText = input.anamnesisText;
       if (input.exam !== undefined) set.exam = input.exam;
       if (input.manipulations !== undefined) set.manipulations = input.manipulations;
       if (input.trialResults !== undefined) set.trialResults = input.trialResults;

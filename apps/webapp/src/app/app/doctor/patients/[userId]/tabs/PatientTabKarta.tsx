@@ -230,21 +230,26 @@ function ComplaintRow({
   }
 
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/40 px-2.5 py-2 text-sm">
-      {c.priority ? (
-        <span className="flex-none self-center text-primary" title="Приоритет">
-          ⚑
-        </span>
-      ) : (
-        <span className="w-3 flex-none" />
+    <div className="flex flex-col gap-0.5 rounded-lg border border-border/70 bg-background/40 px-2.5 py-2 text-sm">
+      <div className="flex items-center gap-1.5">
+        {c.priority ? (
+          <span className="flex-none self-center text-primary" title="Приоритет">
+            ⚑
+          </span>
+        ) : (
+          <span className="w-3 flex-none" />
+        )}
+        <span className="flex-1">{c.text}</span>
+        <span className={severityBadgeClass}>{c.currentSeverity}/10</span>
+        <Sparkline points={c.trend} />
+        <Button type="button" variant="ghost" size="icon-xs" className={editIconClass} title="Редактировать" onClick={open}>
+          ✎
+        </Button>
+        <span className={dateMetaClass}>{c.since}</span>
+      </div>
+      {c.description && (
+        <p className="pl-4 text-xs text-muted-foreground">{c.description}</p>
       )}
-      <span className="flex-1">{c.text}</span>
-      <span className={severityBadgeClass}>{c.currentSeverity}/10</span>
-      <Sparkline points={c.trend} />
-      <Button type="button" variant="ghost" size="icon-xs" className={editIconClass} title="Редактировать" onClick={open}>
-        ✎
-      </Button>
-      <span className={dateMetaClass}>{c.since}</span>
     </div>
   );
 }
@@ -953,6 +958,7 @@ function Comorbidities({
  * `title` совпадает с заголовком секции из проекции listVisits (для маппинга обратно).
  */
 const VISIT_SECTION_FIELDS = [
+  { key: "anamnesisText", title: "Анамнез / история жалобы" },
   { key: "exam", title: "Осмотр" },
   { key: "manipulations", title: "Проведённые манипуляции" },
   { key: "trialResults", title: "Результаты проб" },
@@ -982,6 +988,7 @@ function VisitCard({
     const byTitle = new Map((visit.sections ?? []).map((s) => [s.title, s.body]));
     return {
       exam: byTitle.get("Осмотр") ?? "",
+      anamnesisText: byTitle.get("Анамнез / история жалобы") ?? "",
       manipulations: byTitle.get("Проведённые манипуляции") ?? "",
       trialResults: byTitle.get("Результаты проб") ?? "",
       recommendations: byTitle.get("Рекомендации / Назначения") ?? "",
@@ -990,10 +997,15 @@ function VisitCard({
 
   const [fields, setFields] = useState<Record<VisitSectionFieldKey, string>>(initialFields);
   const [location, setLocation] = useState(visit.location ?? "");
+  const [duration, setDuration] = useState(visit.duration ?? "");
+  const durationLabel = visit.duration
+    ? /\D/.test(visit.duration) ? visit.duration : `${visit.duration} мин`
+    : "";
 
   const openEdit = () => {
     setFields(initialFields());
     setLocation(visit.location ?? "");
+    setDuration(visit.duration ?? "");
     setError(false);
     setEditing(true);
   };
@@ -1006,7 +1018,7 @@ function VisitCard({
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...fields, location }),
+        body: JSON.stringify({ ...fields, location, duration }),
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
       setEditing(false);
@@ -1027,6 +1039,7 @@ function VisitCard({
         className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left"
       >
         <b className="text-sm text-foreground">{visit.date}</b>
+        <span className="text-xs font-medium text-muted-foreground">{visit.time}</span>
         <span
           className={cn(
             "rounded-md px-1.5 py-px text-xs font-medium",
@@ -1048,6 +1061,7 @@ function VisitCard({
         ) : null}
         <span className={doctorSectionSubtitleClass}>
           {visit.location}
+          {durationLabel ? ` · ${durationLabel}` : ""}
           {visit.filesCount ? ` · 📎 ${visit.filesCount}` : ""}
         </span>
         <span className="ml-auto text-xs text-muted-foreground">
@@ -1084,6 +1098,14 @@ function VisitCard({
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Например: Кабинет 3"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-foreground">Длительность, минут</span>
+                <Input
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  placeholder="Например: 60"
                 />
               </label>
               {VISIT_SECTION_FIELDS.map((f) => (

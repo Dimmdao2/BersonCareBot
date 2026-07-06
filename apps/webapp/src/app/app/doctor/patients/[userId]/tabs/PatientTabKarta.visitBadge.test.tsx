@@ -64,9 +64,11 @@ function makeVisit(overrides: Partial<Visit> = {}): Visit {
   return {
     id: "visit-1",
     date: "22 января 2026",
+    time: "10:00",
     type: "repeat",
     location: "Кабинет 1",
     duration: "60 мин",
+    anamnesisText: null,
     ...overrides,
   };
 }

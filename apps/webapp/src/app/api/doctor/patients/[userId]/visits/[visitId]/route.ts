@@ -13,6 +13,7 @@ const bodySchema = z
   .object({
     location: z.string().max(500).optional(),
     duration: z.string().max(100).optional(),
+    anamnesisText: z.string().max(20000).optional(),
     exam: z.string().max(20000).optional(),
     manipulations: z.string().max(20000).optional(),
     trialResults: z.string().max(20000).optional(),
@@ -22,6 +23,7 @@ const bodySchema = z
     (b) =>
       b.location !== undefined ||
       b.duration !== undefined ||
+      b.anamnesisText !== undefined ||
       b.exam !== undefined ||
       b.manipulations !== undefined ||
       b.trialResults !== undefined ||
