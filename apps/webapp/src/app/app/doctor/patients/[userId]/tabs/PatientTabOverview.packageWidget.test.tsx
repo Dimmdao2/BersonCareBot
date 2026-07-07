@@ -144,6 +144,7 @@ describe("PatientTabOverview — Package KPI widget (ST-07)", () => {
 
     // Prefer displayRemaining (8) over remaining (7)
     await waitFor(() => {
+      expect(screen.getByText("Абонемент")).toBeInTheDocument();
       expect(screen.getByText("Осталось 8 визитов:")).toBeInTheDocument();
     });
     expect(screen.getByText("8 x ЛФК аб #001 от 01.06.2026")).toBeInTheDocument();
@@ -241,6 +242,39 @@ describe("PatientTabOverview — Package KPI widget (ST-07)", () => {
       expect(screen.getByText("Осталось 9 визитов:")).toBeInTheDocument();
     });
     expect(screen.getByText("6 x ЛФК аб #004 от 04.06.2026, 3 x Массаж аб #005 от 05.06.2026")).toBeInTheDocument();
+  });
+
+  it("seeds active package copy from SSR packages on first render", () => {
+    vi.stubGlobal("fetch", buildFetchMock());
+
+    render(
+      <PatientTabOverview
+        userId="u-pkg-test-ssr"
+        initialClinicalState={{ complaints: [], diagnoses: [] }}
+        initialVisits={[]}
+        initialNotes={[]}
+        initialTasks={[]}
+        initialSignals={[]}
+        initialProgramActivity={{ unreadCount: 0, lastMark: null }}
+        initialAppointments={[]}
+        initialPackages={[
+          {
+            id: "pkg-ssr",
+            displayNumber: 8,
+            title: "SSR курс",
+            status: "active",
+            soldAt: "2026-06-08T00:00:00.000Z",
+            validUntil: null,
+            balance: {
+              items: [{ quantityInitial: 2, remaining: 1, displayRemaining: 2, serviceTitle: "ЛФК" }],
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Осталось 2 визитов:")).toBeInTheDocument();
+    expect(screen.getByText("2 x ЛФК аб #008 от 08.06.2026")).toBeInTheDocument();
   });
 
   // ── Test 6: multiple balance items → sums displayRemaining ──

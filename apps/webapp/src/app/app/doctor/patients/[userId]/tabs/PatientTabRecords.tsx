@@ -29,7 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+import { formatPatientPackageLongLabel, formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -731,6 +731,7 @@ function MembershipPanel({
                       title={pkg.title}
                       shortLabel={formatPatientPackageShortLabel(pkg.displayNumber)}
                       soldAt={pkg.soldAt ?? null}
+                      packageMeta={formatPatientPackageLongLabel(pkg.displayNumber, pkg.soldAt)}
                       totalSessions={totalSessions}
                       remainingSessions={remainingSessions}
                       items={balanceItems.map((it) => ({
@@ -838,6 +839,7 @@ function MembershipPanel({
                       title={pkg.title}
                       shortLabel={formatPatientPackageShortLabel(pkg.displayNumber)}
                       soldAt={pkg.soldAt ?? null}
+                      packageMeta={formatPatientPackageLongLabel(pkg.displayNumber, pkg.soldAt)}
                       totalSessions={total}
                       remainingSessions={remaining}
                       items={items.map((it) => ({

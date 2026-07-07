@@ -25,6 +25,12 @@ function packageRow(input: {
   quantityInitial: number;
   remaining: number;
   displayRemaining?: number;
+  balanceItems?: Array<{
+    quantityInitial: number;
+    remaining: number;
+    displayRemaining?: number | null;
+    serviceTitle?: string | null;
+  }>;
 }): ApiPackage {
   return {
     id: input.id,
@@ -34,7 +40,7 @@ function packageRow(input: {
     soldAt: "2026-06-01T00:00:00.000Z",
     validUntil: null,
     balance: {
-      items: [
+      items: input.balanceItems ?? [
         {
           quantityInitial: input.quantityInitial,
           remaining: input.remaining,
@@ -108,6 +114,8 @@ describe("PatientTabRecords memberships panel", () => {
     expect(screen.getByText("Массаж")).toBeInTheDocument();
     expect(screen.getByText("аб.#001")).toBeInTheDocument();
     expect(screen.getByText("аб.#002")).toBeInTheDocument();
+    expect(screen.getByText("аб #001 от 01.06.2026")).toBeInTheDocument();
+    expect(screen.getByText("аб #002 от 01.06.2026")).toBeInTheDocument();
     expect(screen.getByText("Осталось 3 визитов:")).toBeInTheDocument();
     expect(screen.getByText("3 x ЛФК")).toBeInTheDocument();
     expect(screen.getByText("Осталось 5 визитов:")).toBeInTheDocument();
@@ -124,6 +132,28 @@ describe("PatientTabRecords memberships panel", () => {
         requestUrl(input).includes("/patient-packages?platformUserId="),
       ),
     ).toBe(false);
+  });
+
+  it("renders multi-service active package composition in one shared card", async () => {
+    const multiService = packageRow({
+      id: "pkg-active-multi",
+      displayNumber: 3,
+      title: "Комплекс",
+      serviceTitle: "ignored",
+      quantityInitial: 0,
+      remaining: 0,
+      balanceItems: [
+        { quantityInitial: 5, remaining: 3, displayRemaining: 4, serviceTitle: "ЛФК" },
+        { quantityInitial: 3, remaining: 1, displayRemaining: 2, serviceTitle: "Массаж" },
+      ],
+    });
+
+    renderRecords([multiService]);
+
+    expect(await screen.findByText("Комплекс")).toBeInTheDocument();
+    expect(screen.getByText("аб #003 от 01.06.2026")).toBeInTheDocument();
+    expect(screen.getByText("Осталось 6 визитов:")).toBeInTheDocument();
+    expect(screen.getByText("4 x ЛФК, 2 x Массаж")).toBeInTheDocument();
   });
 
   it("moves an active package to collapsed history when every session is consumed in the past", async () => {
@@ -165,6 +195,7 @@ describe("PatientTabRecords memberships panel", () => {
 
     expect(historyButton).toHaveAttribute("aria-expanded", "true");
     expect(within(historyButton).getByText("использовано 2/2")).toBeInTheDocument();
+    expect(screen.getByText("аб #004 от 01.06.2026")).toBeInTheDocument();
     expect(screen.getByText("0 x Массаж")).toBeInTheDocument();
     expect(screen.getByText("Списания (2):")).toBeInTheDocument();
   });

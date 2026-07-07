@@ -22,6 +22,8 @@ type Props = {
   title: string;
   shortLabel?: string | null;
   soldAt?: string | null;
+  /** Long package meta for card details, e.g. "аб #001 от 01.06.2026". */
+  packageMeta?: string | null;
   /** Pre-computed total sessions across all balance items */
   totalSessions: number;
   /** Pre-computed remaining sessions across all balance items */
@@ -49,6 +51,7 @@ export function MembershipCardHeader({
   title,
   shortLabel,
   soldAt,
+  packageMeta,
   remainingSessions,
   items,
   consumeDates,
@@ -71,7 +74,9 @@ export function MembershipCardHeader({
       </div>
 
       {/* Purchase date */}
-      {soldAt ? (
+      {packageMeta ? (
+        <p className="text-xs text-muted-foreground">{packageMeta}</p>
+      ) : soldAt ? (
         <p className="text-xs text-muted-foreground">
           дата покупки: <strong className="text-foreground">{fmtDate(soldAt)}</strong>
         </p>

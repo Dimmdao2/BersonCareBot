@@ -34,6 +34,7 @@ import {
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { formatPatientPackageLongLabel } from "@/modules/memberships/display";
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -261,19 +262,6 @@ function fmtDateMsgShort(iso: string): string {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function fmtDateFull(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso.slice(0, 10);
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function formatOverviewPackageNumber(displayNumber: number | null | undefined): string {
-  if (displayNumber == null || !Number.isFinite(displayNumber) || displayNumber <= 0) {
-    return "аб #—";
-  }
-  return `аб #${Math.trunc(displayNumber).toString().padStart(3, "0")}`;
-}
-
 function summarizePackageBalance(pkg: PackageItem): { remaining: number | null; services: string } {
   const items = pkg.balance?.items ?? [];
   if (items.length === 0) {
@@ -297,9 +285,31 @@ function summarizePackageBalance(pkg: PackageItem): { remaining: number | null; 
 
 function formatOverviewPackageSummary(pkg: PackageItem): string {
   const { services } = summarizePackageBalance(pkg);
-  const soldAt = pkg.soldAt ? ` от ${fmtDateFull(pkg.soldAt)}` : "";
-  const numberWithDate = `${formatOverviewPackageNumber(pkg.displayNumber)}${soldAt}`;
-  return [services, numberWithDate].filter(Boolean).join(" ");
+  return [services, formatPatientPackageLongLabel(pkg.displayNumber, pkg.soldAt)].filter(Boolean).join(" ");
+}
+
+function sumPackageBalance(
+  key: "quantityInitial" | "remaining" | "displayRemaining",
+  pkg: PackageItem,
+): number | null {
+  const items = pkg.balance?.items;
+  if (items && items.length > 0) {
+    const hasField = items.some((it) => it[key] != null);
+    if (!hasField) return null;
+    return items.reduce((acc, it) => acc + (it[key] ?? 0), 0);
+  }
+  return pkg[key] ?? null;
+}
+
+function normalizeActivePackages(packages: PackageItem[] | null | undefined): PackageItem[] {
+  return (packages ?? [])
+    .filter((p) => p.status === "active" || p.status === "activated")
+    .map((pkg) => ({
+      ...pkg,
+      quantityInitial: sumPackageBalance("quantityInitial", pkg),
+      remaining: sumPackageBalance("remaining", pkg),
+      displayRemaining: sumPackageBalance("displayRemaining", pkg),
+    }));
 }
 
 /** Build per-complaint dynamics series from clinical visits. */
@@ -528,6 +538,7 @@ function buildSsrSeedData(
   signals: ProactiveInsightRow[],
   programActivity: DoctorPatientProgramActivity,
   appointments: PatientAppointmentItem[],
+  initialPackages?: PackageItem[] | null,
 ): OverviewData {
   const complaints = clinicalState.complaints;
   const clinicalStatus: WidgetStatus = complaints.length === 0 ? "empty" : "ok";
@@ -559,6 +570,9 @@ function buildSsrSeedData(
 
   const signalsList = signals;
   const signalsStatus: WidgetStatus = signalsList.length === 0 ? "empty" : "ok";
+  const activePackages = normalizeActivePackages(initialPackages);
+  const activePackage: PackageItem | null = activePackages[0] ?? null;
+  const packageStatus: WidgetStatus = initialPackages == null ? "loading" : activePackage === null ? "empty" : "ok";
 
   return {
     clinicalStatus,
@@ -567,10 +581,9 @@ function buildSsrSeedData(
     appointmentsStatus,
     controlDays,
     controlDate,
-    // packageStatus/activePackage seeded after SSR packages are applied (caller patches via setData)
-    packageStatus: "loading" as WidgetStatus,
-    activePackage: null,
-    activePackages: [],
+    packageStatus,
+    activePackage,
+    activePackages,
     programStatus: "loading" as WidgetStatus,
     programTitle: null,
     programStages: [],
@@ -628,6 +641,7 @@ export function PatientTabOverview({
         initialSignals,
         initialProgramActivity,
         initialAppointments,
+        initialPackages,
       );
     }
     return null;
@@ -822,26 +836,7 @@ export function PatientTabOverview({
       }
 
       // --- Packages ---
-      const activePackages = (packages?.packages ?? []).filter(
-        (p) => p.status === "active" || p.status === "activated",
-      );
-      const sumBalance = (key: "quantityInitial" | "remaining" | "displayRemaining", pkg: PackageItem): number | null => {
-        const items = pkg.balance?.items;
-        if (items && items.length > 0) {
-          // Return null when none of the items actually carry this field
-          // (avoids treating absent displayRemaining as 0 and masking the real remaining).
-          const hasField = items.some((it) => it[key] != null);
-          if (!hasField) return null;
-          return items.reduce((acc, it) => acc + (it[key] ?? 0), 0);
-        }
-        return pkg[key] ?? null;
-      };
-      const normalizedActivePackages = activePackages.map((pkg) => ({
-        ...pkg,
-        quantityInitial: sumBalance("quantityInitial", pkg),
-        remaining: sumBalance("remaining", pkg),
-        displayRemaining: sumBalance("displayRemaining", pkg),
-      }));
+      const normalizedActivePackages = normalizeActivePackages(packages?.packages);
       const activePackage: PackageItem | null = normalizedActivePackages[0] ?? null;
       const packageStatus: WidgetStatus = !packages ? "error" : activePackage === null ? "empty" : "ok";
 
