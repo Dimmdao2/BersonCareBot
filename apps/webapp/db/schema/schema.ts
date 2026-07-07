@@ -730,6 +730,7 @@ export const loginTokens = pgTable("login_tokens", {
 
 export const referenceCategories = pgTable("reference_categories", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	code: text().notNull(),
 	title: text().notNull(),
 	isUserExtensible: boolean("is_user_extensible").default(false).notNull(),
@@ -737,6 +738,7 @@ export const referenceCategories = pgTable("reference_categories", {
 	tenantId: uuid("tenant_id"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
+	index("idx_reference_categories_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	unique("reference_categories_code_key").on(table.code),
 ]);
 
