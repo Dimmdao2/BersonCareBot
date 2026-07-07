@@ -79,12 +79,15 @@ For every upstream merge into the SaaS branch:
 
 1. Resolve conflicts and stage only after conflict markers are gone.
 2. Run `git diff --check`.
-3. Run targeted tests for conflicted files and any touched route/page/service boundary.
-4. Run local eslint for conflicted files.
-5. Run `rg` checks for the exact R0/R1 invariant at risk, for example direct DB imports in route/page/module files.
-6. Record the merge commit and checks in the active initiative log when the sync materially affects R0/R1 work.
+3. Run `pnpm run check:saas-db-regression` through `/home/dev/orch/run-tests.sh`.
+4. Run targeted tests for conflicted files and any touched route/page/service boundary.
+5. Run local eslint for conflicted files.
+6. Run additional `rg` checks for the exact R0/R1 invariant at risk when the guard output is not specific enough.
+7. Record the merge commit and checks in the active initiative log when the sync materially affects R0/R1 work.
 
 Full CI is not required for every sync checkpoint, but it is required before push or PR readiness.
+
+Detailed guard checklist: [`UPSTREAM_SYNC_REGRESSION_CHECKLIST.md`](UPSTREAM_SYNC_REGRESSION_CHECKLIST.md).
 
 ## Extraction Checklist Seed
 

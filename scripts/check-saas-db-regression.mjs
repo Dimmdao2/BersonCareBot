@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+
+const checks = [
+  {
+    label: "DB chokepoint guard",
+    command: ["node", "scripts/check-db-chokepoint.mjs"],
+  },
+  {
+    label: "DB chokepoint synthetic offender self-test",
+    command: ["node", "scripts/check-db-chokepoint.mjs", "--self-test"],
+  },
+  {
+    label: "system_settings accessor guard",
+    command: ["node", "apps/webapp/scripts/check-system-settings-accessors.mjs"],
+  },
+  {
+    label: "SAAS P0.4 batch manifest",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-4-batches.mjs"],
+  },
+  {
+    label: "SAAS P0.4.BE FK-path manifest",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-4-be-fk-paths.mjs"],
+  },
+  {
+    label: "SAAS P0.5 role split contract/proof artifacts",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-5-role-split.mjs"],
+  },
+];
+
+for (const check of checks) {
+  console.log(`check-saas-db-regression: ${check.label}`);
+  const [bin, ...args] = check.command;
+  const result = spawnSync(bin, args, { stdio: "inherit" });
+
+  if (result.error) {
+    console.error(`check-saas-db-regression: failed to start ${check.command.join(" ")}`);
+    console.error(result.error.message);
+    process.exit(1);
+  }
+
+  if (result.status !== 0) {
+    console.error(`check-saas-db-regression: FAILED ${check.label}`);
+    process.exit(result.status ?? 1);
+  }
+}
+
+console.log("check-saas-db-regression: OK");
