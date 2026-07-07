@@ -4,7 +4,6 @@ const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const recalcPastSessionsForPackageMock = vi.hoisted(() => vi.fn());
 const getAppointmentMock = vi.hoisted(() => vi.fn());
 const emitPackageLinkedCalendarSyncMock = vi.hoisted(() => vi.fn());
-// Controls whether buildAppDeps returns memberships or null (for 503 test)
 const membershipsModuleEnabled = vi.hoisted(() => ({ value: true }));
 
 vi.mock("../../../_requireDoctorBookingEngine", () => ({
@@ -42,6 +41,10 @@ const makeGate = () => ({
   },
 });
 
+function req() {
+  return new Request("http://localhost/recalc", { method: "POST" });
+}
+
 describe("POST patient-packages/[id]/recalc", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -50,7 +53,7 @@ describe("POST patient-packages/[id]/recalc", () => {
     emitPackageLinkedCalendarSyncMock.mockResolvedValue("ok");
   });
 
-  it("happy-path: returns 200 with summary and triggers calendar sync for each debited appointment", async () => {
+  it("happy-path: returns full summary and triggers calendar sync for each debited appointment", async () => {
     const fakeAppt1 = { id: APPT_ID_1, status: "completed" };
     const fakeAppt2 = { id: APPT_ID_2, status: "completed" };
     const summary = {
@@ -59,15 +62,16 @@ describe("POST patient-packages/[id]/recalc", () => {
         { appointmentId: APPT_ID_1, patientPackageItemId: "item-1", serviceId: "svc-1", usageId: "usage-1" },
         { appointmentId: APPT_ID_2, patientPackageItemId: "item-2", serviceId: "svc-1", usageId: "usage-2" },
       ],
-      skipped: [],
-      outOfBalance: [],
+      skipped: [{ appointmentId: "appt-3", serviceId: "svc-1", reason: "already_debited" }],
+      outOfBalance: [{ appointmentId: "appt-4", serviceId: "svc-1" }],
+      corrected: [],
     };
     recalcPastSessionsForPackageMock.mockResolvedValue(summary);
     getAppointmentMock
       .mockResolvedValueOnce(fakeAppt1)
       .mockResolvedValueOnce(fakeAppt2);
 
-    const res = await POST(new Request("http://localhost"), {
+    const res = await POST(req(), {
       params: Promise.resolve({ id: PKG_ID }),
     });
     const json = (await res.json()) as { ok: boolean; summary: typeof summary };
@@ -80,7 +84,6 @@ describe("POST patient-packages/[id]/recalc", () => {
       patientPackageId: PKG_ID,
       createdByPlatformUserId: "u1",
     });
-    // Calendar sync called once per debited appointment
     expect(getAppointmentMock).toHaveBeenCalledTimes(2);
     expect(getAppointmentMock).toHaveBeenCalledWith(APPT_ID_1);
     expect(getAppointmentMock).toHaveBeenCalledWith(APPT_ID_2);
@@ -95,7 +98,7 @@ describe("POST patient-packages/[id]/recalc", () => {
       response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
     });
 
-    const res = await POST(new Request("http://localhost"), {
+    const res = await POST(req(), {
       params: Promise.resolve({ id: PKG_ID }),
     });
 
@@ -106,7 +109,7 @@ describe("POST patient-packages/[id]/recalc", () => {
   it("returns 503 when memberships module is unavailable", async () => {
     membershipsModuleEnabled.value = false;
 
-    const res = await POST(new Request("http://localhost"), {
+    const res = await POST(req(), {
       params: Promise.resolve({ id: PKG_ID }),
     });
     const json = (await res.json()) as { ok: boolean; error: string };
@@ -116,25 +119,37 @@ describe("POST patient-packages/[id]/recalc", () => {
     expect(json.error).toBe("memberships_unavailable");
   });
 
-  it("idempotent: second call with no new debited appointments returns 200 with empty summary", async () => {
+  it("idempotent repeat returns empty full summary and no calendar sync", async () => {
     const emptySummary = {
       patientPackageId: PKG_ID,
       debited: [],
       skipped: [],
       outOfBalance: [],
+      corrected: [],
     };
     recalcPastSessionsForPackageMock.mockResolvedValue(emptySummary);
 
-    const res = await POST(new Request("http://localhost"), {
+    const res = await POST(req(), {
       params: Promise.resolve({ id: PKG_ID }),
     });
     const json = (await res.json()) as { ok: boolean; summary: typeof emptySummary };
 
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.summary.debited).toHaveLength(0);
-    // No appointments to sync — getAppointment and emitSync never called
+    expect(json.summary).toEqual(emptySummary);
     expect(getAppointmentMock).not.toHaveBeenCalled();
     expect(emitPackageLinkedCalendarSyncMock).not.toHaveBeenCalled();
+  });
+
+  it("maps a service error to 400", async () => {
+    recalcPastSessionsForPackageMock.mockRejectedValue(new Error("package_not_found"));
+
+    const res = await POST(req(), {
+      params: Promise.resolve({ id: PKG_ID }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body).toEqual({ ok: false, error: "package_not_found" });
   });
 });
