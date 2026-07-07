@@ -26,6 +26,22 @@
 5. Реализовывать только `not_implemented` и подтвержденные `regression`.
 6. Если preflight показывает, что задача слишком широкая, оставить короткий audit-note и предложить разбиение на батчи вместо большого прохода.
 
+## SaaS Foundation Guardrail
+
+Перед любыми изменениями кода, БД, миграций, репозиториев или API по задачам из этого пакета агент обязан учитывать текущее направление `SAAS_FOUNDATION`.
+
+Канон:
+- `docs/_TODO/SAAS_FOUNDATION/REQUIREMENTS.md`
+- `docs/_TODO/SAAS_FOUNDATION/ROADMAP_TO_SAAS.md`, раздел "Table and feature design while SaaS is dormant"
+
+Практическое правило для feedback-задач:
+- Новые таблицы/колонки/связи для clinical, patient-facing, doctor-facing, booking, messaging, notification, media, catalog, product, payment или settings данных не должны быть "глобальными по умолчанию".
+- До миграции или новой записи в БД нужно явно определить ownership path: `organization_id` напрямую, связь через уже scoped parent, `specialist_id`, patient/enrollment, appointment, program instance или настоящий global catalog.
+- Если ownership неочевиден, не придумывать параллельную SaaS-модель. Пометить подпункт как `needs_decision` и оставить короткий design note для dev-lead/владельца.
+- Не добавлять RLS/policy enforcement ad hoc до канонического этапа `DB_ACCESS_CHOKEPOINT` + `SAAS_FOUNDATION`; сейчас допустимы только dormant/backward-compatible поля, индексы, backfill/compat планы и сервисные проверки.
+- Не переносить tenant/org integration settings в env. Интеграционные и tenant-настройки остаются DB-backed через существующие `system_settings` правила.
+- Для запросов и новых репозиториев не усиливать single-doctor assumption. Если текущая модель уже использует `organizationId`/`specialistId`, новый код должен продолжать этот путь и не обходить его.
+
 ## Группы
 
 - [schedule-and-today.md](schedule-and-today.md) — Расписание, график работы, календарь, страница "Сегодня".

@@ -1,5 +1,7 @@
 # Schedule And Today — Feedback 2026-07-08
 
+Обязательный контекст перед кодом/миграциями: [README.md](README.md) — `Mandatory Preflight For Every Task` и `SaaS Foundation Guardrail`.
+
 ## Schedule Work Grid
 
 TaskDB: часть `#538`. Цвет филиалов не дублировать — `#530`.
