@@ -17,6 +17,7 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("purchases");
     expect(deps).toHaveProperty("products");
     expect(deps).toHaveProperty("entitlements");
+    expect(deps).toHaveProperty("organizationMembership");
     expect(deps).toHaveProperty("diaries");
     expect(deps).toHaveProperty("health");
     expect(deps).toHaveProperty("media");

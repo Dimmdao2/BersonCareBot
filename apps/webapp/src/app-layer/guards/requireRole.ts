@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/app-layer/platform-access";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
 import type { AppSession } from "@/shared/types/session";
+import type { OrganizationMembershipRole } from "@/modules/organization-membership/ports";
 
 export async function requireSession(returnPath?: string): Promise<AppSession> {
   const session = await getCurrentSession();
@@ -71,6 +73,67 @@ export async function requireDoctorAccess(): Promise<AppSession> {
   return session;
 }
 
+export type DoctorWorkspaceAccessContext = {
+  session: AppSession;
+  organizationId: string;
+  membershipId: string;
+  membershipRole: OrganizationMembershipRole;
+  specialistId: string | null;
+  canManageOrganization: boolean;
+  canManageAllSpecialists: boolean;
+};
+
+function doctorWorkspaceAccessDeniedResponse(reason: string): NextResponse {
+  const status = reason === "organization_selection_required" ? 409 : 403;
+  return NextResponse.json({ ok: false, error: reason }, { status });
+}
+
+async function resolveDoctorWorkspaceAccessContext(
+  session: AppSession,
+  selectedOrganizationId?: string | null,
+): Promise<
+  | { ok: true; ctx: DoctorWorkspaceAccessContext }
+  | { ok: false; reason: "doctor_workspace_membership_required" | "organization_selection_required" | "forbidden" }
+> {
+  const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
+    platformUserId: session.user.userId,
+    selectedOrganizationId,
+  });
+  if (!resolution.ok) {
+    if (resolution.reason === "no_active_membership") {
+      return { ok: false, reason: "doctor_workspace_membership_required" };
+    }
+    if (resolution.reason === "membership_selection_required") {
+      return { ok: false, reason: "organization_selection_required" };
+    }
+    return { ok: false, reason: "forbidden" };
+  }
+  const { context } = resolution;
+  return {
+    ok: true,
+    ctx: {
+      session,
+      organizationId: context.organizationId,
+      membershipId: context.membershipId,
+      membershipRole: context.role,
+      specialistId: context.specialistId,
+      canManageOrganization: context.canManageOrganization,
+      canManageAllSpecialists: context.canManageAllSpecialists,
+    },
+  };
+}
+
+export async function requireDoctorWorkspaceContext(options?: {
+  selectedOrganizationId?: string | null;
+}): Promise<DoctorWorkspaceAccessContext> {
+  const session = await requireDoctorAccess();
+  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  if (!resolved.ok) {
+    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+  }
+  return resolved.ctx;
+}
+
 /** Для Route Handlers под `/api/doctor/*`: doctor или admin. */
 export async function requireDoctorApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
@@ -80,6 +143,21 @@ export async function requireDoctorApiSession(): Promise<
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
   }
   return { ok: true, session };
+}
+
+/** Для Route Handlers под `/api/doctor/*`: doctor или admin + resolved organization membership. */
+export async function requireDoctorWorkspaceApiContext(options?: {
+  selectedOrganizationId?: string | null;
+}): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+  const session = await getCurrentSession();
+  if (!session || !canAccessDoctor(session.user.role)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  if (!resolved.ok) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
+  }
+  return resolved;
 }
 
 /** Есть ли привязка хотя бы одного мессенджера (альтернатива телефону для части сценариев). */
