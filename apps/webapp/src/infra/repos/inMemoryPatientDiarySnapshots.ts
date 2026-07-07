@@ -16,6 +16,7 @@ export function createInMemoryPatientDiarySnapshotsPort(): PatientDiarySnapshots
       if (exists) return false;
       rows.push({
         platformUserId: row.platformUserId,
+        organizationId: row.organizationId ?? null,
         localDate: row.localDate,
         iana: row.iana,
         warmupSlotLimit: row.warmupSlotLimit,

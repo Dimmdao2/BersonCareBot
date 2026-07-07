@@ -308,6 +308,7 @@ export const reminderDeliveryEvents = pgTable("reminder_delivery_events", {
 
 export const symptomEntries = pgTable("symptom_entries", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	userId: text("user_id").notNull(),
 	trackingId: uuid("tracking_id").notNull(),
 	value010: smallint("value_0_10").notNull(),
@@ -320,6 +321,7 @@ export const symptomEntries = pgTable("symptom_entries", {
 	/** Dedup: одна запись симптома на completion разминки (FK в миграции `0051_warmup_feeling_symptom.sql`). */
 	patientPracticeCompletionId: uuid("patient_practice_completion_id"),
 }, (table) => [
+	index("idx_symptom_entries_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_symptom_entries_platform_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")).where(sql`(platform_user_id IS NOT NULL)`),
 	index("idx_symptom_entries_tracking_recorded").using("btree", table.trackingId.asc().nullsLast().op("timestamptz_ops"), table.recordedAt.desc().nullsFirst().op("uuid_ops")),
 	index("idx_symptom_entries_user_type_recorded").using("btree", table.userId.asc().nullsLast().op("timestamptz_ops"), table.entryType.asc().nullsLast().op("text_ops"), table.recordedAt.desc().nullsFirst().op("timestamptz_ops")),
@@ -758,6 +760,7 @@ export const doctorNotes = pgTable("doctor_notes", {
 
 export const symptomTrackings = pgTable("symptom_trackings", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	userId: text("user_id").notNull(),
 	symptomKey: text("symptom_key"),
 	symptomTitle: text("symptom_title").notNull(),
@@ -774,6 +777,7 @@ export const symptomTrackings = pgTable("symptom_trackings", {
 	platformUserId: uuid("platform_user_id").notNull(),
 }, (table) => [
 	index("idx_symptom_trackings_deleted").using("btree", table.userId.asc().nullsLast().op("text_ops")).where(sql`(deleted_at IS NOT NULL)`),
+	index("idx_symptom_trackings_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_symptom_trackings_platform_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")).where(sql`(platform_user_id IS NOT NULL)`),
 	index("idx_symptom_trackings_user_active").using("btree", table.userId.asc().nullsLast().op("bool_ops"), table.isActive.asc().nullsLast().op("bool_ops")),
 	foreignKey({
@@ -1433,6 +1437,7 @@ export const contentSectionSlugHistory = pgTable("content_section_slug_history",
 
 export const patientHomeBlocks = pgTable("patient_home_blocks", {
 	code: text().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	title: text().notNull(),
 	description: text().default('').notNull(),
 	isVisible: boolean("is_visible").default(true).notNull(),
@@ -1440,7 +1445,9 @@ export const patientHomeBlocks = pgTable("patient_home_blocks", {
 	iconImageUrl: text("icon_image_url"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-});
+}, (table) => [
+	index("idx_patient_home_blocks_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
+]);
 
 export const patientHomeBlockItems = pgTable("patient_home_block_items", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
