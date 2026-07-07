@@ -70,6 +70,7 @@ export const userReminderOccurrences = pgTable(
     deliveryChannel: text('delivery_channel'),
     deliveryJobId: text('delivery_job_id'),
     errorCode: text('error_code'),
+    organizationId: uuid('organization_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   },
@@ -92,6 +93,7 @@ export const userReminderDeliveryLogs = pgTable(
     status: text().notNull(),
     errorCode: text('error_code'),
     payloadJson: jsonb('payload_json').default({}).notNull(),
+    organizationId: uuid('organization_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   },
   (table) => [
