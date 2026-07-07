@@ -1,0 +1,112 @@
+batch	table	org_resolution	implementation_note
+P0.4.I1	integrator.contacts	bridge_user_id	add nullable organization_id; backfill through integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I1	integrator.content_access_grants	bridge_user_id	add nullable organization_id; backfill through integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I3	integrator.conversation_messages	parent_denorm_copy	copy organization_id from integrator.conversations after I2 backfill; quarantine orphan child rows
+P0.4.I2	integrator.conversations	bridge_identity_user	add nullable organization_id; backfill through identities.user_id -> integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I1	integrator.mailing_logs	bridge_user_id	add nullable organization_id; backfill through integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I4	integrator.mailings	single_org_root	add nullable organization_id; single-org backfill now; later writes must carry creating org
+P0.4.I2	integrator.message_drafts	bridge_identity_user	add nullable organization_id; backfill through identities.user_id -> integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I3	integrator.question_messages	parent_denorm_copy	copy organization_id from integrator.user_questions after I2 backfill; quarantine orphan child rows
+P0.4.I2	integrator.user_questions	bridge_identity_user	add nullable organization_id; backfill through identities.user_id -> integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I3	integrator.user_reminder_delivery_logs	parent_denorm_copy	copy organization_id from integrator.user_reminder_occurrences after I3 occurrence backfill; quarantine orphan child rows
+P0.4.I3	integrator.user_reminder_occurrences	parent_denorm_copy	copy organization_id from integrator.user_reminder_rules after I1 backfill; quarantine orphan child rows
+P0.4.I1	integrator.user_reminder_rules	bridge_user_id	add nullable organization_id; backfill through integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I1	integrator.user_subscriptions	bridge_user_id	add nullable organization_id; backfill through integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.P8	public.admin_audit_log	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
+P0.4.P8	public.broadcast_audit	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
+P0.4.P8	public.broadcast_audit_recipients	audit_parent_denorm	copy organization_id from public.broadcast_audit; quarantine orphan child rows
+P0.4.P1	public.clinical_anamnesis_illness	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P1	public.clinical_anamnesis_lifestyle	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P1	public.clinical_anamnesis_trauma	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P1	public.clinical_complaint	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P1	public.clinical_complaint_update	parent_denorm_copy	copy organization_id from public.clinical_complaint; quarantine orphan child rows
+P0.4.P1	public.clinical_diagnosis	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P8	public.clinical_diagnosis_catalog	catalog_org	add nullable organization_id; current clinic-owned catalog rows single-org backfill
+P0.4.P1	public.clinical_diagnosis_status_history	parent_denorm_copy	copy organization_id from public.clinical_diagnosis; quarantine orphan child rows
+P0.4.P1	public.clinical_diagnosis_update	parent_denorm_copy	copy organization_id from public.clinical_diagnosis; quarantine orphan child rows
+P0.4.P8	public.clinical_test_regions	catalog_org	add nullable organization_id; current test catalog rows single-org backfill
+P0.4.P1	public.clinical_visit	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.D	public.comments	polymorphic_resolver	add nullable organization_id; P0.12 must verify target resolver coverage before enforcement
+P0.4.P8	public.content_access_grants_webapp	user_or_content_org	add nullable organization_id; backfill from user membership/enrollment and validate content org compatibility
+P0.4.P8	public.content_pages	content_catalog_org	add nullable organization_id; current clinic-owned content rows single-org backfill
+P0.4.P8	public.content_section_slug_history	content_parent_denorm	copy organization_id from public.content_sections; quarantine orphan history rows
+P0.4.P8	public.content_sections	content_catalog_org	add nullable organization_id; current clinic-owned content rows single-org backfill
+P0.4.P8	public.courses	content_catalog_org	add nullable organization_id; current course rows single-org backfill
+P0.4.P6	public.doctor_notes	patient_or_author_org	add nullable organization_id; backfill from patient membership/enrollment and validate author org
+P0.4.P6	public.doctor_patient_support	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P3	public.lfk_complex_exercises	parent_denorm_copy	copy organization_id from public.lfk_complexes; quarantine orphan child rows
+P0.4.P3	public.lfk_complex_template_exercises	parent_denorm_copy	copy organization_id from public.lfk_complex_templates; quarantine orphan child rows
+P0.4.P3	public.lfk_complex_templates	catalog_org	add nullable organization_id; current clinic-owned template rows single-org backfill
+P0.4.P3	public.lfk_complexes	patient_or_catalog_org	add nullable organization_id; backfill from assignment/session patient path where present, otherwise current single org with count check
+P0.4.P3	public.lfk_exercise_media	parent_denorm_copy	copy organization_id from public.lfk_exercises; quarantine orphan child rows
+P0.4.P3	public.lfk_exercise_regions	catalog_org	add nullable organization_id; current LFK catalog rows single-org backfill
+P0.4.P3	public.lfk_exercises	catalog_org	add nullable organization_id; current LFK catalog rows single-org backfill
+P0.4.P3	public.lfk_sessions	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P7	public.mailing_logs_webapp	user_org	add nullable organization_id; backfill from recipient/user membership/enrollment
+P0.4.P7	public.material_ratings	user_or_content_org	add nullable organization_id; backfill from rating user membership/enrollment and validate material org
+P0.4.P7	public.media_files	media_owner_org	add nullable organization_id; current clinic-owned media rows single-org backfill; validate folder/session parent where present
+P0.4.P7	public.media_folders	media_owner_org	add nullable organization_id; current clinic-owned media folders single-org backfill
+P0.4.P7	public.media_hls_proxy_error_events	user_or_media_org	add nullable organization_id; backfill from user key where present, else media file org where resolvable
+P0.4.P7	public.media_playback_client_events	user_or_media_org	add nullable organization_id; backfill from user key where present, else media file org where resolvable
+P0.4.P7	public.media_playback_resolution_events	user_or_media_org	add nullable organization_id; backfill from user key where present, else media file org where resolvable
+P0.4.P7	public.media_playback_user_video_first_resolve	user_or_media_org	add nullable organization_id; backfill from user key and validate media org
+P0.4.P7	public.media_transcode_jobs	media_parent_denorm	copy organization_id from public.media_files or upload session; quarantine orphan jobs
+P0.4.P7	public.media_upload_sessions	media_owner_org	add nullable organization_id; current clinic-owned upload sessions single-org backfill
+P0.4.P7	public.message_log	user_org	add nullable organization_id; backfill from recipient/user membership/enrollment
+P0.4.P8	public.motivational_quotes	catalog_org	add nullable organization_id; current quote catalog rows single-org backfill
+P0.4.P7	public.notification_delivery_attempts	parent_denorm_copy	copy organization_id from related message/reminder/support event where resolvable; quarantine orphan attempts
+P0.4.P5	public.online_intake_answers	parent_denorm_copy	copy organization_id from public.online_intake_requests; quarantine orphan child rows
+P0.4.P5	public.online_intake_attachments	parent_denorm_copy	copy organization_id from public.online_intake_requests; quarantine orphan child rows
+P0.4.P5	public.online_intake_requests	patient_org	add nullable organization_id; backfill from request patient/platform user membership/enrollment where linked, otherwise current single org with count check
+P0.4.P5	public.online_intake_status_history	parent_denorm_copy	copy organization_id from public.online_intake_requests; quarantine orphan child rows
+P0.4.P7	public.operator_health_failure_archive	user_org	add nullable organization_id; backfill from user key where present
+P0.4.P1	public.patient_comorbidity	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P7	public.patient_content_rating_feedback	user_or_content_org	add nullable organization_id; backfill from patient/user membership/enrollment and validate content org
+P0.4.P4	public.patient_daily_warmup_presentations	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P4	public.patient_daily_warmup_video_views	parent_or_patient_org	copy organization_id from warmup presentation where present, otherwise patient membership/enrollment
+P0.4.P4	public.patient_diary_day_snapshots	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P1	public.patient_files	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.D	public.patient_home_block_items	parent_denorm_copy	copy organization_id from public.patient_home_blocks; quarantine orphan child rows
+P0.4.P4	public.patient_home_blocks	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P3	public.patient_lfk_assignments	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P1	public.patient_merge_candidates	patient_org	add nullable organization_id; backfill from source/target patient membership/enrollment, require single-org compatibility
+P0.4.P1	public.patient_payment	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P4	public.patient_practice_completions	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P7	public.product_analytics_events_recent	user_org	add nullable organization_id; backfill from user key where present
+P0.4.P7	public.product_analytics_user_hourly	user_org	add nullable organization_id; backfill from user key where present
+P0.4.P7	public.product_push_notifications	user_org	add nullable organization_id; backfill from target user membership/enrollment
+P0.4.P2	public.program_action_log	program_parent_denorm	copy organization_id from treatment program instance/template parent; quarantine orphan rows
+P0.4.P2	public.program_item_discussion_messages	program_parent_denorm	copy organization_id from treatment program item/thread parent; quarantine orphan rows
+P0.4.P2	public.program_item_discussion_reads	program_parent_denorm	copy organization_id from discussion message/item parent and validate reader org
+P0.4.P8	public.recommendation_regions	catalog_org	add nullable organization_id; current recommendation catalog rows single-org backfill
+P0.4.P8	public.recommendations	catalog_org	add nullable organization_id; current recommendation catalog rows single-org backfill
+P0.4.RC	public.reference_categories	reference_category_org	add nullable organization_id and make it authoritative; document/retire stale tenant_id/owner_id use
+P0.4.P8	public.reference_items	reference_parent_denorm	copy organization_id from public.reference_categories; quarantine orphan items
+P0.4.P7	public.reminder_delivery_events	parent_denorm_copy	copy organization_id from reminder rule/occurrence/journal parent; quarantine orphan events
+P0.4.P7	public.reminder_journal	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P7	public.reminder_occurrence_history	parent_denorm_copy	copy organization_id from reminder occurrence/rule parent; quarantine orphan history rows
+P0.4.P7	public.reminder_rules	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P6	public.specialist_tasks	assignee_or_patient_org	add nullable organization_id; backfill from specialist/member org and validate patient org where present
+P0.4.P6	public.support_conversation_messages	parent_denorm_copy	copy organization_id from public.support_conversations; quarantine orphan messages
+P0.4.P6	public.support_conversations	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P6	public.support_delivery_events	parent_denorm_copy	copy organization_id from support conversation/question parent; quarantine orphan events
+P0.4.P6	public.support_question_messages	parent_denorm_copy	copy organization_id from public.support_questions; quarantine orphan messages
+P0.4.P6	public.support_questions	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P4	public.symptom_entries	parent_denorm_copy	copy organization_id from public.symptom_trackings; quarantine orphan entries
+P0.4.P4	public.symptom_trackings	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P3	public.test_attempts	user_or_test_org	add nullable organization_id; backfill from patient/user membership and validate test org
+P0.4.P3	public.test_results	attempt_parent_denorm	copy organization_id from public.test_attempts; quarantine orphan results
+P0.4.P8	public.test_set_items	parent_denorm_copy	copy organization_id from public.test_sets; quarantine orphan child rows
+P0.4.P8	public.test_sets	catalog_org	add nullable organization_id; current test set catalog rows single-org backfill
+P0.4.P8	public.tests	catalog_org	add nullable organization_id; current test catalog rows single-org backfill
+P0.4.P2	public.treatment_program_events	program_parent_denorm	copy organization_id from treatment program instance/template parent; quarantine orphan events
+P0.4.P2	public.treatment_program_instance_stage_groups	parent_denorm_copy	copy organization_id from public.treatment_program_instance_stages; quarantine orphan groups
+P0.4.P2	public.treatment_program_instance_stage_items	parent_denorm_copy	copy organization_id from public.treatment_program_instance_stage_groups; quarantine orphan items
+P0.4.P2	public.treatment_program_instance_stages	parent_denorm_copy	copy organization_id from public.treatment_program_instances; quarantine orphan stages
+P0.4.P2	public.treatment_program_instances	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P2	public.treatment_program_template_stage_groups	parent_denorm_copy	copy organization_id from public.treatment_program_template_stages; quarantine orphan groups
+P0.4.P2	public.treatment_program_template_stage_items	parent_denorm_copy	copy organization_id from public.treatment_program_template_stage_groups; quarantine orphan items
+P0.4.P2	public.treatment_program_template_stages	parent_denorm_copy	copy organization_id from public.treatment_program_templates; quarantine orphan stages
+P0.4.P2	public.treatment_program_templates	catalog_org	add nullable organization_id; current program template catalog rows single-org backfill
+P0.4.P7	public.user_subscriptions_webapp	user_org	add nullable organization_id; backfill from subscriber/user membership/enrollment
+P0.4.P7	public.webapp_reminder_occurrences	parent_denorm_copy	copy organization_id from public.reminder_rules; quarantine orphan occurrences
