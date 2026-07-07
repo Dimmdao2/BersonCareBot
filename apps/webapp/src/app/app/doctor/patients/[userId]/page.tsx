@@ -142,6 +142,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
         displayNumber: pkg.displayNumber,
         title: pkg.title,
         status: pkg.status,
+        soldAt: pkg.soldAt ?? null,
         validUntil: pkg.validUntil ?? null,
         balance: {
           items: pkg.balance.items.map((item) => ({

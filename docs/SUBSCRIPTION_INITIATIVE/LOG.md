@@ -2,6 +2,21 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-07 — #524 Визиты: несколько активных абонементов + история закрытых
+
+### Что сделано
+- `PatientTabRecords` больше не обрезает активные абонементы до первого: вкладка «Визиты» рендерит все активные карточки.
+- Для всех абонементов вкладка догружает `/sessions?includePast=true`: активный абонемент переносится в историю, если все его позиции списаны в прошлые записи (`linkage=consumed`, `isPast=true`).
+- История закрытых абонементов сделана построчно: серая свернутая строка, стрелка слева, раскрытие подробной карты через общий `MembershipCardHeader`.
+- SSR-shape карточки пациента дополняет `soldAt`, чтобы вкладка «Визиты» не теряла дату покупки при `initialPackages`.
+- Добавлен focused RTL-тест `PatientTabRecords.memberships.test.tsx`: несколько активных, закрытый active→history, future reserved не закрывается.
+
+### Проверки
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run 'src/app/app/doctor/patients/[userId]/tabs/PatientTabRecords.memberships.test.tsx'"` — 3/3 passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp typecheck"` — passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp lint"` — passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` — passed (Next build warning about existing NFT trace in `mediaPreviewWorker`, non-blocking).
+
 ## 2026-07-05 — #386 T4(c) Переверстка карточки PatientPackageCard (Финансы) → человеческий вид + shared component
 
 ### Что сделано
