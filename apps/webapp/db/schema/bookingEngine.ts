@@ -42,6 +42,9 @@ export type BeOrganizationMemberRole = (typeof BE_ORGANIZATION_MEMBER_ROLE_VALUE
 export const BE_ORGANIZATION_MEMBER_STATUS_VALUES = ["active", "invited", "disabled"] as const;
 export type BeOrganizationMemberStatus = (typeof BE_ORGANIZATION_MEMBER_STATUS_VALUES)[number];
 
+export const ORG_ENROLLMENT_STATUS_VALUES = ["active", "invited", "discharged", "archived"] as const;
+export type OrgEnrollmentStatus = (typeof ORG_ENROLLMENT_STATUS_VALUES)[number];
+
 const appointmentStatusCheckSql = sql`status = ANY (ARRAY[
   'created'::text,
   'awaiting_payment'::text,
@@ -188,6 +191,36 @@ export const beOrganizationMembers = pgTable(
     check(
       "be_organization_members_status_check",
       sql`${table.status} = ANY (ARRAY['active'::text, 'invited'::text, 'disabled'::text])`,
+    ),
+  ],
+);
+
+export const orgEnrollments = pgTable(
+  "org_enrollments",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    platformUserId: uuid("platform_user_id").notNull(),
+    status: text().default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_org_enrollments_org").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
+    index("idx_org_enrollments_user").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "org_enrollments_organization_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.platformUserId],
+      foreignColumns: [platformUsers.id],
+      name: "org_enrollments_platform_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("uq_org_enrollments_org_user").on(table.organizationId, table.platformUserId),
+    check(
+      "org_enrollments_status_check",
+      sql`${table.status} = ANY (ARRAY['active'::text, 'invited'::text, 'discharged'::text, 'archived'::text])`,
     ),
   ],
 );

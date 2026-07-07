@@ -1009,6 +1009,13 @@
       "when": 1783434180623,
       "tag": "0143_seed_staff_organization_members",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1783441369362,
+      "tag": "0144_org_enrollments",
+      "breakpoints": true
     }
   ]
 }
