@@ -88,6 +88,8 @@ Each row is intended to fit one small PR. Each stage updates `LOG.md`, runs only
 | P0.2.1 | `OrganizationMembershipPort` in module + pg implementation in infra. | No module imports from `infra/db` or `infra/repos`; targeted tests compile. |
 | P0.2.2 | `resolveOrganizationForUser` service + unit tests for single org, none, multi-active. | Resolver tests green; solo behavior resolves the current org. |
 | P0.2.3 | Wire resolver into the two existing doctor/admin gates through DI. | Gate tests/smoke show current single-clinic behavior unchanged. |
+| P0.2.4 | Doctor workspace UI-facing context contract. | Layout/shell can receive stable org/member/specialist context without page redesign. |
+| P0.2.5 | Read-only current-organization specialist/member listing for multi-specialist UI controls. | Route/service tests green; no write/invite/specialist CRUD surface added. |
 | P0.3.1 | Drizzle DDL for `org_enrollments`. | Migration generated; no runtime callers changed. |
 | P0.3.2 | Backfill current clients into the single org; no notifications, no PII logging. | Count-only verification; no writes outside the new table. |
 | P0.3.3 | Build integrator bridge map (`platform_users.integrator_user_id` ↔ `integrator.users.id`) + quarantine report for orphan users. | Count report only; no orphan silently dropped. |
