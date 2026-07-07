@@ -348,9 +348,9 @@ Checklist:
 bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp typecheck && pnpm --dir apps/webapp run lint && pnpm --dir apps/webapp test -- src/modules/organization-membership src/app-layer/guards src/app/api/doctor/workspace"
 ```
 
-- [ ] If remote push is required at this checkpoint, follow the repository pre-push policy once, not after every micro-stage.
-- [ ] Fast-forward or merge `codex/saas-roadmap-foundation` into `feat/doctor-ui-rebuild`.
-- [ ] Verify both branch refs point to the same commit after sync.
+- [x] If remote push is required at this checkpoint, follow the repository pre-push policy once, not after every micro-stage.
+- [x] Fast-forward or merge `codex/saas-roadmap-foundation` into `feat/doctor-ui-rebuild`.
+- [x] Verify both branch refs point to the same commit after sync.
 
 Parallel-safe exit criteria:
 
