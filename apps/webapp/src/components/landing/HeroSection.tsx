@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Check } from "lucide-react";
 import { landingContainer } from "@/components/landing/landingTypography";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const heroSlides = [
@@ -109,16 +110,17 @@ export function HeroSection() {
             {heroSlides.map((s, index) => {
               const selected = index === activeSlide;
               return (
-                <button
+                <Button
                   key={s.imageSrc}
                   type="button"
                   aria-label={`Показать слайд ${index + 1}`}
                   aria-current={selected}
                   onClick={() => setActiveSlide(index)}
+                  variant="ghost"
                   className={cn(
-                    "h-1.5 rounded-full transition",
+                    "h-1.5 rounded-full p-0 transition",
                     selected
-                      ? "w-5 bg-white"
+                      ? "w-5 bg-white hover:bg-white"
                       : "w-1.5 bg-white/35 hover:bg-white/55",
                   )}
                 />

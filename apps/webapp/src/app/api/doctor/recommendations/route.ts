@@ -29,7 +29,19 @@ const postBodySchema = z.object({
 
 const listQuerySchema = z.object({
   q: z.string().optional(),
-  includeArchived: z.coerce.boolean().optional(),
+  includeArchived: z
+    .preprocess((value) => {
+      if (value === "true" || value === "1" || value === "on" || value === true) return true;
+      if (
+        value === undefined ||
+        value === "false" ||
+        value === "0" ||
+        value === "off" ||
+        value === false
+      ) return false;
+      return value;
+    }, z.boolean())
+    .optional(),
   /** Проверка UUID вручную после Zod — чтобы при невалидном значении вернуть `field: "region"` (паритет с `domain`). */
   region: z.string().optional(),
   domain: z.string().max(64).optional(),

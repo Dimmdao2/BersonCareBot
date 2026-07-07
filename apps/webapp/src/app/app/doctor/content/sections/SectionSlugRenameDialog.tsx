@@ -2,6 +2,7 @@
 
 import { useActionState, useId, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -67,7 +68,7 @@ export function SectionSlugRenameDialog({ oldSlug, pagesAffectedCount, disabled,
             Затронуто страниц контента в этом разделе: <span className="font-medium text-foreground">{pagesAffectedCount}</span>
           </p>
           <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" name="confirm_rename" value="on" id={confirmId} className="mt-1" required />
+            <Checkbox name="confirm_rename" value="on" id={confirmId} className="mt-1" required />
             <span id={`${confirmId}-label`}>Я понимаю, что ссылки и URL раздела изменятся; старый адрес будет перенаправлять на новый.</span>
           </label>
           {state && state.ok === false ? (

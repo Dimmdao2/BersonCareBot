@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/patient/primitives/dialog";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
@@ -65,15 +66,15 @@ export function PatientWebPushFreshLoginDeniedDialog() {
           Включите уведомления для приложения в настройках устройства, чтобы получать напоминания.
         </p>
         <div className="mt-5 flex flex-col gap-2">
-          <button
+          <Button
             type="button"
-            className={patientModalPortalPrimaryCtaClass}
+            className={cn(patientModalPortalPrimaryCtaClass, "border-0")}
             disabled={busy}
             onClick={() => void onOpenSettings()}
           >
             Открыть настройки
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             className={cn(
               patientButtonSecondaryClass,
@@ -83,7 +84,7 @@ export function PatientWebPushFreshLoginDeniedDialog() {
             onClick={state.dismissFreshLoginDeniedPrompt}
           >
             Позже
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { landingContainer } from "@/components/landing/landingTypography";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -96,16 +97,18 @@ export function LandingHeader() {
             BersonCare
           </Link>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             aria-label={isOpen ? "Закрыть меню" : "Открыть меню"}
             aria-expanded={isOpen}
             aria-controls="landing-nav"
             onClick={() => setIsOpen((v) => !v)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#17264A] transition hover:bg-[#F4F7FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F55B7]/40"
+            className="h-9 w-9 shrink-0 rounded-xl text-[#17264A] hover:bg-[#F4F7FF] focus-visible:ring-[#2F55B7]/40"
           >
             {isOpen ? <X className="h-5 w-5" strokeWidth={2} /> : <Menu className="h-5 w-5" strokeWidth={2} />}
-          </button>
+          </Button>
         </div>
 
         {isOpen && (

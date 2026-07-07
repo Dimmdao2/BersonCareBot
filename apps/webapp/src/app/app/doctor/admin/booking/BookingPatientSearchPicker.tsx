@@ -69,8 +69,9 @@ export function BookingPatientSearchPicker({ value, onChange }: Props) {
             <ul className="max-h-48 overflow-y-auto rounded-md border text-sm">
               {results.map((c) => (
                 <li key={c.id}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-muted"
                     onClick={() => {
                       onChange(c);
@@ -80,7 +81,7 @@ export function BookingPatientSearchPicker({ value, onChange }: Props) {
                   >
                     <span className="font-medium">{c.displayName}</span>
                     {c.phone ? <span className="text-xs text-muted-foreground">{c.phone}</span> : null}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>

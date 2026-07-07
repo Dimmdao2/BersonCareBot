@@ -32,6 +32,9 @@ import {
   doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { formatPatientPackageLongLabel } from "@/modules/memberships/display";
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -65,12 +68,25 @@ interface AppointmentsApiResponse {
 
 interface PackageItem {
   id: string;
+  displayNumber?: number | null;
   title?: string | null;
   quantityInitial?: number | null;
   remaining?: number | null;
+  /** Display remaining: reserved sessions count as still-owned (better for patient-facing copy). */
+  displayRemaining?: number | null;
+  soldAt?: string | null;
   validUntil?: string | null;
   status?: string | null;
-  balance?: { items: Array<{ quantityInitial?: number | null; remaining?: number | null }> } | null;
+  balance?: {
+    items: Array<{
+      quantityInitial?: number | null;
+      remaining?: number | null;
+      /** Display remaining: reserved sessions count as still-owned. */
+      displayRemaining?: number | null;
+      serviceTitle?: string | null;
+      serviceId?: string | null;
+    }>;
+  } | null;
 }
 
 interface PackagesApiResponse {
@@ -183,6 +199,7 @@ interface OverviewData {
   // KPI — Package
   packageStatus: WidgetStatus;
   activePackage: PackageItem | null;
+  activePackages: PackageItem[];
 
   // Treatment program
   programStatus: WidgetStatus;
@@ -243,6 +260,56 @@ function fmtDateMsgShort(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function summarizePackageBalance(pkg: PackageItem): { remaining: number | null; services: string } {
+  const items = pkg.balance?.items ?? [];
+  if (items.length === 0) {
+    return {
+      remaining: pkg.displayRemaining ?? pkg.remaining ?? null,
+      services: "",
+    };
+  }
+  let totalRemaining = 0;
+  let hasRemaining = false;
+  const services = items.map((item) => {
+    const remaining = item.displayRemaining ?? item.remaining ?? 0;
+    if (item.displayRemaining != null || item.remaining != null) {
+      hasRemaining = true;
+    }
+    totalRemaining += remaining;
+    return `${remaining} x ${item.serviceTitle ?? item.serviceId ?? "Услуга"}`;
+  }).join(", ");
+  return { remaining: hasRemaining ? totalRemaining : null, services };
+}
+
+function formatOverviewPackageSummary(pkg: PackageItem): string {
+  const { services } = summarizePackageBalance(pkg);
+  return [services, formatPatientPackageLongLabel(pkg.displayNumber, pkg.soldAt)].filter(Boolean).join(" ");
+}
+
+function sumPackageBalance(
+  key: "quantityInitial" | "remaining" | "displayRemaining",
+  pkg: PackageItem,
+): number | null {
+  const items = pkg.balance?.items;
+  if (items && items.length > 0) {
+    const hasField = items.some((it) => it[key] != null);
+    if (!hasField) return null;
+    return items.reduce((acc, it) => acc + (it[key] ?? 0), 0);
+  }
+  return pkg[key] ?? null;
+}
+
+function normalizeActivePackages(packages: PackageItem[] | null | undefined): PackageItem[] {
+  return (packages ?? [])
+    .filter((p) => p.status === "active" || p.status === "activated")
+    .map((pkg) => ({
+      ...pkg,
+      quantityInitial: sumPackageBalance("quantityInitial", pkg),
+      remaining: sumPackageBalance("remaining", pkg),
+      displayRemaining: sumPackageBalance("displayRemaining", pkg),
+    }));
 }
 
 /** Build per-complaint dynamics series from clinical visits. */
@@ -471,6 +538,7 @@ function buildSsrSeedData(
   signals: ProactiveInsightRow[],
   programActivity: DoctorPatientProgramActivity,
   appointments: PatientAppointmentItem[],
+  initialPackages?: PackageItem[] | null,
 ): OverviewData {
   const complaints = clinicalState.complaints;
   const clinicalStatus: WidgetStatus = complaints.length === 0 ? "empty" : "ok";
@@ -502,6 +570,9 @@ function buildSsrSeedData(
 
   const signalsList = signals;
   const signalsStatus: WidgetStatus = signalsList.length === 0 ? "empty" : "ok";
+  const activePackages = normalizeActivePackages(initialPackages);
+  const activePackage: PackageItem | null = activePackages[0] ?? null;
+  const packageStatus: WidgetStatus = initialPackages == null ? "loading" : activePackage === null ? "empty" : "ok";
 
   return {
     clinicalStatus,
@@ -510,9 +581,9 @@ function buildSsrSeedData(
     appointmentsStatus,
     controlDays,
     controlDate,
-    // packageStatus/activePackage seeded after SSR packages are applied (caller patches via setData)
-    packageStatus: "loading" as WidgetStatus,
-    activePackage: null,
+    packageStatus,
+    activePackage,
+    activePackages,
     programStatus: "loading" as WidgetStatus,
     programTitle: null,
     programStages: [],
@@ -570,6 +641,7 @@ export function PatientTabOverview({
         initialSignals,
         initialProgramActivity,
         initialAppointments,
+        initialPackages,
       );
     }
     return null;
@@ -764,22 +836,8 @@ export function PatientTabOverview({
       }
 
       // --- Packages ---
-      const activePackages = (packages?.packages ?? []).filter(
-        (p) => p.status === "active" || p.status === "activated",
-      );
-      const activePackageRaw = activePackages[0] ?? null;
-      const sumBalance = (key: "quantityInitial" | "remaining", pkg: PackageItem): number | null => {
-        const items = pkg.balance?.items;
-        if (items && items.length > 0) return items.reduce((acc, it) => acc + (it[key] ?? 0), 0);
-        return pkg[key] ?? null;
-      };
-      const activePackage: PackageItem | null = activePackageRaw
-        ? {
-            ...activePackageRaw,
-            quantityInitial: sumBalance("quantityInitial", activePackageRaw),
-            remaining: sumBalance("remaining", activePackageRaw),
-          }
-        : null;
+      const normalizedActivePackages = normalizeActivePackages(packages?.packages);
+      const activePackage: PackageItem | null = normalizedActivePackages[0] ?? null;
       const packageStatus: WidgetStatus = !packages ? "error" : activePackage === null ? "empty" : "ok";
 
       // --- Notes (from SSR or fetch) ---
@@ -890,6 +948,7 @@ export function PatientTabOverview({
         controlDate,
         packageStatus,
         activePackage,
+        activePackages: normalizedActivePackages,
         programStatus,
         programTitle,
         programStages,
@@ -1037,16 +1096,20 @@ export function PatientTabOverview({
             value={
               data?.packageStatus === "empty" || !data?.activePackage
                 ? "—"
-                : data.activePackage.remaining !== null && data.activePackage.remaining !== undefined &&
-                  data.activePackage.quantityInitial
-                  ? `${data.activePackage.remaining} из ${data.activePackage.quantityInitial}`
-                  : "активен"
+                : (() => {
+                    const activePackages = data.activePackages.length > 0 ? data.activePackages : [data.activePackage];
+                    const totals = activePackages.map(summarizePackageBalance);
+                    const remaining = totals.every((total) => total.remaining != null)
+                      ? totals.reduce((sum, total) => sum + (total.remaining ?? 0), 0)
+                      : null;
+                    return remaining == null ? "Осталось — визитов:" : `Осталось ${remaining} визитов:`;
+                  })()
             }
             hint={
-              data?.activePackage?.validUntil
-                ? `осталось · до ${fmtDateShort(data.activePackage.validUntil)}`
-                : data?.packageStatus === "empty"
-                  ? "абонемент не активен"
+              data?.packageStatus === "empty"
+                ? "абонемент не активен"
+                : (data?.activePackages ?? []).length > 0
+                  ? (data?.activePackages ?? []).map(formatOverviewPackageSummary).join(", ")
                   : "осталось занятий"
             }
           />
@@ -1313,13 +1376,13 @@ export function PatientTabOverview({
 
           {addingNote && (
             <div className="flex flex-col gap-1.5 mb-2">
-              <textarea
+              <Textarea
                 autoFocus
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 rows={3}
                 placeholder="Текст заметки…"
-                className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full resize-none text-xs"
               />
               <div className="flex gap-1.5">
                 <Button
@@ -1387,14 +1450,14 @@ export function PatientTabOverview({
 
           {addingTask && (
             <div className="flex flex-col gap-1.5 mb-2">
-              <input
+              <Input
                 autoFocus
                 type="text"
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { void handleTaskSubmit(); } }}
                 placeholder="Название задачи…"
-                className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full text-xs"
               />
               <div className="flex gap-1.5">
                 <Button

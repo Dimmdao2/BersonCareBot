@@ -232,47 +232,47 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
             className="h-8 min-w-0 flex-1"
             aria-label={searchMode === "name" ? "Поиск по имени пациента" : "Поиск по тексту последнего сообщения"}
           />
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             title={searchMode === "name" ? "Переключить на поиск по тексту сообщений" : "Переключить на поиск по имени"}
             onClick={() => { setSearchMode(m => m === "name" ? "text" : "name"); setQuery(""); }}
             className={cn(
-              "shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-              searchMode === "text"
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:bg-muted/40",
+              "shrink-0 text-xs",
+              searchMode === "text" && "border-primary/40 bg-primary/10 text-primary",
             )}
           >
             {searchMode === "name" ? "Аб" : "✉"}
-          </button>
+          </Button>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <button
+          <Button
             type="button"
+            variant={filter === "unread" ? "ghost" : "outline"}
+            size="sm"
             onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
             className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              filter === "unread"
-                ? "bg-primary/15 text-primary"
-                : "border border-border text-muted-foreground hover:bg-muted/40",
+              "shrink-0 text-xs",
+              filter === "unread" && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
             )}
             aria-pressed={filter === "unread"}
           >
             Непрочитанные · {unreadCount}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={filter === "onSupport" ? "ghost" : "outline"}
+            size="sm"
             onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
             className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              filter === "onSupport"
-                ? "bg-primary/15 text-primary"
-                : "border border-border text-muted-foreground hover:bg-muted/40",
+              "shrink-0 text-xs",
+              filter === "onSupport" && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
             )}
             aria-pressed={filter === "onSupport"}
           >
             ★ На сопровождении · {onSupportCount}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -294,14 +294,15 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
           </div>
         ) : (
           filteredList.map((c) => (
-            <button
+            <Button
               key={c.conversationId}
               type="button"
+              variant="ghost"
               onClick={() => setSelectedId(c.conversationId)}
               className={cn(
-                "flex w-full cursor-pointer gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
+                "flex h-auto w-full cursor-pointer gap-2 rounded-none border-b border-border px-3 py-2.5 text-left transition-colors",
                 selectedId === c.conversationId
-                  ? "bg-primary/15"
+                  ? "bg-primary/15 hover:bg-primary/20"
                   : "hover:bg-muted/40",
               )}
             >
@@ -336,7 +337,7 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
                   {c.unreadFromUserCount}
                 </span>
               )}
-            </button>
+            </Button>
           ))
         )}
       </div>
@@ -366,14 +367,16 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
                     : selectedConv.displayName)
                 : "—"}
             </span>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => setSelectedId(null)}
               aria-label="Закрыть тред"
-              className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
             >
               <X size={16} />
-            </button>
+            </Button>
           </div>
           <DoctorChatPanel
             key={selectedId}

@@ -6,6 +6,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { cn } from "@/lib/utils";
 import { doctorClientSectionTitleClass } from "../doctorClientCardChrome";
 import { doctorHoverLinkClass } from "@/shared/ui/doctor/doctorVisual";
@@ -96,11 +97,9 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
 
       <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={missingPhone}
-            onChange={(e) => setMissingPhone(e.target.checked)}
-            className="h-4 w-4 rounded border-input"
+            onCheckedChange={(checked) => setMissingPhone(checked === true)}
           />
           Только записи без телефона
         </label>

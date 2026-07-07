@@ -69,6 +69,7 @@ export const clinicalVisit = pgTable(
     location: text("location"),
     service: text("service"),
     duration: text("duration"),
+    anamnesisText: text("anamnesis_text"),
     /** Необязательная связь с записью на приём (бронированием). */
     appointmentRecordId: uuid("appointment_record_id"),
     exam: text("exam"),
@@ -111,6 +112,7 @@ export const clinicalComplaint = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     patientUserId: uuid("patient_user_id").notNull(),
     text: text("text").notNull(),
+    description: text("description"),
     priority: boolean("priority").default(false).notNull(),
     status: text("status").default("active").notNull(),
     sourceVisitId: uuid("source_visit_id").notNull(),

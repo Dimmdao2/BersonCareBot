@@ -9,6 +9,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { appLoginWithNextHref } from "@/app/app/patient/home/patientHomeGuestNav";
 import { PatientHomeMoodScoreRow } from "@/app/app/patient/home/PatientHomeMoodScoreRow";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import type { PracticeSource } from "@/modules/patient-practice/types";
 import { cn } from "@/lib/utils";
@@ -260,7 +261,7 @@ export function PatientContentPracticeComplete({
   return (
     <>
       <section id="patient-content-practice-complete" className={patientCardClass}>
-        <button
+        <Button
           type="button"
           className={cn(isWarmup ? patientButtonPrimaryClass : patientButtonSuccessClass, "w-full")}
           disabled={postingWarmup || submitting}
@@ -268,7 +269,7 @@ export function PatientContentPracticeComplete({
         >
           {isWarmup ? null : <Check className="size-5 shrink-0" aria-hidden />}
           {isWarmup ? "Отметить выполнение" : "Я выполнил(а) практику"}
-        </button>
+        </Button>
       </section>
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent
@@ -291,19 +292,19 @@ export function PatientContentPracticeComplete({
               onPickScore={handleModalPickScore}
             />
             {!isWarmup ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 disabled={submitting}
                 className={cn(
-                  "inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm text-[var(--patient-text-muted)] transition-colors",
+                  "w-full px-4 py-2 text-sm text-[var(--patient-text-muted)]",
                   "hover:bg-[var(--patient-color-primary-soft)]/30",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
-                  "disabled:cursor-not-allowed disabled:opacity-60",
                 )}
                 onClick={() => void submitWithFeeling(null)}
               >
                 Пропустить
-              </button>
+              </Button>
             ) : null}
           </div>
         </DialogContent>

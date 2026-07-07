@@ -4,8 +4,16 @@ import Link from "next/link";
 import { useActionState, useMemo, useRef, useState } from "react";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/doctor/primitives/select";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   type ContentSectionKind,
@@ -218,32 +226,42 @@ export function SectionForm({
             </p>
           </>
         ) : isEdit && section ? (
-          <select
+          <Select
             name="placement"
-            className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             defaultValue={editPlacementValue}
             key={`placement-${section.slug}`}
           >
-            <option value="article">Статьи (общий каталог)</option>
-            <option value="situations">Ситуации</option>
-            <option value="sos">SOS</option>
-            <option value="warmups">Разминки</option>
-            <option value="lessons">Уроки</option>
-            {editPlacementValue === "system_root" ? <option value="system_root">Встроенный (корень)</option> : null}
-          </select>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="article">Статьи (общий каталог)</SelectItem>
+              <SelectItem value="situations">Ситуации</SelectItem>
+              <SelectItem value="sos">SOS</SelectItem>
+              <SelectItem value="warmups">Разминки</SelectItem>
+              <SelectItem value="lessons">Уроки</SelectItem>
+              {editPlacementValue === "system_root" ? (
+                <SelectItem value="system_root">Встроенный (корень)</SelectItem>
+              ) : null}
+            </SelectContent>
+          </Select>
         ) : (
-          <select
+          <Select
             name="placement"
-            className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             defaultValue={defaultCreatePlacement}
             key={`placement-new-${defaultCreatePlacement}`}
           >
-            <option value="article">Статьи (общий каталог)</option>
-            <option value="situations">Ситуации</option>
-            <option value="sos">SOS</option>
-            <option value="warmups">Разминки</option>
-            <option value="lessons">Уроки</option>
-          </select>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="article">Статьи (общий каталог)</SelectItem>
+              <SelectItem value="situations">Ситуации</SelectItem>
+              <SelectItem value="sos">SOS</SelectItem>
+              <SelectItem value="warmups">Разминки</SelectItem>
+              <SelectItem value="lessons">Уроки</SelectItem>
+            </SelectContent>
+          </Select>
         )}
         {!placementLocked ? (
           <p className="text-xs text-muted-foreground">
@@ -286,8 +304,7 @@ export function SectionForm({
       </div>
 
       <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
+        <Checkbox
           name="is_visible"
           defaultChecked={section?.isVisible ?? true}
           key={`vis-${section?.slug ?? "new"}`}
@@ -296,8 +313,7 @@ export function SectionForm({
       </label>
 
       <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
+        <Checkbox
           name="requires_auth"
           defaultChecked={section?.requiresAuth ?? false}
           key={`req-${section?.slug ?? "new"}`}

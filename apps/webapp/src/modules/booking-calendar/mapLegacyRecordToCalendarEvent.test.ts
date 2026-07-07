@@ -55,9 +55,11 @@ describe("mapLegacyRecordToCalendarEvent", () => {
       mapped_be_branch_id: null,
       package_usage_ref: "usage-uuid",
       package_title: "Абонемент 10",
+      package_display_number: 1,
     });
     expect(event!.packageUsageRef).toBe("usage-uuid");
     expect(event!.packageTitle).toBe("Абонемент 10");
+    expect(event!.packageDisplayNumber).toBe(1);
   });
 
   it("returns null for canceled records", () => {

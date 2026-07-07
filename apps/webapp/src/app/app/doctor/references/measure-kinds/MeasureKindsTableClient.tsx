@@ -71,10 +71,12 @@ type Row = { id: string; code: string; label: string; sortOrder: number };
 
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="icon-sm"
       aria-label="Перетащить"
-      className="inline-flex h-8 w-8 cursor-grab items-center justify-center rounded border border-border text-muted-foreground active:cursor-grabbing"
+      className="cursor-grab text-muted-foreground active:cursor-grabbing"
       {...attributes}
       {...listeners}
     >
@@ -83,7 +85,7 @@ function DragHandle({ listeners, attributes }: { listeners: Record<string, unkno
         <span className="h-0.5 w-4 rounded-full bg-current" />
         <span className="h-0.5 w-4 rounded-full bg-current" />
       </span>
-    </button>
+    </Button>
   );
 }
 

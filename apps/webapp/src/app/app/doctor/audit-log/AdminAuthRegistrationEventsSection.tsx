@@ -6,6 +6,8 @@ import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { cn } from "@/lib/utils";
 import {
   formatRegistrationAuthMethodLabel,
@@ -135,48 +137,57 @@ export function AdminAuthRegistrationEventsSection() {
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Label className="flex items-center gap-2 text-sm font-normal">
-            <select
-              className="rounded border bg-background px-2 py-1 text-sm"
-              value={preset}
-              onChange={(e) => setPreset(e.target.value as Preset)}
-            >
-              <option value="week">Неделя</option>
-              <option value="month">Месяц</option>
-            </select>
-          </Label>
-          <Label className="flex items-center gap-2 text-sm font-normal">
-            <select
-              className="rounded border bg-background px-2 py-1 text-sm"
-              value={eventType}
-              onChange={(e) => setEventType(e.target.value as AuthRegistrationEventType | "")}
-            >
+          <Select value={preset} onValueChange={(v) => setPreset((v ?? "week") as Preset)}>
+            <SelectTrigger
+              displayLabel={preset === "week" ? "Неделя" : "Месяц"}
+              className="text-sm"
+            />
+            <SelectContent>
+              <SelectItem value="week">Неделя</SelectItem>
+              <SelectItem value="month">Месяц</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={eventType}
+            onValueChange={(v) => setEventType((v ?? "") as AuthRegistrationEventType | "")}
+          >
+            <SelectTrigger
+              displayLabel={
+                REGISTRATION_EVENT_TYPE_FILTER_OPTIONS.find((o) => o.value === eventType)?.label ?? ""
+              }
+              className="text-sm"
+            />
+            <SelectContent>
               {REGISTRATION_EVENT_TYPE_FILTER_OPTIONS.map((o) => (
-                <option key={o.value || "all-types"} value={o.value}>
+                <SelectItem key={o.value || "all-types"} value={o.value}>
                   {o.label}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          </Label>
-          <Label className="flex items-center gap-2 text-sm font-normal">
-            <select
-              className="rounded border bg-background px-2 py-1 text-sm"
-              value={authMethod}
-              onChange={(e) => setAuthMethod(e.target.value)}
-            >
+            </SelectContent>
+          </Select>
+          <Select
+            value={authMethod}
+            onValueChange={(v) => setAuthMethod(v ?? "")}
+          >
+            <SelectTrigger
+              displayLabel={
+                REGISTRATION_AUTH_METHOD_FILTER_OPTIONS.find((o) => o.value === authMethod)?.label ?? ""
+              }
+              className="text-sm"
+            />
+            <SelectContent>
               {REGISTRATION_AUTH_METHOD_FILTER_OPTIONS.map((o) => (
-                <option key={o.value || "all-methods"} value={o.value}>
+                <SelectItem key={o.value || "all-methods"} value={o.value}>
                   {o.label}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          </Label>
+            </SelectContent>
+          </Select>
           {eventType === "auth_register_failure" ? (
             <Label className="flex items-center gap-2 text-sm font-normal">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={showAllErrors}
-                onChange={(e) => setShowAllErrors(e.target.checked)}
+                onCheckedChange={(checked) => setShowAllErrors(checked === true)}
               />
               Все ошибки
             </Label>

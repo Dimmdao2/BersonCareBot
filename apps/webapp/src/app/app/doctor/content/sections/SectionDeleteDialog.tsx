@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useCallback, useId, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -90,7 +91,7 @@ export function SectionDeleteDialog({
         <form action={submitAction} className="flex flex-col gap-3">
           <input type="hidden" name="section_slug" value={sectionSlug} />
           <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" name="confirm_delete" value="on" id={confirmId} className="mt-1" required />
+            <Checkbox name="confirm_delete" value="on" id={confirmId} className="mt-1" required />
             <span>Я понимаю, что раздел будет удалён{pagesInSection > 0 ? ", а страницы перенесены" : ""}.</span>
           </label>
           {state && state.ok === false ? (

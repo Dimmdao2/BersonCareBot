@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientPanelStackClass,
@@ -89,12 +90,12 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
         <label htmlFor="doctor-note-text" className="sr-only">
           Новая заметка
         </label>
-        <textarea
+        <Textarea
           id="doctor-note-text"
           value={text}
           onChange={(ev) => setText(ev.target.value)}
           rows={3}
-          className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="min-h-[80px]"
           placeholder="Текст заметки…"
           maxLength={8000}
         />

@@ -95,14 +95,16 @@ export function DoctorTodaySignalsSection({
               </p>
             ) : null}
             {proactiveInsightsTotal > 1 ? (
-              <button
+              <Button
                 type="button"
-                className="w-fit text-left text-xs text-primary underline underline-offset-2"
+                variant="link"
+                size="sm"
+                className="h-auto w-fit p-0 text-left text-xs underline-offset-2"
                 onClick={openDialog}
               >
                 Ещё {proactiveInsightsTotal - 1}{" "}
                 {russianSignalPlural(proactiveInsightsTotal - 1)}
-              </button>
+              </Button>
             ) : null}
           </div>
         )}

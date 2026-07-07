@@ -953,6 +953,41 @@
       "when": 1787491200000,
       "tag": "0135_clinical_diagnosis_add_comment",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1787577600000,
+      "tag": "0136_email_otp_query_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1787664000000,
+      "tag": "0137_be_package_usages_consume_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1787750400000,
+      "tag": "0138_clinical_visit_complaint_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1787836800000,
+      "tag": "0139_visit_manipulation_reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1787923200000,
+      "tag": "0140_patient_package_display_number",
+      "breakpoints": true
     }
   ]
 }

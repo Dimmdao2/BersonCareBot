@@ -35,20 +35,27 @@ vi.mock("@/infra/logging/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@bersoncare/platform-merge", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@bersoncare/platform-merge")>();
-  return {
-    ...actual,
-    applyMessengerPhonePublicBind: (...args: unknown[]) => applyMessengerPhonePublicBindMock(...args),
-    enrichMessengerBindAuditDetailsFields: vi.fn().mockResolvedValue({
-      candidates: [{ platformUserId: "id-1", displayName: null, phoneNormalized: null, email: null }],
-      initiator: null,
-      reasonHumanRu: "test",
-    }),
-    buildMessengerBindBlockedRelayLines: vi.fn(() => ["line"]),
-    messengerPhoneBindReasonHumanRu: vi.fn(() => "human"),
-  };
-});
+vi.mock("@bersoncare/platform-merge", () => ({
+  applyMessengerPhonePublicBind: (...args: unknown[]) => applyMessengerPhonePublicBindMock(...args),
+  enrichMessengerBindAuditDetailsFields: vi.fn().mockResolvedValue({
+    candidates: [{ platformUserId: "id-1", displayName: null, phoneNormalized: null, email: null }],
+    initiator: null,
+    reasonHumanRu: "test",
+  }),
+  buildMessengerBindBlockedRelayLines: vi.fn(() => ["line"]),
+  messengerPhoneBindReasonHumanRu: vi.fn(() => "human"),
+  MessengerPhoneLinkError: class MessengerPhoneLinkError extends Error {
+    readonly code: string;
+    readonly candidateIds: string[];
+
+    constructor(code: string, options?: { candidateIds?: string[] }) {
+      super(code);
+      this.name = "MessengerPhoneLinkError";
+      this.code = code;
+      this.candidateIds = options?.candidateIds ?? [];
+    }
+  },
+}));
 
 import { executeMessengerPhoneHttpBind } from "@/app-layer/integrator/messengerPhoneHttpBindExecute";
 

@@ -4,7 +4,7 @@
  * latest update per complaint, trend oldest→newest) mirrors inMemoryPatientClinical.
  */
 
-import { and, asc, desc, eq, ilike, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   ActiveComplaint,
@@ -45,6 +45,7 @@ import {
   clinicalAnamnesisLifestyle,
 } from "../../../db/schema/patientClinicalAnamnesis";
 import { patientFiles } from "../../../db/schema/patientFiles";
+import { beAppointments } from "../../../db/schema/bookingEngine";
 
 const RU_MONTHS = [
   "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -54,6 +55,11 @@ const RU_MONTHS = [
 function fmtVisitDate(iso: string): string {
   const d = new Date(iso);
   return `${d.getUTCDate()} ${RU_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+function fmtVisitTime(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 function fmtDayMonth(iso: string): string {
@@ -158,6 +164,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         return {
           id: c.id,
           text: c.text,
+          description: c.description ?? null,
           priority: c.priority,
           currentSeverity: trend.length > 0 ? trend[trend.length - 1] : 0,
           trend,
@@ -238,6 +245,67 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(inArray(patientFiles.visitId, visitIds))
         .orderBy(asc(patientFiles.createdAt));
 
+      // Package data by clinical_visit.appointmentRecordId. The visit stores
+      // appointment_records.id, so resolve it to be_appointments through the
+      // native `be:<uuid>` projection or Rubitime external mapping first.
+      const packageByAppointmentRecordId = new Map<
+        string,
+        { title: string; displayNumber: number | null }
+      >();
+      const appointmentRecordIds = visitRows
+        .map((v) => v.appointmentRecordId)
+        .filter((id): id is string => id != null);
+      if (appointmentRecordIds.length > 0) {
+        const idValues = sql.join(
+          appointmentRecordIds.map((id) => sql`(${id}::uuid)`),
+          sql`, `,
+        );
+        const pkgRows = await db.execute<{
+          appointment_record_id: string;
+          title: string;
+          display_number: number | null;
+        }>(sql`
+          WITH visit_ar(id) AS (
+            SELECT * FROM (VALUES ${idValues}) v(id)
+          ),
+          resolved AS (
+            SELECT
+              ar.id AS appointment_record_id,
+              COALESCE(be_from_id.id, be_from_map.id) AS be_appointment_id
+            FROM visit_ar va
+            JOIN appointment_records ar ON ar.id = va.id
+            LEFT JOIN be_external_entity_mappings appt_map
+              ON appt_map.entity_type = 'appointment'
+             AND appt_map.external_system = 'rubitime'
+             AND appt_map.external_id = ar.integrator_record_id
+            LEFT JOIN be_appointments be_from_map ON be_from_map.id = appt_map.canonical_id
+            LEFT JOIN be_appointments be_from_id ON be_from_id.id = CASE
+              WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+                THEN (substring(ar.integrator_record_id from 4))::uuid
+              ELSE NULL
+            END
+          )
+          SELECT DISTINCT ON (r.appointment_record_id)
+            r.appointment_record_id,
+            pp.title,
+            pp.display_number
+          FROM resolved r
+          JOIN be_package_usages u
+            ON u.appointment_id = r.be_appointment_id
+           AND u.usage_kind IN ('consume', 'penalty')
+          JOIN be_patient_packages pp ON pp.id = u.patient_package_id
+          ORDER BY r.appointment_record_id, u.occurred_at DESC, u.id DESC
+        `);
+        for (const row of pkgRows.rows) {
+          if (!packageByAppointmentRecordId.has(row.appointment_record_id)) {
+            packageByAppointmentRecordId.set(row.appointment_record_id, {
+              title: row.title,
+              displayNumber: row.display_number,
+            });
+          }
+        }
+      }
+
       return visitRows.map((v) => {
         const dynamics = cuRows
           .filter((u) => u.visitId === v.id)
@@ -258,6 +326,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           });
 
         const sections: { title: string; body: string }[] = [];
+        if (v.anamnesisText) sections.push({ title: "Анамнез / история жалобы", body: v.anamnesisText });
         if (v.exam) sections.push({ title: "Осмотр", body: v.exam });
         if (v.manipulations) sections.push({ title: "Проведённые манипуляции", body: v.manipulations });
         if (v.trialResults) sections.push({ title: "Результаты проб", body: v.trialResults });
@@ -267,16 +336,23 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .filter((f) => f.visitId === v.id)
           .map((f) => ({ id: f.id, icon: fileIconForMime(f.mimeType), name: f.fileName }));
 
+        const pkg = v.appointmentRecordId
+          ? (packageByAppointmentRecordId.get(v.appointmentRecordId) ?? null)
+          : null;
+
         return {
           id: v.id,
           date: fmtVisitDate(v.visitedAt),
+          time: fmtVisitTime(v.visitedAt),
           type: v.visitType as "first" | "repeat",
           location: v.location ?? "",
           duration: v.duration ?? "",
+          anamnesisText: v.anamnesisText ?? null,
           filesCount: files.length > 0 ? files.length : undefined,
           dynamics: dynamics.length > 0 ? dynamics : undefined,
           sections: sections.length > 0 ? sections : undefined,
           files: files.length > 0 ? files : undefined,
+          package: pkg,
         };
       });
     },
@@ -321,6 +397,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             location: input.location ?? null,
             service: input.service ?? null,
             duration: input.duration ?? null,
+            anamnesisText: input.anamnesisText ?? null,
             appointmentRecordId: input.appointmentRecordId ?? null,
             exam: input.exam ?? null,
             manipulations: input.manipulations ?? null,
@@ -339,6 +416,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
               .values({
                 patientUserId: input.patientUserId,
                 text: c.text,
+                description: c.description ?? null,
                 priority: c.priority,
                 status: "active",
                 sourceVisitId: visitId,
@@ -360,6 +438,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
               catalogId: d.catalogId ?? null,
               text: d.text,
               priority: d.priority,
+              comment: d.comment ?? null,
               status: "active",
               sourceVisitId: visitId,
             });
@@ -448,6 +527,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const set: Partial<{
         location: string | null;
         duration: string | null;
+        anamnesisText: string | null;
         exam: string | null;
         manipulations: string | null;
         trialResults: string | null;
@@ -455,6 +535,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       }> = {};
       if (input.location !== undefined) set.location = input.location;
       if (input.duration !== undefined) set.duration = input.duration;
+      if (input.anamnesisText !== undefined) set.anamnesisText = input.anamnesisText;
       if (input.exam !== undefined) set.exam = input.exam;
       if (input.manipulations !== undefined) set.manipulations = input.manipulations;
       if (input.trialResults !== undefined) set.trialResults = input.trialResults;

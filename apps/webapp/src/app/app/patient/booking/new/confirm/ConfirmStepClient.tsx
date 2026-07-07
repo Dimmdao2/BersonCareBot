@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { Input } from "@/shared/ui/patient/primitives/input";
 import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/patient/primitives/select";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
 import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
@@ -388,43 +396,53 @@ export function ConfirmStepClient({
         {type === "in_person" && !isReschedule && packageOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
             <span className={cn(patientMutedTextClass, "text-xs")}>Абонемент</span>
-            <select
-              className="rounded-md border bg-background px-2 py-2 text-sm"
+            <Select
               value={patientPackageId}
-              onChange={(e) => {
-                setPatientPackageId(e.target.value);
-                if (e.target.value) setProductPurchaseId("");
+              onValueChange={(v) => {
+                const val = v ?? "";
+                setPatientPackageId(val);
+                if (val) setProductPurchaseId("");
               }}
             >
-              <option value="">Без абонемента</option>
-              {packageOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title} (
-                  {p.balance.items.map((it) => `${it.remaining}/${it.quantityInitial}`).join(", ")})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
+                <SelectValue placeholder="Без абонемента" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Без абонемента</SelectItem>
+                {packageOptions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title} (
+                    {p.balance.items.map((it) => `${it.remaining}/${it.quantityInitial}`).join(", ")})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         ) : null}
 
         {type === "in_person" && !isReschedule && productOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
             <span className={cn(patientMutedTextClass, "text-xs")}>Покупка</span>
-            <select
-              className="rounded-md border bg-background px-2 py-2 text-sm"
+            <Select
               value={productPurchaseId}
-              onChange={(e) => {
-                setProductPurchaseId(e.target.value);
-                if (e.target.value) setPatientPackageId("");
+              onValueChange={(v) => {
+                const val = v ?? "";
+                setProductPurchaseId(val);
+                if (val) setPatientPackageId("");
               }}
             >
-              <option value="">Без покупки</option>
-              {productOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title} ({p.visitsRemaining})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
+                <SelectValue placeholder="Без покупки" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Без покупки</SelectItem>
+                {productOptions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title} ({p.visitsRemaining})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         ) : null}
 
@@ -462,9 +480,9 @@ export function ConfirmStepClient({
         ) : null}
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
+        <Button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
           {submitting ? "Создаём запись..." : "Подтвердить запись"}
-        </button>
+        </Button>
       </form>
     </div>
   );

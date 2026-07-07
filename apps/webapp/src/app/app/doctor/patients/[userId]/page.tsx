@@ -135,16 +135,20 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   };
 
   // Shape packages for MembershipPanel (ApiPackage shape: { id, title, status, validUntil, balance.items }).
+  // ST-07: include displayRemaining so the Overview widget can show it (reserved sessions count as still-owned).
   const initialPackagesForTabs = initialPackages
     ? initialPackages.map((pkg) => ({
         id: pkg.id,
+        displayNumber: pkg.displayNumber,
         title: pkg.title,
         status: pkg.status,
+        soldAt: pkg.soldAt ?? null,
         validUntil: pkg.validUntil ?? null,
         balance: {
           items: pkg.balance.items.map((item) => ({
             quantityInitial: item.quantityInitial,
             remaining: item.remaining,
+            displayRemaining: item.displayRemaining,
             serviceTitle: item.serviceTitle ?? null,
           })),
         },

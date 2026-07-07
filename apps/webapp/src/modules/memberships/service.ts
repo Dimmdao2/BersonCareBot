@@ -26,7 +26,50 @@ import {
   computeAppointmentPackageLinkage,
   resolvePackageSessionMappingStatus,
 } from "./packageSessionLinkage";
-import type { PatientPackageSessionRow } from "./types";
+import type {
+  CanonicalAppointmentStatus,
+  PatientPackageSessionRow,
+  RecalcPastSessionsSummary,
+} from "./types";
+
+/**
+ * FALLBACK denylist of `be_appointments.status` values meaning "definitely did NOT happen",
+ * used ONLY when the canonical projection has no record for the appointment (`canonicalStatus
+ * === "none"`). The primary truth is the canonical projection (`canonicalStatus`), which is
+ * the SAME verdict the doctor sees in the patient card — `be_appointments.status` drifts when
+ * the rubitime bridge is offline (it froze at "confirmed" for visits the doctor sees cancelled),
+ * so it must not be the gate. See CanonicalAppointmentStatus.
+ *
+ * "rescheduled" is excluded because it means the appointment was moved to a new slot — the
+ * original slot never happened.
+ */
+const APPOINTMENT_INELIGIBLE_STATUSES: ReadonlySet<string> = new Set([
+  "cancelled_by_patient",
+  "cancelled_by_specialist",
+  "late_cancellation",
+  "no_show",
+  "rescheduled",
+]);
+
+/**
+ * Returns true if a PAST appointment is eligible for package deduction — i.e. the doctor sees
+ * it as состоявшийся. The canonical projection (`canonicalStatus`) is authoritative: `canceled`
+ * → never eligible, `happened` → eligible. Only when no canonical record maps (`none`) do we
+ * fall back to the (possibly stale) `be_appointments.status` denylist.
+ */
+function isAppointmentEligibleForConsume(
+  status: string,
+  canonicalStatus: CanonicalAppointmentStatus,
+  startsAt: string,
+  endsAt: string | null,
+  nowIso: string,
+): boolean {
+  const pastBoundary = endsAt ?? startsAt;
+  if (pastBoundary >= nowIso) return false;
+  if (canonicalStatus === "canceled") return false;
+  if (canonicalStatus === "happened") return true;
+  return !APPOINTMENT_INELIGIBLE_STATUSES.has(status);
+}
 
 export type PackageDetachOutcome = "release_reserve" | "charge_as_delivered" | "refund_consumed";
 
@@ -103,6 +146,10 @@ export function createMembershipsService(deps: {
   return {
     async listCatalogPackages(organizationId: string, activeOnly = true) {
       return deps.port.listCatalogPackages(organizationId, activeOnly);
+    },
+
+    async getCatalogPackage(id: string, organizationId: string) {
+      return deps.port.getCatalogPackage(id, organizationId);
     },
 
     async upsertCatalogPackage(
@@ -761,9 +808,16 @@ export function createMembershipsService(deps: {
       const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!pkg) throw new Error("package_not_found");
       const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
+      const serviceIds = pkg.items.map((i) => i.serviceId).filter((id): id is string => id != null);
       const nowIso = new Date().toISOString();
+      // soldAt may be null for legacy packages; fall back to createdAt or epoch so the window
+      // is as inclusive as possible.
+      const soldAtIso = pkg.soldAt ?? pkg.createdAt ?? "2000-01-01T00:00:00Z";
       const sources = await deps.port.listPackageAppointmentSessionSources(patientPackageId, organizationId, {
         nowIso,
+        platformUserId: pkg.platformUserId,
+        serviceIds,
+        soldAtIso,
       });
 
       const rows: PatientPackageSessionRow[] = sources.map((src) => {
@@ -773,12 +827,26 @@ export function createMembershipsService(deps: {
           serviceId: src.serviceId,
           packageServiceIds,
         });
-        const pastActionsAllowed = !isPast || options.allowPastUnlink;
-        const canUnlinkReserve = pastActionsAllowed && linkage === "reserved";
+        // Past unlink/refund guard: controlled by admin setting (allowPastUnlink).
+        const pastEditAllowed = !isPast || options.allowPastUnlink;
+        const canUnlinkReserve = pastEditAllowed && linkage === "reserved";
         const canRefundConsumed =
-          pastActionsAllowed && (linkage === "consumed" || linkage === "penalty");
+          pastEditAllowed && (linkage === "consumed" || linkage === "penalty");
+        // Manual consume of a past visit is intentional doctor action — always allowed
+        // regardless of allowPastUnlink. This is a new debit (not editing past billing).
+        // For past appointments: only eligible if not in the explicitly-not-happened status set.
+        // Future appointments are always eligible (doctor may pre-mark them).
+        const eligibleForConsume =
+          !isPast ||
+          isAppointmentEligibleForConsume(
+            src.status,
+            src.canonicalStatus,
+            src.startsAt,
+            src.endsAt,
+            nowIso,
+          );
         const canManualConsume =
-          pastActionsAllowed &&
+          eligibleForConsume &&
           linkage === "none" &&
           src.serviceId != null &&
           packageServiceIds.has(src.serviceId);
@@ -869,6 +937,230 @@ export function createMembershipsService(deps: {
         organizationId: input.organizationId,
         appointmentId: input.appointmentId,
         createdByPlatformUserId: input.createdByPlatformUserId,
+      });
+    },
+
+    /**
+     * ST-01 — bulk «Пересчитать» for a single patient package.
+     *
+     * Finds the patient's PAST appointments (`startsAt ∈ [soldAt; now)`) for services that
+     * the package covers, that are состоявшиеся (status completed / visit_confirmed) and NOT
+     * yet linked to any package (`linkage === "none"`), and consumes one session per such
+     * appointment against the matching package item — until that item's balance hits zero
+     * (no minus, OQ-6). Idempotent: appointments already carrying a package usage are skipped,
+     * so a repeated call is a no-op.
+     *
+     * Every debit writes a `consume` row to the append-only ledger, links the appointment
+     * (`setAppointmentPackageUsageRef`), records a history event, and best-effort refreshes
+     * the calendar — mirroring `consumeForAppointment`. Balance is always DERIVED from the
+     * ledger; nothing is mutated directly.
+     */
+    async recalcPastSessionsForPackage(input: {
+      organizationId: string;
+      patientPackageId: string;
+      createdByPlatformUserId?: string | null;
+      nowIso?: string;
+    }): Promise<RecalcPastSessionsSummary> {
+      const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
+      if (!raw) throw new Error("package_not_found");
+      const pkg = await refreshPatientPackageRecord(raw);
+
+      const summary: RecalcPastSessionsSummary = {
+        patientPackageId: pkg.id,
+        debited: [],
+        skipped: [],
+        outOfBalance: [],
+        corrected: [],
+      };
+
+      // Only active packages within validity can be debited. Nothing to do otherwise.
+      if (pkg.status !== "active" || !isPatientPackageWithinValidity(pkg)) {
+        return summary;
+      }
+
+      const soldAtIso = pkg.soldAt ?? pkg.validFrom ?? pkg.createdAt;
+      const nowIso = input.nowIso ?? new Date().toISOString();
+      if (soldAtIso >= nowIso) {
+        return summary;
+      }
+
+      const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
+      const serviceIds = [...packageServiceIds];
+      if (serviceIds.length === 0) return summary;
+
+      // ST-02: serialize the whole read-balance→debit pass under a per-package lock so two
+      // concurrent «Пересчитать» requests can never both read the same balance and double-debit.
+      // The pg port runs this inside an advisory-locked transaction; the fake port mutexes it.
+      return deps.port.runWithPackageLock(pkg.id, pkg.organizationId, async () => {
+      const candidates = await deps.port.listRecalcCandidateAppointments({
+        organizationId: input.organizationId,
+        platformUserId: pkg.platformUserId,
+        serviceIds,
+        soldAtIso,
+        nowIso,
+      });
+
+      // Derive current per-item balances from the ledger once (inside the lock), then decrement
+      // locally as we consume so we never over-debit within this single pass (no minus). Reading
+      // usages here (not before the lock) is what makes concurrent passes see each other's debits.
+      const usages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
+      const balances = computeItemBalances(pkg.items, usages);
+      const remainingByItemId = new Map<string, number>(
+        balances.map((b) => [b.patientPackageItemId, b.remaining]),
+      );
+
+      // Idempotency inside the lock: re-check each candidate's linkage against the freshly-read
+      // usages, so a second concurrent pass skips appointments the first one already debited.
+      const debitedApptIds = new Set(
+        usages
+          .filter((u) => u.usageKind === "consume" || u.usageKind === "penalty" || u.usageKind === "reserve")
+          .map((u) => u.appointmentId)
+          .filter((a): a is string => Boolean(a)),
+      );
+
+      // Deterministic order: oldest appointment first (fair FIFO of past visits).
+      const ordered = [...candidates].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+
+      // T3 CORRECTION PASS (before debiting): a visit that is CANCELLED in the canonical
+      // projection must not hold a package `consume`. This reverses debits made before the
+      // cancellation was reflected (the root bug: recalc consumed a visit the doctor sees as
+      // «отмена»). Append-only `refund`, balance is restored, so a later eligible visit can
+      // reuse the freed session in the same pass. `penalty` rows are intentional late-cancel
+      // charges and are left untouched.
+      for (const cand of ordered) {
+        if (cand.canonicalStatus !== "canceled") continue;
+        const consume = cand.usages.find((u) => u.usageKind === "consume");
+        if (!consume) continue;
+        const alreadyRefunded = cand.usages.some((u) => u.usageKind === "refund");
+        if (alreadyRefunded) continue;
+        const refund = await deps.port.appendUsage({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          patientPackageItemId: consume.patientPackageItemId,
+          appointmentId: cand.appointmentId,
+          usageKind: "refund",
+          quantity: consume.quantity,
+          comment: "recalc_correction_canceled_visit",
+          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+        });
+        await deps.port.setAppointmentPackageUsageRef(cand.appointmentId, null);
+        await deps.port.appendHistoryEvent({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          eventType: "recalc_corrected_canceled",
+          payloadJson: {
+            appointmentId: cand.appointmentId,
+            consumeUsageId: consume.id,
+            refundUsageId: refund.id,
+            serviceId: cand.serviceId,
+          },
+        });
+        remainingByItemId.set(
+          consume.patientPackageItemId,
+          (remainingByItemId.get(consume.patientPackageItemId) ?? 0) + consume.quantity,
+        );
+        debitedApptIds.delete(cand.appointmentId);
+        await refreshPackageCalendarForAppointment(cand.appointmentId);
+        summary.corrected.push({
+          appointmentId: cand.appointmentId,
+          serviceId: cand.serviceId,
+          refundUsageId: refund.id,
+        });
+      }
+
+      for (const cand of ordered) {
+        if (debitedApptIds.has(cand.appointmentId)) {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "already_debited",
+          });
+          continue;
+        }
+        const linkage = computeAppointmentPackageLinkage(cand.usages);
+        if (linkage !== "none") {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "already_debited",
+          });
+          continue;
+        }
+        if (
+          !isAppointmentEligibleForConsume(
+            cand.status,
+            cand.canonicalStatus,
+            cand.startsAt,
+            null,
+            nowIso,
+          )
+        ) {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "status_not_eligible",
+          });
+          continue;
+        }
+        if (!cand.serviceId || !packageServiceIds.has(cand.serviceId)) {
+          summary.skipped.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+            reason: "service_not_in_package",
+          });
+          continue;
+        }
+
+        // Pick a package item for this service with remaining balance > 0.
+        const item = pkg.items.find(
+          (it) =>
+            it.serviceId === cand.serviceId && (remainingByItemId.get(it.id) ?? 0) >= 1,
+        );
+        if (!item) {
+          // Eligible visit, but the package for this service is exhausted → stop-at-zero (OQ-6).
+          summary.outOfBalance.push({
+            appointmentId: cand.appointmentId,
+            serviceId: cand.serviceId,
+          });
+          continue;
+        }
+
+        let usage;
+        try {
+          usage = await deps.port.recalcConsumeForAppointment({
+            organizationId: input.organizationId,
+            patientPackageId: pkg.id,
+            patientPackageItemId: item.id,
+            appointmentId: cand.appointmentId,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+            serviceId: cand.serviceId,
+          });
+        } catch (err) {
+          const code = (err as { code?: string; message?: string })?.code ?? (err as Error)?.message;
+          if (code === "duplicate_consume") {
+            summary.skipped.push({
+              appointmentId: cand.appointmentId,
+              serviceId: cand.serviceId,
+              reason: "already_debited",
+            });
+            continue;
+          }
+          throw err;
+        }
+        remainingByItemId.set(item.id, (remainingByItemId.get(item.id) ?? 0) - 1);
+        debitedApptIds.add(cand.appointmentId);
+
+        await refreshPackageCalendarForAppointment(cand.appointmentId);
+
+        summary.debited.push({
+          appointmentId: cand.appointmentId,
+          patientPackageItemId: item.id,
+          serviceId: cand.serviceId,
+          usageId: usage.id,
+        });
+      }
+
+      return summary;
       });
     },
 

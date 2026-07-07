@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Switch } from "@/shared/ui/doctor/primitives/switch";
 import { patchAdminSetting } from "@/app/app/settings/patchAdminSetting";
 import {
   DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES,
@@ -81,11 +82,9 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
       </p>
       <div className="flex flex-col gap-3">
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="size-4 rounded border"
+          <Switch
             checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
+            onCheckedChange={setEnabled}
             aria-label="Включить автосмену разминок"
           />
           <span>Включить</span>

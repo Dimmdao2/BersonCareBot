@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   bePackageHistoryEvents,
@@ -15,6 +15,7 @@ import type {
   UpsertSubscriptionPackageInput,
 } from "@/modules/memberships/ports";
 import type {
+  CanonicalAppointmentStatus,
   PackageUsageRecord,
   PatientPackageItemRecord,
   PatientPackageRecord,
@@ -53,6 +54,7 @@ function mapPatientPackage(
     platformUserId: row.platformUserId,
     subscriptionPackageId: row.subscriptionPackageId,
     status: row.status as PatientPackageRecord["status"],
+    displayNumber: row.displayNumber,
     title: row.title,
     priceMinor: row.priceMinor,
     currency: row.currency,
@@ -82,6 +84,75 @@ function mapUsage(row: typeof bePackageUsages.$inferSelect): PackageUsageRecord 
     comment: row.comment,
     occurredAt: row.occurredAt,
   };
+}
+
+/**
+ * Resolve the canonical "did it happen" verdict for a set of `be_appointments` from the
+ * doctor-facing projection (`appointment_records`) — the SAME truth the doctor sees in the
+ * patient card, NOT the raw `be_appointments.status` (which drifts when the rubitime bridge
+ * is offline). A be_appointment maps to canonical records two ways:
+ *   1. native projection — `appointment_records.integrator_record_id = 'be:' || id`
+ *   2. rubitime rows      — via `be_external_entity_mappings` (external_id → integrator_record_id)
+ * One be_appointment can map to several canonical records (e.g. two cancellation rows for the
+ * same slot). Verdict: `happened` if ANY mapped record is non-cancelled; `canceled` if records
+ * exist and all are cancelled; `none` if no canonical record maps (caller falls back to be status).
+ *
+ * Deleted / remove-record projections are excluded, mirroring the doctor appointments list
+ * (`pgDoctorClients.listPatientAppointments`).
+ */
+async function loadCanonicalAppointmentStatuses(
+  organizationId: string,
+  appointmentIds: string[],
+): Promise<Map<string, CanonicalAppointmentStatus>> {
+  const out = new Map<string, CanonicalAppointmentStatus>();
+  if (appointmentIds.length === 0) return out;
+  const db = getDrizzle();
+  const idValues = sql.join(
+    appointmentIds.map((id) => sql`(${id}::uuid)`),
+    sql`, `,
+  );
+  const rows = await db.execute<{
+    appointment_id: string;
+    has_happened: boolean | null;
+    canon_count: string | number;
+  }>(sql`
+    WITH appt(id) AS (
+      SELECT * FROM (VALUES ${idValues}) v(id)
+    ),
+    canon AS (
+      SELECT a.id AS appointment_id, ar.status AS status
+      FROM appt a
+      JOIN appointment_records ar
+        ON ar.integrator_record_id = 'be:' || a.id::text
+      WHERE ar.deleted_at IS NULL
+        AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+      UNION ALL
+      SELECT a.id AS appointment_id, ar.status AS status
+      FROM appt a
+      JOIN be_external_entity_mappings m
+        ON m.canonical_id = a.id
+       AND m.entity_type = 'appointment'
+       AND m.external_system = 'rubitime'
+       AND m.organization_id = ${organizationId}::uuid
+      JOIN appointment_records ar
+        ON ar.integrator_record_id = m.external_id
+      WHERE ar.deleted_at IS NULL
+        AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+    )
+    SELECT a.id AS appointment_id,
+           bool_or(c.status IN ('created', 'updated')) AS has_happened,
+           COUNT(c.status) AS canon_count
+    FROM appt a
+    LEFT JOIN canon c ON c.appointment_id = a.id
+    GROUP BY a.id
+  `);
+  for (const r of rows.rows) {
+    const count = Number(r.canon_count ?? 0);
+    const verdict: CanonicalAppointmentStatus =
+      count === 0 ? "none" : r.has_happened ? "happened" : "canceled";
+    out.set(r.appointment_id, verdict);
+  }
+  return out;
 }
 
 export function createPgMembershipsPort(): MembershipsPort {
@@ -379,28 +450,11 @@ export function createPgMembershipsPort(): MembershipsPort {
     async listPackageAppointmentSessionSources(patientPackageId, organizationId, options) {
       const db = getDrizzle();
       const nowIso = options.nowIso ?? new Date().toISOString();
-      void nowIso;
 
-      const usageRows = await db
-        .select()
-        .from(bePackageUsages)
-        .where(
-          and(
-            eq(bePackageUsages.patientPackageId, patientPackageId),
-            eq(bePackageUsages.organizationId, organizationId),
-            isNotNull(bePackageUsages.appointmentId),
-          ),
-        )
-        .orderBy(asc(bePackageUsages.occurredAt));
-
-      const appointmentIds = [
-        ...new Set(
-          usageRows
-            .map((u) => u.appointmentId)
-            .filter((id): id is string => typeof id === "string" && id.length > 0),
-        ),
-      ];
-      if (appointmentIds.length === 0) return [];
+      // Step 1: find ALL appointments for this patient whose service is in the package,
+      // starting from the package's sold date. This mirrors listRecalcCandidateAppointments
+      // but includes future appointments too (no upper bound on startAt).
+      if (options.serviceIds.length === 0) return [];
 
       const apptRows = await db
         .select({
@@ -418,9 +472,33 @@ export function createPgMembershipsPort(): MembershipsPort {
         .where(
           and(
             eq(beAppointments.organizationId, organizationId),
-            inArray(beAppointments.id, appointmentIds),
+            eq(beAppointments.platformUserId, options.platformUserId),
+            inArray(beAppointments.serviceId, options.serviceIds),
+            gte(beAppointments.startAt, options.soldAtIso),
           ),
-        );
+        )
+        .orderBy(asc(beAppointments.startAt));
+
+      if (apptRows.length === 0) return [];
+
+      // Step 2: collect usages for these appointments (from ANY package) plus usages linked
+      // to this specific package with no appointment (manual consumes without appointment).
+      // We only need appointment-linked usages here; non-appointment usages don't affect the
+      // session list.
+      const apptIds = apptRows.map((a) => a.id);
+      const usageRows = await db
+        .select()
+        .from(bePackageUsages)
+        .where(
+          and(
+            eq(bePackageUsages.organizationId, organizationId),
+            isNotNull(bePackageUsages.appointmentId),
+            inArray(bePackageUsages.appointmentId, apptIds),
+          ),
+        )
+        .orderBy(asc(bePackageUsages.occurredAt));
+
+      void nowIso; // available if callers need upper-bound filtering in future
 
       const usagesByAppointment = new Map<string, PackageUsageRecord[]>();
       for (const row of usageRows) {
@@ -430,18 +508,93 @@ export function createPgMembershipsPort(): MembershipsPort {
         usagesByAppointment.set(row.appointmentId, list);
       }
 
-      return apptRows
-        .map((appt) => ({
-          appointmentId: appt.id,
-          startsAt: appt.startAt,
-          endsAt: appt.endAt,
-          status: appt.status,
-          branchTitle: appt.branchTitle,
-          serviceTitle: appt.serviceTitle,
-          serviceId: appt.serviceId,
-          usages: usagesByAppointment.get(appt.id) ?? [],
-        }))
-        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+      const canonicalStatuses = await loadCanonicalAppointmentStatuses(organizationId, apptIds);
+
+      return apptRows.map((appt) => ({
+        appointmentId: appt.id,
+        startsAt: appt.startAt,
+        endsAt: appt.endAt,
+        status: appt.status,
+        canonicalStatus: canonicalStatuses.get(appt.id) ?? "none",
+        branchTitle: appt.branchTitle,
+        serviceTitle: appt.serviceTitle,
+        serviceId: appt.serviceId,
+        usages: usagesByAppointment.get(appt.id) ?? [],
+      }));
+    },
+
+    async listRecalcCandidateAppointments(input) {
+      const db = getDrizzle();
+      if (input.serviceIds.length === 0) return [];
+
+      const apptRows = await db
+        .select({
+          id: beAppointments.id,
+          startAt: beAppointments.startAt,
+          status: beAppointments.status,
+          serviceId: beAppointments.serviceId,
+        })
+        .from(beAppointments)
+        .where(
+          and(
+            eq(beAppointments.organizationId, input.organizationId),
+            eq(beAppointments.platformUserId, input.platformUserId),
+            inArray(beAppointments.serviceId, input.serviceIds),
+            gte(beAppointments.startAt, input.soldAtIso),
+            lt(beAppointments.startAt, input.nowIso),
+          ),
+        )
+        .orderBy(asc(beAppointments.startAt));
+
+      if (apptRows.length === 0) return [];
+
+      const appointmentIds = apptRows.map((a) => a.id);
+      const usageRows = await db
+        .select()
+        .from(bePackageUsages)
+        .where(
+          and(
+            eq(bePackageUsages.organizationId, input.organizationId),
+            inArray(bePackageUsages.appointmentId, appointmentIds),
+          ),
+        )
+        .orderBy(asc(bePackageUsages.occurredAt));
+
+      const usagesByAppointment = new Map<string, PackageUsageRecord[]>();
+      for (const row of usageRows) {
+        if (!row.appointmentId) continue;
+        const list = usagesByAppointment.get(row.appointmentId) ?? [];
+        list.push(mapUsage(row));
+        usagesByAppointment.set(row.appointmentId, list);
+      }
+
+      const canonicalStatuses = await loadCanonicalAppointmentStatuses(
+        input.organizationId,
+        appointmentIds,
+      );
+
+      return apptRows.map((appt) => ({
+        appointmentId: appt.id,
+        startsAt: appt.startAt,
+        status: appt.status,
+        canonicalStatus: canonicalStatuses.get(appt.id) ?? "none",
+        serviceId: appt.serviceId,
+        usages: usagesByAppointment.get(appt.id) ?? [],
+      }));
+    },
+
+    async runWithPackageLock(patientPackageId, _organizationId, fn) {
+      const db = getDrizzle();
+      // ST-02: serialize concurrent «Пересчитать» passes for one package. A transaction-scoped
+      // advisory lock (auto-released at COMMIT/ROLLBACK) keyed on a stable 64-bit hash of the
+      // package id. Postgres blocks the second transaction until the first commits, so the second
+      // pass reads balances AFTER the first pass's debits landed — no double-debit.
+      return db.transaction(async () => {
+        await db.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${patientPackageId}, 0))`,
+        );
+        return fn();
+      });
     },
 
     async setPatientPackageStatus(id, organizationId, status, patch) {
@@ -554,6 +707,58 @@ export function createPgMembershipsPort(): MembershipsPort {
         .update(beAppointments)
         .set({ packageUsageRef: usageRef, updatedAt: new Date().toISOString() })
         .where(eq(beAppointments.id, appointmentId));
+    },
+
+    async recalcConsumeForAppointment(input) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      try {
+        return await db.transaction(async (tx) => {
+          const inserted = await tx
+            .insert(bePackageUsages)
+            .values({
+              organizationId: input.organizationId,
+              patientPackageId: input.patientPackageId,
+              patientPackageItemId: input.patientPackageItemId,
+              appointmentId: input.appointmentId,
+              usageKind: "consume",
+              quantity: 1,
+              createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+              occurredAt: now,
+              createdAt: now,
+            })
+            .returning();
+          const usage = mapUsage(inserted[0]!);
+
+          await tx
+            .update(beAppointments)
+            .set({ packageUsageRef: usage.id, updatedAt: now })
+            .where(eq(beAppointments.id, input.appointmentId));
+
+          await tx.insert(bePackageHistoryEvents).values({
+            organizationId: input.organizationId,
+            patientPackageId: input.patientPackageId,
+            eventType: "recalc_consumed",
+            payloadJson: {
+              appointmentId: input.appointmentId,
+              usageId: usage.id,
+              serviceId: input.serviceId,
+              ...(input.payloadJson ?? {}),
+            },
+            occurredAt: now,
+          });
+
+          return usage;
+        });
+      } catch (err) {
+        // PostgreSQL unique_violation (23505): concurrent parallel call already inserted consume
+        // for the same appointment — treat as duplicate_consume so the caller can skip gracefully.
+        const code = (err as { code?: string })?.code;
+        if (code === "23505") {
+          throw Object.assign(new Error("duplicate_consume"), { code: "duplicate_consume" });
+        }
+        throw err;
+      }
     },
   };
 }

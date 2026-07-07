@@ -1,9 +1,20 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DoctorClientMembershipsPanel } from "./DoctorClientMembershipsPanel";
+
+// react-hot-toast is a side-effect import in the component; stub it so tests don't error.
+vi.mock("react-hot-toast", () => ({
+  default: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/app/doctor/clients",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const platformUserId = "00000000-0000-4000-8000-000000000099";
 let packagesResponse: unknown[] = [];
@@ -52,6 +63,7 @@ describe("DoctorClientMembershipsPanel", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it("renders doctor membership workflow sections", async () => {
@@ -113,7 +125,7 @@ describe("DoctorClientMembershipsPanel", () => {
     const user = userEvent.setup();
     render(<DoctorClientMembershipsPanel platformUserId={platformUserId} />);
 
-    expect(await screen.findByText(/продажа/)).toBeTruthy();
+    expect(await screen.findByText(/дата покупки/)).toBeTruthy();
     expect(screen.getByText("ЛФК: остаток 3 (зарезервировано 1)")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Записи" }));
     expect(await screen.findByLabelText("Показать прошедшие")).toBeTruthy();
@@ -121,5 +133,151 @@ describe("DoctorClientMembershipsPanel", () => {
     expect(screen.getByText("Списать как оказанную")).toBeTruthy();
     await user.click(screen.getByText("История"));
     expect(await screen.findByText("Создан вручную")).toBeTruthy();
+  });
+
+  it("hides create forms when showCreateForm=false", async () => {
+    render(<DoctorClientMembershipsPanel platformUserId={platformUserId} showCreateForm={false} />);
+    expect(await screen.findByText("Нет активных абонементов.")).toBeTruthy();
+    expect(screen.queryByText("Назначить из каталога")).toBeNull();
+    expect(screen.queryByText("Индивидуальный абонемент")).toBeNull();
+    // Manual consume section must still be present
+    expect(screen.getByText("Списать сеанс по абонементу")).toBeTruthy();
+  });
+
+  it("shows «Пересчитать» button on active package and fires recalc API on click", async () => {
+    const toastMock = await import("react-hot-toast");
+    // Set up packages and recalc response via the shared beforeEach spy.
+    packagesResponse = [
+      {
+        id: "pkg-recalc",
+        title: "Тест абонемент",
+        status: "active",
+        soldAt: "2026-06-01T00:00:00Z",
+        validUntil: null,
+        paidAmountMinor: 10000,
+        paidCurrency: "RUB",
+        notes: null,
+        balance: {
+          items: [
+            {
+              patientPackageItemId: "item-r1",
+              serviceId: "svc-1",
+              serviceTitle: "ЛФК",
+              remaining: 3,
+              displayRemaining: 3,
+              reserved: 0,
+            },
+          ],
+        },
+      },
+    ];
+
+    const recalcSummary = {
+      patientPackageId: "pkg-recalc",
+      debited: [
+        { appointmentId: "appt-1", patientPackageItemId: "item-r1", serviceId: "svc-1", usageId: "u1" },
+      ],
+      skipped: [],
+      outOfBalance: [],
+    };
+
+    // Override the fetch spy to additionally handle the recalc route.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (/\/patient-packages\/[^/]+\/recalc/.test(url)) {
+        return mockFetchResponse({ ok: true, summary: recalcSummary });
+      }
+      if (/\/patient-packages\/[^/]+$/.test(url) && !url.includes("/sessions")) {
+        return mockFetchResponse(detailResponse);
+      }
+      if (/\/patient-packages(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, packages: packagesResponse });
+      }
+      if (/\/patient-packages\/[^/]+\/sessions/.test(url)) {
+        return mockFetchResponse({ ok: true, sessions: sessionsResponse });
+      }
+      if (/\/booking-engine\/services(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, services: [] });
+      }
+      if (/\/booking-engine\/packages(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, packages: [] });
+      }
+      return mockFetchResponse({ ok: true });
+    });
+
+    const user = userEvent.setup();
+    render(<DoctorClientMembershipsPanel platformUserId={platformUserId} />);
+
+    // Wait for package to load (title appears in both card <p> and consume-dropdown <option>)
+    expect(await screen.findAllByText("Тест абонемент")).toBeTruthy();
+    const recalcBtn = screen.getByRole("button", { name: "Пересчитать" });
+    await user.click(recalcBtn);
+
+    await waitFor(() => {
+      expect(toastMock.default.success).toHaveBeenCalledWith("Списано 1 сеанс");
+    });
+  });
+
+  it("shows «Нет новых сеансов для списания» toast when recalc returns empty debited", async () => {
+    const toastMock = await import("react-hot-toast");
+    packagesResponse = [
+      {
+        id: "pkg-empty",
+        title: "Пустой абонемент",
+        status: "active",
+        soldAt: "2026-06-01T00:00:00Z",
+        validUntil: null,
+        paidAmountMinor: 5000,
+        paidCurrency: "RUB",
+        notes: null,
+        balance: {
+          items: [
+            {
+              patientPackageItemId: "item-e1",
+              serviceId: "svc-2",
+              serviceTitle: "Консультация",
+              remaining: 5,
+              displayRemaining: 5,
+              reserved: 0,
+            },
+          ],
+        },
+      },
+    ];
+
+    // Override fetch spy to handle the recalc route with empty result.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (/\/patient-packages\/[^/]+\/recalc/.test(url)) {
+        return mockFetchResponse({ ok: true, summary: { debited: [], skipped: [], outOfBalance: [] } });
+      }
+      if (/\/patient-packages\/[^/]+$/.test(url) && !url.includes("/sessions")) {
+        return mockFetchResponse(detailResponse);
+      }
+      if (/\/patient-packages(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, packages: packagesResponse });
+      }
+      if (/\/patient-packages\/[^/]+\/sessions/.test(url)) {
+        return mockFetchResponse({ ok: true, sessions: sessionsResponse });
+      }
+      if (/\/booking-engine\/services(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, services: [] });
+      }
+      if (/\/booking-engine\/packages(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, packages: [] });
+      }
+      return mockFetchResponse({ ok: true });
+    });
+
+    const user = userEvent.setup();
+    render(<DoctorClientMembershipsPanel platformUserId={platformUserId} />);
+
+    // Title appears in both card <p> and consume-dropdown <option>
+    expect(await screen.findAllByText("Пустой абонемент")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Пересчитать" }));
+
+    await waitFor(() => {
+      expect(toastMock.default.success).toHaveBeenCalledWith("Нет новых сеансов для списания");
+    });
   });
 });

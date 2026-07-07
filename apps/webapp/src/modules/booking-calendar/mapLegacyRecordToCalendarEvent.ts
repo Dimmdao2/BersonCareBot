@@ -21,6 +21,7 @@ export type LegacyAppointmentRecordRow = {
   mapped_be_branch_id: string | null;
   package_usage_ref?: string | null;
   package_title?: string | null;
+  package_display_number?: number | null;
 };
 
 const DEFAULT_DURATION_MINUTES = 60;
@@ -85,6 +86,7 @@ export function mapLegacyRecordToCalendarEvent(row: LegacyAppointmentRecordRow):
     prepaymentPending: false,
     packageUsageRef: row.package_usage_ref?.trim() || null,
     packageTitle: row.package_title?.trim() || null,
+    packageDisplayNumber: row.package_display_number ?? null,
     rescheduleCount: 0,
     originalStartAt: null,
     formComments: [],

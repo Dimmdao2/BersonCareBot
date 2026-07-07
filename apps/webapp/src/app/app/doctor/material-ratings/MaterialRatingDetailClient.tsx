@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import type { MaterialRatingDetailPreset } from "@/modules/material-rating/detailTimeRange";
 import type { MaterialRatingDoctorDetailDay, MaterialRatingDoctorDetailRater } from "@/modules/material-rating/types";
 
@@ -103,8 +104,8 @@ export function MaterialRatingDetailClient({
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="flex items-center gap-2">
             <span className="text-muted-foreground">С</span>
-            <input
-              className="rounded border border-input bg-background px-2 py-1"
+            <Input
+              className="w-auto"
               type="date"
               value={customFrom}
               onChange={(e) => setCustomFrom(e.target.value)}
@@ -112,8 +113,8 @@ export function MaterialRatingDetailClient({
           </label>
           <label className="flex items-center gap-2">
             <span className="text-muted-foreground">По</span>
-            <input
-              className="rounded border border-input bg-background px-2 py-1"
+            <Input
+              className="w-auto"
               type="date"
               value={customTo}
               onChange={(e) => setCustomTo(e.target.value)}

@@ -35,3 +35,14 @@ describe("pgBookingCalendar soft-delete filter (F1b)", () => {
     expect(src).toContain("isNull(beAppointments.deletedAt)");
   });
 });
+
+describe("pgBookingCalendar package display data", () => {
+  it("resolves package title and number from the current package_usage_ref only", () => {
+    const src = readFileSync(join(repoDir, "pgBookingCalendar.ts"), "utf8");
+
+    expect(src).toContain("packageUsageRefs");
+    expect(src).toContain("packageByUsageRef");
+    expect(src).toContain("inArray(bePackageUsages.id, packageUsageRefs)");
+    expect(src).not.toContain("inArray(bePackageUsages.appointmentId, appointmentIds)");
+  });
+});

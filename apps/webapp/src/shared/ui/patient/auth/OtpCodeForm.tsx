@@ -250,51 +250,55 @@ export function OtpCodeForm({
       </div>
       {smsFallbackLink && onRequestSms ? (
         <div className="flex flex-col gap-2">
-          <button
+          <Button
             type="button"
+            variant="link"
             className={textLinkClass}
             onClick={() => setSmsFallbackExpanded((v) => !v)}
             disabled={loading || hardBlocked}
             aria-expanded={smsFallbackExpanded}
           >
             Другие способы
-          </button>
+          </Button>
           {smsFallbackExpanded ? (
-            <button
+            <Button
               type="button"
+              variant="link"
               className={cn(textLinkClass, "pl-1")}
               onClick={() => void handleRequestSms()}
               disabled={loading || resendLoading || hardBlocked}
             >
               {resendLoading ? "Отправка…" : "Получить код по SMS"}
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}
       {alternatives !== undefined && alternatives.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <button
+          <Button
             type="button"
+            variant="link"
             className={textLinkClass}
             onClick={() => setAltExpanded((v) => !v)}
             disabled={loading || resendLoading || hardBlocked}
             aria-expanded={altExpanded}
           >
             Другие способы
-          </button>
+          </Button>
           {altExpanded ? (
             <div className="flex flex-col gap-2 pl-1">
               {alternatives.map((alt, i) =>
                 alt.asText ? (
-                  <button
+                  <Button
                     key={i}
                     type="button"
+                    variant="link"
                     className={cn(textLinkClass, "text-left")}
                     onClick={() => void alt.onClick()}
                     disabled={loading || resendLoading || hardBlocked}
                   >
                     {alt.label}
-                  </button>
+                  </Button>
                 ) : (
                   <Button
                     key={i}

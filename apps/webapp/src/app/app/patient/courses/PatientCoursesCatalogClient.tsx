@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { CourseCatalogItem } from "@/modules/courses/types";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import {
   patientCardClass,
@@ -109,14 +110,14 @@ export function PatientCoursesCatalogClient(props: {
                   Активируйте профиль для записи
                 </Link>
               ) : (
-                <button
+                <Button
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => enroll(c.id)}
                   className={cn(patientPrimaryActionClass, "!min-h-10 text-sm disabled:opacity-60")}
                 >
                   {busyId === c.id ? "Запись…" : "Записаться на программу"}
-                </button>
+                </Button>
               )}
             </div>
           </li>

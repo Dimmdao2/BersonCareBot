@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type {
   TreatmentProgramEventDoctorTimelineLabels,
   TreatmentProgramEventRow,
@@ -30,9 +31,10 @@ export function DoctorProgramInstanceTimelineEventRow(props: {
       <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
         <span className="text-xs text-muted-foreground">{createdAtLabel}</span>
         {expandable ? (
-          <button
+          <Button
             type="button"
-            className="inline-flex items-center gap-1 font-medium text-left hover:underline"
+            variant="ghost"
+            className="h-auto gap-1 p-0 font-medium text-left hover:underline"
             aria-expanded={expanded}
             data-testid={`doctor-program-timeline-event-${event.id}`}
             onClick={onToggleExpand}
@@ -42,7 +44,7 @@ export function DoctorProgramInstanceTimelineEventRow(props: {
               className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")}
               aria-hidden
             />
-          </button>
+          </Button>
         ) : (
           <span className="font-medium">{summary}</span>
         )}

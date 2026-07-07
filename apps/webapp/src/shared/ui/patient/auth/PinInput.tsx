@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/patient/primitives/button";
+import { Input } from "@/shared/ui/patient/primitives/input";
 import { cn } from "@/lib/utils";
 import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
@@ -145,10 +146,10 @@ export function PinInput({
       </span>
       <div className="flex w-full flex-row justify-center gap-3" role="group" aria-label="PIN-код из 4 цифр">
         {digits.map((value, i) => (
-          <input
+          <Input
             key={`pin-slot-${i}`}
             ref={(el) => {
-              inputsRef.current[i] = el;
+              inputsRef.current[i] = el as HTMLInputElement | null;
             }}
             id={i === 0 ? "auth-pin-field" : undefined}
             type="text"
@@ -161,9 +162,9 @@ export function PinInput({
             aria-invalid={!!error}
             className={CELL}
             onChange={(e) => handleChange(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(i, e)}
-            onPaste={handlePaste}
-            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => handleKeyDown(i, e as React.KeyboardEvent<HTMLInputElement>)}
+            onPaste={(e) => handlePaste(e as React.ClipboardEvent<HTMLInputElement>)}
+            onFocus={(e) => (e.target as HTMLInputElement).select()}
           />
         ))}
       </div>

@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { createHmac } from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
+import { logger } from '../../infra/observability/logger.js';
 import { fromMax } from './mapIn.js';
 
 /** Real MAX payload: message.body.text, message.recipient, message.sender; callback.* */
@@ -377,7 +379,21 @@ describe('max mapIn', () => {
     expect(incoming).toBeNull();
   });
 
-  it('maps message_created contact attachment phone_number to IncomingMessageUpdate.phone', () => {
+  // ── contact attachment: real MAX vcf_info payload ────────────────────────────
+
+  const FAKE_TOKEN = 'test-bot-token-secret';
+  function makeHash(vcf: string, token = FAKE_TOKEN): string {
+    return createHmac('sha256', token).update(vcf).digest('hex');
+  }
+
+  const VCF_SIMPLE = 'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL:+79001112233\r\nEND:VCARD';
+  // eslint-disable-next-line no-secrets/no-secrets
+  const VCF_TYPE = 'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL;TYPE=cell:+79004445566\r\nFN:Ivan\r\nEND:VCARD';
+  // eslint-disable-next-line no-secrets/no-secrets
+  const VCF_LF = 'BEGIN:VCARD\nVERSION:3.0\nTEL;TYPE=CELL,HOME:+79007778899\nEND:VCARD';
+
+  it('maps real MAX contact (vcf_info, TEL:) with valid hash to phone', () => {
+    const vcf = VCF_SIMPLE;
     const body = {
       update_type: 'message_created' as const,
       timestamp: 1,
@@ -386,12 +402,12 @@ describe('max mapIn', () => {
         body: {
           mid: 'mid-contact',
           text: '',
-          attachments: [{ type: 'contact', payload: { phone_number: '+7 (900) 111-22-33' } }],
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf, hash: makeHash(vcf) } }],
         },
         sender: { user_id: 501 },
       },
     };
-    const incoming = fromMax(body);
+    const incoming = fromMax(body, FAKE_TOKEN);
     expect(incoming?.kind).toBe('message');
     if (incoming?.kind === 'message') {
       expect(incoming.phone).toBe('+79001112233');
@@ -399,7 +415,8 @@ describe('max mapIn', () => {
     }
   });
 
-  it('maps message_created contact attachment phone field', () => {
+  it('maps real MAX contact (vcf_info, TEL;TYPE=cell:) with valid hash to phone', () => {
+    const vcf = VCF_TYPE;
     const body = {
       update_type: 'message_created' as const,
       timestamp: 1,
@@ -408,14 +425,214 @@ describe('max mapIn', () => {
         body: {
           mid: 'mid-contact2',
           text: '',
-          attachments: [{ type: 'contact', payload: { phone: '89004445566' } }],
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf, hash: makeHash(vcf) } }],
         },
         sender: { user_id: 502 },
       },
     };
-    const incoming = fromMax(body);
+    const incoming = fromMax(body, FAKE_TOKEN);
     expect(incoming?.kind).toBe('message');
     if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79004445566');
+  });
+
+  it('maps real MAX contact (vcf_info with LF line endings, TEL;TYPE=...) with valid hash', () => {
+    const vcf = VCF_LF;
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 503 },
+        body: {
+          mid: 'mid-contact3',
+          text: '',
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf, hash: makeHash(vcf) } }],
+        },
+        sender: { user_id: 503 },
+      },
+    };
+    const incoming = fromMax(body, FAKE_TOKEN);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79007778899');
+  });
+
+  // vcf_info as delivered with literal two-char "\r\n" escape sequences instead of real newlines
+  const VCF_LITERAL_ESCAPED = 'BEGIN:VCARD\\r\\nVERSION:3.0\\r\\nTEL:+79001112233\\r\\nEND:VCARD';
+
+  it('rejects contact with hash mismatch (returns null phone) and emits WARN', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const vcf = VCF_SIMPLE;
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 504 },
+        body: {
+          mid: 'mid-contact-bad',
+          text: '',
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf, hash: 'deadbeef'.repeat(8) } }],
+        },
+        sender: { user_id: 504 },
+      },
+    };
+    const incoming = fromMax(body, FAKE_TOKEN);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receivedHashPrefix: 'deadbeef',
+        expectedHashPrefixes: [makeHash(vcf).slice(0, 8)],
+      }),
+      expect.stringContaining('hash mismatch'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('accepts literal-escaped vcf_info when hash was computed over the UNESCAPED form', () => {
+    const unescaped = VCF_LITERAL_ESCAPED.replace(/\\r\\n/g, '\r\n');
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 507 },
+        body: {
+          mid: 'mid-contact-esc1',
+          text: '',
+          attachments: [{ type: 'contact', payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: makeHash(unescaped) } }],
+        },
+        sender: { user_id: 507 },
+      },
+    };
+    const incoming = fromMax(body, FAKE_TOKEN);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79001112233');
+  });
+
+  it('accepts literal-escaped vcf_info when hash was computed over the RAW (escaped) form', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 508 },
+        body: {
+          mid: 'mid-contact-esc2',
+          text: '',
+          attachments: [
+            { type: 'contact', payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: makeHash(VCF_LITERAL_ESCAPED) } },
+          ],
+        },
+        sender: { user_id: 508 },
+      },
+    };
+    const incoming = fromMax(body, FAKE_TOKEN);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79001112233');
+  });
+
+  it('rejects literal-escaped vcf_info with garbage hash (neither variant matches)', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 509 },
+        body: {
+          mid: 'mid-contact-esc3',
+          text: '',
+          attachments: [
+            { type: 'contact', payload: { vcf_info: VCF_LITERAL_ESCAPED, hash: 'cafebabe'.repeat(8) } },
+          ],
+        },
+        sender: { user_id: 509 },
+      },
+    };
+    const incoming = fromMax(body, FAKE_TOKEN);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBeUndefined();
+    // WARN carries both computed prefixes (raw + unescaped variants)
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receivedHashPrefix: 'cafebabe',
+        expectedHashPrefixes: [
+          makeHash(VCF_LITERAL_ESCAPED).slice(0, 8),
+          makeHash(VCF_LITERAL_ESCAPED.replace(/\\r\\n/g, '\r\n')).slice(0, 8),
+        ],
+      }),
+      expect.stringContaining('hash mismatch'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('accepts contact carrying a valid hash when botToken is empty and warns token not configured', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const vcf = VCF_SIMPLE;
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 510 },
+        body: {
+          mid: 'mid-contact-notoken',
+          text: '',
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf, hash: makeHash(vcf) } }],
+        },
+        sender: { user_id: 510 },
+      },
+    };
+    const incoming = fromMax(body, '');
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79001112233');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ vcfPresent: true, hashPresent: true }),
+      expect.stringContaining('token not configured'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('accepts contact with absent hash (no botToken) and emits WARN', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const vcf = VCF_SIMPLE;
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 505 },
+        body: {
+          mid: 'mid-contact-nohash',
+          text: '',
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf } }],
+        },
+        sender: { user_id: 505 },
+      },
+    };
+    // neither hash nor botToken → genuinely 'hash absent' → accept + warn
+    const incoming = fromMax(body, '');
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79001112233');
+    expect(warnSpy).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('hash absent'));
+    warnSpy.mockRestore();
+  });
+
+  it('accepts contact when hash field is absent (valid botToken but hash missing) and warns', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const vcf = VCF_TYPE;
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 506 },
+        body: {
+          mid: 'mid-contact-nohash2',
+          text: '',
+          attachments: [{ type: 'contact', payload: { vcf_info: vcf } }],
+        },
+        sender: { user_id: 506 },
+      },
+    };
+    const incoming = fromMax(body, FAKE_TOKEN);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79004445566');
+    expect(warnSpy).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('hash absent'));
+    warnSpy.mockRestore();
   });
 
   it('returns null for message_edited (no fromMax branch)', () => {

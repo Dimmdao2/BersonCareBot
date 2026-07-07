@@ -396,8 +396,9 @@ function HeaderIconButton({ label, title, state, onClick, className, children }:
   const isPositive = state === "positive" || state === "new";
   const isNegative = state === "negative";
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       aria-label={label}
       title={title}
       onClick={onClick}
@@ -423,7 +424,7 @@ function HeaderIconButton({ label, title, state, onClick, className, children }:
           <Ban className="size-3 text-destructive" aria-hidden />
         </span>
       ) : null}
-    </button>
+    </Button>
   );
 }
 
@@ -528,8 +529,9 @@ function ChannelActionButton({ label, title, active, href, onClick, children }: 
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       className={channelActionClass(active)}
       title={title}
       aria-label={label}
@@ -537,7 +539,7 @@ function ChannelActionButton({ label, title, active, href, onClick, children }: 
       onClick={onClick}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -627,14 +629,15 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
             <span className="block truncate text-sm font-bold text-foreground">{item.displayName}</span>
           )}
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={onClose}
           aria-label="Закрыть"
           className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
         >
           <X className="size-4" />
-        </button>
+        </Button>
       </div>
 
       {/* Fast actions */}
@@ -918,14 +921,15 @@ function PatientsContent({
               aria-label="Поиск пациентов"
             />
             {searchInput && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={onClearSearch}
                 className="absolute right-2.5 text-muted-foreground hover:text-foreground"
                 aria-label="Сбросить поиск"
               >
                 <X className="size-3.5" />
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -1038,8 +1042,9 @@ function PatientsContent({
               const isSelected = c.userId === selectedUserId;
               return (
                 <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     id={`doctor-patients-card-${c.userId}`}
                     aria-pressed={isSelected}
                     onClick={() => onSelectPatient(isSelected ? null : c.userId)}
@@ -1127,7 +1132,7 @@ function PatientsContent({
                         <Smartphone className="size-3.5" aria-hidden />
                       </IconSlot>
                     </div>
-                  </button>
+                  </Button>
                   {isSelected ? (
                     <div className="mt-1 lg:hidden">
                       <PatientPreviewPane
@@ -1161,21 +1166,20 @@ function PatientsContent({
                   ? allClients.length
                   : allClients.filter((item) => getClientCategory(item) === cat).length;
               return (
-                <button
+                <Button
                   key={cat}
                   type="button"
+                  variant={activeCategory === cat ? "default" : "outline"}
                   aria-pressed={activeCategory === cat}
                   onClick={() => onCategoryChange(cat)}
                   className={cn(
                     "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
-                    activeCategory === cat
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
+                    activeCategory !== cat && "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
                   {cat === "client" ? patientPluralLabel : CATEGORY_LABELS[cat]}
                   <span className="tabular-nums opacity-70">{count}</span>
-                </button>
+                </Button>
               );
             })}
           </div>

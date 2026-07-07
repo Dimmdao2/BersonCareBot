@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import type { PatientPackageSessionRow } from "@/modules/memberships/types";
@@ -33,7 +34,8 @@ type Props = {
 };
 
 export function PatientPackageSessionsList({ packageId, apiBase, onError, onChanged }: Props) {
-  const [includePast, setIncludePast] = useState(false);
+  // Default to true so doctors immediately see past visits available for manual consume.
+  const [includePast, setIncludePast] = useState(true);
   const [sessions, setSessions] = useState<PatientPackageSessionRow[]>([]);
   const [pending, startTransition] = useTransition();
   const [confirmStep, setConfirmStep] = useState<0 | 1 | 2>(0);
@@ -152,15 +154,17 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
 
   return (
     <div className="mt-2 space-y-2">
-      <div className="flex items-center gap-2">
-        <input
-          id={`past-${packageId}`}
-          type="checkbox"
-          className="size-4 rounded border"
+      <div className="flex cursor-pointer items-center gap-2">
+        <Checkbox
+          aria-label="Показать прошедшие"
           checked={includePast}
-          onChange={(e) => setIncludePast(e.target.checked)}
+          onCheckedChange={(checked) => setIncludePast(checked === true)}
         />
-        <Label htmlFor={`past-${packageId}`} className="text-xs font-normal">
+        <Label
+          aria-hidden="true"
+          className="cursor-pointer text-xs font-normal"
+          onClick={() => setIncludePast((v) => !v)}
+        >
           Показать прошедшие
         </Label>
       </div>

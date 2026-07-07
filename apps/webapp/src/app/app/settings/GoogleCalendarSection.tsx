@@ -6,6 +6,7 @@ import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 
 type GoogleCalendarSectionProps = {
@@ -238,19 +239,18 @@ export function GoogleCalendarSection({
             {calError && <p className="text-xs text-destructive">{calError}</p>}
             {calendarSaveError && <p className="text-xs text-destructive">{calendarSaveError}</p>}
             {calendars.length > 0 && (
-              <select
-                className="input-base font-mono text-xs"
-                value={calendarId}
-                onChange={(e) => selectCalendar(e.target.value)}
-                disabled={isPending}
-              >
-                <option value="">— выберите календарь —</option>
-                {calendars.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.summary}{c.primary ? " (основной)" : ""}
-                  </option>
-                ))}
-              </select>
+              <Select value={calendarId} onValueChange={(v) => selectCalendar(v ?? "")} disabled={isPending}>
+                <SelectTrigger className="w-full font-mono text-xs" displayLabel={calendarId ? (calendars.find((c) => c.id === calendarId)?.summary ?? calendarId) : "— выберите календарь —"}>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— выберите календарь —</SelectItem>
+                  {calendars.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.summary}{c.primary ? " (основной)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
             {calendarId && (
               <p className="text-xs text-muted-foreground">

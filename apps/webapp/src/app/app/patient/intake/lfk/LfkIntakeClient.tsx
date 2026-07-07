@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
@@ -62,13 +63,13 @@ export function LfkIntakeClient() {
             Врач свяжется с вами лично или через приложение в ближайшее время.
           </p>
         </div>
-        <button
+        <Button
           type="button"
           className={cn(patientButtonSecondaryClass, "sm:w-auto")}
           onClick={() => router.push(routePaths.bookingNew)}
         >
           Вернуться в кабинет
-        </button>
+        </Button>
       </div>
     );
   }
@@ -102,22 +103,22 @@ export function LfkIntakeClient() {
         ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-          <button
+          <Button
             type="button"
             className={cn(patientButtonSecondaryClass, "sm:w-auto")}
             onClick={() => router.back()}
             disabled={state === "submitting"}
           >
             Назад
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             className={cn(patientButtonPrimaryClass, "sm:w-auto")}
             onClick={handleSubmit}
             disabled={!canSubmit || state === "submitting"}
           >
             {state === "submitting" ? "Отправка..." : "Отправить запрос"}
-          </button>
+          </Button>
         </div>
       </section>
     </div>

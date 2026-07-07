@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { apiJson } from "@/shared/lib/apiJson";
+import toast from "react-hot-toast";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,8 @@ type SetupSectionId =
   | "payments"
   | "rules"
   | "notifications"
-  | "integrations";
+  | "integrations"
+  | "packages";
 
 type SetupSectionDef = {
   id: SetupSectionId;
@@ -56,6 +58,7 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: "rules",         label: "Правила записи" },
   { id: "notifications", label: "Тексты уведомлений" },
   { id: "integrations",  label: "Интеграции · Rubitime" },
+  { id: "packages",      label: "Абонементы (шаблоны)" },
 ];
 
 const DEFAULT_SECTION: SetupSectionId = "calendar";
@@ -446,6 +449,333 @@ function ScheduleCalendarDefaultsSection() {
 }
 
 // ---------------------------------------------------------------------------
+// Packages (catalog templates) section
+// ---------------------------------------------------------------------------
+
+type CatalogPackageItem = { serviceId: string; quantity: number; sortOrder?: number };
+
+type CatalogPackage = {
+  id: string;
+  title: string;
+  priceMinor: number;
+  validityDays: number | null;
+  deductionMode: "auto_on_visit_confirmed" | "manual";
+  isActive: boolean;
+  items: Array<{ id?: string; serviceId: string; quantity: number; sortOrder?: number }>;
+};
+
+type PackageService = { id: string; title: string; isActive: boolean; usableInPackages: boolean };
+
+type PackagesState =
+  | { phase: "loading" }
+  | { phase: "error"; message: string }
+  | { phase: "ready"; packages: CatalogPackage[]; services: PackageService[] };
+
+function SectionPackages() {
+  const [state, setState] = useState<PackagesState>({ phase: "loading" });
+  const [, startTransition] = useTransition();
+
+  // Create form state
+  const [title, setTitle] = useState("");
+  const [priceRub, setPriceRub] = useState("");
+  const [validityDays, setValidityDays] = useState("");
+  const [deductionMode, setDeductionMode] = useState<"auto_on_visit_confirmed" | "manual">("auto_on_visit_confirmed");
+  const [formItems, setFormItems] = useState<CatalogPackageItem[]>([]);
+  const [itemServiceId, setItemServiceId] = useState("");
+  const [itemQuantity, setItemQuantity] = useState("1");
+  const [formPending, startFormTransition] = useTransition();
+
+  const load = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const [pkgJson, svcJson] = await Promise.all([
+          apiJson<{ ok: boolean; packages: CatalogPackage[] }>("/api/doctor/booking-engine/packages"),
+          apiJson<{ ok: boolean; services: PackageService[] }>("/api/doctor/booking-engine/services"),
+        ]);
+        setState({ phase: "ready", packages: pkgJson.packages, services: svcJson.services });
+      } catch {
+        setState({ phase: "error", message: "Не удалось загрузить шаблоны абонементов" });
+      }
+    });
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function addFormItem() {
+    if (!itemServiceId) return;
+    const q = Number.parseInt(itemQuantity, 10);
+    if (!Number.isFinite(q) || q < 1) return;
+    setFormItems((prev) => [...prev, { serviceId: itemServiceId, quantity: q, sortOrder: prev.length }]);
+    setItemServiceId("");
+    setItemQuantity("1");
+  }
+
+  function removeFormItem(idx: number) {
+    setFormItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function resetForm() {
+    setTitle("");
+    setPriceRub("");
+    setValidityDays("");
+    setDeductionMode("auto_on_visit_confirmed");
+    setFormItems([]);
+    setItemServiceId("");
+    setItemQuantity("1");
+  }
+
+  function createPackage() {
+    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(",", ".")) * 100);
+    const days = validityDays ? Number.parseInt(validityDays, 10) : null;
+    if (!title.trim() || !Number.isFinite(priceMinor) || priceMinor < 0 || formItems.length === 0) {
+      toast.error("Заполните название, цену и добавьте хотя бы одну позицию");
+      return;
+    }
+    if (days !== null && (!Number.isFinite(days) || days < 1)) {
+      toast.error("Срок действия должен быть целым числом ≥ 1");
+      return;
+    }
+    startFormTransition(async () => {
+      try {
+        await apiJson("/api/doctor/booking-engine/packages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: title.trim(),
+            priceMinor,
+            validityDays: days,
+            deductionMode,
+            isActive: true,
+            items: formItems,
+          }),
+        });
+        toast.success("Шаблон создан");
+        resetForm();
+        load();
+      } catch {
+        toast.error("Не удалось создать шаблон");
+      }
+    });
+  }
+
+  function toggleActive(pkg: CatalogPackage) {
+    startTransition(async () => {
+      try {
+        await apiJson(`/api/doctor/booking-engine/packages/${pkg.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: !pkg.isActive }),
+        });
+        toast.success(pkg.isActive ? "Шаблон деактивирован" : "Шаблон активирован");
+        load();
+      } catch {
+        toast.error("Не удалось обновить шаблон");
+      }
+    });
+  }
+
+  if (state.phase === "loading") {
+    return <p className="text-sm text-muted-foreground">Загрузка шаблонов абонементов…</p>;
+  }
+  if (state.phase === "error") {
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-destructive">{state.message}</p>
+        <Button type="button" size="sm" variant="outline" onClick={load}>
+          Повторить
+        </Button>
+      </div>
+    );
+  }
+
+  const activeServices = state.services.filter((s) => s.isActive && s.usableInPackages);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Шаблоны абонементов</DoctorSectionTitle>
+        </DoctorSectionHeader>
+
+        {state.packages.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Шаблонов нет. Создайте первый ниже.</p>
+        ) : (
+          <ul className="m-0 list-none space-y-2 p-0" data-testid="catalog-packages-list">
+            {state.packages.map((pkg) => (
+              <li
+                key={pkg.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{pkg.title}</span>
+                    <span
+                      className={
+                        pkg.isActive
+                          ? "rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                          : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                      }
+                    >
+                      {pkg.isActive ? "Активен" : "Неактивен"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {(pkg.priceMinor / 100).toLocaleString("ru-RU")} ₽
+                      {pkg.validityDays ? ` · ${pkg.validityDays} дн.` : ""}
+                      {" · "}
+                      {pkg.deductionMode === "auto_on_visit_confirmed" ? "Авто" : "Вручную"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {pkg.items.map((it, idx) => {
+                      const svc = state.services.find((s) => s.id === it.serviceId);
+                      return (
+                        <span key={idx} className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                          {svc?.title ?? it.serviceId} × {it.quantity}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => toggleActive(pkg)}
+                >
+                  {pkg.isActive ? "Деактивировать" : "Активировать"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </DoctorSection>
+
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Создать шаблон</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="pkg-tpl-title">Название</Label>
+            <Input
+              id="pkg-tpl-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Например: Курс 10 занятий"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pkg-tpl-price">Цена, ₽</Label>
+            <Input
+              id="pkg-tpl-price"
+              value={priceRub}
+              onChange={(e) => setPriceRub(e.target.value)}
+              placeholder="5000"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pkg-tpl-days">Срок действия, дней (необязательно)</Label>
+            <Input
+              id="pkg-tpl-days"
+              value={validityDays}
+              onChange={(e) => setValidityDays(e.target.value)}
+              placeholder="30"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Режим списания</Label>
+            <Select
+              value={deductionMode}
+              onValueChange={(v) => setDeductionMode(v as "auto_on_visit_confirmed" | "manual")}
+            >
+              <SelectTrigger
+                displayLabel={deductionMode === "auto_on_visit_confirmed" ? "Автоматически при подтверждении" : "Вручную"}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto_on_visit_confirmed" label="Автоматически при подтверждении">
+                  Автоматически при подтверждении
+                </SelectItem>
+                <SelectItem value="manual" label="Вручную">
+                  Вручную
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          <Label>Позиции (услуга × количество)</Label>
+          {formItems.length > 0 && (
+            <ul className="m-0 list-none space-y-1 p-0">
+              {formItems.map((it, idx) => {
+                const svc = activeServices.find((s) => s.id === it.serviceId);
+                return (
+                  <li key={idx} className="flex items-center justify-between gap-2 text-sm">
+                    <span>
+                      {svc?.title ?? it.serviceId} × {it.quantity}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="text-destructive text-xs h-auto p-0"
+                      onClick={() => removeFormItem(idx)}
+                    >
+                      Убрать
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[10rem] flex-1">
+              <Select
+                value={itemServiceId}
+                onValueChange={(v) => setItemServiceId(v ?? "")}
+              >
+                <SelectTrigger
+                  displayLabel={activeServices.find((s) => s.id === itemServiceId)?.title ?? "Выберите услугу"}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeServices.map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.title}>
+                      {s.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-20">
+              <Label htmlFor="pkg-tpl-qty" className="sr-only">Количество</Label>
+              <Input
+                id="pkg-tpl-qty"
+                value={itemQuantity}
+                onChange={(e) => setItemQuantity(e.target.value)}
+                placeholder="1"
+              />
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={addFormItem}>
+              Добавить позицию
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <Button type="button" size="sm" disabled={formPending} onClick={createPackage}>
+            Создать шаблон
+          </Button>
+        </div>
+      </DoctorSection>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section content components
 // ---------------------------------------------------------------------------
 
@@ -566,6 +896,7 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         {activeSection === "rules"        && <SectionRules />}
         {activeSection === "notifications" && <SectionNotifications />}
         {activeSection === "integrations" && <SectionIntegrations />}
+        {activeSection === "packages"     && <SectionPackages />}
       </div>
     </div>
   );

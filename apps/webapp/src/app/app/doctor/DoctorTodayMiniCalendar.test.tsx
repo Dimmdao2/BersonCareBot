@@ -94,6 +94,7 @@ function makeCanonicalAppt(id: string, patientName = "Пациент"): Calendar
     prepaymentPending: false,
     packageUsageRef: null,
     packageTitle: null,
+    packageDisplayNumber: null,
     rescheduleCount: 0,
     originalStartAt: null,
     formComments: [],
@@ -238,6 +239,27 @@ describe("DoctorTodayMiniCalendar", () => {
       expect(screen.getByTestId("fc-event")).toHaveTextContent("КаноническийПациент");
       // sr-only list still shows legacy name (from appointments prop)
       expect(screen.getByRole("link", { name: "Legacyname" })).toBeInTheDocument();
+    });
+
+    it("prefixes package canonical events with the short package number", () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt("legacy-id-1", "10:00", "Legacyname")]}
+          calendarEvents={[
+            {
+              ...makeCanonicalAppt("canonical-id-1", "КаноническийПациент"),
+              packageUsageRef: "usage-1",
+              packageTitle: "Абонемент 10",
+              packageDisplayNumber: 1,
+            },
+          ]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+        />,
+      );
+
+      expect(screen.getByTestId("fc-event")).toHaveTextContent("аб.#001 КаноническийПациент");
     });
 
     it("falls back to legacy appointments for FC when calendarEvents is empty", () => {

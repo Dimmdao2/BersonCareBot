@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { buttonVariants } from "@/shared/ui/patient/primitives/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
@@ -23,15 +23,15 @@ export function LogoutSection() {
   return (
     <section className="mt-4 flex flex-col gap-4">
       <form action="/api/auth/logout" method="post">
-        <button
+        <Button
           type="submit"
+          variant="outline"
           className={cn(
-            buttonVariants({ variant: "outline", size: "default" }),
             "w-full border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15",
           )}
         >
           Выйти из профиля
-        </button>
+        </Button>
       </form>
     </section>
   );

@@ -47,6 +47,7 @@ import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
 import { routePaths } from "@/app-layer/routes/paths";
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from "../scheduleCalendarEvents";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -56,12 +57,9 @@ const API_BASE = "/api/doctor/booking-engine";
 const KPIS_API = "/api/doctor/schedule-kpis";
 const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 
-// #231: стандартное окно сетки 9:00–19:00.
-// Если записи/рабочие часы не укладываются — окно только РАСШИРЯЕТСЯ наружу.
-// TODO(owner-decision): «настройка доктором» (хранение personalized window bounds)
-// не реализована — нет существующего хранилища настроек доктора для этого параметра.
-// Рекомендация: добавить поле default_slot_start_minute/default_slot_end_minute в
-// be_specialists или отдельную таблицу doctor_preferences. До реализации — дефолт 9–19.
+// #231/#237: окно сетки по умолчанию 9:00–19:00. Хранится в system_settings (scope=doctor,
+// key=booking_calendar_default_window). Настраивается в «Настройки → Календарь».
+// Если записи/рабочие часы выходят за дефолтное окно — сетка только расширяется наружу.
 const DEFAULT_WINDOW_MIN = 9 * 60; // 540 мин = 9:00
 const DEFAULT_WINDOW_MAX = 19 * 60; // 1140 мин = 19:00
 
@@ -497,7 +495,10 @@ function eventTitle(event: CalendarEvent): string {
   if (event.kind === "working") return "Рабочее время";
   if (event.kind === "break") return "Перерыв";
   if (event.kind === "block") return event.title ?? "Блокировка";
-  const packagePrefix = event.packageUsageRef || event.packageTitle ? "✅ " : "";
+  const packagePrefix =
+    event.packageUsageRef || event.packageTitle
+      ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
+      : "";
   const parts = [event.patientName ?? "Запись", event.serviceTitle].filter(Boolean);
   return `${packagePrefix}${parts.join(" · ")}`;
 }
@@ -505,8 +506,12 @@ function eventTitle(event: CalendarEvent): string {
 /** Для месячного вида: только фамилия (первое слово) */
 function eventLastName(event: CalendarEvent): string {
   if (event.kind !== "appointment") return eventTitle(event);
+  const packagePrefix =
+    event.packageUsageRef || event.packageTitle
+      ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
+      : "";
   const name = event.patientName ?? "Запись";
-  return name.split(" ")[0] ?? name;
+  return `${packagePrefix}${name.split(" ")[0] ?? name}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -603,9 +608,10 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
           return (
-            <button
+            <Button
               key={appt.id}
               type="button"
+              variant="ghost"
               onClick={() => onSelect(appt)}
               className={cn(
                 "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm",
@@ -620,6 +626,14 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
               <span className={cn("min-w-0 truncate", cancelled && "line-through")}>
                 {appt.patientName ?? "Запись"}
               </span>
+              {appt.packageUsageRef || appt.packageTitle ? (
+                <span
+                  className="shrink-0 rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
+                  title={appt.packageTitle ?? undefined}
+                >
+                  {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
+                </span>
+              ) : null}
               {isNext && (
                 <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                   Следующая
@@ -633,7 +647,7 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
               {appt.branchTitle ? (
                 <span className="ml-auto shrink-0 text-xs opacity-70">{appt.branchTitle}</span>
               ) : null}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -1918,8 +1932,9 @@ export function ScheduleCalendarTab({
                           DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
                           DateTime.now().setZone(currentTimeZone).toISODate();
                         return (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={cn(
                               "fc-daygrid-day-number hover:underline cursor-pointer",
                               isToday && "fc-today-circle",
@@ -1933,7 +1948,7 @@ export function ScheduleCalendarTab({
                             }}
                           >
                             {arg.date.getDate()}
-                          </button>
+                          </Button>
                         );
                       },
                     }
@@ -1942,8 +1957,9 @@ export function ScheduleCalendarTab({
                         const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
                         const isToday = dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
                         return (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={cn("fc-timegrid-header-link", isToday && "fc-today-circle")}
                             onClick={() => {
                               const dateKey = dt.toISODate() ?? anchorDate;
@@ -1956,7 +1972,7 @@ export function ScheduleCalendarTab({
                             <span className="fc-timegrid-header-day">
                               {dt.day}
                             </span>
-                          </button>
+                          </Button>
                         );
                       },
                     })}

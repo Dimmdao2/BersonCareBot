@@ -221,16 +221,17 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
               >
                 {itemLabel ? (
                   onSelectItemFilter ? (
-                    <button
+                    <Button
                       type="button"
-                      className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+                      variant="ghost"
+                      className="h-auto p-0 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelectItemFilter(m.instanceStageItemId);
                       }}
                     >
                       {itemLabel}
-                    </button>
+                    </Button>
                   ) : (
                     <p className="text-xs font-medium text-muted-foreground">{itemLabel}</p>
                   )

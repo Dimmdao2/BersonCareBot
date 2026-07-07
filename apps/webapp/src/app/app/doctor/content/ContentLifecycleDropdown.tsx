@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { EllipsisVertical, Eye, EyeOff } from "lucide-react";
 import { applyContentLifecycleForm } from "./lifecycleActions";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,9 +27,9 @@ function HiddenLifecycleForm({ id, op }: { id: string; op: string }) {
     <form id={`content-lifecycle-${id}-${op}`} action={applyContentLifecycleForm} className="hidden" aria-hidden>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="op" value={op} />
-      <button type="submit" tabIndex={-1}>
+      <Button type="submit" tabIndex={-1} variant="ghost" className="sr-only">
         submit
-      </button>
+      </Button>
     </form>
   );
 }
@@ -82,9 +83,11 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
 
       <div className="flex shrink-0 items-center gap-1">
         {!deleted ? (
-          <button
+          <Button
             type="button"
-            className="inline-flex size-8 items-center justify-center rounded-full border border-border/80 hover:bg-muted"
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full border border-border/80"
             title={published ? "Снять с публикации" : "Опубликовать"}
             aria-label={published ? "Снять с публикации" : "Опубликовать"}
             onClick={() =>
@@ -96,7 +99,7 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
             ) : (
               <EyeOff className="size-4 text-muted-foreground" aria-hidden />
             )}
-          </button>
+          </Button>
         ) : (
           <span
             className="inline-flex size-8 items-center justify-center rounded-full border border-border/80"

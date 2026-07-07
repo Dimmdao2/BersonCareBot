@@ -5,11 +5,47 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
 const bodySchema = z.object({
-  title: z.string().min(1).max(200),
+  title: z.string().trim().min(1).max(200),
 });
 
 function makeDoctorItemCode(): string {
   return `doc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ categoryCode: string }> }
+) {
+  const session = await getCurrentSession();
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  if (!canAccessDoctor(session.user.role)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
+
+  const { categoryCode } = await context.params;
+  if (!categoryCode?.trim()) {
+    return NextResponse.json({ ok: false, error: "category_required" }, { status: 400 });
+  }
+
+  const code = categoryCode.trim();
+  const deps = buildAppDeps();
+  const cat = await deps.references.findCategoryByCode(code);
+  if (!cat) {
+    return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
+  }
+
+  const items = await deps.references.listActiveItemsByCategoryCode(code);
+  return NextResponse.json({
+    ok: true,
+    items: items.map((i) => ({
+      id: i.id,
+      code: i.code,
+      title: i.title,
+      sortOrder: i.sortOrder,
+    })),
+  });
 }
 
 /** Врач добавляет значение только в категорию с is_user_extensible (POST). */
@@ -18,8 +54,11 @@ export async function POST(
   context: { params: Promise<{ categoryCode: string }> }
 ) {
   const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
+  if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  if (!canAccessDoctor(session.user.role)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
   const { categoryCode } = await context.params;
@@ -46,7 +85,7 @@ export async function POST(
     const item = await deps.references.insertItem({
       categoryCode: cat.code,
       code: makeDoctorItemCode(),
-      title: parsed.data.title.trim(),
+      title: parsed.data.title,
     });
     return NextResponse.json({
       ok: true,

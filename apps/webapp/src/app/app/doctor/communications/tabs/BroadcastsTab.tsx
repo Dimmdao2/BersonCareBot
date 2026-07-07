@@ -92,9 +92,9 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
       <p className="shrink-0 text-sm text-muted-foreground">
         После отправки сообщения ставятся в очередь; счётчики в журнале обновляются по мере
         работы воркера.{" "}
-        <button type="button" onClick={onArchive} className={doctorInlineLinkClass}>
+        <Button type="button" variant="link" onClick={onArchive} className={`h-auto p-0 text-sm ${doctorInlineLinkClass}`}>
           Архив ошибок доставки
-        </button>
+        </Button>
       </p>
       <section className={cn(doctorSectionCardClass, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
         <h2 className={cn(doctorSectionTitleClass, "mb-1 shrink-0")}>Журнал рассылок</h2>

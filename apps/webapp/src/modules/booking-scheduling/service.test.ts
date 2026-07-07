@@ -4,6 +4,7 @@ import type { BookingSchedulingPort, WorkingDayRecord } from "./ports";
 
 /** Дата ~30 дней в будущем (минует min-notice фильтр), YYYY-MM-DD в UTC. */
 const TEST_DATE = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+const TEST_WEEKDAY = new Date(`${TEST_DATE}T12:00:00.000Z`).getUTCDay();
 
 function makePort(perDayBranchId: string | null): BookingSchedulingPort {
   const workingDay: WorkingDayRecord = {
@@ -19,7 +20,7 @@ function makePort(perDayBranchId: string | null): BookingSchedulingPort {
     isClosed: false,
   };
   return {
-    listWorkingHours: async () => [{ weekday: 0, startMinute: 0, endMinute: 0 }],
+    listWorkingHours: async () => [{ weekday: TEST_WEEKDAY, startMinute: 9 * 60, endMinute: 18 * 60 }],
     getBufferMinutes: async () => 0,
     getMinNoticeHours: async () => 0,
     listBusyIntervals: async () => [],
@@ -46,6 +47,13 @@ describe("buildSlotsForContext per-date branch scoping", () => {
     const slots = await buildSlotsForContext(makePort("branch-A"), context("branch-A"));
     const total = slots.reduce((n, d) => n + d.slots.length, 0);
     expect(total).toBeGreaterThan(0);
+  });
+
+  it("uses the manual per-date schedule instead of the weekday default for matching branch slots", async () => {
+    const slots = await buildSlotsForContext(makePort("branch-A"), context("branch-A"));
+    const firstSlot = slots.flatMap((d) => d.slots)[0];
+    expect(firstSlot?.startAt).toBeDefined();
+    expect(new Date(firstSlot!.startAt).getUTCHours()).toBe(11);
   });
 
   it("yields no slots when the day is assigned to a different branch", async () => {

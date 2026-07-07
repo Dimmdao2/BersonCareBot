@@ -15,6 +15,7 @@ function pkg(
     platformUserId: "user",
     subscriptionPackageId: null,
     status: "active",
+    displayNumber: 1,
     title: id,
     priceMinor: 0,
     currency: "RUB",

@@ -93,9 +93,10 @@ export function ServiceStepClient({
             const label = dur != null ? `${title} (${dur} мин.)` : title;
             const desc = s.description?.trim();
             return (
-              <button
+              <Button
                 key={s.id}
                 type="button"
+                variant="ghost"
                 className={cn(
                   bookingChoiceRowClass,
                   "min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left font-normal",
@@ -114,7 +115,7 @@ export function ServiceStepClient({
               >
                 <span className="font-medium">{label}</span>
                 {desc ? <BookingServiceDescription text={desc} /> : null}
-              </button>
+              </Button>
             );
           })}
         </div>

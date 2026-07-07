@@ -69,4 +69,21 @@ describe("GET /api/doctor/recommendations", () => {
       domain: "nutrition",
     });
   });
+
+  it("treats includeArchived=false query as active-only", async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue({
+      user: { userId: "d1", role: "doctor", bindings: {} },
+    } as never);
+    listRecommendations.mockResolvedValueOnce([]);
+    const res = await GET(
+      new Request("http://localhost/api/doctor/recommendations?includeArchived=false"),
+    );
+    expect(res.status).toBe(200);
+    expect(listRecommendations).toHaveBeenCalledWith({
+      search: null,
+      includeArchived: false,
+      regionRefId: null,
+      domain: null,
+    });
+  });
 });

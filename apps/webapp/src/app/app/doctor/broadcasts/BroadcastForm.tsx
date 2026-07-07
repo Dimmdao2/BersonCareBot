@@ -271,13 +271,14 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <BroadcastSentMessage preview={preview} />
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={handleReset}
-          className="self-start rounded-md border border-border px-4 py-2 text-sm"
+          className="self-start"
         >
           Создать новую рассылку
-        </button>
+        </Button>
       </div>
     );
   }
@@ -340,9 +341,11 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         </p>
         <div className="flex flex-wrap gap-1.5">
           {BROADCAST_FORM_CATEGORIES.map(({ value: v, label }) => (
-            <button
+            <Button
               key={v}
               type="button"
+              variant="ghost"
+              size="sm"
               disabled={isFormLocked}
               onClick={() => setCategory(category === v ? "" : v)}
               className={cn(
@@ -355,7 +358,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
               aria-pressed={category === v}
             >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -493,23 +496,24 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
 
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
-        <button
+        <Button
           type="button"
           id="broadcast-preview-button"
           onClick={handlePreview}
           disabled={!isPreviewValid || isFormLocked || isPending}
-          className="rounded-md bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          size="sm"
         >
           {stage === "previewing" ? "Загрузка…" : "Предпросмотр"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => void handleSaveDraft()}
           disabled={draftSaving || isFormLocked}
-          className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
         >
           {draftSaving ? "Сохранение…" : draftSaved ? "Черновик сохранён ✓" : "Сохранить черновик"}
-        </button>
+        </Button>
       </div>
     </div>
   );

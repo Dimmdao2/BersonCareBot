@@ -9,6 +9,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/shared/ui/doctor/primitives/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import { cn } from "@/lib/utils";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
@@ -544,25 +547,40 @@ export function AdminMergeAccountsPanel({
 
           <div className="space-y-1.5">
             <Label htmlFor="merge-dup-select">Вторая запись (из списка пересечений)</Label>
-            <select
-              id="merge-dup-select"
-              className={cn(
-                "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
-                "ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              )}
+            <Select
               value={secondUserId}
-              onChange={(e) => setSecondUserId(e.target.value)}
+              onValueChange={(v) => setSecondUserId(v ?? "")}
             >
-              <option value="">— выберите —</option>
-              {secondUserSelectExtraOption ? (
-                <option value={secondUserSelectExtraOption.value}>{secondUserSelectExtraOption.label}</option>
-              ) : null}
-              {(candidates ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.displayName} · {c.phoneNormalized ?? "нет тел."} · {c.id.slice(0, 8)}…
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                id="merge-dup-select"
+                displayLabel={
+                  secondUserSelectExtraOption?.value === secondUserId
+                    ? secondUserSelectExtraOption.label
+                    : (candidates ?? []).find((c) => c.id === secondUserId)
+                      ? (() => {
+                          const c = (candidates ?? []).find((c) => c.id === secondUserId)!;
+                          return `${c.displayName} · ${c.phoneNormalized ?? "нет тел."} · ${c.id.slice(0, 8)}…`;
+                        })()
+                      : secondUserId
+                        ? secondUserId
+                        : "— выберите —"
+                }
+                className="w-full"
+              />
+              <SelectContent>
+                <SelectItem value="">— выберите —</SelectItem>
+                {secondUserSelectExtraOption ? (
+                  <SelectItem value={secondUserSelectExtraOption.value}>
+                    {secondUserSelectExtraOption.label}
+                  </SelectItem>
+                ) : null}
+                {(candidates ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.displayName} · {c.phoneNormalized ?? "нет тел."} · {c.id.slice(0, 8)}…
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {secondUserId ? (
               <p className="text-xs text-muted-foreground font-mono break-all">
                 Текущая вторая сторона: {secondUserId}
@@ -593,10 +611,11 @@ export function AdminMergeAccountsPanel({
                   .filter((u) => u.id !== anchorUserId)
                   .map((u) => (
                     <li key={u.id}>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         className={cn(
-                          "w-full rounded px-2 py-1.5 text-left hover:bg-muted/80",
+                          "h-auto w-full justify-start rounded px-2 py-1.5 text-left",
                           secondUserId === u.id && "bg-muted",
                         )}
                         onClick={() => setSecondUserId(u.id)}
@@ -604,7 +623,7 @@ export function AdminMergeAccountsPanel({
                         <span className="font-medium">{u.displayName}</span>
                         <span className="ml-2 font-mono text-xs text-muted-foreground">{u.id.slice(0, 8)}…</span>
                         <span className="block text-xs text-muted-foreground">{u.phoneNormalized ?? "нет тел."}</span>
-                      </button>
+                      </Button>
                     </li>
                   ))}
               </ul>
@@ -615,30 +634,24 @@ export function AdminMergeAccountsPanel({
 
           <fieldset className="space-y-2 rounded-md border border-border/50 p-3">
             <legend className="text-sm font-medium px-1">Каноническая запись после merge</legend>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="merge-canonical"
-                checked={canonicalIsAnchor}
-                onChange={() => setCanonicalIsAnchor(true)}
-              />
-              Текущая карточка (якорь)
-            </label>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="merge-canonical"
-                checked={!canonicalIsAnchor}
-                onChange={() => setCanonicalIsAnchor(false)}
-                disabled={!secondUserId}
-              />
-              Вторая выбранная запись
-            </label>
+            <RadioGroup
+              value={canonicalIsAnchor ? "anchor" : "second"}
+              onValueChange={(v) => setCanonicalIsAnchor((v ?? "anchor") === "anchor")}
+              className="gap-2"
+            >
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <RadioGroupItem value="anchor" />
+                Текущая карточка (якорь)
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <RadioGroupItem value="second" disabled={!secondUserId} />
+                Вторая выбранная запись
+              </label>
+            </RadioGroup>
             <label className="flex cursor-pointer items-center gap-2 text-sm pt-1 border-t border-border/40">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={alignToRecommendation}
-                onChange={(e) => setAlignToRecommendation(e.target.checked)}
+                onCheckedChange={(checked) => setAlignToRecommendation(checked === true)}
               />
               Подстроить ориентацию под рекомендацию preview (эвристика)
             </label>
@@ -824,44 +837,32 @@ export function AdminMergeAccountsPanel({
                           </td>
                           <td className="py-2">
                             {conflict ? (
-                              <div className="flex flex-wrap gap-3 text-xs">
+                              <RadioGroup
+                                value={resolution.fields[field]}
+                                onValueChange={(v) =>
+                                  setResolution((r) =>
+                                    r
+                                      ? {
+                                          ...r,
+                                          fields: {
+                                            ...r.fields,
+                                            [field]: (v ?? "target") as "target" | "duplicate",
+                                          },
+                                        }
+                                      : r,
+                                  )
+                                }
+                                className="flex flex-wrap gap-3 text-xs"
+                              >
                                 <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                                  <input
-                                    type="radio"
-                                    name={`scalar-${field}`}
-                                    checked={resolution.fields[field] === "target"}
-                                    onChange={() =>
-                                      setResolution((r) =>
-                                        r
-                                          ? {
-                                              ...r,
-                                              fields: { ...r.fields, [field]: "target" },
-                                            }
-                                          : r,
-                                      )
-                                    }
-                                  />
+                                  <RadioGroupItem value="target" />
                                   целевой
                                 </label>
                                 <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                                  <input
-                                    type="radio"
-                                    name={`scalar-${field}`}
-                                    checked={resolution.fields[field] === "duplicate"}
-                                    onChange={() =>
-                                      setResolution((r) =>
-                                        r
-                                          ? {
-                                              ...r,
-                                              fields: { ...r.fields, [field]: "duplicate" },
-                                            }
-                                          : r,
-                                      )
-                                    }
-                                  />
+                                  <RadioGroupItem value="duplicate" />
                                   дубликат
                                 </label>
-                              </div>
+                              </RadioGroup>
                             ) : (
                               <span className="text-xs text-muted-foreground">авто (без конфликта)</span>
                             )}
@@ -889,23 +890,30 @@ export function AdminMergeAccountsPanel({
                       <div className="text-xs font-mono break-all">Дубл.: {db?.externalId ?? "—"}</div>
                       <div>
                         {hasCo ? (
-                          <div className="flex flex-wrap gap-3 text-xs">
+                          <RadioGroup
+                            value={resolution.bindings[ch]}
+                            onValueChange={(v) =>
+                              setResolution((r) =>
+                                r
+                                  ? {
+                                      ...r,
+                                      bindings: {
+                                        ...r.bindings,
+                                        [ch]: (v ?? "target") as "target" | "duplicate" | "both",
+                                      },
+                                    }
+                                  : r,
+                              )
+                            }
+                            className="flex flex-wrap gap-3 text-xs"
+                          >
                             {(["target", "duplicate"] as const).map((opt) => (
                               <label key={opt} className="inline-flex items-center gap-1.5 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name={`ch-${ch}`}
-                                  checked={resolution.bindings[ch] === opt}
-                                  onChange={() =>
-                                    setResolution((r) =>
-                                      r ? { ...r, bindings: { ...r.bindings, [ch]: opt } } : r,
-                                    )
-                                  }
-                                />
+                                <RadioGroupItem value={opt} />
                                 {opt === "target" ? "целевой" : "дубликат"}
                               </label>
                             ))}
-                          </div>
+                          </RadioGroup>
                         ) : (
                           <span className="text-xs text-muted-foreground">авто (both)</span>
                         )}
@@ -929,44 +937,32 @@ export function AdminMergeAccountsPanel({
                           цел.: {o.targetProviderUserId ?? "—"} · дубл.: {o.duplicateProviderUserId ?? "—"}
                         </span>
                       </div>
-                      <div className="flex gap-3 text-xs">
+                      <RadioGroup
+                        value={resolution.oauth[o.provider]}
+                        onValueChange={(v) =>
+                          setResolution((r) =>
+                            r
+                              ? {
+                                  ...r,
+                                  oauth: {
+                                    ...r.oauth,
+                                    [o.provider]: (v ?? "target") as "target" | "duplicate",
+                                  },
+                                }
+                              : r,
+                          )
+                        }
+                        className="flex gap-3 text-xs"
+                      >
                         <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`oauth-${o.provider}`}
-                            checked={resolution.oauth[o.provider] === "target"}
-                            onChange={() =>
-                              setResolution((r) =>
-                                r
-                                  ? {
-                                      ...r,
-                                      oauth: { ...r.oauth, [o.provider]: "target" },
-                                    }
-                                  : r,
-                              )
-                            }
-                          />
+                          <RadioGroupItem value="target" />
                           целевой
                         </label>
                         <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`oauth-${o.provider}`}
-                            checked={resolution.oauth[o.provider] === "duplicate"}
-                            onChange={() =>
-                              setResolution((r) =>
-                                r
-                                  ? {
-                                      ...r,
-                                      oauth: { ...r.oauth, [o.provider]: "duplicate" },
-                                    }
-                                  : r,
-                              )
-                            }
-                          />
+                          <RadioGroupItem value="duplicate" />
                           дубликат
                         </label>
-                      </div>
+                      </RadioGroup>
                     </div>
                   ))}
                 </div>
@@ -974,28 +970,36 @@ export function AdminMergeAccountsPanel({
 
               <div className="space-y-1.5">
                 <Label htmlFor="merge-ch-prefs">Предпочтения каналов (user_channel_preferences)</Label>
-                <select
-                  id="merge-ch-prefs"
-                  className={cn(
-                    "flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
-                    "ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                  )}
+                <Select
                   value={resolution.channelPreferences}
-                  onChange={(e) =>
+                  onValueChange={(v) =>
                     setResolution((r) =>
                       r
                         ? {
                             ...r,
-                            channelPreferences: e.target.value as ManualMergeResolution["channelPreferences"],
+                            channelPreferences: (v ?? "keep_newer") as ManualMergeResolution["channelPreferences"],
                           }
                         : r,
                     )
                   }
                 >
-                  <option value="keep_newer">keep_newer (как по умолчанию)</option>
-                  <option value="keep_target">keep_target (удалить prefs дубликата)</option>
-                  <option value="merge">merge</option>
-                </select>
+                  <SelectTrigger
+                    id="merge-ch-prefs"
+                    displayLabel={
+                      resolution.channelPreferences === "keep_newer"
+                        ? "keep_newer (как по умолчанию)"
+                        : resolution.channelPreferences === "keep_target"
+                          ? "keep_target (удалить prefs дубликата)"
+                          : "merge"
+                    }
+                    className="w-full max-w-md"
+                  />
+                  <SelectContent>
+                    <SelectItem value="keep_newer">keep_newer (как по умолчанию)</SelectItem>
+                    <SelectItem value="keep_target">keep_target (удалить prefs дубликата)</SelectItem>
+                    <SelectItem value="merge">merge</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="rounded-md bg-muted/40 p-3 text-sm space-y-2">

@@ -16,6 +16,7 @@
 export type ActiveComplaint = {
   id: string;
   text: string;
+  description: string | null;
   priority: boolean;
   /** severity последнего обновления (0–10). */
   currentSeverity: number;
@@ -93,15 +94,20 @@ export type Visit = {
   id: string;
   /** Человекочитаемая дата, напр. «22 января 2026». */
   date: string;
+  /** Человекочитаемое время визита, напр. «14:30». */
+  time: string;
   type: "first" | "repeat";
   location: string;
   duration: string;
+  anamnesisText: string | null;
   filesCount?: number;
   /** Для повторных визитов: динамика жалоб (from→to severity). */
   dynamics?: VisitDynamicsRow[];
   /** Текстовые разделы (Осмотр / Манипуляции / Рекомендации / …). */
   sections?: VisitSection[];
   files?: VisitFile[];
+  /** Если визит был списан с абонемента — данные абонемента, иначе null. */
+  package?: { title: string; displayNumber: number | null } | null;
 };
 
 // -- Анамнез ------------------------------------------------------------------
@@ -189,6 +195,7 @@ export type CreateDiagnosisCatalogParams = {
 
 export type CreateVisitComplaint = {
   text: string;
+  description?: string | null;
   priority: boolean;
   severity: number; // 0–10
 };
@@ -197,6 +204,7 @@ export type CreateVisitDiagnosis = {
   text: string;
   priority: boolean;
   catalogId?: string | null;
+  comment?: string | null;
 };
 
 export type CreateVisitComplaintUpdate = {
@@ -220,6 +228,7 @@ export type CreateVisitInput = {
   location?: string | null;
   service?: string | null;
   duration?: string | null;
+  anamnesisText?: string | null;
   appointmentRecordId?: string | null;
   exam?: string | null;
   manipulations?: string | null;
@@ -277,6 +286,7 @@ export type UpdateVisitFieldsInput = {
   visitId: string;
   location?: string | null;
   duration?: string | null;
+  anamnesisText?: string | null;
   exam?: string | null;
   manipulations?: string | null;
   trialResults?: string | null;

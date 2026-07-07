@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { Label } from "@/shared/ui/patient/primitives/label";
+import { inputFieldSurfaceClassName } from "@/shared/ui/patient/primitives/input";
 import { cn } from "@/lib/utils";
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
@@ -61,8 +62,8 @@ export function PatientDurationHmWheels({ value, onChange, disabled, className, 
         <select
           id={hourId}
           className={cn(
-            "h-11 w-full rounded-md border border-input bg-background px-2 text-center text-base font-medium shadow-sm",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            inputFieldSurfaceClassName,
+            "h-11 px-2 text-center text-base font-medium shadow-sm",
           )}
           disabled={disabled}
           value={hour}
@@ -84,8 +85,8 @@ export function PatientDurationHmWheels({ value, onChange, disabled, className, 
         <select
           id={minId}
           className={cn(
-            "h-11 w-full rounded-md border border-input bg-background px-2 text-center text-base font-medium shadow-sm",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            inputFieldSurfaceClassName,
+            "h-11 px-2 text-center text-base font-medium shadow-sm",
           )}
           disabled={disabled}
           value={minuteVal}

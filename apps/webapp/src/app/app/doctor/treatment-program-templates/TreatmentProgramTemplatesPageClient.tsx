@@ -307,7 +307,7 @@ export function TreatmentProgramTemplatesPageClient({
         </DoctorCatalogToolbarFiltersSlot>
       }
       end={
-        <button
+        <Button
           type="button"
           className={doctorCatalogToolbarPrimaryActionClassName}
           id="doctor-treatment-program-templates-new"
@@ -318,7 +318,7 @@ export function TreatmentProgramTemplatesPageClient({
           }}
         >
           Создать
-        </button>
+        </Button>
       }
     />
   );

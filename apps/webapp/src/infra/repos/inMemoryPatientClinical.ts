@@ -37,6 +37,7 @@ type VisitRow = {
   location: string | null;
   service: string | null;
   duration: string | null;
+  anamnesisText: string | null;
   appointmentRecordId: string | null;
   exam: string | null;
   manipulations: string | null;
@@ -50,6 +51,7 @@ type ComplaintRow = {
   id: string;
   patientUserId: string;
   text: string;
+  description: string | null;
   priority: boolean;
   status: "active" | "resolved";
   sourceVisitId: string;
@@ -75,6 +77,7 @@ type DiagnosisRow = {
   catalogId: string | null;
   text: string;
   priority: boolean;
+  comment: string | null;
   status: "active" | "refined" | "resolved";
   clinicalStatus: DiagnosisClinicalStatus;
   sourceVisitId: string;
@@ -191,6 +194,11 @@ function fmtVisitDate(iso: string): string {
   return `${d.getUTCDate()} ${RU_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
+function fmtVisitTime(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
 function fmtDayMonth(iso: string): string {
   const d = new Date(iso);
   const dd = String(d.getUTCDate()).padStart(2, "0");
@@ -212,6 +220,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         return {
           id: c.id,
           text: c.text,
+          description: c.description,
           priority: c.priority,
           currentSeverity,
           trend,
@@ -240,7 +249,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           status: d.status === "refined" ? "refined" : "active",
           clinicalStatus: d.clinicalStatus ?? "предварительный",
           meta,
-          comment: null,
+          comment: d.comment,
         };
       })
       .sort((a, b) => Number(b.priority) - Number(a.priority));
@@ -275,6 +284,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
 
       // Text sections — only non-empty ones.
       const sections: { title: string; body: string }[] = [];
+      if (v.anamnesisText) sections.push({ title: "Анамнез / история жалобы", body: v.anamnesisText });
       if (v.exam) sections.push({ title: "Осмотр", body: v.exam });
       if (v.manipulations) sections.push({ title: "Проведённые манипуляции", body: v.manipulations });
       if (v.trialResults) sections.push({ title: "Результаты проб", body: v.trialResults });
@@ -283,12 +293,15 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       return {
         id: v.id,
         date: fmtVisitDate(v.visitedAt),
+        time: fmtVisitTime(v.visitedAt),
         type: v.visitType,
         location: v.location ?? "",
         duration: v.duration ?? "",
+        anamnesisText: v.anamnesisText,
         dynamics: dynamics.length > 0 ? dynamics : undefined,
         sections: sections.length > 0 ? sections : undefined,
         files: undefined, // files joined from patient_files in pg repo; n/a in memory
+        package: null, // package lookup requires DB; n/a in memory
       };
     });
   },
@@ -326,6 +339,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       location: input.location ?? null,
       service: input.service ?? null,
       duration: input.duration ?? null,
+      anamnesisText: input.anamnesisText ?? null,
       appointmentRecordId: input.appointmentRecordId ?? null,
       exam: input.exam ?? null,
       manipulations: input.manipulations ?? null,
@@ -342,6 +356,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           id: complaintId,
           patientUserId: input.patientUserId,
           text: c.text,
+          description: c.description ?? null,
           priority: c.priority,
           status: "active",
           sourceVisitId: visitId,
@@ -366,6 +381,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           catalogId: d.catalogId ?? null,
           text: d.text,
           priority: d.priority,
+          comment: d.comment ?? null,
           status: "active",
           clinicalStatus: "предварительный",
           sourceVisitId: visitId,
@@ -434,6 +450,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     if (!row) return false;
     if (input.text !== undefined) row.text = input.text;
     if (input.priority !== undefined) row.priority = input.priority;
+    if (input.comment !== undefined) row.comment = input.comment;
     return true;
   },
 
@@ -444,6 +461,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     if (!row) return false;
     if (input.location !== undefined) row.location = input.location;
     if (input.duration !== undefined) row.duration = input.duration;
+    if (input.anamnesisText !== undefined) row.anamnesisText = input.anamnesisText;
     if (input.exam !== undefined) row.exam = input.exam;
     if (input.manipulations !== undefined) row.manipulations = input.manipulations;
     if (input.trialResults !== undefined) row.trialResults = input.trialResults;

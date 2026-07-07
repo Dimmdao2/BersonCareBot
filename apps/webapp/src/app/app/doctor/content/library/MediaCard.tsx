@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
@@ -62,9 +63,10 @@ export function MediaCard({
     <article className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
       <div className="overflow-hidden rounded-md border border-border/70 bg-muted/30">
         {renderInlineImage ? (
-          <button
+          <Button
             type="button"
-            className="block w-full p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            variant="ghost"
+            className="block h-auto w-full p-0 text-left"
             onClick={onOpenPreview}
           >
             <MediaThumb
@@ -74,11 +76,12 @@ export function MediaCard({
               labels={thumbLabels}
               sizes="160px"
             />
-          </button>
+          </Button>
         ) : item.kind === "video" ? (
-          <button
+          <Button
             type="button"
-            className="block w-full p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            variant="ghost"
+            className="block h-auto w-full p-0 text-left"
             aria-label="Предпросмотр видео"
             onClick={onOpenPreview}
           >
@@ -89,7 +92,7 @@ export function MediaCard({
               labels={thumbLabels}
               sizes="160px"
             />
-          </button>
+          </Button>
         ) : item.kind === "audio" ? (
           <div className="p-3">
             <audio controls preload="metadata" className="w-full">

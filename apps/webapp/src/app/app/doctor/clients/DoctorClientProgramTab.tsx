@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
 import { DoctorClientProgramInbox } from "./DoctorClientProgramInbox";
@@ -79,30 +80,24 @@ export function DoctorClientProgramTab({
       {/* Mode switcher — shown only when there is an active program instance */}
       {resolvedActiveInstanceId ? (
         <div className="flex items-center gap-1 border-b border-border px-4 py-2">
-          <button
+          <Button
             type="button"
             onClick={() => setMode("overview")}
-            className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-              mode === "overview"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80",
-            )}
+            variant={mode === "overview" ? "default" : "ghost"}
+            size="sm"
+            className="rounded-full px-3 py-1 text-xs font-medium"
           >
             Обзор
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => setMode("correction")}
-            className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-              mode === "correction"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80",
-            )}
+            variant={mode === "correction" ? "default" : "ghost"}
+            size="sm"
+            className="rounded-full px-3 py-1 text-xs font-medium"
           >
             Коррекция
-          </button>
+          </Button>
         </div>
       ) : null}
 

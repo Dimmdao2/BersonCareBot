@@ -18,6 +18,7 @@ const createVisitBodySchema = z.object({
   location: z.string().max(500).optional(),
   service: z.string().max(500).optional(),
   duration: z.string().max(100).optional(),
+  anamnesisText: z.string().max(20000).optional(),
   appointmentRecordId: z.string().uuid().optional(),
   exam: z.string().max(20000).optional(),
   manipulations: z.string().max(20000).optional(),
@@ -27,6 +28,7 @@ const createVisitBodySchema = z.object({
     .array(
       z.object({
         text: z.string().min(1).max(2000),
+        description: z.string().max(20000).optional(),
         priority: z.boolean(),
         severity: severitySchema,
       }),
@@ -38,6 +40,7 @@ const createVisitBodySchema = z.object({
         text: z.string().min(1).max(2000),
         priority: z.boolean(),
         catalogId: z.string().uuid().optional(),
+        comment: z.string().max(20000).optional(),
       }),
     )
     .optional(),
@@ -98,6 +101,7 @@ export async function POST(
     location: b.location ?? null,
     service: b.service ?? null,
     duration: b.duration ?? null,
+    anamnesisText: b.anamnesisText ?? null,
     appointmentRecordId: b.appointmentRecordId ?? null,
     exam: b.exam ?? null,
     manipulations: b.manipulations ?? null,

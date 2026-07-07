@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
@@ -68,15 +70,15 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
         </Button>
       ) : (
         <div className="flex flex-col gap-2">
-          <label htmlFor="block-reason" className="text-sm">
+          <Label htmlFor="block-reason" className="text-sm">
             Причина (необязательно)
-          </label>
-          <textarea
+          </Label>
+          <Textarea
             id="block-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            className="min-h-[56px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="min-h-[56px]"
             maxLength={2000}
           />
           <Button type="button" variant="destructive" disabled={pending} onClick={() => void setBlock(true)}>

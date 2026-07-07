@@ -51,6 +51,16 @@ Same under `/api/doctor/booking-engine/...` where mirrored. Admin setting `booki
 
 UI: `BookingPatientPackagesSection` (admin booking ops), **`DoctorClientMembershipsPanel`** + `PatientPackageCard` / `PatientPackageSessionsList` on patient card tab «Записи».
 
+## Race safety — ST-02 advisory lock
+
+`MembershipsPort.runWithPackageLock(patientPackageId, organizationId, fn)` serializes the entire
+`recalcPastSessionsForPackage` body (balance read → debit loop) under a per-package lock.
+
+- **pg port (`pgMemberships.ts`):** wraps `fn` in a `db.transaction` + `pg_advisory_xact_lock(hashtextextended(patientPackageId, 0))`. The transaction-scoped lock is auto-released on COMMIT/ROLLBACK; the second concurrent pass blocks until the first commits, then reads the updated ledger.
+- **fake/in-memory port (tests):** serialized via a per-key promise chain (`makeSerializingLock` in `service.test.ts`) — same serialization semantics without real Postgres.
+
+Inside the lock a `debitedApptIds` Set (built from freshly-read usages) provides an additional intra-pass idempotency guard so appointments debited by the first pass are skipped immediately by the second without waiting for `computeAppointmentPackageLinkage`.
+
 ## Docs
 
 `docs/OWN_BOOKING_ENGINE_INITIATIVE/STAGE_CHECKLISTS.md` §Этап 6 · plan `.cursor/plans/archive/own_booking_stage6_memberships.plan.md` · **BOOKING rework этап 3:** `docs/BOOKING_REWORK_INITIATIVE/STAGE3_DECOMPOSITION.md`, `ACCEPTANCE_STAGE3.md`, `LOG.md`

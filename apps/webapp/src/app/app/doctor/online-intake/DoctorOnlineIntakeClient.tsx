@@ -200,29 +200,33 @@ function IntakeStatsCard({
           siblings, not nested inside a button — fixes the <button>-in-<button>
           hydration warning (task #44). */}
       <div className="flex w-full items-center justify-between border-b border-border bg-muted/20 px-3 py-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={onToggle}
-          className="text-left text-xs font-semibold"
+          className="h-auto p-0 text-left text-xs font-semibold hover:bg-transparent"
         >
           Статистика заявок {collapsed ? "▸" : "▾"}
-        </button>
+        </Button>
         {!collapsed && (
           <span className="flex gap-1">
             {STATS_DAYS_OPTIONS.map((d) => (
-              <button
+              <Button
                 key={d}
                 type="button"
+                variant={days === d ? "ghost" : "outline"}
+                size="sm"
                 onClick={() => onDaysChange(d)}
                 className={cn(
-                  "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                  "h-auto rounded px-2 py-0.5 text-[10px]",
                   days === d
-                    ? "bg-primary/15 text-primary"
-                    : "border border-border text-muted-foreground hover:bg-muted/40",
+                    ? "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary"
+                    : "text-muted-foreground",
                 )}
               >
                 {STATS_DAYS_LABELS[d]}
-              </button>
+              </Button>
             ))}
           </span>
         )}
@@ -506,21 +510,21 @@ export function DoctorOnlineIntakeClient({
             status === "new" ? newCount : status === "in_review" ? inReviewCount : undefined;
           const isActive = selectedStatuses.has(status);
           return (
-            <button
+            <Button
               key={status}
               type="button"
+              variant={isActive ? "ghost" : "outline"}
+              size="sm"
               onClick={() => toggleStatus(status)}
               className={cn(
-                "rounded-md px-2 py-1 text-xs font-medium transition-colors",
-                isActive
-                  ? "bg-primary/15 text-primary"
-                  : "border border-border text-muted-foreground hover:bg-muted/40",
+                "h-auto rounded-md px-2 py-1 text-xs",
+                isActive && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
               )}
               aria-pressed={isActive}
             >
               {label}
               {count !== undefined && count > 0 ? ` · ${count}` : ""}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -537,13 +541,14 @@ export function DoctorOnlineIntakeClient({
           </DoctorEmptyState>
         ) : (
           filteredItems.map((item) => (
-            <button
+            <Button
               key={item.id}
               type="button"
+              variant="ghost"
               onClick={() => void openDetail(item.id)}
               className={cn(
-                "flex min-w-0 w-full flex-col gap-0.5 border-b border-border px-3 py-2.5 text-left transition-colors overflow-hidden",
-                selectedId === item.id ? "bg-primary/15" : "hover:bg-muted/40",
+                "flex h-auto min-w-0 w-full flex-col gap-0.5 rounded-none border-b border-border px-3 py-2.5 text-left transition-colors overflow-hidden",
+                selectedId === item.id ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-muted/40",
               )}
             >
               <div className="flex min-w-0 items-baseline justify-between gap-2">
@@ -576,7 +581,7 @@ export function DoctorOnlineIntakeClient({
               {item.summary && (
                 <div className="min-w-0 truncate text-xs text-foreground/80">{item.summary}</div>
               )}
-            </button>
+            </Button>
           ))
         )}
       </div>

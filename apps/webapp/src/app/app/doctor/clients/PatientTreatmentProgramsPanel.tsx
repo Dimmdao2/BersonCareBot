@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
@@ -214,41 +213,35 @@ export function PatientTreatmentProgramsPanel(props: {
             role="radiogroup"
             aria-label="Способ назначения"
           >
-            <button
+            <Button
               type="button"
               role="radio"
               aria-checked={assignMode === "template"}
               disabled={templates.length === 0}
-              className={cn(
-                "text-xs font-medium transition-colors disabled:opacity-50",
-                assignMode === "template"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-foreground hover:bg-muted/60",
-              )}
+              variant={assignMode === "template" ? "default" : "ghost"}
+              size="sm"
+              className="h-full rounded-none text-xs font-medium"
               onClick={() => {
                 setAssignMode("template");
                 setAssignError(null);
               }}
             >
               Из шаблона
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               role="radio"
               aria-checked={assignMode === "blank"}
-              className={cn(
-                "text-xs font-medium transition-colors",
-                assignMode === "blank"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-foreground hover:bg-muted/60",
-              )}
+              variant={assignMode === "blank" ? "default" : "ghost"}
+              size="sm"
+              className="h-full rounded-none text-xs font-medium"
               onClick={() => {
                 setAssignMode("blank");
                 setAssignError(null);
               }}
             >
               Пустой план
-            </button>
+            </Button>
           </div>
 
           {assignMode === "blank" ? (
@@ -266,12 +259,11 @@ export function PatientTreatmentProgramsPanel(props: {
 
           {assignMode === "template" ? (
             <>
-              <input
+              <Input
                 type="text"
                 placeholder="Поиск по названию"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
 
               <ul className="mt-1 flex flex-col gap-1" role="listbox" aria-label="Шаблоны программ">

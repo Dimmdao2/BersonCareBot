@@ -128,13 +128,15 @@ export function BookingSoloLocationsSection() {
               Добавить
             </Button>
           </div>
-          <button
+          <Button
             type="button"
-            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
             onClick={() => setShowAdvanced((v) => !v)}
           >
             {showAdvanced ? "Скрыть дополнительно" : "Дополнительно"}
-          </button>
+          </Button>
           {showAdvanced ? (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Label className="text-xs text-muted-foreground">Часовой пояс</Label>

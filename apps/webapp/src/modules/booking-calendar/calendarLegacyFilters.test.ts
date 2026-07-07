@@ -30,7 +30,7 @@ function legacyEvent(overrides: Partial<CalendarAppointmentEvent> = {}): Calenda
     paymentStatus: null,
     prepaymentPending: false,
     packageUsageRef: null,
-    packageTitle: null,
+    packageTitle: null, packageDisplayNumber: null,
     rescheduleCount: 0,
     originalStartAt: null,
     formComments: [],
