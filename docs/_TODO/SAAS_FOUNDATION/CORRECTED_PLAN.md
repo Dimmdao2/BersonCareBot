@@ -81,6 +81,13 @@ Execution MUST use the micro-stage spine below. Do not hand an agent a brief for
 ### Phase 0 — executable micro-stage spine
 Each row is intended to fit one small PR. Each stage updates `LOG.md`, runs only local checks for the touched area, and stops if its gate fails.
 
+Execution checklists for the remaining stages:
+`P0_6_DORMANT_CONTEXT_CHECKLIST.md`, `P0_7_WRITER_CENSUS_CHECKLIST.md`,
+`P0_8_RLS_DESCRIPTOR_CHECKLIST.md`, `P0_9_DEFAULT_DENY_CHECKLIST.md`,
+`P0_10_CI_INVARIANTS_CHECKLIST.md`, `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md`,
+`P0_12_RESIDUAL_REFS_CHECKLIST.md`, and `P0_13_ISOLATION_FIXTURES_CHECKLIST.md`.
+Use them before executing the corresponding spine rows; they do not supersede this canonical plan.
+
 | Stage | Scope | Local gate |
 |---|---|---|
 | P0.1.1 | Drizzle DDL for `be_organization_members` only. | Migration generated; schema typecheck for webapp. |
