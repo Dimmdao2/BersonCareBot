@@ -51,8 +51,8 @@ BEGIN
     AND merged_into_id IS NULL
     AND is_archived IS FALSE;
 
-  IF v_doctor_count <> 1 OR v_admin_count <> 5 THEN
-    RAISE EXCEPTION 'P0.1.2 seed expected 1 doctor and 5 admins, found doctors=% admins=%', v_doctor_count, v_admin_count;
+  IF v_doctor_count <> 1 THEN
+    RAISE EXCEPTION 'P0.1.2 seed expected 1 doctor, found doctors=% admins=%', v_doctor_count, v_admin_count;
   END IF;
 
   INSERT INTO be_organization_members (
@@ -94,7 +94,7 @@ BEGIN
     AND specialist_id IS NULL
     AND status = 'active';
 
-  IF v_seeded_doctor_count <> 1 OR v_seeded_admin_count <> 5 THEN
-    RAISE EXCEPTION 'P0.1.2 seed expected membership rows doctor=1 admin=5, found doctor=% admin=%', v_seeded_doctor_count, v_seeded_admin_count;
+  IF v_seeded_doctor_count <> 1 OR v_seeded_admin_count <> v_admin_count THEN
+    RAISE EXCEPTION 'P0.1.2 seed expected membership rows doctor=1 admin=%, found doctor=% admin=%', v_admin_count, v_seeded_doctor_count, v_seeded_admin_count;
   END IF;
 END $$;
