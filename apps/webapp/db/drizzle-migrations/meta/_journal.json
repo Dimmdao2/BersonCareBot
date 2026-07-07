@@ -1023,6 +1023,13 @@
       "when": 1788355200000,
       "tag": "0145_seed_client_org_enrollments",
       "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1788441600000,
+      "tag": "0146_p0_4_p1_clinical_ehr_org",
+      "breakpoints": true
     }
   ]
 }

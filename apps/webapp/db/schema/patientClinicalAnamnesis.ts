@@ -7,6 +7,7 @@ import {
   foreignKey,
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * Анамнез пациента (раздел «Анамнез» в карте).
@@ -27,6 +28,7 @@ export const clinicalAnamnesisTrauma = pgTable(
   "clinical_anamnesis_trauma",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     /** Год / период, напр. «1991 (15 лет)». */
     year: text("year").notNull(),
@@ -40,7 +42,13 @@ export const clinicalAnamnesisTrauma = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_anamnesis_trauma_organization_id").on(table.organizationId),
     index("idx_clinical_anamnesis_trauma_patient").on(table.patientUserId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_anamnesis_trauma_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],
@@ -60,6 +68,7 @@ export const clinicalAnamnesisIllness = pgTable(
   "clinical_anamnesis_illness",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     /** Период, напр. «1999–2000» / «2020». */
     period: text("period").notNull(),
@@ -71,7 +80,13 @@ export const clinicalAnamnesisIllness = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_anamnesis_illness_organization_id").on(table.organizationId),
     index("idx_clinical_anamnesis_illness_patient").on(table.patientUserId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_anamnesis_illness_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],
@@ -91,6 +106,7 @@ export const clinicalAnamnesisLifestyle = pgTable(
   "clinical_anamnesis_lifestyle",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     /**
      * Дата записи (ISO-строка или ДД.ММ.ГГГГ — хранить в ISO).
@@ -103,7 +119,13 @@ export const clinicalAnamnesisLifestyle = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_anamnesis_lifestyle_organization_id").on(table.organizationId),
     index("idx_clinical_anamnesis_lifestyle_patient").on(table.patientUserId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_anamnesis_lifestyle_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],

@@ -69,7 +69,7 @@ P0.4.P1	public.patient_files	patient_org	add nullable organization_id; backfill 
 P0.4.D	public.patient_home_block_items	parent_denorm_copy	copy organization_id from public.patient_home_blocks; quarantine orphan child rows
 P0.4.P4	public.patient_home_blocks	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P3	public.patient_lfk_assignments	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
-P0.4.P1	public.patient_merge_candidates	patient_org	add nullable organization_id; backfill from source/target patient membership/enrollment, require single-org compatibility
+P0.4.P1	public.patient_merge_candidates	already_direct_org	already has organization_id NOT NULL and org/status index; P0.4.P1 validates it instead of adding another column
 P0.4.P1	public.patient_payment	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P4	public.patient_practice_completions	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P7	public.product_analytics_events_recent	user_org	add nullable organization_id; backfill from user key where present

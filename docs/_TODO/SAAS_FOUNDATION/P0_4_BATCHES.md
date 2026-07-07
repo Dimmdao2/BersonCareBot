@@ -15,7 +15,7 @@ all tables in one diff.
 | P0.4.I2 | 3 | Integrator `identities.user_id` path tables. |
 | P0.4.I3 | 4 | Integrator child tables that copy org from a scoped parent. |
 | P0.4.I4 | 1 | Integrator `mailings` direct org root. |
-| P0.4.P1 | 13 | Public clinical EHR, patient file/payment, merge candidates. |
+| P0.4.P1 | 13 | Public clinical EHR, patient file/payment, merge candidates (12 DDL/backfill tables + 1 already-direct-org table). |
 | P0.4.P2 | 12 | Public treatment program templates/instances and discussion/action children. |
 | P0.4.P3 | 11 | Public LFK plus test attempts/results. |
 | P0.4.P4 | 7 | Public diary/activity/symptoms/warmup/home blocks. |
