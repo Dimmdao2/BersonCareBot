@@ -19,6 +19,7 @@ import {
   text,
   timestamp,
   unique,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 export const mailingTopics = pgTable('mailing_topics', {
@@ -37,6 +38,7 @@ export const userSubscriptions = pgTable(
     topicId: bigint('topic_id', { mode: 'number' }).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    organizationId: uuid('organization_id'),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.topicId], name: 'user_subscriptions_pkey' }),
@@ -61,6 +63,7 @@ export const mailingLogs = pgTable(
     status: text().notNull(),
     sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
     error: text(),
+    organizationId: uuid('organization_id'),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.mailingId], name: 'mailing_logs_pkey' }),
