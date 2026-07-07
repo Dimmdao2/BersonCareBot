@@ -338,11 +338,11 @@ Run this after P0.2.2-P0.2.5 are complete and committed locally.
 
 Checklist:
 
-- [ ] Review `git diff origin/codex/saas-roadmap-foundation...HEAD`.
-- [ ] Confirm `rg` shows no new module imports from `@/infra/db` or `@/infra/repos` in non-test module files.
-- [ ] Confirm no new ESLint allowlist entries.
-- [ ] Confirm no migrations were added unless explicitly justified.
-- [ ] Run phase-level webapp checks through the wrapper:
+- [x] Review `git diff origin/codex/saas-roadmap-foundation...HEAD`.
+- [x] Confirm `rg` shows no new module imports from `@/infra/db` or `@/infra/repos` in non-test module files.
+- [x] Confirm no new ESLint allowlist entries.
+- [x] Confirm no migrations were added unless explicitly justified.
+- [x] Run phase-level webapp checks through the wrapper:
 
 ```bash
 bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp typecheck && pnpm --dir apps/webapp run lint && pnpm --dir apps/webapp test -- src/modules/organization-membership src/app-layer/guards src/app/api/doctor/workspace"
