@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { treatmentProgramTemplates } from "./treatmentProgramTemplates";
 import { contentPages } from "./schema";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * §9 SYSTEM_LOGIC_SCHEMA — курс: только метаданные и ссылка на шаблон программы;
@@ -21,6 +22,7 @@ export const courses = pgTable(
   "courses",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     title: text().notNull(),
     description: text(),
     programTemplateId: uuid("program_template_id").notNull(),
@@ -34,8 +36,14 @@ export const courses = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_courses_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
     index("idx_courses_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
     index("idx_courses_program_template").using("btree", table.programTemplateId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "courses_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.programTemplateId],
       foreignColumns: [treatmentProgramTemplates.id],

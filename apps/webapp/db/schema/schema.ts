@@ -210,6 +210,7 @@ export const idempotencyKeys = pgTable("idempotency_keys", {
 
 export const broadcastAudit = pgTable("broadcast_audit", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	actorId: text("actor_id").notNull(),
 	category: text().notNull(),
 	audienceFilter: text("audience_filter").notNull(),
@@ -227,6 +228,7 @@ export const broadcastAudit = pgTable("broadcast_audit", {
 	blockedRecipientCount: integer("blocked_recipient_count").default(0).notNull(),
 }, (table) => [
 	index("idx_broadcast_audit_executed_at").using("btree", table.executedAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_broadcast_audit_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 ]);
 
 export const supportQuestions = pgTable("support_questions", {
@@ -359,6 +361,7 @@ export const webappSchemaMigrations = pgTable("webapp_schema_migrations", {
 
 export const contentAccessGrantsWebapp = pgTable("content_access_grants_webapp", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	integratorGrantId: text("integrator_grant_id").notNull(),
 	platformUserId: uuid("platform_user_id"),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -374,6 +377,7 @@ export const contentAccessGrantsWebapp = pgTable("content_access_grants_webapp",
 	index("idx_content_access_grants_webapp_expires_at").using("btree", table.expiresAt.desc().nullsFirst().op("timestamptz_ops")),
 	uniqueIndex("idx_content_access_grants_webapp_integrator_grant_id").using("btree", table.integratorGrantId.asc().nullsLast().op("text_ops")),
 	index("idx_content_access_grants_webapp_integrator_user_id").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")),
+	index("idx_content_access_grants_webapp_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.platformUserId],
 			foreignColumns: [platformUsers.id],
@@ -483,6 +487,7 @@ export const branches = pgTable("branches", {
 
 export const contentPages = pgTable("content_pages", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	section: text().notNull(),
 	slug: text().notNull(),
 	title: text().notNull(),
@@ -502,6 +507,7 @@ export const contentPages = pgTable("content_pages", {
 	/** Промо-материал курса; FK на courses(id) в SQL-миграции (цикл импорта schema ↔ courses). */
 	linkedCourseId: uuid("linked_course_id"),
 }, (table) => [
+	index("idx_content_pages_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_content_pages_section").using("btree", table.section.asc().nullsLast().op("text_ops")),
 	index("idx_content_pages_section_sort").using("btree", table.section.asc().nullsLast().op("text_ops"), table.sortOrder.asc().nullsLast().op("text_ops")),
 	index("idx_content_pages_slug").using("btree", table.slug.asc().nullsLast().op("text_ops")),
@@ -736,6 +742,7 @@ export const referenceCategories = pgTable("reference_categories", {
 
 export const referenceItems = pgTable("reference_items", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	categoryId: uuid("category_id").notNull(),
 	code: text().notNull(),
 	title: text().notNull(),
@@ -746,6 +753,7 @@ export const referenceItems = pgTable("reference_items", {
 	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_ref_items_category").using("btree", table.categoryId.asc().nullsLast().op("int4_ops"), table.sortOrder.asc().nullsLast().op("uuid_ops")),
+	index("idx_reference_items_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("reference_items_category_deleted_active_sort_idx").using("btree", table.categoryId.asc().nullsLast().op("timestamptz_ops"), table.deletedAt.asc().nullsLast().op("uuid_ops"), table.isActive.asc().nullsLast().op("uuid_ops"), table.sortOrder.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.categoryId],
@@ -873,6 +881,7 @@ export const lfkComplexes = pgTable("lfk_complexes", {
 
 export const motivationalQuotes = pgTable("motivational_quotes", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	bodyText: text("body_text").notNull(),
 	author: text(),
 	isActive: boolean("is_active").default(true).notNull(),
@@ -881,6 +890,7 @@ export const motivationalQuotes = pgTable("motivational_quotes", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_motivational_quotes_active").using("btree", table.isActive.asc().nullsLast().op("int4_ops"), table.sortOrder.asc().nullsLast().op("int4_ops")),
+	index("idx_motivational_quotes_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 ]);
 
 export const lfkExercises = pgTable("lfk_exercises", {
@@ -1432,6 +1442,7 @@ export const bookingCities = pgTable("booking_cities", {
 
 export const contentSections = pgTable("content_sections", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	slug: text().notNull(),
 	title: text().notNull(),
 	description: text().default('').notNull(),
@@ -1445,6 +1456,7 @@ export const contentSections = pgTable("content_sections", {
 	kind: text("kind").default("article").notNull(),
 	systemParentCode: text("system_parent_code"),
 }, (table) => [
+	index("idx_content_sections_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_content_sections_sort").using("btree", table.sortOrder.asc().nullsLast().op("int4_ops"), table.title.asc().nullsLast().op("int4_ops")),
 	index("idx_content_sections_kind_parent_sort").using(
 		"btree",
@@ -1470,6 +1482,7 @@ export const contentSections = pgTable("content_sections", {
 
 export const contentSectionSlugHistory = pgTable("content_section_slug_history", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	oldSlug: text("old_slug").notNull(),
 	newSlug: text("new_slug").notNull(),
 	changedByUserId: uuid("changed_by_user_id"),
@@ -1477,6 +1490,7 @@ export const contentSectionSlugHistory = pgTable("content_section_slug_history",
 }, (table) => [
 	unique("content_section_slug_history_old_slug_key").on(table.oldSlug),
 	index("idx_content_section_slug_history_new_slug").using("btree", table.newSlug.asc().nullsLast().op("text_ops")),
+	index("idx_content_section_slug_history_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 ]);
 
 export const patientHomeBlocks = pgTable("patient_home_blocks", {
@@ -1889,6 +1903,7 @@ export const integratorPushOutbox = pgTable("integrator_push_outbox", {
 
 export const adminAuditLog = pgTable("admin_audit_log", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	actorId: uuid("actor_id"),
 	action: text().notNull(),
 	targetId: text("target_id"),
@@ -1904,6 +1919,7 @@ export const adminAuditLog = pgTable("admin_audit_log", {
 	index("idx_admin_audit_log_conflict_key").using("btree", table.conflictKey.asc().nullsLast().op("text_ops")).where(sql`(conflict_key IS NOT NULL)`),
 	uniqueIndex("idx_admin_audit_log_conflict_open").using("btree", table.conflictKey.asc().nullsLast().op("text_ops")).where(sql`((conflict_key IS NOT NULL) AND (resolved_at IS NULL))`),
 	index("idx_admin_audit_log_created").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_admin_audit_log_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_admin_audit_log_target").using("btree", table.targetId.asc().nullsLast().op("text_ops")).where(sql`(target_id IS NOT NULL)`),
 	foreignKey({
 			columns: [table.actorId],
