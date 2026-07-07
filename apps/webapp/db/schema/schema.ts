@@ -1544,6 +1544,7 @@ export const bookingServices = pgTable("booking_services", {
 export const onlineIntakeRequests = pgTable("online_intake_requests", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	userId: uuid("user_id").notNull(),
+	organizationId: uuid("organization_id"),
 	type: text().notNull(),
 	status: text().default('new').notNull(),
 	summary: text(),
@@ -1551,6 +1552,7 @@ export const onlineIntakeRequests = pgTable("online_intake_requests", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_online_intake_requests_created_at").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_online_intake_requests_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_online_intake_requests_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
 	index("idx_online_intake_requests_type").using("btree", table.type.asc().nullsLast().op("text_ops")),
 	index("idx_online_intake_requests_user_id").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
@@ -1642,11 +1644,13 @@ export const patientBookings = pgTable("patient_bookings", {
 export const onlineIntakeAnswers = pgTable("online_intake_answers", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	requestId: uuid("request_id").notNull(),
+	organizationId: uuid("organization_id"),
 	questionId: text("question_id").notNull(),
 	ordinal: integer().notNull(),
 	value: text().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
+	index("idx_online_intake_answers_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_online_intake_answers_request_id").using("btree", table.requestId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.requestId],
@@ -1659,6 +1663,7 @@ export const onlineIntakeAnswers = pgTable("online_intake_answers", {
 export const onlineIntakeAttachments = pgTable("online_intake_attachments", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	requestId: uuid("request_id").notNull(),
+	organizationId: uuid("organization_id"),
 	attachmentType: text("attachment_type").notNull(),
 	s3Key: text("s3_key"),
 	url: text(),
@@ -1668,6 +1673,7 @@ export const onlineIntakeAttachments = pgTable("online_intake_attachments", {
 	originalName: text("original_name"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
+	index("idx_online_intake_attachments_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_online_intake_attachments_request_id").using("btree", table.requestId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.requestId],
@@ -1681,6 +1687,7 @@ export const onlineIntakeAttachments = pgTable("online_intake_attachments", {
 export const onlineIntakeStatusHistory = pgTable("online_intake_status_history", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	requestId: uuid("request_id").notNull(),
+	organizationId: uuid("organization_id"),
 	fromStatus: text("from_status"),
 	toStatus: text("to_status").notNull(),
 	changedBy: uuid("changed_by"),
@@ -1688,6 +1695,7 @@ export const onlineIntakeStatusHistory = pgTable("online_intake_status_history",
 	changedAt: timestamp("changed_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_online_intake_status_history_changed_at").using("btree", table.changedAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_online_intake_status_history_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_online_intake_status_history_request_id").using("btree", table.requestId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.changedBy],
