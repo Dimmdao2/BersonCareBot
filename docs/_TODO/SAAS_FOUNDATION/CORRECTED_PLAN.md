@@ -43,6 +43,7 @@ v3 changelog (folds round-1 review C-A/C-B/C-C + H-A/H-B/H-C + M-A/M-B):
 - Tenant = **Organization** (`be_organizations`). Person = `platform_users`. Enrollment = `(organization_id, platform_user_id)`.
 - Isolation = **shared DB + Postgres RLS**; two row-level walls (org_id + patient ownership), one layer.
 - Fail-safe = **default-DENY + FORCE RLS**, three tiers (see tiers-218.tsv).
+- New product tables must declare tenant semantics at design time: direct `organization_id`, documented FK/denorm path to an org-owned parent, or a documented exemption (global catalog/system/telemetry/integration infra/legacy). Tables without one of these do not pass R1 review.
 
 ## Reconciliation (PERFORMED over 219 = 218 base + drizzle ledger)
 | Tier | Count | Meaning / RLS treatment |

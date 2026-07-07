@@ -36,6 +36,12 @@ export const APPOINTMENT_STATUS_VALUES = [
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUS_VALUES)[number];
 
+export const BE_ORGANIZATION_MEMBER_ROLE_VALUES = ["owner", "admin", "doctor", "assistant"] as const;
+export type BeOrganizationMemberRole = (typeof BE_ORGANIZATION_MEMBER_ROLE_VALUES)[number];
+
+export const BE_ORGANIZATION_MEMBER_STATUS_VALUES = ["active", "invited", "disabled"] as const;
+export type BeOrganizationMemberStatus = (typeof BE_ORGANIZATION_MEMBER_STATUS_VALUES)[number];
+
 const appointmentStatusCheckSql = sql`status = ANY (ARRAY[
   'created'::text,
   'awaiting_payment'::text,
@@ -140,6 +146,49 @@ export const beSpecialists = pgTable(
       foreignColumns: [beOrganizations.id],
       name: "be_specialists_organization_id_fkey",
     }).onDelete("cascade"),
+  ],
+);
+
+export const beOrganizationMembers = pgTable(
+  "be_organization_members",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    platformUserId: uuid("platform_user_id").notNull(),
+    role: text().notNull(),
+    specialistId: uuid("specialist_id"),
+    status: text().default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_be_organization_members_org").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
+    index("idx_be_organization_members_user").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
+    index("idx_be_organization_members_specialist").using("btree", table.specialistId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "be_organization_members_organization_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.platformUserId],
+      foreignColumns: [platformUsers.id],
+      name: "be_organization_members_platform_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.specialistId],
+      foreignColumns: [beSpecialists.id],
+      name: "be_organization_members_specialist_id_fkey",
+    }).onDelete("set null"),
+    unique("uq_be_organization_members_org_user").on(table.organizationId, table.platformUserId),
+    check(
+      "be_organization_members_role_check",
+      sql`${table.role} = ANY (ARRAY['owner'::text, 'admin'::text, 'doctor'::text, 'assistant'::text])`,
+    ),
+    check(
+      "be_organization_members_status_check",
+      sql`${table.status} = ANY (ARRAY['active'::text, 'invited'::text, 'disabled'::text])`,
+    ),
   ],
 );
 
