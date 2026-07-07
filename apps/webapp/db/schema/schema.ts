@@ -19,6 +19,7 @@ export const phoneChallenges = pgTable("phone_challenges", {
 
 export const supportConversations = pgTable("support_conversations", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	integratorConversationId: text("integrator_conversation_id").notNull(),
 	platformUserId: uuid("platform_user_id"),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -38,6 +39,7 @@ export const supportConversations = pgTable("support_conversations", {
 	uniqueIndex("idx_support_conversations_integrator_id").using("btree", table.integratorConversationId.asc().nullsLast().op("text_ops")),
 	index("idx_support_conversations_integrator_user_id").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")).where(sql`(integrator_user_id IS NOT NULL)`),
 	index("idx_support_conversations_last_message").using("btree", table.lastMessageAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_support_conversations_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_support_conversations_platform_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")).where(sql`(platform_user_id IS NOT NULL)`),
 	foreignKey({
 			columns: [table.platformUserId],
@@ -227,6 +229,7 @@ export const broadcastAudit = pgTable("broadcast_audit", {
 
 export const supportQuestions = pgTable("support_questions", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	integratorQuestionId: text("integrator_question_id").notNull(),
 	conversationId: uuid("conversation_id"),
 	status: text().notNull(),
@@ -237,6 +240,7 @@ export const supportQuestions = pgTable("support_questions", {
 	index("idx_support_questions_conversation_id").using("btree", table.conversationId.asc().nullsLast().op("uuid_ops")).where(sql`(conversation_id IS NOT NULL)`),
 	index("idx_support_questions_created").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
 	uniqueIndex("idx_support_questions_integrator_id").using("btree", table.integratorQuestionId.asc().nullsLast().op("text_ops")),
+	index("idx_support_questions_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.conversationId],
 			foreignColumns: [supportConversations.id],
@@ -247,6 +251,7 @@ export const supportQuestions = pgTable("support_questions", {
 
 export const supportQuestionMessages = pgTable("support_question_messages", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	integratorQuestionMessageId: text("integrator_question_message_id").notNull(),
 	questionId: uuid("question_id").notNull(),
 	senderRole: text("sender_role").notNull(),
@@ -254,6 +259,7 @@ export const supportQuestionMessages = pgTable("support_question_messages", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).notNull(),
 }, (table) => [
 	uniqueIndex("idx_support_question_messages_integrator_id").using("btree", table.integratorQuestionMessageId.asc().nullsLast().op("text_ops")),
+	index("idx_support_question_messages_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_support_question_messages_question_created").using("btree", table.questionId.asc().nullsLast().op("timestamptz_ops"), table.createdAt.asc().nullsLast().op("timestamptz_ops")),
 	foreignKey({
 			columns: [table.questionId],
@@ -265,6 +271,7 @@ export const supportQuestionMessages = pgTable("support_question_messages", {
 
 export const supportDeliveryEvents = pgTable("support_delivery_events", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	conversationMessageId: uuid("conversation_message_id"),
 	integratorIntentEventId: text("integrator_intent_event_id"),
 	correlationId: text("correlation_id"),
@@ -280,6 +287,7 @@ export const supportDeliveryEvents = pgTable("support_delivery_events", {
 	index("idx_support_delivery_events_correlation").using("btree", table.correlationId.asc().nullsLast().op("text_ops")).where(sql`(correlation_id IS NOT NULL)`),
 	uniqueIndex("idx_support_delivery_events_integrator_intent_uniq").using("btree", table.integratorIntentEventId.asc().nullsLast().op("text_ops")).where(sql`(integrator_intent_event_id IS NOT NULL)`),
 	index("idx_support_delivery_events_intent_event").using("btree", table.integratorIntentEventId.asc().nullsLast().op("text_ops")).where(sql`(integrator_intent_event_id IS NOT NULL)`),
+	index("idx_support_delivery_events_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.conversationMessageId],
 			foreignColumns: [supportConversationMessages.id],
@@ -627,6 +635,7 @@ export const lfkSessions = pgTable("lfk_sessions", {
 
 export const supportConversationMessages = pgTable("support_conversation_messages", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	integratorMessageId: text("integrator_message_id").notNull(),
 	conversationId: uuid("conversation_id").notNull(),
 	senderRole: text("sender_role").notNull(),
@@ -647,6 +656,7 @@ export const supportConversationMessages = pgTable("support_conversation_message
 	index("idx_support_conv_msg_unread_user_msgs").using("btree", table.conversationId.asc().nullsLast().op("uuid_ops")).where(sql`((read_at IS NULL) AND (sender_role = 'user'::text))`),
 	index("idx_support_conversation_messages_conversation_created").using("btree", table.conversationId.asc().nullsLast().op("uuid_ops"), table.createdAt.asc().nullsLast().op("uuid_ops")),
 	uniqueIndex("idx_support_conversation_messages_integrator_id").using("btree", table.integratorMessageId.asc().nullsLast().op("text_ops")),
+	index("idx_support_conversation_messages_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.conversationId],
 			foreignColumns: [supportConversations.id],
@@ -739,12 +749,14 @@ export const referenceItems = pgTable("reference_items", {
 
 export const doctorNotes = pgTable("doctor_notes", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	userId: uuid("user_id").notNull(),
 	authorId: uuid("author_id").notNull(),
 	text: text().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
+	index("idx_doctor_notes_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_doctor_notes_user_created").using("btree", table.userId.asc().nullsLast().op("timestamptz_ops"), table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
 	foreignKey({
 			columns: [table.authorId],
