@@ -12,11 +12,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { mediaFiles, platformUsers, supportConversationMessages } from "./schema";
 import { treatmentProgramInstanceStageItems } from "./treatmentProgramInstances";
+import { beOrganizations } from "./bookingEngine";
 
 export const programItemDiscussionMessages = pgTable(
   "program_item_discussion_messages",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     instanceStageItemId: uuid("instance_stage_item_id").notNull(),
     patientUserId: uuid("patient_user_id").notNull(),
     senderRole: text("sender_role").notNull(),
@@ -27,6 +29,10 @@ export const programItemDiscussionMessages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_program_item_discussion_messages_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_program_item_discussion_item_created").using(
       "btree",
       table.instanceStageItemId.asc().nullsLast().op("uuid_ops"),
@@ -40,6 +46,11 @@ export const programItemDiscussionMessages = pgTable(
     uniqueIndex("uq_program_item_discussion_support_message_id")
       .on(table.supportMessageId)
       .where(sql`support_message_id IS NOT NULL`),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "program_item_discussion_messages_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.instanceStageItemId],
       foreignColumns: [treatmentProgramInstanceStageItems.id],
@@ -78,6 +89,7 @@ export const programItemDiscussionMessages = pgTable(
 export const programItemDiscussionReads = pgTable(
   "program_item_discussion_reads",
   {
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     instanceStageItemId: uuid("instance_stage_item_id").notNull(),
     lastReadAt: timestamp("last_read_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -91,6 +103,15 @@ export const programItemDiscussionReads = pgTable(
       "btree",
       table.instanceStageItemId.asc().nullsLast().op("uuid_ops"),
     ),
+    index("idx_program_item_discussion_reads_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "program_item_discussion_reads_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],

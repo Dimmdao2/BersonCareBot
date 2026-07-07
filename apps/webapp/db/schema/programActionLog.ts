@@ -5,6 +5,7 @@ import {
   treatmentProgramInstances,
   treatmentProgramInstanceStageItems,
 } from "./treatmentProgramInstances";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * A4 PROGRAM_PATIENT_SHAPE: журнал действий пациента по экземпляру программы.
@@ -14,6 +15,7 @@ export const programActionLog = pgTable(
   "program_action_log",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     instanceId: uuid("instance_id").notNull(),
     instanceStageItemId: uuid("instance_stage_item_id").notNull(),
     patientUserId: uuid("patient_user_id").notNull(),
@@ -26,12 +28,21 @@ export const programActionLog = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_program_action_log_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_program_action_log_instance").using("btree", table.instanceId.asc().nullsLast().op("uuid_ops")),
     index("idx_program_action_log_stage_item").using(
       "btree",
       table.instanceStageItemId.asc().nullsLast().op("uuid_ops"),
     ),
     index("idx_program_action_log_created_at").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "program_action_log_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.instanceId],
       foreignColumns: [treatmentProgramInstances.id],
