@@ -309,15 +309,15 @@ Rules:
 
 Implementation checklist:
 
-- [ ] Add read-only port methods for organization-scoped memberships.
-- [ ] Add read-only specialist listing for the workspace read model, either in the same module or a clearly named `doctor-workspace` module.
-- [ ] Keep joins minimal and typed; use Drizzle for new queries where possible.
-- [ ] Add service-level filtering based on `DoctorWorkspaceContext`.
-- [ ] Add `GET /api/doctor/workspace/directory` for client-side UI controls.
-- [ ] Route must use the P0.2.3 organization-aware API gate.
-- [ ] Unit-test admin/owner sees all active specialists.
-- [ ] Unit-test doctor-bound context defaults to own specialist.
-- [ ] Unit-test no writes are exposed.
+- [x] Add read-only port methods for organization-scoped memberships.
+- [x] Add read-only specialist listing for the workspace read model, either in the same module or a clearly named `doctor-workspace` module.
+- [x] Keep joins minimal and typed; use Drizzle for new queries where possible.
+- [x] Add service-level filtering based on `DoctorWorkspaceContext`.
+- [x] Add `GET /api/doctor/workspace/directory` for client-side UI controls.
+- [x] Route must use the P0.2.3 organization-aware API gate.
+- [x] Unit-test admin/owner sees all active specialists.
+- [x] Unit-test doctor-bound context defaults to own specialist.
+- [x] Unit-test no writes are exposed.
 
 Local gate:
 

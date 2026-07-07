@@ -20,6 +20,8 @@ function serviceFor(rows: OrganizationMembership[]) {
   const port: OrganizationMembershipPort = {
     listByPlatformUser: vi.fn(async () => rows),
     listActiveByPlatformUser: vi.fn(async () => rows),
+    listByOrganization: vi.fn(async () => rows.map((row) => ({ ...row, displayName: null }))),
+    listSpecialistsByOrganization: vi.fn(async () => []),
   };
   return {
     service: createOrganizationMembershipService({ membershipPort: port }),

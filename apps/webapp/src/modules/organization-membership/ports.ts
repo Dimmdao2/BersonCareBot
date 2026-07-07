@@ -15,7 +15,22 @@ export type OrganizationMembership = {
   updatedAt: string;
 };
 
+export type OrganizationMemberDirectoryRecord = OrganizationMembership & {
+  displayName: string | null;
+};
+
+export type OrganizationSpecialistDirectoryRecord = {
+  id: string;
+  organizationId: string;
+  fullName: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type OrganizationMembershipPort = {
   listByPlatformUser(platformUserId: string): Promise<OrganizationMembership[]>;
   listActiveByPlatformUser(platformUserId: string): Promise<OrganizationMembership[]>;
+  listByOrganization(organizationId: string): Promise<OrganizationMemberDirectoryRecord[]>;
+  listSpecialistsByOrganization(organizationId: string): Promise<OrganizationSpecialistDirectoryRecord[]>;
 };

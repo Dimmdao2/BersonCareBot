@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
-import { beOrganizationMembers } from "../../../db/schema/bookingEngine";
+import { beOrganizationMembers, beSpecialists } from "../../../db/schema/bookingEngine";
 
 const orderByMock = vi.hoisted(() => vi.fn());
-const whereMock = vi.hoisted(() => vi.fn(() => ({ orderBy: orderByMock })));
-const fromMock = vi.hoisted(() => vi.fn(() => ({ where: whereMock })));
+const leftJoinMock = vi.hoisted(() => vi.fn());
+const whereMock = vi.hoisted(() => vi.fn());
+const queryMock = vi.hoisted(() => ({
+  leftJoin: leftJoinMock,
+  where: whereMock,
+}));
+const fromMock = vi.hoisted(() => vi.fn(() => queryMock));
 const selectMock = vi.hoisted(() => vi.fn(() => ({ from: fromMock })));
 
 vi.mock("@/app-layer/db/drizzle", () => ({
@@ -16,6 +21,7 @@ vi.mock("@/app-layer/db/drizzle", () => ({
 import { createPgOrganizationMembershipPort } from "./pgOrganizationMembership";
 
 type OrganizationMembershipRow = typeof beOrganizationMembers.$inferSelect;
+type OrganizationSpecialistRow = typeof beSpecialists.$inferSelect;
 
 function membershipRow(overrides: Partial<OrganizationMembershipRow> = {}): OrganizationMembershipRow {
   return {
@@ -31,6 +37,20 @@ function membershipRow(overrides: Partial<OrganizationMembershipRow> = {}): Orga
   };
 }
 
+function specialistRow(overrides: Partial<OrganizationSpecialistRow> = {}): OrganizationSpecialistRow {
+  return {
+    id: "specialist-1",
+    organizationId: "org-1",
+    fullName: "Doctor Specialist",
+    description: null,
+    isActive: true,
+    sortOrder: 0,
+    createdAt: "2026-07-07T00:00:00.000Z",
+    updatedAt: "2026-07-07T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 function whereApproxSql(): string {
   const calls = whereMock.mock.calls as unknown as Array<[unknown]>;
   return drizzleSqlFragmentToApproximateSql(calls[0]?.[0]);
@@ -39,9 +59,12 @@ function whereApproxSql(): string {
 describe("createPgOrganizationMembershipPort", () => {
   beforeEach(() => {
     orderByMock.mockReset();
+    leftJoinMock.mockClear();
     whereMock.mockClear();
     fromMock.mockClear();
     selectMock.mockClear();
+    leftJoinMock.mockReturnValue(queryMock);
+    whereMock.mockReturnValue({ orderBy: orderByMock });
   });
 
   it("lists memberships by platform user and maps typed fields", async () => {
@@ -102,5 +125,50 @@ describe("createPgOrganizationMembershipPort", () => {
     await expect(port.listByPlatformUser("user-1")).rejects.toThrow(
       "Unexpected be_organization_members.status",
     );
+  });
+
+  it("lists organization members with display names", async () => {
+    orderByMock.mockResolvedValueOnce([
+      {
+        ...membershipRow({ role: "admin", specialistId: null }),
+        displayName: " Admin ",
+      },
+    ]);
+
+    const port = createPgOrganizationMembershipPort();
+    const rows = await port.listByOrganization("org-1");
+
+    expect(rows).toEqual([
+      {
+        id: "membership-1",
+        organizationId: "org-1",
+        platformUserId: "user-1",
+        role: "admin",
+        specialistId: null,
+        status: "active",
+        createdAt: "2026-07-07T00:00:00.000Z",
+        updatedAt: "2026-07-07T00:00:00.000Z",
+        displayName: "Admin",
+      },
+    ]);
+    expect(leftJoinMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists organization specialists", async () => {
+    orderByMock.mockResolvedValueOnce([specialistRow()]);
+
+    const port = createPgOrganizationMembershipPort();
+    const rows = await port.listSpecialistsByOrganization("org-1");
+
+    expect(rows).toEqual([
+      {
+        id: "specialist-1",
+        organizationId: "org-1",
+        fullName: "Doctor Specialist",
+        isActive: true,
+        createdAt: "2026-07-07T00:00:00.000Z",
+        updatedAt: "2026-07-07T00:00:00.000Z",
+      },
+    ]);
   });
 });

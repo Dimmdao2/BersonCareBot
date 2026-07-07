@@ -309,6 +309,7 @@ import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
 import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemoryOrganizationMembership";
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
+import { createDoctorWorkspaceDirectoryService } from "@/modules/doctor-workspace/service";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import {
   createPgBookingRubitimeBridgePort,
@@ -479,6 +480,9 @@ const organizationMembershipPort = !inMemoryRepos
   ? createPgOrganizationMembershipPort()
   : createInMemoryOrganizationMembershipPort();
 const organizationMembershipService = createOrganizationMembershipService({
+  membershipPort: organizationMembershipPort,
+});
+const doctorWorkspaceDirectoryService = createDoctorWorkspaceDirectoryService({
   membershipPort: organizationMembershipPort,
 });
 const bookingCatalogPort = !inMemoryRepos ? createPgBookingCatalogPort() : null;
@@ -1600,6 +1604,7 @@ function _buildAppDeps() {
     patientDailyWarmupPresentation: patientDailyWarmupPresentationPort,
     patientDailyWarmupVideoViews: patientDailyWarmupVideoViewsPort,
     organizationMembership: organizationMembershipService,
+    doctorWorkspace: doctorWorkspaceDirectoryService,
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,
     warmupFeelingCompletion: warmupFeelingCompletionPort,
