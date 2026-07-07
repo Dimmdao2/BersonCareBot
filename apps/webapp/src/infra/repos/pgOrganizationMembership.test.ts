@@ -154,6 +154,29 @@ describe("createPgOrganizationMembershipPort", () => {
     expect(leftJoinMock).toHaveBeenCalledTimes(1);
   });
 
+  it("gets one organization member by organization and membership id", async () => {
+    orderByMock.mockResolvedValueOnce([
+      {
+        ...membershipRow({ role: "doctor" }),
+        displayName: "Doctor",
+      },
+    ]);
+
+    const port = createPgOrganizationMembershipPort();
+    const row = await port.getMemberByOrganization({
+      organizationId: "org-1",
+      membershipId: "membership-1",
+    });
+
+    expect(row).toMatchObject({
+      id: "membership-1",
+      organizationId: "org-1",
+      displayName: "Doctor",
+    });
+    expect(whereApproxSql()).toContain("and");
+    expect(leftJoinMock).toHaveBeenCalledTimes(1);
+  });
+
   it("lists organization specialists", async () => {
     orderByMock.mockResolvedValueOnce([specialistRow()]);
 
@@ -170,5 +193,25 @@ describe("createPgOrganizationMembershipPort", () => {
         updatedAt: "2026-07-07T00:00:00.000Z",
       },
     ]);
+  });
+
+  it("gets one organization specialist by organization and specialist id", async () => {
+    orderByMock.mockResolvedValueOnce([specialistRow()]);
+
+    const port = createPgOrganizationMembershipPort();
+    const row = await port.getSpecialistByOrganization({
+      organizationId: "org-1",
+      specialistId: "specialist-1",
+    });
+
+    expect(row).toEqual({
+      id: "specialist-1",
+      organizationId: "org-1",
+      fullName: "Doctor Specialist",
+      isActive: true,
+      createdAt: "2026-07-07T00:00:00.000Z",
+      updatedAt: "2026-07-07T00:00:00.000Z",
+    });
+    expect(whereApproxSql()).toContain("and");
   });
 });

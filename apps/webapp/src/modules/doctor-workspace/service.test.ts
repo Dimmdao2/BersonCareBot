@@ -74,7 +74,19 @@ function createPort(): OrganizationMembershipPort {
     listByPlatformUser: vi.fn(async () => []),
     listActiveByPlatformUser: vi.fn(async () => []),
     listByOrganization: vi.fn(async () => members),
+    getMemberByOrganization: vi.fn(async ({ organizationId, membershipId }) => {
+      return (
+        members.find((member) => member.organizationId === organizationId && member.id === membershipId) ?? null
+      );
+    }),
     listSpecialistsByOrganization: vi.fn(async () => specialists),
+    getSpecialistByOrganization: vi.fn(async ({ organizationId, specialistId }) => {
+      return (
+        specialists.find(
+          (specialist) => specialist.organizationId === organizationId && specialist.id === specialistId,
+        ) ?? null
+      );
+    }),
   };
 }
 
@@ -94,8 +106,16 @@ describe("createDoctorWorkspaceDirectoryService", () => {
       },
     ]);
     expect(directory.members.map((member) => member.membershipId)).toEqual(["membership-doctor"]);
-    expect(port.listByOrganization).toHaveBeenCalledWith("org-1");
-    expect(port.listSpecialistsByOrganization).toHaveBeenCalledWith("org-1");
+    expect(port.listByOrganization).not.toHaveBeenCalled();
+    expect(port.listSpecialistsByOrganization).not.toHaveBeenCalled();
+    expect(port.getMemberByOrganization).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      membershipId: "membership-doctor",
+    });
+    expect(port.getSpecialistByOrganization).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      specialistId: "specialist-doctor",
+    });
   });
 
   it("allows admin/owner context to see active specialists and all members", async () => {

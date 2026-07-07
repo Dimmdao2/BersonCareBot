@@ -33,8 +33,21 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
         .map((row) => ({ ...row, displayName: null }));
     },
 
+    async getMemberByOrganization({ organizationId, membershipId }) {
+      const row = rows.find((candidate) => candidate.organizationId === organizationId && candidate.id === membershipId);
+      return row ? { ...row, displayName: null } : null;
+    },
+
     async listSpecialistsByOrganization(organizationId) {
       return specialists.filter((specialist) => specialist.organizationId === organizationId);
+    },
+
+    async getSpecialistByOrganization({ organizationId, specialistId }) {
+      return (
+        specialists.find(
+          (specialist) => specialist.organizationId === organizationId && specialist.id === specialistId,
+        ) ?? null
+      );
     },
   };
 }

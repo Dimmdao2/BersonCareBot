@@ -137,6 +137,32 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
       return rows.map(mapOrganizationMemberDirectoryRow);
     },
 
+    async getMemberByOrganization({ organizationId, membershipId }) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          id: beOrganizationMembers.id,
+          organizationId: beOrganizationMembers.organizationId,
+          platformUserId: beOrganizationMembers.platformUserId,
+          role: beOrganizationMembers.role,
+          specialistId: beOrganizationMembers.specialistId,
+          status: beOrganizationMembers.status,
+          createdAt: beOrganizationMembers.createdAt,
+          updatedAt: beOrganizationMembers.updatedAt,
+          displayName: platformUsers.displayName,
+        })
+        .from(beOrganizationMembers)
+        .leftJoin(platformUsers, eq(platformUsers.id, beOrganizationMembers.platformUserId))
+        .where(
+          and(
+            eq(beOrganizationMembers.organizationId, organizationId),
+            eq(beOrganizationMembers.id, membershipId),
+          ),
+        )
+        .orderBy(asc(beOrganizationMembers.createdAt));
+      return rows[0] ? mapOrganizationMemberDirectoryRow(rows[0]) : null;
+    },
+
     async listSpecialistsByOrganization(organizationId) {
       const db = getDrizzle();
       const rows = await db
@@ -145,6 +171,16 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
         .where(eq(beSpecialists.organizationId, organizationId))
         .orderBy(asc(beSpecialists.sortOrder), asc(beSpecialists.fullName));
       return rows.map(mapOrganizationSpecialistDirectoryRow);
+    },
+
+    async getSpecialistByOrganization({ organizationId, specialistId }) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(beSpecialists)
+        .where(and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.id, specialistId)))
+        .orderBy(asc(beSpecialists.sortOrder), asc(beSpecialists.fullName));
+      return rows[0] ? mapOrganizationSpecialistDirectoryRow(rows[0]) : null;
     },
   };
 }

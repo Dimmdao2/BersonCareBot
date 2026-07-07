@@ -1,4 +1,8 @@
-import type { OrganizationMembershipPort } from "@/modules/organization-membership/ports";
+import type {
+  OrganizationMemberDirectoryRecord,
+  OrganizationMembershipPort,
+  OrganizationSpecialistDirectoryRecord,
+} from "@/modules/organization-membership/ports";
 import type {
   DoctorWorkspaceContext,
   DoctorWorkspaceDirectory,
@@ -7,7 +11,7 @@ import type {
 } from "./types";
 
 function toWorkspaceSpecialist(
-  specialist: Awaited<ReturnType<OrganizationMembershipPort["listSpecialistsByOrganization"]>>[number],
+  specialist: OrganizationSpecialistDirectoryRecord,
   context: DoctorWorkspaceContext,
 ): DoctorWorkspaceSpecialist {
   return {
@@ -18,9 +22,7 @@ function toWorkspaceSpecialist(
   };
 }
 
-function toWorkspaceMember(
-  member: Awaited<ReturnType<OrganizationMembershipPort["listByOrganization"]>>[number],
-): DoctorWorkspaceMember {
+function toWorkspaceMember(member: OrganizationMemberDirectoryRecord): DoctorWorkspaceMember {
   return {
     membershipId: member.id,
     platformUserId: member.platformUserId,
@@ -36,18 +38,28 @@ export function createDoctorWorkspaceDirectoryService(deps: {
 }) {
   return {
     async listDirectory(context: DoctorWorkspaceContext): Promise<DoctorWorkspaceDirectory> {
-      const [members, specialists] = await Promise.all([
-        deps.membershipPort.listByOrganization(context.organizationId),
-        deps.membershipPort.listSpecialistsByOrganization(context.organizationId),
+      const [visibleMembers, visibleSpecialists] = await Promise.all([
+        context.canManageOrganization
+          ? deps.membershipPort.listByOrganization(context.organizationId)
+          : deps.membershipPort
+              .getMemberByOrganization({
+                organizationId: context.organizationId,
+                membershipId: context.membershipId,
+              })
+              .then((member) => (member ? [member] : [])),
+        context.canManageAllSpecialists
+          ? deps.membershipPort
+              .listSpecialistsByOrganization(context.organizationId)
+              .then((specialists) => specialists.filter((specialist) => specialist.isActive))
+          : context.specialistId
+            ? deps.membershipPort
+                .getSpecialistByOrganization({
+                  organizationId: context.organizationId,
+                  specialistId: context.specialistId,
+                })
+                .then((specialist) => (specialist?.isActive ? [specialist] : []))
+            : Promise.resolve([]),
       ]);
-
-      const visibleSpecialists = context.canManageAllSpecialists
-        ? specialists.filter((specialist) => specialist.isActive)
-        : specialists.filter((specialist) => specialist.isActive && specialist.id === context.specialistId);
-
-      const visibleMembers = context.canManageOrganization
-        ? members
-        : members.filter((member) => member.id === context.membershipId);
 
       return {
         specialists: visibleSpecialists.map((specialist) => toWorkspaceSpecialist(specialist, context)),

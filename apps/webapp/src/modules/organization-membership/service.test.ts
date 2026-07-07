@@ -21,7 +21,12 @@ function serviceFor(rows: OrganizationMembership[]) {
     listByPlatformUser: vi.fn(async () => rows),
     listActiveByPlatformUser: vi.fn(async () => rows),
     listByOrganization: vi.fn(async () => rows.map((row) => ({ ...row, displayName: null }))),
+    getMemberByOrganization: vi.fn(async ({ organizationId, membershipId }) => {
+      const row = rows.find((candidate) => candidate.organizationId === organizationId && candidate.id === membershipId);
+      return row ? { ...row, displayName: null } : null;
+    }),
     listSpecialistsByOrganization: vi.fn(async () => []),
+    getSpecialistByOrganization: vi.fn(async () => null),
   };
   return {
     service: createOrganizationMembershipService({ membershipPort: port }),
