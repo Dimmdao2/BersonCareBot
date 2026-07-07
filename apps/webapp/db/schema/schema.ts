@@ -1509,6 +1509,7 @@ export const patientHomeBlocks = pgTable("patient_home_blocks", {
 
 export const patientHomeBlockItems = pgTable("patient_home_block_items", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	blockCode: text("block_code").notNull(),
 	targetType: text("target_type").notNull(),
 	targetRef: text("target_ref").notNull(),
@@ -1523,6 +1524,7 @@ export const patientHomeBlockItems = pgTable("patient_home_block_items", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_patient_home_block_items_block_sort").using("btree", table.blockCode.asc().nullsLast().op("text_ops"), table.sortOrder.asc().nullsLast().op("int4_ops")),
+	index("idx_patient_home_block_items_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.blockCode],
 			foreignColumns: [patientHomeBlocks.code],

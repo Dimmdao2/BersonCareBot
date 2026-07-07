@@ -8,6 +8,7 @@ import {
   foreignKey,
   check,
 } from "drizzle-orm/pg-core";
+import { beOrganizations } from "./bookingEngine";
 import { platformUsers } from "./schema";
 
 /** Единая таблица комментариев — `SYSTEM_LOGIC_SCHEMA.md` § 7. Имя экспорта `entityComments` (таблица БД `comments`). */
@@ -15,6 +16,7 @@ export const entityComments = pgTable(
   "comments",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     authorId: uuid("author_id").notNull(),
     targetType: text("target_type").notNull(),
     targetId: uuid("target_id").notNull(),
@@ -24,11 +26,17 @@ export const entityComments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_comments_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
     index("idx_comments_target_type_target_id").using(
       "btree",
       table.targetType.asc().nullsLast().op("text_ops"),
       table.targetId.asc().nullsLast().op("uuid_ops"),
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "comments_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.authorId],
       foreignColumns: [platformUsers.id],
