@@ -593,6 +593,7 @@ export const userOauthBindings = pgTable("user_oauth_bindings", {
 
 export const lfkSessions = pgTable("lfk_sessions", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	userId: uuid("user_id").notNull(),
 	complexId: uuid("complex_id").notNull(),
 	completedAt: timestamp("completed_at", { withTimezone: true, mode: 'string' }).notNull(),
@@ -605,6 +606,7 @@ export const lfkSessions = pgTable("lfk_sessions", {
 	recordedAt: timestamp("recorded_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_lfk_sessions_complex_completed").using("btree", table.complexId.asc().nullsLast().op("timestamptz_ops"), table.completedAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_lfk_sessions_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_lfk_sessions_user_completed").using("btree", table.userId.asc().nullsLast().op("uuid_ops"), table.completedAt.desc().nullsFirst().op("uuid_ops")),
 	foreignKey({
 			columns: [table.complexId],
@@ -804,6 +806,7 @@ export const symptomTrackings = pgTable("symptom_trackings", {
 
 export const lfkComplexes = pgTable("lfk_complexes", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	userId: text("user_id").notNull(),
 	title: text().notNull(),
 	origin: text().default('manual').notNull(),
@@ -817,6 +820,7 @@ export const lfkComplexes = pgTable("lfk_complexes", {
 	diagnosisRefId: uuid("diagnosis_ref_id"),
 	platformUserId: uuid("platform_user_id").notNull(),
 }, (table) => [
+	index("idx_lfk_complexes_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_lfk_complexes_platform_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")).where(sql`(platform_user_id IS NOT NULL)`),
 	index("idx_lfk_complexes_user_active").using("btree", table.userId.asc().nullsLast().op("text_ops"), table.isActive.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -857,6 +861,7 @@ export const motivationalQuotes = pgTable("motivational_quotes", {
 
 export const lfkExercises = pgTable("lfk_exercises", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	title: text().notNull(),
 	description: text(),
 	regionRefId: uuid("region_ref_id"),
@@ -870,6 +875,7 @@ export const lfkExercises = pgTable("lfk_exercises", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_lfk_exercises_archived").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
+	index("idx_lfk_exercises_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_lfk_exercises_region").using("btree", table.regionRefId.asc().nullsLast().op("uuid_ops")).where(sql`(NOT is_archived)`),
 	foreignKey({
 			columns: [table.createdBy],
@@ -886,10 +892,12 @@ export const lfkExercises = pgTable("lfk_exercises", {
 
 /** M2M: упражнение ↔ регион тела (`reference_items`, категория `body_region`). Legacy: `lfk_exercises.region_ref_id` (dual-write, первый выбранный). */
 export const lfkExerciseRegions = pgTable("lfk_exercise_regions", {
+	organizationId: uuid("organization_id"),
 	exerciseId: uuid("exercise_id").notNull(),
 	regionRefId: uuid("region_ref_id").notNull(),
 }, (table) => [
 	primaryKey({ columns: [table.exerciseId, table.regionRefId], name: "lfk_exercise_regions_pkey" }),
+	index("idx_lfk_exercise_regions_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 		columns: [table.exerciseId],
 		foreignColumns: [lfkExercises.id],
@@ -905,6 +913,7 @@ export const lfkExerciseRegions = pgTable("lfk_exercise_regions", {
 
 export const lfkComplexTemplateExercises = pgTable("lfk_complex_template_exercises", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	templateId: uuid("template_id").notNull(),
 	exerciseId: uuid("exercise_id").notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
@@ -914,6 +923,7 @@ export const lfkComplexTemplateExercises = pgTable("lfk_complex_template_exercis
 	maxPain010: integer("max_pain_0_10"),
 	comment: text(),
 }, (table) => [
+	index("idx_lfk_complex_template_exercises_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_template_exercises_order").using("btree", table.templateId.asc().nullsLast().op("int4_ops"), table.sortOrder.asc().nullsLast().op("int4_ops")),
 	foreignKey({
 			columns: [table.exerciseId],
@@ -932,6 +942,7 @@ export const lfkComplexTemplateExercises = pgTable("lfk_complex_template_exercis
 
 export const lfkExerciseMedia = pgTable("lfk_exercise_media", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	exerciseId: uuid("exercise_id").notNull(),
 	mediaUrl: text("media_url").notNull(),
 	mediaType: text("media_type").notNull(),
@@ -939,6 +950,7 @@ export const lfkExerciseMedia = pgTable("lfk_exercise_media", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_lfk_exercise_media_exercise").using("btree", table.exerciseId.asc().nullsLast().op("int4_ops"), table.sortOrder.asc().nullsLast().op("int4_ops")),
+	index("idx_lfk_exercise_media_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.exerciseId],
 			foreignColumns: [lfkExercises.id],
@@ -949,6 +961,7 @@ export const lfkExerciseMedia = pgTable("lfk_exercise_media", {
 
 export const lfkComplexTemplates = pgTable("lfk_complex_templates", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	title: text().notNull(),
 	description: text(),
 	status: text().default('draft').notNull(),
@@ -956,6 +969,7 @@ export const lfkComplexTemplates = pgTable("lfk_complex_templates", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
+	index("idx_lfk_complex_templates_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.createdBy],
 			foreignColumns: [platformUsers.id],
@@ -966,6 +980,7 @@ export const lfkComplexTemplates = pgTable("lfk_complex_templates", {
 
 export const patientLfkAssignments = pgTable("patient_lfk_assignments", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	patientUserId: uuid("patient_user_id").notNull(),
 	templateId: uuid("template_id").notNull(),
 	complexId: uuid("complex_id"),
@@ -974,6 +989,7 @@ export const patientLfkAssignments = pgTable("patient_lfk_assignments", {
 	isActive: boolean("is_active").default(true).notNull(),
 }, (table) => [
 	index("idx_assignments_patient").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops"), table.isActive.asc().nullsLast().op("bool_ops")),
+	index("idx_patient_lfk_assignments_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	uniqueIndex("idx_patient_lfk_assign_active_template").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops"), table.templateId.asc().nullsLast().op("uuid_ops")).where(sql`(is_active = true)`),
 	foreignKey({
 			columns: [table.assignedBy],
@@ -999,6 +1015,7 @@ export const patientLfkAssignments = pgTable("patient_lfk_assignments", {
 
 export const lfkComplexExercises = pgTable("lfk_complex_exercises", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	organizationId: uuid("organization_id"),
 	complexId: uuid("complex_id").notNull(),
 	exerciseId: uuid("exercise_id").notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
@@ -1012,6 +1029,7 @@ export const lfkComplexExercises = pgTable("lfk_complex_exercises", {
 	localComment: text("local_comment"),
 }, (table) => [
 	index("idx_lfk_complex_exercises_complex").using("btree", table.complexId.asc().nullsLast().op("int4_ops"), table.sortOrder.asc().nullsLast().op("int4_ops")),
+	index("idx_lfk_complex_exercises_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.complexId],
 			foreignColumns: [lfkComplexes.id],
