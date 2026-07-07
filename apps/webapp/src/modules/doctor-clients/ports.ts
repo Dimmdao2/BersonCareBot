@@ -229,6 +229,8 @@ export type PatientAppointmentItem = {
    * для Rubitime-проекций — null (нет be-связи).
    */
   isPackage?: boolean | null;
+  packageTitle?: string | null;
+  packageDisplayNumber?: number | null;
 };
 
 export type DoctorClientsPort = {

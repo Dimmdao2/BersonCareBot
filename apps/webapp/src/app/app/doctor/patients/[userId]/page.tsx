@@ -139,6 +139,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const initialPackagesForTabs = initialPackages
     ? initialPackages.map((pkg) => ({
         id: pkg.id,
+        displayNumber: pkg.displayNumber,
         title: pkg.title,
         status: pkg.status,
         validUntil: pkg.validUntil ?? null,

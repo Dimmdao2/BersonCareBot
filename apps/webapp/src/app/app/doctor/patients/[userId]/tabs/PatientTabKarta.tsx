@@ -76,6 +76,7 @@ import {
 } from "@/shared/ui/doctor/primitives/dialog";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { VisitCatalogTextarea } from "./karta/VisitCatalogTextarea";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 type Props = {
   userId: string;
@@ -1054,10 +1055,10 @@ function VisitCard({
         {visit.package ? (
           <Badge
             variant="secondary"
-            className="bg-violet-500/15 text-violet-900"
+            className="border border-violet-500/30 bg-violet-500/15 text-violet-900"
             title={visit.package.title}
           >
-            По абонементу
+            {formatPatientPackageShortLabel(visit.package.displayNumber)}
           </Badge>
         ) : null}
         <span className={doctorSectionSubtitleClass}>

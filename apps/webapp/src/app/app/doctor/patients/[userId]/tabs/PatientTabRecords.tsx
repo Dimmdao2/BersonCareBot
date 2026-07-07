@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,8 @@ interface DisplayAppointment {
   durationMin?: number;
   /** Запись списана с абонемента (be_appointments.package_usage_ref IS NOT NULL). */
   isPackage?: boolean | null;
+  packageTitle?: string | null;
+  packageDisplayNumber?: number | null;
 }
 
 /** Маппинг PatientAppointmentItem → DisplayAppointment. */
@@ -75,6 +78,8 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     durationMin: item.durationMin ?? undefined,
     hasVisitRecord: false, // PatientAppointmentItem doesn't include visit-record presence yet
     isPackage: item.isPackage ?? null,
+    packageTitle: item.packageTitle ?? null,
+    packageDisplayNumber: item.packageDisplayNumber ?? null,
   };
 }
 
@@ -373,8 +378,11 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                 </span>
                 {/* Package badge */}
                 {appt.isPackage ? (
-                  <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap bg-[#e8f0fd] text-[#2563eb] flex-none">
-                    абонемент
+                  <span
+                    className="inline-flex items-center rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900 whitespace-nowrap flex-none"
+                    title={appt.packageTitle ?? undefined}
+                  >
+                    {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
                   </span>
                 ) : null}
                 {/* Status chip */}
@@ -510,6 +518,7 @@ type ApiPackageItemBalance = {
 };
 export type ApiPackage = {
   id: string;
+  displayNumber?: number | null;
   title: string;
   status: string;
   soldAt?: string | null;
@@ -613,6 +622,7 @@ function MembershipPanel({
         <>
           <MembershipCardHeader
             title={active.title}
+            shortLabel={formatPatientPackageShortLabel(active.displayNumber)}
             soldAt={active.soldAt ?? null}
             totalSessions={totalSessions}
             remainingSessions={remainingSessions}

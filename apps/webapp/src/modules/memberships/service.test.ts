@@ -9,6 +9,7 @@ const basePkg: PatientPackageRecord = {
   platformUserId: "user-1",
   subscriptionPackageId: null,
   status: "active",
+  displayNumber: 1,
   title: "Test",
   priceMinor: 10000,
   currency: "RUB",

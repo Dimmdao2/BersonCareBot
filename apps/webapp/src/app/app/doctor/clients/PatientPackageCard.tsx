@@ -8,9 +8,11 @@ import { doctorClientStackedCardClass } from "./doctorClientCardChrome";
 import { packageHistoryEventLabel } from "./packageHistoryLabels";
 import { PatientPackageSessionsList } from "./PatientPackageSessionsList";
 import { MembershipCardHeader } from "@/shared/ui/doctor/MembershipCardHeader";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 export type PatientPackageCardRow = {
   id: string;
+  displayNumber?: number | null;
   title: string;
   status: string;
   soldAt: string | null;
@@ -146,6 +148,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
       {/* Human-readable card header (shared component) */}
       <MembershipCardHeader
         title={pkg.title}
+        shortLabel={formatPatientPackageShortLabel(pkg.displayNumber)}
         soldAt={pkg.soldAt}
         totalSessions={totalSessions}
         remainingSessions={remainingSessions}

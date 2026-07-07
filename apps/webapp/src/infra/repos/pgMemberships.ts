@@ -54,6 +54,7 @@ function mapPatientPackage(
     platformUserId: row.platformUserId,
     subscriptionPackageId: row.subscriptionPackageId,
     status: row.status as PatientPackageRecord["status"],
+    displayNumber: row.displayNumber,
     title: row.title,
     priceMinor: row.priceMinor,
     currency: row.currency,

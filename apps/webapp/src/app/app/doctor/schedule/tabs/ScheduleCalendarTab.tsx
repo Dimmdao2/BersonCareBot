@@ -47,6 +47,7 @@ import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
 import { routePaths } from "@/app-layer/routes/paths";
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from "../scheduleCalendarEvents";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -494,7 +495,10 @@ function eventTitle(event: CalendarEvent): string {
   if (event.kind === "working") return "Рабочее время";
   if (event.kind === "break") return "Перерыв";
   if (event.kind === "block") return event.title ?? "Блокировка";
-  const packagePrefix = event.packageUsageRef || event.packageTitle ? "✅ " : "";
+  const packagePrefix =
+    event.packageUsageRef || event.packageTitle
+      ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
+      : "";
   const parts = [event.patientName ?? "Запись", event.serviceTitle].filter(Boolean);
   return `${packagePrefix}${parts.join(" · ")}`;
 }
@@ -502,8 +506,12 @@ function eventTitle(event: CalendarEvent): string {
 /** Для месячного вида: только фамилия (первое слово) */
 function eventLastName(event: CalendarEvent): string {
   if (event.kind !== "appointment") return eventTitle(event);
+  const packagePrefix =
+    event.packageUsageRef || event.packageTitle
+      ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
+      : "";
   const name = event.patientName ?? "Запись";
-  return name.split(" ")[0] ?? name;
+  return `${packagePrefix}${name.split(" ")[0] ?? name}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -618,6 +626,14 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
               <span className={cn("min-w-0 truncate", cancelled && "line-through")}>
                 {appt.patientName ?? "Запись"}
               </span>
+              {appt.packageUsageRef || appt.packageTitle ? (
+                <span
+                  className="shrink-0 rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
+                  title={appt.packageTitle ?? undefined}
+                >
+                  {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
+                </span>
+              ) : null}
               {isNext && (
                 <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                   Следующая

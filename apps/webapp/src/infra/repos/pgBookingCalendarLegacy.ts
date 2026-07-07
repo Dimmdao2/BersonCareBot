@@ -22,7 +22,8 @@ const LIST_SELECT = `SELECT
   b.name AS branch_name,
   branch_map.canonical_id AS mapped_be_branch_id,
   COALESCE(be_from_map.package_usage_ref, be_from_id.package_usage_ref)::text AS package_usage_ref,
-  COALESCE(pp_from_map.title, pp_from_id.title) AS package_title`;
+  COALESCE(pp_from_map.title, pp_from_id.title) AS package_title,
+  COALESCE(pp_from_map.display_number, pp_from_id.display_number) AS package_display_number`;
 
 function mapRows(rows: LegacyAppointmentRecordRow[]): CalendarAppointmentEvent[] {
   const events: CalendarAppointmentEvent[] = [];

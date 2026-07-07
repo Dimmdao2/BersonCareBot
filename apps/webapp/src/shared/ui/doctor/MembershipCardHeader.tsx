@@ -20,6 +20,7 @@ export type MembershipCardItem = {
 
 type Props = {
   title: string;
+  shortLabel?: string | null;
   soldAt?: string | null;
   /** Pre-computed total sessions across all balance items */
   totalSessions: number;
@@ -46,6 +47,7 @@ function fmtDate(iso: string): string {
 
 export function MembershipCardHeader({
   title,
+  shortLabel,
   soldAt,
   totalSessions,
   remainingSessions,
@@ -60,7 +62,14 @@ export function MembershipCardHeader({
   return (
     <div className="rounded-xl border border-border bg-muted/10 p-3 flex flex-col gap-1.5">
       {/* Title */}
-      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        {shortLabel ? (
+          <span className="inline-flex items-center rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900">
+            {shortLabel}
+          </span>
+        ) : null}
+      </div>
 
       {/* Purchase date */}
       {soldAt ? (

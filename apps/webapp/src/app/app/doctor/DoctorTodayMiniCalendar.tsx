@@ -12,6 +12,7 @@ import { doctorSectionSubtitleClass, doctorInlineLinkClass } from "@/shared/ui/d
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
 import { isCancelledAppointmentStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 /** Конвертирует минуты от полуночи в строку "HH:MM:SS" для slotMinTime/slotMaxTime. */
 function minuteToHHMM(minute: number): string {
@@ -32,6 +33,14 @@ function canonicalEventClass(appt: CalendarAppointmentEvent): string {
   if (appt.packageUsageRef || appt.packageTitle)
     return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
   return "!bg-primary/15 text-foreground !border-primary/35";
+}
+
+function canonicalEventTitle(appt: CalendarAppointmentEvent): string {
+  const prefix =
+    appt.packageUsageRef || appt.packageTitle
+      ? `${formatPatientPackageShortLabel(appt.packageDisplayNumber)} `
+      : "";
+  return `${prefix}${appt.patientName ?? "Запись"}`;
 }
 
 type Props = {
@@ -142,7 +151,7 @@ export function DoctorTodayMiniCalendar({
       // Map CalendarAppointmentEvent → FC event (same pattern as ScheduleCalendarTab)
       return calendarEvents.map((appt) => ({
         id: appt.id,
-        title: appt.patientName ?? "Запись",
+        title: canonicalEventTitle(appt),
         start: appt.startAt,
         end: appt.endAt,
         classNames: [canonicalEventClass(appt)],

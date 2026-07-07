@@ -48,6 +48,7 @@ import {
 } from "./DoctorCalendarPatientSearch";
 import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
 import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
 // R21: причины отмены в стиле Rubitime (отправляются как reason в API).
 const CANCEL_REASONS = [
@@ -429,7 +430,15 @@ function DoctorCalendarEventPanelInner({
             </Link>
           </div>
         ) : null}
-        {selected.packageTitle ? <Badge variant="secondary">{selected.packageTitle}</Badge> : null}
+        {selected.packageUsageRef || selected.packageTitle ? (
+          <Badge
+            variant="secondary"
+            className="border border-violet-500/30 bg-violet-500/15 text-violet-900"
+            title={selected.packageTitle ?? undefined}
+          >
+            {formatPatientPackageShortLabel(selected.packageDisplayNumber)}
+          </Badge>
+        ) : null}
         {selected.paymentStatus ? (
           <Badge variant="secondary">Оплата: {paymentStatusLabel(selected.paymentStatus)}</Badge>
         ) : null}

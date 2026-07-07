@@ -65,6 +65,7 @@ export type CalendarAppointmentEvent = {
   prepaymentPending: boolean;
   packageUsageRef: string | null;
   packageTitle: string | null;
+  packageDisplayNumber: number | null;
   rescheduleCount: number;
   originalStartAt: string | null;
   formComments: { label: string; value: string }[];

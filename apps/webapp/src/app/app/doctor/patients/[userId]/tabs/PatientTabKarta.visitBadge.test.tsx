@@ -3,7 +3,7 @@
  * PatientTabKarta — ST-05: «По абонементу» badge on visit cards.
  *
  * Covers:
- *   1. Visit with visit.package set  → badge «По абонементу» rendered.
+ *   1. Visit with visit.package set  → badge «аб.#001» rendered.
  *   2. Visit without visit.package   → no badge.
  *   3. Badge carries title attr = package title (tooltip on hover).
  */
@@ -98,31 +98,32 @@ describe("PatientTabKarta — «По абонементу» badge (ST-05)", () =
     );
   }
 
-  it("shows «По абонементу» badge when visit.package is set", async () => {
-    const visit = makeVisit({ package: { title: "Индивидуальный абонемент" } });
+  it("shows short violet package badge when visit.package is set", async () => {
+    const visit = makeVisit({ package: { title: "Индивидуальный абонемент", displayNumber: 1 } });
     await renderKarta([visit]);
-    const badge = screen.getByText("По абонементу");
+    const badge = screen.getByText("аб.#001");
     expect(badge).toBeDefined();
+    expect(badge.className).toContain("text-violet-900");
   });
 
   it("badge title attribute contains the package title for tooltip", async () => {
     const packageTitle = "VIP абонемент";
-    const visit = makeVisit({ package: { title: packageTitle } });
+    const visit = makeVisit({ package: { title: packageTitle, displayNumber: 7 } });
     await renderKarta([visit]);
-    const badge = screen.getByText("По абонементу");
+    const badge = screen.getByText("аб.#007");
     expect(badge.getAttribute("title")).toBe(packageTitle);
   });
 
   it("does NOT render badge when visit.package is null", async () => {
     const visit = makeVisit({ package: null });
     await renderKarta([visit]);
-    expect(screen.queryByText("По абонементу")).toBeNull();
+    expect(screen.queryByText("аб.#001")).toBeNull();
   });
 
   it("does NOT render badge when visit.package is absent (undefined)", async () => {
     const visit = makeVisit();
     // package field omitted
     await renderKarta([visit]);
-    expect(screen.queryByText("По абонементу")).toBeNull();
+    expect(screen.queryByText("аб.#001")).toBeNull();
   });
 });

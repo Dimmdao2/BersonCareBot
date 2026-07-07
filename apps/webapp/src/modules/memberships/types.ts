@@ -54,6 +54,7 @@ export type PatientPackageRecord = {
   platformUserId: string;
   subscriptionPackageId: string | null;
   status: PatientPackageStatus;
+  displayNumber: number;
   title: string;
   priceMinor: number;
   currency: string;

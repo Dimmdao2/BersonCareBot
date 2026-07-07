@@ -107,7 +107,7 @@ export type Visit = {
   sections?: VisitSection[];
   files?: VisitFile[];
   /** Если визит был списан с абонемента — данные абонемента, иначе null. */
-  package?: { title: string } | null;
+  package?: { title: string; displayNumber: number | null } | null;
 };
 
 // -- Анамнез ------------------------------------------------------------------

@@ -17,6 +17,12 @@ type FullCalendarMockProps = {
   select?: (arg: { start: Date; end?: Date }) => void;
 } & Record<string, unknown>;
 
+type FullCalendarRenderedEvent = {
+  id?: string;
+  title?: string;
+  classNames?: string[];
+};
+
 vi.mock("@fullcalendar/react", () => ({
   default: (props: FullCalendarMockProps) => {
     lastFullCalendarProps = props;
@@ -222,6 +228,11 @@ const makeKpisResponse = (firstVisitIds: string[] = []) => ({
   },
 });
 
+function getLastFullCalendarEvents(): FullCalendarRenderedEvent[] {
+  const events = lastFullCalendarProps?.events;
+  return Array.isArray(events) ? (events as FullCalendarRenderedEvent[]) : [];
+}
+
 function setupFetchMock(
   calResponse: object,
   kpisResponse?: object,
@@ -316,6 +327,51 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await waitFor(() => {
         expect(screen.getByTestId("view-btn-3days")).toBeInTheDocument();
         expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
+      });
+    });
+
+    it("marks package appointments purple and prefixes the short package number", async () => {
+      setupFetchMock(
+        makeCalendarResponse([
+          {
+            kind: "appointment",
+            id: "appt-package",
+            startAt: "2026-06-17T10:00:00Z",
+            endAt: "2026-06-17T11:00:00Z",
+            status: "confirmed",
+            source: "booking_engine",
+            specialistId: null,
+            specialistName: null,
+            branchId: null,
+            branchTitle: null,
+            roomId: null,
+            roomTitle: null,
+            serviceId: null,
+            serviceTitle: "Сеанс",
+            platformUserId: "user-1",
+            patientName: "Иванова Мария",
+            patientPhone: null,
+            bookingStatus: null,
+            rubitimeId: null,
+            rubitimeManageUrl: null,
+            paymentStatus: null,
+            prepaymentPending: false,
+            packageUsageRef: "usage-1",
+            packageTitle: "Абонемент 10",
+            packageDisplayNumber: 1,
+            rescheduleCount: 0,
+            originalStartAt: null,
+            formComments: [],
+          },
+        ]),
+      );
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        const event = getLastFullCalendarEvents().find((item) => item.id === "appt-package");
+        expect(event?.title).toBe("аб.#001 Иванова Мария · Сеанс");
+        expect(event?.classNames?.join(" ")).toContain("!bg-violet-500/15");
       });
     });
 
@@ -1161,7 +1217,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
@@ -1184,7 +1240,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
@@ -1207,7 +1263,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
         {
@@ -1218,7 +1274,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
@@ -1260,7 +1316,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
@@ -1298,7 +1354,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
@@ -1320,7 +1376,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
@@ -1351,7 +1407,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
           platformUserId: null, patientPhone: null, bookingStatus: null,
           rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null,
+          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
           rescheduleCount: 0, originalStartAt: null, formComments: [],
         },
       ];
@@ -1385,7 +1441,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           platformUserId: "user-1",
           rescheduleCount: 0,
           packageUsageRef: null,
-          packageTitle: null,
+          packageTitle: null, packageDisplayNumber: null,
           branchTitle: null,
         },
         {
@@ -1398,7 +1454,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           platformUserId: "user-2",
           rescheduleCount: 0,
           packageUsageRef: null,
-          packageTitle: null,
+          packageTitle: null, packageDisplayNumber: null,
           branchTitle: null,
         },
         {
@@ -1411,7 +1467,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
           platformUserId: "user-3",
           rescheduleCount: 0,
           packageUsageRef: null,
-          packageTitle: null,
+          packageTitle: null, packageDisplayNumber: null,
           branchTitle: null,
         },
       ]);

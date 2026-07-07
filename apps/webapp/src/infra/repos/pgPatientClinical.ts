@@ -4,7 +4,7 @@
  * latest update per complaint, trend oldest→newest) mirrors inMemoryPatientClinical.
  */
 
-import { and, asc, desc, eq, ilike, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   ActiveComplaint,
@@ -46,7 +46,6 @@ import {
 } from "../../../db/schema/patientClinicalAnamnesis";
 import { patientFiles } from "../../../db/schema/patientFiles";
 import { beAppointments } from "../../../db/schema/bookingEngine";
-import { bePackageUsages, bePatientPackages } from "../../../db/schema/bookingMemberships";
 
 const RU_MONTHS = [
   "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -246,31 +245,63 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(inArray(patientFiles.visitId, visitIds))
         .orderBy(asc(patientFiles.createdAt));
 
-      // Package title by appointmentRecordId: clinical_visit.appointmentRecordId →
-      // be_appointments.id → be_package_usages.appointmentId → be_patient_packages.title
-      const packageTitleByApptId = new Map<string, string>();
+      // Package data by clinical_visit.appointmentRecordId. The visit stores
+      // appointment_records.id, so resolve it to be_appointments through the
+      // native `be:<uuid>` projection or Rubitime external mapping first.
+      const packageByAppointmentRecordId = new Map<
+        string,
+        { title: string; displayNumber: number | null }
+      >();
       const appointmentRecordIds = visitRows
         .map((v) => v.appointmentRecordId)
         .filter((id): id is string => id != null);
       if (appointmentRecordIds.length > 0) {
-        const pkgRows = await db
-          .select({
-            appointmentId: bePackageUsages.appointmentId,
-            title: bePatientPackages.title,
-          })
-          .from(bePackageUsages)
-          .innerJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
-          .where(
-            and(
-              inArray(bePackageUsages.appointmentId, appointmentRecordIds),
-              // ST-03: only show package badge when the visit is actually debited (consume/penalty).
-              // A reserve-only row (manual deduction mode, not yet confirmed) must NOT show the badge.
-              inArray(bePackageUsages.usageKind, ["consume", "penalty"]),
-            ),
-          );
-        for (const row of pkgRows) {
-          if (row.appointmentId && !packageTitleByApptId.has(row.appointmentId)) {
-            packageTitleByApptId.set(row.appointmentId, row.title);
+        const idValues = sql.join(
+          appointmentRecordIds.map((id) => sql`(${id}::uuid)`),
+          sql`, `,
+        );
+        const pkgRows = await db.execute<{
+          appointment_record_id: string;
+          title: string;
+          display_number: number | null;
+        }>(sql`
+          WITH visit_ar(id) AS (
+            SELECT * FROM (VALUES ${idValues}) v(id)
+          ),
+          resolved AS (
+            SELECT
+              ar.id AS appointment_record_id,
+              COALESCE(be_from_id.id, be_from_map.id) AS be_appointment_id
+            FROM visit_ar va
+            JOIN appointment_records ar ON ar.id = va.id
+            LEFT JOIN be_external_entity_mappings appt_map
+              ON appt_map.entity_type = 'appointment'
+             AND appt_map.external_system = 'rubitime'
+             AND appt_map.external_id = ar.integrator_record_id
+            LEFT JOIN be_appointments be_from_map ON be_from_map.id = appt_map.canonical_id
+            LEFT JOIN be_appointments be_from_id ON be_from_id.id = CASE
+              WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+                THEN (substring(ar.integrator_record_id from 4))::uuid
+              ELSE NULL
+            END
+          )
+          SELECT DISTINCT ON (r.appointment_record_id)
+            r.appointment_record_id,
+            pp.title,
+            pp.display_number
+          FROM resolved r
+          JOIN be_package_usages u
+            ON u.appointment_id = r.be_appointment_id
+           AND u.usage_kind IN ('consume', 'penalty')
+          JOIN be_patient_packages pp ON pp.id = u.patient_package_id
+          ORDER BY r.appointment_record_id, u.occurred_at DESC, u.id DESC
+        `);
+        for (const row of pkgRows.rows) {
+          if (!packageByAppointmentRecordId.has(row.appointment_record_id)) {
+            packageByAppointmentRecordId.set(row.appointment_record_id, {
+              title: row.title,
+              displayNumber: row.display_number,
+            });
           }
         }
       }
@@ -305,8 +336,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .filter((f) => f.visitId === v.id)
           .map((f) => ({ id: f.id, icon: fileIconForMime(f.mimeType), name: f.fileName }));
 
-        const pkgTitle = v.appointmentRecordId
-          ? (packageTitleByApptId.get(v.appointmentRecordId) ?? null)
+        const pkg = v.appointmentRecordId
+          ? (packageByAppointmentRecordId.get(v.appointmentRecordId) ?? null)
           : null;
 
         return {
@@ -321,7 +352,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           dynamics: dynamics.length > 0 ? dynamics : undefined,
           sections: sections.length > 0 ? sections : undefined,
           files: files.length > 0 ? files : undefined,
-          package: pkgTitle ? { title: pkgTitle } : null,
+          package: pkg,
         };
       });
     },
