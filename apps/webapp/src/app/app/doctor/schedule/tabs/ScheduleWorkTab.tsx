@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -37,6 +37,8 @@ import type { ScheduleTabProps } from "../scheduleTabRegistry";
 const WD_BASE = "/api/doctor/booking-engine/working-days";
 const TPL_BASE = "/api/doctor/booking-engine/working-schedule-templates";
 const WH_BASE = "/api/doctor/booking-engine/working-hours";
+const DEFAULT_PANEL_START = "09:00";
+const DEFAULT_PANEL_END = "18:00";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,6 +92,13 @@ type EffectiveHours =
 
 /** A single break row state in the hours panel or template form. */
 type BreakRow = { from: string; to: string };
+
+type PanelScheduleDefaults = {
+  startMinute: number;
+  endMinute: number;
+  breaks: BreakInterval[];
+  branchId: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -162,6 +171,49 @@ function resolveEffectiveHours(
   const match = workingHours.find((wh) => wh.weekday === wd && wh.isActive);
   if (match) return { source: "template", startMinute: match.startMinute, endMinute: match.endMinute };
   return null;
+}
+
+function resolvePanelDefaultsForDate(
+  dateKey: string,
+  dayMap: Map<string, WorkingDayRecord>,
+  workingHours: WorkingHoursRow[],
+): PanelScheduleDefaults | null {
+  const record = dayMap.get(dateKey);
+  if (record) {
+    if (record.isClosed) return null;
+    if (record.startMinute != null && record.endMinute != null) {
+      return {
+        startMinute: record.startMinute,
+        endMinute: record.endMinute,
+        breaks: resolveBreaks(record),
+        branchId: record.branchId,
+      };
+    }
+  }
+
+  const wd = DateTime.fromISO(dateKey).weekday % 7;
+  const match = workingHours.find((wh) => wh.weekday === wd && wh.isActive);
+  if (!match) return null;
+  return {
+    startMinute: match.startMinute,
+    endMinute: match.endMinute,
+    breaks: [],
+    branchId: match.branchId,
+  };
+}
+
+function resolvePanelDefaultsForWeekday(
+  weekday: number,
+  workingHours: WorkingHoursRow[],
+): PanelScheduleDefaults | null {
+  const match = workingHours.find((wh) => wh.weekday === weekday && wh.isActive);
+  if (!match) return null;
+  return {
+    startMinute: match.startMinute,
+    endMinute: match.endMinute,
+    breaks: [],
+    branchId: match.branchId,
+  };
 }
 
 function formatHourRange(start: number | null, end: number | null): string {
@@ -456,11 +508,12 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [workingHours, setWorkingHours] = useState<WorkingHoursRow[]>([]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedPrimaryDate, setSelectedPrimaryDate] = useState<string | null>(null);
   const lastClickedRef = useRef<string | null>(null);
 
   // Panel state (E4 — строчная раскладка + N перерывов)
-  const [panelStart, setPanelStart] = useState("09:00");
-  const [panelEnd, setPanelEnd] = useState("18:00");
+  const [panelStart, setPanelStart] = useState(DEFAULT_PANEL_START);
+  const [panelEnd, setPanelEnd] = useState(DEFAULT_PANEL_END);
   const [panelBreaks, setPanelBreaks] = useState<BreakRow[]>([]);
   const [panelBranchId, setPanelBranchId] = useState("");
 
@@ -471,8 +524,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // E5 — Create template dialog with N breaks
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
   const [tplName, setTplName] = useState("");
-  const [tplStart, setTplStart] = useState("09:00");
-  const [tplEnd, setTplEnd] = useState("18:00");
+  const [tplStart, setTplStart] = useState(DEFAULT_PANEL_START);
+  const [tplEnd, setTplEnd] = useState(DEFAULT_PANEL_END);
   const [tplBreaks, setTplBreaks] = useState<BreakRow[]>([]);
 
   // ── Today string ─────────────────────────────────────────────────────────
@@ -484,6 +537,15 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const setGridBranchFilter = useCallback(
     (id: string) => {
       setGridBranchFilterState(id);
+      setSelected(new Set());
+      setSelectedPrimaryDate(null);
+      lastClickedRef.current = null;
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
+      setActionError(null);
+      if (id !== "all") {
+        setPanelBranchId(id);
+      }
       onDeepLinkChange("location", id !== "all" ? id : null);
     },
     [onDeepLinkChange],
@@ -498,6 +560,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setViewYear(y);
       setViewMonth(m);
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
       lastClickedRef.current = null;
       onDeepLinkChange("month", formatMonth(y, m));
     },
@@ -607,26 +670,43 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     (date: string, shift: boolean, meta: boolean) => {
       setSelected((prev) => {
         const next = new Set(prev);
+        let nextPrimaryDate = selectedPrimaryDate;
         if (shift && lastClickedRef.current) {
           const from = lastClickedRef.current;
           const [a, b] = from < date ? [from, date] : [date, from];
           for (const d of gridDates) {
             if (d >= a && d <= b) next.add(d);
           }
+          nextPrimaryDate = nextPrimaryDate ?? date;
         } else if (meta) {
-          if (next.has(date)) { next.delete(date); }
-          else { next.add(date); }
+          if (next.has(date)) {
+            next.delete(date);
+            if (nextPrimaryDate === date) {
+              const fallback = next.values().next().value;
+              nextPrimaryDate = typeof fallback === "string" ? fallback : null;
+            }
+          } else {
+            next.add(date);
+            nextPrimaryDate = nextPrimaryDate ?? date;
+          }
         } else {
-          if (next.size === 1 && next.has(date)) { next.clear(); }
-          else { next.clear(); next.add(date); }
+          if (next.size === 1 && next.has(date)) {
+            next.clear();
+            nextPrimaryDate = null;
+          } else {
+            next.clear();
+            next.add(date);
+            nextPrimaryDate = date;
+          }
         }
+        setSelectedPrimaryDate(nextPrimaryDate);
         return next;
       });
       lastClickedRef.current = date;
       setSelectionMode("dates");
       setSelectedWeekday(null);
     },
-    [gridDates],
+    [gridDates, selectedPrimaryDate],
   );
 
   const handleWeekdayHeaderClick = useCallback(
@@ -637,6 +717,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         setSelectionMode("dates");
         setSelectedWeekday(null);
         setSelected(new Set());
+        setSelectedPrimaryDate(null);
         return;
       }
       // Select all dates of this weekday in current month view
@@ -650,6 +731,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         }),
       );
       setSelected(matching);
+      setSelectedPrimaryDate([...matching].sort()[0] ?? null);
       setSelectionMode("weekday");
       setSelectedWeekday(wd);
       lastClickedRef.current = null;
@@ -737,6 +819,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     if (toDeactivate.length === 0) {
       // #233: сбрасываем выделение даже если шаблон уже пуст
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
       setSelectionMode("dates");
       setSelectedWeekday(null);
       lastClickedRef.current = null;
@@ -744,6 +827,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     }
     // #233: сбрасываем выделение СРАЗУ (до сетевого запроса), чтобы UI реагировал немедленно
     setSelected(new Set());
+    setSelectedPrimaryDate(null);
     setSelectionMode("dates");
     setSelectedWeekday(null);
     lastClickedRef.current = null;
@@ -799,6 +883,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         }),
       });
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
     });
   }
 
@@ -820,11 +905,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ action: "clear", dates, specialistId }),
       });
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
     });
   }
 
   function handleClearSelection() {
     setSelected(new Set());
+    setSelectedPrimaryDate(null);
     lastClickedRef.current = null;
     setSelectionMode("dates");
     setSelectedWeekday(null);
@@ -844,6 +931,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ templateId, dates, specialistId }),
       });
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
     });
   }
 
@@ -893,11 +981,37 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const dayMap = new Map(dayRecords.map((r) => [r.workDate, r]));
+  const dayMap = useMemo(() => new Map(dayRecords.map((r) => [r.workDate, r])), [dayRecords]);
   const cells = buildMonthGrid(viewYear, viewMonth);
   const selectedCount = selected.size;
   const selectedDates = [...selected].sort();
+  const firstSelectedDate = selectedPrimaryDate ?? selectedDates[0] ?? null;
   const panelBranchLabel = branches.find((b) => b.id === panelBranchId)?.title;
+
+  useEffect(() => {
+    if (!firstSelectedDate && selectedWeekday === null) return;
+    const defaults =
+      selectionMode === "weekday" && selectedWeekday !== null
+        ? resolvePanelDefaultsForWeekday(selectedWeekday, workingHours)
+        : firstSelectedDate
+          ? resolvePanelDefaultsForDate(firstSelectedDate, dayMap, workingHours)
+          : null;
+    if (!defaults) {
+      setPanelStart(DEFAULT_PANEL_START);
+      setPanelEnd(DEFAULT_PANEL_END);
+      setPanelBreaks([]);
+      if (gridBranchFilter !== "all") {
+        setPanelBranchId(gridBranchFilter);
+      }
+      return;
+    }
+    setPanelStart(minuteToTimeLabel(defaults.startMinute));
+    setPanelEnd(minuteToTimeLabel(defaults.endMinute));
+    setPanelBreaks(breaksToRows(defaults.breaks));
+    if (defaults.branchId) {
+      setPanelBranchId(defaults.branchId);
+    }
+  }, [firstSelectedDate, selectedWeekday, selectionMode, dayMap, workingHours, gridBranchFilter]);
 
   // E3: branch label for the filter switcher
   function getBranchDisplayLabel(b: Branch): string {
@@ -987,6 +1101,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           const inside = target.closest("[data-testid='month-grid'], [data-testid='hours-panel']");
           if (!inside) {
             setSelected(new Set());
+            setSelectedPrimaryDate(null);
             setSelectionMode("dates");
             setSelectedWeekday(null);
             lastClickedRef.current = null;

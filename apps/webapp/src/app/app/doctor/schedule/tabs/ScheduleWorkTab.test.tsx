@@ -68,6 +68,17 @@ const WORKING_DAY_ROWS = [
   },
 ];
 
+const WORKING_HOUR_ROWS = [
+  {
+    id: "wh-1",
+    weekday: 4,
+    startMinute: 480,
+    endMinute: 720,
+    isActive: true,
+    branchId: "branch-msk",
+  },
+];
+
 const TEMPLATES = [
   {
     id: "tpl-1",
@@ -103,6 +114,7 @@ async function renderWorkTab(deepLinkParams: Record<string, string> = {}) {
 
   const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
   (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+    if (url.includes("working-hours")) return { ok: true, rows: WORKING_HOUR_ROWS };
     if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
     if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
     return { ok: true };
@@ -179,7 +191,7 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
-  it("keeps selected days when clicking a branch filter button", async () => {
+  it("clears selected days when clicking a branch filter button", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
@@ -190,8 +202,63 @@ describe("ScheduleWorkTab", () => {
     fireEvent.click(screen.getByTestId("branch-btn-branch-msk"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
       expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
+    });
+  });
+
+  it("prefills the hours panel from a selected manual day schedule", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("11:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("19:00");
+      expect(screen.getByTestId("panel-branch")).toHaveTextContent("Санкт-Петербург");
+    });
+  });
+
+  it("prefills the hours panel from the first selected day when selecting several days", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-03"));
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"), { ctrlKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("10:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("18:00");
+      expect(screen.getByTestId("panel-branch")).toHaveTextContent("Москва");
+    });
+  });
+
+  it("prefills the hours panel from an effective weekday template when the selected day has no manual row", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-04"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("08:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("12:00");
+      expect(screen.getByTestId("panel-branch")).toHaveTextContent("Москва");
+    });
+  });
+
+  it("does not keep stale panel values when the selected day has no schedule", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"));
+    await waitFor(() => expect(screen.getByTestId("panel-start")).toHaveValue("11:00"));
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-05"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("09:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("18:00");
     });
   });
 
