@@ -36,6 +36,7 @@ function context(branchId: string | null) {
     roomId: null,
     serviceId: "svc",
     durationMinutes: 60,
+    bufferAfterMinutes: 0,
     branchTimezone: "UTC",
     dateFrom: TEST_DATE,
     dateTo: TEST_DATE,
@@ -66,5 +67,40 @@ describe("buildSlotsForContext per-date branch scoping", () => {
     const slots = await buildSlotsForContext(makePort(null), context("branch-A"));
     const total = slots.reduce((n, d) => n + d.slots.length, 0);
     expect(total).toBeGreaterThan(0);
+  });
+});
+
+describe("buildSlotsForContext service buffer after appointment", () => {
+  it("keeps displayed slot duration but requires the after-appointment buffer to fit", async () => {
+    const slots = await buildSlotsForContext(makePort(null), {
+      ...context("branch-A"),
+      durationMinutes: 60,
+      bufferAfterMinutes: 30,
+    });
+    const flat = slots.flatMap((d) => d.slots);
+    const lastSlot = flat.at(-1);
+
+    expect(lastSlot?.startAt).toBeDefined();
+    expect(new Date(lastSlot!.startAt).getUTCHours()).toBe(17);
+    expect(new Date(lastSlot!.startAt).getUTCMinutes()).toBe(0);
+    expect(new Date(lastSlot!.endAt).getUTCHours()).toBe(18);
+    expect(new Date(lastSlot!.endAt).getUTCMinutes()).toBe(0);
+  });
+
+  it("does not offer a slot inside another appointment's after-appointment buffer", async () => {
+    const port = {
+      ...makePort(null),
+      listBusyIntervals: async () => [
+        {
+          startAt: `${TEST_DATE}T12:00:00.000Z`,
+          endAt: `${TEST_DATE}T13:30:00.000Z`,
+        },
+      ],
+    } as unknown as BookingSchedulingPort;
+    const slots = await buildSlotsForContext(port, context("branch-A"));
+    const flat = slots.flatMap((d) => d.slots);
+
+    expect(flat.some((slot) => slot.startAt === `${TEST_DATE}T13:00:00.000Z`)).toBe(false);
+    expect(flat.some((slot) => slot.startAt === `${TEST_DATE}T13:30:00.000Z`)).toBe(true);
   });
 });

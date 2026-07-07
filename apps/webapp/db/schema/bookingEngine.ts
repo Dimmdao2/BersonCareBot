@@ -260,6 +260,7 @@ export const beClinicServices = pgTable(
     title: text().notNull(),
     description: text(),
     durationMinutes: integer("duration_minutes").notNull(),
+    bufferAfterMinutes: integer("buffer_after_minutes").default(0).notNull(),
     priceMinor: integer("price_minor").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     prepaymentApplicable: boolean("prepayment_applicable").default(false).notNull(),
@@ -284,6 +285,7 @@ export const beClinicServices = pgTable(
       table.durationMinutes,
     ),
     check("be_clinic_services_duration_check", sql`duration_minutes > 0`),
+    check("be_clinic_services_buffer_after_check", sql`buffer_after_minutes >= 0 AND buffer_after_minutes % 5 = 0`),
     check("be_clinic_services_price_check", sql`price_minor >= 0`),
   ],
 );

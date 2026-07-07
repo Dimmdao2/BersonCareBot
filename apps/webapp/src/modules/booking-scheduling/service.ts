@@ -148,6 +148,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         roomId: ctx.roomId,
         serviceId: ctx.serviceId,
         durationMinutes: ctx.durationMinutes,
+        bufferAfterMinutes: ctx.bufferAfterMinutes,
         branchTimezone: ctx.branchTimezone,
         dateFrom: from,
         dateTo: to,
@@ -164,6 +165,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         roomId: null,
         serviceId: null,
         durationMinutes: 60,
+        bufferAfterMinutes: 0,
         branchTimezone,
         dateFrom: from,
         dateTo: to,
@@ -184,6 +186,10 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         roomId = ctx.roomId;
         organizationId = ctx.organizationId;
         durationMinutes = ctx.durationMinutes;
+        const slotEndMs = new Date(input.slotEnd).getTime() + ctx.bufferAfterMinutes * 60_000;
+        if (Number.isFinite(slotEndMs)) {
+          input = { ...input, slotEnd: new Date(slotEndMs).toISOString() };
+        }
       }
 
       const busy = await port.listBusyIntervals({
@@ -408,7 +414,8 @@ async function computeSlotsInternal(
   });
   const busyMs = busyFromRecords(busy);
   const slotCount = context.slotCount ?? 1;
-  const totalDuration = context.durationMinutes * slotCount;
+  const slotDuration = context.durationMinutes * slotCount;
+  const requiredDuration = slotDuration + (context.bufferAfterMinutes ?? 0);
   const allSlots: { startAt: string; endAt: string }[] = [];
 
   let day = context.dateFrom;
@@ -432,7 +439,7 @@ async function computeSlotsInternal(
       effectivePerDayRow,
     );
     const free = subtractBusy(workingIntervals, busyMs);
-    const daySlots = generateSlotsFromFree(free, totalDuration, context.durationMinutes);
+    const daySlots = generateSlotsFromFree(free, slotDuration, context.durationMinutes, requiredDuration);
     for (const slot of daySlots) {
       if (new Date(slot.startAt).getTime() < minSlotStartMs) continue;
       if (slotCount > 1 && !isChainFree(slot.startAt, slotCount, context.durationMinutes, busy)) {
@@ -445,4 +452,3 @@ async function computeSlotsInternal(
 
   return groupSlotsByLocalDate(allSlots, context.branchTimezone);
 }
-

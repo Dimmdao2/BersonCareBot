@@ -7,6 +7,7 @@ export type SchedulingContext = {
   roomId: string | null;
   serviceId: string | null;
   durationMinutes: number;
+  bufferAfterMinutes: number;
   branchTimezone: string;
   /** Inclusive local dates YYYY-MM-DD */
   dateFrom: string;
@@ -22,6 +23,7 @@ export type CanonicalBookingContext = {
   roomId: string | null;
   branchServiceId: string;
   durationMinutes: number;
+  bufferAfterMinutes: number;
   branchTimezone: string;
 };
 

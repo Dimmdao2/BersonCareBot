@@ -26,6 +26,7 @@ export type SoloOverview = {
     title: string;
     description: string | null;
     durationMinutes: number;
+    bufferAfterMinutes: number;
     priceMinor: number;
     publicWidgetVisible: boolean;
     adminManualOnly: boolean;

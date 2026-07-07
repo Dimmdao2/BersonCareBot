@@ -247,12 +247,14 @@ export function generateSlotsFromFree(
   free: TimeInterval[],
   durationMinutes: number,
   stepMinutes: number,
+  requiredMinutes = durationMinutes,
 ): { startAt: string; endAt: string }[] {
   const durMs = durationMinutes * 60_000;
   const stepMs = stepMinutes * 60_000;
+  const requiredMs = requiredMinutes * 60_000;
   const slots: { startAt: string; endAt: string }[] = [];
   for (const interval of free) {
-    for (let t = interval.startMs; t + durMs <= interval.endMs; t += stepMs) {
+    for (let t = interval.startMs; t + requiredMs <= interval.endMs; t += stepMs) {
       slots.push({
         startAt: new Date(t).toISOString(),
         endAt: new Date(t + durMs).toISOString(),

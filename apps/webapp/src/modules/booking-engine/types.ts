@@ -60,6 +60,7 @@ export type BeClinicService = {
   title: string;
   description: string | null;
   durationMinutes: number;
+  bufferAfterMinutes: number;
   priceMinor: number;
   isActive: boolean;
   prepaymentApplicable: boolean;
