@@ -1016,6 +1016,13 @@
       "when": 1783441369362,
       "tag": "0144_org_enrollments",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1783441564091,
+      "tag": "0145_seed_client_org_enrollments",
+      "breakpoints": true
     }
   ]
 }
