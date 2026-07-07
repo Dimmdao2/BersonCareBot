@@ -20,7 +20,6 @@ import {
   type PurgePlatformUserRow,
 } from "@/infra/platformUserFullPurge";
 import { deleteS3ObjectsWithPerKeyResults, type S3PerKeyDeleteResult } from "@/infra/s3/client";
-import { startPoolTransaction } from "@/infra/db/withClient";
 
 /**
  * - `completed` — webapp commit + S3 + integrator cleanup successful (or integrator work not required).
