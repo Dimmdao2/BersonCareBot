@@ -29,6 +29,7 @@ export function BookingSoloServicesSection() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("60");
+  const [bufferAfter, setBufferAfter] = useState("0");
   const [priceRub, setPriceRub] = useState("5000");
   const [patientVisible, setPatientVisible] = useState(true);
   const [usableInPackages, setUsableInPackages] = useState(true);
@@ -38,6 +39,7 @@ export function BookingSoloServicesSection() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDuration, setEditDuration] = useState("");
+  const [editBufferAfter, setEditBufferAfter] = useState("");
   const [editPriceRub, setEditPriceRub] = useState("");
   const [editUsableInPackages, setEditUsableInPackages] = useState(true);
   const [editPrepaymentApplicable, setEditPrepaymentApplicable] = useState(false);
@@ -115,6 +117,15 @@ export function BookingSoloServicesSection() {
               aria-label="Длительность в минутах"
             />
             <Input
+              className="w-24"
+              type="number"
+              min={0}
+              step={5}
+              value={bufferAfter}
+              onChange={(e) => setBufferAfter(e.target.value)}
+              aria-label="Перерыв после приема в минутах"
+            />
+            <Input
               className="w-28"
               type="number"
               min={0}
@@ -154,6 +165,7 @@ export function BookingSoloServicesSection() {
                       title: title.trim(),
                       description: description.trim() || null,
                       durationMinutes: Number(duration),
+                      bufferAfterMinutes: Number(bufferAfter),
                       priceMinor: rublesToMinor(rub),
                       publicWidgetVisible: patientVisible,
                       adminManualOnly: !patientVisible,
@@ -164,6 +176,7 @@ export function BookingSoloServicesSection() {
                   });
                   setTitle("");
                   setDescription("");
+                  setBufferAfter("0");
                 })
               }
             >
@@ -178,6 +191,7 @@ export function BookingSoloServicesSection() {
               <tr className="border-b bg-muted/40 text-left">
                 <th className="px-3 py-2 font-medium">Услуга</th>
                 <th className="px-3 py-2 font-medium">Мин</th>
+                <th className="px-3 py-2 font-medium">Перерыв</th>
                 <th className="px-3 py-2 font-medium">Цена</th>
                 <th className="px-3 py-2 font-medium">Доступна пациентам</th>
                 <th className="px-3 py-2 font-medium">Абон.</th>
@@ -218,6 +232,20 @@ export function BookingSoloServicesSection() {
                         />
                       ) : (
                         s.durationMinutes
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === s.id ? (
+                        <Input
+                          className="h-8 w-20"
+                          type="number"
+                          min={0}
+                          step={5}
+                          value={editBufferAfter}
+                          onChange={(e) => setEditBufferAfter(e.target.value)}
+                        />
+                      ) : (
+                        s.bufferAfterMinutes
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -334,6 +362,7 @@ export function BookingSoloServicesSection() {
                                     title: editTitle,
                                     description: editDescription.trim() || null,
                                     durationMinutes: Number(editDuration),
+                                    bufferAfterMinutes: Number(editBufferAfter),
                                     priceMinor: rublesToMinor(rub),
                                     usableInPackages: editUsableInPackages,
                                     prepaymentApplicable: editPrepaymentApplicable,
@@ -370,6 +399,7 @@ export function BookingSoloServicesSection() {
                               setEditTitle(s.title);
                               setEditDescription(s.description ?? "");
                               setEditDuration(String(s.durationMinutes));
+                              setEditBufferAfter(String(s.bufferAfterMinutes));
                               setEditPriceRub(minorToRublesInput(s.priceMinor));
                               setEditUsableInPackages(s.usableInPackages);
                               setEditPrepaymentApplicable(s.prepaymentApplicable);

@@ -87,6 +87,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       if (!service) return null;
 
       const durationMinutes = ssa.durationMinutesOverride ?? service.durationMinutes;
+      const bufferAfterMinutes = service.bufferAfterMinutes;
 
       return {
         organizationId: orgId,
@@ -96,6 +97,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         roomId: ssa.roomId ?? null,
         branchServiceId,
         durationMinutes,
+        bufferAfterMinutes,
         branchTimezone: branch.timezone,
       } satisfies CanonicalBookingContext;
     },
@@ -175,7 +177,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         specialistId ? eq(beAppointments.specialistId, specialistId) : sql`true`,
         // F1b: soft-deleted appointments do not reserve the slot.
         isNull(beAppointments.deletedAt),
-        gte(beAppointments.endAt, rangeStart),
+        sql`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute')) >= ${rangeStart}`,
         lte(beAppointments.startAt, rangeEnd),
         inArray(beAppointments.status, ACTIVE_APPOINTMENT_STATUSES),
       ];
@@ -183,8 +185,12 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         apptConds.push(ne(beAppointments.id, excludeAppointmentId));
       }
       const apptRows = await db
-        .select({ startAt: beAppointments.startAt, endAt: beAppointments.endAt })
+        .select({
+          startAt: beAppointments.startAt,
+          endAt: sql<string>`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute'))`,
+        })
         .from(beAppointments)
+        .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
         .where(and(...apptConds));
 
       const blockConds = [

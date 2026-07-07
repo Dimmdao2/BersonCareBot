@@ -725,6 +725,7 @@ const paymentsService =
             title: svc.title,
             description: svc.description,
             durationMinutes: svc.durationMinutes,
+            bufferAfterMinutes: svc.bufferAfterMinutes,
             priceMinor: svc.priceMinor,
             isActive: svc.isActive,
             prepaymentApplicable: applicable,

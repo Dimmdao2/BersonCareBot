@@ -7,6 +7,7 @@ const PatchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.union([z.string().max(2000), z.null()]).optional(),
   durationMinutes: z.number().int().min(1).max(24 * 60).optional(),
+  bufferAfterMinutes: z.number().int().min(0).max(24 * 60).refine((n) => n % 5 === 0).optional(),
   priceMinor: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
   prepaymentApplicable: z.boolean().optional(),
@@ -35,6 +36,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     description:
       parsed.data.description !== undefined ? parsed.data.description : existing.description,
     durationMinutes: parsed.data.durationMinutes ?? existing.durationMinutes,
+    bufferAfterMinutes: parsed.data.bufferAfterMinutes ?? existing.bufferAfterMinutes,
     priceMinor: parsed.data.priceMinor ?? existing.priceMinor,
     isActive: parsed.data.isActive ?? existing.isActive,
     prepaymentApplicable: parsed.data.prepaymentApplicable ?? existing.prepaymentApplicable,
