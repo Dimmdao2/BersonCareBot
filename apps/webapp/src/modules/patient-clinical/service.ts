@@ -82,7 +82,16 @@ export function createPatientClinicalService({
           throw new Error("complaint_update_severity_out_of_range");
         }
       }
-      return patientClinicalPort.createVisit(input);
+      return patientClinicalPort.createVisit({
+        ...input,
+        location: normalizeVisitSection(input.location),
+        duration: normalizeVisitSection(input.duration),
+        anamnesisText: normalizeVisitSection(input.anamnesisText),
+        exam: normalizeVisitSection(input.exam),
+        manipulations: normalizeVisitSection(input.manipulations),
+        trialResults: normalizeVisitSection(input.trialResults),
+        recommendations: normalizeVisitSection(input.recommendations),
+      });
     },
 
     // -- Инлайн-правка полей -------------------------------------------------

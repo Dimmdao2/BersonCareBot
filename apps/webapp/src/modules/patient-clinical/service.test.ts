@@ -36,6 +36,34 @@ function makePort(overrides: Partial<PatientClinicalPort> = {}): PatientClinical
 }
 
 describe("patient-clinical service — инлайн-правка полей", () => {
+  it("createVisit trims sections and clears whitespace-only values", async () => {
+    const port = makePort();
+    const svc = createPatientClinicalService({ patientClinicalPort: port });
+    await svc.createVisit({
+      patientUserId: PATIENT,
+      visitType: "first",
+      visitedAt: "2026-07-06T18:00:00.000Z",
+      location: " Кабинет 3 ",
+      duration: " 60 ",
+      anamnesisText: "  Боль после нагрузки  ",
+      exam: "   ",
+      manipulations: "  Мобилизация  ",
+      trialResults: " ",
+      recommendations: "  Ходьба  ",
+      createdBy: DOCTOR,
+    });
+    const arg = (port.createVisit as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(arg).toMatchObject({
+      location: "Кабинет 3",
+      duration: "60",
+      anamnesisText: "Боль после нагрузки",
+      exam: null,
+      manipulations: "Мобилизация",
+      trialResults: null,
+      recommendations: "Ходьба",
+    });
+  });
+
   it("updateComplaintFields trims text and forwards priority", async () => {
     const port = makePort();
     const svc = createPatientClinicalService({ patientClinicalPort: port });

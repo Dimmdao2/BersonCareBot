@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { listMock, findCatMock, buildAppDepsMock } = vi.hoisted(() => {
   const listMockInner = vi.fn();
@@ -22,6 +22,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { GET } from "./route";
 
 describe("GET /api/references/[categoryCode]", () => {
+  beforeEach(() => {
+    findCatMock.mockReset();
+    listMock.mockReset();
+  });
+
   it("returns items", async () => {
     findCatMock.mockResolvedValue({
       id: "c",
@@ -57,5 +62,14 @@ describe("GET /api/references/[categoryCode]", () => {
     expect(res.status).toBe(404);
     const data = (await res.json()) as { error?: string };
     expect(data.error).toBe("category_not_found");
+  });
+
+  it("does not expose private doctor-only categories", async () => {
+    const res = await GET(new Request("http://localhost/api/references/visit_manipulation"), {
+      params: Promise.resolve({ categoryCode: "visit_manipulation" }),
+    });
+    expect(res.status).toBe(404);
+    expect(findCatMock).not.toHaveBeenCalled();
+    expect(listMock).not.toHaveBeenCalled();
   });
 });

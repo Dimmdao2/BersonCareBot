@@ -75,6 +75,7 @@ import {
   DialogTitle,
 } from "@/shared/ui/doctor/primitives/dialog";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { VisitCatalogTextarea } from "./karta/VisitCatalogTextarea";
 
 type Props = {
   userId: string;
@@ -1108,17 +1109,31 @@ function VisitCard({
                   placeholder="Например: 60"
                 />
               </label>
-              {VISIT_SECTION_FIELDS.map((f) => (
-                <label key={f.key} className="flex flex-col gap-0.5">
-                  <span className="text-xs font-semibold text-foreground">{f.title}</span>
-                  <Textarea
-                    value={fields[f.key]}
-                    onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                    rows={2}
-                    className="resize-y"
-                  />
-                </label>
-              ))}
+              {VISIT_SECTION_FIELDS.map((f) => {
+                if (f.key === "manipulations" || f.key === "recommendations") {
+                  return (
+                    <VisitCatalogTextarea
+                      key={f.key}
+                      label={f.title}
+                      value={fields[f.key]}
+                      onChange={(value) => setFields((prev) => ({ ...prev, [f.key]: value }))}
+                      rows={2}
+                      catalog={f.key}
+                    />
+                  );
+                }
+                return (
+                  <label key={f.key} className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-foreground">{f.title}</span>
+                    <Textarea
+                      value={fields[f.key]}
+                      onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      rows={2}
+                      className="resize-y"
+                    />
+                  </label>
+                );
+              })}
               {error && <span className="text-xs text-destructive">Не удалось сохранить.</span>}
               <div className="flex items-center gap-1.5">
                 <Button
@@ -1145,7 +1160,7 @@ function VisitCard({
               {visit.sections?.map((s) => (
                 <div key={s.title} className="flex flex-col gap-0.5">
                   <div className="text-xs font-semibold text-foreground">{s.title}</div>
-                  <div className="text-sm text-foreground">{s.body}</div>
+                  <div className="whitespace-pre-wrap break-words text-sm text-foreground">{s.body}</div>
                 </div>
               ))}
               {visit.files && visit.files.length > 0 ? (

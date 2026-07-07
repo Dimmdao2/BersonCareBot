@@ -42,6 +42,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/doctor/primitives/dialog";
+import { VisitCatalogTextarea } from "./VisitCatalogTextarea";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1239,11 +1240,12 @@ export function NewVisitPanel({
               </p>
             </div>
 
-            <FormTextarea
+            <VisitCatalogTextarea
               label="Проведённые манипуляции"
               placeholder="Проведённые манипуляции…"
               value={manipulationsFirst}
               onChange={setManipulationsFirst}
+              catalog="manipulations"
             />
             <FormTextarea
               label="Результаты пробного лечения"
@@ -1251,11 +1253,12 @@ export function NewVisitPanel({
               value={trialResultsFirst}
               onChange={setTrialResultsFirst}
             />
-            <FormTextarea
+            <VisitCatalogTextarea
               label="Рекомендации / Назначения"
               placeholder="Рекомендации / назначения…"
               value={recommendationsFirst}
               onChange={setRecommendationsFirst}
+              catalog="recommendations"
             />
           </>
         ) : (
@@ -1371,17 +1374,19 @@ export function NewVisitPanel({
               </div>
             </div>
 
-            <FormTextarea
+            <VisitCatalogTextarea
               label="Проведённые манипуляции"
               placeholder="Проведённые манипуляции…"
               value={manipulationsRepeat}
               onChange={setManipulationsRepeat}
+              catalog="manipulations"
             />
-            <FormTextarea
+            <VisitCatalogTextarea
               label="Рекомендации / Назначения — коррекция"
               placeholder="Рекомендации / назначения…"
               value={recommendationsRepeat}
               onChange={setRecommendationsRepeat}
+              catalog="recommendations"
             />
           </>
         )}

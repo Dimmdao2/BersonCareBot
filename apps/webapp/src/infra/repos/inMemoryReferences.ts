@@ -54,6 +54,13 @@ const categories: ReferenceCategory[] = [
     isUserExtensible: false,
     tenantId: null,
   },
+  {
+    id: "rc-visit_manipulation",
+    code: "visit_manipulation",
+    title: "Манипуляции визита",
+    isUserExtensible: true,
+    tenantId: null,
+  },
 ];
 
 const items: ReferenceItem[] = [
