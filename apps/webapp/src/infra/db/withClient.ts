@@ -1,8 +1,13 @@
 import type { Pool, PoolClient } from "pg";
+import { applyCurrentDbPrincipalToTransaction } from "@bersoncare/db-principal";
 import { getPool } from "@/infra/db/client";
 
 async function prepareClientForRequest(_client: PoolClient): Promise<void> {
   // Dormant SAAS hook: future tenant/app principal setup belongs here.
+}
+
+async function prepareTransactionClientForRequest(client: PoolClient): Promise<void> {
+  await applyCurrentDbPrincipalToTransaction(client);
 }
 
 export async function withPoolClient<T>(
@@ -31,10 +36,20 @@ export type PoolTransactionHandle = {
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
   const client = await pool.connect();
+  let transactionStarted = false;
   try {
     await prepareClientForRequest(client);
     await client.query("BEGIN");
+    transactionStarted = true;
+    await prepareTransactionClientForRequest(client);
   } catch (err) {
+    if (transactionStarted) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        /* preserve original setup error */
+      }
+    }
     client.release();
     throw err;
   }
