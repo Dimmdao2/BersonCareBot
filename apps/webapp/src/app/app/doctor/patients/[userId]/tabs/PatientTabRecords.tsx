@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye } from "lucide-react";
 import type { PatientAppointmentItem, PatientCardHeader } from "@/modules/doctor-clients/ports";
 import { MembershipCardHeader } from "@/shared/ui/doctor/MembershipCardHeader";
 import {
@@ -56,6 +56,7 @@ interface DisplayAppointment {
   durationMin?: number;
   /** Запись списана с абонемента (be_appointments.package_usage_ref IS NOT NULL). */
   isPackage?: boolean | null;
+  patientPackageId?: string | null;
   packageTitle?: string | null;
   packageDisplayNumber?: number | null;
 }
@@ -79,6 +80,7 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     durationMin: item.durationMin ?? undefined,
     hasVisitRecord: false, // PatientAppointmentItem doesn't include visit-record presence yet
     isPackage: item.isPackage ?? null,
+    patientPackageId: item.patientPackageId ?? null,
     packageTitle: item.packageTitle ?? null,
     packageDisplayNumber: item.packageDisplayNumber ?? null,
   };
@@ -183,6 +185,7 @@ type Props = {
 
 export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment, initialAppointments, initialPackages, initialPaymentsSummary }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
+  const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
   // can derive «loading» when the prop changes — instead of resetting state
@@ -365,7 +368,12 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
             {historyList.map((appt) => (
               <div
                 key={appt.id}
-                className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-background px-2.5 py-2 text-xs"
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs",
+                  highlightedPackageId && appt.patientPackageId === highlightedPackageId
+                    ? "border-violet-500/60"
+                    : "border-border/70",
+                )}
               >
                 {/* Date */}
                 <span className="font-semibold text-foreground flex-none w-[72px]">
@@ -461,7 +469,15 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
             ) : (
               <div className="flex flex-col gap-2">
                 {upcomingList.map((appt) => (
-                  <div key={appt.id} className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                  <div
+                    key={appt.id}
+                    className={cn(
+                      "rounded-xl border bg-primary/5 p-3",
+                      highlightedPackageId && appt.patientPackageId === highlightedPackageId
+                        ? "border-violet-500/60"
+                        : "border-primary/30",
+                    )}
+                  >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-foreground">
                         {appt.date ? `${fmtWeekday(appt.date)} ${fmtDate(appt.date)}` : "—"}{appt.time ? ` · ${appt.time}` : ""}
@@ -494,7 +510,14 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           </div>
 
           {/* Абонемент */}
-          <MembershipPanel userId={userId} initialPackages={initialPackages} />
+          <MembershipPanel
+            userId={userId}
+            initialPackages={initialPackages}
+            highlightedPackageId={highlightedPackageId}
+            onToggleHighlight={(packageId) => {
+              setHighlightedPackageId((current) => (current === packageId ? null : packageId));
+            }}
+          />
         </div>
       </div>
 
@@ -566,10 +589,14 @@ function isClosedByConsumedPastSessions(pkg: ApiPackage, sessions: PackageSessio
 function MembershipPanel({
   userId,
   initialPackages,
+  highlightedPackageId,
+  onToggleHighlight,
 }: {
   userId: string;
   /** SSR-provided packages. When present, skips the initial client fetch. */
   initialPackages?: ApiPackage[] | null;
+  highlightedPackageId: string | null;
+  onToggleHighlight: (packageId: string) => void;
 }) {
   const [openHistoryPackageIds, setOpenHistoryPackageIds] = useState<ReadonlySet<string>>(() => new Set());
   const [packages, setPackages] = useState<ApiPackage[] | null>(() => initialPackages ?? null);
@@ -691,20 +718,44 @@ function MembershipPanel({
                   .map((s) => ({ startsAt: s.startsAt }))
               : null;
             return (
-              <div key={pkg.id} className="rounded-lg border border-border/70 bg-background p-2.5">
-                <MembershipCardHeader
-                  title={pkg.title}
-                  shortLabel={formatPatientPackageShortLabel(pkg.displayNumber)}
-                  soldAt={pkg.soldAt ?? null}
-                  totalSessions={totalSessions}
-                  remainingSessions={remainingSessions}
-                  items={balanceItems.map((it) => ({
-                    serviceTitle: it.serviceTitle,
-                    quantityInitial: it.quantityInitial,
-                  }))}
-                  consumeDates={consumeDates ? consumeDates.map((s) => s.startsAt) : null}
-                  consumeLoading={sessionState?.loading ?? false}
-                />
+              <div
+                key={pkg.id}
+                className={cn(
+                  "rounded-lg border bg-background p-2.5",
+                  highlightedPackageId === pkg.id ? "border-violet-500/60" : "border-border/70",
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <MembershipCardHeader
+                      title={pkg.title}
+                      shortLabel={formatPatientPackageShortLabel(pkg.displayNumber)}
+                      soldAt={pkg.soldAt ?? null}
+                      totalSessions={totalSessions}
+                      remainingSessions={remainingSessions}
+                      items={balanceItems.map((it) => ({
+                        serviceTitle: it.serviceTitle,
+                        quantityInitial: it.quantityInitial,
+                      }))}
+                      consumeDates={consumeDates ? consumeDates.map((s) => s.startsAt) : null}
+                      consumeLoading={sessionState?.loading ?? false}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Подсветить записи абонемента ${formatPatientPackageShortLabel(pkg.displayNumber)} ${pkg.title}`}
+                    aria-pressed={highlightedPackageId === pkg.id}
+                    onClick={() => onToggleHighlight(pkg.id)}
+                    className={cn(
+                      "size-8 flex-none text-muted-foreground hover:text-violet-700",
+                      highlightedPackageId === pkg.id ? "bg-violet-500/10 text-violet-700" : "",
+                    )}
+                  >
+                    <Eye className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
                 {pkg.validUntil ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     действует до: {fmtDate(pkg.validUntil.slice(0, 10))}
@@ -736,26 +787,50 @@ function MembershipPanel({
               ? sessionState.sessions.filter((s) => s.linkage === "consumed").map((s) => s.startsAt)
               : null;
             return (
-              <div key={pkg.id} className="rounded-lg border border-border/60 bg-muted/10">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => toggleHistoryPackage(pkg.id)}
-                  aria-expanded={isOpen}
-                  className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/40"
+              <div
+                key={pkg.id}
+                className={cn(
+                  "rounded-lg border bg-muted/10",
+                  highlightedPackageId === pkg.id ? "border-violet-500/60" : "border-border/60",
+                )}
+              >
+                <div
+                  className="flex items-center gap-1 px-1 py-1"
                 >
-                  {isOpen ? (
-                    <ChevronDown className="size-3.5 flex-none text-muted-foreground/70" aria-hidden="true" />
-                  ) : (
-                    <ChevronRight className="size-3.5 flex-none text-muted-foreground/70" aria-hidden="true" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">
-                    {formatPatientPackageShortLabel(pkg.displayNumber)} · {pkg.title}
-                  </span>
-                  <span className="flex-none text-muted-foreground/80">
-                    использовано {total - remaining}/{total}
-                  </span>
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => toggleHistoryPackage(pkg.id)}
+                    aria-expanded={isOpen}
+                    className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left text-xs text-muted-foreground hover:bg-muted/40"
+                  >
+                    {isOpen ? (
+                      <ChevronDown className="size-3.5 flex-none text-muted-foreground/70" aria-hidden="true" />
+                    ) : (
+                      <ChevronRight className="size-3.5 flex-none text-muted-foreground/70" aria-hidden="true" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">
+                      {formatPatientPackageShortLabel(pkg.displayNumber)} · {pkg.title}
+                    </span>
+                    <span className="flex-none text-muted-foreground/80">
+                      использовано {total - remaining}/{total}
+                    </span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Подсветить записи абонемента ${formatPatientPackageShortLabel(pkg.displayNumber)} ${pkg.title}`}
+                    aria-pressed={highlightedPackageId === pkg.id}
+                    onClick={() => onToggleHighlight(pkg.id)}
+                    className={cn(
+                      "size-7 flex-none text-muted-foreground hover:text-violet-700",
+                      highlightedPackageId === pkg.id ? "bg-violet-500/10 text-violet-700" : "",
+                    )}
+                  >
+                    <Eye className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
                 {isOpen ? (
                   <div className="border-t border-border/60 px-2.5 py-2 text-muted-foreground">
                     <MembershipCardHeader

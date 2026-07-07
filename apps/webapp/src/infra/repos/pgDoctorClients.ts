@@ -462,6 +462,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         payload_json: { service_title?: string; duration_minutes?: number } | null;
         branch_name: string | null;
         is_package: boolean | null;
+        patient_package_id: string | null;
         package_title: string | null;
         package_display_number: number | null;
       }>(
@@ -494,8 +495,29 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                  AND m.external_system = 'rubitime'
                LIMIT 1
              )
-           ) AS is_package
-           ,
+           ) AS is_package,
+           COALESCE(
+             CASE
+               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+               THEN (
+                 SELECT u_n.patient_package_id::text
+                 FROM be_appointments bea_n
+                 JOIN be_package_usages u_n ON u_n.id::text = bea_n.package_usage_ref
+                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                 LIMIT 1
+               )
+             END,
+             (
+               SELECT u_r.patient_package_id::text
+               FROM be_external_entity_mappings m
+               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
+               JOIN be_package_usages u_r ON u_r.id::text = bea_r.package_usage_ref
+               WHERE m.external_id = ar.integrator_record_id
+                 AND m.entity_type = 'appointment'
+                 AND m.external_system = 'rubitime'
+               LIMIT 1
+             )
+           ) AS patient_package_id,
            COALESCE(
              CASE
                WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
@@ -588,6 +610,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           location: row.branch_name ?? null,
           durationMin,
           isPackage: row.is_package ?? null,
+          patientPackageId: row.patient_package_id ?? null,
           packageTitle: row.package_title ?? null,
           packageDisplayNumber: row.package_display_number ?? null,
         };

@@ -225,10 +225,10 @@ export type PatientAppointmentItem = {
   durationMin: number | null;
   /**
    * Запись списана с абонемента: be_appointments.package_usage_ref IS NOT NULL.
-   * Доступно только для нативных be-записей (integrator_record_id = 'be:' || id);
-   * для Rubitime-проекций — null (нет be-связи).
+   * `patientPackageId` is resolved through the same native / Rubitime mapping path when available.
    */
   isPackage?: boolean | null;
+  patientPackageId?: string | null;
   packageTitle?: string | null;
   packageDisplayNumber?: number | null;
 };

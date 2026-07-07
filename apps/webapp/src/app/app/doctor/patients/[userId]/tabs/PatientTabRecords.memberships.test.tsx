@@ -3,6 +3,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 import { PatientTabRecords, type ApiPackage } from "./PatientTabRecords";
 
 const platformUserId = "00000000-0000-4000-8000-000000000099";
@@ -51,11 +52,11 @@ function requestUrl(input: RequestInfo | URL): string {
   return String(input);
 }
 
-function renderRecords(initialPackages: ApiPackage[]) {
+function renderRecords(initialPackages: ApiPackage[], initialAppointments: PatientAppointmentItem[] = []) {
   render(
     <PatientTabRecords
       userId={platformUserId}
-      initialAppointments={[]}
+      initialAppointments={initialAppointments}
       initialPackages={initialPackages}
       initialPaymentsSummary={{ payments: [], totalPaidMinor: 0 }}
     />,
@@ -183,5 +184,87 @@ describe("PatientTabRecords memberships panel", () => {
     });
     expect(screen.getByText("Будущий резерв")).toBeInTheDocument();
     expect(screen.queryByText("История закрытых абонементов")).not.toBeInTheDocument();
+  });
+
+  it("toggles a violet border on appointments linked to the selected package", async () => {
+    const active = packageRow({
+      id: "pkg-active-highlight",
+      displayNumber: 6,
+      title: "Активная подсветка",
+      serviceTitle: "ЛФК",
+      quantityInitial: 2,
+      remaining: 1,
+    });
+    const closed = packageRow({
+      id: "pkg-closed-highlight",
+      displayNumber: 7,
+      title: "Историческая подсветка",
+      serviceTitle: "Массаж",
+      quantityInitial: 1,
+      remaining: 0,
+    });
+    sessionsByPackage.set("pkg-closed-highlight", [
+      { linkage: "consumed", startsAt: "2026-06-03T10:00:00.000Z", isPast: true },
+    ]);
+
+    const activeAppointment: PatientAppointmentItem = {
+      id: "appt-active",
+      dateTime: "2026-07-08T10:00:00.000Z",
+      status: "upcoming",
+      serviceName: "ЛФК",
+      location: "Клиника",
+      durationMin: 60,
+      isPackage: true,
+      patientPackageId: "pkg-active-highlight",
+      packageTitle: "Активная подсветка",
+      packageDisplayNumber: 6,
+    };
+    const historyAppointment: PatientAppointmentItem = {
+      id: "appt-history",
+      dateTime: "2026-06-02T10:00:00.000Z",
+      status: "completed",
+      serviceName: "Массаж",
+      location: "Клиника",
+      durationMin: 45,
+      isPackage: true,
+      patientPackageId: "pkg-closed-highlight",
+      packageTitle: "Историческая подсветка",
+      packageDisplayNumber: 7,
+    };
+
+    const user = userEvent.setup();
+    renderRecords([active, closed], [activeAppointment, historyAppointment]);
+
+    await waitFor(() => {
+      expect(screen.getByText("активных 1")).toBeInTheDocument();
+    });
+
+    const activeVisit = screen.getByText("ср 08.07.2026 · 13:00").closest(".rounded-xl");
+    const historyVisit = screen.getByText("02.06.2026").closest(".rounded-lg");
+    expect(activeVisit).not.toBeNull();
+    expect(historyVisit).not.toBeNull();
+
+    const activeEye = screen.getByRole("button", {
+      name: /Подсветить записи абонемента аб\.#006 Активная подсветка/,
+    });
+    await user.click(activeEye);
+
+    expect(activeEye).toHaveAttribute("aria-pressed", "true");
+    expect(activeVisit).toHaveClass("border-violet-500/60");
+    expect(historyVisit).not.toHaveClass("border-violet-500/60");
+
+    await user.click(activeEye);
+
+    expect(activeEye).toHaveAttribute("aria-pressed", "false");
+    expect(activeVisit).not.toHaveClass("border-violet-500/60");
+
+    const historyEye = screen.getByRole("button", {
+      name: /Подсветить записи абонемента аб\.#007 Историческая подсветка/,
+    });
+    await user.click(historyEye);
+
+    expect(historyEye).toHaveAttribute("aria-pressed", "true");
+    expect(activeVisit).not.toHaveClass("border-violet-500/60");
+    expect(historyVisit).toHaveClass("border-violet-500/60");
   });
 });
