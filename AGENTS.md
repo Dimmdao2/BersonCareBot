@@ -22,6 +22,7 @@
 2. [CRITICAL: конфигурация интеграций только в БД](#2-critical-конфигурация-интеграций-только-в-бд)
 3. [Runtime config: env vs database](#3-runtime-config-env-vs-database)
 4. [system_settings: зеркало public + integrator](#4-system_settings-зеркало-public--integrator)
+4a. [SaaS Foundation-aware development](#4a-saas-foundation-aware-development)
 5. [Clean Architecture: изоляция модулей](#5-clean-architecture-изоляция-модулей)
 6. [Host: PostgreSQL и DATABASE_URL](#6-host-postgresql-и-database_url)
 7. [Git: коммит и пуш](#7-git-коммит-и-пуш)
@@ -253,6 +254,21 @@ Production uses **one PostgreSQL database** with schemas **`public`** (webapp ta
 4. **Do not** add a second sync call in Next.js route handlers; sync lives in `service.ts` only.
 
 Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
+
+---
+
+## 4a. SaaS Foundation-aware development
+
+*Источник: `.cursor/rules/saas-foundation-aware-development.mdc` (alwaysApply) + `docs/RULES/SAAS_FOUNDATION_AWARE_DEVELOPMENT.md`*
+
+Перед добавлением или изменением таблиц, колонок, миграций, репозиториев, API, write-paths или фоновых задач учитывай текущее направление `SAAS_FOUNDATION`: shared-DB SaaS, tenant = `Organization`, будущая изоляция данных.
+
+- Новые clinical / patient-facing / doctor-facing / booking / messaging / notification / media / catalog / product / payment / entitlement / integration / settings / staff/admin данные не должны быть глобальными по умолчанию.
+- До реализации выбери ownership path: прямой `organization_id`, scoped parent, `specialist_id`, patient/enrollment, appointment, program instance или настоящий global catalog.
+- Если ownership неочевиден — не добавляй unscoped таблицу/поле. Пометь подпункт как `needs_decision` и оставь design note для dev-lead/владельца.
+- Не добавляй ad hoc RLS/policy enforcement до канонических этапов `DB_ACCESS_CHOKEPOINT` + `SAAS_FOUNDATION`; допустимы dormant/backward-compatible поля, индексы, backfill/compat планы и сервисные проверки.
+- Не переноси tenant/org integration settings в env; они остаются DB-backed через `system_settings` и mirror-правила.
+- Не усиливай single-clinic/single-doctor assumption. Если текущая модель уже использует `organizationId` / `specialistId` / scoped parent, новый код обязан продолжать этот путь.
 
 ---
 

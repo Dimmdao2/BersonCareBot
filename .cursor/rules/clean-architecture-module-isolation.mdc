@@ -83,6 +83,7 @@ All new database tables and queries must use Drizzle ORM:
 - Migrations via `drizzle-kit generate` + `drizzle-kit migrate`
 - Types inferred from schema (`typeof table.$inferSelect`)
 - No raw SQL (`pool.query(...)`) for new features
+- Follow `.cursor/rules/saas-foundation-aware-development.mdc`: before adding a table/column/write path, choose the ownership path (`organization_id`, scoped parent, `specialist_id`, patient/enrollment, appointment, program instance, or true global catalog).
 
 ### 6. Service receives dependencies via injection
 
