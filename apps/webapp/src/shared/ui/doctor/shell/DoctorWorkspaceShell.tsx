@@ -9,6 +9,7 @@ import { DoctorHeader } from "@/shared/ui/doctor/shell/DoctorHeader";
 import { DoctorSupportUnreadProvider } from "@/shared/ui/doctor/shell/DoctorSupportUnreadProvider";
 import { DOCTOR_WORKSPACE_TOP_PADDING_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import type { UserRole } from "@/shared/types/session";
+import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
 import { cn } from "@/lib/utils";
 
 type DoctorWorkspaceShellProps = {
@@ -18,6 +19,8 @@ type DoctorWorkspaceShellProps = {
   userDisplayName?: string;
   /** Если `"клиент"`, пункт «Пациенты» в сайдбаре отображается как «Клиенты». */
   patientLabel?: string;
+  /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
+  workspaceContext?: DoctorWorkspaceContext;
   children: ReactNode;
 };
 
