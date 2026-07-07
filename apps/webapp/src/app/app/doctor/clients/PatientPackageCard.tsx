@@ -156,6 +156,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
           serviceTitle: it.serviceTitle,
           serviceId: it.serviceId,
           quantityInitial: it.quantityInitial ?? it.displayRemaining + (it.reserved ?? 0),
+          remaining: it.displayRemaining,
         }))}
         consumeDates={consumeDates}
         consumeLoading={consumeLoading}

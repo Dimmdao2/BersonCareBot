@@ -24,6 +24,7 @@ function packageRow(input: {
   serviceTitle: string;
   quantityInitial: number;
   remaining: number;
+  displayRemaining?: number;
 }): ApiPackage {
   return {
     id: input.id,
@@ -37,7 +38,7 @@ function packageRow(input: {
         {
           quantityInitial: input.quantityInitial,
           remaining: input.remaining,
-          displayRemaining: input.remaining,
+          displayRemaining: input.displayRemaining ?? input.remaining,
           serviceTitle: input.serviceTitle,
         },
       ],
@@ -107,6 +108,10 @@ describe("PatientTabRecords memberships panel", () => {
     expect(screen.getByText("Массаж")).toBeInTheDocument();
     expect(screen.getByText("аб.#001")).toBeInTheDocument();
     expect(screen.getByText("аб.#002")).toBeInTheDocument();
+    expect(screen.getByText("Осталось 3 визитов:")).toBeInTheDocument();
+    expect(screen.getByText("3 x ЛФК")).toBeInTheDocument();
+    expect(screen.getByText("Осталось 5 визитов:")).toBeInTheDocument();
+    expect(screen.getByText("5 x Массаж")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
@@ -154,17 +159,17 @@ describe("PatientTabRecords memberships panel", () => {
 
     const historyButton = screen.getByRole("button", { name: /аб\.#004 · Закрытый курс/ });
     expect(historyButton).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("Массаж ×2 шт")).not.toBeInTheDocument();
+    expect(screen.queryByText("0 x Массаж")).not.toBeInTheDocument();
 
     await user.click(historyButton);
 
     expect(historyButton).toHaveAttribute("aria-expanded", "true");
     expect(within(historyButton).getByText("использовано 2/2")).toBeInTheDocument();
-    expect(screen.getByText("Массаж ×2 шт")).toBeInTheDocument();
+    expect(screen.getByText("0 x Массаж")).toBeInTheDocument();
     expect(screen.getByText("Списания (2):")).toBeInTheDocument();
   });
 
-  it("keeps an active package visible when sessions are not all consumed in the past", async () => {
+  it("keeps an active package visible when sessions are not all consumed in the past and uses displayRemaining", async () => {
     const reserved = packageRow({
       id: "pkg-reserved",
       displayNumber: 5,
@@ -172,6 +177,7 @@ describe("PatientTabRecords memberships panel", () => {
       serviceTitle: "ЛФК",
       quantityInitial: 1,
       remaining: 0,
+      displayRemaining: 1,
     });
     sessionsByPackage.set("pkg-reserved", [
       { linkage: "reserved", startsAt: "2026-08-03T10:00:00.000Z", isPast: false },
@@ -183,6 +189,8 @@ describe("PatientTabRecords memberships panel", () => {
       expect(screen.getByText("активных 1")).toBeInTheDocument();
     });
     expect(screen.getByText("Будущий резерв")).toBeInTheDocument();
+    expect(screen.getByText("Осталось 1 визитов:")).toBeInTheDocument();
+    expect(screen.getByText("1 x ЛФК")).toBeInTheDocument();
     expect(screen.queryByText("История закрытых абонементов")).not.toBeInTheDocument();
   });
 

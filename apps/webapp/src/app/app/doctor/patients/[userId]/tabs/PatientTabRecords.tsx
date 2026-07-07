@@ -574,7 +574,7 @@ function packageTotals(pkg: ApiPackage): { balanceItems: ApiPackageItemBalance[]
   return {
     balanceItems,
     totalSessions: balanceItems.reduce((s, it) => s + (it.quantityInitial ?? 0), 0),
-    remainingSessions: balanceItems.reduce((s, it) => s + (it.remaining ?? 0), 0),
+    remainingSessions: balanceItems.reduce((s, it) => s + (it.displayRemaining ?? it.remaining ?? 0), 0),
   };
 }
 
@@ -736,6 +736,7 @@ function MembershipPanel({
                       items={balanceItems.map((it) => ({
                         serviceTitle: it.serviceTitle,
                         quantityInitial: it.quantityInitial,
+                        remaining: it.displayRemaining ?? it.remaining,
                       }))}
                       consumeDates={consumeDates ? consumeDates.map((s) => s.startsAt) : null}
                       consumeLoading={sessionState?.loading ?? false}
@@ -780,7 +781,7 @@ function MembershipPanel({
           {classifiedPackages.history.map((pkg) => {
             const items = pkg.balance?.items ?? [];
             const total = items.reduce((s, it) => s + (it.quantityInitial ?? 0), 0);
-            const remaining = items.reduce((s, it) => s + (it.remaining ?? 0), 0);
+            const remaining = items.reduce((s, it) => s + (it.displayRemaining ?? it.remaining ?? 0), 0);
             const isOpen = openHistoryPackageIds.has(pkg.id);
             const sessionState = packageSessions[pkg.id];
             const consumeDates = sessionState?.sessions
@@ -842,6 +843,7 @@ function MembershipPanel({
                       items={items.map((it) => ({
                         serviceTitle: it.serviceTitle,
                         quantityInitial: it.quantityInitial,
+                        remaining: it.displayRemaining ?? it.remaining,
                       }))}
                       consumeDates={consumeDates}
                       consumeLoading={sessionState?.loading ?? false}

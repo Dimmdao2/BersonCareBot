@@ -67,11 +67,13 @@ interface AppointmentsApiResponse {
 
 interface PackageItem {
   id: string;
+  displayNumber?: number | null;
   title?: string | null;
   quantityInitial?: number | null;
   remaining?: number | null;
   /** Display remaining: reserved sessions count as still-owned (better for patient-facing copy). */
   displayRemaining?: number | null;
+  soldAt?: string | null;
   validUntil?: string | null;
   status?: string | null;
   balance?: {
@@ -80,6 +82,8 @@ interface PackageItem {
       remaining?: number | null;
       /** Display remaining: reserved sessions count as still-owned. */
       displayRemaining?: number | null;
+      serviceTitle?: string | null;
+      serviceId?: string | null;
     }>;
   } | null;
 }
@@ -194,6 +198,7 @@ interface OverviewData {
   // KPI — Package
   packageStatus: WidgetStatus;
   activePackage: PackageItem | null;
+  activePackages: PackageItem[];
 
   // Treatment program
   programStatus: WidgetStatus;
@@ -254,6 +259,47 @@ function fmtDateMsgShort(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function fmtDateFull(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatOverviewPackageNumber(displayNumber: number | null | undefined): string {
+  if (displayNumber == null || !Number.isFinite(displayNumber) || displayNumber <= 0) {
+    return "аб #—";
+  }
+  return `аб #${Math.trunc(displayNumber).toString().padStart(3, "0")}`;
+}
+
+function summarizePackageBalance(pkg: PackageItem): { remaining: number | null; services: string } {
+  const items = pkg.balance?.items ?? [];
+  if (items.length === 0) {
+    return {
+      remaining: pkg.displayRemaining ?? pkg.remaining ?? null,
+      services: "",
+    };
+  }
+  let totalRemaining = 0;
+  let hasRemaining = false;
+  const services = items.map((item) => {
+    const remaining = item.displayRemaining ?? item.remaining ?? 0;
+    if (item.displayRemaining != null || item.remaining != null) {
+      hasRemaining = true;
+    }
+    totalRemaining += remaining;
+    return `${remaining} x ${item.serviceTitle ?? item.serviceId ?? "Услуга"}`;
+  }).join(", ");
+  return { remaining: hasRemaining ? totalRemaining : null, services };
+}
+
+function formatOverviewPackageSummary(pkg: PackageItem): string {
+  const { services } = summarizePackageBalance(pkg);
+  const soldAt = pkg.soldAt ? ` от ${fmtDateFull(pkg.soldAt)}` : "";
+  const numberWithDate = `${formatOverviewPackageNumber(pkg.displayNumber)}${soldAt}`;
+  return [services, numberWithDate].filter(Boolean).join(" ");
 }
 
 /** Build per-complaint dynamics series from clinical visits. */
@@ -524,6 +570,7 @@ function buildSsrSeedData(
     // packageStatus/activePackage seeded after SSR packages are applied (caller patches via setData)
     packageStatus: "loading" as WidgetStatus,
     activePackage: null,
+    activePackages: [],
     programStatus: "loading" as WidgetStatus,
     programTitle: null,
     programStages: [],
@@ -778,7 +825,6 @@ export function PatientTabOverview({
       const activePackages = (packages?.packages ?? []).filter(
         (p) => p.status === "active" || p.status === "activated",
       );
-      const activePackageRaw = activePackages[0] ?? null;
       const sumBalance = (key: "quantityInitial" | "remaining" | "displayRemaining", pkg: PackageItem): number | null => {
         const items = pkg.balance?.items;
         if (items && items.length > 0) {
@@ -790,14 +836,13 @@ export function PatientTabOverview({
         }
         return pkg[key] ?? null;
       };
-      const activePackage: PackageItem | null = activePackageRaw
-        ? {
-            ...activePackageRaw,
-            quantityInitial: sumBalance("quantityInitial", activePackageRaw),
-            remaining: sumBalance("remaining", activePackageRaw),
-            displayRemaining: sumBalance("displayRemaining", activePackageRaw),
-          }
-        : null;
+      const normalizedActivePackages = activePackages.map((pkg) => ({
+        ...pkg,
+        quantityInitial: sumBalance("quantityInitial", pkg),
+        remaining: sumBalance("remaining", pkg),
+        displayRemaining: sumBalance("displayRemaining", pkg),
+      }));
+      const activePackage: PackageItem | null = normalizedActivePackages[0] ?? null;
       const packageStatus: WidgetStatus = !packages ? "error" : activePackage === null ? "empty" : "ok";
 
       // --- Notes (from SSR or fetch) ---
@@ -908,6 +953,7 @@ export function PatientTabOverview({
         controlDate,
         packageStatus,
         activePackage,
+        activePackages: normalizedActivePackages,
         programStatus,
         programTitle,
         programStages,
@@ -1056,26 +1102,20 @@ export function PatientTabOverview({
               data?.packageStatus === "empty" || !data?.activePackage
                 ? "—"
                 : (() => {
-                    const pkg = data.activePackage;
-                    // Prefer displayRemaining (reserved sessions count as still-owned),
-                    // fall back to remaining if displayRemaining not provided by API yet.
-                    const disp = pkg.displayRemaining ?? pkg.remaining;
-                    if (disp !== null && disp !== undefined && pkg.quantityInitial) {
-                      return `${disp} из ${pkg.quantityInitial}`;
-                    }
-                    return "активен";
+                    const activePackages = data.activePackages.length > 0 ? data.activePackages : [data.activePackage];
+                    const totals = activePackages.map(summarizePackageBalance);
+                    const remaining = totals.every((total) => total.remaining != null)
+                      ? totals.reduce((sum, total) => sum + (total.remaining ?? 0), 0)
+                      : null;
+                    return remaining == null ? "Осталось — визитов:" : `Осталось ${remaining} визитов:`;
                   })()
             }
             hint={
               data?.packageStatus === "empty"
                 ? "абонемент не активен"
-                : data?.activePackage?.title
-                  ? data.activePackage.title.length > 28
-                    ? data.activePackage.title.slice(0, 28) + "…"
-                    : data.activePackage.title
-                  : data?.activePackage?.validUntil
-                    ? `до ${fmtDateShort(data.activePackage.validUntil)}`
-                    : "осталось занятий"
+                : (data?.activePackages ?? []).length > 0
+                  ? (data?.activePackages ?? []).map(formatOverviewPackageSummary).join(", ")
+                  : "осталось занятий"
             }
           />
         </div>

@@ -49,7 +49,6 @@ export function MembershipCardHeader({
   title,
   shortLabel,
   soldAt,
-  totalSessions,
   remainingSessions,
   items,
   consumeDates,
@@ -80,25 +79,16 @@ export function MembershipCardHeader({
 
       {/* Balance */}
       <p className="text-xs text-muted-foreground">
-        остаток:{" "}
-        <span className="text-lg font-extrabold text-foreground tabular-nums">
-          {remainingSessions}
-        </span>
-        {" "}из {totalSessions} занятий
+        Осталось {remainingSessions} визитов:
       </p>
 
       {/* Composition */}
       {items.length > 0 ? (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-0.5">Состав:</p>
-          <ul className="flex flex-col gap-0.5">
-            {items.map((it, idx) => (
-              <li key={it.serviceTitle ?? it.serviceId ?? idx} className="text-xs text-foreground">
-                {it.serviceTitle ?? it.serviceId ?? "Услуга"} ×{it.quantityInitial} шт
-              </li>
-            ))}
-          </ul>
-        </div>
+        <p className="text-xs text-foreground">
+          {items
+            .map((it) => `${it.remaining ?? it.quantityInitial} x ${it.serviceTitle ?? it.serviceId ?? "Услуга"}`)
+            .join(", ")}
+        </p>
       ) : null}
 
       {/* Consume dates */}
