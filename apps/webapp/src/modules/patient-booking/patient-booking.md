@@ -29,7 +29,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 ## Слоты
 
-`GET /api/booking/slots` — Rubitime API или собственный расчёт (`modules/booking-scheduling`) по **`booking_slots_read_source`**. Query `slotCount` (1–8) для цепочек в canonical mode; UI `/app/patient/booking/new/slot` фиксирует `slotCount=1` (без multi-slot selector).
+`GET /api/booking/slots` — Rubitime API или собственный расчёт (`modules/booking-scheduling`) по **`booking_slots_read_source`**. Query `slotCount` (1–8) для цепочек в canonical mode; UI `/app/patient/booking/slot` фиксирует `slotCount=1` (без multi-slot selector). Legacy `/app/patient/booking/new/slot` остаётся рабочим deeplink.
 
 ## Поля формы
 
@@ -39,7 +39,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 ## Публичный вход
 
-**Публичный канал (этап 3):** UI `/book/new` (очный + онлайн), embed `/book/embed.js`; read-API `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
+**Публичный канал (этап 3):** UI `/book` (очный + онлайн; legacy `/book/new` работает как deeplink), embed `/book/embed.js`; read-API `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
 
 ## Перенос и отмена (этап 4)
 

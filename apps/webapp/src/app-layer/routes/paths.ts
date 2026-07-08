@@ -27,14 +27,14 @@ export const routePaths = {
   cabinet: "/app/patient/cabinet",
   /** Запись на приём (Rubitime), без обязательного телефона. */
   patientBooking: "/app/patient/booking",
-  /** Wizard: шаг 1 — формат. */
-  bookingNew: "/app/patient/booking/new",
-  bookingNewCity: "/app/patient/booking/new/city",
-  bookingNewService: "/app/patient/booking/new/service",
-  bookingNewSlot: "/app/patient/booking/new/slot",
-  bookingNewConfirm: "/app/patient/booking/new/confirm",
+  /** Wizard: шаг 1 — формат. Legacy `/app/patient/booking/new*` routes still work as deep links. */
+  bookingNew: "/app/patient/booking",
+  bookingNewCity: "/app/patient/booking",
+  bookingNewService: "/app/patient/booking/service",
+  bookingNewSlot: "/app/patient/booking/slot",
+  bookingNewConfirm: "/app/patient/booking/confirm",
   /** Экран «Запись подтверждена» — добавить в календарь / скачать ICS. */
-  bookingNewDone: "/app/patient/booking/new/done",
+  bookingNewDone: "/app/patient/booking/done",
   /** Адрес кабинета (iframe сайта специалиста). */
   patientAddress: "/app/patient/address",
   /** Кратко о специалисте + ссылка на полный сайт. */

@@ -35,7 +35,7 @@ const EMBED_SCRIPT = `(function () {
   });
   if (mode === "iframe") params.set("embed", "iframe");
   if (mode === "popup") params.set("embed", "popup");
-  var url = base + "/book/new" + (params.toString() ? "?" + params.toString() : "");
+  var url = base + "/book" + (params.toString() ? "?" + params.toString() : "");
 
   if (mode === "popup") {
     window.open(url, "berson_booking", "width=480,height=800,scrollbars=yes");

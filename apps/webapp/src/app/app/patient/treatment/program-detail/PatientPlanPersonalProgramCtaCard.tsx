@@ -7,7 +7,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { patientHomeHeroTitleClampClass, patientHomePlanCardClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 
-/** Онлайн-запись на реабилитацию (intake), см. шаг «Реабилитация онлайн» в `/app/patient/booking/new`. */
+/** Онлайн-запись на реабилитацию (intake), см. шаг «Реабилитация онлайн» в `/app/patient/booking`. */
 const DEFAULT_REHAB_REQUEST_HREF = routePaths.intakeLfk;
 
 const PERSONAL_PROGRAM_PHOTO_SRC = "/patient/personal-program-consultation.png";

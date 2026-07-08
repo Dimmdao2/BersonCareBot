@@ -4,7 +4,7 @@
 
 Только для пациента (или гостевой fallback при отсутствии привязки контакта).
 
-**Маршрут `/cabinet`:** redirect на [`/app/patient/booking/new`](../booking/new/page.tsx) («Запись»).
+**Маршрут `/cabinet`:** redirect на [`/app/patient/booking`](../booking/page.tsx) («Запись»).
 
 На «Запись» (см. [`booking.md`](../booking/new/booking.md)):
 - предстоящие записи (`BookingUpcomingSection`);

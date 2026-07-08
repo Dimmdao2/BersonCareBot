@@ -190,7 +190,7 @@ describe("ConfirmStepClient", () => {
     await waitFor(() => {
       expect(push).toHaveBeenCalledTimes(1);
       const dest: string = push.mock.calls[0]?.[0] ?? "";
-      expect(dest).toContain("/app/patient/booking/new/done");
+      expect(dest).toContain("/app/patient/booking/done");
       expect(dest).toContain(`bookingId=${encodeURIComponent(mockBooking.id)}`);
       expect(dest).toContain(`cityCode=msk`);
     });
