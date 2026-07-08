@@ -54,7 +54,7 @@ Each application substage must use scratch/non-prod policy smoke before merge:
 - [x] P0.8.3 public direct-org SCOPED families.
 - [x] P0.8.4 public FK/denorm-path SCOPED families.
 - [x] P0.8.5 integrator bridge/denorm SCOPED families.
-- [ ] P0.8.6 BOOTSTRAP hybrid policies.
+- [x] P0.8.6 BOOTSTRAP hybrid policies.
 - [ ] P0.8.7 INFRA/LEGACY/TELEMETRY descriptors and unsupported user-ref denial.
 
 ### P0.8.3 Public Direct-Org Policy Application
@@ -146,6 +146,9 @@ bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.5 t
 
 ### P0.8.6 BOOTSTRAP Hybrid Policies
 
+Status: executed on 2026-07-08 as migration
+`apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql`.
+
 Preflight required before code:
 
 - target only descriptor rows with `scopingKind === "bootstrap_hybrid"`;
@@ -157,6 +160,19 @@ Preflight required before code:
 - prove global `organization_id IS NULL` rows remain readable before org context;
 - prove org rows require matching `app.org`;
 - do not change admin Settings UI, mirror write path, or `ALLOWED_KEYS` in this stage.
+
+Execution facts:
+
+- generated target set is exactly `4` BOOTSTRAP hybrid tables:
+  `integrator.system_settings`, `public.platform_user_contacts`, `public.system_settings`,
+  `public.user_phone_history`;
+- generated predicate is strict bootstrap hybrid:
+  `organization_id IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid)`;
+- unset `app.org` and empty `app.org` expose only global `organization_id IS NULL` rows;
+- set `app.org` exposes global rows plus rows for the matching organization only;
+- scratch smoke creates only synthetic `public` + `integrator` schema tables/roles/rows, refuses
+  non-scratch/dev/prod DB names, and proves 4 targets, NOBYPASSRLS, unset/empty global-only behavior,
+  and org A/B isolation.
 
 Local gate shape:
 

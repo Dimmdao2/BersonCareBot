@@ -1,6 +1,6 @@
 # P0.8 Code Facts — RLS Descriptor/Policy Execution
 
-Status: implementation support for P0.8.3+ execution briefs plus the P0.8.3/P0.8.4/P0.8.5 real policy migrations.
+Status: implementation support for P0.8.3+ execution briefs plus the P0.8.3/P0.8.4/P0.8.5/P0.8.6 real policy migrations.
 Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 
 ## Repository Rules That Affect P0.8
@@ -18,7 +18,7 @@ Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 |---|---|
 | `docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs` | Builds 219 descriptors from `tiers-218.tsv`, `p0-4-batches.tsv`, and `p0-4-be-fk-paths.tsv`. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-rls-descriptors.mjs` | Verifies exact descriptor coverage, tier counts, bootstrap hybrid set, FK-path set, P0.8.3 parent-copy holds, and strict 103 public direct-org target count. |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs` | Renders identifier-safe predicates for direct org, patient, bootstrap hybrid, policy targets, and P0.8.3 policy DDL helpers. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs` | Renders identifier-safe predicates for direct org, patient, bootstrap hybrid, policy targets, and P0.8.3-P0.8.6 policy DDL helpers. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs` | Pure predicate tests for dormant permissive and enforce modes. No DB access. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs` | Lists/exports the strict 103-table P0.8.3 public direct-org target set and renders deterministic policy DDL from descriptors. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs` | DB-free checker for exact 103-target coverage, parent-copy exclusions, and deterministic ENABLE/FORCE/DROP/CREATE policy statements. |
@@ -32,7 +32,11 @@ Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-5-policy-generator.mjs` | DB-free checker for exact 13-target coverage, 5/3/4/1 P0.4 split, P0.4 source migration assertion tokens, and deterministic ENABLE/FORCE/DROP/CREATE policy statements. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-5-integrator-scoped-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic integrator schema tables/roles/bridge rows, applies generated P0.8.5 policies, proves dormant unset/empty permit, org A/B isolation, denorm source split behavior, and NOBYPASSRLS, then rolls back. |
 | `apps/webapp/db/drizzle-migrations/0162_p0_8_5_integrator_scoped_rls.sql` | Real Drizzle SQL migration generated from the P0.8.5 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive policy `saas_org_dormant_p0_8_5` to the 13 integrator SCOPED target tables. |
-| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, and DB-free P0.8.3/P0.8.4/P0.8.5 generator checks. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-6-policy-targets.mjs` | Lists/exports the strict 4-table P0.8.6 BOOTSTRAP hybrid target set and renders deterministic policy DDL from descriptors. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-6-policy-generator.mjs` | DB-free checker for exact 4-target coverage and strict bootstrap hybrid global-or-matching-org policy statements. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public + integrator schema tables/roles/rows, applies generated P0.8.6 policies, proves NOBYPASSRLS, unset/empty global-only visibility, and org A/B global+matching-org visibility, then rolls back. |
+| `apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql` | Real Drizzle SQL migration generated from the P0.8.6 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and bootstrap hybrid policy `saas_bootstrap_hybrid_p0_8_6` to the strict 4 BOOTSTRAP hybrid target tables. |
+| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, and DB-free P0.8.3/P0.8.4/P0.8.5/P0.8.6 generator checks. |
 | `docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql` | Existing scratch-only psql proof pattern: DB-name guard, synthetic roles, `NOBYPASSRLS`, `ENABLE/FORCE RLS`, `SET LOCAL ROLE`, rollback. |
 
 ## P0.8.3 Execution Status
@@ -75,6 +79,20 @@ Current status:
 - committed migration for real table policies: `0162_p0_8_5_integrator_scoped_rls.sql`;
 - no bridge joins are recreated in policy; P0.4 materialized `organization_id` is the policy source;
 - no runtime role/env/grant flip and no dev/prod/test application DB mutation were performed in the migration pass.
+
+## P0.8.6 Execution Status
+
+P0.8.6 has generator/scratch-smoke tooling and a real-table policy migration.
+The real migration was created only after a scratch smoke pass in the same execution scope.
+
+Current status:
+
+- policy DDL renderer/generator: exists for BOOTSTRAP hybrid descriptors;
+- exact P0.8.6 target export: exists and is checked by `check:saas-db-regression`;
+- scratch-smoke runner: exists and passed on disposable `bcb_saas_*` databases before and after migration creation;
+- committed migration for real table policies: `0163_p0_8_6_bootstrap_hybrid_rls.sql`;
+- global `organization_id IS NULL` rows remain visible before org context; org rows require matching non-empty `app.org`;
+- no admin Settings UI, mirror write path, `ALLOWED_KEYS`, runtime read/write path, role/env/grant, or app route/service/UI changes were made.
 
 ## Current P0.8.3 Target Facts
 
@@ -124,6 +142,20 @@ The P0.8.5 generator currently asserts:
 - descriptor kind split: `9` `direct_org_column` + `4` `denorm_org_column`;
 - every target uses materialized `organization_id`.
 
+## Current P0.8.6 Target Facts
+
+The P0.8.6 generator currently asserts:
+
+- strict BOOTSTRAP hybrid target count: `4`;
+- target set:
+  - `integrator.system_settings`;
+  - `public.platform_user_contacts`;
+  - `public.system_settings`;
+  - `public.user_phone_history`;
+- descriptor kind split: `4` `bootstrap_hybrid`;
+- every target uses nullable `organization_id`;
+- predicate treats unset/empty `app.org` as pre-context: global rows only.
+
 ## Migration/Journal Facts
 
 - Webapp Drizzle migrations live in `apps/webapp/db/drizzle-migrations`.
@@ -148,15 +180,19 @@ The P0.8.5 generator currently asserts:
   - `0160_p0_8_3_public_direct_org_rls`
   - `0161_p0_8_4_public_path_rls`
   - `0162_p0_8_5_integrator_scoped_rls`
+  - `0163_p0_8_6_bootstrap_hybrid_rls`
 
 - `0160` is the P0.8.3 policy migration after upstream `0159_be_package_usages_appointment_debit_unique.sql`.
 - `0161` is the P0.8.4 public FK/denorm path policy migration.
 - `0162` is the P0.8.5 integrator SCOPED policy migration.
+- `0163` is the P0.8.6 BOOTSTRAP hybrid policy migration.
 - The P0.8.3 migration has a matching `_journal.json` entry and passed
   `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
 - The P0.8.4 migration has a matching `_journal.json` entry and passed
   `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
 - The P0.8.5 migration has a matching `_journal.json` entry and passed
+  `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
+- The P0.8.6 migration has a matching `_journal.json` entry and passed
   `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
 
 ## Branch Drift Check Before Execution
@@ -287,4 +323,36 @@ chmod 0644 /tmp/p0-8-5-smoke.sql
 sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-5-smoke.sql
 sudo -n -u postgres dropdb --if-exists "$scratch_db"
 rm -f /tmp/p0-8-5-smoke.sql
+```
+
+## P0.8.6 Tooling Commands
+
+DB-free target/generator check:
+
+```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-6-policy-generator.mjs
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-6-policy-targets.mjs --targets
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-6-policy-targets.mjs --sql
+```
+
+Scratch smoke with a scratch URL accessible to the current shell user:
+
+```bash
+SCRATCH_DATABASE_URL="postgresql:///bcb_saas_p0_8_6_scratch" \
+  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs
+```
+
+Local peer-auth workaround used on the dev host when only the OS `postgres` role can create/connect to
+scratch DBs:
+
+```bash
+scratch_db="bcb_saas_p0_8_6_scratch_$(date +%s)_$$"
+sudo -n -u postgres createdb "$scratch_db"
+SCRATCH_DATABASE_URL="postgresql:///$scratch_db" \
+  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs --print-sql \
+  > /tmp/p0-8-6-smoke.sql
+chmod 0644 /tmp/p0-8-6-smoke.sql
+sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-6-smoke.sql
+sudo -n -u postgres dropdb --if-exists "$scratch_db"
+rm -f /tmp/p0-8-6-smoke.sql
 ```

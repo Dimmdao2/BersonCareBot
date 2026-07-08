@@ -150,6 +150,25 @@ export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName,
   ];
 }
 
+export function renderBootstrapHybridPolicyStatements(descriptor, { policyName }) {
+  if (descriptor?.scopingKind !== "bootstrap_hybrid") {
+    throw new Error(`Bootstrap hybrid policy requires bootstrap_hybrid descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  }
+
+  if (typeof policyName !== "string" || policyName.length === 0) {
+    throw new Error("Policy name must be a non-empty string");
+  }
+
+  const predicate = renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
+
+  return [
+    renderEnableRowLevelSecurity(descriptor.table),
+    renderForceRowLevelSecurity(descriptor.table),
+    renderDropPolicy({ policyName, target: descriptor.table }),
+    renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
+  ];
+}
+
 function renderFkPathExists({ table, alias, parentPk, localFk, parentOrgColumn, gucSql }) {
   return [
     "EXISTS (",

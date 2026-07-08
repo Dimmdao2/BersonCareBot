@@ -1142,6 +1142,13 @@
       "when": 1783536000000,
       "tag": "0162_p0_8_5_integrator_scoped_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1783539600000,
+      "tag": "0163_p0_8_6_bootstrap_hybrid_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,16 @@
+ALTER TABLE "integrator"."system_settings" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "integrator"."system_settings" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "integrator"."system_settings";
+CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "integrator"."system_settings" FOR ALL USING (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid))) WITH CHECK (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid)));
+ALTER TABLE "public"."platform_user_contacts" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."platform_user_contacts" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "public"."platform_user_contacts";
+CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."platform_user_contacts" FOR ALL USING (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid))) WITH CHECK (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid)));
+ALTER TABLE "public"."system_settings" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."system_settings" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "public"."system_settings";
+CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."system_settings" FOR ALL USING (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid))) WITH CHECK (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid)));
+ALTER TABLE "public"."user_phone_history" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."user_phone_history" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history";
+CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history" FOR ALL USING (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid))) WITH CHECK (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid)));
