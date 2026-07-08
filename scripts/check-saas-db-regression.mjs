@@ -90,6 +90,10 @@ const checks = [
     label: "SAAS P0.12.1 polymorphic reference resolver coverage",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-polymorphic-references.mjs"],
   },
+  {
+    label: "SAAS P0.12.2 JSON payload PII classification",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-json-payloads.mjs"],
+  },
 ];
 
 for (const check of checks) {

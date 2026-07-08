@@ -42,12 +42,20 @@ Targets include:
 
 Checklist:
 
-- [ ] Scan JSONB/text payload columns in SCOPED/BOOTSTRAP/INFRA/TELEMETRY tables.
-- [ ] Identify payloads that contain user identifiers, phone, email, Telegram/MAX ids, appointment ids, or clinical content.
-- [ ] Classify each user-bearing payload as SCOPED, BOOTSTRAP, LEGACY, or scrubbed/global.
-- [ ] For INFRA/TELEMETRY payloads with user-bearing data, define scrub/retention or re-tier decision.
-- [ ] Do not print PII samples; use aggregate counts and schema/key names only.
-- [ ] Update `LOG.md`.
+- [x] Scan JSONB/text payload columns in SCOPED/BOOTSTRAP/INFRA/TELEMETRY tables.
+- [x] Identify payloads that contain user identifiers, phone, email, Telegram/MAX ids, appointment ids, or clinical content.
+- [x] Classify each user-bearing payload as SCOPED, BOOTSTRAP, LEGACY, or scrubbed/global.
+- [x] For INFRA/TELEMETRY payloads with user-bearing data, define scrub/retention or re-tier decision.
+- [x] Do not print PII samples; use aggregate counts and schema/key names only.
+- [x] Update `LOG.md`.
+
+P0.12.2 execution note (2026-07-08): documented payload-like JSON/text columns in
+`scope-derivation/p0-12-json-payload-columns.tsv`. User-bearing SCOPED payloads stay scoped through
+materialized `organization_id`; BOOTSTRAP `system_settings.value_json` stays org-aware under P0.11;
+LEGACY Rubitime/appointment payloads stay frozen; INFRA queue/outbox payloads are explicitly
+classified as transient operational rows with retention/scrub decisions rather than automatic re-tier.
+The checker verifies exact artifact coverage, tier parity with `tiers-218.tsv`, no PII-looking sample
+values, and retention/scrub decisions for INFRA/TELEMETRY user-bearing payloads.
 
 ## Local Gate
 
