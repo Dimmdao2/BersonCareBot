@@ -913,15 +913,47 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
 
   it('T3 correction: a consume on a canonical-cancelled visit is refunded (self-heal)', async () => {
     // The visit was consumed before its cancellation was reflected. Recalc must reverse it.
-    const port = recalcPort([
-      candidate({
-        id: 'a-wrong',
-        status: 'confirmed',
-        canonicalStatus: 'canceled',
-        usageRows: [{ usageKind: 'consume' }],
-      }),
-    ]);
-    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const events: string[] = [];
+    const port = recalcPort(
+      [
+        candidate({
+          id: 'a-wrong',
+          status: 'confirmed',
+          canonicalStatus: 'canceled',
+          usageRows: [{ usageKind: 'consume' }],
+        }),
+      ],
+      {
+        runWithPackageLock: vi.fn().mockImplementation(async (_pkg, _org, fn) => {
+          events.push('lock:begin');
+          const result = await fn();
+          events.push('lock:committed');
+          return result;
+        }),
+        recalcCorrectCanceledAppointment: vi.fn().mockImplementation(async (input) => {
+          events.push(`correct:${input.appointmentId}`);
+          return {
+            id: 'u-refund',
+            patientPackageId: input.patientPackageId,
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            usageKind: 'refund' as const,
+            quantity: input.quantity,
+            comment: 'recalc_correction_canceled_visit',
+            occurredAt: new Date().toISOString(),
+          };
+        }),
+      },
+    );
+    const refreshPackageCalendar = vi.fn().mockImplementation(async (appointmentId: string) => {
+      events.push(`refresh:${appointmentId}`);
+    });
+    const svc = createMembershipsService({
+      port,
+      payments: null,
+      bookingEngine: null,
+      refreshPackageCalendar,
+    });
     const res = await svc.recalcPastSessionsForPackage({
       organizationId: 'org-1',
       patientPackageId: 'pp-r',
@@ -941,6 +973,8 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
     expect(port.appendUsage).not.toHaveBeenCalled();
     expect(port.setAppointmentPackageUsageRef).not.toHaveBeenCalled();
     expect(port.appendHistoryEvent).not.toHaveBeenCalled();
+    expect(refreshPackageCalendar).toHaveBeenCalledWith('a-wrong');
+    expect(events).toEqual(['lock:begin', 'correct:a-wrong', 'lock:committed', 'refresh:a-wrong']);
   });
 
   it('T3 correction is idempotent: already-refunded cancelled consume is left alone', async () => {
@@ -981,8 +1015,31 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
   });
 
   it('debits ledger + links appointment + history + calendar for each debit', async () => {
-    const refreshPackageCalendar = vi.fn().mockResolvedValue(undefined);
-    const port = recalcPort([candidate({ id: 'a1' })]);
+    const events: string[] = [];
+    const refreshPackageCalendar = vi.fn().mockImplementation(async (appointmentId: string) => {
+      events.push(`refresh:${appointmentId}`);
+    });
+    const port = recalcPort([candidate({ id: 'a1' })], {
+      runWithPackageLock: vi.fn().mockImplementation(async (_pkg, _org, fn) => {
+        events.push('lock:begin');
+        const result = await fn();
+        events.push('lock:committed');
+        return result;
+      }),
+      recalcConsumeForAppointment: vi.fn().mockImplementation(async (input) => {
+        events.push(`consume:${input.appointmentId}`);
+        return {
+          id: 'u-consume',
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId,
+          usageKind: 'consume' as const,
+          quantity: 1,
+          comment: null,
+          occurredAt: new Date().toISOString(),
+        };
+      }),
+    });
     const svc = createMembershipsService({
       port,
       payments: null,
@@ -1009,6 +1066,7 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
     expect(port.setAppointmentPackageUsageRef).not.toHaveBeenCalled();
     expect(port.appendHistoryEvent).not.toHaveBeenCalled();
     expect(refreshPackageCalendar).toHaveBeenCalledWith('a1');
+    expect(events).toEqual(['lock:begin', 'consume:a1', 'lock:committed', 'refresh:a1']);
   });
 
   it('multiple eligible sessions within balance are all debited', async () => {
