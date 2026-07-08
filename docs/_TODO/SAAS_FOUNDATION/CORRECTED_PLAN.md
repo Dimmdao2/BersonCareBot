@@ -82,7 +82,7 @@ Execution MUST use the micro-stage spine below. Do not hand an agent a brief for
 Each row is intended to fit one small PR. Each stage updates `LOG.md`, runs only local checks for the touched area, and stops if its gate fails.
 
 Execution checklists for the remaining stages:
-`P0_6_DORMANT_CONTEXT_CHECKLIST.md`, `P0_7_WRITER_CENSUS_CHECKLIST.md`,
+`AUTONOMOUS_NIGHTLY_RUNBOOK.md`, `P0_6_DORMANT_CONTEXT_CHECKLIST.md`, `P0_7_WRITER_CENSUS_CHECKLIST.md`,
 `P0_8_RLS_DESCRIPTOR_CHECKLIST.md`, `P0_9_DEFAULT_DENY_CHECKLIST.md`,
 `P0_10_CI_INVARIANTS_CHECKLIST.md`, `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md`,
 `P0_12_RESIDUAL_REFS_CHECKLIST.md`, and `P0_13_ISOLATION_FIXTURES_CHECKLIST.md`.
@@ -122,8 +122,8 @@ Use them before executing the corresponding spine rows; they do not supersede th
 | P0.7.2 | Apply tenant context to webapp route/action writers that touch SCOPED rows through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
 | P0.7.3 | Apply tenant context to integrator API/bot writers through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
 | P0.7.4 | Apply tenant context to integrator worker/scheduler writers through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
-| P0.7.5 | Apply tenant context to media-worker writers through the chokepoint. | Family-specific tests; unset context still permits dormant behavior. |
-| P0.7.6 | Apply tenant context to payment/webhook paths; boot-migration paths remain migrator-only. | Family-specific tests; unset context still permits dormant behavior. |
+| P0.7.5 | Apply tenant context to media-worker writers through the chokepoint: job claim must expose/derive job org, transcode/failure/duration writes run under that org, stale reclaim/queue mechanics stay safe without default-org fallback. | Media-worker targeted tests + typecheck/eslint; unset or missing org still preserves dormant behavior; no S3/prod/dev-PII side effects. |
+| P0.7.6 | Apply tenant context to payment/webhook paths after a small entrypoint-to-org-source map; boot-migration/ops paths remain migrator-only. | Payment/webhook targeted tests; missing org does not invent default org; unset context still permits dormant behavior. |
 | P0.8.1 | RLS descriptor model: SCOPED/BOOTSTRAP/INFRA/LEGACY/TELEMETRY + predicate templates. | Descriptor covers all 219 artifacts exactly once. |
 | P0.8.2 | SQL renderer tests for org predicate, patient predicate, bootstrap hybrid, unset-GUC permit, wrong-org deny, empty-GUC deny. | Pure unit tests green; no DB mutation. |
 | P0.8.3 | Apply ENABLE+FORCE GUC-gated permissive policies to public direct-org SCOPED families. | Scratch DB policy smoke before merge. |
