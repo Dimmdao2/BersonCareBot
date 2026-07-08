@@ -13,6 +13,7 @@ vi.mock("@/modules/messaging/components/DoctorChatPanel", () => ({
 
 const BASE_CONV = {
   conversationId: "00000000-0000-4000-8000-000000000002",
+  patientUserId: "00000000-0000-4000-8000-000000000111",
   displayName: "Пациент",
   phoneNormalized: "+79990000000",
   lastMessageAt: "2025-01-02T12:34:00.000Z",
@@ -202,6 +203,16 @@ describe("DoctorSupportInbox — шапка треда", () => {
     const patientElements = screen.getAllByText("Пациент");
     // Шапка добавляет ещё один элемент с именем
     expect(patientElements.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("при выборе чата показывает ссылку в профиль пациента", async () => {
+    render(<DoctorSupportInbox />);
+    await userEvent.click(await screen.findByText("Пациент"));
+
+    expect(screen.getByRole("link", { name: "Профиль" })).toHaveAttribute(
+      "href",
+      `/app/doctor/patients/${BASE_CONV.patientUserId}`,
+    );
   });
 
   it("при выборе чата кнопка × видна и сбрасывает выбор", async () => {

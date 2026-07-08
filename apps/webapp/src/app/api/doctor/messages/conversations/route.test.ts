@@ -224,11 +224,12 @@ describe("GET /api/doctor/messages/conversations", () => {
 
     const data = (await res.json()) as {
       ok: boolean;
-      conversations: { displayName: string; firstName: string | null; onSupport: boolean }[];
+      conversations: { displayName: string; patientUserId: string | null; firstName: string | null; onSupport: boolean }[];
     };
     expect(data.ok).toBe(true);
     expect(data.conversations).toHaveLength(2);
     const conv1 = data.conversations.find((c) => c.displayName === "Пациент 1");
+    expect(conv1?.patientUserId).toBe(p1);
     expect(conv1?.firstName).toBe("Иван");
     expect(conv1?.onSupport).toBe(true);
   });

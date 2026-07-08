@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -16,6 +17,7 @@ const POLL_INTERVAL_MS = 1_000;
 
 type ConvRow = {
   conversationId: string;
+  patientUserId: string | null;
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
@@ -30,6 +32,7 @@ type ConvRow = {
 
 type ConversationApiRow = {
   conversationId: string;
+  patientUserId?: string | null;
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
@@ -64,6 +67,7 @@ function getSenderPrefix(conv: ConvRow): string {
 function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
   return conversations.map((c) => ({
     conversationId: c.conversationId,
+    patientUserId: c.patientUserId ?? null,
     displayName: c.displayName,
     firstName: c.firstName ?? null,
     lastName: c.lastName ?? null,
@@ -345,6 +349,9 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
   );
 
   const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
+  const selectedProfileHref = selectedConv?.patientUserId
+    ? `/app/doctor/patients/${encodeURIComponent(selectedConv.patientUserId)}`
+    : null;
 
   const rightPane = (
     <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
@@ -367,6 +374,14 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
                     : selectedConv.displayName)
                 : "—"}
             </span>
+            {selectedProfileHref ? (
+              <Link
+                href={selectedProfileHref}
+                className="shrink-0 rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground/80 hover:bg-muted hover:text-foreground"
+              >
+                Профиль
+              </Link>
+            ) : null}
             <Button
               type="button"
               variant="ghost"

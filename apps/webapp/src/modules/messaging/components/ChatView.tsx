@@ -23,6 +23,45 @@ function isAlignedRight(senderRole: string, variant: Variant): boolean {
 const bubbleRadiusPatientChatClass =
   "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]";
 
+const URL_RE = /(https?:\/\/[^\s<>"']+)/gi;
+const TRAILING_URL_PUNCTUATION_RE = /[),.;:!?]+$/;
+
+function splitTrailingUrlPunctuation(value: string): { url: string; trailing: string } {
+  const match = value.match(TRAILING_URL_PUNCTUATION_RE);
+  if (!match?.[0]) return { url: value, trailing: "" };
+  const trailing = match[0];
+  return { url: value.slice(0, -trailing.length), trailing };
+}
+
+function renderMessageText(text: string) {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(URL_RE)) {
+    const rawUrl = match[0];
+    const index = match.index ?? 0;
+    if (index > lastIndex) parts.push(text.slice(lastIndex, index));
+    const { url, trailing } = splitTrailingUrlPunctuation(rawUrl);
+    parts.push(
+      <a
+        key={`${index}-${url}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium underline decoration-current/50 underline-offset-2 hover:decoration-current"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {url}
+      </a>,
+    );
+    if (trailing) parts.push(trailing);
+    lastIndex = index + rawUrl.length;
+  }
+
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length > 0 ? parts : text;
+}
+
 type ChatViewProps = {
   variant: Variant;
   messages: SerializedSupportMessage[];
@@ -34,6 +73,7 @@ type ChatViewProps = {
    */
   relativeFooters?: boolean;
   className?: string;
+  onReplyToMessage?: (message: SerializedSupportMessage) => void;
 };
 
 /** Каркас чата: группировка по дням, пузырьки, скролл вниз. */
@@ -44,6 +84,7 @@ export function ChatView({
   composer,
   relativeFooters = false,
   className,
+  onReplyToMessage,
 }: ChatViewProps) {
   const patientRelative = variant === "patient" && relativeFooters;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -107,7 +148,7 @@ export function ChatView({
                           mine ? undefined : patientRelative ? patientBodyTextClass : undefined,
                         )}
                       >
-                        {m.text}
+                        {renderMessageText(m.text)}
                       </p>
                     ) : null}
                     {mine && deliveryStatus ?
@@ -130,6 +171,18 @@ export function ChatView({
                     {formatChatMessageTimeRu(m.createdAt)}
                   </p>
                 : null}
+                {onReplyToMessage ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      "text-[11px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline",
+                      patientRelative && patientMutedTextClass,
+                    )}
+                    onClick={() => onReplyToMessage(m)}
+                  >
+                    Ответить
+                  </button>
+                ) : null}
               </div>
             );
           })
@@ -160,7 +213,7 @@ export function ChatView({
                             className={cn("max-h-60 w-auto max-w-full rounded-lg", m.text ? "mb-1.5" : undefined)}
                           />
                         ) : null}
-                        {m.text ? <p className="whitespace-pre-wrap break-words">{m.text}</p> : null}
+                        {m.text ? <p className="whitespace-pre-wrap break-words">{renderMessageText(m.text)}</p> : null}
                         {mine && deliveryStatus ?
                           <ChatBubbleOutgoingMeta
                             timeLabel={formatChatMessageTimeRu(m.createdAt)}
@@ -171,6 +224,15 @@ export function ChatView({
                             {formatChatMessageTimeRu(m.createdAt)}
                           </p>
                         )}
+                        {onReplyToMessage ? (
+                          <button
+                            type="button"
+                            className="mt-1 block text-[11px] font-medium underline-offset-2 opacity-75 hover:underline hover:opacity-100"
+                            onClick={() => onReplyToMessage(m)}
+                          >
+                            Ответить
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   );

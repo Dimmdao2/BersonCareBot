@@ -66,6 +66,7 @@ export async function GET(request: Request) {
         openedAt: c.openedAt,
         lastMessageAt: c.lastMessageAt,
         displayName: c.displayName,
+        patientUserId,
         firstName: clientInfo?.firstName ?? null,
         lastName: clientInfo?.lastName ?? null,
         phoneNormalized: c.phoneNormalized,

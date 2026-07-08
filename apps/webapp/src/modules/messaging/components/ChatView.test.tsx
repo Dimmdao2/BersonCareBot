@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ChatView } from "./ChatView";
 import type { SerializedSupportMessage } from "../serializeSupportMessage";
 
@@ -54,5 +55,46 @@ describe("ChatView delivery ticks", () => {
     );
     expect(screen.getByText("Ответ врача")).toBeInTheDocument();
     expect(document.querySelector('[data-delivery-status="read"]')).toBeInTheDocument();
+  });
+});
+
+describe("ChatView message links and actions", () => {
+  it("linkifies only http(s) URLs and opens them in a new tab", () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    render(
+      <ChatView
+        variant="doctor"
+        messages={[
+          supportMessage({
+            senderRole: "user",
+            text: "Откройте https://example.com/path?q=1. javascript:alert(1)",
+          }),
+        ]}
+        composer={null}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "https://example.com/path?q=1" });
+    expect(link).toHaveAttribute("href", "https://example.com/path?q=1");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.queryByRole("link", { name: /javascript/i })).not.toBeInTheDocument();
+  });
+
+  it("calls onReplyToMessage from the explicit reply action", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const message = supportMessage({ senderRole: "user" });
+    const onReplyToMessage = vi.fn();
+    render(
+      <ChatView
+        variant="doctor"
+        messages={[message]}
+        composer={null}
+        onReplyToMessage={onReplyToMessage}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Ответить" }));
+    expect(onReplyToMessage).toHaveBeenCalledWith(message);
   });
 });
