@@ -80,6 +80,7 @@ describe("DoctorClientMembershipsPanel", () => {
     packagesResponse = [
       {
         id: "pkg-1",
+        displayNumber: 17,
         title: "Реабилитация 4 занятия",
         status: "active",
         soldAt: "2026-06-01T00:00:00Z",
@@ -126,6 +127,7 @@ describe("DoctorClientMembershipsPanel", () => {
     render(<DoctorClientMembershipsPanel platformUserId={platformUserId} />);
 
     expect(await screen.findByText(/дата покупки/)).toBeTruthy();
+    expect(screen.getByText("аб.#017")).toBeTruthy();
     expect(screen.getByText("ЛФК: остаток 3 (зарезервировано 1)")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Записи" }));
     expect(await screen.findByLabelText("Показать прошедшие")).toBeTruthy();
@@ -133,6 +135,70 @@ describe("DoctorClientMembershipsPanel", () => {
     expect(screen.getByText("Списать как оказанную")).toBeTruthy();
     await user.click(screen.getByText("История"));
     expect(await screen.findByText("Создан вручную")).toBeTruthy();
+  });
+
+  it("renders human package numbers and all active package cards", async () => {
+    packagesResponse = [
+      {
+        id: "pkg-21",
+        displayNumber: 21,
+        title: "ЛФК утро",
+        status: "active",
+        soldAt: "2026-06-21T00:00:00Z",
+        validUntil: null,
+        paidAmountMinor: 9000,
+        paidCurrency: "RUB",
+        notes: null,
+        balance: {
+          items: [
+            {
+              patientPackageItemId: "item-21",
+              serviceId: "svc-lfk",
+              serviceTitle: "ЛФК",
+              quantityInitial: 6,
+              remaining: 4,
+              displayRemaining: 5,
+              reserved: 1,
+            },
+          ],
+        },
+      },
+      {
+        id: "pkg-22",
+        displayNumber: 22,
+        title: "Массаж вечер",
+        status: "active",
+        soldAt: "2026-06-22T00:00:00Z",
+        validUntil: null,
+        paidAmountMinor: 7000,
+        paidCurrency: "RUB",
+        notes: null,
+        balance: {
+          items: [
+            {
+              patientPackageItemId: "item-22",
+              serviceId: "svc-massage",
+              serviceTitle: "Массаж",
+              quantityInitial: 4,
+              remaining: 2,
+              displayRemaining: 2,
+              reserved: 0,
+            },
+          ],
+        },
+      },
+    ];
+
+    render(<DoctorClientMembershipsPanel platformUserId={platformUserId} />);
+
+    expect(await screen.findByText("ЛФК утро")).toBeTruthy();
+    expect(screen.getByText("Массаж вечер")).toBeTruthy();
+    expect(screen.getByText("аб.#021")).toBeTruthy();
+    expect(screen.getByText("аб.#022")).toBeTruthy();
+    expect(screen.getByText("Осталось 5 визитов:")).toBeTruthy();
+    expect(screen.getByText("5 x ЛФК")).toBeTruthy();
+    expect(screen.getByText("Осталось 2 визитов:")).toBeTruthy();
+    expect(screen.getByText("2 x Массаж")).toBeTruthy();
   });
 
   it("hides create forms when showCreateForm=false", async () => {

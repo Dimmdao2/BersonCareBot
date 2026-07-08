@@ -29,7 +29,15 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 
 ## API «Пересчитать» — ST-02
 
-`POST /api/doctor/booking-engine/patient-packages/[id]/recalc` (+ admin mirror `/api/admin/...`) — gate `requireDoctorBookingEngine()` / `requireAdminBookingEngine()`; no body (package id from params). Calls `recalcPastSessionsForPackage({ organizationId (from gate), patientPackageId, createdByPlatformUserId })`, best-effort calendar sync per debited appointment (doctor route), returns full `{ ok, summary }` with `debited[]`, `skipped[]`, `outOfBalance[]`, and `corrected[]`. **IDOR/ownership (OQ-1):** `organizationId` from the gate scopes `getPatientPackage(id, organizationId)` — a foreign-org package → `package_not_found` (400); recalc can never touch another org's package (same guarantee as `consume`).
+`POST /api/doctor/booking-engine/patient-packages/[id]/recalc` and `POST /api/admin/booking-engine/patient-packages/[id]/recalc` — gate `requireDoctorBookingEngine()` / `requireAdminBookingEngine()`; no body (package id from params). Calls `recalcPastSessionsForPackage({ organizationId (from gate), patientPackageId, createdByPlatformUserId })`, best-effort calendar sync per debited appointment (doctor route), returns full `{ ok, summary }` with `debited[]`, `skipped[]`, `outOfBalance[]`, and `corrected[]`. **IDOR/ownership (OQ-1):** `organizationId` from the gate scopes `getPatientPackage(id, organizationId)` — a foreign-org package → `package_not_found` (400); recalc can never touch another org's package (same guarantee as `consume`).
+
+## Doctor UI acceptance semantics (2026-07)
+
+- Human package number: API rows may include `displayNumber`; doctor UI renders compact badges as `аб.#NNN` (`formatPatientPackageShortLabel`) and long metadata as `аб #NNN от DD.MM.YYYY` (`formatPatientPackageLongLabel`). Missing/invalid numbers fall back to `аб.` / `аб #—`.
+- Multiple active packages: patient card surfaces must render all `active` / `activated` packages, not only the first one. Overview sums active package balances and joins per-package hints with commas; Visits renders separate active cards and an `активных N` badge.
+- Closed-history on Visits: an active package is shown in history when all package sessions are consumed past visits (`linkage=consumed`, `isPast=true`) and consumed count covers total package quantity. Future reserves and partially consumed packages stay active. Closed rows are collapsed by default and expand to the same `MembershipCardHeader`.
+- Linked appointment highlight: the eye button toggles a violet border on appointments whose `patientPackageId` matches the selected package, both for active cards and closed-history rows.
+- Wording: Overview KPI value uses `Осталось N визитов:`; Visits active and expanded-history cards use the shared membership header (`Осталось N визитов:`, composition like `2 x ЛФК`, consumed dates).
 
 ## Patient APIs (`requirePatientApiBusinessAccess`)
 

@@ -2,6 +2,21 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-08 13:11 MSK — #534 tests/docs acceptance hardening
+
+### Что сделано
+
+- `DoctorClientMembershipsPanel.test.tsx`: добавлен targeted RTL-кейс на человеческий номер `аб.#NNN` и рендер нескольких активных карточек в одной панели; существующий кейс активного абонемента дополнительно проверяет `displayNumber`.
+- Существующие focused-тесты закрепляют acceptance из feedback 07.07:
+  - `PatientTabRecords.memberships.test.tsx`: несколько активных абонементов, closed-history по исчерпанию, свернутое/раскрытое состояние, eye-highlight связанных записей, `аб.#NNN`/`аб #NNN от ...`, wording вкладки «Визиты».
+  - `PatientTabOverview.packageWidget.test.tsx`: wording «Обзор» (`Осталось N визитов:`), суммирование нескольких активных абонементов и human package number в hint.
+- `apps/webapp/src/modules/memberships/memberships.md`: синхронизированы doctor/admin recalc routes, human package number, multiple-active, closed-history и eye-highlight semantics.
+
+### Проверки
+
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run 'src/app/app/doctor/clients/DoctorClientMembershipsPanel.test.tsx' 'src/app/app/doctor/patients/[userId]/tabs/PatientTabRecords.memberships.test.tsx' 'src/app/app/doctor/patients/[userId]/tabs/PatientTabOverview.packageWidget.test.tsx'"` — 18/18 passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp typecheck"` — passed.
+
 ## 2026-07-07 — #524 Визиты: несколько активных абонементов + история закрытых
 
 ### Что сделано
