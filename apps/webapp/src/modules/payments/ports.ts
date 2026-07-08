@@ -47,12 +47,12 @@ export type PaymentsPort = {
   findIntentById(id: string): Promise<PaymentIntentRecord | null>;
   findIntentByProviderRef(organizationId: string, providerIntentRef: string): Promise<PaymentIntentRecord | null>;
   createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentIntentRecord>;
-  updateIntentStatus(intentId: string, status: string): Promise<PaymentIntentRecord | null>;
+  updateIntentStatus(intentId: string, status: string, organizationId: string): Promise<PaymentIntentRecord | null>;
 
   findPaymentByIntent(intentId: string): Promise<PaymentRecord | null>;
   findPaymentByAppointment(appointmentId: string): Promise<PaymentRecord | null>;
   createPaymentFromIntent(intent: PaymentIntentRecord): Promise<PaymentRecord>;
-  updatePaymentStatus(paymentId: string, status: string): Promise<void>;
+  updatePaymentStatus(paymentId: string, status: string, organizationId: string): Promise<void>;
 
   createRefund(input: {
     organizationId: string;
@@ -72,7 +72,7 @@ export type PaymentsPort = {
     eventType: string;
     payloadJson: Record<string, unknown>;
   }): Promise<{ inserted: boolean; id: string }>;
-  markProviderEventProcessed(id: string): Promise<void>;
+  markProviderEventProcessed(id: string, organizationId: string): Promise<void>;
 
   appendHistoryEvent(input: {
     organizationId: string;
@@ -92,7 +92,7 @@ export type PaymentsPort = {
 
   listHistoryForAppointment(appointmentId: string, organizationId: string): Promise<PaymentHistoryEventRecord[]>;
   listHistoryForUser(platformUserId: string, organizationId: string, limit?: number): Promise<PaymentHistoryEventRecord[]>;
-  setAppointmentPaymentRef(appointmentId: string, paymentId: string): Promise<void>;
+  setAppointmentPaymentRef(appointmentId: string, paymentId: string, organizationId: string): Promise<void>;
 };
 
 export type PaymentsConfigReader = {

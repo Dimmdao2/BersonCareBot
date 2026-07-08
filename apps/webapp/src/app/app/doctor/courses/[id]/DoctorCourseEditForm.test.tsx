@@ -176,7 +176,7 @@ describe('DoctorCourseEditForm', () => {
 
     // base-ui Select: click trigger to open, then click item
     await user.click(screen.getByRole('combobox', { name: /статус/i }));
-    await user.click(screen.getByRole('option', { name: /архив/i }));
+    await user.click(await screen.findByRole('option', { name: /архив/i }));
     await user.click(screen.getByRole('button', { name: /^сохранить$/i }));
 
     await waitFor(() => {
@@ -243,7 +243,7 @@ describe('DoctorCourseEditForm', () => {
 
     // base-ui Select: click trigger to open, then click item
     await user.click(screen.getByRole('combobox', { name: /статус/i }));
-    await user.click(screen.getByRole('option', { name: /архив/i }));
+    await user.click(await screen.findByRole('option', { name: /архив/i }));
     await user.click(screen.getByRole('button', { name: /^сохранить$/i }));
 
     await waitFor(() => {

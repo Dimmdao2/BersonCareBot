@@ -1,17 +1,28 @@
 ---
-description: Перед push — полный CI как в GitHub; между коммитами — см. test-execution-policy
+description: Full CI только перед deploy, merge/integration checkpoints и repo-level изменениями; между коммитами — см. test-execution-policy
 alwaysApply: true
 ---
 
-# Перед пушем — полный CI (как в GitHub Actions)
+# Full CI gate
 
-Многоуровневые прогоны во время работы (step / phase, без лишнего `ci`) — в `.cursor/rules/test-execution-policy.md`. **Этот файл** фиксирует только барьер перед отправкой в remote.
+Многоуровневые прогоны во время работы (step / phase, без лишнего `ci`) — в `.cursor/rules/test-execution-policy.md`. **Этот файл** фиксирует случаи, когда нужен полный корневой `ci`.
 
-**Инструкция для агентов:** когда пользователь просит **пуш**, коммит **с пушем** или явно «прогнать как в CI / перед пушем», выполнить тот же набор, что агрегирует корневой `ci`. Не полагаться только на `pnpm lint` или узкие тесты — локально они могут проходить, а порядок шагов в `ci` на GitHub иной контекст.
+**Канон:** полный `pnpm run ci` НЕ является обязательным перед каждым `git push` / backup-push в feature-ветку. Обычный micro-stage push допускается после подходящего step/phase gate из `test-execution-policy.md`.
 
-## После падения CI (до push) — ускоренный цикл
+## Когда full CI обязателен
 
-Если `pnpm run ci` упал в середине и вносится локальный фикс, **разрешено** не перезапускать весь `ci` на каждой итерации:
+Выполнить полный набор, который агрегирует корневой `ci`, перед:
+
+- deploy / production deploy / staging deploy / prod-readiness gate;
+- merge/sync/integration checkpoint между ветками, особенно перед merge в `main`, `test`, `feat/doctor-ui-rebuild` или другую общую интеграционную ветку;
+- глобальным этапом инициативы, который меняет несколько приложений, shared-пакеты, root/tooling config, CI workflow, lockfile, миграционный контракт, DB-access chokepoint, RLS/policy/invariant framework или DI-контракты между приложениями;
+- явной просьбой пользователя: «полный CI», «как в GitHub», «перед деплоем», «перед merge», «перед релизом».
+
+Обычный docs-only, одно-приложенческий или micro-stage backup-push в текущую feature-ветку **не требует** full CI, если локальный gate по масштабу изменения прошёл.
+
+## После падения CI — ускоренный цикл
+
+Если full `pnpm run ci` был уместен по правилам выше, упал в середине и вносится локальный фикс, **разрешено** не перезапускать весь `ci` на каждой итерации:
 
 - сначала прогнать упавший шаг (или ещё уже — конкретный test file),
 - затем догнать хвост пайплайна через `ci:resume:*` из корневого `package.json`:
@@ -23,7 +34,7 @@ alwaysApply: true
   - `ci:resume:after-build`
   - `ci:resume:after-build-webapp`
 
-Это ускорение действует **только между правками**. Перед фактическим push барьер ниже остаётся обязательным в полном виде.
+Это ускорение действует **только между правками**. Перед deploy/merge/final integration gate полный барьер ниже остаётся обязательным в полном виде, если после последнего полного прогона были изменения.
 
 Выполнять:
 
@@ -36,4 +47,4 @@ pnpm run ci
 
 Состав `ci` задаётся корневым `package.json` (например: `lint`, `typecheck`, `test`, `test:webapp`, `build`, `build:webapp`, `audit`). Если `pnpm run ci` прошёл локально на актуальном дереве, ожидается зелёный GitHub Actions для того же коммита.
 
-**Не пушить без успешного `pnpm run ci`** в сценариях выше. Повторно гонять `ci` без новых изменений кода — не требуется (reuse — в `test-execution-policy.md`).
+**Не выполнять deploy/merge/final integration без успешного `pnpm run ci`** в сценариях выше. Повторно гонять `ci` без новых изменений кода — не требуется (reuse — в `test-execution-policy.md`).

@@ -34,6 +34,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     }
     const row: PaymentRow = {
       id: randomUUID(),
+      organizationId: input.organizationId,
       patientUserId: input.patientUserId,
       amountMinor: input.amountMinor,
       currency: input.currency ?? "RUB",
@@ -58,6 +59,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
   async updatePatientPaymentStatus(
     id: string,
     status: PatientPaymentStatus,
+    _organizationId: string,
     providerPaymentId?: string,
   ): Promise<void> {
     const row = payments.find((p) => p.id === id);
@@ -70,6 +72,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
   async insertAcquiringPending(input: InsertAcquiringPendingInput): Promise<PatientPayment> {
     const row: PatientPayment = {
       id: randomUUID(),
+      organizationId: input.organizationId,
       patientUserId: input.patientUserId,
       amountMinor: input.amountMinor,
       currency: input.currency,

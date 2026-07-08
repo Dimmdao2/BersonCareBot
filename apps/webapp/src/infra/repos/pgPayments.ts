@@ -1,5 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { getWebappSqlFromPgClient } from "@/infra/db/runWebappSql";
+import { withTransaction } from "@/infra/db/withClient";
 import {
   bePaymentHistoryEvents,
   bePaymentIntents,
@@ -81,6 +84,15 @@ function mapHistory(row: typeof bePaymentHistoryEvents.$inferSelect): PaymentHis
   };
 }
 
+function runPaymentMutation<T>(
+  organizationId: string,
+  fn: (db: DrizzleDb) => Promise<T>,
+): Promise<T> {
+  return runWithDbOrganizationPrincipal(organizationId, () =>
+    withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb)),
+  );
+}
+
 export function createPgPaymentsPort(): PaymentsPort {
   return {
     async getPrepaymentPolicyForService(organizationId, serviceId) {
@@ -123,7 +135,6 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async upsertPrepaymentPolicy(input: UpsertPrepaymentPolicyInput) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
       const serviceId = input.serviceId?.trim() || null;
       const onlineCategory = input.onlineCategory?.trim() || null;
@@ -134,7 +145,8 @@ export function createPgPaymentsPort(): PaymentsPort {
         : await this.getPrepaymentPolicyForOnlineCategory(input.organizationId, onlineCategory!);
 
       if (existing) {
-        await db
+        await runPaymentMutation(input.organizationId, (tx) =>
+          tx
           .update(bePrepaymentPolicies)
           .set({
             mode: input.mode,
@@ -144,20 +156,23 @@ export function createPgPaymentsPort(): PaymentsPort {
             isActive: input.isActive ?? true,
             updatedAt: now,
           })
-          .where(eq(bePrepaymentPolicies.id, existing.id));
+            .where(eq(bePrepaymentPolicies.id, existing.id)),
+        );
       } else {
-        await db.insert(bePrepaymentPolicies).values({
-          organizationId: input.organizationId,
-          serviceId,
-          onlineCategory,
-          mode: input.mode,
-          amountMinor: input.amountMinor ?? null,
-          percentBps: input.percentBps ?? null,
-          currency: input.currency ?? "RUB",
-          isActive: input.isActive ?? true,
-          createdAt: now,
-          updatedAt: now,
-        });
+        await runPaymentMutation(input.organizationId, (tx) =>
+          tx.insert(bePrepaymentPolicies).values({
+            organizationId: input.organizationId,
+            serviceId,
+            onlineCategory,
+            mode: input.mode,
+            amountMinor: input.amountMinor ?? null,
+            percentBps: input.percentBps ?? null,
+            currency: input.currency ?? "RUB",
+            isActive: input.isActive ?? true,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
       }
 
       const row = serviceId
@@ -215,9 +230,9 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async createPaymentIntent(input) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
-      const inserted = await db
+      const inserted = await runPaymentMutation(input.organizationId, (tx) =>
+        tx
         .insert(bePaymentIntents)
         .values({
           organizationId: input.organizationId,
@@ -235,18 +250,20 @@ export function createPgPaymentsPort(): PaymentsPort {
           createdAt: now,
           updatedAt: now,
         })
-        .returning();
+          .returning(),
+      );
       return mapIntent(inserted[0]!);
     },
 
-    async updateIntentStatus(intentId, status) {
-      const db = getDrizzle();
+    async updateIntentStatus(intentId, status, organizationId) {
       const now = new Date().toISOString();
-      const rows = await db
+      const rows = await runPaymentMutation(organizationId, (tx) =>
+        tx
         .update(bePaymentIntents)
         .set({ status, updatedAt: now })
         .where(eq(bePaymentIntents.id, intentId))
-        .returning();
+          .returning(),
+      );
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
@@ -267,9 +284,9 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async createPaymentFromIntent(intent) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
-      const inserted = await db
+      const inserted = await runPaymentMutation(intent.organizationId, (tx) =>
+        tx
         .insert(bePayments)
         .values({
           organizationId: intent.organizationId,
@@ -285,21 +302,26 @@ export function createPgPaymentsPort(): PaymentsPort {
           createdAt: now,
         })
         .onConflictDoNothing()
-        .returning();
+          .returning(),
+      );
       if (inserted[0]) return mapPayment(inserted[0]);
-      const existing = await this.findPaymentByIntent(intent.id);
+      const existingRows = await runPaymentMutation(intent.organizationId, (tx) =>
+        tx.select().from(bePayments).where(eq(bePayments.paymentIntentId, intent.id)).limit(1),
+      );
+      const existing = existingRows[0] ? mapPayment(existingRows[0]) : null;
       if (!existing) throw new Error("payment_create_failed");
       return existing;
     },
 
-    async updatePaymentStatus(paymentId, status) {
-      const db = getDrizzle();
-      await db.update(bePayments).set({ status }).where(eq(bePayments.id, paymentId));
+    async updatePaymentStatus(paymentId, status, organizationId) {
+      await runPaymentMutation(organizationId, (tx) =>
+        tx.update(bePayments).set({ status }).where(eq(bePayments.id, paymentId)),
+      );
     },
 
     async createRefund(input) {
-      const db = getDrizzle();
-      const inserted = await db
+      const inserted = await runPaymentMutation(input.organizationId, (tx) =>
+        tx
         .insert(beRefunds)
         .values({
           organizationId: input.organizationId,
@@ -311,14 +333,15 @@ export function createPgPaymentsPort(): PaymentsPort {
           reason: input.reason ?? null,
           providerRefundRef: input.providerRefundRef ?? null,
         })
-        .returning({ id: beRefunds.id });
+          .returning({ id: beRefunds.id }),
+      );
       return { id: inserted[0]!.id };
     },
 
     async recordProviderEvent(input) {
-      const db = getDrizzle();
       try {
-        const inserted = await db
+        const inserted = await runPaymentMutation(input.organizationId, (tx) =>
+          tx
           .insert(bePaymentProviderEvents)
           .values({
             organizationId: input.organizationId,
@@ -327,10 +350,12 @@ export function createPgPaymentsPort(): PaymentsPort {
             eventType: input.eventType,
             payloadJson: input.payloadJson,
           })
-          .returning({ id: bePaymentProviderEvents.id });
+            .returning({ id: bePaymentProviderEvents.id }),
+        );
         return { inserted: true, id: inserted[0]!.id };
       } catch {
-        const rows = await db
+        const rows = await runPaymentMutation(input.organizationId, (tx) =>
+          tx
           .select({ id: bePaymentProviderEvents.id })
           .from(bePaymentProviderEvents)
           .where(
@@ -340,36 +365,39 @@ export function createPgPaymentsPort(): PaymentsPort {
               eq(bePaymentProviderEvents.idempotencyKey, input.idempotencyKey),
             ),
           )
-          .limit(1);
+            .limit(1),
+        );
         return { inserted: false, id: rows[0]?.id ?? "" };
       }
     },
 
-    async markProviderEventProcessed(id) {
-      const db = getDrizzle();
-      await db
+    async markProviderEventProcessed(id, organizationId) {
+      await runPaymentMutation(organizationId, (tx) =>
+        tx
         .update(bePaymentProviderEvents)
         .set({ processedAt: new Date().toISOString() })
-        .where(eq(bePaymentProviderEvents.id, id));
+          .where(eq(bePaymentProviderEvents.id, id)),
+      );
     },
 
     async appendHistoryEvent(input) {
-      const db = getDrizzle();
-      await db.insert(bePaymentHistoryEvents).values({
-        organizationId: input.organizationId,
-        appointmentId: input.appointmentId ?? null,
-        platformUserId: input.platformUserId ?? null,
-        paymentId: input.paymentId ?? null,
-        refundId: input.refundId ?? null,
-        eventType: input.eventType,
-        amountMinor: input.amountMinor ?? null,
-        currency: input.currency ?? null,
-        providerId: input.providerId ?? null,
-        status: input.status ?? null,
-        purpose: input.purpose ?? null,
-        comment: input.comment ?? null,
-        payloadJson: input.payloadJson ?? {},
-      });
+      await runPaymentMutation(input.organizationId, (tx) =>
+        tx.insert(bePaymentHistoryEvents).values({
+          organizationId: input.organizationId,
+          appointmentId: input.appointmentId ?? null,
+          platformUserId: input.platformUserId ?? null,
+          paymentId: input.paymentId ?? null,
+          refundId: input.refundId ?? null,
+          eventType: input.eventType,
+          amountMinor: input.amountMinor ?? null,
+          currency: input.currency ?? null,
+          providerId: input.providerId ?? null,
+          status: input.status ?? null,
+          purpose: input.purpose ?? null,
+          comment: input.comment ?? null,
+          payloadJson: input.payloadJson ?? {},
+        }),
+      );
     },
 
     async listHistoryForAppointment(appointmentId, organizationId) {
@@ -403,12 +431,13 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows.map(mapHistory);
     },
 
-    async setAppointmentPaymentRef(appointmentId, paymentId) {
-      const db = getDrizzle();
-      await db
+    async setAppointmentPaymentRef(appointmentId, paymentId, organizationId) {
+      await runPaymentMutation(organizationId, (tx) =>
+        tx
         .update(beAppointments)
         .set({ paymentRef: paymentId, updatedAt: new Date().toISOString() })
-        .where(eq(beAppointments.id, appointmentId));
+          .where(eq(beAppointments.id, appointmentId)),
+      );
     },
   };
 }

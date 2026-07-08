@@ -89,5 +89,8 @@ describe("createPaymentsService", () => {
     expect(first.duplicate).toBe(false);
     expect(second.duplicate).toBe(true);
     expect(port.createPaymentFromIntent).toHaveBeenCalledTimes(1);
+    expect(port.updateIntentStatus).toHaveBeenCalledWith("intent-1", "succeeded", "org-1");
+    expect(port.setAppointmentPaymentRef).toHaveBeenCalledWith("appt-1", "pay-1", "org-1");
+    expect(port.markProviderEventProcessed).toHaveBeenCalledWith("ev-1", "org-1");
   });
 });

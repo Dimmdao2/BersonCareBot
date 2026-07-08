@@ -1,5 +1,5 @@
 ---
-description: Команда "пуш" всегда означает CI, commit и push
+description: Команда "пуш" означает validation по scope, commit и push
 alwaysApply: true
 ---
 
@@ -7,12 +7,12 @@ alwaysApply: true
 
 Если пользователь пишет `пуш` (или эквиваленты: "push", "запушь"), агент должен трактовать это как полный поток:
 
-1. Запустить pre-push барьер как в проектном правиле:
-   - `pnpm install --frozen-lockfile`
-   - `pnpm run ci`
+1. Запустить validation по масштабу изменения:
+   - обычный docs-only / micro-stage / одно-приложенческий backup-push: step/phase gate из `.cursor/rules/test-execution-policy.md`;
+   - deploy / merge / integration checkpoint / repo-level risk: full CI gate из `.cursor/rules/pre-push-ci.mdc`.
 2. Если есть изменения — сделать commit по **всему** рабочему дереву (`git add -A`), если пользователь **явно** не указал иной scope файлов (см. `.cursor/rules/git-commit-push-full-worktree.mdc`). **На шаге commit не менять содержимое файлов** — только застейджить и закоммитить текущее состояние.
 3. Выполнить `git push` в текущую ветку/remote.
 
 Не отвечать уточнением "сначала нужно закоммитить?" в этом сценарии — commit является частью команды `пуш`.
 
-Примечание по скорости до команды `пуш`: если ранее `ci` падал, для локальных итераций допускается цикл «упавший шаг + `ci:resume:*`» (см. `.cursor/rules/pre-push-ci.mdc`), но сам `пуш` всё равно требует полный барьер `pnpm install --frozen-lockfile && pnpm run ci`.
+Примечание: сам факт `push` в feature-ветку не повышает validation до full CI. Full CI нужен перед deploy, merge/integration checkpoints, repo-level изменениями или по явной просьбе пользователя.

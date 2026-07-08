@@ -11,6 +11,7 @@ Purpose: build the classified RLS descriptor model and policy renderer before ap
 - `scope-derivation/p0-4-be-fk-paths.tsv`
 - P0.7 writer census artifact.
 - `P0_5_DB_ROLE_SPLIT.md`
+- `P0_8_CODE_FACTS.md`
 
 ## P0.8.1 Descriptor Model
 
@@ -55,6 +56,98 @@ Each application substage must use scratch/non-prod policy smoke before merge:
 - [ ] P0.8.5 integrator bridge/denorm SCOPED families.
 - [ ] P0.8.6 BOOTSTRAP hybrid policies.
 - [ ] P0.8.7 INFRA/LEGACY/TELEMETRY descriptors and unsupported user-ref denial.
+
+### P0.8.3 Public Direct-Org Policy Application
+
+Do not execute P0.8.3 from this checklist alone. Use [`P0_8_3_PREFLIGHT.md`](P0_8_3_PREFLIGHT.md)
+as the execution brief.
+
+Minimum implementation facts:
+
+- target count must be exactly `103`;
+- parent-copy holds remain excluded;
+- generator/smoke tooling must exist before a real policy migration;
+- real migration is allowed only after scratch smoke passes.
+
+### P0.8.4 Public FK/Denorm-Path Policy Application
+
+Preflight required before code:
+
+- derive exact target set from descriptors where `table.startsWith("public.")` and `scopingKind` is
+  `fk_path`, `denorm_org_column`, or `polymorphic_resolver`;
+- split the target set into:
+  - FK-path tables: `public.be_package_items`, `public.be_patient_package_items`;
+  - parent-copy denorm tables from P0.4 child/denorm sources;
+  - polymorphic resolver tables that remain gated by P0.12.1 if resolver coverage is incomplete;
+- explicitly include or exclude the four P0.8.3 parent-copy holds from `P0_8_3_PREFLIGHT.md`;
+- define one scratch smoke per subgroup, not one giant smoke.
+
+Stop if any polymorphic resolver row lacks a completed P0.12.1 resolver decision. Do not turn a
+polymorphic row into a direct `organization_id` policy without documenting why the materialized column
+is authoritative.
+
+Local gate shape:
+
+```bash
+bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.4 target-list check> && <P0.8.4 scratch smoke> && git diff --check"
+```
+
+### P0.8.5 Integrator Bridge/Denorm Policy Application
+
+Preflight required before code:
+
+- derive exact target set from descriptors where `table.startsWith("integrator.")` and `tier === "SCOPED"`;
+- split by P0.4 source:
+  - `P0.4.I1` direct user bridge;
+  - `P0.4.I2` identity bridge;
+  - `P0.4.I3` parent denorm children;
+  - `P0.4.I4` direct mailings root;
+- confirm P0.4 integrator migrations/backfills are present and no target has unresolved orphan semantics;
+- smoke with synthetic `integrator` schema tables and synthetic bridge rows only.
+
+Stop if the smoke needs real `integrator.users`, real messenger identities, or dev/prod data.
+
+Local gate shape:
+
+```bash
+bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.5 target-list check> && <P0.8.5 scratch smoke> && git diff --check"
+```
+
+### P0.8.6 BOOTSTRAP Hybrid Policies
+
+Preflight required before code:
+
+- target only descriptor rows with `scopingKind === "bootstrap_hybrid"`;
+- current expected set:
+  - `integrator.system_settings`;
+  - `public.platform_user_contacts`;
+  - `public.system_settings`;
+  - `public.user_phone_history`;
+- prove global `organization_id IS NULL` rows remain readable before org context;
+- prove org rows require matching `app.org`;
+- do not change admin Settings UI, mirror write path, or `ALLOWED_KEYS` in this stage.
+
+Local gate shape:
+
+```bash
+bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.6 bootstrap smoke> && git diff --check"
+```
+
+### P0.8.7 Explicit Exemptions And Unsupported User-Ref Denial
+
+Preflight required before code:
+
+- target descriptor rows with `tier` in `INFRA`, `LEGACY`, `TELEMETRY`;
+- verify each row has `scopingKind === "explicit_exemption"` and a non-empty `source`;
+- add a check that no `INFRA` or `TELEMETRY` table has an FK/soft-ref to `platform_users`;
+- preserve `LEGACY` as frozen treatment; do not retrofit legacy booking/rubitime rows in this stage;
+- document the explicit behavior for unsupported user-ref findings: fail the check and block, not auto-scope.
+
+Local gate shape:
+
+```bash
+bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.7 exemption/user-ref check> && git diff --check"
+```
 
 Forbidden during policy substages:
 
