@@ -44,13 +44,23 @@ Implementation:
 
 ## P0.10.3 Scoped Tenant Semantics And Null Checks
 
+Status: implemented.
+
 Checklist:
 
-- [ ] Every SCOPED descriptor has direct org, declared FK path, or declared denorm path.
-- [ ] Every P0.4 backfill batch exposes a no-NULL check.
-- [ ] Integrator bridge/denorm tables have no NULL `organization_id` after backfill.
-- [ ] Path-scoped `be_*` item tables have declared parent/cross-check paths.
-- [ ] Fail CI on missing tenant semantics or unresolved NULL org rows in scoped tables.
+- [x] Every SCOPED descriptor has direct org, declared FK path, or declared denorm path.
+- [x] Every P0.4 backfill batch exposes a no-NULL check.
+- [x] Integrator bridge/denorm tables have no NULL `organization_id` after backfill.
+- [x] Path-scoped `be_*` item tables have declared parent/cross-check paths.
+- [x] Fail CI on missing tenant semantics or unresolved NULL org rows in scoped tables.
+
+Implementation:
+
+- `scripts/check-saas-db-regression.mjs` runs `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-scoped-tenant-semantics.mjs`.
+- The checker verifies all `155` SCOPED descriptors have one of the approved tenant semantics: `organization_id`, `id` self-scope for `public.be_organizations`, declared FK path, or the P0.12.1-deferred polymorphic resolver.
+- The checker maps every P0.4 batch to its migration file and verifies `111` materialized-org tables are covered by `count(*) FILTER (WHERE organization_id IS NULL)` assertions plus batch-level no-NULL exceptions.
+- The checker verifies the two P0.4.BE package item tables stay SCOPED/FK-path and use parent/cross-check `organization_id`.
+- `--self-test` mutates in-memory descriptor/migration facts to prove missing org semantics, missing FK path metadata, and missing no-NULL assertions fail.
 
 ## Wiring
 
