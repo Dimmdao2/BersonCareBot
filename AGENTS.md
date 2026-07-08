@@ -200,13 +200,16 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 - Store integration config in webapp DB table `system_settings` with `scope='admin'`.
 - Keys must be included in `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`).
 - Values must be editable via admin settings flow (`/api/admin/settings` + Settings UI).
+- `system_settings` is org-aware: global defaults are rows with `organization_id IS NULL`; org-specific
+  overrides use the same `key` and `scope` with a non-null `organization_id`. The current admin
+  Settings UI remains global unless a setting flow explicitly passes organization context.
 
 ## Integrator/webapp implementation rule
 
 - Integrator and webapp must read integration keys/URIs from DB-backed config accessors.
 - Env can remain only for process bootstrap/infra (`DATABASE_URL`, `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`) and temporary backward-compat fallback during migration.
 - Any new integration feature that proposes env vars for keys/URIs is considered invalid and must be redesigned to DB config.
-- `public.system_settings` and `integrator.system_settings` must stay aligned: webapp writes go through `updateSetting` (which syncs to integrator until refactored). Production typically uses **one** PostgreSQL (schemas `public` + `integrator`) — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator), `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
+- `public.system_settings` and `integrator.system_settings` must stay aligned for the full logical identity `(key, scope, organization_id)`: webapp writes go through `updateSetting` (which syncs to integrator until refactored). Production typically uses **one** PostgreSQL (schemas `public` + `integrator`) — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator), `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 
 ---
 
@@ -226,10 +229,13 @@ When adding or moving configuration:
 - Integration API keys/tokens and integration webhook URLs/URIs.
 - Operational values editable without redeploy: public URLs, feature flags, **IANA timezones for business-facing text**, whitelists, etc.
 - Keys must be added to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` and exposed in admin Settings UI when user-facing.
+- Current Settings UI writes global defaults (`organization_id IS NULL`) unless a flow explicitly passes
+  organization context. Org-specific overrides use the same key/scope plus non-null `organization_id`
+  and must preserve global NULL fallback.
 
 ### Integrator
 
-- Integrator has `integrator.system_settings` (mirror of `public.system_settings`); rows are **pushed** from webapp after each `updateSetting` via `syncSettingToIntegrator` until refactored to direct SQL (see `service.ts` / `syncToIntegrator.ts`). Production uses **one** PostgreSQL with schemas `integrator` and `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
+- Integrator has `integrator.system_settings` (mirror of `public.system_settings`) with matching `(key, scope, organization_id)` semantics; rows are **pushed** from webapp after each `updateSetting` via `syncSettingToIntegrator` until refactored to direct SQL (see `service.ts` / `syncToIntegrator.ts`). Production uses **one** PostgreSQL with schemas `integrator` and `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
 - Do not add new env vars for values that belong in `system_settings`.
 - When adding or changing keys: follow раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator) so both schemas stay aligned.
 
@@ -241,14 +247,14 @@ See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 
 *Источник: `.cursor/rules/system-settings-integrator-mirror.mdc` (alwaysApply)*
 
-Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope)` and JSON `value_json`. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
+Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope, organization_id)` and JSON `value_json`. `organization_id IS NULL` is the global default row; non-null `organization_id` rows are organization overrides and must fall back to the global row on reads when absent. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
 
 ### Mandatory rules for agents
 
-1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert.
-2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key` and the same `scope` (`admin` | `doctor` | `global`) in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
+1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert. Pass `organizationId` only when the write is intentionally org-scoped; otherwise writes stay global (`organization_id IS NULL`).
+2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key`, the same `scope` (`admin` | `doctor` | `global`), and the same `organization_id` semantics in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
 3. **Migrations / SQL scripts / seeds** that write `system_settings` in `public` must either:
-   - duplicate the same row into `integrator.system_settings` in a migration, **or**
+   - duplicate the same `(key, scope, organization_id)` row into `integrator.system_settings` in a migration, **or**
    - document a follow-up admin "save" in Settings UI to push via HTTP sync, **or**
    - call the same sync mechanism from a one-off ops script (signed POST to integrator).
 4. **Do not** add a second sync call in Next.js route handlers; sync lives in `service.ts` only.

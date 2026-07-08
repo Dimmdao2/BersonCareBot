@@ -5,17 +5,17 @@ alwaysApply: true
 
 # system_settings: `public` + integrator schema (mirror)
 
-Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope)` and JSON `value_json`. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
+Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope, organization_id)` and JSON `value_json`. `organization_id IS NULL` is the global default row; non-null `organization_id` rows are organization overrides and must fall back to the global row on reads when absent. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
 
 ## Mandatory rules for agents
 
-1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert.
-2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key` and the same `scope` (`admin` | `doctor` | `global`) in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
+1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert. Pass `organizationId` only when the write is intentionally org-scoped; otherwise writes stay global (`organization_id IS NULL`).
+2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key`, the same `scope` (`admin` | `doctor` | `global`), and the same `organization_id` semantics in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
 3. **Migrations / SQL scripts / seeds** that write `system_settings` in `public` must either:
-   - duplicate the same row into `integrator.system_settings` in a migration, **or**
+   - duplicate the same `(key, scope, organization_id)` row into `integrator.system_settings` in a migration, **or**
    - document a follow-up admin “save” in Settings UI to push via HTTP sync, **or**
    - call the same sync mechanism from a one-off ops script (signed POST to integrator).
 4. **Do not** add a second sync call in Next.js route handlers; sync lives in `service.ts` only.
-5. **Runtime reads:** use sanctioned accessors, not ad-hoc `SELECT ... FROM system_settings`. Webapp uses `apps/webapp/src/infra/repos/pgSystemSettings.ts`; integrator uses `apps/integrator/src/infra/db/publicSystemSettings.ts`; media-worker keeps its documented process accessors until unified separately. The webapp lint script `check-system-settings-accessors.mjs` guards this.
+5. **Runtime reads:** use sanctioned accessors, not ad-hoc `SELECT ... FROM system_settings`. Webapp uses `apps/webapp/src/infra/repos/pgSystemSettings.ts`; integrator uses `apps/integrator/src/infra/db/publicSystemSettings.ts`; media-worker keeps its documented global-only process accessors until unified separately. The webapp lint script `check-system-settings-accessors.mjs` guards this.
 
 Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.

@@ -17,6 +17,9 @@ alwaysApply: true
 - Store integration config in webapp DB table `system_settings` with `scope='admin'`.
 - Keys must be included in `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`).
 - Values must be editable via admin settings flow (`/api/admin/settings` + Settings UI).
+- `system_settings` is org-aware: global defaults are rows with `organization_id IS NULL`; org-specific
+  overrides use the same `key` and `scope` with a non-null `organization_id`. The current admin
+  Settings UI remains global unless a setting flow explicitly passes organization context.
 
 ## Integrator/webapp implementation rule
 
@@ -24,4 +27,4 @@ alwaysApply: true
 - Webapp runtime reads must go through `apps/webapp/src/infra/repos/pgSystemSettings.ts`; integrator runtime reads must go through `apps/integrator/src/infra/db/publicSystemSettings.ts` unless a documented process-specific accessor exists. CI enforces direct-read regressions via `apps/webapp/scripts/check-system-settings-accessors.mjs`.
 - Env can remain only for process bootstrap/infra (`DATABASE_URL`, `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`) and temporary backward-compat fallback during migration.
 - Any new integration feature that proposes env vars for keys/URIs is considered invalid and must be redesigned to DB config.
-- `public.system_settings` and `integrator.system_settings` must stay aligned: webapp writes go through `updateSetting` (which syncs to integrator until refactored). Production typically uses **one** PostgreSQL (schemas `public` + `integrator`) — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, `.cursor/rules/system-settings-integrator-mirror.mdc`, `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
+- `public.system_settings` and `integrator.system_settings` must stay aligned for the full logical identity `(key, scope, organization_id)`: webapp writes go through `updateSetting` (which syncs to integrator until refactored). Production typically uses **one** PostgreSQL (schemas `public` + `integrator`) — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, `.cursor/rules/system-settings-integrator-mirror.mdc`, `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.

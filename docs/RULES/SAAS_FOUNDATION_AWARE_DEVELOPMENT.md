@@ -34,7 +34,7 @@
 - Не усиливать single-clinic / single-doctor assumption в новом коде.
 - Не добавлять параллельную SaaS-модель или отдельные SaaS route trees без продуктового решения.
 - Не добавлять ad hoc RLS policies, tenant enforcement или request-principal wiring до канонических этапов `DB_ACCESS_CHOKEPOINT` + `SAAS_FOUNDATION`.
-- Не переносить tenant/org integration settings в env. Интеграционные настройки остаются DB-backed через `system_settings` и правила mirror.
+- Не переносить tenant/org integration settings в env. Интеграционные настройки остаются DB-backed через org-aware `system_settings` и mirror-правила: global default = `organization_id IS NULL`, org override = тот же key/scope с non-null `organization_id`.
 - Не обходить существующие `organizationId` / `specialistId` / scoped parent paths в доменах, где они уже есть.
 
 ## Что делать вместо этого
@@ -44,4 +44,3 @@
 - Для новых write-paths сразу принимать/передавать текущий scoped context, если домен уже его поддерживает.
 - Для migrations фиксировать backfill/rollback/compat assumptions в плане или migration comments, если это влияет на SaaS path.
 - Для автономных задач сначала делать короткий preflight: найти текущую модель ownership в коде и документах, затем реализовывать только подтвержденный scope.
-

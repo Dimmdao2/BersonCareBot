@@ -69,10 +69,16 @@ still call only the service path; no route-level mirror sync was added.
 
 Checklist:
 
-- [ ] Admin UI remains global unless a setting is explicitly org-scoped.
-- [ ] `ALLOWED_KEYS` unchanged unless a real setting key is added.
-- [ ] Rules mention public/integrator mirror lockstep with org dimension.
-- [ ] Docs explain NULL global fallback and org-specific override.
+- [x] Admin UI remains global unless a setting is explicitly org-scoped.
+- [x] `ALLOWED_KEYS` unchanged unless a real setting key is added.
+- [x] Rules mention public/integrator mirror lockstep with org dimension.
+- [x] Docs explain NULL global fallback and org-specific override.
+
+P0.11.4 execution note (2026-07-08): updated `.cursor` rules, `AGENTS.md`, architecture docs,
+and SaaS-aware development guidance to describe the org-aware logical identity
+`(key, scope, organization_id)`, global `organization_id IS NULL` defaults, org-specific overrides,
+and current admin Settings UI global-by-default behavior. Added
+`check-p0-11-system-settings-docs-rules.mjs` to keep the docs/rules contract in SaaS regression.
 
 ## Local Gate
 
