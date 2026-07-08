@@ -151,7 +151,7 @@ Use them before executing the corresponding spine rows; they do not supersede th
 - P0.10 invariants are green over the full 219 artifact universe.
 - No aggregate P0.4/P0.7/P0.8/P0.11/P0.13 brief remains as an executable agent task.
 - Dormant mode preserves current single-clinic runtime behavior.
-- Full `pnpm run ci` is reserved for pre-push / final integration, not for every micro-stage.
+- Full `pnpm run ci` is reserved for deploy, merge/integration checkpoints, and repo-level/global changes, not for every micro-stage or ordinary backup-push.
 
 ## T0 — enforcement cutover (NOT Phase 0)
 Opt-in audit of the DB-access surface — **measured (non-test, excl `.next`/worktrees): ~198 files using `getPool`/`getDrizzle`/`runWebappPgText`, 54 dedicated `.connect()`, ~48 files with raw `.query()`, 28 server-action files** (counting method: ripgrep file-count) — plus the separate integrator/media-worker pools → route all through the chokepoint; flip GUC + non-bypass role; staging shadow-run. Gate: P0.10 green over 219 + prod-parity.

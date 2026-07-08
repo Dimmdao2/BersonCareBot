@@ -56,7 +56,7 @@ Allowed:
 - `LOG.md` update in the same commit;
 - taskdb status/note updates through `node /home/dev/brain/tools/taskdb.mjs`;
 - commit after the local gate passes;
-- backup push to the current non-main/non-test feature branch after the pre-push rule is satisfied.
+- backup push to the current non-main/non-test feature branch after the stage-appropriate local gate is satisfied.
 
 Forbidden:
 
@@ -92,13 +92,14 @@ Step or stage work:
 bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <targeted tests> && <targeted lint/typecheck> && git diff --check"
 ```
 
-Do not run `pnpm run ci` for normal micro-stage validation. Full CI is reserved for:
+Do not run `pnpm run ci` for normal micro-stage validation or ordinary backup-push. Full CI is reserved for:
 
-- explicit pre-push/final integration;
+- deploy / production-readiness / release gate;
+- merge/sync/integration checkpoint between branches;
 - root/shared/tooling/lockfile/CI changes;
 - a stage checklist that explicitly marks repo-level risk.
 
-If full CI fails, fix the failed step first, then use `ci:resume:*` before the final full pre-push barrier.
+If full CI fails, fix the failed step first, then use `ci:resume:*` before the final deploy/merge/integration full-CI barrier.
 
 ## Logging And Commit Discipline
 
@@ -124,7 +125,7 @@ node /home/dev/brain/tools/taskdb.mjs set <id> seal_test true
 node /home/dev/brain/tools/taskdb.mjs set <id> status done
 ```
 
-Backup push only after the required validation policy for that push has passed:
+Backup push only after the stage-appropriate local gate has passed. Do not promote backup-push to full CI unless the stage is a deploy, merge/integration checkpoint, repo-level/global change, or the user explicitly asks for full CI:
 
 ```bash
 git push origin HEAD

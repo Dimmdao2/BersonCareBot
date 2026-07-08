@@ -27,7 +27,7 @@
 6. [Host: PostgreSQL и DATABASE_URL](#6-host-postgresql-и-database_url)
 7. [Git: коммит и пуш](#7-git-коммит-и-пуш)
 8. [Команда «пуш»](#8-команда-пуш)
-9. [Перед пушем — полный CI](#9-перед-пушем--полный-ci)
+9. [Full CI gate](#9-full-ci-gate)
 10. [Test execution and audit policy](#10-test-execution-and-audit-policy)
 11. [Webapp-тесты: компактность](#11-webapp-тесты-компактность)
 12. [Plan Authoring And Execution Standard](#12-plan-authoring-and-execution-standard)
@@ -308,7 +308,7 @@ From `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` — same as "Абсолю
 From `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` — same as "Абсолютные запреты" items 7–8:
 
 - **Do not mix initiative phases.** One phase per logical batch of work; do not start phase N+1 before phase N passes its gate. Step vs phase validation: раздел [Test execution policy](#10-test-execution-and-audit-policy).
-- **Do not change the GitHub CI workflow** without an explicit team decision. Pre-push expectation: раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci) (`pnpm install --frozen-lockfile && pnpm run ci`).
+- **Do not change the GitHub CI workflow** without an explicit team decision. Full CI/deploy/merge expectation: раздел [Full CI gate](#9-full-ci-gate) (`pnpm install --frozen-lockfile && pnpm run ci` when the full-CI gate applies).
 
 Integration keys (DB not env), onboarding, and the full Drizzle checklist remain in `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` and other `.cursor/rules/*`. Always read that file when working on this initiative.
 
@@ -478,7 +478,7 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 ### Связь с «пуш»
 
-Для сценария **`пуш`** (CI + commit + push) шаг commit выполняется с тем же принципом: **полное дерево как есть**, без правок файлов «в процессе коммита», пока пользователь явно не ограничил файлы. Детали CI и барьера перед push — в разделах [Команда «пуш»](#8-команда-пуш) и [Перед пушем — полный CI](#9-перед-пушем--полный-ci).
+Для сценария **`пуш`** (validation + commit + push) шаг commit выполняется с тем же принципом: **полное дерево как есть**, без правок файлов «в процессе коммита», пока пользователь явно не ограничил файлы. Детали validation/full-CI gate — в разделах [Команда «пуш»](#8-команда-пуш), [Test execution policy](#10-test-execution-and-audit-policy) и [Full CI gate](#9-full-ci-gate).
 
 ---
 
@@ -488,29 +488,40 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 Если пользователь пишет `пуш` (или эквиваленты: "push", "запушь"), агент должен трактовать это как полный поток:
 
-1. Запустить pre-push барьер как в проектном правиле:
-   - `pnpm install --frozen-lockfile`
-   - `pnpm run ci`
+1. Запустить validation по масштабу изменения:
+   - обычный docs-only / micro-stage / одно-приложенческий backup-push: step/phase gate из раздела [Test execution policy](#10-test-execution-and-audit-policy);
+   - deploy / merge / integration checkpoint / repo-level risk: full CI gate из раздела [Full CI gate](#9-full-ci-gate).
 2. Если есть изменения — сделать commit по **всему** рабочему дереву (`git add -A`), если пользователь **явно** не указал иной scope файлов (см. раздел [Git: коммит](#7-git-коммит-и-пуш)). **На шаге commit не менять содержимое файлов** — только застейджить и закоммитить текущее состояние.
 3. Выполнить `git push` в текущую ветку/remote.
 
 Не отвечать уточнением "сначала нужно закоммитить?" в этом сценарии — commit является частью команды `пуш`.
 
-Примечание по скорости до команды `пуш`: если ранее `ci` падал, для локальных итераций допускается цикл «упавший шаг + `ci:resume:*`» (см. раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci)), но сам `пуш` всё равно требует полный барьер `pnpm install --frozen-lockfile && pnpm run ci`.
+Примечание: сам факт `push` в feature-ветку не повышает validation до full CI. Full CI нужен перед deploy, merge/integration checkpoints, repo-level изменениями или по явной просьбе пользователя.
 
 ---
 
-## 9. Перед пушем — полный CI
+## 9. Full CI gate
 
 *Источник: `.cursor/rules/pre-push-ci.mdc` (alwaysApply)*
 
-Многоуровневые прогоны во время работы (step / phase, без лишнего `ci`) — в разделе [Test execution policy](#10-test-execution-and-audit-policy). **Этот раздел** фиксирует только барьер перед отправкой в remote.
+Многоуровневые прогоны во время работы (step / phase, без лишнего `ci`) — в разделе [Test execution policy](#10-test-execution-and-audit-policy). **Этот раздел** фиксирует случаи, когда нужен полный корневой `ci`.
 
-**Инструкция для агентов:** когда пользователь просит **пуш**, коммит **с пушем** или явно «прогнать как в CI / перед пушем», выполнить тот же набор, что агрегирует корневой `ci`. Не полагаться только на `pnpm lint` или узкие тесты — локально они могут проходить, а порядок шагов в `ci` на GitHub иной контекст.
+**Канон:** полный `pnpm run ci` НЕ является обязательным перед каждым `git push` / backup-push в feature-ветку. Обычный micro-stage push допускается после подходящего step/phase gate из раздела [Test execution policy](#10-test-execution-and-audit-policy).
 
-### После падения CI (до push) — ускоренный цикл
+### Когда full CI обязателен
 
-Если `pnpm run ci` упал в середине и вносится локальный фикс, **разрешено** не перезапускать весь `ci` на каждой итерации:
+Выполнить полный набор, который агрегирует корневой `ci`, перед:
+
+- deploy / production deploy / staging deploy / prod-readiness gate;
+- merge/sync/integration checkpoint между ветками, особенно перед merge в `main`, `test`, `feat/doctor-ui-rebuild` или другую общую интеграционную ветку;
+- глобальным этапом инициативы, который меняет несколько приложений, shared-пакеты, root/tooling config, CI workflow, lockfile, миграционный контракт, DB-access chokepoint, RLS/policy/invariant framework или DI-контракты между приложениями;
+- явной просьбой пользователя: «полный CI», «как в GitHub», «перед деплоем», «перед merge», «перед релизом».
+
+Обычный docs-only, одно-приложенческий или micro-stage backup-push в текущую feature-ветку **не требует** full CI, если локальный gate по масштабу изменения прошёл.
+
+### После падения CI — ускоренный цикл
+
+Если full `pnpm run ci` был уместен по правилам выше, упал в середине и вносится локальный фикс, **разрешено** не перезапускать весь `ci` на каждой итерации:
 
 - сначала прогнать упавший шаг (или ещё уже — конкретный test file),
 - затем догнать хвост пайплайна через `ci:resume:*` из корневого `package.json`:
@@ -522,7 +533,7 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
   - `ci:resume:after-build`
   - `ci:resume:after-build-webapp`
 
-Это ускорение действует **только между правками**. Перед фактическим push барьер ниже остаётся обязательным в полном виде.
+Это ускорение действует **только между правками**. Перед deploy/merge/final integration gate полный барьер ниже остаётся обязательным в полном виде, если после последнего полного прогона были изменения.
 
 Выполнять:
 
@@ -535,7 +546,7 @@ pnpm run ci
 
 Состав `ci` задаётся корневым `package.json` (например: `lint`, `typecheck`, `test`, `test:webapp`, `build`, `build:webapp`, `audit`). Если `pnpm run ci` прошёл локально на актуальном дереве, ожидается зелёный GitHub Actions для того же коммита.
 
-**Не пушить без успешного `pnpm run ci`** в сценариях выше. Повторно гонять `ci` без новых изменений кода — не требуется (reuse — в test-execution-policy).
+**Не выполнять deploy/merge/final integration без успешного `pnpm run ci`** в сценариях выше. Повторно гонять `ci` без новых изменений кода — не требуется (reuse — в test-execution-policy).
 
 ---
 
@@ -543,13 +554,13 @@ pnpm run ci
 
 *Источник: `.cursor/rules/test-execution-policy.md` (alwaysApply)*
 
-Связь с пушем: полный CI перед отправкой в remote — раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci). Этот раздел задаёт поведение **между** коммитами и при аудите.
+Связь с push/deploy/merge: обычный push в feature-ветку использует validation по масштабу изменения; full CI gate описан в разделе [Full CI gate](#9-full-ci-gate) и нужен перед deploy, merge/integration checkpoints и repo-level изменениями. Этот раздел задаёт поведение **между** коммитами и при аудите.
 
 ### Приоритет правил (policy vs pre-push)
 
 **По умолчанию все проверки между коммитами и при аудите** определяются **этим** разделом (уровни step / phase / full CI только когда здесь разрешено).
 
-**Исключение:** раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci) включается **только** в сценарии финального **commit/push** (или явная просьба пользователя прогнать как перед пушем). Нельзя подменять повседневную работу «более безопасным» полным `ci`, если нет repo-уровня или запроса на push.
+**Исключение:** раздел [Full CI gate](#9-full-ci-gate) включается **только** для deploy, merge/integration checkpoints, repo-level изменений или явной просьбы пользователя прогнать полный CI. Нельзя подменять повседневную работу «более безопасным» полным `ci`, если нет repo-level риска.
 
 ### Принцип
 
@@ -574,7 +585,7 @@ pnpm run ci
 
 **Запрещено:** `pnpm run ci` / `pnpm check`, осознанный прогон **всех** тестов монорепы без repo-уровня риска.
 
-**Fallback, если нет однозначного файла/паттерна для Vitest:** не расширять до full CI. Подняться максимум до **phase-level** затронутого приложения (полный `test` этого `apps/*`). Автоматический переход к `pnpm run ci` из-за «не нашёл таргет» **запрещён**, пока нет признаков repo-уровня или сценария pre-push.
+**Fallback, если нет однозначного файла/паттерна для Vitest:** не расширять до full CI. Подняться максимум до **phase-level** затронутого приложения (полный `test` этого `apps/*`). Автоматический переход к `pnpm run ci` из-за «не нашёл таргет» **запрещён**, пока нет признаков repo-уровня или deploy/merge/integration сценария.
 
 **Примеры команд (этот репозиторий):**
 
@@ -603,7 +614,8 @@ pnpm run ci
 
 **Разрешено** в том числе:
 
-- перед финальным push (обязательное правило — pre-push-ci);
+- перед deploy / production-readiness / release gate;
+- перед merge/sync/integration checkpoint между ветками;
 - после изменений в shared-пакетах, корневых конфигах (`tsconfig`, ESLint, Vitest), workflows CI, lockfile/зависимостях, контрактах/DI на уровне нескольких приложений.
 
 **Запрещено:** повторять полный CI без новых изменений кода; гонять полный CI после каждого микрошага; «на всякий случай» без repo-риска.
@@ -634,7 +646,7 @@ pnpm run ci
 - после `build`: `pnpm run ci:resume:after-build`
 - после `build:webapp`: `pnpm run ci:resume:after-build-webapp`
 
-**Важно:** перед фактическим push остаётся обязательным барьер из раздела [Перед пушем — полный CI](#9-перед-пушем--полный-ci) (`pnpm install --frozen-lockfile && pnpm run ci`).
+**Важно:** перед deploy/merge/final integration остаётся обязательным барьер из раздела [Full CI gate](#9-full-ci-gate) (`pnpm install --frozen-lockfile && pnpm run ci`). Обычный feature-branch backup-push не требует full CI сам по себе.
 
 ### Логи
 
@@ -644,9 +656,9 @@ pnpm run ci
 
 - точечная правка в одном модуле → **step**;
 - законченный кусок работы внутри одного приложения → **phase** для этого приложения;
-- затронут общий пакет, CI, lockfile, корневые типы/контракты, несколько приложений → **full CI** (и обязательно перед push).
+- затронут общий пакет, CI, lockfile, корневые типы/контракты, несколько приложений → **full CI** перед deploy/merge/integration checkpoint.
 
-**Если scope не удаётся определить однозначно:** выбирать **phase-level** для наиболее вероятного приложения, **не** full CI до появления признаков repo-уровня или до сценария push.
+**Если scope не удаётся определить однозначно:** выбирать **phase-level** для наиболее вероятного приложения, **не** full CI до появления признаков repo-уровня или deploy/merge/integration сценария.
 
 ### Антипаттерны
 
@@ -783,7 +795,7 @@ pnpm run ci
 - **В тексте плана** явно различать:
   - **Обычный финал задачи / маленький план:** достаточно целевых проверок из чек-листа (часто — затронутые тесты + lint/typecheck по области).
   - **Большой многоэтапный план:** один финальный прогон **`pnpm run ci`** (или эквивалент из корневого `package.json`) после завершения всего объёма или перед передачей в merge — указать это один раз в Definition of Done / критериях приёмки.
-  - **Пуш в remote:** полный CI обязателен по правилам репозитория (см. раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci), команда «пуш») — **не** дублировать это как требование после каждого подпункта плана.
+  - **Deploy / merge / integration checkpoint:** полный CI обязателен по правилам репозитория (см. раздел [Full CI gate](#9-full-ci-gate)) — **не** дублировать это как требование после каждого подпункта плана. Обычный feature-branch backup-push после локального gate не требует full CI сам по себе.
 
 ### Дополнительно (без лишнего усложнения)
 
