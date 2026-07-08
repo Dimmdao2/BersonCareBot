@@ -92,4 +92,58 @@ describe("VisitCatalogTextarea", () => {
       "Свободная строка Ходьба 1 раз · ежедневно · 2 недели 20 минут",
     );
   });
+
+  it("limits long catalog lists and filters them locally", async () => {
+    const user = userEvent.setup();
+    const items = Array.from({ length: 45 }, (_, index) => ({
+      id: `m${index + 1}`,
+      code: `item-${index + 1}`,
+      title: index === 44 ? "Редкая манипуляция" : `Манипуляция ${index + 1}`,
+      sortOrder: index + 1,
+    }));
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, items }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Harness catalog="manipulations" />);
+
+    await user.click(screen.getByRole("button", { name: /выбрать из справочника/i }));
+
+    expect(await screen.findByRole("button", { name: /^манипуляция 1$/i })).toBeInTheDocument();
+    expect(screen.getByText("Показано 40 из 45 — уточните поиск")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /редкая манипуляция/i })).not.toBeInTheDocument();
+
+    const search = screen.getByRole("searchbox", { name: /поиск по справочнику/i });
+    await user.type(search, "редкая");
+
+    expect(screen.getByText("Показано 1 из 1")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /редкая манипуляция/i }));
+    expect(screen.getByTestId("value")).toHaveTextContent("Свободная строка Редкая манипуляция");
+  });
+
+  it("moves focus from search to the first visible option with ArrowDown", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          items: [{ id: "m1", code: "mobilization", title: "Мобилизация", sortOrder: 10 }],
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Harness catalog="manipulations" />);
+
+    await user.click(screen.getByRole("button", { name: /выбрать из справочника/i }));
+    const search = await screen.findByRole("searchbox", { name: /поиск по справочнику/i });
+    search.focus();
+    await user.keyboard("{ArrowDown}");
+
+    expect(screen.getByRole("button", { name: /мобилизация/i })).toHaveFocus();
+  });
 });
