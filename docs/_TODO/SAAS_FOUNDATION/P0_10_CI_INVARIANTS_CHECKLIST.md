@@ -6,13 +6,22 @@ Purpose: turn the hardest SAAS table-scope assumptions into CI invariants.
 
 ## P0.10.1 Tier Completeness
 
+Status: implemented.
+
 Checklist:
 
-- [ ] Every base table appears in exactly one tier in `tiers-218.tsv`.
-- [ ] `tiers-218.tsv` agrees with the active database/schema snapshot used by the checker.
-- [ ] `needs-orgid-FINAL.txt` equals SCOPED tables requiring direct `organization_id`.
-- [ ] P0.4 batch artifact exactly covers `needs-orgid-FINAL.txt`.
-- [ ] P0.4.BE FK-path tables remain outside `needs-orgid-FINAL.txt`.
+- [x] Every base table appears in exactly one tier in `tiers-218.tsv`.
+- [x] `tiers-218.tsv` agrees with the active database/schema snapshot used by the checker.
+- [x] `needs-orgid-FINAL.txt` equals SCOPED tables requiring direct `organization_id`.
+- [x] P0.4 batch artifact exactly covers `needs-orgid-FINAL.txt`.
+- [x] P0.4.BE FK-path tables remain outside `needs-orgid-FINAL.txt`.
+
+Implementation:
+
+- `scripts/check-saas-db-regression.mjs` runs `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-tier-completeness.mjs`.
+- The checker compares `tiers-218.tsv` to the frozen schema snapshot `all-218-signals.tsv`; it does not query live dev/prod/test databases.
+- The checker treats `needs-orgid-FINAL.txt` as exactly the SCOPED non-`public.be_*` materialization set (`111` tables). The `44` `public.be_*` SCOPED tables already have direct/self org semantics or the P0.4.BE FK-path declaration.
+- `--self-test` mutates in-memory facts to prove duplicate tier rows, snapshot mismatches, `needs-orgid` mismatches, and accidental P0.4.BE inclusion fail closed.
 
 ## P0.10.2 User-Reference Tier Guard
 

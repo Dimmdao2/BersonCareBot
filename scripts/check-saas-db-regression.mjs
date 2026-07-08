@@ -58,6 +58,10 @@ const checks = [
     label: "SAAS P0.9.1 default-deny enforce descriptors",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-9-enforce-descriptors.mjs"],
   },
+  {
+    label: "SAAS P0.10.1 tier completeness invariant",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-tier-completeness.mjs"],
+  },
 ];
 
 for (const check of checks) {
