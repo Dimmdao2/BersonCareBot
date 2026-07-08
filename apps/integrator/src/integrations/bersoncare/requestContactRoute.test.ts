@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
+import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { drizzleSqlFragmentToApproximateSql } from '../../infra/db/drizzleSqlDebugText.js';
 import { stubIntegratorDrizzleForTests } from '../../infra/db/stubIntegratorDrizzleForTests.js';
@@ -104,6 +105,45 @@ describe('POST /api/bersoncare/request-contact', () => {
     expect(intent.payload.delivery.channels).toEqual(['telegram']);
     const row0 = intent.payload.replyMarkup.keyboard?.[0];
     expect(row0?.[0]).toMatchObject({ request_contact: true });
+    await app.close();
+  });
+
+  it('runs request-contact dispatch under resolved recipient organization context', async () => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const dispatchOutgoing = vi.fn().mockImplementation(async () => {
+      expect(getCurrentOrganizationPrincipalId()).toBe(organizationId);
+    });
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const resolveOrganizationIdForMessengerIdentity = vi.fn(async () => organizationId);
+    const app = await buildApp({
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: TEST_SECRET,
+      db: dbWithTx(query),
+      resolveOrganizationIdForMessengerIdentity,
+    });
+    const bodyObj = {
+      channel: 'telegram' as const,
+      recipientId: '999',
+      idempotencyKey: 'idem-context',
+    };
+    const rawBody = JSON.stringify(bodyObj);
+    const ts = String(Math.floor(Date.now() / 1000));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/request-contact',
+      headers: {
+        'content-type': 'application/json',
+        'x-bersoncare-timestamp': ts,
+        'x-bersoncare-signature': sign(ts, rawBody, TEST_SECRET),
+      },
+      body: rawBody,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(resolveOrganizationIdForMessengerIdentity).toHaveBeenCalledWith('999', 'telegram');
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
+    expect(getCurrentOrganizationPrincipalId()).toBeUndefined();
     await app.close();
   });
 

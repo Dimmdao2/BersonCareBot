@@ -10,7 +10,11 @@ import { registerBersoncareUserMergeM2mRoutes } from '../integrations/bersoncare
 import { registerOperatorHealthProbeRoute } from '../integrations/bersoncare/operatorHealthProbeRoute.js';
 import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
-import { getLinkDataByIdentity } from '../infra/db/repos/channelUsers.js';
+import {
+  getLinkDataByIdentity,
+  resolveActiveOrganizationIdForIntegratorUserId,
+  resolveActiveOrganizationIdForMessengerIdentity,
+} from '../infra/db/repos/channelUsers.js';
 import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
 import { registerRubitimeAdminM2mRoutes } from '../integrations/rubitime/adminM2mRoute.js';
 import { getAppBaseUrl } from '../config/appBaseUrl.js';
@@ -43,12 +47,41 @@ function createResolveIntegratorUserIdForMessenger(): (
   };
 }
 
+function createResolveOrganizationIdForMessengerIdentity(): (
+  externalId: string,
+  resource: 'telegram' | 'max',
+) => Promise<string | null> {
+  return async (externalId, resource) => {
+    try {
+      const db = createDbPort();
+      return await resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId });
+    } catch {
+      return null;
+    }
+  };
+}
+
+function createResolveOrganizationIdForIntegratorUserId(): (
+  integratorUserId: string,
+) => Promise<string | null> {
+  return async (integratorUserId) => {
+    try {
+      const db = createDbPort();
+      return await resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId);
+    } catch {
+      return null;
+    }
+  };
+}
+
 /**
  * Registers all HTTP routes for the app layer.
  * Business routing is delegated to integration registrars + eventGateway.
  */
 export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promise<void> {
   const resolveIntegratorUserIdForMessenger = createResolveIntegratorUserIdForMessenger();
+  const resolveOrganizationIdForMessengerIdentity = createResolveOrganizationIdForMessengerIdentity();
+  const resolveOrganizationIdForIntegratorUserId = createResolveOrganizationIdForIntegratorUserId();
 
   app.get<{ Reply: HealthResponse }>('/health', async (_request, _reply) => {
     const dbOk = await deps.healthCheckDb();
@@ -94,6 +127,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     db: createDbPort(),
+    resolveOrganizationIdForMessengerIdentity,
   });
 
   await registerBersoncareSendOtpRoute(app, {
@@ -104,6 +138,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareReminderRulesRoute(app, {
     writePort: deps.dbWritePort,
     sharedSecret: integratorWebhookSecret(),
+    resolveOrganizationIdForIntegratorUserId,
   });
 
   await registerBersoncareSettingsSyncRoute(app, {
@@ -139,6 +174,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const telegramWebhookDeps = {
     eventGateway: deps.eventGateway,
     resolveIntegratorUserIdForMessenger,
+    resolveOrganizationIdForMessengerIdentity,
     getAppBaseUrl: getAppBaseUrlForWebhooks,
     resolveMessengerStaffAdmin,
   };
@@ -169,10 +205,10 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
       await deps.registerMaxWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
+        resolveOrganizationIdForMessengerIdentity,
         getAppBaseUrl: getAppBaseUrlForWebhooks,
         resolveMessengerStaffAdmin,
       });
     });
   }
 }
-

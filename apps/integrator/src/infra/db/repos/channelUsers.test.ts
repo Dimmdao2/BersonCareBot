@@ -7,6 +7,8 @@ import {
   getNotificationSettings,
   getUserLinkData,
   getUserState,
+  resolveActiveOrganizationIdForIntegratorUserId,
+  resolveActiveOrganizationIdForMessengerIdentity,
   setUserPhone,
   setUserState,
   tryAdvanceLastUpdateId,
@@ -50,6 +52,79 @@ function mockLinkedPhoneStrategyQuery(
 describe('channelUsers repo (identity/contact/state split)', () => {
   beforeEach(() => {
     resetIntegratorLinkedPhoneSourceCacheForTests();
+  });
+
+  it('resolves a single active organization from messenger identity bridge', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({
+      rows: [{ organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
+      rowCount: 1,
+    } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForMessengerIdentity(db, {
+      resource: 'telegram',
+      externalId: '123',
+    });
+
+    expect(orgId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    const sqlText = flatExec(execute, 0);
+    expect(sqlText).toContain('FROM integrator.identities');
+    expect(sqlText).toContain('identity_row.resource = telegram');
+    expect(sqlText).toContain('identity_row.external_id = 123');
+    expect(sqlText).toContain('public.platform_users');
+    expect(sqlText).toContain('platform_user.integrator_user_id = identity_user.user_id');
+    expect(sqlText).toContain('public.org_enrollments');
+    expect(sqlText).toContain('public.be_organization_members');
+    expect(sqlText).toContain("status = 'active'");
+    expect(sqlText).toContain('LIMIT 2');
+    expect(sqlText).not.toContain('a0000000-0000-4000-8000-000000000001');
+  });
+
+  it('keeps messenger identity organization context unset when no active org exists', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForMessengerIdentity(db, {
+      resource: 'max',
+      externalId: '456',
+    });
+
+    expect(orgId).toBeNull();
+  });
+
+  it('keeps messenger identity organization context unset for multi-org users', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({
+      rows: [
+        { organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+        { organization_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+      ],
+      rowCount: 2,
+    } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForMessengerIdentity(db, {
+      resource: 'telegram',
+      externalId: '123',
+    });
+
+    expect(orgId).toBeNull();
+  });
+
+  it('resolves a single active organization from direct integrator user id', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({
+      rows: [{ organization_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
+      rowCount: 1,
+    } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForIntegratorUserId(db, '42');
+
+    expect(orgId).toBe('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+    const sqlText = flatExec(execute, 0);
+    expect(sqlText).toContain('platform_user.integrator_user_id = 42::bigint');
+    expect(sqlText).toContain('public.org_enrollments');
+    expect(sqlText).toContain('public.be_organization_members');
+    expect(sqlText).toContain('LIMIT 2');
   });
 
   it('upsertUser uses canonical identities and telegram_state only', async () => {

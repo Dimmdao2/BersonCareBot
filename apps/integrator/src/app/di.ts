@@ -84,6 +84,10 @@ export type MessengerWebappEntryIdentityDeps = {
   getAppBaseUrl?: () => Promise<string>;
   /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
+  resolveOrganizationIdForMessengerIdentity?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | null>;
 };
 
 export type TelegramRoutesRegistrar = (
