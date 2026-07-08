@@ -13,6 +13,8 @@ import type {
   ResolvedBranchService,
 } from "@/modules/booking-catalog/types";
 
+const DEFAULT_ORGANIZATION_ID = "a0000000-0000-4000-8000-000000000001";
+
 // ---------------------------------------------------------------------------
 // Row mappers
 // ---------------------------------------------------------------------------
@@ -164,6 +166,39 @@ async function syncBranchesTimezoneFromCatalog(rubitimeBranchId: string, timezon
   await runWebappPgText(
     `UPDATE branches SET timezone = $1, updated_at = now() WHERE integrator_branch_id = $2`,
     [tz, integratorId],
+  );
+}
+
+async function syncCanonicalServiceFromCatalog(input: {
+  title: string;
+  description: string | null;
+  durationMinutes: number;
+  breakAfterMinutes: number;
+  priceMinor: number;
+  isActive: boolean;
+  sortOrder: number;
+}): Promise<void> {
+  await runWebappPgText(
+    `INSERT INTO be_clinic_services
+       (organization_id, title, description, duration_minutes, buffer_after_minutes, price_minor, is_active, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT ON CONSTRAINT uq_be_clinic_services_org_title_duration DO UPDATE
+       SET description = EXCLUDED.description,
+           buffer_after_minutes = EXCLUDED.buffer_after_minutes,
+           price_minor = EXCLUDED.price_minor,
+           is_active = EXCLUDED.is_active,
+           sort_order = EXCLUDED.sort_order,
+           updated_at = now()`,
+    [
+      DEFAULT_ORGANIZATION_ID,
+      input.title,
+      input.description,
+      input.durationMinutes,
+      input.breakAfterMinutes,
+      input.priceMinor,
+      input.isActive,
+      input.sortOrder,
+    ],
   );
 }
 
@@ -565,6 +600,15 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
          RETURNING id`,
         [title, description, durationMinutes, breakAfterMinutes, priceMinor, isActive, sortOrder],
       );
+      await syncCanonicalServiceFromCatalog({
+        title,
+        description,
+        durationMinutes,
+        breakAfterMinutes,
+        priceMinor,
+        isActive,
+        sortOrder,
+      });
       return { id: result.rows[0]!.id };
     },
 
@@ -752,6 +796,15 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
          RETURNING id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order, created_at, updated_at`,
         [id, title, description, durationMinutes, breakAfterMinutes, priceMinor, isActive, sortOrder],
       );
+      await syncCanonicalServiceFromCatalog({
+        title,
+        description,
+        durationMinutes,
+        breakAfterMinutes,
+        priceMinor,
+        isActive,
+        sortOrder,
+      });
       return mapService(result.rows[0]!);
     },
 

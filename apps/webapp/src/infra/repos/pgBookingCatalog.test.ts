@@ -101,8 +101,8 @@ describe("createPgBookingCatalogPort", () => {
   });
 
   describe("upsertService", () => {
-    it("stores break_after_minutes with the service", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: "svc-uuid-1" }] });
+    it("stores break_after_minutes with the service and syncs canonical buffer", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: "svc-uuid-1" }] }).mockResolvedValueOnce({ rows: [] });
       const port = createPgBookingCatalogPort();
       await port.upsertService({
         title: "Приём",
@@ -116,6 +116,20 @@ describe("createPgBookingCatalogPort", () => {
       const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("break_after_minutes");
       expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+        "Приём",
+        null,
+        60,
+        15,
+        100,
+        true,
+        0,
+      ]);
+      const canonicalSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+      expect(canonicalSql).toContain("be_clinic_services");
+      expect(canonicalSql).toContain("buffer_after_minutes");
+      expect(canonicalSql).toContain("uq_be_clinic_services_org_title_duration");
+      expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([
+        "a0000000-0000-4000-8000-000000000001",
         "Приём",
         null,
         60,
