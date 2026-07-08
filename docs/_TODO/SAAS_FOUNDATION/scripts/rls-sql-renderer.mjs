@@ -83,3 +83,44 @@ export function renderPolicyTarget(table) {
   return quoteQualifiedName(table);
 }
 
+export function renderEnableRowLevelSecurity(target) {
+  return `ALTER TABLE ${renderPolicyTarget(target)} ENABLE ROW LEVEL SECURITY;`;
+}
+
+export function renderForceRowLevelSecurity(target) {
+  return `ALTER TABLE ${renderPolicyTarget(target)} FORCE ROW LEVEL SECURITY;`;
+}
+
+export function renderDropPolicy({ policyName, target }) {
+  return `DROP POLICY IF EXISTS ${quoteSqlIdentifier(policyName)} ON ${renderPolicyTarget(target)};`;
+}
+
+export function renderCreatePolicy({ policyName, target, predicate }) {
+  const policySql = quoteSqlIdentifier(policyName);
+  const targetSql = renderPolicyTarget(target);
+
+  if (typeof predicate !== "string" || predicate.length === 0) {
+    throw new Error("Policy predicate must be a non-empty string");
+  }
+
+  return `CREATE POLICY ${policySql} ON ${targetSql} FOR ALL USING (${predicate}) WITH CHECK (${predicate});`;
+}
+
+export function renderOrgDormantPolicyStatements(descriptor, { policyName }) {
+  if (descriptor?.scopingKind !== "direct_org_column") {
+    throw new Error(`Direct-org policy requires direct_org_column descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  }
+
+  if (typeof policyName !== "string" || policyName.length === 0) {
+    throw new Error("Policy name must be a non-empty string");
+  }
+
+  const predicate = renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
+
+  return [
+    renderEnableRowLevelSecurity(descriptor.table),
+    renderForceRowLevelSecurity(descriptor.table),
+    renderDropPolicy({ policyName, target: descriptor.table }),
+    renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
+  ];
+}

@@ -51,7 +51,7 @@ Pure unit-test cases:
 
 Each application substage must use scratch/non-prod policy smoke before merge:
 
-- [ ] P0.8.3 public direct-org SCOPED families.
+- [x] P0.8.3 public direct-org SCOPED families.
 - [ ] P0.8.4 public FK/denorm-path SCOPED families.
 - [ ] P0.8.5 integrator bridge/denorm SCOPED families.
 - [ ] P0.8.6 BOOTSTRAP hybrid policies.
@@ -66,8 +66,9 @@ Minimum implementation facts:
 
 - target count must be exactly `103`;
 - parent-copy holds remain excluded;
-- generator/smoke tooling must exist before a real policy migration;
-- real migration is allowed only after scratch smoke passes.
+- generator/smoke tooling exists and must pass before a real policy migration;
+- real migration is allowed only after scratch smoke passes;
+- executed migration: `apps/webapp/db/drizzle-migrations/0160_p0_8_3_public_direct_org_rls.sql`.
 
 ### P0.8.4 Public FK/Denorm-Path Policy Application
 
