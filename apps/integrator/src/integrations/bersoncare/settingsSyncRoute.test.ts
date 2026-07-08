@@ -69,7 +69,9 @@ describe('POST /api/integrator/settings/sync', () => {
     expect(query).not.toHaveBeenCalled();
     expect(runIntegratorSql).toHaveBeenCalledTimes(1);
     const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
-    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain('INSERT INTO integrator.system_settings');
+    const sqlText = drizzleSqlFragmentToApproximateSql(fragment);
+    expect(sqlText).toContain('INSERT INTO integrator.system_settings');
+    expect(sqlText).toContain('ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE');
   });
 
   it('invalidates app display timezone cache when key is app_display_timezone', async () => {

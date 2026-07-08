@@ -2634,16 +2634,18 @@ export const userSubscriptions = pgTable("user_subscriptions", {
 export const systemSettings = pgTable("system_settings", {
 	key: text().notNull(),
 	scope: text().default('global').notNull(),
+	organizationId: uuid("organization_id"),
 	valueJson: jsonb("value_json").default({}).notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedBy: uuid("updated_by"),
 }, (table) => [
+	uniqueIndex("system_settings_global_key_scope_uidx").using("btree", table.key.asc().nullsLast().op("text_ops"), table.scope.asc().nullsLast().op("text_ops")).where(sql`organization_id IS NULL`),
+	uniqueIndex("system_settings_org_key_scope_uidx").using("btree", table.key.asc().nullsLast().op("text_ops"), table.scope.asc().nullsLast().op("text_ops"), table.organizationId.asc().nullsLast().op("uuid_ops")).where(sql`organization_id IS NOT NULL`),
 	foreignKey({
 			columns: [table.updatedBy],
 			foreignColumns: [platformUsers.id],
 			name: "system_settings_updated_by_fkey"
 		}),
-	primaryKey({ columns: [table.key, table.scope], name: "system_settings_pkey"}),
 	check("system_settings_scope_check", sql`scope = ANY (ARRAY['global'::text, 'doctor'::text, 'admin'::text])`),
 ]);
 

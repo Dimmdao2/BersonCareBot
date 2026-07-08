@@ -70,6 +70,10 @@ const checks = [
     label: "SAAS P0.10.3 scoped tenant semantics invariant",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-scoped-tenant-semantics.mjs"],
   },
+  {
+    label: "SAAS P0.11.1 system_settings storage shape",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-storage.mjs"],
+  },
 ];
 
 for (const check of checks) {

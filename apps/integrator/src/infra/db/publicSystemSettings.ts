@@ -65,7 +65,10 @@ export async function fetchPublicSystemSettingValueJson(
 ): Promise<unknown | null> {
   const res = await runIntegratorSql<{ value_json: unknown }>(
     db,
-    sql`SELECT value_json FROM public.system_settings WHERE key = ${key} AND scope = ${scope} LIMIT 1`,
+    sql`SELECT value_json
+        FROM public.system_settings
+        WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL
+        LIMIT 1`,
   );
   const row = res.rows[0];
   if (!row) return null;

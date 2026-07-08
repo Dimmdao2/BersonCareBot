@@ -47,6 +47,7 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("FROM system_settings");
     expect(sql).toContain("key = $1 AND scope = $2");
+    expect(sql).toContain("organization_id IS NULL");
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["support_contact_url", "admin"]);
   });
 
@@ -80,7 +81,33 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("FROM system_settings");
     expect(sql).toContain("scope = ANY($2::text[])");
+    expect(sql).toContain("organization_id IS NULL");
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["support_contact_url", ["admin"]]);
+  });
+
+  it("upsert targets the global partial unique index", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            key: "dev_mode",
+            scope: "admin",
+            value_json: { value: true },
+            updated_at: "2026-06-06T00:00:00.000Z",
+            updated_by: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgSystemSettingsPort();
+    await port.upsert("dev_mode", "admin", { value: true }, null);
+
+    const selectSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    const upsertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(selectSql).toContain("organization_id IS NULL");
+    expect(upsertSql).toContain("ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE");
   });
 
   it("readSystemSettingInnerValueByScopes preserves caller scope priority", async () => {

@@ -87,7 +87,7 @@ describe('setNotifTemplate', () => {
     await setNotifTemplate('cancelled', 'patient', 'My template', db);
     const sqlText = queryFn.mock.calls[0]?.[0] as string | undefined;
     const params = queryFn.mock.calls[0]?.[1] as unknown[] | undefined;
-    expect(sqlText).toContain('ON CONFLICT');
+    expect(sqlText).toContain('ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE');
     expect(params).toContain('notif_template:cancelled:patient');
   });
 });

@@ -75,7 +75,7 @@ export async function setNotifTemplate(
     db,
     sql`INSERT INTO public.system_settings (key, scope, value_json, updated_at)
       VALUES (${key}, 'admin', ${valueJson}::jsonb, NOW())
-      ON CONFLICT (key, scope) DO UPDATE SET
+      ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
         value_json = EXCLUDED.value_json,
         updated_at = NOW()`,
   );

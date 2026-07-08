@@ -18,12 +18,19 @@ global admin settings or the integrator mirror.
 
 Checklist:
 
-- [ ] Add nullable `organization_id` to `public.system_settings`.
-- [ ] Add matching nullable `organization_id` to `integrator.system_settings`.
-- [ ] Change logical uniqueness from `(key, scope)` to org-aware uniqueness.
-- [ ] Add partial unique index for global rows where `organization_id IS NULL`.
-- [ ] Backfill existing rows as global (`organization_id NULL`).
-- [ ] Preserve current global settings reads.
+- [x] Add nullable `organization_id` to `public.system_settings`.
+- [x] Add matching nullable `organization_id` to `integrator.system_settings`.
+- [x] Change logical uniqueness from `(key, scope)` to org-aware uniqueness.
+- [x] Add partial unique index for global rows where `organization_id IS NULL`.
+- [x] Backfill existing rows as global (`organization_id NULL`).
+- [x] Preserve current global settings reads.
+
+P0.11.1 execution note (2026-07-08): storage DDL is placed before the existing P0.8.6
+BOOTSTRAP hybrid RLS policies in `0163_p0_8_6_bootstrap_hybrid_rls.sql`, because those policies
+already reference `organization_id` and a fresh migration chain would otherwise fail before a later
+P0.11 migration could run. Current runtime settings reads/writes remain global-only by explicitly
+filtering/targeting `organization_id IS NULL`; full org-context read/write semantics remain P0.11.2
+and P0.11.3.
 
 ## P0.11.2 Read Path
 

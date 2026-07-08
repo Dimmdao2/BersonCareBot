@@ -41,7 +41,8 @@ export async function readSystemSettingInnerValueByScopes(
   const r = await runWebappPgText<SystemSettingValueRow>(
     `SELECT scope, value_json
        FROM system_settings
-      WHERE key = $1 AND scope = ANY($2::text[])`,
+      WHERE key = $1 AND scope = ANY($2::text[])
+        AND organization_id IS NULL`,
     [key, [...scopes]],
   );
   for (const scope of scopes) {
@@ -104,7 +105,7 @@ async function upsertWithAudit(
 ): Promise<SystemSettingRow> {
   // 1. Read the current value (old state, NULL if first-set)
   const prevResult = await runWebappPgText<{ value_json: unknown }>(
-    `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2`,
+    `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
     [key, scope],
     tx,
   );
@@ -114,7 +115,7 @@ async function upsertWithAudit(
   const r = await runWebappPgText<SystemSettingRow>(
     `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
      VALUES ($1, $2, $3::jsonb, now(), $4)
-     ON CONFLICT (key, scope) DO UPDATE
+     ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
        SET value_json = EXCLUDED.value_json,
            updated_at = now(),
            updated_by = EXCLUDED.updated_by
@@ -147,7 +148,7 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
     async getByKey(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null> {
       const r = await runWebappPgText<SystemSettingRow>(
         `SELECT key, scope, value_json, updated_at, updated_by
-         FROM system_settings WHERE key = $1 AND scope = $2`,
+         FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
         [key, scope],
       );
       if (!r.rows[0]) return null;
@@ -157,7 +158,7 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
     async getByScope(scope: SystemSettingScope): Promise<SystemSetting[]> {
       const r = await runWebappPgText<SystemSettingRow>(
         `SELECT key, scope, value_json, updated_at, updated_by
-         FROM system_settings WHERE scope = $1 ORDER BY key`,
+         FROM system_settings WHERE scope = $1 AND organization_id IS NULL ORDER BY key`,
         [scope],
       );
       return r.rows.map(rowToSetting);
