@@ -14,7 +14,8 @@
 
 ## Подключение
 
-- **Одна база, одна роль, две схемы:** в целевом production **`DATABASE_URL` в `api.prod` и `webapp.prod` совпадает** — одна строка подключения, **один пользователь PostgreSQL** (роль БД) с правами на схемы **`public`** и **`integrator`**. Разделение данных — только именами схем и `search_path` / квалифицированными именами в SQL, не отдельными URL или учётками для webapp и integrator.
+- **Одна база, текущая runtime-роль, две схемы:** в подтверждённом production **`DATABASE_URL` в `api.prod` и `webapp.prod` совпадает** — одна строка подключения к той же базе и текущая роль PostgreSQL с правами на схемы **`public`** и **`integrator`**. Разделение данных сейчас выполняется только именами схем и `search_path` / квалифицированными именами в SQL, не отдельными базами.
+- **SAAS P0.5.1 future split:** для будущего RLS-cutover целевая модель разделяет migrator/owner и non-bypass app runtime role (`NOBYPASSRLS`). Это пока dormant-контракт, не подтверждённое состояние production env. Не добавлять новые env-файлы, имена ролей или инструкции переключения runtime до отдельного host-confirmed этапа. Контракт и scratch proof: [`../_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT.md`](../_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT.md).
 - Роль приложения integrator: `search_path` вида `integrator, public` (или квалифицированные имена `public.table` / `integrator.table`).
 - Права: `USAGE` на обе схемы и минимальные `GRANT` на нужные таблицы/sequences (не `GRANT ALL ON DATABASE` без необходимости). Миграции с `GRANT` в репозитории фиксируют **минимальный контракт** доступа integrator к `public`; при одной роли на обе схемы с уже достаточными правами они часто **не меняют** эффективные права, но остаются полезны для CI, отдельных окружений и сценария «миграции под другим пользователем».
 

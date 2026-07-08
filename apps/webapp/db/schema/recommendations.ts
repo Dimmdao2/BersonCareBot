@@ -1,11 +1,13 @@
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, boolean, jsonb, timestamp, index, foreignKey, primaryKey } from "drizzle-orm/pg-core";
+import { beOrganizations } from "./bookingEngine";
 import { platformUsers, referenceItems } from "./schema";
 
 export const recommendations = pgTable(
   "recommendations",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     title: text().notNull(),
     bodyMd: text("body_md").notNull(),
     media: jsonb("media")
@@ -26,9 +28,15 @@ export const recommendations = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_recommendations_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
     index("idx_recommendations_archived").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
     index("idx_recommendations_domain").using("btree", table.domain.asc().nullsLast().op("text_ops")),
     index("idx_recommendations_body_region").using("btree", table.bodyRegionId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "recommendations_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
@@ -46,11 +54,18 @@ export const recommendations = pgTable(
 export const recommendationRegions = pgTable(
   "recommendation_regions",
   {
+    organizationId: uuid("organization_id"),
     recommendationId: uuid("recommendation_id").notNull(),
     bodyRegionId: uuid("body_region_id").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.recommendationId, table.bodyRegionId], name: "recommendation_regions_pkey" }),
+    index("idx_recommendation_regions_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "recommendation_regions_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.recommendationId],
       foreignColumns: [recommendations.id],

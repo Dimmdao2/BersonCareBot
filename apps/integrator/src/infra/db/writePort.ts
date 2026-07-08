@@ -4,9 +4,11 @@ import type {
   DispatchPort,
   DbWriteDbResult,
   DbWriteMutation,
+  DbWriteMutationType,
   DbWritePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
 import { insertEvent } from './repos/bookingRecords.js';
 import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } from './repos/channelUsers.js';
@@ -191,6 +193,19 @@ export function createDbWritePort(input: {
   const readPort = input.readPort;
   const webappEventsPort = input.webappEventsPort;
   const getDispatchPort = input.getDispatchPort;
+  const plainMutationsRequiringPrincipalTx: ReadonlySet<DbWriteMutationType> = new Set([
+    'event.log',
+    'user.state.set',
+    'draft.upsert',
+    'draft.cancel',
+    'identity.ensure',
+    'conversation.mergeLegacyToPlatform',
+    'reminders.occurrence.upsertPlanned',
+    'reminders.occurrence.markQueued',
+    'reminders.occurrence.reschedulePlanned',
+    'reminders.occurrence.markSkippedLocal',
+    'message.retry.enqueue',
+  ]);
 
   async function fanoutProjectionsAfterTx(pending: ProjectionFanoutInput[]): Promise<void> {
     for (const ev of pending) {
@@ -198,8 +213,25 @@ export function createDbWritePort(input: {
     }
   }
 
+  function createTxBoundWritePort(txDb: DbPort): DbWritePort {
+    return createDbWritePort({
+      db: txDb,
+      ...(readPort !== undefined ? { readPort } : {}),
+      ...(webappEventsPort !== undefined ? { webappEventsPort } : {}),
+      ...(getDispatchPort !== undefined ? { getDispatchPort } : {}),
+    });
+  }
+
   return {
     async writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult> {
+      if (
+        getCurrentDbPrincipalOrganizationId() !== undefined
+        && db.integratorDrizzle === undefined
+        && plainMutationsRequiringPrincipalTx.has(mutation.type)
+      ) {
+        return db.tx((txDb) => createTxBoundWritePort(txDb).writeDb(mutation));
+      }
+
       switch (mutation.type) {
         case 'booking.upsert': {
           const params = mutation.params as BookingUpsertParams;

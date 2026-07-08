@@ -5,7 +5,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
 import { integratorDrizzleSchema } from './integratorDrizzleSchema.js';
-import { checkoutIntegratorPoolClient } from './withClient.js';
+import { checkoutIntegratorPoolClient, prepareIntegratorTransactionClient } from './withClient.js';
 
 function databaseUrlDiagnostics(): {
   databaseUrlConfigured: boolean;
@@ -107,6 +107,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 			}
 			try {
 				await client.query('BEGIN');
+				await prepareIntegratorTransactionClient(client);
 				const integratorDrizzle = drizzle(client, { schema: integratorDrizzleSchema });
 				const txPort: DbPort = {
 					integratorDrizzle,

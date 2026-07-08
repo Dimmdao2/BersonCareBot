@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { buildWebappEntryUrlForMax } from '../webappEntryToken.js';
 import { maxConfig } from './config.js';
@@ -22,7 +23,29 @@ export type MaxWebhookDeps = {
   ) => Promise<string | undefined>;
   getAppBaseUrl?: () => Promise<string>;
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
+  resolveOrganizationIdForMessengerIdentity?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | null>;
 };
+
+function getSourceMaxExternalId(data: MaxUpdateValidated): string | null {
+  const maxId = data.message?.sender?.user_id ?? data.callback?.user?.user_id ?? data.user?.user_id;
+  return typeof maxId === 'number' ? String(maxId) : null;
+}
+
+async function resolveMaxOrganizationId(
+  data: MaxUpdateValidated,
+  resolveOrganizationIdForMessengerIdentity: MaxWebhookDeps['resolveOrganizationIdForMessengerIdentity'],
+): Promise<string | null> {
+  const externalId = getSourceMaxExternalId(data);
+  if (!externalId || !resolveOrganizationIdForMessengerIdentity) return null;
+  try {
+    return await resolveOrganizationIdForMessengerIdentity(externalId, 'max');
+  } catch {
+    return null;
+  }
+}
 
 /** Экспорт для тестов контракта URL miniapp (`/app/max`, `next=`). */
 export async function buildMaxLinks(
@@ -122,6 +145,7 @@ export async function registerMaxWebhookRoutes(
   const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
   const getAppBaseUrl = deps.getAppBaseUrl;
   const resolveMessengerStaffAdmin = deps.resolveMessengerStaffAdmin;
+  const resolveOrganizationIdForMessengerIdentity = deps.resolveOrganizationIdForMessengerIdentity;
 
   app.post('/webhook/max', async (request, reply) => {
     const correlationId = request.id;
@@ -218,7 +242,12 @@ export async function registerMaxWebhookRoutes(
           resolveMessengerStaffAdmin,
         ),
       });
-      const result = await deps.eventGateway.handleIncomingEvent(event);
+      const organizationId = await resolveMaxOrganizationId(data, resolveOrganizationIdForMessengerIdentity);
+      const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
+        deps.eventGateway.handleIncomingEvent(event);
+      const result = organizationId
+        ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+        : await handleEvent();
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'max webhook pipeline rejected');
         void recordIntegrationWebhookOutcome({

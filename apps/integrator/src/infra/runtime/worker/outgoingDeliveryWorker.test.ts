@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DbPort } from '../../../kernel/contracts/index.js';
 
 vi.mock('../../db/repos/outgoingDeliveryQueue.js', async (importOriginal) => {
   const mod = await importOriginal<typeof import('../../db/repos/outgoingDeliveryQueue.js')>();
@@ -32,6 +33,7 @@ import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
 import { drizzleSqlFragmentToApproximateSql } from '../../db/drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
 import { clearUserChannelBotBlocked } from '../../db/repos/userChannelBotBlocked.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -50,6 +52,14 @@ function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDelivery
     lastError: null,
     ...overrides,
   };
+}
+
+function makeTxDb(): DbPort {
+  const query = vi.fn().mockResolvedValue({ rows: [] }) as DbPort['query'];
+  const tx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) =>
+    fn({ query, tx, integratorDrizzle: {} } as DbPort),
+  ) as DbPort['tx'];
+  return { query, tx } as DbPort;
 }
 
 describe('reminder_dispatch outgoing delivery row', () => {
@@ -350,6 +360,61 @@ describe('reminder_dispatch outgoing delivery row', () => {
       expect.objectContaining({ type: 'reminders.occurrence.markFailed' }),
     );
   });
+
+  it('runs reminder scoped writes under occurrence organization and queue status without context', async () => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const writeContexts: Array<string | undefined> = [];
+    const attemptContexts: Array<string | undefined> = [];
+    const queueContexts: Array<string | undefined> = [];
+    vi.mocked(runIntegratorSql).mockImplementation(async (_db, fragment) => {
+      const sqlText = drizzleSqlFragmentToApproximateSql(fragment);
+      if (sqlText.includes('status::text AS status')) {
+        return { rows: [{ status: 'queued' }] };
+      }
+      if (sqlText.includes('COALESCE(o.organization_id, r.organization_id)')) {
+        return { rows: [{ organization_id: organizationId }] };
+      }
+      if (sqlText.includes('notification_delivery_attempts')) {
+        attemptContexts.push(getCurrentOrganizationPrincipalId());
+      }
+      return { rows: [] };
+    });
+    vi.mocked(markOutgoingDeliverySent).mockImplementation(async () => {
+      queueContexts.push(getCurrentOrganizationPrincipalId());
+    });
+    const dispatchOutgoing = vi.fn().mockResolvedValue({ maxMessageId: 'mid-org' });
+    const writeDb = vi.fn(async () => {
+      writeContexts.push(getCurrentOrganizationPrincipalId());
+    });
+
+    await processOutgoingDeliveryRow(
+      baseRow({
+        channel: 'max',
+        payloadJson: {
+          occurrenceId: 'occ-org',
+          channel: 'max',
+          deliveryLogId: 'rdl:occ-org:max',
+          externalId: '200',
+          topicCode: 'exercise_reminders',
+          logText: 'reminder text',
+          intent: {
+            type: 'message.send',
+            meta: { eventId: 'e-org', occurredAt: '2026-01-01T00:00:00.000Z', source: 'max', userId: 'u1' },
+            payload: {
+              recipient: { chatId: 200 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['max'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: makeTxDb(), writePort: { writeDb } as never, dispatchOutgoing },
+    );
+
+    expect(writeContexts).toEqual([organizationId, organizationId]);
+    expect(attemptContexts).toEqual([organizationId]);
+    expect(queueContexts).toEqual([undefined]);
+  });
 });
 
 
@@ -519,6 +584,61 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
       payload: { replyMarkup: { testMenu: true } },
     });
     spy.mockRestore();
+  });
+
+  it('runs broadcast audit and notification attempts under audit organization and queue status without context', async () => {
+    const organizationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const auditContexts: Array<string | undefined> = [];
+    const attemptContexts: Array<string | undefined> = [];
+    const queueContexts: Array<string | undefined> = [];
+    vi.mocked(runIntegratorSql).mockImplementation(async (_db, fragment) => {
+      const sqlText = drizzleSqlFragmentToApproximateSql(fragment);
+      if (sqlText.includes('FROM public.broadcast_audit')) {
+        return { rows: [{ organization_id: organizationId }] };
+      }
+      if (sqlText.includes('notification_delivery_attempts')) {
+        attemptContexts.push(getCurrentOrganizationPrincipalId());
+      }
+      if (sqlText.includes('UPDATE public.broadcast_audit SET sent_count')) {
+        auditContexts.push(getCurrentOrganizationPrincipalId());
+      }
+      return { rows: [] };
+    });
+    vi.mocked(markOutgoingDeliverySent).mockImplementation(async () => {
+      queueContexts.push(getCurrentOrganizationPrincipalId());
+    });
+    const dispatchOutgoing = vi.fn().mockResolvedValue({});
+    const auditId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+    await processOutgoingDeliveryRow(
+      baseRow({
+        kind: 'doctor_broadcast_intent',
+        channel: 'telegram',
+        payloadJson: {
+          broadcastAuditId: auditId,
+          clientUserId: 'u1',
+          intent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'e-d-org',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'telegram',
+              userId: 'u1',
+            },
+            payload: {
+              recipient: { chatId: 1 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: makeTxDb(), writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
+    );
+
+    expect(attemptContexts).toEqual([organizationId]);
+    expect(auditContexts).toEqual([organizationId]);
+    expect(queueContexts).toEqual([undefined]);
   });
 });
 

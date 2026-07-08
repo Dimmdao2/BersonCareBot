@@ -1,0 +1,3 @@
+table	parent_table	local_fk	parent_pk	parent_org_column	cross_check_table	cross_check_local_fk	cross_check_pk	cross_check_org_column
+public.be_package_items	public.be_subscription_packages	package_id	id	organization_id	public.be_clinic_services	service_id	id	organization_id
+public.be_patient_package_items	public.be_patient_packages	patient_package_id	id	organization_id	public.be_clinic_services	service_id	id	organization_id

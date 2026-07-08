@@ -50,6 +50,7 @@ export type ReminderRuleRecord = {
   /** Local minute-of-day quiet window (same semantics as webapp); both null = disabled. */
   quietHoursStartMinute?: number | null;
   quietHoursEndMinute?: number | null;
+  organizationId?: string | null;
 };
 
 export type ReminderOccurrenceStatus =
@@ -74,6 +75,7 @@ export type ReminderOccurrenceRecord = {
   errorCode?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  organizationId?: string | null;
 };
 
 export type DueReminderOccurrence = ReminderOccurrenceRecord & {

@@ -25,6 +25,17 @@ Current R1/P0.1.1 delta:
 |---|---|---|---|
 | `public.be_organization_members` | Tenant-owned / scoped | Direct `organization_id`; membership row cannot exist without an organization. | None: new dormant table has no existing rows. Seed/backfill is P0.1.2. |
 
+## Declared FK tenant paths
+
+These tenant-owned tables are intentionally outside `needs-orgid-FINAL.txt` because they inherit tenant
+scope through an org-owned package parent. The service FK is a same-org cross-check for future RLS
+descriptor generation and writer validation.
+
+| Table | Tenant parent path | Same-org cross-check |
+|---|---|---|
+| `public.be_package_items` | `package_id` -> `public.be_subscription_packages.id` -> `organization_id` | `service_id` -> `public.be_clinic_services.id` -> `organization_id` must match the package org. |
+| `public.be_patient_package_items` | `patient_package_id` -> `public.be_patient_packages.id` -> `organization_id` | `service_id` -> `public.be_clinic_services.id` -> `organization_id` must match the patient package org. |
+
 ## Rule for new product tables
 
 Every new product table must choose one of these at design time:

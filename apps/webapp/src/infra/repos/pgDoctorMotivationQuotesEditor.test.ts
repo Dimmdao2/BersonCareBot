@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const clientQueryMock = vi.hoisted(() => vi.fn());
@@ -9,6 +10,8 @@ const connectMock = vi.hoisted(() =>
   })),
 );
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ connect: connectMock })));
+
+const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
 
 vi.mock("@/infra/db/runWebappSql", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/infra/db/runWebappSql")>();
@@ -116,6 +119,24 @@ describe("pgDoctorMotivationQuotesEditor", () => {
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
     expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([0, "b"]);
     expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual([1, "a"]);
+  });
+
+  it("reorderQuotes applies current organization principal through the transaction chokepoint", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ id: "a" }, { id: "b" }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    const port = createPgDoctorMotivationQuotesEditorPort();
+    await runWithDbOrganizationPrincipal(ORGANIZATION_ID, () => port.reorderQuotes(["b", "a"]));
+
+    expect(clientQueryMock).toHaveBeenNthCalledWith(1, "BEGIN");
+    expect(clientQueryMock).toHaveBeenNthCalledWith(
+      2,
+      "SELECT set_config('app.org', $1, true)",
+      [ORGANIZATION_ID],
+    );
+    expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
   });
 
   it("reorderQuotes rolls back when id count mismatches db", async () => {

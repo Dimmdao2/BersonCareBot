@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import type { DbPort } from "../../kernel/contracts/index.js";
 import { drizzleSqlFragmentToApproximateSql } from "./drizzleSqlDebugText.js";
 import { createDbWritePort } from "./writePort.js";
@@ -77,7 +78,89 @@ function makeMockDb(capture: {
   return { query, tx, integratorDrizzle: drizzle } as DbPort;
 }
 
+function makeWriteWrapperDb(): { db: DbPort; query: ReturnType<typeof vi.fn>; tx: ReturnType<typeof vi.fn> } {
+  const query = vi.fn(async () => ({ rows: [], rowCount: 1 })) as DbPort["query"] & ReturnType<typeof vi.fn>;
+  const tx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) => {
+    const integratorDrizzle = stubIntegratorDrizzleForTests();
+    (integratorDrizzle as { execute: ReturnType<typeof vi.fn> }).execute = vi.fn(async () => ({
+      rows: [],
+      rowCount: 1,
+    }));
+    const txDb = {
+      query,
+      tx: vi.fn(async <Nested>(nested: (inner: DbPort) => Promise<Nested>) => nested(txDb)),
+      integratorDrizzle,
+    } as DbPort;
+    return fn(txDb);
+  }) as DbPort["tx"] & ReturnType<typeof vi.fn>;
+  return { db: { query, tx }, query, tx };
+}
+
 describe("writePort user.upsert projection payload", () => {
+  it("wraps a plain mutation in db.tx when an organization principal is set", async () => {
+    const { db, tx } = makeWriteWrapperDb();
+    const writePort = createDbWritePort({ db });
+
+    await runWithDbOrganizationPrincipal("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", () =>
+      writePort.writeDb({
+        type: "user.state.set",
+        params: { resource: "telegram", channelUserId: "123", state: "awaiting_phone" },
+      }),
+    );
+
+    expect(tx).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps retry enqueue in db.tx when an organization principal is set", async () => {
+    const { db, tx } = makeWriteWrapperDb();
+    const writePort = createDbWritePort({ db });
+
+    await runWithDbOrganizationPrincipal("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", () =>
+      writePort.writeDb({
+        type: "message.retry.enqueue",
+        params: {
+          phoneNormalized: "+79990001122",
+          messageText: "test",
+        },
+      }),
+    );
+
+    expect(tx).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not wrap a plain mutation when organization principal is unset", async () => {
+    const { db, tx } = makeWriteWrapperDb();
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: "user.state.set",
+      params: { resource: "telegram", channelUserId: "123", state: "awaiting_phone" },
+    });
+
+    expect(tx).not.toHaveBeenCalled();
+  });
+
+  it("does not wrap when the DbPort is already transaction-bound", async () => {
+    const integratorDrizzle = stubIntegratorDrizzleForTests();
+    (integratorDrizzle as { execute: ReturnType<typeof vi.fn> }).execute = vi.fn(async () => ({
+      rows: [],
+      rowCount: 1,
+    }));
+    const query = vi.fn(async () => ({ rows: [], rowCount: 1 })) as DbPort["query"] & ReturnType<typeof vi.fn>;
+    const tx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) => fn({ query, tx, integratorDrizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle } as DbPort;
+    const writePort = createDbWritePort({ db });
+
+    await runWithDbOrganizationPrincipal("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", () =>
+      writePort.writeDb({
+        type: "user.state.set",
+        params: { resource: "telegram", channelUserId: "123", state: "awaiting_phone" },
+      }),
+    );
+
+    expect(tx).not.toHaveBeenCalled();
+  });
+
   it("uses canonical integratorUserId for telegram", async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[] };
     const db = makeMockDb(capture);
@@ -310,4 +393,3 @@ describe("writePort user.upsert projection payload", () => {
     expect(contactsAttempts).toBe(0);
   });
 });
-

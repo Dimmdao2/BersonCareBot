@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -10,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { beOrganizations } from "./bookingEngine";
 import { platformUsers } from "./schema";
 
 /** Fact row per logical Web Push send; `id` is `trackingId` in SW payload. */
@@ -17,6 +19,7 @@ export const productPushNotifications = pgTable(
   "product_push_notifications",
   {
     id: uuid("id").primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     userId: uuid("user_id")
       .notNull()
       .references(() => platformUsers.id, { onDelete: "cascade" }),
@@ -31,6 +34,7 @@ export const productPushNotifications = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_product_push_notifications_organization_id").on(table.organizationId),
     index("idx_product_push_notifications_user_created").on(table.userId, table.createdAt),
     index("idx_product_push_notifications_topic_created").on(table.topicCode, table.createdAt),
     index("idx_product_push_notifications_kind_slogan_created").on(
@@ -38,6 +42,11 @@ export const productPushNotifications = pgTable(
       table.warmupSloganKey,
       table.createdAt,
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "product_push_notifications_organization_id_fkey",
+    }).onDelete("cascade"),
   ],
 );
 
@@ -46,6 +55,7 @@ export const productAnalyticsEventsRecent = pgTable(
   "product_analytics_events_recent",
   {
     id: uuid("id").defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     eventType: text("event_type").notNull(),
     entryChannel: text("entry_channel").notNull(),
@@ -59,11 +69,17 @@ export const productAnalyticsEventsRecent = pgTable(
     metadata: jsonb("metadata").default(sql`'{}'::jsonb`),
   },
   (table) => [
+    index("idx_product_analytics_events_recent_organization_id").on(table.organizationId),
     index("idx_product_analytics_events_recent_occurred").on(table.occurredAt),
     index("idx_product_analytics_events_recent_type_occurred").on(table.eventType, table.occurredAt),
     uniqueIndex("idx_product_analytics_events_recent_push_open_dedupe")
       .on(table.pushTrackingId)
       .where(sql`${table.eventType} = 'push_open' AND ${table.pushTrackingId} IS NOT NULL`),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "product_analytics_events_recent_organization_id_fkey",
+    }).onDelete("cascade"),
   ],
 );
 
@@ -103,6 +119,7 @@ export const productAnalyticsUserHourly = pgTable(
   "product_analytics_user_hourly",
   {
     bucketHour: timestamp("bucket_hour", { withTimezone: true, mode: "string" }).notNull(),
+    organizationId: uuid("organization_id"),
     userId: uuid("user_id")
       .notNull()
       .references(() => platformUsers.id, { onDelete: "cascade" }),
@@ -120,6 +137,12 @@ export const productAnalyticsUserHourly = pgTable(
       columns: [table.bucketHour, table.userId, table.entryChannel, table.pageKey],
       name: "product_analytics_user_hourly_pkey",
     }),
+    index("idx_product_analytics_user_hourly_organization_id").on(table.organizationId),
     index("idx_product_analytics_user_hourly_user_bucket").on(table.userId, table.bucketHour),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "product_analytics_user_hourly_organization_id_fkey",
+    }).onDelete("cascade"),
   ],
 );

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
@@ -119,7 +120,29 @@ export type TelegramWebhookDeps = {
   getAppBaseUrl?: () => Promise<string>;
   /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
+  resolveOrganizationIdForMessengerIdentity?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | null>;
 };
+
+function getSourceTelegramExternalId(body: TelegramWebhookBodyValidated): string | null {
+  const fromId = body.callback_query?.from?.id ?? body.message?.from?.id;
+  return typeof fromId === 'number' ? String(fromId) : null;
+}
+
+async function resolveTelegramOrganizationId(
+  body: TelegramWebhookBodyValidated,
+  deps: TelegramWebhookDeps,
+): Promise<string | null> {
+  const externalId = getSourceTelegramExternalId(body);
+  if (!externalId || !deps.resolveOrganizationIdForMessengerIdentity) return null;
+  try {
+    return await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'telegram');
+  } catch {
+    return null;
+  }
+}
 
 /** Exported for tests (contact ownership, setphone deep link). */
 export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
@@ -253,7 +276,12 @@ export async function processTelegramUpdate(
     ),
     ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
   });
-  const result = await deps.eventGateway.handleIncomingEvent(event);
+  const organizationId = await resolveTelegramOrganizationId(body, deps);
+  const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
+    deps.eventGateway.handleIncomingEvent(event);
+  const result = organizationId
+    ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+    : await handleEvent();
   if (result.status === 'rejected') {
     reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram update pipeline rejected');
     void recordIntegrationWebhookOutcome({

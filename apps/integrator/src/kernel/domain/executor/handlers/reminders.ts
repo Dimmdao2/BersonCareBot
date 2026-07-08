@@ -1,4 +1,4 @@
-import type { Action, ActionResult, DomainContext } from '../../../contracts/index.js';
+import type { Action, ActionResult, DbWriteMutation, DomainContext } from '../../../contracts/index.js';
 import type { DueReminderOccurrence, ReminderCategory, ReminderRuleRecord } from '../../../contracts/reminders.js';
 import type { ExecutorDeps } from '../helpers.js';
 import {
@@ -51,6 +51,12 @@ import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMesseng
 import { maxBindingRecipient } from '../../../../integrations/max/maxRecipient.js';
 import { getAppBaseUrl } from '../../../../config/appBaseUrl.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
+import { runWithOptionalOrganizationPrincipal } from '../../../../infra/principal/organizationPrincipal.js';
+
+type OrganizationWriteBucket = {
+  organizationId: string | null;
+  writes: DbWriteMutation[];
+};
 
 function escapeReminderHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -129,6 +135,38 @@ type PendingReminderDispatchEnqueue = {
   channel: string;
   payloadJson: Record<string, unknown>;
 };
+
+function reminderOrganizationId(value: { organizationId?: string | null }): string | null {
+  return typeof value.organizationId === 'string' && value.organizationId.trim().length > 0
+    ? value.organizationId.trim()
+    : null;
+}
+
+function addWriteToOrganizationBucket(
+  buckets: Map<string, OrganizationWriteBucket>,
+  organizationId: string | null,
+  write: DbWriteMutation,
+): void {
+  const key = organizationId ?? '';
+  const existing = buckets.get(key);
+  if (existing) {
+    existing.writes.push(write);
+    return;
+  }
+  buckets.set(key, { organizationId, writes: [write] });
+}
+
+async function persistWritesByOrganization(
+  writePort: NonNullable<ExecutorDeps['writePort']>,
+  buckets: Map<string, OrganizationWriteBucket>,
+): Promise<void> {
+  for (const bucket of buckets.values()) {
+    await runWithOptionalOrganizationPrincipal(
+      bucket.organizationId,
+      () => persistWrites(writePort, bucket.writes),
+    );
+  }
+}
 
 async function enqueueReminderDispatchBatchWithRetries(
   enqueueDb: ReturnType<typeof createDbPort>,
@@ -335,11 +373,12 @@ export async function handleReminders(
       params: {},
     });
     const rules = Array.isArray(enabledRules) ? enabledRules : [];
-    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [];
+    const writes: DbWriteMutation[] = [];
+    const writeBuckets = new Map<string, OrganizationWriteBucket>();
     for (const rule of rules) {
       const drafts = planDueReminderOccurrences(rule, nowPlanIso);
       for (const d of drafts) {
-        writes.push({
+        const write = {
           type: 'reminders.occurrence.upsertPlanned',
           params: {
             id: randomUUID(),
@@ -347,10 +386,12 @@ export async function handleReminders(
             occurrenceKey: d.occurrenceKey,
             plannedAt: d.plannedAt,
           },
-        });
+        } satisfies DbWriteMutation;
+        writes.push(write);
+        addWriteToOrganizationBucket(writeBuckets, reminderOrganizationId(rule), write);
       }
     }
-    await persistWrites(deps.writePort, writes);
+    await persistWritesByOrganization(deps.writePort, writeBuckets);
     return {
       actionId: action.id,
       status: 'success',
@@ -368,7 +409,8 @@ export async function handleReminders(
       params: { nowIso: dueNowIso, limit: Math.max(1, Math.min(limit, 100)) },
     });
     const items = Array.isArray(dueList) ? dueList : [];
-    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [];
+    const writes: DbWriteMutation[] = [];
+    const writeBuckets = new Map<string, OrganizationWriteBucket>();
     const pendingEnqueues: Array<{
       eventId: string;
       channel: string;
@@ -433,10 +475,13 @@ export async function handleReminders(
     }
 
     for (const occ of items) {
-      writes.push({
+      const markQueuedWrite = {
         type: 'reminders.occurrence.markQueued',
         params: { occurrenceId: occ.id, deliveryJobId: null },
-      });
+      } satisfies DbWriteMutation;
+      writes.push(markQueuedWrite);
+      const occurrenceOrganizationId = reminderOrganizationId(occ);
+      addWriteToOrganizationBucket(writeBuckets, occurrenceOrganizationId, markQueuedWrite);
 
       const ruleMap = await rulesForUser(occ.userId);
       const rule = ruleMap.get(occ.ruleId);
@@ -561,6 +606,7 @@ export async function handleReminders(
             occurrenceId: occ.id,
             topicCode,
             skippedChannels: resolutionSkipped,
+            organizationId: occurrenceOrganizationId,
           });
           for (const s of resolutionSkipped) {
             if (s.channel === 'telegram' || s.channel === 'max') alreadySkipped.add(s.channel);
@@ -572,6 +618,7 @@ export async function handleReminders(
           topicCode,
           sendChannels,
           alreadySkippedChannels: alreadySkipped,
+          organizationId: occurrenceOrganizationId,
         });
       }
 
@@ -781,7 +828,7 @@ export async function handleReminders(
       }
     }
 
-    await persistWrites(deps.writePort, writes);
+    await persistWritesByOrganization(deps.writePort, writeBuckets);
     if (pendingEnqueues.length > 0) {
       const enqueueDb = createDbPort();
       await enqueueReminderDispatchBatchWithRetries(enqueueDb, pendingEnqueues);

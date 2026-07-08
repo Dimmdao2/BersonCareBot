@@ -2,6 +2,10 @@ import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
+import {
+  runWithOptionalOrganizationPrincipal,
+  runWithOrganizationPrincipal,
+} from '../../principal/organizationPrincipal.js';
 
 export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max';
 
@@ -24,6 +28,7 @@ export type IntegratorRecordNotificationDeliveryAttemptInput = {
   recipientRef?: string;
   errorMessage?: string;
   metadata?: Record<string, unknown>;
+  organizationId?: string | null;
 };
 
 function parseOccurrenceUuid(value: string | undefined | null): string | null {
@@ -35,6 +40,17 @@ function parseOccurrenceUuid(value: string | undefined | null): string | null {
   return null;
 }
 
+async function runWithOptionalOrganizationPrincipalTransaction<T>(
+  db: DbPort,
+  organizationId: string | null | undefined,
+  fn: (targetDb: DbPort) => Promise<T>,
+): Promise<T> {
+  if (organizationId && db.integratorDrizzle === undefined) {
+    return runWithOrganizationPrincipal(organizationId, () => db.tx((txDb) => fn(txDb)));
+  }
+  return runWithOptionalOrganizationPrincipal(organizationId, () => fn(db));
+}
+
 /** Best-effort insert into webapp `notification_delivery_attempts` (shared public schema). */
 export async function recordNotificationDeliveryAttemptBestEffort(
   db: DbPort,
@@ -42,25 +58,31 @@ export async function recordNotificationDeliveryAttemptBestEffort(
 ): Promise<void> {
   try {
     const metadataJson = JSON.stringify(input.metadata ?? {});
-    await runIntegratorSql(
+    await runWithOptionalOrganizationPrincipalTransaction(
       db,
-      sql`INSERT INTO public.notification_delivery_attempts (
-        integrator_user_id, topic_code, intent_type, channel, status, reason,
-        provider_status_code, event_id, occurrence_id, recipient_ref, error_message, metadata
-      ) VALUES (
-        ${input.integratorUserId ?? null},
-        ${input.topicCode ?? null},
-        ${input.intentType ?? null},
-        ${input.channel},
-        ${input.status},
-        ${input.reason ?? null},
-        ${input.providerStatusCode ?? null},
-        ${input.eventId ?? null},
-        ${parseOccurrenceUuid(input.occurrenceId)}::uuid,
-        ${input.recipientRef ?? null},
-        ${input.errorMessage ?? null},
-        ${metadataJson}::jsonb
-      )`,
+      input.organizationId,
+      (targetDb) => runIntegratorSql(
+        targetDb,
+        sql`INSERT INTO public.notification_delivery_attempts (
+          organization_id,
+          integrator_user_id, topic_code, intent_type, channel, status, reason,
+          provider_status_code, event_id, occurrence_id, recipient_ref, error_message, metadata
+        ) VALUES (
+          ${input.organizationId ?? null}::uuid,
+          ${input.integratorUserId ?? null},
+          ${input.topicCode ?? null},
+          ${input.intentType ?? null},
+          ${input.channel},
+          ${input.status},
+          ${input.reason ?? null},
+          ${input.providerStatusCode ?? null},
+          ${input.eventId ?? null},
+          ${parseOccurrenceUuid(input.occurrenceId)}::uuid,
+          ${input.recipientRef ?? null},
+          ${input.errorMessage ?? null},
+          ${metadataJson}::jsonb
+        )`,
+      ),
     );
   } catch (err) {
     logger.warn(
@@ -79,6 +101,7 @@ export async function recordMessengerChannelSkipsBestEffort(
     topicCode: string;
     intentType?: string;
     skippedChannels: Array<{ channel: string; reason: string }>;
+    organizationId?: string | null;
   },
 ): Promise<void> {
   for (const s of input.skippedChannels) {
@@ -91,6 +114,7 @@ export async function recordMessengerChannelSkipsBestEffort(
       channel: s.channel,
       status: 'skipped',
       reason: s.reason,
+      organizationId: input.organizationId ?? null,
     });
   }
 }
@@ -105,6 +129,7 @@ export async function recordMessengerNotEnqueuedSkipsBestEffort(
     intentType?: string;
     sendChannels: Array<{ channel: 'telegram' | 'max' }>;
     alreadySkippedChannels: ReadonlySet<string>;
+    organizationId?: string | null;
   },
 ): Promise<void> {
   for (const ch of MESSENGER_CHANNELS) {
@@ -118,6 +143,7 @@ export async function recordMessengerNotEnqueuedSkipsBestEffort(
       channel: ch,
       status: 'skipped',
       reason: 'missing_binding',
+      organizationId: input.organizationId ?? null,
     });
   }
 }

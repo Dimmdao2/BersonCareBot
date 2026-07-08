@@ -1,4 +1,5 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { foreignKey, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * Архив строк dead-очередей после ручной очистки админом («Здоровье системы»).
@@ -8,6 +9,7 @@ export const operatorHealthFailureArchive = pgTable(
   "operator_health_failure_archive",
   {
     id: uuid("id").defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     archivedAt: timestamp("archived_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     archivedByUserId: uuid("archived_by_user_id"),
     healthProbe: text("health_probe").notNull(),
@@ -20,8 +22,14 @@ export const operatorHealthFailureArchive = pgTable(
     rawErrorTruncated: text("raw_error_truncated"),
   },
   (table) => [
+    index("idx_operator_health_failure_archive_organization_id").on(table.organizationId),
     index("idx_operator_health_failure_archive_archived_at").on(table.archivedAt),
     index("idx_operator_health_failure_archive_probe_archived").on(table.healthProbe, table.archivedAt),
     index("idx_operator_health_failure_archive_doctor_archived").on(table.doctorUserId, table.archivedAt),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "operator_health_failure_archive_organization_id_fkey",
+    }).onDelete("cascade"),
   ],
 );

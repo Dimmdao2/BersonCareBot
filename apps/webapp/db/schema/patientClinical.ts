@@ -43,13 +43,20 @@ export const clinicalDiagnosisCatalog = pgTable(
   "clinical_diagnosis_catalog",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     label: text("label").notNull(),
     note: text("note"),
     createdBy: uuid("created_by").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_diagnosis_catalog_organization_id").on(table.organizationId),
     index("idx_clinical_diagnosis_catalog_label").on(table.label),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_diagnosis_catalog_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],

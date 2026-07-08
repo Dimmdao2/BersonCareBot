@@ -32,8 +32,72 @@ export type ChannelUserLinkRow = {
   userState: string | null;
 };
 
+export type MessengerIdentityResource = 'telegram' | 'max';
+
 /** Окно подавления повторного «голого» /start (другой `update_id`, тот же смысл). Не путать с gateway dedup по `update_id`. */
 export const TELEGRAM_START_DEBOUNCE_SECONDS = 3;
+
+function singleOrganizationId(rows: { organization_id: string }[]): string | null {
+  return rows.length === 1 && rows[0]?.organization_id ? rows[0].organization_id : null;
+}
+
+export async function resolveActiveOrganizationIdForMessengerIdentity(
+  db: DbPort,
+  input: { resource: MessengerIdentityResource; externalId: string },
+): Promise<string | null> {
+  const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+    WITH identity_user AS (
+      SELECT identity_row.user_id
+      FROM integrator.identities identity_row
+      WHERE identity_row.resource = ${input.resource}
+        AND identity_row.external_id = ${input.externalId}
+      LIMIT 1
+    ),
+    active_user_orgs AS (
+      SELECT platform_user_id, organization_id
+      FROM public.org_enrollments
+      WHERE status = 'active'
+      UNION
+      SELECT platform_user_id, organization_id
+      FROM public.be_organization_members
+      WHERE status = 'active'
+    )
+    SELECT DISTINCT active_user_orgs.organization_id::text AS organization_id
+    FROM identity_user
+    INNER JOIN public.platform_users platform_user
+      ON platform_user.integrator_user_id = identity_user.user_id
+    INNER JOIN active_user_orgs
+      ON active_user_orgs.platform_user_id = platform_user.id
+    ORDER BY organization_id
+    LIMIT 2
+  `);
+  return singleOrganizationId(res.rows);
+}
+
+export async function resolveActiveOrganizationIdForIntegratorUserId(
+  db: DbPort,
+  integratorUserId: string,
+): Promise<string | null> {
+  const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+    WITH active_user_orgs AS (
+      SELECT platform_user_id, organization_id
+      FROM public.org_enrollments
+      WHERE status = 'active'
+      UNION
+      SELECT platform_user_id, organization_id
+      FROM public.be_organization_members
+      WHERE status = 'active'
+    )
+    SELECT DISTINCT active_user_orgs.organization_id::text AS organization_id
+    FROM public.platform_users platform_user
+    INNER JOIN active_user_orgs
+      ON active_user_orgs.platform_user_id = platform_user.id
+    WHERE platform_user.integrator_user_id = ${integratorUserId}::bigint
+    ORDER BY organization_id
+    LIMIT 2
+  `);
+  return singleOrganizationId(res.rows);
+}
 
 /**
  * Anti-dup for rapid «голый» /start (legacy handleStart + orchestrator `telegramStartDedup`).
