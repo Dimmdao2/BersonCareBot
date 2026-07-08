@@ -22,4 +22,11 @@ describe("readVideoWatermarkEnabled", () => {
     } as unknown as import("pg").Pool;
     await expect(readVideoWatermarkEnabled(pool)).resolves.toBe(false);
   });
+
+  it("reads the global system_settings row only", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query } as unknown as import("pg").Pool;
+    await readVideoWatermarkEnabled(pool);
+    expect(String(query.mock.calls[0]?.[0] ?? "")).toContain("organization_id IS NULL");
+  });
 });

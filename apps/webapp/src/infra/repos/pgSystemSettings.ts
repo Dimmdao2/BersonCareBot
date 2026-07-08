@@ -1,12 +1,17 @@
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { SystemSettingsPort, SystemSettingsUpsertRow } from "@/modules/system-settings/ports";
+import type {
+  SystemSettingsPort,
+  SystemSettingsReadOptions,
+  SystemSettingsUpsertRow,
+} from "@/modules/system-settings/ports";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 import type { WebappSqlExecutor } from "@/infra/db/runWebappSql";
 
 type SystemSettingRow = {
   key: string;
   scope: string;
+  organization_id: string | null;
   value_json: unknown;
   updated_at: Date | string;
   updated_by: string | null;
@@ -16,6 +21,7 @@ function rowToSetting(row: SystemSettingRow): SystemSetting {
   return {
     key: row.key as SystemSettingKey,
     scope: row.scope as SystemSettingScope,
+    organizationId: row.organization_id,
     valueJson: row.value_json,
     updatedAt: toIsoStringSafe(row.updated_at),
     updatedBy: row.updated_by,
@@ -24,6 +30,7 @@ function rowToSetting(row: SystemSettingRow): SystemSetting {
 
 type SystemSettingValueRow = {
   scope: string;
+  organization_id?: string | null;
   value_json: unknown;
 };
 
@@ -36,15 +43,27 @@ function parseSettingEnvelopeValue(valueJson: unknown): unknown | null {
 export async function readSystemSettingInnerValueByScopes(
   key: string,
   scopes: readonly SystemSettingScope[],
+  options: SystemSettingsReadOptions = {},
 ): Promise<unknown | null> {
   if (scopes.length === 0) return null;
-  const r = await runWebappPgText<SystemSettingValueRow>(
-    `SELECT scope, value_json
-       FROM system_settings
-      WHERE key = $1 AND scope = ANY($2::text[])
-        AND organization_id IS NULL`,
-    [key, [...scopes]],
-  );
+  const organizationId = options.organizationId?.trim() || null;
+  const r = organizationId
+    ? await runWebappPgText<SystemSettingValueRow>(
+        `SELECT DISTINCT ON (scope) scope, organization_id, value_json
+           FROM system_settings
+          WHERE key = $1
+            AND scope = ANY($2::text[])
+            AND (organization_id = $3::uuid OR organization_id IS NULL)
+          ORDER BY scope, organization_id IS NULL ASC`,
+        [key, [...scopes], organizationId],
+      )
+    : await runWebappPgText<SystemSettingValueRow>(
+        `SELECT scope, organization_id, value_json
+           FROM system_settings
+          WHERE key = $1 AND scope = ANY($2::text[])
+            AND organization_id IS NULL`,
+        [key, [...scopes]],
+      );
   for (const scope of scopes) {
     const row = r.rows.find((candidate) => candidate.scope === scope);
     if (!row) continue;
@@ -72,19 +91,26 @@ export function systemSettingInnerValueToString(value: unknown): string | null {
   return null;
 }
 
-export async function readAdminSystemSettingInnerValue(key: string): Promise<unknown | null> {
-  return readSystemSettingInnerValueByScopes(key, ["admin"]);
+export async function readAdminSystemSettingInnerValue(
+  key: string,
+  options: SystemSettingsReadOptions = {},
+): Promise<unknown | null> {
+  return readSystemSettingInnerValueByScopes(key, ["admin"], options);
 }
 
-export async function readAdminSystemSettingString(key: string): Promise<string | null> {
-  return systemSettingInnerValueToString(await readAdminSystemSettingInnerValue(key));
+export async function readAdminSystemSettingString(
+  key: string,
+  options: SystemSettingsReadOptions = {},
+): Promise<string | null> {
+  return systemSettingInnerValueToString(await readAdminSystemSettingInnerValue(key, options));
 }
 
 export async function readAdminSystemSettingBoolean(
   key: string,
   defaultValue: boolean,
+  options: SystemSettingsReadOptions = {},
 ): Promise<boolean> {
-  const value = await readAdminSystemSettingInnerValue(key);
+  const value = await readAdminSystemSettingInnerValue(key, options);
   if (typeof value === "boolean") return value;
   if (value === "true" || value === "1") return true;
   if (value === "false" || value === "0") return false;
@@ -119,7 +145,7 @@ async function upsertWithAudit(
        SET value_json = EXCLUDED.value_json,
            updated_at = now(),
            updated_by = EXCLUDED.updated_by
-     RETURNING key, scope, value_json, updated_at, updated_by`,
+     RETURNING key, scope, organization_id, value_json, updated_at, updated_by`,
     [key, scope, JSON.stringify(valueJson), updatedBy],
     tx,
   );
@@ -145,22 +171,48 @@ async function upsertWithAudit(
 
 export function createPgSystemSettingsPort(): SystemSettingsPort {
   return {
-    async getByKey(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null> {
-      const r = await runWebappPgText<SystemSettingRow>(
-        `SELECT key, scope, value_json, updated_at, updated_by
-         FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
-        [key, scope],
-      );
+    async getByKey(
+      key: SystemSettingKey,
+      scope: SystemSettingScope,
+      options: SystemSettingsReadOptions = {},
+    ): Promise<SystemSetting | null> {
+      const organizationId = options.organizationId?.trim() || null;
+      const r = organizationId
+        ? await runWebappPgText<SystemSettingRow>(
+            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
+             FROM system_settings
+             WHERE key = $1
+               AND scope = $2
+               AND (organization_id = $3::uuid OR organization_id IS NULL)
+             ORDER BY organization_id IS NULL ASC
+             LIMIT 1`,
+            [key, scope, organizationId],
+          )
+        : await runWebappPgText<SystemSettingRow>(
+            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
+             FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
+            [key, scope],
+          );
       if (!r.rows[0]) return null;
       return rowToSetting(r.rows[0]);
     },
 
-    async getByScope(scope: SystemSettingScope): Promise<SystemSetting[]> {
-      const r = await runWebappPgText<SystemSettingRow>(
-        `SELECT key, scope, value_json, updated_at, updated_by
-         FROM system_settings WHERE scope = $1 AND organization_id IS NULL ORDER BY key`,
-        [scope],
-      );
+    async getByScope(scope: SystemSettingScope, options: SystemSettingsReadOptions = {}): Promise<SystemSetting[]> {
+      const organizationId = options.organizationId?.trim() || null;
+      const r = organizationId
+        ? await runWebappPgText<SystemSettingRow>(
+            `SELECT DISTINCT ON (key) key, scope, organization_id, value_json, updated_at, updated_by
+             FROM system_settings
+             WHERE scope = $1
+               AND (organization_id = $2::uuid OR organization_id IS NULL)
+             ORDER BY key, organization_id IS NULL ASC`,
+            [scope, organizationId],
+          )
+        : await runWebappPgText<SystemSettingRow>(
+            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
+             FROM system_settings WHERE scope = $1 AND organization_id IS NULL ORDER BY key`,
+            [scope],
+          );
       return r.rows.map(rowToSetting);
     },
 

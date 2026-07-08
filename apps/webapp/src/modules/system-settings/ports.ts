@@ -7,9 +7,17 @@ export type SystemSettingsUpsertRow = {
   updatedBy: string | null;
 };
 
+export type SystemSettingsReadOptions = {
+  organizationId?: string | null;
+};
+
 export type SystemSettingsPort = {
-  getByKey(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null>;
-  getByScope(scope: SystemSettingScope): Promise<SystemSetting[]>;
+  getByKey(
+    key: SystemSettingKey,
+    scope: SystemSettingScope,
+    options?: SystemSettingsReadOptions
+  ): Promise<SystemSetting | null>;
+  getByScope(scope: SystemSettingScope, options?: SystemSettingsReadOptions): Promise<SystemSetting[]>;
   upsert(
     key: SystemSettingKey,
     scope: SystemSettingScope,

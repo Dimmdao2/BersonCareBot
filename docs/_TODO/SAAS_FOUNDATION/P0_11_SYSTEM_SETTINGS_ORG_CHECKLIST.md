@@ -36,11 +36,17 @@ and P0.11.3.
 
 Checklist:
 
-- [ ] Port reads accept optional organization context.
-- [ ] Org-specific row wins when present.
-- [ ] Global NULL row is fallback.
-- [ ] Named external readers are either org-aware or documented global-only.
-- [ ] `check-system-settings-accessors.mjs` still blocks raw reads outside accessors.
+- [x] Port reads accept optional organization context.
+- [x] Org-specific row wins when present.
+- [x] Global NULL row is fallback.
+- [x] Named external readers are either org-aware or documented global-only.
+- [x] `check-system-settings-accessors.mjs` still blocks raw reads outside accessors.
+
+P0.11.2 execution note (2026-07-08): current callers remain global-only unless they pass
+`organizationId`; the optional read context uses org-row-first ordering with `organization_id IS NULL`
+fallback. Media-worker settings reads remain explicitly global-only (`organization_id IS NULL`) because
+they have no tenant context in this stage. P0.11.3 still owns org-aware write/update semantics and
+mirror payloads.
 
 ## P0.11.3 Write Path And Mirror Sync
 

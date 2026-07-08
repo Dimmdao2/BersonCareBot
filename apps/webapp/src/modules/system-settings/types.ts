@@ -193,6 +193,7 @@ export type SystemSettingScope = "global" | "doctor" | "admin";
 export type SystemSetting = {
   key: SystemSettingKey;
   scope: SystemSettingScope;
+  organizationId?: string | null;
   valueJson: unknown;
   updatedAt: string;
   updatedBy: string | null;

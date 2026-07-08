@@ -1,4 +1,8 @@
-import type { SystemSettingsPort, SystemSettingsUpsertRow } from "@/modules/system-settings/ports";
+import type {
+  SystemSettingsPort,
+  SystemSettingsReadOptions,
+  SystemSettingsUpsertRow,
+} from "@/modules/system-settings/ports";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
 export function createInMemorySystemSettingsPort(): SystemSettingsPort {
@@ -9,11 +13,15 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
   }
 
   return {
-    async getByKey(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null> {
+    async getByKey(
+      key: SystemSettingKey,
+      scope: SystemSettingScope,
+      _options: SystemSettingsReadOptions = {},
+    ): Promise<SystemSetting | null> {
       return store.get(makeKey(key, scope)) ?? null;
     },
 
-    async getByScope(scope: SystemSettingScope): Promise<SystemSetting[]> {
+    async getByScope(scope: SystemSettingScope, _options: SystemSettingsReadOptions = {}): Promise<SystemSetting[]> {
       return Array.from(store.values()).filter((s) => s.scope === scope);
     },
 

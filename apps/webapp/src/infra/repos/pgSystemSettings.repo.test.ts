@@ -110,6 +110,52 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     expect(upsertSql).toContain("ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE");
   });
 
+  it("getByKey with organization context prefers org row before global fallback", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [
+        {
+          key: "support_contact_url",
+          scope: "admin",
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          value_json: { value: "org" },
+          updated_at: "2026-06-06T00:00:00.000Z",
+          updated_by: null,
+        },
+      ],
+    });
+
+    const port = createPgSystemSettingsPort();
+    const row = await port.getByKey("support_contact_url", "admin", {
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
+
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("organization_id = $3::uuid OR organization_id IS NULL");
+    expect(sql).toContain("ORDER BY organization_id IS NULL ASC");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "support_contact_url",
+      "admin",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ]);
+    expect(row?.organizationId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  });
+
+  it("getByScope with organization context merges one row per key", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgSystemSettingsPort();
+    await port.getByScope("admin", { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("SELECT DISTINCT ON (key)");
+    expect(sql).toContain("organization_id = $2::uuid OR organization_id IS NULL");
+    expect(sql).toContain("ORDER BY key, organization_id IS NULL ASC");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "admin",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ]);
+  });
+
   it("readSystemSettingInnerValueByScopes preserves caller scope priority", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
@@ -119,6 +165,23 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     });
 
     await expect(readSystemSettingInnerValueByScopes("sms_fallback_enabled", ["doctor", "admin"])).resolves.toBe(true);
+  });
+
+  it("readSystemSettingInnerValueByScopes with organization context picks per-scope org fallback rows", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ scope: "admin", organization_id: null, value_json: { value: "global" } }],
+    });
+
+    await expect(
+      readSystemSettingInnerValueByScopes("support_contact_url", ["admin"], {
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    ).resolves.toBe("global");
+
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("SELECT DISTINCT ON (scope)");
+    expect(sql).toContain("organization_id = $3::uuid OR organization_id IS NULL");
+    expect(sql).toContain("ORDER BY scope, organization_id IS NULL ASC");
   });
 
   it("readAdminSystemSettingBoolean supports string boolean envelopes", async () => {

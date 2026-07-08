@@ -1,5 +1,5 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
-import type { SystemSettingsPort } from "./ports";
+import type { SystemSettingsPort, SystemSettingsReadOptions } from "./ports";
 import type { ModesFormKey } from "./modesFormKeys";
 import { normalizeValueJson } from "./adminSettingsPatchNormalize";
 import { invalidateConfigKey } from "./configAdapter";
@@ -106,12 +106,16 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
   }
 
   return {
-    getSetting(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null> {
-      return port.getByKey(key, scope);
+    getSetting(
+      key: SystemSettingKey,
+      scope: SystemSettingScope,
+      options?: SystemSettingsReadOptions
+    ): Promise<SystemSetting | null> {
+      return port.getByKey(key, scope, options);
     },
 
-    listSettingsByScope(scope: SystemSettingScope): Promise<SystemSetting[]> {
-      return port.getByScope(scope);
+    listSettingsByScope(scope: SystemSettingScope, options?: SystemSettingsReadOptions): Promise<SystemSetting[]> {
+      return port.getByScope(scope, options);
     },
 
     async updateSetting(

@@ -74,6 +74,10 @@ const checks = [
     label: "SAAS P0.11.1 system_settings storage shape",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-storage.mjs"],
   },
+  {
+    label: "SAAS P0.11.2 system_settings read path",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-read-path.mjs"],
+  },
 ];
 
 for (const check of checks) {

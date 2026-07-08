@@ -8,6 +8,9 @@ import type { DbPort } from '../../kernel/contracts/index.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
 
 export type PublicSystemSettingScope = 'global' | 'doctor' | 'admin';
+export type PublicSystemSettingsReadOptions = {
+  organizationId?: string | null;
+};
 
 export const publicSystemSettingScopeSchema = z.enum(['global', 'doctor', 'admin']);
 
@@ -62,14 +65,27 @@ export async function fetchPublicSystemSettingValueJson(
   db: DbPort,
   key: string,
   scope: PublicSystemSettingScope = 'admin',
+  options: PublicSystemSettingsReadOptions = {},
 ): Promise<unknown | null> {
-  const res = await runIntegratorSql<{ value_json: unknown }>(
-    db,
-    sql`SELECT value_json
-        FROM public.system_settings
-        WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL
-        LIMIT 1`,
-  );
+  const organizationId = options.organizationId?.trim() || null;
+  const res = organizationId
+    ? await runIntegratorSql<{ value_json: unknown }>(
+        db,
+        sql`SELECT value_json
+            FROM public.system_settings
+            WHERE key = ${key}
+              AND scope = ${scope}
+              AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)
+            ORDER BY organization_id IS NULL ASC
+            LIMIT 1`,
+      )
+    : await runIntegratorSql<{ value_json: unknown }>(
+        db,
+        sql`SELECT value_json
+            FROM public.system_settings
+            WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL
+            LIMIT 1`,
+      );
   const row = res.rows[0];
   if (!row) return null;
   return row.value_json;
@@ -79,8 +95,9 @@ export async function readPublicSystemSettingString(
   db: DbPort,
   key: string,
   scope: PublicSystemSettingScope = 'admin',
+  options: PublicSystemSettingsReadOptions = {},
 ): Promise<string | null> {
-  const valueJson = await fetchPublicSystemSettingValueJson(db, key, scope);
+  const valueJson = await fetchPublicSystemSettingValueJson(db, key, scope, options);
   if (valueJson === null) return null;
   return parseSystemSettingStringValue(valueJson);
 }
