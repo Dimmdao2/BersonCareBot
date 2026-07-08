@@ -55,7 +55,7 @@ Each application substage must use scratch/non-prod policy smoke before merge:
 - [x] P0.8.4 public FK/denorm-path SCOPED families.
 - [x] P0.8.5 integrator bridge/denorm SCOPED families.
 - [x] P0.8.6 BOOTSTRAP hybrid policies.
-- [ ] P0.8.7 INFRA/LEGACY/TELEMETRY descriptors and unsupported user-ref denial.
+- [x] P0.8.7 INFRA/LEGACY/TELEMETRY descriptors and unsupported user-ref denial.
 
 ### P0.8.3 Public Direct-Org Policy Application
 
@@ -182,6 +182,8 @@ bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.6 b
 
 ### P0.8.7 Explicit Exemptions And Unsupported User-Ref Denial
 
+Status: executed on 2026-07-08 as a DB-free descriptor/static-artifact guard.
+
 Preflight required before code:
 
 - target descriptor rows with `tier` in `INFRA`, `LEGACY`, `TELEMETRY`;
@@ -190,10 +192,24 @@ Preflight required before code:
 - preserve `LEGACY` as frozen treatment; do not retrofit legacy booking/rubitime rows in this stage;
 - document the explicit behavior for unsupported user-ref findings: fail the check and block, not auto-scope.
 
+Execution facts:
+
+- `check-p0-8-7-explicit-exemptions.mjs` verifies exactly the explicit-exemption treatment for
+  `INFRA=22`, `LEGACY=16`, and `TELEMETRY=2` descriptors;
+- unsupported user references are derived only from static scope artifacts, not live DB:
+  `fk-edges.tsv`, `method-columns.tsv`, `all-218-signals.tsv`, and `p0-4-batches.tsv`;
+- any `INFRA` or `TELEMETRY` descriptor with a static FK/soft-ref/P0.4 scoped-source signal fails the
+  check and blocks the stage; the script does not rewrite tiers or auto-scope;
+- the prior leak class is pinned by assertion: `public.admin_audit_log`, `public.broadcast_audit`, and
+  `public.content_section_slug_history` must stay `SCOPED` and remain visible in static user-ref/source
+  artifacts;
+- `LEGACY` remains frozen: legacy booking/rubitime descriptors keep explicit exemptions and are not
+  retrofitted or denied by this user-ref check.
+
 Local gate shape:
 
 ```bash
-bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.7 exemption/user-ref check> && git diff --check"
+bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs && git diff --check"
 ```
 
 Forbidden during policy substages:

@@ -36,7 +36,8 @@ Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-6-policy-generator.mjs` | DB-free checker for exact 4-target coverage and strict bootstrap hybrid global-or-matching-org policy statements. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public + integrator schema tables/roles/rows, applies generated P0.8.6 policies, proves NOBYPASSRLS, unset/empty global-only visibility, and org A/B global+matching-org visibility, then rolls back. |
 | `apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql` | Real Drizzle SQL migration generated from the P0.8.6 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and bootstrap hybrid policy `saas_bootstrap_hybrid_p0_8_6` to the strict 4 BOOTSTRAP hybrid target tables. |
-| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, and DB-free P0.8.3/P0.8.4/P0.8.5/P0.8.6 generator checks. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs` | DB-free checker for explicit INFRA/LEGACY/TELEMETRY exemptions and unsupported user-ref denial on INFRA/TELEMETRY. Uses static scope artifacts only and pins the prior audit-root leak class. |
+| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, DB-free P0.8.3/P0.8.4/P0.8.5/P0.8.6 generator checks, and the P0.8.7 explicit exemption/user-ref denial check. |
 | `docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql` | Existing scratch-only psql proof pattern: DB-name guard, synthetic roles, `NOBYPASSRLS`, `ENABLE/FORCE RLS`, `SET LOCAL ROLE`, rollback. |
 
 ## P0.8.3 Execution Status
@@ -93,6 +94,23 @@ Current status:
 - committed migration for real table policies: `0163_p0_8_6_bootstrap_hybrid_rls.sql`;
 - global `organization_id IS NULL` rows remain visible before org context; org rows require matching non-empty `app.org`;
 - no admin Settings UI, mirror write path, `ALLOWED_KEYS`, runtime read/write path, role/env/grant, or app route/service/UI changes were made.
+
+## P0.8.7 Execution Status
+
+P0.8.7 has a deterministic DB-free guard and no policy migration.
+
+Current status:
+
+- all `INFRA`, `LEGACY`, and `TELEMETRY` descriptor rows must have `scopingKind=explicit_exemption`
+  and a non-empty `source`;
+- `INFRA` and `TELEMETRY` descriptors are denied if static artifacts show a FK/soft-ref/P0.4 scoped
+  source tied to `platform_users`;
+- the guard reproduces the prior leak class by asserting `public.admin_audit_log`,
+  `public.broadcast_audit`, and `public.content_section_slug_history` remain `SCOPED` and covered by
+  static user-ref/source artifacts;
+- `LEGACY` remains frozen and is not retrofitted in this stage;
+- no scratch DB, dev/prod/test application DB, runtime role/env/grant, app route/service/UI, or real
+  policy migration was used.
 
 ## Current P0.8.3 Target Facts
 
@@ -155,6 +173,17 @@ The P0.8.6 generator currently asserts:
 - descriptor kind split: `4` `bootstrap_hybrid`;
 - every target uses nullable `organization_id`;
 - predicate treats unset/empty `app.org` as pre-context: global rows only.
+
+## Current P0.8.7 Target Facts
+
+The P0.8.7 guard currently asserts:
+
+- explicit exemption descriptors: `INFRA=22`, `LEGACY=16`, `TELEMETRY=2`;
+- denied user-ref tiers: `INFRA` and `TELEMETRY` only;
+- static user-ref/source artifacts used: `fk-edges.tsv`, `method-columns.tsv`,
+  `all-218-signals.tsv`, and `p0-4-batches.tsv`;
+- prior leak class pinned as SCOPED: `public.admin_audit_log`, `public.broadcast_audit`,
+  `public.content_section_slug_history`.
 
 ## Migration/Journal Facts
 
@@ -355,4 +384,12 @@ chmod 0644 /tmp/p0-8-6-smoke.sql
 sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-6-smoke.sql
 sudo -n -u postgres dropdb --if-exists "$scratch_db"
 rm -f /tmp/p0-8-6-smoke.sql
+```
+
+## P0.8.7 Tooling Commands
+
+DB-free exemption/user-ref check:
+
+```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs
 ```

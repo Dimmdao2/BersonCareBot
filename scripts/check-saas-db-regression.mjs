@@ -50,6 +50,10 @@ const checks = [
     label: "SAAS P0.8.6 BOOTSTRAP hybrid policy generator",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-6-policy-generator.mjs"],
   },
+  {
+    label: "SAAS P0.8.7 explicit exemptions and unsupported user-ref denial",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs"],
+  },
 ];
 
 for (const check of checks) {
