@@ -511,6 +511,7 @@ describe("PATCH /api/admin/settings", () => {
         value: expect.objectContaining({ password: "saved-secret", host: "smtp.example.com" }),
       }),
       "a1",
+      { organizationId: null },
     );
   });
 

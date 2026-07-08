@@ -73,6 +73,7 @@ describe("createSystemSettingsService smtp_outbound merge", () => {
         value: expect.objectContaining({ password: "kept-from-db" }),
       }),
       "admin",
+      { organizationId: null },
     );
   });
 });
