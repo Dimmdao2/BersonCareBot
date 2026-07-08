@@ -1,6 +1,6 @@
 # P0.8 Code Facts — RLS Descriptor/Policy Execution
 
-Status: implementation support for P0.8.3+ execution briefs plus the P0.8.3 real policy migration.
+Status: implementation support for P0.8.3+ execution briefs plus the P0.8.3/P0.8.4 real policy migrations.
 Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 
 ## Repository Rules That Affect P0.8
@@ -24,7 +24,11 @@ Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs` | DB-free checker for exact 103-target coverage, parent-copy exclusions, and deterministic ENABLE/FORCE/DROP/CREATE policy statements. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public tables/roles, applies generated P0.8.3 policies, proves dormant unset/empty permit and org A/B isolation, then rolls back. |
 | `apps/webapp/db/drizzle-migrations/0160_p0_8_3_public_direct_org_rls.sql` | Real Drizzle SQL migration generated from the P0.8.3 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive direct-org policy `saas_org_dormant_p0_8_3` to the strict 103 public direct-org target tables. |
-| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, and DB-free P0.8.3 generator checks. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs` | Lists/exports the strict 37-table P0.8.4 public FK/denorm path target set, keeps `public.comments` blocked behind P0.12.1, and renders deterministic policy DDL from descriptors. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-4-policy-generator.mjs` | DB-free checker for exact 37-target coverage, FK/denorm split, `public.comments` exclusion, and deterministic ENABLE/FORCE/DROP/CREATE policy statements. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-4-public-path-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic denorm and FK-path public tables/roles, applies generated P0.8.4 policies, proves dormant unset/empty permit, org A/B isolation, and FK parent/service cross-org mismatch denial, then rolls back. |
+| `apps/webapp/db/drizzle-migrations/0161_p0_8_4_public_path_rls.sql` | Real Drizzle SQL migration generated from the P0.8.4 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive policy `saas_org_dormant_p0_8_4` to the 2 public FK-path and 35 public denorm materialized-org target tables. |
+| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, and DB-free P0.8.3/P0.8.4 generator checks. |
 | `docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql` | Existing scratch-only psql proof pattern: DB-name guard, synthetic roles, `NOBYPASSRLS`, `ENABLE/FORCE RLS`, `SET LOCAL ROLE`, rollback. |
 
 ## P0.8.3 Execution Status
@@ -40,6 +44,20 @@ Current status:
 - committed migration for real table policies: `0160_p0_8_3_public_direct_org_rls.sql`;
 - no runtime role/env/grant flip and no dev/prod/test application DB mutation were performed in the migration pass.
 
+## P0.8.4 Execution Status
+
+P0.8.4 has generator/scratch-smoke tooling and a committed real-table policy migration.
+The real migration was created only after a scratch smoke pass in the same execution scope.
+
+Current status:
+
+- policy DDL renderer/generator: exists for public FK-path and denorm materialized-org descriptors;
+- exact P0.8.4 target export: exists and is checked by `check:saas-db-regression`;
+- scratch-smoke runner: exists and passed on disposable `bcb_saas_*` databases before and after migration creation;
+- committed migration for real table policies: `0161_p0_8_4_public_path_rls.sql`;
+- `public.comments` remains blocked because it is `polymorphic_resolver` and requires P0.12.1 before policy application;
+- no runtime role/env/grant flip and no dev/prod/test application DB mutation were performed in the migration pass.
+
 ## Current P0.8.3 Target Facts
 
 The descriptor checker currently asserts:
@@ -51,6 +69,21 @@ The descriptor checker currently asserts:
   - `62` P0.4 public direct-org rows;
   - `41` existing `public.be_*` direct-org rows;
 - parent-copy holds excluded from P0.8.3 and held for P0.8.4:
+  - `public.content_section_slug_history`;
+  - `public.media_transcode_jobs`;
+  - `public.patient_daily_warmup_video_views`;
+  - `public.reference_items`.
+
+## Current P0.8.4 Target Facts
+
+The P0.8.4 generator currently asserts:
+
+- strict public FK/denorm path target count: `37`;
+- target composition:
+  - `2` FK-path `be_*` item rows: `public.be_package_items`, `public.be_patient_package_items`;
+  - `35` public denorm materialized-org rows from P0.4 parent-copy/source batches;
+- blocked polymorphic resolver set: `public.comments` only, with `requiresFollowupStage=P0.12.1`;
+- included P0.8.3 parent-copy holds:
   - `public.content_section_slug_history`;
   - `public.media_transcode_jobs`;
   - `public.patient_daily_warmup_video_views`;
@@ -76,12 +109,15 @@ The descriptor checker currently asserts:
   - `0156_be_branches_color`
   - `0157_booking_services_break_after`
   - `0158_sync_booking_service_break_after_to_canonical`
+  - `0159_be_package_usages_appointment_debit_unique`
   - `0160_p0_8_3_public_direct_org_rls`
+  - `0161_p0_8_4_public_path_rls`
 
-- `0160` is intentionally used on this branch because branch drift check found `feat/doctor-ui-rebuild`
-  has `0159_be_package_usages_appointment_debit_unique.sql`. That upstream migration adds an idempotency
-  index on `public.be_package_usages` and does not change the P0.8.3 `organization_id` policy predicate.
+- `0160` is the P0.8.3 policy migration after upstream `0159_be_package_usages_appointment_debit_unique.sql`.
+- `0161` is the P0.8.4 public FK/denorm path policy migration.
 - The P0.8.3 migration has a matching `_journal.json` entry and passed
+  `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
+- The P0.8.4 migration has a matching `_journal.json` entry and passed
   `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
 
 ## Branch Drift Check Before Execution
@@ -141,4 +177,39 @@ chmod 0644 /tmp/p0-8-3-smoke.sql
 sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-3-smoke.sql
 sudo -n -u postgres dropdb --if-exists "$scratch_db"
 rm -f /tmp/p0-8-3-smoke.sql
+```
+
+## P0.8.4 Tooling Commands
+
+DB-free target/generator check:
+
+```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-4-policy-generator.mjs
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs --targets
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs --fk-targets
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs --denorm-targets
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs --blocked-polymorphic
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs --sql
+```
+
+Scratch smoke with a scratch URL accessible to the current shell user:
+
+```bash
+SCRATCH_DATABASE_URL="postgresql:///bcb_saas_p0_8_4_scratch" \
+  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-4-public-path-policies.mjs
+```
+
+Local peer-auth workaround used on the dev host when only the OS `postgres` role can create/connect to
+scratch DBs:
+
+```bash
+scratch_db="bcb_saas_p0_8_4_scratch_$(date +%s)_$$"
+sudo -n -u postgres createdb "$scratch_db"
+SCRATCH_DATABASE_URL="postgresql:///$scratch_db" \
+  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-4-public-path-policies.mjs --print-sql \
+  > /tmp/p0-8-4-smoke.sql
+chmod 0644 /tmp/p0-8-4-smoke.sql
+sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-4-smoke.sql
+sudo -n -u postgres dropdb --if-exists "$scratch_db"
+rm -f /tmp/p0-8-4-smoke.sql
 ```

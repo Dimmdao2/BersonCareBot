@@ -52,7 +52,7 @@ Pure unit-test cases:
 Each application substage must use scratch/non-prod policy smoke before merge:
 
 - [x] P0.8.3 public direct-org SCOPED families.
-- [ ] P0.8.4 public FK/denorm-path SCOPED families.
+- [x] P0.8.4 public FK/denorm-path SCOPED families.
 - [ ] P0.8.5 integrator bridge/denorm SCOPED families.
 - [ ] P0.8.6 BOOTSTRAP hybrid policies.
 - [ ] P0.8.7 INFRA/LEGACY/TELEMETRY descriptors and unsupported user-ref denial.
@@ -72,6 +72,9 @@ Minimum implementation facts:
 
 ### P0.8.4 Public FK/Denorm-Path Policy Application
 
+Status: executed on 2026-07-08 as migration
+`apps/webapp/db/drizzle-migrations/0161_p0_8_4_public_path_rls.sql`.
+
 Preflight required before code:
 
 - derive exact target set from descriptors where `table.startsWith("public.")` and `scopingKind` is
@@ -86,6 +89,17 @@ Preflight required before code:
 Stop if any polymorphic resolver row lacks a completed P0.12.1 resolver decision. Do not turn a
 polymorphic row into a direct `organization_id` policy without documenting why the materialized column
 is authoritative.
+
+Execution facts:
+
+- generated target set is `37` tables: `2` FK-path targets and `35` denorm materialized-org targets;
+- `public.comments` remains excluded because it is `polymorphic_resolver` and requires `P0.12.1`;
+- FK-path targets: `public.be_package_items`, `public.be_patient_package_items`;
+- denorm targets include the four P0.8.3 parent-copy holds:
+  `public.content_section_slug_history`, `public.media_transcode_jobs`,
+  `public.patient_daily_warmup_video_views`, `public.reference_items`;
+- scratch smoke runs two subgroups in one script: denorm materialized org columns and FK-path package
+  item paths with parent/service cross-org mismatch rows.
 
 Local gate shape:
 

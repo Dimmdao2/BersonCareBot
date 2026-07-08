@@ -124,3 +124,103 @@ export function renderOrgDormantPolicyStatements(descriptor, { policyName }) {
     renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
   ];
 }
+
+export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName, scopingKinds }) {
+  const allowedKinds = new Set(scopingKinds);
+
+  if (!allowedKinds.has(descriptor?.scopingKind)) {
+    throw new Error(
+      `Org-column policy requires ${Array.from(allowedKinds).join("/")} descriptor for ${
+        descriptor?.table ?? "<unknown>"
+      }`,
+    );
+  }
+
+  if (typeof policyName !== "string" || policyName.length === 0) {
+    throw new Error("Policy name must be a non-empty string");
+  }
+
+  const predicate = renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
+
+  return [
+    renderEnableRowLevelSecurity(descriptor.table),
+    renderForceRowLevelSecurity(descriptor.table),
+    renderDropPolicy({ policyName, target: descriptor.table }),
+    renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
+  ];
+}
+
+function renderFkPathExists({ table, alias, parentPk, localFk, parentOrgColumn, gucSql }) {
+  return [
+    "EXISTS (",
+    `SELECT 1 FROM ${renderPolicyTarget(table)} AS ${quoteSqlIdentifier(alias)}`,
+    `WHERE ${quoteSqlIdentifier(alias)}.${quoteSqlIdentifier(parentPk)} = ${quoteSqlIdentifier(localFk)}`,
+    `AND ${quoteSqlIdentifier(alias)}.${quoteSqlIdentifier(parentOrgColumn)} = ${gucSql}::uuid`,
+    ")",
+  ].join(" ");
+}
+
+export function renderFkPathPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
+  assertMode(mode);
+
+  if (descriptor?.scopingKind !== "fk_path") {
+    throw new Error(`FK-path predicate requires fk_path descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  }
+
+  const fkPath = descriptor.fkPath;
+
+  if (
+    !fkPath?.parentTable ||
+    !fkPath?.localFk ||
+    !fkPath?.parentPk ||
+    !fkPath?.parentOrgColumn ||
+    !fkPath?.crossCheckTable ||
+    !fkPath?.crossCheckLocalFk ||
+    !fkPath?.crossCheckPk ||
+    !fkPath?.crossCheckOrgColumn
+  ) {
+    throw new Error(`FK-path descriptor ${descriptor.table} is missing path metadata`);
+  }
+
+  const gucSql = renderNullableTextGuc("app.org");
+  const pathPredicate = `(${renderFkPathExists({
+    table: fkPath.parentTable,
+    alias: "p0_8_4_parent",
+    parentPk: fkPath.parentPk,
+    localFk: fkPath.localFk,
+    parentOrgColumn: fkPath.parentOrgColumn,
+    gucSql,
+  })} AND ${renderFkPathExists({
+    table: fkPath.crossCheckTable,
+    alias: "p0_8_4_cross",
+    parentPk: fkPath.crossCheckPk,
+    localFk: fkPath.crossCheckLocalFk,
+    parentOrgColumn: fkPath.crossCheckOrgColumn,
+    gucSql,
+  })})`;
+
+  if (mode === "dormant_permissive") {
+    return `(${gucSql} IS NULL OR ${pathPredicate})`;
+  }
+
+  return `(${gucSql} IS NOT NULL AND ${pathPredicate})`;
+}
+
+export function renderFkPathDormantPolicyStatements(descriptor, { policyName }) {
+  if (descriptor?.scopingKind !== "fk_path") {
+    throw new Error(`FK-path policy requires fk_path descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  }
+
+  if (typeof policyName !== "string" || policyName.length === 0) {
+    throw new Error("Policy name must be a non-empty string");
+  }
+
+  const predicate = renderFkPathPredicate(descriptor, { mode: "dormant_permissive" });
+
+  return [
+    renderEnableRowLevelSecurity(descriptor.table),
+    renderForceRowLevelSecurity(descriptor.table),
+    renderDropPolicy({ policyName, target: descriptor.table }),
+    renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
+  ];
+}
