@@ -14,12 +14,21 @@ Targets include:
 
 Checklist:
 
-- [ ] Scan schema/code for polymorphic reference columns.
-- [ ] Classify each target type as SCOPED, BOOTSTRAP, INFRA, LEGACY, TELEMETRY, or unknown.
-- [ ] For each SCOPED target, declare resolver path to `organization_id`.
-- [ ] For unresolved target types, block RLS family application until owner decision.
-- [ ] Add checker artifact or table documenting resolved target coverage.
-- [ ] Do not add database FK on polymorphic `item_ref_id`.
+- [x] Scan schema/code for polymorphic reference columns.
+- [x] Classify each target type as SCOPED, BOOTSTRAP, INFRA, LEGACY, TELEMETRY, or unknown.
+- [x] For each SCOPED target, declare resolver path to `organization_id`.
+- [x] For unresolved target types, block RLS family application until owner decision.
+- [x] Add checker artifact or table documenting resolved target coverage.
+- [x] Do not add database FK on polymorphic `item_ref_id`.
+
+P0.12.1 execution note (2026-07-08): documented persisted polymorphic reference families in
+`scope-derivation/p0-12-polymorphic-references.tsv`: `comments.target_type/target_id`,
+`patient_home_block_items.target_type/target_ref`, template/instance stage-item
+`item_type/item_ref_id`, `material_ratings.target_kind/target_id`, and
+`treatment_program_events.target_type/target_id`. `admin_audit_log.target_id` is documented as a
+non-polymorphic text pointer with row ownership already on `organization_id`. Added
+`check-p0-12-polymorphic-references.mjs` to verify exact target coverage, schema CHECK parity,
+resolved organization paths for SCOPED targets, and no DB FK on polymorphic `item_ref_id`.
 
 ## P0.12.2 JSON Payload / Queue PII
 

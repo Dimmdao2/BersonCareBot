@@ -86,6 +86,10 @@ const checks = [
     label: "SAAS P0.11.4 system_settings UI/rules/docs",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-docs-rules.mjs"],
   },
+  {
+    label: "SAAS P0.12.1 polymorphic reference resolver coverage",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-polymorphic-references.mjs"],
+  },
 ];
 
 for (const check of checks) {
