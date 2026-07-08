@@ -65,6 +65,7 @@ function isExtraFormField(field: FormField): boolean {
 type ConfirmStepOptions = {
   formFieldsApiPath?: string;
   successRedirectPath?: string;
+  doneRedirectPath?: string;
   buildAwaitingPaymentHref?: (booking: PatientBookingRecord, contactPhone: string) => string;
   useCreateBookingHook?: typeof useCreateBooking;
   useRescheduleBookingHook?: typeof useRescheduleBooking;
@@ -104,6 +105,7 @@ export function ConfirmStepClient({
   appDisplayTimeZone,
   formFieldsApiPath = "/api/booking/form-fields",
   successRedirectPath = routePaths.bookingNew,
+  doneRedirectPath = routePaths.bookingNewDone,
   buildAwaitingPaymentHref,
   useCreateBookingHook = useCreateBooking,
   useRescheduleBookingHook = useRescheduleBooking,
@@ -366,7 +368,7 @@ export function ConfirmStepClient({
                 (type === "online" ? "Онлайн" : cityTitle ?? "");
               if (loc) doneQ.set("locationLabel", loc);
               if (cityCode) doneQ.set("cityCode", cityCode);
-              router.push(`${routePaths.bookingNewDone}?${doneQ.toString()}`);
+              router.push(`${doneRedirectPath}?${doneQ.toString()}`);
             });
         }}
       >
