@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { apiJson } from "@/shared/lib/apiJson";
-import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import type {
   NotifTemplateEvent,
   NotifTemplateAudience,
@@ -27,6 +27,11 @@ type Props = {
   templates: TemplateEntry[];
   variables: string[];
 };
+
+const TEMPLATE_AUDIENCE_GROUPS: Array<{ audience: NotifTemplateAudience; title: string }> = [
+  { audience: "patient", title: "Уведомления клиенту" },
+  { audience: "doctor", title: "Уведомления специалисту" },
+];
 
 function templateKey(event: NotifTemplateEvent, audience: NotifTemplateAudience): string {
   return `${event}:${audience}`;
@@ -89,70 +94,79 @@ export function NotificationTemplatesPageClient({ templates, variables }: Props)
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Тексты сообщений, которые отправляются при событиях записи. Вставляйте переменные чипами ниже —
-        они подставятся реальными значениями. Пустое поле нельзя сохранить; пока текст не менялся,
-        используется значение по умолчанию.
-      </p>
+    <div className="flex flex-col gap-3">
+      {TEMPLATE_AUDIENCE_GROUPS.map(({ audience, title }) => {
+        const groupTemplates = templates.filter((entry) => entry.audience === audience);
+        if (groupTemplates.length === 0) return null;
 
-      <div className={BOOKING_CARD_GRID_CLASS}>
-        {templates.map((entry) => {
-          const key = templateKey(entry.event, entry.audience);
-          const value = values[key] ?? "";
-          const dirty = value !== (initialText[key] ?? "");
-          return (
-            <Card key={key}>
-              <CardHeader>
-                <CardTitle className="text-sm">
-                  {notifTemplateTitle(entry.event, entry.audience)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Textarea
-                  ref={(el) => {
-                    textareaRefs.current[key] = el;
-                  }}
-                  value={value}
-                  onChange={(e) => setValue(key, e.target.value)}
-                  rows={4}
-                  aria-label={notifTemplateTitle(entry.event, entry.audience)}
-                />
+        return (
+          <section key={audience} className={doctorSectionCardClass} aria-labelledby={`notification-templates-${audience}`}>
+            <h2 id={`notification-templates-${audience}`} className={doctorSectionTitleClass}>
+              {title}
+            </h2>
+            <div className="grid gap-3 md:grid-cols-3">
+              {groupTemplates.map((entry) => {
+                const key = templateKey(entry.event, entry.audience);
+                const value = values[key] ?? "";
+                const dirty = value !== (initialText[key] ?? "");
+                return (
+                  <Card key={key}>
+                    <CardHeader>
+                      <CardTitle className="text-sm">
+                        {notifTemplateTitle(entry.event, entry.audience)}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Textarea
+                        ref={(el) => {
+                          textareaRefs.current[key] = el;
+                        }}
+                        value={value}
+                        onChange={(e) => setValue(key, e.target.value)}
+                        rows={4}
+                        aria-label={notifTemplateTitle(entry.event, entry.audience)}
+                      />
 
-                <div className="flex flex-wrap gap-1.5">
-                  {variables.map((variable) => (
-                    <Button
-                      key={variable}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => insertVariable(key, variable)}
-                      className="rounded-md border border-border/60 bg-muted px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-primary/15 hover:text-primary"
-                      title={NOTIF_VARIABLE_LABELS[variable] ?? variable}
-                    >
-                      {`{{${variable}}}`}
-                    </Button>
-                  ))}
-                </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {variables.map((variable) => {
+                          const variableLabel = NOTIF_VARIABLE_LABELS[variable] ?? variable;
+                          return (
+                            <Button
+                              key={variable}
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => insertVariable(key, variable)}
+                              className="rounded-md border border-border/60 bg-muted px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-primary/15 hover:text-primary"
+                              title={`{{${variable}}}`}
+                            >
+                              {variableLabel}
+                            </Button>
+                          );
+                        })}
+                      </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    {entry.isDefault && !dirty ? "по умолчанию" : ""}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => save(entry)}
-                    disabled={savingKey === key || value.trim().length === 0}
-                  >
-                    {savingKey === key ? "Сохранение…" : "Сохранить"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {entry.isDefault && !dirty ? "по умолчанию" : ""}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => save(entry)}
+                          disabled={savingKey === key || value.trim().length === 0}
+                        >
+                          {savingKey === key ? "Сохранение…" : "Сохранить"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
