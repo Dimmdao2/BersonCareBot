@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check, Scale } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { formatFioForDoctor } from "@/lib/parseFullName";
@@ -105,21 +106,42 @@ function fmtDateShort(iso: string | null | undefined): string {
   return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit" });
 }
 
-/** Copy text to clipboard */
-async function copyToClipboard(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    // fallback: silent
-  }
-}
-
 /** Format ISO date yyyy-mm-dd → DD.MM.YYYY */
 function fmtBirthDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const [year, month, day] = iso.split("-");
   if (!year || !month || !day) return "—";
   return `${day}.${month}.${year}`;
+}
+
+function calculateAgeYears(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const [yearRaw, monthRaw, dayRaw] = iso.split("-");
+  const year = Number.parseInt(yearRaw ?? "", 10);
+  const month = Number.parseInt(monthRaw ?? "", 10);
+  const day = Number.parseInt(dayRaw ?? "", 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const bd = new Date(year, month - 1, day);
+  if (bd.getFullYear() !== year || bd.getMonth() !== month - 1 || bd.getDate() !== day) return null;
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day)) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
+
+function todayInputDate(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function phoneHref(phone: string): string {
+  const normalized = phone.replace(/[^\d+]/g, "");
+  return `tel:${normalized || phone}`;
 }
 
 export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, isAdmin = false }: Props) {
@@ -333,15 +355,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
   }
 
   /** Active age: from resolved birthDate (override wins) */
-  const activeAge: number | null = (() => {
-    if (!resolvedBirthDate) return null;
-    const today = new Date();
-    const bd = new Date(resolvedBirthDate);
-    let age = today.getFullYear() - bd.getFullYear();
-    const m = today.getMonth() - bd.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
-    return age >= 0 ? age : null;
-  })();
+  const activeAge = calculateAgeYears(resolvedBirthDate);
 
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
@@ -459,11 +473,11 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-0.5">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Дата рождения</label>
-                    <Input
-                      type="date"
+                    <DoctorDatePicker
                       value={fioBirthDate}
-                      onChange={(e) => setFioBirthDate(e.target.value)}
-                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                      onChange={setFioBirthDate}
+                      placeholder="Не указана"
+                      max={todayInputDate()}
                     />
                   </div>
                   <div className="flex flex-col gap-0.5">
@@ -618,11 +632,13 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <Button
                   type="button"
                   variant="ghost"
-                  title="Скопировать телефон"
-                  onClick={() => copyToClipboard(identity.phone!)}
-                  className="font-mono text-xs text-foreground hover:text-primary transition-colors cursor-pointer select-text"
+                  title="Позвонить"
+                  onClick={() => {
+                    window.open(phoneHref(identity.phone!), "_self");
+                  }}
+                  className="h-6 rounded-md border border-primary/30 bg-primary/5 px-2 font-mono text-xs text-primary hover:bg-primary/15"
                 >
-                  {identity.phone} ⧉
+                  {identity.phone}
                 </Button>
               ) : (
                 <span className="text-xs text-muted-foreground font-mono">—</span>
@@ -649,8 +665,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="Telegram"
+                  title={hasTelegram ? "Открыть коммуникации: Telegram" : "Telegram не привязан"}
                   disabled={!hasTelegram}
+                  onClick={() => setActiveTab("comms")}
                   className={cn(
                     "h-6 w-6 rounded-md border text-xs",
                     hasTelegram
@@ -663,8 +680,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="MAX"
+                  title={hasMax ? "Открыть коммуникации: MAX" : "MAX не привязан"}
                   disabled={!hasMax}
+                  onClick={() => setActiveTab("comms")}
                   className={cn(
                     "h-6 w-6 rounded-md border text-xs",
                     hasMax
@@ -679,7 +697,9 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   size="icon"
                   title="Написать email"
                   disabled={!hasEmail}
-                  onClick={() => hasEmail && (window.location.href = `mailto:${identity.email}`)}
+                  onClick={() => {
+                    if (identity.email) window.open(`mailto:${identity.email}`, "_self");
+                  }}
                   className={cn(
                     "h-6 w-6 rounded-md border text-xs",
                     hasEmail
