@@ -4,6 +4,7 @@ import type {
   SystemSettingsPort,
   SystemSettingsReadOptions,
   SystemSettingsUpsertRow,
+  SystemSettingsWriteOptions,
 } from "@/modules/system-settings/ports";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 import type { WebappSqlExecutor } from "@/infra/db/runWebappSql";
@@ -125,39 +126,59 @@ export async function readAdminSystemSettingBoolean(
 async function upsertWithAudit(
   key: string,
   scope: string,
+  organizationId: string | null,
   valueJson: unknown,
   updatedBy: string | null,
   tx: WebappSqlExecutor,
 ): Promise<SystemSettingRow> {
   // 1. Read the current value (old state, NULL if first-set)
-  const prevResult = await runWebappPgText<{ value_json: unknown }>(
-    `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
-    [key, scope],
-    tx,
-  );
+  const prevResult = organizationId
+    ? await runWebappPgText<{ value_json: unknown }>(
+        `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id = $3::uuid`,
+        [key, scope, organizationId],
+        tx,
+      )
+    : await runWebappPgText<{ value_json: unknown }>(
+        `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
+        [key, scope],
+        tx,
+      );
   const oldValueJson = prevResult.rows[0]?.value_json ?? null;
 
   // 2. Upsert the new value
-  const r = await runWebappPgText<SystemSettingRow>(
-    `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
-     VALUES ($1, $2, $3::jsonb, now(), $4)
-     ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
-       SET value_json = EXCLUDED.value_json,
-           updated_at = now(),
-           updated_by = EXCLUDED.updated_by
-     RETURNING key, scope, organization_id, value_json, updated_at, updated_by`,
-    [key, scope, JSON.stringify(valueJson), updatedBy],
-    tx,
-  );
+  const r = organizationId
+    ? await runWebappPgText<SystemSettingRow>(
+        `INSERT INTO system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
+         VALUES ($1, $2, $3::uuid, $4::jsonb, now(), $5)
+         ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
+           SET value_json = EXCLUDED.value_json,
+               updated_at = now(),
+               updated_by = EXCLUDED.updated_by
+         RETURNING key, scope, organization_id, value_json, updated_at, updated_by`,
+        [key, scope, organizationId, JSON.stringify(valueJson), updatedBy],
+        tx,
+      )
+    : await runWebappPgText<SystemSettingRow>(
+        `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
+         VALUES ($1, $2, $3::jsonb, now(), $4)
+         ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
+           SET value_json = EXCLUDED.value_json,
+               updated_at = now(),
+               updated_by = EXCLUDED.updated_by
+         RETURNING key, scope, organization_id, value_json, updated_at, updated_by`,
+        [key, scope, JSON.stringify(valueJson), updatedBy],
+        tx,
+      );
 
   // 3. Write audit row (same tx — both or neither)
   await runWebappPgText(
     `INSERT INTO system_settings_audit
-       (key, scope, old_value_json, new_value_json, changed_by, source)
-     VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6)`,
+       (key, scope, organization_id, old_value_json, new_value_json, changed_by, source)
+     VALUES ($1, $2, $3::uuid, $4::jsonb, $5::jsonb, $6, $7)`,
     [
       key,
       scope,
+      organizationId,
       oldValueJson !== null ? JSON.stringify(oldValueJson) : null,
       JSON.stringify(valueJson),
       updatedBy,
@@ -221,9 +242,11 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       scope: SystemSettingScope,
       valueJson: unknown,
       updatedBy: string | null,
+      options: SystemSettingsWriteOptions = {},
     ): Promise<SystemSetting> {
       return runWebappTransaction(async (tx) => {
-        const row = await upsertWithAudit(key, scope, valueJson, updatedBy, tx);
+        const organizationId = options.organizationId?.trim() || null;
+        const row = await upsertWithAudit(key, scope, organizationId, valueJson, updatedBy, tx);
         return rowToSetting(row);
       });
     },
@@ -233,7 +256,8 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       return runWebappTransaction(async (tx) => {
         const out: SystemSetting[] = [];
         for (const row of rows) {
-          const r = await upsertWithAudit(row.key, row.scope, row.valueJson, row.updatedBy, tx);
+          const organizationId = row.organizationId?.trim() || null;
+          const r = await upsertWithAudit(row.key, row.scope, organizationId, row.valueJson, row.updatedBy, tx);
           out.push(rowToSetting(r));
         }
         return out;

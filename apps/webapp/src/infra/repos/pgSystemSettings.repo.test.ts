@@ -85,7 +85,7 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["support_contact_url", ["admin"]]);
   });
 
-  it("upsert targets the global partial unique index", async () => {
+	  it("upsert targets the global partial unique index", async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
@@ -108,6 +108,39 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     const upsertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(selectSql).toContain("organization_id IS NULL");
     expect(upsertSql).toContain("ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE");
+	  });
+
+  it("upsert with organization context targets the org partial unique index", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            key: "support_contact_url",
+            scope: "admin",
+            organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            value_json: { value: "https://org.example" },
+            updated_at: "2026-06-06T00:00:00.000Z",
+            updated_by: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgSystemSettingsPort();
+    const row = await port.upsert("support_contact_url", "admin", { value: "https://org.example" }, null, {
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
+
+    const selectSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    const upsertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    const auditSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    expect(selectSql).toContain("organization_id = $3::uuid");
+    expect(upsertSql).toContain(
+      "ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE",
+    );
+    expect(auditSql).toContain("organization_id");
+    expect(row.organizationId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   });
 
   it("getByKey with organization context prefers org row before global fallback", async () => {

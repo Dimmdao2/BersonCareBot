@@ -1,5 +1,5 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
-import type { SystemSettingsPort, SystemSettingsReadOptions } from "./ports";
+import type { SystemSettingsPort, SystemSettingsReadOptions, SystemSettingsWriteOptions } from "./ports";
 import type { ModesFormKey } from "./modesFormKeys";
 import { normalizeValueJson } from "./adminSettingsPatchNormalize";
 import { invalidateConfigKey } from "./configAdapter";
@@ -15,7 +15,11 @@ import {
 } from "./testAccounts";
 import { mergeBookingPaymentProvidersSecretsRetain } from "@/modules/payments/bookingPaymentSettings";
 
-async function mergeWebPushVapidPrivateRetain(port: SystemSettingsPort, incoming: unknown): Promise<{ value: unknown }> {
+async function mergeWebPushVapidPrivateRetain(
+  port: SystemSettingsPort,
+  incoming: unknown,
+  options: SystemSettingsReadOptions,
+): Promise<{ value: unknown }> {
   const env = normalizeValueJson(incoming);
   const inner = env.value;
   if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return env;
@@ -23,7 +27,7 @@ async function mergeWebPushVapidPrivateRetain(port: SystemSettingsPort, incoming
   const o = { ...(inner as Record<string, unknown>) };
   const privRaw = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
   if (privRaw === "") {
-    const prev = await port.getByKey("web_push_vapid", "admin");
+    const prev = await port.getByKey("web_push_vapid", "admin", options);
     let prevPriv = "";
     const prevVj = prev?.valueJson;
     if (
@@ -46,7 +50,11 @@ async function mergeWebPushVapidPrivateRetain(port: SystemSettingsPort, incoming
   return { value: o };
 }
 
-async function mergeSmtpOutboundPasswordRetain(port: SystemSettingsPort, incoming: unknown): Promise<{ value: unknown }> {
+async function mergeSmtpOutboundPasswordRetain(
+  port: SystemSettingsPort,
+  incoming: unknown,
+  options: SystemSettingsReadOptions,
+): Promise<{ value: unknown }> {
   const env = normalizeValueJson(incoming);
   const inner = env.value;
   if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return env;
@@ -54,7 +62,7 @@ async function mergeSmtpOutboundPasswordRetain(port: SystemSettingsPort, incomin
   const o = { ...(inner as Record<string, unknown>) };
   const pwdRaw = typeof o.password === "string" ? o.password.trim() : "";
   if (pwdRaw === "") {
-    const prev = await port.getByKey("smtp_outbound", "admin");
+    const prev = await port.getByKey("smtp_outbound", "admin", options);
     let prevPwd = "";
     const prevVj = prev?.valueJson;
     if (
@@ -122,26 +130,29 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       key: string,
       scope: SystemSettingScope,
       value: unknown,
-      updatedBy: string | null
+      updatedBy: string | null,
+      options: SystemSettingsWriteOptions = {},
     ): Promise<SystemSetting> {
       if (!isAllowedKey(key)) {
         throw new Error(`unknown_setting_key: ${key}`);
       }
       const valueToStore =
         key === "smtp_outbound" && scope === "admin"
-          ? await mergeSmtpOutboundPasswordRetain(port, value)
+          ? await mergeSmtpOutboundPasswordRetain(port, value, options)
           : key === "web_push_vapid" && scope === "admin"
-            ? await mergeWebPushVapidPrivateRetain(port, value)
+            ? await mergeWebPushVapidPrivateRetain(port, value, options)
             : key === "booking_payment_providers" && scope === "admin"
               ? await mergeBookingPaymentProvidersSecretsRetain(
-                  () => port.getByKey("booking_payment_providers", "admin").then((r) => r?.valueJson ?? null),
+                  () => port.getByKey("booking_payment_providers", "admin", options).then((r) => r?.valueJson ?? null),
                   value,
                 )
               : value;
-      const result = await port.upsert(key, scope, valueToStore, updatedBy);
+      const organizationId = options.organizationId?.trim() || null;
+      const result = await port.upsert(key, scope, valueToStore, updatedBy, { organizationId });
       void syncSettingToIntegrator({
         key,
         scope,
+        organizationId: result.organizationId ?? null,
         valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
         updatedBy: result.updatedBy,
       });
@@ -156,16 +167,19 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
      */
     async persistAdminModesBatch(
       rows: Array<{ key: ModesFormKey; valueJson: { value: unknown } }>,
-      updatedBy: string | null
+      updatedBy: string | null,
+      options: SystemSettingsWriteOptions = {},
     ): Promise<SystemSetting[]> {
       for (const r of rows) {
         if (!isAllowedKey(r.key)) {
           throw new Error(`unknown_setting_key: ${r.key}`);
         }
       }
+      const organizationId = options.organizationId?.trim() || null;
       const upsertRows = rows.map((r) => ({
         key: r.key,
         scope: "admin" as const,
+        organizationId,
         valueJson: r.valueJson,
         updatedBy,
       }));
@@ -174,6 +188,7 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
         void syncSettingToIntegrator({
           key: s.key,
           scope: s.scope,
+          organizationId: s.organizationId ?? null,
           valueJson: normalizeStoredValueJsonForIntegratorSync(s.valueJson),
           updatedBy: s.updatedBy,
         });

@@ -78,6 +78,10 @@ const checks = [
     label: "SAAS P0.11.2 system_settings read path",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-read-path.mjs"],
   },
+  {
+    label: "SAAS P0.11.3 system_settings write path",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-11-system-settings-write-path.mjs"],
+  },
 ];
 
 for (const check of checks) {

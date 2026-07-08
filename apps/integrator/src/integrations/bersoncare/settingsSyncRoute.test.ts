@@ -74,6 +74,38 @@ describe('POST /api/integrator/settings/sync', () => {
     expect(sqlText).toContain('ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE');
   });
 
+  it('accepts org-scoped signed payload and upserts using org partial index', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const app = Fastify();
+    await registerBersoncareSettingsSyncRoute(app, {
+      db: makeDbPort(query),
+      sharedSecret: TEST_SECRET,
+    });
+
+    const body = JSON.stringify({
+      key: 'support_contact_url',
+      scope: 'admin',
+      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      valueJson: { value: 'https://org.example' },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/integrator/settings/sync',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
+    const sqlText = drizzleSqlFragmentToApproximateSql(fragment);
+    expect(sqlText).toContain('INSERT INTO integrator.system_settings');
+    expect(sqlText).toContain('organization_id');
+    expect(sqlText).toContain(
+      'ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE',
+    );
+  });
+
   it('invalidates app display timezone cache when key is app_display_timezone', async () => {
     // eslint-disable-next-line no-secrets/no-secrets -- method name for vi.spyOn
     const invalidateSpy = vi.spyOn(appTimezone, 'invalidateAppDisplayTimezoneCache');

@@ -18,9 +18,10 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
     getByKey: vi.fn().mockResolvedValue(null),
     getByScope: vi.fn().mockResolvedValue([]),
     upsert: vi.fn().mockImplementation(
-      async (key, scope, valueJson, updatedBy): Promise<SystemSetting> => ({
+      async (key, scope, valueJson, updatedBy, options): Promise<SystemSetting> => ({
         key,
         scope,
+        organizationId: options?.organizationId ?? null,
         valueJson,
         updatedAt: new Date().toISOString(),
         updatedBy,
@@ -30,6 +31,7 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
       rows.map((r: SystemSettingsUpsertRow) => ({
         key: r.key,
         scope: r.scope,
+        organizationId: r.organizationId ?? null,
         valueJson: r.valueJson,
         updatedAt: new Date().toISOString(),
         updatedBy: r.updatedBy,
@@ -56,7 +58,7 @@ describe("SystemSettingsService", () => {
     const service = createSystemSettingsService(port);
     const result = await service.updateSetting("dev_mode", "admin", false, "user-uuid");
     expect(result.key).toBe("dev_mode");
-    expect(port.upsert).toHaveBeenCalledWith("dev_mode", "admin", false, "user-uuid");
+    expect(port.upsert).toHaveBeenCalledWith("dev_mode", "admin", false, "user-uuid", { organizationId: null });
   });
 
   it("updateSetting — вызывает syncSettingToIntegrator после upsert", async () => {
@@ -67,6 +69,7 @@ describe("SystemSettingsService", () => {
     expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
       key: "dev_mode",
       scope: "admin",
+      organizationId: null,
       valueJson: { value: true },
       updatedBy: "user-uuid",
     });
@@ -90,19 +93,44 @@ describe("SystemSettingsService", () => {
       "admin",
       { value },
       "admin-uuid",
+      { organizationId: null },
     );
     expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
       key: "operator_health_alert_config",
       scope: "admin",
+      organizationId: null,
       valueJson: { value },
       updatedBy: "admin-uuid",
     });
   });
 
+  it("updateSetting passes organization context to port and mirror sync", async () => {
+    const port = makePort();
+    const service = createSystemSettingsService(port);
+    await service.updateSetting("support_contact_url", "admin", { value: "https://org.example" }, "user-uuid", {
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
+
+    expect(port.upsert).toHaveBeenCalledWith(
+      "support_contact_url",
+      "admin",
+      { value: "https://org.example" },
+      "user-uuid",
+      { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    );
+    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
+      key: "support_contact_url",
+      scope: "admin",
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      valueJson: { value: "https://org.example" },
+      updatedBy: "user-uuid",
+    });
+  });
+
   it("persistAdminModesBatch — upsertManyInTransaction и sync по каждому ключу", async () => {
     const upsertManyInTransaction = vi.fn().mockResolvedValue([
-      { key: "dev_mode", scope: "admin", valueJson: { value: false }, updatedAt: "", updatedBy: "u1" },
-      { key: "debug_forward_to_admin", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: "u1" },
+      { key: "dev_mode", scope: "admin", organizationId: null, valueJson: { value: false }, updatedAt: "", updatedBy: "u1" },
+      { key: "debug_forward_to_admin", scope: "admin", organizationId: null, valueJson: { value: true }, updatedAt: "", updatedBy: "u1" },
     ]);
     const port = makePort({ upsertManyInTransaction });
     const service = createSystemSettingsService(port);
@@ -114,8 +142,8 @@ describe("SystemSettingsService", () => {
       "u1",
     );
     expect(upsertManyInTransaction).toHaveBeenCalledWith([
-      { key: "dev_mode", scope: "admin", valueJson: { value: false }, updatedBy: "u1" },
-      { key: "debug_forward_to_admin", scope: "admin", valueJson: { value: true }, updatedBy: "u1" },
+      { key: "dev_mode", scope: "admin", organizationId: null, valueJson: { value: false }, updatedBy: "u1" },
+      { key: "debug_forward_to_admin", scope: "admin", organizationId: null, valueJson: { value: true }, updatedBy: "u1" },
     ]);
     expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(2);
   });

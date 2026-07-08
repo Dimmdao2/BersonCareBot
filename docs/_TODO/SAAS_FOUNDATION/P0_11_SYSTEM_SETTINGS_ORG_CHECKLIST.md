@@ -52,11 +52,18 @@ mirror payloads.
 
 Checklist:
 
-- [ ] `updateSetting` writes org-aware rows through the service path.
-- [ ] Mirror sync sends the same key/scope/org semantics to integrator.
-- [ ] No second sync call is added in route handlers.
-- [ ] Existing global admin settings still round-trip.
-- [ ] Audit rows preserve actor/org context where available.
+- [x] `updateSetting` writes org-aware rows through the service path.
+- [x] Mirror sync sends the same key/scope/org semantics to integrator.
+- [x] No second sync call is added in route handlers.
+- [x] Existing global admin settings still round-trip.
+- [x] Audit rows preserve actor/org context where available.
+
+P0.11.3 execution note (2026-07-08): `updateSetting` and admin batch persistence accept optional
+`organizationId`, write either the global partial unique row or the org-specific partial unique row,
+and pass the same org semantics to the signed integrator mirror sync/outbox idempotency key. The
+integrator sync route now upserts `integrator.system_settings` with matching global/org conflict
+targets. `system_settings_audit` stores nullable `organization_id` for org-scoped writes. Admin routes
+still call only the service path; no route-level mirror sync was added.
 
 ## P0.11.4 UI / Rules / Docs
 

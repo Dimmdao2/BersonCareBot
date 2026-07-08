@@ -73,14 +73,15 @@ describe("pgSystemSettings audit trail — upsert (single)", () => {
     expect(auditCall).toBeDefined();
     const [auditSql, auditParams] = auditCall as [string, unknown[]];
 
-    expect(auditSql).toMatch(/INSERT INTO system_settings_audit/i);
-    expect(auditParams[0]).toBe("dev_mode");           // key
-    expect(auditParams[1]).toBe("admin");              // scope
-    expect(auditParams[2]).toBeNull();                 // old_value_json — NULL on first-set
-    expect(auditParams[3]).toBe(JSON.stringify({ value: true })); // new_value_json
-    expect(auditParams[4]).toBe("user-uuid-123");      // changed_by
-    expect(auditParams[5]).toBe("system_settings_repo"); // source
-  });
+	    expect(auditSql).toMatch(/INSERT INTO system_settings_audit/i);
+	    expect(auditParams[0]).toBe("dev_mode");           // key
+	    expect(auditParams[1]).toBe("admin");              // scope
+	    expect(auditParams[2]).toBeNull();                 // organization_id — NULL global row
+	    expect(auditParams[3]).toBeNull();                 // old_value_json — NULL on first-set
+	    expect(auditParams[4]).toBe(JSON.stringify({ value: true })); // new_value_json
+	    expect(auditParams[5]).toBe("user-uuid-123");      // changed_by
+	    expect(auditParams[6]).toBe("system_settings_repo"); // source
+	  });
 
   it("update: audit INSERT carries old value and new value", async () => {
     const oldValue = { value: false };
@@ -101,9 +102,10 @@ describe("pgSystemSettings audit trail — upsert (single)", () => {
     expect(auditCall).toBeDefined();
     const [, auditParams] = auditCall as [string, unknown[]];
 
-    expect(auditParams[2]).toBe(JSON.stringify(oldValue)); // old_value_json
-    expect(auditParams[3]).toBe(JSON.stringify(newValue)); // new_value_json
-    expect(auditParams[4]).toBe("admin-uuid");             // changed_by
+	    expect(auditParams[2]).toBeNull();                     // organization_id
+	    expect(auditParams[3]).toBe(JSON.stringify(oldValue)); // old_value_json
+	    expect(auditParams[4]).toBe(JSON.stringify(newValue)); // new_value_json
+	    expect(auditParams[5]).toBe("admin-uuid");             // changed_by
   });
 
   it("update by anonymous: changed_by = null passes through", async () => {
@@ -119,9 +121,9 @@ describe("pgSystemSettings audit trail — upsert (single)", () => {
     const port = createPgSystemSettingsPort();
     await port.upsert("patient_label", "doctor", { value: "клиент" }, null);
 
-    const auditCall = runWebappPgTextMock.mock.calls[2];
-    const [, auditParams] = auditCall as [string, unknown[]];
-    expect(auditParams[4]).toBeNull(); // changed_by = null
+	    const auditCall = runWebappPgTextMock.mock.calls[2];
+	    const [, auditParams] = auditCall as [string, unknown[]];
+	    expect(auditParams[5]).toBeNull(); // changed_by = null
   });
 
   it("upsert runs inside a transaction (runWebappTransaction called)", async () => {
@@ -190,15 +192,16 @@ describe("pgSystemSettings audit trail — upsertManyInTransaction", () => {
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(6);
 
     // First audit row (dev_mode, first-set): old = null
-    const audit1 = runWebappPgTextMock.mock.calls[2] as [string, unknown[]];
-    expect(audit1[0]).toMatch(/INSERT INTO system_settings_audit/i);
-    expect(audit1[1][2]).toBeNull(); // old_value_json null
+	    const audit1 = runWebappPgTextMock.mock.calls[2] as [string, unknown[]];
+	    expect(audit1[0]).toMatch(/INSERT INTO system_settings_audit/i);
+	    expect(audit1[1][2]).toBeNull(); // organization_id null
+	    expect(audit1[1][3]).toBeNull(); // old_value_json null
 
-    // Second audit row (patient_label, update): old = пациент
-    const audit2 = runWebappPgTextMock.mock.calls[5] as [string, unknown[]];
-    expect(audit2[0]).toMatch(/INSERT INTO system_settings_audit/i);
-    expect(audit2[1][2]).toBe(JSON.stringify({ value: "пациент" })); // old_value_json
-    expect(audit2[1][3]).toBe(JSON.stringify({ value: "клиент" }));  // new_value_json
+	    // Second audit row (patient_label, update): old = пациент
+	    const audit2 = runWebappPgTextMock.mock.calls[5] as [string, unknown[]];
+	    expect(audit2[0]).toMatch(/INSERT INTO system_settings_audit/i);
+	    expect(audit2[1][3]).toBe(JSON.stringify({ value: "пациент" })); // old_value_json
+	    expect(audit2[1][4]).toBe(JSON.stringify({ value: "клиент" }));  // new_value_json
   });
 
   it("empty batch: no DB calls", async () => {
