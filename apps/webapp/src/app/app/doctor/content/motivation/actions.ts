@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { env } from "@/config/env";
 
 export type MotivationActionState = { ok: boolean; error?: string };
@@ -78,7 +79,7 @@ export async function setQuoteActive(id: string, nextActive: boolean): Promise<M
 export type ReorderState = { ok: boolean; error?: string };
 
 export async function reorderMotivationQuotes(orderedIds: string[]): Promise<ReorderState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
   if (!orderedIds.length) return { ok: false, error: "Пустой порядок" };
   const ids = orderedIds.map((x) => String(x).trim()).filter(Boolean);
@@ -86,7 +87,9 @@ export async function reorderMotivationQuotes(orderedIds: string[]): Promise<Reo
 
   try {
     const deps = buildAppDeps();
-    await deps.doctorMotivationQuotesEditor.reorderQuotes(ids);
+    await runWithDbOrganizationPrincipal(workspace.organizationId, () =>
+      deps.doctorMotivationQuotesEditor.reorderQuotes(ids),
+    );
   } catch (e) {
     console.error(e);
     return { ok: false, error: "Не удалось сохранить порядок" };
