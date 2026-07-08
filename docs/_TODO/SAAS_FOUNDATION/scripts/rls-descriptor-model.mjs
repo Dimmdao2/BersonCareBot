@@ -21,8 +21,12 @@ export const scopedKinds = new Set([
 const denormResolutions = new Set([
   "attempt_parent_denorm",
   "audit_parent_denorm",
+  "content_parent_denorm",
+  "media_parent_denorm",
   "parent_denorm_copy",
+  "parent_or_patient_org",
   "program_parent_denorm",
+  "reference_parent_denorm",
 ]);
 
 const polymorphicResolutions = new Set(["polymorphic_resolver"]);

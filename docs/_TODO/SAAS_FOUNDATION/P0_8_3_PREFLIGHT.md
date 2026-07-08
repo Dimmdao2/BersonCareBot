@@ -1,6 +1,7 @@
 # P0.8.3 preflight — public direct-org SCOPED policies
 
-Status: design/preflight only for task #554. No policies applied, no migration created, no DB touched.
+Status: design/preflight only for task #554, with descriptor hygiene resolved by task #555.
+No policies applied, no migration created, no DB touched.
 
 ## Purpose
 
@@ -32,19 +33,21 @@ Default target for real P0.8.3 implementation:
 5. Exclude `public.be_organizations` self-scope from this micro-stage unless owner explicitly allows folding it into P0.8.3. Its descriptor is `self_org_id`, not direct `organization_id`.
 6. Exclude `public.be_package_items` and `public.be_patient_package_items`; they are P0.8.4 FK-path tables.
 
-Current descriptor query (`SCOPED` + `public.*` + `scopingKind=direct_org_column`) returns 107 tables:
+Current descriptor query (`SCOPED` + `public.*` + `scopingKind=direct_org_column`) returns 103 tables:
 
-- 66 P0.4 public rows.
+- 62 P0.4 public rows.
 - 41 existing `public.be_*` direct-org rows.
 
-Strict direct-org execution target is 103 tables until the descriptor ambiguity below is resolved:
+Strict direct-org execution target is therefore locked at 103 tables:
 
 - 62 P0.4 public rows.
 - 41 existing `public.be_*` direct-org rows.
 
 ## Descriptor Hygiene Gate
 
-Before implementing P0.8.3, resolve these four currently `direct_org_column` descriptor rows whose P0.4 notes say the org value is copied from a parent:
+Resolved by task #555 before policy application. These four P0.4 parent-copy rows are now explicitly
+classified as `denorm_org_column` descriptors and are excluded from the P0.8.3 public direct-org
+target:
 
 | Table | Current source | Reason to hold |
 |---|---|---|
@@ -53,12 +56,9 @@ Before implementing P0.8.3, resolve these four currently `direct_org_column` des
 | `public.patient_daily_warmup_video_views` | `parent_or_patient_org` | Mixed parent-or-patient source; needs explicit descriptor classification before policy application. |
 | `public.reference_items` | `reference_parent_denorm` | Copies org from `public.reference_categories`; should be path/denorm unless explicitly accepted as materialized direct. |
 
-Owner gate:
-
-- either reclassify these four descriptor sources as `denorm_org_column` and move them to P0.8.4;
-- or explicitly approve them for P0.8.3 as materialized direct-org policy targets after P0.4 proved non-null copied `organization_id`.
-
-Do not apply policies while this classification is implicit.
+The descriptor checker now asserts this classification and the strict 103-table P0.8.3 target. These
+rows remain SCOPED and keep the materialized `organization_id` predicate column, but their policy smoke
+belongs with the P0.8.4 denorm/path family unless an explicit later owner decision changes that.
 
 ## Batch Plan
 
@@ -93,7 +93,7 @@ Do not apply policies while this classification is implicit.
 
 ### Explicit Non-Targets
 
-- P0.8.4: public FK/denorm/path-scoped families, including the four descriptor-hygiene rows if reclassified there.
+- P0.8.4: public FK/denorm/path-scoped families, including the four descriptor-hygiene rows.
 - P0.8.4: `public.be_package_items`, `public.be_patient_package_items`.
 - P0.8.5: all `integrator.*` SCOPED families.
 - P0.8.6: bootstrap hybrid tables.
@@ -151,4 +151,5 @@ Owner decision is required if:
 - P0.8.3 should create a committed migration before a scratch smoke script exists;
 - any smoke requires dev/prod DB access or real runtime roles.
 
-Default if no owner decision: keep the strict 103-table target and block real policy application until descriptor classification is explicit.
+Default if no owner decision: keep the strict 103-table target. Descriptor classification is now
+explicit; real policy application still requires the scratch-smoke implementation stage.

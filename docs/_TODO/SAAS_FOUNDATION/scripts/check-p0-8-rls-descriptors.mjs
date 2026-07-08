@@ -28,6 +28,15 @@ const expectedScopedFkPathTables = new Set([
   "public.be_patient_package_items",
 ]);
 
+const expectedPublicDirectOrgPolicyTargets = 103;
+
+const expectedP083ParentCopyHolds = new Set([
+  "public.content_section_slug_history",
+  "public.media_transcode_jobs",
+  "public.patient_daily_warmup_video_views",
+  "public.reference_items",
+]);
+
 function fail(message) {
   throw new Error(message);
 }
@@ -87,6 +96,8 @@ if (!sameSet(descriptorTables, tierTables)) {
 const actualTierCounts = new Map();
 const actualBootstrapHybridTables = new Set();
 const actualScopedFkPathTables = new Set();
+const actualP083ParentCopyHolds = new Set();
+let publicDirectOrgPolicyTargetCount = 0;
 const batchTables = new Set(readBatchRows().map((row) => row.table));
 const beFkPathTables = new Set(readBeFkPathRows().map((row) => row.table));
 
@@ -122,6 +133,18 @@ for (const [table, descriptor] of descriptors.entries()) {
       if (!descriptor.fkPath?.parentTable || !descriptor.fkPath?.crossCheckTable) {
         fail(`FK-path descriptor ${table} is missing parent/cross-check metadata`);
       }
+    }
+
+    if (descriptor.scopingKind === "direct_org_column" && table.startsWith("public.")) {
+      publicDirectOrgPolicyTargetCount += 1;
+    }
+
+    if (expectedP083ParentCopyHolds.has(table)) {
+      if (descriptor.scopingKind !== "denorm_org_column") {
+        fail(`P0.8.3 parent-copy hold ${table} must be denorm_org_column, got ${descriptor.scopingKind}`);
+      }
+
+      actualP083ParentCopyHolds.add(table);
     }
 
     if (batchTables.has(table) && !descriptor.sourceStage?.startsWith("P0.4.")) {
@@ -172,6 +195,18 @@ if (!sameSet(actualScopedFkPathTables, expectedScopedFkPathTables)) {
   );
 }
 
+if (!sameSet(actualP083ParentCopyHolds, expectedP083ParentCopyHolds)) {
+  fail(
+    `Unexpected P0.8.3 parent-copy hold set. Missing: ${setDiff(expectedP083ParentCopyHolds, actualP083ParentCopyHolds).join(", ")}. Extra: ${setDiff(actualP083ParentCopyHolds, expectedP083ParentCopyHolds).join(", ")}`,
+  );
+}
+
+if (publicDirectOrgPolicyTargetCount !== expectedPublicDirectOrgPolicyTargets) {
+  fail(
+    `Expected ${expectedPublicDirectOrgPolicyTargets} public direct-org P0.8.3 policy targets, got ${publicDirectOrgPolicyTargetCount}`,
+  );
+}
+
 console.log("P0.8.1 RLS descriptor model OK: 219 descriptors cover tiers-218.tsv exactly once.");
 console.log(
   Array.from(actualTierCounts.entries())
@@ -183,4 +218,7 @@ console.log(
   `SCOPED sources: batch=${batchTables.size}, be_fk_path=${actualScopedFkPathTables.size}, be_direct_or_self=${
     expectedTierCounts.get("SCOPED") - batchTables.size - actualScopedFkPathTables.size
   }`,
+);
+console.log(
+  `P0.8.3 public direct-org targets=${publicDirectOrgPolicyTargetCount}; parent-copy holds=${actualP083ParentCopyHolds.size}`,
 );
