@@ -37,11 +37,11 @@ Checklist:
 
 Checklist:
 
-- [ ] Current single-clinic doctor smoke unchanged.
-- [ ] Current patient smoke unchanged.
-- [ ] Dev-bypass still works in development.
-- [ ] No subagent starts a dev server unless the stage explicitly requires UI smoke.
-- [ ] No real external channels are triggered.
+- [x] Current single-clinic doctor smoke unchanged.
+- [x] Current patient smoke unchanged.
+- [x] Dev-bypass still works in development.
+- [x] No subagent starts a dev server unless the stage explicitly requires UI smoke.
+- [x] No real external channels are triggered.
 
 ## Local Gate
 

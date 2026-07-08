@@ -102,6 +102,10 @@ const checks = [
     label: "SAAS P0.13.2 DB isolation assertions",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-db-isolation.mjs"],
   },
+  {
+    label: "SAAS P0.13.3 app-level dormant smoke",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-app-dormant-smoke.mjs"],
+  },
 ];
 
 for (const check of checks) {
