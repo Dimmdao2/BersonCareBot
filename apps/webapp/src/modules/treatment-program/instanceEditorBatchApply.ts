@@ -430,12 +430,14 @@ export async function applyInstanceEditorBatch(
 
   return deps.instances.runInMutationTransaction(async () => {
   detail = baselineDetail;
-  for (const stageCreate of input.draft.stageCreates) {
+  const hadPipelineStageBeforeCreates = detail.stages.some((s) => s.sortOrder > 0);
+  for (let stageCreateIndex = 0; stageCreateIndex < input.draft.stageCreates.length; stageCreateIndex++) {
+    const stageCreate = input.draft.stageCreates[stageCreateIndex]!;
     const stage = await instances.addInstanceStage(input.instanceId, {
       title: stageCreate.title.trim(),
       description: stageCreate.description ?? null,
       sortOrder: detail.stages.reduce((m, s) => Math.max(m, s.sortOrder), -1) + 1,
-      status: "locked",
+      status: !hadPipelineStageBeforeCreates && stageCreateIndex === 0 ? "available" : "locked",
       sourceStageId: null,
     });
     if (!stage) throw new Error("Не удалось добавить этап");

@@ -299,6 +299,32 @@ describe("instanceEditorDraft", () => {
     expect(normalized.stageOrder).toEqual([secondStageId, firstStageId, thirdStageId]);
   });
 
+  it("merge marks only the first draft pipeline stage available when no pipeline exists", () => {
+    const baseline = minimalDetail();
+    baseline.stages = [];
+    const firstStageId = createInstanceEditorDraftClientId();
+    const secondStageId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageCreates.push({ clientId: firstStageId, title: "Этап 1" });
+    draft.stageCreates.push({ clientId: secondStageId, title: "Этап 2" });
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+
+    expect(merged.stages.find((s) => s.id === firstStageId)?.status).toBe("available");
+    expect(merged.stages.find((s) => s.id === secondStageId)?.status).toBe("locked");
+  });
+
+  it("merge marks draft pipeline stage locked when a pipeline stage already exists", () => {
+    const baseline = minimalDetail();
+    const newStageId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageCreates.push({ clientId: newStageId, title: "Этап 2" });
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+
+    expect(merged.stages.find((s) => s.id === newStageId)?.status).toBe("locked");
+  });
+
   it("normalize keeps stageOrder when order changes", () => {
     const baseline = minimalDetail();
     const secondStageId = createInstanceEditorDraftClientId();

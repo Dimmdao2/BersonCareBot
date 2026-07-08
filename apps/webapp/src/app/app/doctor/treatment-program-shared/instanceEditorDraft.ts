@@ -558,6 +558,7 @@ function buildDraftStageRow(
   create: InstanceEditorStageCreate,
   instanceId: string,
   sortOrder: number,
+  status: InstanceEditorStageNode["status"],
 ): InstanceEditorStageNode {
   return {
     id: create.clientId,
@@ -566,7 +567,7 @@ function buildDraftStageRow(
     title: create.title,
     description: create.description ?? null,
     sortOrder,
-    status: "available",
+    status,
     skipReason: null,
     localComment: null,
     startedAt: null,
@@ -846,8 +847,9 @@ export function mergeInstanceEditorDraftIntoDetailRaw(
 ): TreatmentProgramInstanceDetail {
   const stageCreates = draft.stageCreates;
   const maxSort = detail.stages.reduce((m, s) => Math.max(m, s.sortOrder), 0);
+  const hasExistingPipelineStage = detail.stages.some((s) => s.sortOrder > 0);
   const draftStages = stageCreates.map((create, idx) =>
-    buildDraftStageRow(create, detail.id, maxSort + idx + 1),
+    buildDraftStageRow(create, detail.id, maxSort + idx + 1, !hasExistingPipelineStage && idx === 0 ? "available" : "locked"),
   );
 
   let stages: InstanceEditorStageNode[] = [
@@ -989,7 +991,7 @@ export function normalizeInstanceEditorDraft(
     if (next.stageMetadata[stageId]) continue;
     const create = next.stageCreates.find((c) => c.clientId === stageId);
     if (!create) continue;
-    const draftStage = buildDraftStageRow(create, baseline.id, 0);
+    const draftStage = buildDraftStageRow(create, baseline.id, 0, "available");
     if (stageMetadataPatchDiffers(draftStage, patch)) {
       next.stageMetadata[stageId] = patch;
     }
