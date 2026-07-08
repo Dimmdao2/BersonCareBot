@@ -6,6 +6,7 @@ import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
+import { ExerciseCommentPreviewItemContent } from "./comments/ExerciseCommentPreviewItem";
 import type {
   TodayDashboardData,
   TodayIntakeItem,
@@ -99,16 +100,12 @@ function PendingTestModalItem({ item }: { item: TodayPendingProgramTestItem }) {
 
 function ExerciseCommentModalItem({ item }: { item: TodayExerciseCommentAttentionItem }) {
   return (
-    <div className={doctorSectionItemClass}>
-      <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{item.stageItemTitle}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{item.latestMessageAtLabel}</p>
-      <p className="mt-2">
-        <Link href={item.href} className={doctorInlineLinkClass}>
-          Открыть комментарии
-        </Link>
-      </p>
-    </div>
+    <Link
+      href={item.href}
+      className={`${doctorSectionItemClass} block transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40`}
+    >
+      <ExerciseCommentPreviewItemContent item={item} />
+    </Link>
   );
 }
 

@@ -13,9 +13,7 @@ import type {
   PatientExercisesWithCommentsResult,
   ExerciseCommentStageGroup,
   ExerciseCommentItem,
-  ExerciseCommentThumbMedia,
 } from "./loadDoctorPatientExercisesWithComments";
-import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -32,6 +30,8 @@ import {
   ExerciseExecutionGraph,
   type DayBar,
 } from "@/shared/ui/doctor/ExerciseExecutionGraph";
+import { ExerciseCommentPreviewItemContent } from "./ExerciseCommentPreviewItem";
+import { thumbToExerciseMedia } from "./exerciseCommentThumb";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,22 +125,6 @@ function formatRelativeTime(isoDate: string | null): string {
   const time = date.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
   if (isToday) return time;
   return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" }) + " · " + time;
-}
-
-/** Маппинг первого медиа снимка упражнения в `ExerciseMedia` для канон-миниатюры. */
-function thumbToExerciseMedia(thumb: ExerciseCommentThumbMedia | null): ExerciseMedia | null {
-  if (!thumb) return null;
-  return {
-    id: thumb.url,
-    exerciseId: "",
-    mediaUrl: thumb.url,
-    mediaType: thumb.mediaType,
-    sortOrder: thumb.sortOrder,
-    createdAt: "",
-    previewSmUrl: thumb.previewSmUrl,
-    previewMdUrl: thumb.previewMdUrl,
-    previewStatus: thumb.previewStatus ?? undefined,
-  };
 }
 
 // ── Left pane: patient row ───────────────────────────────────────────────────
@@ -1068,26 +1052,12 @@ export function DoctorCommentsTab({
                     handleSelectPatient(patient);
                   }
                 }}
-                className="flex w-full cursor-pointer flex-col gap-0.5 border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
+                className="w-full cursor-pointer border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
               >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-semibold truncate">
-                    {item.patientDisplayName}
-                    {/* ★ маркер: пациент на сопровождении (ищем в activePatients) */}
-                    {activePatients.find((p) => p.patientUserId === item.patientUserId)?.isOnSupport && (
-                      <span className="ml-1.5 text-[10px] font-semibold text-primary" title="На сопровождении">★</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.latestMessageAtLabel}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {item.stageItemTitle}
-                </div>
-                <div className="truncate text-xs text-foreground/80">
-                  «{(item.latestMessage.body ?? "").slice(0, 120)}»
-                </div>
+                <ExerciseCommentPreviewItemContent
+                  item={item}
+                  isOnSupport={activePatients.find((p) => p.patientUserId === item.patientUserId)?.isOnSupport}
+                />
               </Button>
             ))}
 

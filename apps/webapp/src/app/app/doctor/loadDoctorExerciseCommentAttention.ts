@@ -17,6 +17,10 @@ import type {
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatDateTimeRu } from "./doctorTodayFormat";
 import { patientProgramInstanceHref } from "./patients/patientProgramInstanceHref";
+import {
+  firstSnapshotMedia,
+  type ExerciseCommentThumbMedia,
+} from "./comments/exerciseCommentThumb";
 
 export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
 
@@ -26,6 +30,8 @@ export type TodayExerciseCommentAttentionItem = {
   instanceId: string;
   stageItemId: string;
   stageItemTitle: string;
+  /** First exercise media from item snapshot for compact list preview. */
+  thumb?: ExerciseCommentThumbMedia | null;
   latestMessage: ProgramItemDiscussionMessage;
   latestMessageAtLabel: string;
   href: string;
@@ -132,7 +138,7 @@ export async function loadDoctorExerciseCommentAttention(
         if (attentionStageItemIds.length === 0) return [] as TodayExerciseCommentAttentionItem[];
 
         const itemById = new Map(activeExerciseItems.map((item) => [item.id, item]));
-        const rows = await Promise.all(
+        const rows: Array<TodayExerciseCommentAttentionItem | null> = await Promise.all(
           attentionStageItemIds.map(async (stageItemId) => {
             const [latestList, lastReadAt] = await Promise.all([
               deps.programItemDiscussion!.listMessagesPage({
@@ -157,6 +163,7 @@ export async function loadDoctorExerciseCommentAttention(
               instanceId: active.id,
               stageItemId,
               stageItemTitle: stageItemSnapshotTitle(item.snapshot),
+              thumb: firstSnapshotMedia(item.snapshot),
               latestMessage: latest,
               latestMessageAtLabel: formatDateTimeRu(latest.createdAt),
               href: patientProgramInstanceHref(patientUserId, active.id, {

@@ -116,13 +116,21 @@ describe("DoctorTodayLeftKpiRow", () => {
             instanceId: "inst-1",
             stageItemId: "item-1",
             stageItemTitle: "Приседания",
+            thumb: {
+              url: "/api/media/exercise-thumb",
+              mediaType: "image",
+              previewSmUrl: "/api/media/exercise-thumb/preview/sm",
+              previewMdUrl: null,
+              previewStatus: "ready",
+              sortOrder: 0,
+            },
             latestMessage: {
               id: "m1",
               instanceStageItemId: "item-1",
               patientUserId: "u1",
               senderRole: "patient",
               origin: "patient_observation",
-              body: "Боль",
+              body: "Болит колено после второго подхода",
               mediaFileId: null,
               supportMessageId: null,
               createdAt: "2026-06-06T10:00:00.000Z",
@@ -136,5 +144,11 @@ describe("DoctorTodayLeftKpiRow", () => {
     await user.click(screen.getByRole("button", { name: /Комментарии/i }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Клиент")).toBeInTheDocument();
+    expect(screen.getByText("Болит колено после второго подхода")).toBeInTheDocument();
+    expect(screen.getByText("Приседания")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Клиент/ })).toHaveAttribute(
+      "href",
+      "/app/doctor/clients/u1/treatment-programs/inst-1",
+    );
   });
 });
