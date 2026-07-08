@@ -26,6 +26,10 @@ const checks = [
     label: "SAAS P0.5 role split contract/proof artifacts",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-5-role-split.mjs"],
   },
+  {
+    label: "SAAS P0.8.1 RLS descriptor model",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-rls-descriptors.mjs"],
+  },
 ];
 
 for (const check of checks) {
