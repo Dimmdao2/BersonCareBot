@@ -2,6 +2,11 @@ import type { SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { Pool, QueryResultRow } from "pg";
+import {
+  getCurrentDbPrincipalOrganizationId,
+  runWithDbOrganizationPrincipal,
+} from "@bersoncare/db-principal";
+import { startMediaWorkerTransaction } from "./withClient.js";
 
 const pgDialect = new PgDialect();
 
@@ -9,6 +14,17 @@ export type MediaWorkerQueryResult<T> = {
   rows: T[];
   rowCount?: number;
 };
+
+function toMediaWorkerQueryResult<T extends QueryResultRow>(r: {
+  rows?: T[];
+  rowCount?: number | null;
+}): MediaWorkerQueryResult<T> {
+  const out: MediaWorkerQueryResult<T> = { rows: r.rows ?? [] };
+  if (typeof r.rowCount === "number") {
+    out.rowCount = r.rowCount;
+  }
+  return out;
+}
 
 /**
  * Class B executor: Drizzle `sql` fragment → compiled text + params → existing `pg.Pool`.
@@ -19,12 +35,37 @@ export async function runMediaWorkerSql<T extends QueryResultRow = QueryResultRo
   fragment: SQL,
 ): Promise<MediaWorkerQueryResult<T>> {
   const { sql: text, params } = pgDialect.sqlToQuery(fragment);
-  const r = await pool.query<T>(text, params);
-  const out: MediaWorkerQueryResult<T> = { rows: r.rows ?? [] };
-  if (typeof r.rowCount === "number") {
-    out.rowCount = r.rowCount;
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  if (!organizationId) {
+    const r = await pool.query<T>(text, params);
+    return toMediaWorkerQueryResult(r);
   }
-  return out;
+
+  const tx = await startMediaWorkerTransaction(pool);
+  try {
+    const r = await tx.client.query<T>(text, params);
+    await tx.commit();
+    return toMediaWorkerQueryResult(r);
+  } catch (err) {
+    try {
+      await tx.rollback();
+    } catch {
+      /* preserve original query error */
+    }
+    throw err;
+  } finally {
+    tx.release();
+  }
+}
+
+export function runWithOptionalMediaWorkerOrganizationPrincipal<T>(
+  organizationId: string | null | undefined,
+  fn: () => T,
+): T {
+  if (!organizationId) {
+    return fn();
+  }
+  return runWithDbOrganizationPrincipal(organizationId, fn);
 }
 
 /**
