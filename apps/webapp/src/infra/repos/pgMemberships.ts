@@ -680,6 +680,103 @@ export function createPgMembershipsPort(): MembershipsPort {
       return rows.map(mapUsage);
     },
 
+    async recordReservedAppointmentDebit(input) {
+      const now = new Date().toISOString();
+      const run = async (executor: MembershipsDb) => {
+        const inserted = await executor
+          .insert(bePackageUsages)
+          .values({
+            organizationId: input.organizationId,
+            patientPackageId: input.patientPackageId,
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            usageKind: input.usageKind,
+            quantity: 1,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+            occurredAt: now,
+            createdAt: now,
+          })
+          .returning();
+        const debit = mapUsage(inserted[0]!);
+
+        await executor.insert(bePackageUsages).values({
+          organizationId: input.organizationId,
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId,
+          usageKind: "release",
+          quantity: 1,
+          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+          occurredAt: now,
+          createdAt: now,
+        });
+
+        await executor
+          .update(beAppointments)
+          .set({ packageUsageRef: debit.id, updatedAt: now })
+          .where(eq(beAppointments.id, input.appointmentId));
+
+        await executor.insert(bePackageHistoryEvents).values({
+          organizationId: input.organizationId,
+          patientPackageId: input.patientPackageId,
+          eventType: input.eventType,
+          payloadJson: { appointmentId: input.appointmentId, usageId: debit.id },
+          occurredAt: now,
+        });
+
+        return debit;
+      };
+
+      if (txStorage.getStore()) {
+        return run(getMembershipsDb());
+      }
+      return getDrizzle().transaction(run);
+    },
+
+    async finalizeAppointmentDebit(input) {
+      const now = new Date().toISOString();
+      const run = async (executor: MembershipsDb) => {
+        const releaseRows = await executor
+          .select({ id: bePackageUsages.id })
+          .from(bePackageUsages)
+          .where(
+            and(
+              eq(bePackageUsages.organizationId, input.organizationId),
+              eq(bePackageUsages.appointmentId, input.appointmentId),
+              eq(bePackageUsages.patientPackageId, input.patientPackageId),
+              eq(bePackageUsages.patientPackageItemId, input.patientPackageItemId),
+              eq(bePackageUsages.usageKind, "release"),
+            ),
+          )
+          .limit(1);
+
+        if (!releaseRows[0]) {
+          await executor.insert(bePackageUsages).values({
+            organizationId: input.organizationId,
+            patientPackageId: input.patientPackageId,
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            usageKind: "release",
+            quantity: 1,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+            occurredAt: now,
+            createdAt: now,
+          });
+        }
+
+        await executor
+          .update(beAppointments)
+          .set({ packageUsageRef: input.debitUsageId, updatedAt: now })
+          .where(eq(beAppointments.id, input.appointmentId));
+      };
+
+      if (txStorage.getStore()) {
+        await run(getMembershipsDb());
+        return;
+      }
+      await getDrizzle().transaction(run);
+    },
+
     async appendHistoryEvent(input) {
       const db = getMembershipsDb();
       await db.insert(bePackageHistoryEvents).values({

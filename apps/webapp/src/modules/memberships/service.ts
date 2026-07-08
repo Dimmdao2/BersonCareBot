@@ -89,6 +89,12 @@ const APPOINTMENT_DEBIT_USAGE_KINDS: ReadonlySet<PackageUsageRecord['usageKind']
   'manual_adjust',
 ]);
 
+function hasReserveWithoutRelease(usages: PackageUsageRecord[]): boolean {
+  const reserved = usages.some((u) => u.usageKind === 'reserve');
+  if (!reserved) return false;
+  return !usages.some((u) => u.usageKind === 'release');
+}
+
 function isPaymentOfferConfigurationError(code: string): boolean {
   return (
     code === 'payments_disabled' ||
@@ -512,7 +518,19 @@ export function createMembershipsService(deps: {
         input.organizationId,
       );
       const existingDebit = findAppointmentDebit(usages);
-      if (existingDebit) return existingDebit;
+      if (existingDebit) {
+        if (hasReserveWithoutRelease(usages)) {
+          await deps.port.finalizeAppointmentDebit({
+            organizationId: input.organizationId,
+            patientPackageId: existingDebit.patientPackageId,
+            patientPackageItemId: existingDebit.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            debitUsageId: existingDebit.id,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+          });
+        }
+        return existingDebit;
+      }
 
       const reserve = usages.find((u) => u.usageKind === 'reserve');
       if (!reserve) throw new Error('no_reserve');
@@ -522,14 +540,14 @@ export function createMembershipsService(deps: {
 
       let consume: PackageUsageRecord;
       try {
-        consume = await deps.port.appendUsage({
+        consume = await deps.port.recordReservedAppointmentDebit({
           organizationId: input.organizationId,
           patientPackageId: reserve.patientPackageId,
           patientPackageItemId: reserve.patientPackageItemId,
           appointmentId: input.appointmentId,
           usageKind: input.asPenalty ? 'penalty' : 'consume',
-          quantity: 1,
           createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+          eventType: input.asPenalty ? 'penalty_consumed' : 'consumed',
         });
       } catch (err) {
         if ((err as { code?: string })?.code === '23505') {
@@ -538,22 +556,22 @@ export function createMembershipsService(deps: {
             input.organizationId,
           );
           const freshDebit = findAppointmentDebit(freshUsages);
-          if (freshDebit) return freshDebit;
+          if (freshDebit) {
+            if (hasReserveWithoutRelease(freshUsages)) {
+              await deps.port.finalizeAppointmentDebit({
+                organizationId: input.organizationId,
+                patientPackageId: freshDebit.patientPackageId,
+                patientPackageItemId: freshDebit.patientPackageItemId,
+                appointmentId: input.appointmentId,
+                debitUsageId: freshDebit.id,
+                createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+              });
+            }
+            return freshDebit;
+          }
         }
         throw err;
       }
-
-      await deps.port.appendUsage({
-        organizationId: input.organizationId,
-        patientPackageId: reserve.patientPackageId,
-        patientPackageItemId: reserve.patientPackageItemId,
-        appointmentId: input.appointmentId,
-        usageKind: 'release',
-        quantity: 1,
-        createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-      });
-
-      await deps.port.setAppointmentPackageUsageRef(input.appointmentId, consume.id);
 
       if (deps.bookingEngine && !input.asPenalty) {
         const appt = await deps.bookingEngine.getAppointment(input.appointmentId);
@@ -565,13 +583,6 @@ export function createMembershipsService(deps: {
           });
         }
       }
-
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        patientPackageId: reserve.patientPackageId,
-        eventType: input.asPenalty ? 'penalty_consumed' : 'consumed',
-        payloadJson: { appointmentId: input.appointmentId, usageId: consume.id },
-      });
 
       await refreshPackageCalendarForAppointment(input.appointmentId);
 
@@ -625,7 +636,19 @@ export function createMembershipsService(deps: {
         input.organizationId,
       );
       const existingDebit = findAppointmentDebit(usages);
-      if (existingDebit) return existingDebit;
+      if (existingDebit) {
+        if (hasReserveWithoutRelease(usages)) {
+          await deps.port.finalizeAppointmentDebit({
+            organizationId: input.organizationId,
+            patientPackageId: existingDebit.patientPackageId,
+            patientPackageItemId: existingDebit.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            debitUsageId: existingDebit.id,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+          });
+        }
+        return existingDebit;
+      }
 
       const reserve = usages.find((u) => u.usageKind === 'reserve');
       if (reserve) {

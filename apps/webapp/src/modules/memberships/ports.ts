@@ -175,6 +175,38 @@ export type MembershipsPort = {
   listUsagesForPackage(patientPackageId: string, organizationId: string): Promise<PackageUsageRecord[]>;
   listUsagesForAppointment(appointmentId: string, organizationId: string): Promise<PackageUsageRecord[]>;
 
+  /**
+   * Atomic appointment debit for an existing reservation.
+   * Executes in a single DB transaction:
+   *   1. INSERT consume/penalty debit into be_package_usages
+   *   2. INSERT release for the reservation
+   *   3. UPDATE appointment.packageUsageRef to the debit usage
+   *   4. INSERT package history event
+   */
+  recordReservedAppointmentDebit(input: {
+    organizationId: string;
+    patientPackageId: string;
+    patientPackageItemId: string;
+    appointmentId: string;
+    usageKind: Extract<PackageUsageRecord["usageKind"], "consume" | "penalty">;
+    createdByPlatformUserId?: string | null;
+    eventType: string;
+  }): Promise<PackageUsageRecord>;
+
+  /**
+   * Idempotent recovery for legacy/partially-written appointment debits.
+   * Ensures a debit that already exists for a reserved appointment has the matching release
+   * row and appointment.packageUsageRef points at the debit. Does not create another debit.
+   */
+  finalizeAppointmentDebit(input: {
+    organizationId: string;
+    patientPackageId: string;
+    patientPackageItemId: string;
+    appointmentId: string;
+    debitUsageId: string;
+    createdByPlatformUserId?: string | null;
+  }): Promise<void>;
+
   appendHistoryEvent(input: {
     organizationId: string;
     patientPackageId: string;

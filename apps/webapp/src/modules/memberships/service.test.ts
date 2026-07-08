@@ -90,6 +90,17 @@ function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
       }
       return [];
     }),
+    recordReservedAppointmentDebit: vi.fn().mockImplementation(async (input) => ({
+      id: `u-${input.usageKind}`,
+      patientPackageId: input.patientPackageId,
+      patientPackageItemId: input.patientPackageItemId,
+      appointmentId: input.appointmentId,
+      usageKind: input.usageKind,
+      quantity: 1,
+      comment: null,
+      occurredAt: new Date().toISOString(),
+    })),
+    finalizeAppointmentDebit: vi.fn().mockResolvedValue(undefined),
     appendHistoryEvent: vi.fn(),
     listHistoryForPackage: vi.fn().mockResolvedValue([]),
     setAppointmentPackageUsageRef: vi.fn(),
@@ -121,7 +132,7 @@ function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
 }
 
 describe('createMembershipsService', () => {
-  it('consumeForAppointment releases reserve then consumes', async () => {
+  it('consumeForAppointment atomically records debit and release', async () => {
     const port = makePort();
     const bookingEngine = {
       getAppointment: vi
@@ -139,12 +150,10 @@ describe('createMembershipsService', () => {
     });
     await svc.consumeForAppointment({ organizationId: 'org-1', appointmentId: 'appt-1' });
     expect(refreshPackageCalendar).toHaveBeenCalledWith('appt-1');
-    expect(port.appendUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ usageKind: 'release' }),
+    expect(port.recordReservedAppointmentDebit).toHaveBeenCalledWith(
+      expect.objectContaining({ usageKind: 'consume', eventType: 'consumed' }),
     );
-    expect(port.appendUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ usageKind: 'consume' }),
-    );
+    expect(port.appendUsage).not.toHaveBeenCalled();
     expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledWith(
       expect.objectContaining({ toStatus: 'charged_to_package' }),
     );
@@ -279,6 +288,30 @@ describe('createMembershipsService', () => {
     let seq = 0;
     const port = makePort({
       listUsagesForAppointment: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      recordReservedAppointmentDebit: vi.fn().mockImplementation(async (input) => {
+        const debit: PackageUsageRecord = {
+          id: `u-${input.usageKind}-${seq++}`,
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId,
+          usageKind: input.usageKind,
+          quantity: 1,
+          comment: null,
+          occurredAt: new Date().toISOString(),
+        };
+        const release: PackageUsageRecord = {
+          id: `u-release-${seq++}`,
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId,
+          usageKind: 'release',
+          quantity: 1,
+          comment: null,
+          occurredAt: new Date().toISOString(),
+        };
+        ledger.push(debit, release);
+        return debit;
+      }),
       appendUsage: vi.fn().mockImplementation(async (input) => {
         const row: PackageUsageRecord = {
           id: `u-${input.usageKind}-${seq++}`,
@@ -307,6 +340,66 @@ describe('createMembershipsService', () => {
       packageLessonDeducted: true,
     });
 
+    expect(ledger.filter((u) => u.usageKind === 'penalty')).toHaveLength(1);
+    expect(ledger.filter((u) => u.usageKind === 'release')).toHaveLength(1);
+  });
+
+  it('repeated late-cancel penalty repairs existing debit without release', async () => {
+    const ledger: PackageUsageRecord[] = [
+      {
+        id: 'u-res',
+        patientPackageId: 'pp-1',
+        patientPackageItemId: 'i1',
+        appointmentId: 'appt-late',
+        usageKind: 'reserve',
+        quantity: 1,
+        comment: null,
+        occurredAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: 'u-penalty',
+        patientPackageId: 'pp-1',
+        patientPackageItemId: 'i1',
+        appointmentId: 'appt-late',
+        usageKind: 'penalty',
+        quantity: 1,
+        comment: null,
+        occurredAt: '2026-01-01T00:01:00Z',
+      },
+    ];
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      finalizeAppointmentDebit: vi.fn().mockImplementation(async (input) => {
+        if (ledger.some((u) => u.usageKind === 'release')) return;
+        ledger.push({
+          id: 'u-release',
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId,
+          usageKind: 'release',
+          quantity: 1,
+          comment: null,
+          occurredAt: new Date().toISOString(),
+        });
+      }),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+
+    const first = await svc.applyCancelPackageOutcome({
+      organizationId: 'org-1',
+      appointmentId: 'appt-late',
+      packageLessonDeducted: true,
+    });
+    const second = await svc.applyCancelPackageOutcome({
+      organizationId: 'org-1',
+      appointmentId: 'appt-late',
+      packageLessonDeducted: true,
+    });
+
+    expect(first.action).toBe('penalty');
+    expect(second.action).toBe('penalty');
+    expect(port.recordReservedAppointmentDebit).not.toHaveBeenCalled();
+    expect(port.finalizeAppointmentDebit).toHaveBeenCalledTimes(1);
     expect(ledger.filter((u) => u.usageKind === 'penalty')).toHaveLength(1);
     expect(ledger.filter((u) => u.usageKind === 'release')).toHaveLength(1);
   });
@@ -368,6 +461,12 @@ describe('createMembershipsService', () => {
     });
     expect(result).toEqual(manualAdjustUsage);
     expect(port.appendUsage).not.toHaveBeenCalled();
+    expect(port.finalizeAppointmentDebit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: 'appt-1',
+        debitUsageId: 'u-manual-adjust',
+      }),
+    );
     expect(port.setAppointmentPackageUsageRef).not.toHaveBeenCalled();
     expect(bookingEngine.transitionAppointmentStatus).not.toHaveBeenCalled();
   });
@@ -388,7 +487,7 @@ describe('createMembershipsService', () => {
     const svc = createMembershipsService({ port, payments: null, bookingEngine });
     const result = await svc.onVisitConfirmed('appt-1', 'org-1');
     expect(result.skipped).toBe(false);
-    expect(port.appendUsage).toHaveBeenCalledWith(
+    expect(port.recordReservedAppointmentDebit).toHaveBeenCalledWith(
       expect.objectContaining({ usageKind: 'consume' }),
     );
   });
