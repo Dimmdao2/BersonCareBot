@@ -13,6 +13,8 @@ import {
   userReminderOccurrences,
   userReminderRules,
 } from '../schema/integratorDomainRepos.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
 
 function normalizeRuleRow(row: {
   id: string;
@@ -36,6 +38,7 @@ function normalizeRuleRow(row: {
   quiet_hours_start_minute?: number | null;
   quiet_hours_end_minute?: number | null;
   notification_topic_code?: string | null;
+  organization_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }): ReminderRuleRecord {
@@ -65,6 +68,9 @@ function normalizeRuleRow(row: {
     ...(typeof row.notification_topic_code === 'string' && row.notification_topic_code.trim()
       ? { notificationTopicCode: row.notification_topic_code.trim() }
       : {}),
+    ...(typeof row.organization_id === 'string' && row.organization_id.trim()
+      ? { organizationId: row.organization_id.trim() }
+      : {}),
   };
 }
 
@@ -82,6 +88,7 @@ function normalizeOccurrenceRow(row: {
   error_code?: string | null;
   created_at?: string;
   updated_at?: string;
+  organization_id?: string | null;
 }): ReminderOccurrenceRecord {
   return {
     id: row.id,
@@ -97,6 +104,9 @@ function normalizeOccurrenceRow(row: {
     errorCode: row.error_code ?? null,
     ...(row.created_at ? { createdAt: row.created_at } : {}),
     ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
+    ...(typeof row.organization_id === 'string' && row.organization_id.trim()
+      ? { organizationId: row.organization_id.trim() }
+      : {}),
   };
 }
 
@@ -122,6 +132,7 @@ const ruleSelectShape = {
   quiet_hours_start_minute: userReminderRules.quietHoursStartMinute,
   quiet_hours_end_minute: userReminderRules.quietHoursEndMinute,
   notification_topic_code: userReminderRules.notificationTopicCode,
+  organization_id: userReminderRules.organizationId,
   created_at: userReminderRules.createdAt,
   updated_at: userReminderRules.updatedAt,
 };
@@ -138,6 +149,7 @@ const occurrenceSelectShape = {
   delivery_channel: userReminderOccurrences.deliveryChannel,
   delivery_job_id: userReminderOccurrences.deliveryJobId,
   error_code: userReminderOccurrences.errorCode,
+  organization_id: userReminderOccurrences.organizationId,
   created_at: userReminderOccurrences.createdAt,
   updated_at: userReminderOccurrences.updatedAt,
 };
@@ -225,6 +237,7 @@ export async function getDueReminderOccurrences(
        o.delivery_channel,
        o.delivery_job_id,
        o.error_code,
+       COALESCE(o.organization_id, r.organization_id)::text AS organization_id,
        o.created_at::text,
        o.updated_at::text,
        r.user_id,
@@ -254,6 +267,7 @@ export async function getDueReminderOccurrences(
     delivery_channel: string | null;
     delivery_job_id: string | null;
     error_code: string | null;
+    organization_id: string | null;
     created_at: string;
     updated_at: string;
     user_id: string | number;
@@ -271,6 +285,9 @@ export async function getDueReminderOccurrences(
       timezone: row.timezone,
       channelId: row.channel_id ?? '',
       chatId: Number.isFinite(chatId) ? chatId : 0,
+      ...(typeof row.organization_id === 'string' && row.organization_id.trim()
+        ? { organizationId: row.organization_id.trim() }
+        : {}),
     };
   });
 }
@@ -368,21 +385,76 @@ export async function cancelPendingReminderOccurrencesForRule(db: DbPort, ruleId
 
 /** Pending rows left from legacy same-day backfill; grace matches webapp web-push tick. */
 export async function expireOrphanedPendingReminderOccurrences(db: DbPort, nowIso: string): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d
-    .update(userReminderOccurrences)
-    .set({
-      status: 'failed',
-      failedAt: sql`now()`,
-      errorCode: 'orphaned_past_slot',
-      updatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        inArray(userReminderOccurrences.status, ['planned', 'queued']),
-        sql`${userReminderOccurrences.plannedAt} < ${nowIso}::timestamptz - interval '3 minutes'`,
+  const orgs = await runIntegratorSql<{ organization_id: string }>(
+    db,
+    sql`
+      SELECT DISTINCT COALESCE(o.organization_id, r.organization_id)::text AS organization_id
+      FROM user_reminder_occurrences o
+      LEFT JOIN user_reminder_rules r ON r.id = o.rule_id
+      WHERE o.status IN ('planned', 'queued')
+        AND o.planned_at < ${nowIso}::timestamptz - interval '3 minutes'
+        AND COALESCE(o.organization_id, r.organization_id) IS NOT NULL
+      ORDER BY organization_id
+    `,
+  );
+  for (const row of orgs.rows) {
+    if (!row.organization_id) continue;
+    await runWithOrganizationPrincipal(row.organization_id, () =>
+      db.tx((txDb) =>
+        runIntegratorSql(
+          txDb,
+          sql`
+            UPDATE user_reminder_occurrences AS o
+            SET status = 'failed',
+                failed_at = now(),
+                error_code = 'orphaned_past_slot',
+                updated_at = now()
+            FROM user_reminder_rules AS r
+            WHERE r.id = o.rule_id
+              AND o.status IN ('planned', 'queued')
+              AND o.planned_at < ${nowIso}::timestamptz - interval '3 minutes'
+              AND COALESCE(o.organization_id, r.organization_id) = ${row.organization_id}::uuid
+          `,
+        ),
       ),
     );
+  }
+}
+
+export async function resolveReminderRuleOrganizationId(db: DbPort, ruleId: string): Promise<string | null> {
+  const res = await runIntegratorSql<{ organization_id: string | null }>(
+    db,
+    sql`
+      SELECT organization_id::text AS organization_id
+      FROM user_reminder_rules
+      WHERE id = ${ruleId}
+      LIMIT 1
+    `,
+  );
+  const organizationId = res.rows[0]?.organization_id;
+  return typeof organizationId === 'string' && organizationId.trim().length > 0
+    ? organizationId.trim()
+    : null;
+}
+
+export async function resolveReminderOccurrenceOrganizationId(
+  db: DbPort,
+  occurrenceId: string,
+): Promise<string | null> {
+  const res = await runIntegratorSql<{ organization_id: string | null }>(
+    db,
+    sql`
+      SELECT COALESCE(o.organization_id, r.organization_id)::text AS organization_id
+      FROM user_reminder_occurrences o
+      INNER JOIN user_reminder_rules r ON r.id = o.rule_id
+      WHERE o.id = ${occurrenceId}
+      LIMIT 1
+    `,
+  );
+  const organizationId = res.rows[0]?.organization_id;
+  return typeof organizationId === 'string' && organizationId.trim().length > 0
+    ? organizationId.trim()
+    : null;
 }
 
 export async function upsertReminderOccurrencePlanned(
@@ -398,6 +470,7 @@ export async function upsertReminderOccurrencePlanned(
       occurrenceKey: input.occurrenceKey,
       plannedAt: input.plannedAt,
       status: 'planned',
+      organizationId: sql`(SELECT organization_id FROM user_reminder_rules WHERE id = ${input.ruleId} LIMIT 1)`,
       createdAt: sql`now()`,
       updatedAt: sql`now()`,
     })
@@ -479,6 +552,7 @@ export async function insertReminderDeliveryLog(
       status: input.status,
       errorCode: input.errorCode ?? null,
       payloadJson: input.payloadJson ?? {},
+      organizationId: sql`(SELECT organization_id FROM user_reminder_occurrences WHERE id = ${input.occurrenceId} LIMIT 1)`,
       createdAt: sql`now()`,
     })
     .returning({ created_at: userReminderDeliveryLogs.createdAt });
