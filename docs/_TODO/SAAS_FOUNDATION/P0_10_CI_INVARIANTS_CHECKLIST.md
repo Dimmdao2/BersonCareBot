@@ -25,13 +25,22 @@ Implementation:
 
 ## P0.10.2 User-Reference Tier Guard
 
+Status: implemented.
+
 Checklist:
 
-- [ ] Introspect FK references to `public.platform_users`.
-- [ ] Detect soft user-ref column names from the v8 leak class.
-- [ ] Fail if any FK/soft-ref to `platform_users` is INFRA or TELEMETRY.
-- [ ] Allow only SCOPED, BOOTSTRAP, or LEGACY with documented reason.
-- [ ] Add a synthetic/self-test case that reproduces the prior audit-root leak class.
+- [x] Introspect FK references to `public.platform_users`.
+- [x] Detect soft user-ref column names from the v8 leak class.
+- [x] Fail if any FK/soft-ref to `platform_users` is INFRA or TELEMETRY.
+- [x] Allow only SCOPED, BOOTSTRAP, or LEGACY with documented reason.
+- [x] Add a synthetic/self-test case that reproduces the prior audit-root leak class.
+
+Implementation:
+
+- `scripts/check-saas-db-regression.mjs` runs `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-user-reference-tier-guard.mjs`.
+- The checker uses frozen static artifacts only: `fk-edges.tsv`, `method-columns.tsv`, `all-218-signals.tsv`, and P0.4 scoped-source rows where the v8 leak class is represented by actor/user org resolution.
+- Current guarded surface: `114` tables with FK/soft-ref/P0.4 actor-user signal to `platform_users`; `SCOPED=92`, `BOOTSTRAP=20`, `LEGACY=2`, `INFRA/TELEMETRY=0`.
+- `--self-test` mutates prior leak-class descriptors (`public.admin_audit_log`, `public.broadcast_audit`, `public.content_section_slug_history`) to prove INFRA/TELEMETRY or no-longer-SCOPED classifications fail.
 
 ## P0.10.3 Scoped Tenant Semantics And Null Checks
 

@@ -62,6 +62,10 @@ const checks = [
     label: "SAAS P0.10.1 tier completeness invariant",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-tier-completeness.mjs"],
   },
+  {
+    label: "SAAS P0.10.2 user-reference tier guard",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-user-reference-tier-guard.mjs"],
+  },
 ];
 
 for (const check of checks) {
