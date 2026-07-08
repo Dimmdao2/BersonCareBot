@@ -192,6 +192,32 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  it("clears selected days when clicking the empty work-tab background", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("schedule-work-tab"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not clear selected days when clicking hours-panel controls", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("panel-start"));
+
+    expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+  });
+
   it("clears selected days when clicking a branch filter button", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());

@@ -1032,10 +1032,20 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     }
   }
 
+  function handleSurfaceMouseDown(e: MouseEvent<HTMLElement>) {
+    const target = e.target as HTMLElement;
+    const interactive = target.closest(
+      "button,[role='button'],[role='combobox'],a,input,label,select,textarea,[data-radix-popper-content-wrapper]",
+    );
+    if (!interactive) {
+      handleClearSelection();
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <DoctorSection data-testid="schedule-work-tab">
+    <DoctorSection data-testid="schedule-work-tab" onMouseDown={handleSurfaceMouseDown}>
       {/* Sticky top bar: filter (E3) + month nav */}
       <div
         className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}

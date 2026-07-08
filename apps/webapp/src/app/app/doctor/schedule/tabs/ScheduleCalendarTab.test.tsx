@@ -187,7 +187,7 @@ vi.mock('@/modules/booking-calendar/calendarCreateFieldMode', () => ({
 
 // appointmentStatusLabel
 vi.mock('@/modules/booking-calendar/appointmentStatusLabels', () => ({
-  appointmentStatusLabel: (status: string) => `status:${status}`,
+  appointmentStatusLabel: (status: string) => (status === 'confirmed' ? 'Подтверждена' : `status:${status}`),
   isCancelledAppointmentStatus: () => false,
 }));
 
@@ -716,6 +716,30 @@ describe('ScheduleCalendarTab — v26 rebuild', () => {
         expect(screen.queryByTestId('feed-load-past')).not.toBeInTheDocument();
         expect(screen.queryByTestId('feed-load-future')).not.toBeInTheDocument();
       });
+    });
+
+    it('list view renders appointment status through the human-readable formatter', async () => {
+      const events = [
+        {
+          kind: 'appointment',
+          id: 'appt-status',
+          startAt: '2026-06-13T10:00:00+03:00',
+          endAt: '2026-06-13T11:00:00+03:00',
+          status: 'confirmed',
+          patientName: 'Иванов Иван',
+          branchTitle: null,
+        },
+      ];
+      setupFetchMock(makeCalendarResponse(events));
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: '2026-06-13', render: 'list' }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId('list-appt-appt-status'));
+
+      expect(screen.getByTestId('list-appt-appt-status')).toHaveTextContent('Подтверждена');
+      expect(screen.getByTestId('list-appt-appt-status')).not.toHaveTextContent('confirmed');
+      await user.click(screen.getByTestId('list-appt-appt-status'));
     });
   });
 

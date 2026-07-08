@@ -12,16 +12,21 @@ import type { CalendarAppointmentEvent } from '@/modules/booking-calendar/types'
 // ---------------------------------------------------------------------------
 
 // FullCalendar — тяжёлый, мокаем stub (аналогично ScheduleCalendarTab.test.tsx)
+let lastFullCalendarProps: Record<string, unknown> | null = null;
+
 vi.mock('@fullcalendar/react', () => ({
-  default: ({ events }: { events?: Array<{ title?: string }> }) => (
-    <div data-testid="fullcalendar">
-      {(events ?? []).map((e, i) => (
-        <div key={i} data-testid="fc-event">
-          {e.title}
-        </div>
-      ))}
-    </div>
-  ),
+  default: (props: { events?: Array<{ title?: string }> } & Record<string, unknown>) => {
+    lastFullCalendarProps = props;
+    return (
+      <div data-testid="fullcalendar">
+        {(props.events ?? []).map((e, i) => (
+          <div key={i} data-testid="fc-event">
+            {e.title}
+          </div>
+        ))}
+      </div>
+    );
+  },
 }));
 vi.mock('@fullcalendar/timegrid', () => ({ default: {} }));
 vi.mock('@fullcalendar/interaction', () => ({ default: {} }));
@@ -332,6 +337,21 @@ describe('DoctorTodayMiniCalendar', () => {
       // R1: календарь показан + подсказка «нет записей»
       expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
       expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
+    });
+
+    it('keeps the default 09:00-19:00 window when workingBounds are narrow', () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt('a1', '15:00')]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+          workingBounds={{ startMinute: 14 * 60, endMinute: 17 * 60 }}
+        />,
+      );
+
+      expect(lastFullCalendarProps?.slotMinTime).toBe('09:00:00');
+      expect(lastFullCalendarProps?.slotMaxTime).toBe('19:00:00');
     });
 
     it('renders calendar without crash for early appointment outside shift bounds', () => {
