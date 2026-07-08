@@ -25,6 +25,9 @@ function appt(partial: Partial<AppointmentRow> & Pick<AppointmentRow, "id">): Ap
     link: null,
     cancellationCountForClient: 0,
     branchName: null,
+    packageUsageRef: null,
+    packageTitle: null,
+    packageDisplayNumber: null,
     ...partial,
   };
 }

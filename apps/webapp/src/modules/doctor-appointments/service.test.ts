@@ -24,6 +24,9 @@ describe("doctor-appointments service", () => {
             cancellationCountForClient: 0,
             branchName: null,
             rubitimeNameIfDifferent: null,
+            packageUsageRef: null,
+            packageTitle: null,
+            packageDisplayNumber: null,
           },
         ];
       }
@@ -99,6 +102,9 @@ describe("doctor-appointments service", () => {
             cancellationCountForClient: 0,
             branchName: null,
             rubitimeNameIfDifferent: null,
+            packageUsageRef: null,
+            packageTitle: null,
+            packageDisplayNumber: null,
           },
         ];
       },
@@ -149,6 +155,9 @@ describe("doctor-appointments service", () => {
             cancellationCountForClient: 0,
             branchName: null,
             rubitimeNameIfDifferent: null,
+            packageUsageRef: null,
+            packageTitle: null,
+            packageDisplayNumber: null,
           },
         ];
       },

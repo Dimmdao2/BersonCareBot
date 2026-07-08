@@ -48,6 +48,12 @@ export type AppointmentRow = {
   scheduleProvenancePrefix?: string;
   /** Имя из Rubitime (`payload_json.name`), если отличается от профильной подписи; иначе `null`. */
   rubitimeNameIfDifferent: string | null;
+  /** Linked package usage id for appointments paid by membership. */
+  packageUsageRef: string | null;
+  /** Human title of the linked patient package, for tooltip/fallback context. */
+  packageTitle: string | null;
+  /** Human sequential package number rendered as `аб.#NNN`. */
+  packageDisplayNumber: number | null;
 };
 
 /** Агрегатная статистика по записям за календарное окно (`app_display_timezone`). */

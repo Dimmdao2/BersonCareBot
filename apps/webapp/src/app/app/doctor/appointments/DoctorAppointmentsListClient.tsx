@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { AppointmentRow } from "@/modules/doctor-appointments/ports";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorAppointmentActions } from "./DoctorAppointmentActions";
 
@@ -140,6 +141,14 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
                         ) : null}
                         <span className="text-sm">
                           {a.time} — {a.clientLabel}{" "}
+                          {a.packageUsageRef || a.packageTitle ? (
+                            <span
+                              className="mr-1 inline-flex items-center rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
+                              title={a.packageTitle ?? undefined}
+                            >
+                              {formatPatientPackageShortLabel(a.packageDisplayNumber)}
+                            </span>
+                          ) : null}
                           <span className="text-muted-foreground">({a.type}, {a.status})</span>
                         </span>
                         {a.branchName ? (

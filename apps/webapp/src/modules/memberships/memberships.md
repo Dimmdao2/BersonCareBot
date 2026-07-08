@@ -42,6 +42,7 @@ One booking appointment can have reserve/release/refund rows, but must not be ch
 - Closed-history on Visits: an active package is shown in history when all package sessions are consumed past visits (`linkage=consumed`, `isPast=true`) and consumed count covers total package quantity. Future reserves and partially consumed packages stay active. Closed rows are collapsed by default and expand to the same `MembershipCardHeader`.
 - Linked appointment highlight: the eye button toggles a violet border on appointments whose `patientPackageId` matches the selected package, both for active cards and closed-history rows.
 - Wording: Overview KPI value uses `Осталось N визитов:`; Visits active and expanded-history cards use the shared membership header (`Осталось N визитов:`, composition like `2 x ЛФК`, consumed dates).
+- Global doctor appointments list: `AppointmentRow` carries `packageUsageRef`, `packageTitle`, and `packageDisplayNumber`; `/app/doctor/appointments` renders the same compact violet `аб.#NNN` badge as calendar and patient-card visits.
 
 ## Patient APIs (`requirePatientApiBusinessAccess`)
 

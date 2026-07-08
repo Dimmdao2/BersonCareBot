@@ -96,6 +96,9 @@ function mapListRows(
       cancellationCountForClient: 0,
       branchName: row.branch_name ?? null,
       scheduleProvenancePrefix: SCHEDULE_RECORD_PROVENANCE_PREFIX,
+      packageUsageRef: null,
+      packageTitle: null,
+      packageDisplayNumber: null,
     };
   });
 }

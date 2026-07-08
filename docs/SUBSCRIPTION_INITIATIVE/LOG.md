@@ -2,6 +2,21 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-08 18:23 MSK — #535 global appointments package badge
+
+### Что сделано
+
+- `AppointmentRow` расширен полями `packageUsageRef`, `packageTitle`, `packageDisplayNumber`.
+- `pgDoctorCanonicalAppointments` подтягивает package title/displayNumber через `be_appointments.package_usage_ref` → `be_package_usages` → `be_patient_packages`.
+- `DoctorAppointmentsListClient` рендерит фиолетовый compact badge `аб.#NNN` рядом с записью, переиспользуя `formatPatientPackageShortLabel`.
+- Legacy Rubitime read port и in-memory/test fixtures возвращают `null` package-поля.
+
+### Проверки
+
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run 'src/app/app/doctor/appointments/DoctorAppointmentsListClient.test.tsx'"` — passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp typecheck"` — passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp lint"` — passed.
+
 ## 2026-07-08 18:15 MSK — #533 appointment debit idempotency hardening
 
 ### Что сделано

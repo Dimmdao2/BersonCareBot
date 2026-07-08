@@ -10,7 +10,7 @@ function mockPort(tag: string): DoctorAppointmentsPort {
   // legacy -> 0 (mimics real legacy all-zero stub), canonical -> 37 (non-zero).
   const kpiRecords = tag === "canonical" ? 37 : 0;
   return {
-    listAppointmentsForSpecialist: vi.fn(async () => [{ id: tag, clientUserId: "", clientLabel: tag, time: "", recordAtIso: null, dateKey: "", type: "", status: "", link: null, cancellationCountForClient: 0, branchName: null, rubitimeNameIfDifferent: null }]),
+    listAppointmentsForSpecialist: vi.fn(async () => [{ id: tag, clientUserId: "", clientLabel: tag, time: "", recordAtIso: null, dateKey: "", type: "", status: "", link: null, cancellationCountForClient: 0, branchName: null, rubitimeNameIfDifferent: null, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null }]),
     getAppointmentStats: vi.fn(async () => ({
       pastVisitsInPeriod: 0,
       cancelledVisitsInPeriod: 0,
