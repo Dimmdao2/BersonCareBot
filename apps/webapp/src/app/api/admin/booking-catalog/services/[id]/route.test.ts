@@ -77,6 +77,7 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       title: "Приём",
       description: null,
       durationMinutes: 90,
+      breakAfterMinutes: 20,
       priceMinor: 500000,
       isActive: true,
       sortOrder: 0,
@@ -88,7 +89,7 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       new Request("http://localhost/", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ durationMinutes: 90, priceMinor: 500000 }),
+        body: JSON.stringify({ durationMinutes: 90, breakAfterMinutes: 20, priceMinor: 500000 }),
       }),
       { params: Promise.resolve({ id: uuid }) },
     );
@@ -96,10 +97,25 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
     const body = (await res.json()) as { ok: boolean; service: typeof updated };
     expect(body.ok).toBe(true);
     expect(body.service.durationMinutes).toBe(90);
+    expect(body.service.breakAfterMinutes).toBe(20);
     expect(updateServiceByIdMock).toHaveBeenCalledWith(uuid, {
       durationMinutes: 90,
+      breakAfterMinutes: 20,
       priceMinor: 500000,
     });
+  });
+
+  it("returns 400 when breakAfterMinutes is not a 5-minute step", async () => {
+    getSessionMock.mockResolvedValue(adminSession);
+    const res = await PATCH(
+      new Request("http://localhost/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ breakAfterMinutes: 7 }),
+      }),
+      { params: Promise.resolve({ id: uuid }) },
+    );
+    expect(res.status).toBe(400);
   });
 
   it("returns 409 on unique_violation when title+duration conflicts", async () => {

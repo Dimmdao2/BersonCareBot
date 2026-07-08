@@ -34,6 +34,7 @@ type CatalogService = {
   title: string;
   description: string | null;
   durationMinutes: number;
+  breakAfterMinutes: number;
   priceMinor: number;
   isActive: boolean;
   sortOrder: number;
@@ -302,7 +303,9 @@ export function RubitimeSection() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span>
-                    {s.title} · {s.durationMinutes} мин · {formatPriceMinor(s.priceMinor)}
+                    {s.title} · {s.durationMinutes} мин
+                    {s.breakAfterMinutes > 0 ? ` · перерыв ${s.breakAfterMinutes} мин` : ""} ·{" "}
+                    {formatPriceMinor(s.priceMinor)}
                     {!s.isActive && <span className="ml-1 text-muted-foreground">(неактивна)</span>}
                   </span>
                   <Button
@@ -591,6 +594,7 @@ function ServiceEditor({
   const [title, setTitle] = useState(service.title);
   const [description, setDescription] = useState(service.description ?? "");
   const [durationMinutes, setDurationMinutes] = useState(String(service.durationMinutes));
+  const [breakAfterMinutes, setBreakAfterMinutes] = useState(String(service.breakAfterMinutes));
   const [priceMinor, setPriceMinor] = useState(String(service.priceMinor));
   const [err, setErr] = useState<string | null>(null);
   const [isPending, start] = useTransition();
@@ -599,6 +603,7 @@ function ServiceEditor({
     setTitle(service.title);
     setDescription(service.description ?? "");
     setDurationMinutes(String(service.durationMinutes));
+    setBreakAfterMinutes(String(service.breakAfterMinutes));
     setPriceMinor(String(service.priceMinor));
     setErr(null);
   }
@@ -618,9 +623,11 @@ function ServiceEditor({
   }
 
   const durParsed = Number.parseInt(durationMinutes, 10);
+  const breakParsed = Number.parseInt(breakAfterMinutes, 10);
   const priceParsed = Number.parseInt(priceMinor, 10);
   const pricingChanged =
     (Number.isFinite(durParsed) && durParsed !== service.durationMinutes) ||
+    (Number.isFinite(breakParsed) && breakParsed !== service.breakAfterMinutes) ||
     (Number.isFinite(priceParsed) && priceParsed !== service.priceMinor);
   const showLinkImpact = isExpanded && linkedBranchServiceCount > 0 && pricingChanged;
 
@@ -631,9 +638,14 @@ function ServiceEditor({
       return;
     }
     const dur = Number.parseInt(durationMinutes, 10);
+    const breakAfter = Number.parseInt(breakAfterMinutes, 10);
     const price = Number.parseInt(priceMinor, 10);
     if (!Number.isFinite(dur) || dur <= 0) {
       setErr("Длительность должна быть > 0");
+      return;
+    }
+    if (!Number.isFinite(breakAfter) || breakAfter < 0 || breakAfter % 5 !== 0) {
+      setErr("Перерыв должен быть 0 или кратен 5 минутам");
       return;
     }
     if (!Number.isFinite(price) || price < 0) {
@@ -649,6 +661,7 @@ function ServiceEditor({
             title: title.trim(),
             description: description.trim() || null,
             durationMinutes: dur,
+            breakAfterMinutes: breakAfter,
             priceMinor: price,
           }),
         });
@@ -690,6 +703,15 @@ function ServiceEditor({
           disabled={isPending}
         />
         <Input
+          placeholder="Перерыв после (мин)"
+          type="number"
+          min={0}
+          step={5}
+          value={breakAfterMinutes}
+          onChange={(e) => setBreakAfterMinutes(e.target.value)}
+          disabled={isPending}
+        />
+        <Input
           placeholder="Цена (копейки)"
           type="number"
           min={0}
@@ -727,6 +749,7 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("60");
+  const [breakAfterMinutes, setBreakAfterMinutes] = useState("0");
   const [priceMinor, setPriceMinor] = useState("400000");
   const [err, setErr] = useState<string | null>(null);
   const [isPending, start] = useTransition();
@@ -738,9 +761,14 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
       return;
     }
     const dur = Number.parseInt(durationMinutes, 10);
+    const breakAfter = Number.parseInt(breakAfterMinutes, 10);
     const price = Number.parseInt(priceMinor, 10);
     if (!Number.isFinite(dur) || dur <= 0) {
       setErr("Длительность должна быть > 0");
+      return;
+    }
+    if (!Number.isFinite(breakAfter) || breakAfter < 0 || breakAfter % 5 !== 0) {
+      setErr("Перерыв должен быть 0 или кратен 5 минутам");
       return;
     }
     if (!Number.isFinite(price) || price < 0) {
@@ -756,12 +784,14 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
             title: title.trim(),
             description: description.trim() || null,
             durationMinutes: dur,
+            breakAfterMinutes: breakAfter,
             priceMinor: price,
           }),
         });
         setTitle("");
         setDescription("");
         setDurationMinutes("60");
+        setBreakAfterMinutes("0");
         setPriceMinor("400000");
         onDone();
       } catch (e) {
@@ -787,6 +817,15 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
           min={1}
           value={durationMinutes}
           onChange={(e) => setDurationMinutes(e.target.value)}
+          disabled={isPending}
+        />
+        <Input
+          placeholder="Перерыв после (мин)"
+          type="number"
+          min={0}
+          step={5}
+          value={breakAfterMinutes}
+          onChange={(e) => setBreakAfterMinutes(e.target.value)}
           disabled={isPending}
         />
         <Input

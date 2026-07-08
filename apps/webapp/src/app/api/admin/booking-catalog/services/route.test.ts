@@ -71,6 +71,7 @@ describe("POST /api/admin/booking-catalog/services", () => {
       description: null,
       durationMinutes: 60,
       priceMinor: 100,
+      breakAfterMinutes: 15,
       isActive: true,
       sortOrder: 0,
       createdAt: "",
@@ -83,11 +84,38 @@ describe("POST /api/admin/booking-catalog/services", () => {
         body: JSON.stringify({
           title: "Услуга",
           durationMinutes: 60,
+          breakAfterMinutes: 15,
           priceMinor: 100,
         }),
       }),
     );
     expect(res.status).toBe(200);
+    expect(upsertServiceMock).toHaveBeenCalledWith({
+      title: "Услуга",
+      description: null,
+      durationMinutes: 60,
+      breakAfterMinutes: 15,
+      priceMinor: 100,
+      isActive: true,
+      sortOrder: 0,
+    });
+  });
+
+  it("returns 400 when breakAfterMinutes is not a 5-minute step", async () => {
+    getSessionMock.mockResolvedValue(adminSession);
+    const res = await POST(
+      new Request("http://localhost/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Услуга",
+          durationMinutes: 60,
+          breakAfterMinutes: 7,
+          priceMinor: 100,
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
   });
 
   it("returns 409 unique_violation on database conflict", async () => {

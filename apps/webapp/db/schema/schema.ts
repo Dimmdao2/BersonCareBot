@@ -1593,6 +1593,7 @@ export const bookingServices = pgTable("booking_services", {
 	title: text().notNull(),
 	description: text(),
 	durationMinutes: integer("duration_minutes").notNull(),
+	breakAfterMinutes: integer("break_after_minutes").default(0).notNull(),
 	priceMinor: integer("price_minor").notNull(),
 	isActive: boolean("is_active").default(true).notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
@@ -1601,6 +1602,7 @@ export const bookingServices = pgTable("booking_services", {
 }, (table) => [
 	index("idx_booking_services_is_active").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
 	unique("uq_booking_services_title_duration").on(table.title, table.durationMinutes),
+	check("booking_services_break_after_check", sql`break_after_minutes >= 0 AND break_after_minutes % 5 = 0`),
 ]);
 
 export const onlineIntakeRequests = pgTable("online_intake_requests", {

@@ -13,6 +13,7 @@ const PatchServiceSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.union([z.string().max(2000), z.null()]).optional(),
   durationMinutes: z.number().int().positive().optional(),
+  breakAfterMinutes: z.number().int().min(0).max(24 * 60).multipleOf(5).optional(),
   priceMinor: z.number().int().nonnegative().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),

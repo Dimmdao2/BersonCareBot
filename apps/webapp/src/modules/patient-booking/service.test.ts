@@ -64,6 +64,7 @@ function resolvedFixture(): ResolvedBranchService {
       title: "Сеанс",
       description: null,
       durationMinutes: 60,
+      breakAfterMinutes: 0,
       priceMinor: 0,
       isActive: true,
       sortOrder: 0,

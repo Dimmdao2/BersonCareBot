@@ -35,7 +35,7 @@ type SpecialistRecord = {
 };
 type ServiceRecord = {
   title: string; description: string; duration_minutes: number;
-  price_minor: number; is_active: boolean; sort_order: number;
+  break_after_minutes: number; price_minor: number; is_active: boolean; sort_order: number;
 };
 type BranchServiceRecord = {
   rubitime_branch_id: string; rubitime_cooperator_id: string;
@@ -92,6 +92,7 @@ const SERVICES: ServiceRecord[] = [
     description:
       "Повторный прием (работа с конкретным регионом), Детский прием, Массаж: стопы / лицо и челюсть / шея / лопатки, Висцеральный массаж, Таз / диафрагма",
     duration_minutes: 40,
+    break_after_minutes: 0,
     price_minor: 400000,
     is_active: true,
     sort_order: 1,
@@ -101,6 +102,7 @@ const SERVICES: ServiceRecord[] = [
     description:
       "Повторный прием (реабилитация), Первичный детский, Профилактический сеанс, Работа с беременными",
     duration_minutes: 60,
+    break_after_minutes: 0,
     price_minor: 600000,
     is_active: true,
     sort_order: 2,
@@ -110,6 +112,7 @@ const SERVICES: ServiceRecord[] = [
     description:
       "Первичный прием (реабилитация), Остеопатический сеанс, Антистресс-релакс-восстановление",
     duration_minutes: 90,
+    break_after_minutes: 0,
     price_minor: 800000,
     is_active: true,
     sort_order: 3,
@@ -285,15 +288,24 @@ async function upsertServices(client: pg.PoolClient): Promise<void> {
   for (const svc of SERVICES) {
     await client.query(
       `INSERT INTO booking_services
-         (id, title, description, duration_minutes, price_minor, is_active, sort_order)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+         (id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT ON CONSTRAINT uq_booking_services_title_duration DO UPDATE
          SET description = EXCLUDED.description,
+             break_after_minutes = EXCLUDED.break_after_minutes,
              price_minor = EXCLUDED.price_minor,
              is_active = EXCLUDED.is_active,
              sort_order = EXCLUDED.sort_order,
              updated_at = now()`,
-      [svc.title, svc.description, svc.duration_minutes, svc.price_minor, svc.is_active, svc.sort_order],
+      [
+        svc.title,
+        svc.description,
+        svc.duration_minutes,
+        svc.break_after_minutes,
+        svc.price_minor,
+        svc.is_active,
+        svc.sort_order,
+      ],
     );
     console.log(`  service upserted: "${svc.title}" (${svc.duration_minutes} min, ${svc.price_minor} kopecks)`);
   }

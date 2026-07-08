@@ -57,6 +57,7 @@ type ServiceRow = {
   title: string;
   description: string | null;
   duration_minutes: number;
+  break_after_minutes: number;
   price_minor: number;
   is_active: boolean;
   sort_order: number;
@@ -123,6 +124,7 @@ function mapService(row: ServiceRow): BookingService {
     title: row.title,
     description: row.description,
     durationMinutes: row.duration_minutes,
+    breakAfterMinutes: row.break_after_minutes,
     priceMinor: row.price_minor,
     isActive: row.is_active,
     sortOrder: row.sort_order,
@@ -201,6 +203,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         svc_title: string;
         svc_description: string | null;
         svc_duration_minutes: number;
+        svc_break_after_minutes: number;
         svc_price_minor: number;
         svc_is_active: boolean;
         svc_sort_order: number;
@@ -228,7 +231,9 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
            br.is_active AS br_is_active, br.sort_order AS br_sort_order,
            br.created_at AS br_created_at, br.updated_at AS br_updated_at,
            svc.id AS svc_id, svc.title AS svc_title, svc.description AS svc_description,
-           svc.duration_minutes AS svc_duration_minutes, svc.price_minor AS svc_price_minor,
+           svc.duration_minutes AS svc_duration_minutes,
+           svc.break_after_minutes AS svc_break_after_minutes,
+           svc.price_minor AS svc_price_minor,
            svc.is_active AS svc_is_active, svc.sort_order AS svc_sort_order,
            svc.created_at AS svc_created_at, svc.updated_at AS svc_updated_at,
            sp.id AS sp_id, sp.branch_id AS sp_branch_id, sp.full_name AS sp_full_name,
@@ -283,6 +288,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
           title: row.svc_title,
           description: row.svc_description,
           duration_minutes: row.svc_duration_minutes,
+          break_after_minutes: row.svc_break_after_minutes,
           price_minor: row.svc_price_minor,
           is_active: row.svc_is_active,
           sort_order: row.svc_sort_order,
@@ -332,6 +338,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
           svc_title: string;
           svc_description: string | null;
           svc_duration_minutes: number;
+          svc_break_after_minutes: number;
           svc_price_minor: number;
           svc_is_active: boolean;
           svc_sort_order: number;
@@ -368,7 +375,9 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
            br.is_active AS br_is_active, br.sort_order AS br_sort_order,
            br.created_at AS br_created_at, br.updated_at AS br_updated_at,
            svc.id AS svc_id, svc.title AS svc_title, svc.description AS svc_description,
-           svc.duration_minutes AS svc_duration_minutes, svc.price_minor AS svc_price_minor,
+           svc.duration_minutes AS svc_duration_minutes,
+           svc.break_after_minutes AS svc_break_after_minutes,
+           svc.price_minor AS svc_price_minor,
            svc.is_active AS svc_is_active, svc.sort_order AS svc_sort_order,
            svc.created_at AS svc_created_at, svc.updated_at AS svc_updated_at,
            sp.id AS sp_id, sp.branch_id AS sp_branch_id, sp.full_name AS sp_full_name,
@@ -424,6 +433,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         title: row.svc_title,
         description: row.svc_description,
         duration_minutes: row.svc_duration_minutes,
+        break_after_minutes: row.svc_break_after_minutes,
         price_minor: row.svc_price_minor,
         is_active: row.svc_is_active,
         sort_order: row.svc_sort_order,
@@ -532,19 +542,28 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       return { id: result.rows[0]!.id };
     },
 
-    async upsertService({ title, description, durationMinutes, priceMinor, isActive, sortOrder }) {
+    async upsertService({
+      title,
+      description,
+      durationMinutes,
+      breakAfterMinutes,
+      priceMinor,
+      isActive,
+      sortOrder,
+    }) {
       const result = await runWebappPgText<{ id: string }>(
         `INSERT INTO booking_services
-           (id, title, description, duration_minutes, price_minor, is_active, sort_order)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+           (id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT ON CONSTRAINT uq_booking_services_title_duration DO UPDATE
            SET description = EXCLUDED.description,
+               break_after_minutes = EXCLUDED.break_after_minutes,
                price_minor = EXCLUDED.price_minor,
                is_active = EXCLUDED.is_active,
                sort_order = EXCLUDED.sort_order,
                updated_at = now()
          RETURNING id`,
-        [title, description, durationMinutes, priceMinor, isActive, sortOrder],
+        [title, description, durationMinutes, breakAfterMinutes, priceMinor, isActive, sortOrder],
       );
       return { id: result.rows[0]!.id };
     },
@@ -698,7 +717,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
 
     async listServicesAdmin() {
       const result = await runWebappPgText<ServiceRow>(
-        `SELECT id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at
+        `SELECT id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order, created_at, updated_at
          FROM booking_services
          ORDER BY sort_order ASC, title ASC`,
       );
@@ -707,7 +726,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
 
     async getServiceById(id) {
       const result = await runWebappPgText<ServiceRow>(
-        `SELECT id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at
+        `SELECT id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order, created_at, updated_at
          FROM booking_services WHERE id = $1`,
         [id],
       );
@@ -721,16 +740,17 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const title = patch.title ?? cur.title;
       const description = patch.description !== undefined ? patch.description : cur.description;
       const durationMinutes = patch.durationMinutes ?? cur.durationMinutes;
+      const breakAfterMinutes = patch.breakAfterMinutes ?? cur.breakAfterMinutes;
       const priceMinor = patch.priceMinor ?? cur.priceMinor;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
       const result = await runWebappPgText<ServiceRow>(
         `UPDATE booking_services
-         SET title = $2, description = $3, duration_minutes = $4, price_minor = $5,
-             is_active = $6, sort_order = $7, updated_at = now()
+         SET title = $2, description = $3, duration_minutes = $4, break_after_minutes = $5, price_minor = $6,
+             is_active = $7, sort_order = $8, updated_at = now()
          WHERE id = $1
-         RETURNING id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at`,
-        [id, title, description, durationMinutes, priceMinor, isActive, sortOrder],
+         RETURNING id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order, created_at, updated_at`,
+        [id, title, description, durationMinutes, breakAfterMinutes, priceMinor, isActive, sortOrder],
       );
       return mapService(result.rows[0]!);
     },
