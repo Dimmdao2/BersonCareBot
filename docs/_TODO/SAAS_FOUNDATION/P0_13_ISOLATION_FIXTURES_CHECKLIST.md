@@ -25,13 +25,13 @@ Forbidden:
 
 Checklist:
 
-- [ ] Run under non-bypass app role in scratch/non-prod.
-- [ ] Correct org sees own SCOPED rows.
-- [ ] Wrong org sees zero rows.
-- [ ] Missing/empty org fails closed in enforce mode.
-- [ ] Patient wall blocks cross-patient access inside the same org where patient predicate applies.
-- [ ] Bootstrap global rows remain readable where intended.
-- [ ] INFRA/TELEMETRY/LEGACY treatment matches descriptors.
+- [x] Run under non-bypass app role in scratch/non-prod.
+- [x] Correct org sees own SCOPED rows.
+- [x] Wrong org sees zero rows.
+- [x] Missing/empty org fails closed in enforce mode.
+- [x] Patient wall blocks cross-patient access inside the same org where patient predicate applies.
+- [x] Bootstrap global rows remain readable where intended.
+- [x] INFRA/TELEMETRY/LEGACY treatment matches descriptors.
 
 ## P0.13.3 App-Level Dormant Smoke
 

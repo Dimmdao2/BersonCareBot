@@ -98,6 +98,10 @@ const checks = [
     label: "SAAS P0.13.1 synthetic isolation fixture factory",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-synthetic-fixtures.mjs"],
   },
+  {
+    label: "SAAS P0.13.2 DB isolation assertions",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-db-isolation.mjs"],
+  },
 ];
 
 for (const check of checks) {
