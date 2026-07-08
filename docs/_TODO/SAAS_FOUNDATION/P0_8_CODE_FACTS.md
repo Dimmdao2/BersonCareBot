@@ -1,7 +1,7 @@
 # P0.8 Code Facts — RLS Descriptor/Policy Execution
 
-Status: implementation support for P0.8.3+ execution briefs. Facts gathered from code on
-`codex/saas-roadmap-foundation` on 2026-07-08.
+Status: implementation support for P0.8.3+ execution briefs plus the P0.8.3 real policy migration.
+Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 
 ## Repository Rules That Affect P0.8
 
@@ -23,26 +23,22 @@ Status: implementation support for P0.8.3+ execution briefs. Facts gathered from
 | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs` | Lists/exports the strict 103-table P0.8.3 public direct-org target set and renders deterministic policy DDL from descriptors. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs` | DB-free checker for exact 103-target coverage, parent-copy exclusions, and deterministic ENABLE/FORCE/DROP/CREATE policy statements. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public tables/roles, applies generated P0.8.3 policies, proves dormant unset/empty permit and org A/B isolation, then rolls back. |
+| `apps/webapp/db/drizzle-migrations/0160_p0_8_3_public_direct_org_rls.sql` | Real Drizzle SQL migration generated from the P0.8.3 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive direct-org policy `saas_org_dormant_p0_8_3` to the strict 103 public direct-org target tables. |
 | `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, and DB-free P0.8.3 generator checks. |
 | `docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql` | Existing scratch-only psql proof pattern: DB-name guard, synthetic roles, `NOBYPASSRLS`, `ENABLE/FORCE RLS`, `SET LOCAL ROLE`, rollback. |
 
-## Missing Before Real P0.8.3 Execution
+## P0.8.3 Execution Status
 
-P0.8.3 no longer lacks generator/scratch-smoke tooling. The remaining artifact before real-table policy
-application is the committed Drizzle policy migration, which must still be created only after a scratch
-smoke pass in the same execution scope.
+P0.8.3 no longer lacks generator/scratch-smoke tooling or a committed real-table policy migration.
+The real migration was created only after a scratch smoke pass in the same execution scope.
 
 Current status:
 
 - policy DDL renderer/generator: exists;
 - exact P0.8.3 target export: exists and is checked by `check:saas-db-regression`;
-- scratch-smoke runner: exists and has passed on a disposable `bcb_saas_*` database;
-- committed migration for real table policies: intentionally not created in the tooling pass.
-
-Therefore the next real implementation stage is:
-
-1. Re-run the scratch smoke for the strict 103-table target.
-2. Only after smoke passes, add a committed policy migration if still within the same approved stage.
+- scratch-smoke runner: exists and passed on disposable `bcb_saas_*` databases before and after migration creation;
+- committed migration for real table policies: `0160_p0_8_3_public_direct_org_rls.sql`;
+- no runtime role/env/grant flip and no dev/prod/test application DB mutation were performed in the migration pass.
 
 ## Current P0.8.3 Target Facts
 
@@ -78,9 +74,15 @@ The descriptor checker currently asserts:
   - `0154_p0_4_d_polymorphic_denorm_org`
   - `0155_p0_4_rc_reference_categories_org`
   - `0156_be_branches_color`
+  - `0157_booking_services_break_after`
+  - `0158_sync_booking_service_break_after_to_canonical`
+  - `0160_p0_8_3_public_direct_org_rls`
 
-If P0.8.3 creates a real Drizzle migration, it must add a matching `_journal.json` entry and pass
-`bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
+- `0160` is intentionally used on this branch because branch drift check found `feat/doctor-ui-rebuild`
+  has `0159_be_package_usages_appointment_debit_unique.sql`. That upstream migration adds an idempotency
+  index on `public.be_package_usages` and does not change the P0.8.3 `organization_id` policy predicate.
+- The P0.8.3 migration has a matching `_journal.json` entry and passed
+  `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
 
 ## Branch Drift Check Before Execution
 
