@@ -28,6 +28,7 @@ import {
 } from './packageSessionLinkage';
 import type {
   CanonicalAppointmentStatus,
+  PackageUsageRecord,
   PatientPackageSessionRow,
   RecalcPastSessionsSummary,
 } from './types';
@@ -82,12 +83,24 @@ function addValidity(validFrom: string, validityDays: number | null): string | n
 
 const PACKAGE_CHARGE_REVERT_STATUSES = ['visit_confirmed', 'confirmed', 'completed'] as const;
 
+const APPOINTMENT_DEBIT_USAGE_KINDS: ReadonlySet<PackageUsageRecord['usageKind']> = new Set([
+  'consume',
+  'penalty',
+  'manual_adjust',
+]);
+
 function isPaymentOfferConfigurationError(code: string): boolean {
   return (
     code === 'payments_disabled' ||
     code === 'payment_provider_unavailable' ||
     code === 'payments_unavailable'
   );
+}
+
+function findAppointmentDebit(usages: PackageUsageRecord[]): PackageUsageRecord | null {
+  const debits = usages.filter((u) => APPOINTMENT_DEBIT_USAGE_KINDS.has(u.usageKind));
+  if (debits.length === 0) return null;
+  return debits[debits.length - 1] ?? null;
 }
 
 export function createMembershipsService(deps: {
@@ -498,11 +511,37 @@ export function createMembershipsService(deps: {
         input.appointmentId,
         input.organizationId,
       );
+      const existingDebit = findAppointmentDebit(usages);
+      if (existingDebit) return existingDebit;
+
       const reserve = usages.find((u) => u.usageKind === 'reserve');
       if (!reserve) throw new Error('no_reserve');
 
       const pkg = await deps.port.getPatientPackage(reserve.patientPackageId, input.organizationId);
       if (!pkg) throw new Error('package_not_found');
+
+      let consume: PackageUsageRecord;
+      try {
+        consume = await deps.port.appendUsage({
+          organizationId: input.organizationId,
+          patientPackageId: reserve.patientPackageId,
+          patientPackageItemId: reserve.patientPackageItemId,
+          appointmentId: input.appointmentId,
+          usageKind: input.asPenalty ? 'penalty' : 'consume',
+          quantity: 1,
+          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+        });
+      } catch (err) {
+        if ((err as { code?: string })?.code === '23505') {
+          const freshUsages = await deps.port.listUsagesForAppointment(
+            input.appointmentId,
+            input.organizationId,
+          );
+          const freshDebit = findAppointmentDebit(freshUsages);
+          if (freshDebit) return freshDebit;
+        }
+        throw err;
+      }
 
       await deps.port.appendUsage({
         organizationId: input.organizationId,
@@ -510,16 +549,6 @@ export function createMembershipsService(deps: {
         patientPackageItemId: reserve.patientPackageItemId,
         appointmentId: input.appointmentId,
         usageKind: 'release',
-        quantity: 1,
-        createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-      });
-
-      const consume = await deps.port.appendUsage({
-        organizationId: input.organizationId,
-        patientPackageId: reserve.patientPackageId,
-        patientPackageItemId: reserve.patientPackageItemId,
-        appointmentId: input.appointmentId,
-        usageKind: input.asPenalty ? 'penalty' : 'consume',
         quantity: 1,
         createdByPlatformUserId: input.createdByPlatformUserId ?? null,
       });
@@ -561,7 +590,7 @@ export function createMembershipsService(deps: {
       const reserve = usages.find((u) => u.usageKind === 'reserve');
       if (!reserve) return { ok: true as const, skipped: true as const };
 
-      const hasConsume = usages.some((u) => u.usageKind === 'consume' || u.usageKind === 'penalty');
+      const hasConsume = usages.some((u) => APPOINTMENT_DEBIT_USAGE_KINDS.has(u.usageKind));
       if (hasConsume) return { ok: true as const, skipped: true as const };
 
       await deps.port.appendUsage({
@@ -595,6 +624,9 @@ export function createMembershipsService(deps: {
         input.appointmentId,
         input.organizationId,
       );
+      const existingDebit = findAppointmentDebit(usages);
+      if (existingDebit) return existingDebit;
+
       const reserve = usages.find((u) => u.usageKind === 'reserve');
       if (reserve) {
         return this.consumeForAppointment({
@@ -632,15 +664,28 @@ export function createMembershipsService(deps: {
       const found = findItemForService(pkg.items, balances, appt.serviceId);
       if (!found) throw new Error('package_no_balance');
 
-      const usage = await deps.port.appendUsage({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        patientPackageItemId: found.item.id,
-        appointmentId: input.appointmentId,
-        usageKind: 'penalty',
-        quantity: 1,
-        createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-      });
+      let usage: PackageUsageRecord;
+      try {
+        usage = await deps.port.appendUsage({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          patientPackageItemId: found.item.id,
+          appointmentId: input.appointmentId,
+          usageKind: 'penalty',
+          quantity: 1,
+          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+        });
+      } catch (err) {
+        if ((err as { code?: string })?.code === '23505') {
+          const freshUsages = await deps.port.listUsagesForAppointment(
+            input.appointmentId,
+            input.organizationId,
+          );
+          const freshDebit = findAppointmentDebit(freshUsages);
+          if (freshDebit) return freshDebit;
+        }
+        throw err;
+      }
       await deps.port.setAppointmentPackageUsageRef(input.appointmentId, usage.id);
       await deps.port.appendHistoryEvent({
         organizationId: input.organizationId,
@@ -679,10 +724,12 @@ export function createMembershipsService(deps: {
         if (appt?.packageUsageRef) throw new Error('appointment_already_linked_to_package');
       }
       const usages = await deps.port.listUsagesForAppointment(appointmentId, organizationId);
+      if (findAppointmentDebit(usages)) {
+        throw new Error('appointment_already_linked_to_package');
+      }
+
       let reserved = 0;
       let released = 0;
-      let consumed = 0;
-      let refunded = 0;
       for (const u of usages) {
         const q = u.quantity;
         switch (u.usageKind) {
@@ -692,19 +739,11 @@ export function createMembershipsService(deps: {
           case 'release':
             released += q;
             break;
-          case 'consume':
-          case 'penalty':
-          case 'manual_adjust':
-            consumed += q;
-            break;
-          case 'refund':
-            refunded += q;
-            break;
           default:
             break;
         }
       }
-      if (reserved > released || consumed > refunded) {
+      if (reserved > released) {
         throw new Error('appointment_already_linked_to_package');
       }
     },

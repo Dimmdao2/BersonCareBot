@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createMembershipsService } from './service';
 import type { MembershipsPort } from './ports';
-import type { CanonicalAppointmentStatus, PatientPackageRecord } from './types';
+import type { CanonicalAppointmentStatus, PackageUsageRecord, PatientPackageRecord } from './types';
 
 const basePkg: PatientPackageRecord = {
   id: 'pp-1',
@@ -179,6 +179,138 @@ describe('createMembershipsService', () => {
     expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledWith('appt-2', 'u-penalty');
   });
 
+  it('penaltyDeductForAppointment returns existing active debit instead of double-charging', async () => {
+    const penaltyUsage = {
+      id: 'u-existing-penalty',
+      patientPackageId: 'pp-1',
+      patientPackageItemId: 'i1',
+      appointmentId: 'appt-2',
+      usageKind: 'penalty' as const,
+      quantity: 1,
+      comment: null,
+      occurredAt: '2026-01-02T00:00:00Z',
+    };
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([penaltyUsage]),
+    });
+    const bookingEngine = {
+      getAppointment: vi.fn(),
+      getStatusBeforePackageCharge: vi.fn(),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    const result = await svc.penaltyDeductForAppointment({
+      organizationId: 'org-1',
+      appointmentId: 'appt-2',
+    });
+    expect(result).toEqual(penaltyUsage);
+    expect(port.appendUsage).not.toHaveBeenCalled();
+    expect(port.setAppointmentPackageUsageRef).not.toHaveBeenCalled();
+    expect(bookingEngine.getAppointment).not.toHaveBeenCalled();
+  });
+
+  it('repeated penalty without reserve appends only one debit', async () => {
+    const activePkg = {
+      ...basePkg,
+      validFrom: '2026-01-01T00:00:00Z',
+      validUntil: '2027-01-01T00:00:00Z',
+    };
+    const ledger: PackageUsageRecord[] = [];
+    let seq = 0;
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      listUsagesForPackage: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      listPatientPackagesForUser: vi.fn().mockResolvedValue([activePkg]),
+      getPatientPackage: vi.fn().mockResolvedValue(activePkg),
+      appendUsage: vi.fn().mockImplementation(async (input) => {
+        const row: PackageUsageRecord = {
+          id: `u-${input.usageKind}-${seq++}`,
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId ?? null,
+          usageKind: input.usageKind,
+          quantity: input.quantity ?? 1,
+          comment: input.comment ?? null,
+          occurredAt: new Date().toISOString(),
+        };
+        ledger.push(row);
+        return row;
+      }),
+    });
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: 'appt-2',
+        serviceId: 'svc-1',
+        platformUserId: 'user-1',
+        organizationId: 'org-1',
+      }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+
+    const first = await svc.penaltyDeductForAppointment({
+      organizationId: 'org-1',
+      appointmentId: 'appt-2',
+    });
+    const second = await svc.penaltyDeductForAppointment({
+      organizationId: 'org-1',
+      appointmentId: 'appt-2',
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(ledger.filter((u) => u.usageKind === 'penalty')).toHaveLength(1);
+    expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeated late-cancel penalty with reserve is idempotent for one appointment', async () => {
+    const ledger: PackageUsageRecord[] = [
+      {
+        id: 'u-res',
+        patientPackageId: 'pp-1',
+        patientPackageItemId: 'i1',
+        appointmentId: 'appt-late',
+        usageKind: 'reserve',
+        quantity: 1,
+        comment: null,
+        occurredAt: '2026-01-01T00:00:00Z',
+      },
+    ];
+    let seq = 0;
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      appendUsage: vi.fn().mockImplementation(async (input) => {
+        const row: PackageUsageRecord = {
+          id: `u-${input.usageKind}-${seq++}`,
+          patientPackageId: input.patientPackageId,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId ?? null,
+          usageKind: input.usageKind,
+          quantity: input.quantity ?? 1,
+          comment: input.comment ?? null,
+          occurredAt: new Date().toISOString(),
+        };
+        ledger.push(row);
+        return row;
+      }),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+
+    await svc.applyCancelPackageOutcome({
+      organizationId: 'org-1',
+      appointmentId: 'appt-late',
+      packageLessonDeducted: true,
+    });
+    await svc.applyCancelPackageOutcome({
+      organizationId: 'org-1',
+      appointmentId: 'appt-late',
+      packageLessonDeducted: true,
+    });
+
+    expect(ledger.filter((u) => u.usageKind === 'penalty')).toHaveLength(1);
+    expect(ledger.filter((u) => u.usageKind === 'release')).toHaveLength(1);
+  });
+
   it('consumeForAppointment asPenalty does not transition appointment status', async () => {
     const port = makePort();
     const bookingEngine = {
@@ -194,6 +326,49 @@ describe('createMembershipsService', () => {
       appointmentId: 'appt-1',
       asPenalty: true,
     });
+    expect(bookingEngine.transitionAppointmentStatus).not.toHaveBeenCalled();
+  });
+
+  it('consumeForAppointment is idempotent when appointment already has manual_adjust debit', async () => {
+    const manualAdjustUsage = {
+      id: 'u-manual-adjust',
+      patientPackageId: 'pp-1',
+      patientPackageItemId: 'i1',
+      appointmentId: 'appt-1',
+      usageKind: 'manual_adjust' as const,
+      quantity: 1,
+      comment: null,
+      occurredAt: '2026-01-02T00:00:00Z',
+    };
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([
+        {
+          id: 'u-res',
+          patientPackageId: 'pp-1',
+          patientPackageItemId: 'i1',
+          appointmentId: 'appt-1',
+          usageKind: 'reserve' as const,
+          quantity: 1,
+          comment: null,
+          occurredAt: '2026-01-01T00:00:00Z',
+        },
+        manualAdjustUsage,
+      ]),
+    });
+    const bookingEngine = {
+      getAppointment: vi.fn(),
+      getStatusBeforePackageCharge: vi.fn(),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    const result = await svc.consumeForAppointment({
+      organizationId: 'org-1',
+      appointmentId: 'appt-1',
+      asPenalty: true,
+    });
+    expect(result).toEqual(manualAdjustUsage);
+    expect(port.appendUsage).not.toHaveBeenCalled();
+    expect(port.setAppointmentPackageUsageRef).not.toHaveBeenCalled();
     expect(bookingEngine.transitionAppointmentStatus).not.toHaveBeenCalled();
   });
 
@@ -344,6 +519,53 @@ describe('createMembershipsService', () => {
       getAppointment: vi.fn().mockResolvedValue({
         id: 'appt-x',
         packageUsageRef: 'u1',
+        status: 'confirmed',
+        organizationId: 'org-1',
+      }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    await expect(
+      svc.manualConsume({
+        organizationId: 'org-1',
+        patientPackageId: 'pp-1',
+        patientPackageItemId: 'i1',
+        appointmentId: 'appt-x',
+        createdByPlatformUserId: 'doc-1',
+      }),
+    ).rejects.toThrow('appointment_already_linked_to_package');
+  });
+
+  it('manualConsume rejects appointment that already had a refunded debit', async () => {
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([
+        {
+          id: 'u-consume',
+          patientPackageId: 'pp-1',
+          patientPackageItemId: 'i1',
+          appointmentId: 'appt-x',
+          usageKind: 'consume' as const,
+          quantity: 1,
+          comment: null,
+          occurredAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: 'u-refund',
+          patientPackageId: 'pp-1',
+          patientPackageItemId: 'i1',
+          appointmentId: 'appt-x',
+          usageKind: 'refund' as const,
+          quantity: 1,
+          comment: null,
+          occurredAt: '2026-01-02T00:00:00Z',
+        },
+      ]),
+    });
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: 'appt-x',
+        packageUsageRef: null,
         status: 'confirmed',
         organizationId: 'org-1',
       }),

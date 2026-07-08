@@ -206,6 +206,11 @@ export const bePackageUsages = pgTable(
   (table) => [
     index("idx_be_package_usages_pkg").on(table.patientPackageId),
     index("idx_be_package_usages_appointment").on(table.appointmentId),
+    uniqueIndex("idx_be_package_usages_appointment_debit_unique")
+      .on(table.appointmentId)
+      .where(
+        sql`appointment_id IS NOT NULL AND usage_kind = ANY (ARRAY['consume'::text, 'penalty'::text, 'manual_adjust'::text])`,
+      ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],

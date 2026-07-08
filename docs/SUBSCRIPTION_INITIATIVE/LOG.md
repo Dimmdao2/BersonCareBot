@@ -2,6 +2,22 @@
 
 > Execution log (§6.10 / plan-authoring-execution-standard). Append-only. Что сделано, какие проверки, какие решения.
 
+## 2026-07-08 18:15 MSK — #533 appointment debit idempotency hardening
+
+### Что сделано
+
+- `memberships.service`: добавлен единый guard по debit usage (`consume`, `penalty`, `manual_adjust`) для `consumeForAppointment`, `penaltyDeductForAppointment`, `releaseReserveForAppointment` и `assertAppointmentNotLinkedToPackage`.
+- Повторный late-cancel penalty теперь возвращает существующий debit и не пишет второй `penalty`/`release`.
+- Race на уровне БД закрыт partial unique index `idx_be_package_usages_appointment_debit_unique` по `be_package_usages(appointment_id)` для `consume|penalty|manual_adjust`.
+- `packageSessionLinkage` теперь считает `manual_adjust` списанием, как уже делал `balanceCalculator`.
+- `memberships.md` синхронизирован с новым контрактом: один appointment → один debit row.
+
+### Проверки
+
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run 'src/modules/memberships/service.test.ts' 'src/modules/memberships/packageSessionLinkage.test.ts'"` — 42/42 passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp typecheck"` — passed.
+- `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp lint"` — passed.
+
 ## 2026-07-08 13:11 MSK — #534 tests/docs acceptance hardening
 
 ### Что сделано
