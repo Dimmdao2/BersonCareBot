@@ -15,6 +15,7 @@ export type PaymentStatus = "paid" | "pending" | "refunded" | "failed";
 
 export type PatientPayment = {
   id: string;
+  organizationId: string | null;
   patientUserId: string;
   /** Сумма в копейках (всегда > 0). */
   amountMinor: number;
@@ -34,6 +35,7 @@ export type PatientPayment = {
 // -- Входные параметры --------------------------------------------------------
 
 export type AddCashPaymentInput = {
+  organizationId: string;
   patientUserId: string;
   /** Сумма в копейках; должна быть > 0. */
   amountMinor: number;
@@ -51,6 +53,7 @@ export type AddCashPaymentInput = {
 export type PatientPaymentStatus = PaymentStatus;
 
 export type InsertAcquiringPendingInput = {
+  organizationId: string;
   patientUserId: string;
   amountMinor: number;
   currency: string;
@@ -73,6 +76,7 @@ export interface PatientPaymentsPort {
   updatePatientPaymentStatus(
     id: string,
     status: PatientPaymentStatus,
+    organizationId: string,
     providerPaymentId?: string,
   ): Promise<void>;
   /** Создать запись ожидающего acquiring-платежа (kind='acquiring', status='pending'). */

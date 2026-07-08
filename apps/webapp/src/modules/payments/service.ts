@@ -311,7 +311,7 @@ export function createPaymentsService(deps: {
         return { intent, payment, alreadyProcessed: true as const };
       }
 
-      await deps.port.updateIntentStatus(intent.id, "succeeded");
+      await deps.port.updateIntentStatus(intent.id, "succeeded", organizationId);
       const payment = await deps.port.createPaymentFromIntent({ ...intent, status: "succeeded" });
 
       await deps.port.appendHistoryEvent({
@@ -328,7 +328,7 @@ export function createPaymentsService(deps: {
       });
 
       if (intent.appointmentId) {
-        await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id);
+        await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
       }
 
       if (intent.appointmentId && deps.bookingEngine) {
@@ -422,7 +422,7 @@ export function createPaymentsService(deps: {
         }
       }
 
-      await deps.port.markProviderEventProcessed(stored.id);
+      await deps.port.markProviderEventProcessed(stored.id, input.organizationId);
       return { ok: true as const, duplicate: false as const };
     },
 
@@ -473,7 +473,7 @@ export function createPaymentsService(deps: {
           reason: input.reason,
           providerRefundRef: refundResult.providerRefundRef,
         });
-        await deps.port.updatePaymentStatus(payment.id, "refunded");
+        await deps.port.updatePaymentStatus(payment.id, "refunded", input.organizationId);
         await deps.port.appendHistoryEvent({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
