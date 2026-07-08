@@ -54,6 +54,10 @@ const checks = [
     label: "SAAS P0.8.7 explicit exemptions and unsupported user-ref denial",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs"],
   },
+  {
+    label: "SAAS P0.9.1 default-deny enforce descriptors",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-9-enforce-descriptors.mjs"],
+  },
 ];
 
 for (const check of checks) {
