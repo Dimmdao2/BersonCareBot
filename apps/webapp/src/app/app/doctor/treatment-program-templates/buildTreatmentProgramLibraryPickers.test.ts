@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildTreatmentProgramLibraryPickers } from "./buildTreatmentProgramLibraryPickers";
 import type { Exercise } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
+import type { Recommendation } from "@/modules/recommendations/types";
+import type { ClinicalTest } from "@/modules/tests/types";
 
 function minimalExercise(overrides: Partial<Exercise> = {}): Exercise {
   return {
@@ -23,6 +25,48 @@ function minimalExercise(overrides: Partial<Exercise> = {}): Exercise {
   };
 }
 
+function minimalClinicalTest(overrides: Partial<ClinicalTest> = {}): ClinicalTest {
+  return {
+    id: "ct-1",
+    title: "Тест",
+    description: null,
+    testType: null,
+    scoring: null,
+    rawText: null,
+    assessmentKind: null,
+    bodyRegionId: "reg-1",
+    bodyRegionIds: ["reg-1"],
+    media: [],
+    tags: null,
+    isArchived: false,
+    createdBy: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function minimalRecommendation(overrides: Partial<Recommendation> = {}): Recommendation {
+  return {
+    id: "rec-1",
+    title: "Рекомендация",
+    bodyMd: "",
+    media: [],
+    tags: null,
+    domain: null,
+    bodyRegionId: "reg-2",
+    bodyRegionIds: ["reg-2"],
+    quantityText: null,
+    frequencyText: null,
+    durationText: null,
+    isArchived: false,
+    createdBy: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 describe("buildTreatmentProgramLibraryPickers", () => {
   it("maps exercise region ref ids to codes for library filters", () => {
     const pickers = buildTreatmentProgramLibraryPickers({
@@ -36,6 +80,21 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     });
     expect(pickers.exercises[0]?.regionCodes).toEqual(["spine", "knee"]);
     expect(pickers.exercises[0]?.loadType).toBe("strength");
+  });
+
+  it("maps recommendation and clinical test region ref ids to codes for library filters", () => {
+    const pickers = buildTreatmentProgramLibraryPickers({
+      exercises: [],
+      lfkTemplates: [],
+      testSets: [],
+      clinicalTests: [minimalClinicalTest()],
+      recommendations: [minimalRecommendation()],
+      contentPagesAll: [],
+      bodyRegionIdToCode: { "reg-1": "spine", "reg-2": "knee" },
+    });
+
+    expect(pickers.clinicalTests[0]?.regionCodes).toEqual(["spine"]);
+    expect(pickers.recommendations[0]?.regionCodes).toEqual(["knee"]);
   });
 
   it("builds lfk complex filter meta from template exercises", () => {

@@ -49,7 +49,12 @@ export function buildLfkComplexLibraryFilterMeta(
 export function supportsTreatmentProgramLibraryRegionLoadFilters(
   pickType: TreatmentProgramLibraryPickType | "exercise" | "lfk_complex" | "clinical_test" | "recommendation" | "lesson",
 ): boolean {
-  return pickType === "exercise" || pickType === "lfk_complex";
+  return (
+    pickType === "exercise" ||
+    pickType === "lfk_complex" ||
+    pickType === "clinical_test" ||
+    pickType === "recommendation"
+  );
 }
 
 function rowMatchesRegion(row: TreatmentProgramLibraryRow, regionCode: string): boolean {
@@ -58,6 +63,7 @@ function rowMatchesRegion(row: TreatmentProgramLibraryRow, regionCode: string): 
 
 function rowMatchesLoad(row: TreatmentProgramLibraryRow, loadType: string): boolean {
   if (row.loadTypes !== undefined) return row.loadTypes.includes(loadType);
+  if (row.loadType === undefined) return true;
   return row.loadType === loadType;
 }
 

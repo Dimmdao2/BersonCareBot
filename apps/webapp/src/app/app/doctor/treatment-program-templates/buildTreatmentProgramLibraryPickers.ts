@@ -50,6 +50,13 @@ function clinicalTestThumbUrl(t: ClinicalTest): string | null {
   return m.mediaUrl.trim();
 }
 
+function mapBodyRegionIdsToCodes(
+  bodyRegionIds: readonly string[],
+  bodyRegionIdToCode: Record<string, string> | undefined,
+): readonly string[] {
+  return mapExerciseRegionCodes(bodyRegionIds, bodyRegionIdToCode);
+}
+
 export function buildTreatmentProgramLibraryPickers(params: {
   exercises: Exercise[];
   lfkTemplates: Template[];
@@ -167,12 +174,14 @@ export function buildTreatmentProgramLibraryPickers(params: {
         title: ct.title,
         subtitle: ct.testType?.trim() || null,
         thumbUrl: clinicalTestThumbUrl(ct),
+        regionCodes: mapBodyRegionIdsToCodes(ct.bodyRegionIds, bodyRegionIdToCode),
       })),
     recommendations: recommendations.map((r) => ({
       id: r.id,
       title: r.title,
       subtitle: recommendationDomainTitle(r.domain ?? null) || null,
       thumbUrl: r.media[0]?.mediaUrl?.trim() || null,
+      regionCodes: mapBodyRegionIdsToCodes(r.bodyRegionIds, bodyRegionIdToCode),
     })),
     lessons: contentPagesAll
       .filter(
