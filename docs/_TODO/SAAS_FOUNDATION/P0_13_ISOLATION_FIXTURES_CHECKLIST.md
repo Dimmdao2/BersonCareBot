@@ -9,11 +9,11 @@ single-clinic behavior remains unchanged in dormant mode.
 
 Checklist:
 
-- [ ] Create synthetic second organization fixture.
-- [ ] Create synthetic patient/user pairs for at least two organizations.
-- [ ] Create scoped rows across representative direct-org, FK-path, denorm-path, bootstrap, and integrator tables.
-- [ ] Guard fixture execution so it never writes to dev/prod PII DB without explicit scratch opt-in.
-- [ ] Use deterministic IDs and cleanup/rollback strategy.
+- [x] Create synthetic second organization fixture.
+- [x] Create synthetic patient/user pairs for at least two organizations.
+- [x] Create scoped rows across representative direct-org, FK-path, denorm-path, bootstrap, and integrator tables.
+- [x] Guard fixture execution so it never writes to dev/prod PII DB without explicit scratch opt-in.
+- [x] Use deterministic IDs and cleanup/rollback strategy.
 
 Forbidden:
 

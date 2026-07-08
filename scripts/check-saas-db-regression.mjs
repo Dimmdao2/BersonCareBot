@@ -94,6 +94,10 @@ const checks = [
     label: "SAAS P0.12.2 JSON payload PII classification",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-json-payloads.mjs"],
   },
+  {
+    label: "SAAS P0.13.1 synthetic isolation fixture factory",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-synthetic-fixtures.mjs"],
+  },
 ];
 
 for (const check of checks) {
