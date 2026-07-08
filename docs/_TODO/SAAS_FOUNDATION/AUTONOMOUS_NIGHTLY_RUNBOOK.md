@@ -191,14 +191,18 @@ Run in this order only:
 
 - [ ] P0.8.1 descriptor model, no DB mutation.
 - [ ] P0.8.2 pure SQL renderer tests, no DB mutation.
-- [ ] P0.8.3 public direct-org policy migration plus scratch smoke.
-- [ ] P0.8.4 public FK/denorm policy migration plus scratch smoke.
-- [ ] P0.8.5 integrator bridge/denorm policy migration plus scratch smoke.
+- [ ] P0.8.3 public direct-org generator + scratch smoke first; policy migration only after smoke passes.
+- [ ] P0.8.4 public FK/denorm preflight + scratch smoke by subgroup before migration.
+- [ ] P0.8.5 integrator bridge/denorm preflight + scratch smoke by source family before migration.
 - [ ] P0.8.6 bootstrap hybrid policies plus pre-context read smoke.
-- [ ] P0.8.7 INFRA/LEGACY/TELEMETRY descriptors plus unsupported user-ref denial.
+- [ ] P0.8.7 INFRA/LEGACY/TELEMETRY exemption checks plus unsupported user-ref denial.
 
 Each policy application stage must name the family, scratch DB, smoke command, and skipped production
 scope in `LOG.md`.
+
+Read `P0_8_CODE_FACTS.md` before any P0.8.3+ pass. If the required generator/smoke tooling for the
+stage does not exist, building that tooling is the first part of the stage; do not hand-write a real
+policy migration first.
 
 ### P0.9.1 Default-Deny Descriptors
 

@@ -13,11 +13,27 @@ Prepare the exact execution boundary for P0.8.3:
 - prove behavior in scratch before any real migration is proposed;
 - keep runtime role, production/dev DBs, and application behavior unchanged.
 
+## Code Facts
+
+Read [`P0_8_CODE_FACTS.md`](P0_8_CODE_FACTS.md) before implementing this stage.
+
+Current implementation facts:
+
+- descriptors and predicate rendering exist;
+- real policy DDL generation does not exist;
+- scratch-smoke tooling for P0.8.3 does not exist;
+- committed real-table RLS policy migrations do not exist;
+- P0.5.1 provides the scratch-only role-proof pattern to reuse.
+
+This means a real P0.8.3 execution cannot start by hand-writing a migration. It must first add
+deterministic generator/smoke tooling and prove the 103-table target on scratch.
+
 ## Inputs Read
 
 - `CORRECTED_PLAN.md`: P0.8.3 is public direct-org SCOPED family policy application with scratch DB smoke before merge.
 - `P0_8_RLS_DESCRIPTOR_CHECKLIST.md`: policy substages require family-specific scratch smoke and forbid prod role/env flips.
 - `P0_5_DB_ROLE_SPLIT.md`: app role must be non-owner and `NOBYPASSRLS`; no runtime role flip in Phase 0.
+- `P0_8_CODE_FACTS.md`: code-discovered state of P0.8 scripts, migration/journal facts, and missing execution artifacts.
 - `scripts/rls-descriptor-model.mjs`: current descriptor categories are the source for policy family selection.
 - `scripts/rls-sql-renderer.mjs`: current predicate renderer supports dormant permissive and enforce modes.
 - `scope-derivation/p0-4-batches.tsv`: exact P0.4 public table family map.
@@ -130,6 +146,92 @@ bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <scratch 
 ```
 
 This preflight stage did not create the `<scratch P0.8.3 smoke command>` script.
+
+## Execution Brief For The Next Implementation Stage
+
+### Allowed Files
+
+- `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs`
+- new scripts under `docs/_TODO/SAAS_FOUNDATION/scripts/`
+- `scripts/check-saas-db-regression.mjs`
+- `docs/_TODO/SAAS_FOUNDATION/P0_8_3_PREFLIGHT.md`
+- `docs/_TODO/SAAS_FOUNDATION/P0_8_RLS_DESCRIPTOR_CHECKLIST.md`
+- `docs/_TODO/SAAS_FOUNDATION/P0_8_CODE_FACTS.md`
+- `docs/_TODO/SAAS_FOUNDATION/LOG.md`
+- if and only if scratch smoke passes: one webapp Drizzle migration under `apps/webapp/db/drizzle-migrations/` plus matching `meta/_journal.json`
+
+### Out Of Scope
+
+- no application route/service/UI changes;
+- no `system_settings` storage/read/write changes;
+- no integrator policy application;
+- no BOOTSTRAP, FK-path, denorm, INFRA, LEGACY, TELEMETRY policies;
+- no production/dev DB writes;
+- no runtime `DATABASE_URL`, grant, role, or env changes;
+- no `main`, `test`, or `dimmdao` push.
+
+### Required Implementation Steps
+
+1. Run branch drift and preflight checks:
+
+   ```bash
+   git status --short --branch
+   git rev-list --left-right --count feat/doctor-ui-rebuild...codex/saas-roadmap-foundation
+   bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && git diff --check"
+   ```
+
+2. Add deterministic target listing/generation from descriptors:
+   - target predicate: `tier === "SCOPED"`, `table.startsWith("public.")`, `scopingKind === "direct_org_column"`;
+   - assert count `103`;
+   - export a stable sorted target list;
+   - fail on any table outside the approved target set.
+
+3. Extend the SQL renderer or add a small policy renderer:
+   - render quoted `ALTER TABLE <target> ENABLE ROW LEVEL SECURITY`;
+   - render quoted `ALTER TABLE <target> FORCE ROW LEVEL SECURITY`;
+   - render quoted `DROP POLICY IF EXISTS <stable_name> ON <target>`;
+   - render quoted `CREATE POLICY <stable_name> ON <target> FOR ALL USING (<dormant permissive org predicate>) WITH CHECK (<same predicate>)`;
+   - stable policy name format: `saas_org_dormant_p0_8_3`;
+   - no raw unquoted table/column interpolation.
+
+4. Add scratch smoke tooling before any committed migration:
+   - use `SCRATCH_DATABASE_URL`, not `DATABASE_URL`;
+   - refuse unless `current_database()` matches `bcb_saas_%` or contains `scratch`;
+   - refuse `bcb_webapp_dev`, `bcb_webapp_prod`, and prod/test host env references;
+   - create synthetic roles/tables in a transaction or disposable schema;
+   - create synthetic rows for `org_a` and `org_b`;
+   - run as non-owner `NOBYPASSRLS` app role;
+   - verify unset/empty `app.org` matches dormant permissive renderer semantics;
+   - verify `org_a` sees only org A and `org_b` sees only org B when `app.org` is set;
+   - rollback/drop all scratch objects.
+
+5. Run targeted gate:
+
+   ```bash
+   bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <scratch P0.8.3 smoke command> && pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/*.mjs scripts/check-saas-db-regression.mjs && git diff --check"
+   ```
+
+6. If scratch smoke passes and owner/stage scope allows a real migration in the same pass:
+   - add one Drizzle SQL migration for P0.8.3 policies;
+   - add matching `_journal.json` entry;
+   - run:
+
+     ```bash
+     bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && bash apps/webapp/scripts/check-drizzle-journal-sync.sh && git diff --check"
+     ```
+
+7. Update `LOG.md` and taskdb with exact commands/results and explicit skipped scope.
+
+### Stop Conditions
+
+Stop and mark task blocked if:
+
+- scratch DB credentials are unavailable;
+- branch drift includes schema/migration changes that affect target tables and cannot be safely merged first;
+- target count is not exactly `103`;
+- any generated SQL targets a non-P0.8.3 table;
+- scratch smoke requires dev/prod DB access;
+- the stage needs a runtime role/env change.
 
 ## Rollback Gates
 
