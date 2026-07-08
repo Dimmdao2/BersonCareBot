@@ -66,7 +66,7 @@ Minimum implementation facts:
 
 - target count must be exactly `103`;
 - parent-copy holds remain excluded;
-- generator/smoke tooling must exist before a real policy migration;
+- generator/smoke tooling exists and must pass before a real policy migration;
 - real migration is allowed only after scratch smoke passes.
 
 ### P0.8.4 Public FK/Denorm-Path Policy Application

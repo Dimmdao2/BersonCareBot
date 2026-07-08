@@ -34,6 +34,10 @@ const checks = [
     label: "SAAS P0.8.2 RLS SQL renderer predicates",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs"],
   },
+  {
+    label: "SAAS P0.8.3 public direct-org policy generator",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs"],
+  },
 ];
 
 for (const check of checks) {

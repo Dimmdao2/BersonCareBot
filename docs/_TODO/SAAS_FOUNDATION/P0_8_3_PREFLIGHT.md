@@ -20,13 +20,14 @@ Read [`P0_8_CODE_FACTS.md`](P0_8_CODE_FACTS.md) before implementing this stage.
 Current implementation facts:
 
 - descriptors and predicate rendering exist;
-- real policy DDL generation does not exist;
-- scratch-smoke tooling for P0.8.3 does not exist;
+- real policy DDL generation exists for the strict P0.8.3 public direct-org target;
+- scratch-smoke tooling for P0.8.3 exists and has passed on a disposable `bcb_saas_*` database;
 - committed real-table RLS policy migrations do not exist;
 - P0.5.1 provides the scratch-only role-proof pattern to reuse.
 
-This means a real P0.8.3 execution cannot start by hand-writing a migration. It must first add
-deterministic generator/smoke tooling and prove the 103-table target on scratch.
+This means a real P0.8.3 migration can be considered only after re-running the deterministic
+generator/smoke gate in the migration execution pass. The tooling pass itself did not create a real
+migration.
 
 ## Inputs Read
 
@@ -142,10 +143,11 @@ Minimum smoke per batch:
 Gate command shape for the later implementation stage:
 
 ```bash
-bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <scratch P0.8.3 smoke command> && git diff --check"
+bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && SCRATCH_DATABASE_URL=<scratch-url> node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs && git diff --check"
 ```
 
-This preflight stage did not create the `<scratch P0.8.3 smoke command>` script.
+If local PostgreSQL peer auth only allows the OS `postgres` role to connect to scratch DBs, use the
+`--print-sql` psql-file workaround documented in `P0_8_CODE_FACTS.md`.
 
 ## Execution Brief For The Next Implementation Stage
 
@@ -185,6 +187,7 @@ This preflight stage did not create the `<scratch P0.8.3 smoke command>` script.
    - assert count `103`;
    - export a stable sorted target list;
    - fail on any table outside the approved target set.
+   - current implementation: `scripts/p0-8-3-policy-targets.mjs` + `check-p0-8-3-policy-generator.mjs`.
 
 3. Extend the SQL renderer or add a small policy renderer:
    - render quoted `ALTER TABLE <target> ENABLE ROW LEVEL SECURITY`;
@@ -204,11 +207,12 @@ This preflight stage did not create the `<scratch P0.8.3 smoke command>` script.
    - verify unset/empty `app.org` matches dormant permissive renderer semantics;
    - verify `org_a` sees only org A and `org_b` sees only org B when `app.org` is set;
    - rollback/drop all scratch objects.
+   - current implementation: `scripts/smoke-p0-8-3-direct-org-policies.mjs`.
 
 5. Run targeted gate:
 
    ```bash
-   bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <scratch P0.8.3 smoke command> && pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/*.mjs scripts/check-saas-db-regression.mjs && git diff --check"
+   bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && SCRATCH_DATABASE_URL=<scratch-url> node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs && pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/*.mjs scripts/check-saas-db-regression.mjs && git diff --check"
    ```
 
 6. If scratch smoke passes and owner/stage scope allows a real migration in the same pass:

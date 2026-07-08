@@ -1,7 +1,7 @@
 # P0.8 Code Facts — RLS Descriptor/Policy Execution
 
-Status: planning support for P0.8.3+ execution briefs. Facts gathered from code on
-`codex/saas-roadmap-foundation` at HEAD `2306576b4` on 2026-07-08.
+Status: implementation support for P0.8.3+ execution briefs. Facts gathered from code on
+`codex/saas-roadmap-foundation` on 2026-07-08.
 
 ## Repository Rules That Affect P0.8
 
@@ -18,25 +18,31 @@ Status: planning support for P0.8.3+ execution briefs. Facts gathered from code 
 |---|---|
 | `docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs` | Builds 219 descriptors from `tiers-218.tsv`, `p0-4-batches.tsv`, and `p0-4-be-fk-paths.tsv`. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-rls-descriptors.mjs` | Verifies exact descriptor coverage, tier counts, bootstrap hybrid set, FK-path set, P0.8.3 parent-copy holds, and strict 103 public direct-org target count. |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs` | Renders identifier-safe predicates for direct org, patient, bootstrap hybrid, and policy targets. It does not render `CREATE POLICY` / `ALTER TABLE` DDL yet. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs` | Renders identifier-safe predicates for direct org, patient, bootstrap hybrid, policy targets, and P0.8.3 policy DDL helpers. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs` | Pure predicate tests for dormant permissive and enforce modes. No DB access. |
-| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, and P0.8.2 checks. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs` | Lists/exports the strict 103-table P0.8.3 public direct-org target set and renders deterministic policy DDL from descriptors. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs` | DB-free checker for exact 103-target coverage, parent-copy exclusions, and deterministic ENABLE/FORCE/DROP/CREATE policy statements. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public tables/roles, applies generated P0.8.3 policies, proves dormant unset/empty permit and org A/B isolation, then rolls back. |
+| `scripts/check-saas-db-regression.mjs` | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, and DB-free P0.8.3 generator checks. |
 | `docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql` | Existing scratch-only psql proof pattern: DB-name guard, synthetic roles, `NOBYPASSRLS`, `ENABLE/FORCE RLS`, `SET LOCAL ROLE`, rollback. |
 
 ## Missing Before Real P0.8.3 Execution
 
-P0.8.3 is not executable yet because these code artifacts do not exist:
+P0.8.3 no longer lacks generator/scratch-smoke tooling. The remaining artifact before real-table policy
+application is the committed Drizzle policy migration, which must still be created only after a scratch
+smoke pass in the same execution scope.
 
-- policy DDL renderer/generator for `ALTER TABLE ... ENABLE/FORCE ROW LEVEL SECURITY` and `CREATE POLICY`;
-- script that lists/exports exact P0.8.3 targets from descriptors;
-- scratch-smoke runner or SQL script that applies generated P0.8.3 policies to synthetic scratch tables and proves visibility under a non-owner `NOBYPASSRLS` role;
-- committed migration for real table policies.
+Current status:
 
-Therefore the next real implementation stage must be split:
+- policy DDL renderer/generator: exists;
+- exact P0.8.3 target export: exists and is checked by `check:saas-db-regression`;
+- scratch-smoke runner: exists and has passed on a disposable `bcb_saas_*` database;
+- committed migration for real table policies: intentionally not created in the tooling pass.
 
-1. Add generator + target-list + scratch-smoke tooling.
-2. Run scratch smoke for the strict 103-table target.
-3. Only after smoke passes, add a committed policy migration if still within the same approved stage.
+Therefore the next real implementation stage is:
+
+1. Re-run the scratch smoke for the strict 103-table target.
+2. Only after smoke passes, add a committed policy migration if still within the same approved stage.
 
 ## Current P0.8.3 Target Facts
 
@@ -102,3 +108,35 @@ bash /home/dev/brain/tools/code-search.sh "drizzle-migrations" --repo bcb -k 20
 
 The `ENABLE/FORCE ROW LEVEL SECURITY` searches found plan/proof references, not committed real-table
 policy migrations for the SaaS target families.
+
+## P0.8.3 Tooling Commands
+
+DB-free target/generator check:
+
+```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs --targets
+node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs --sql
+```
+
+Scratch smoke with a scratch URL accessible to the current shell user:
+
+```bash
+SCRATCH_DATABASE_URL="postgresql:///bcb_saas_p0_8_3_scratch" \
+  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs
+```
+
+Local peer-auth workaround used on the dev host when only the OS `postgres` role can create/connect to
+scratch DBs:
+
+```bash
+scratch_db="bcb_saas_p0_8_3_scratch_$(date +%s)_$$"
+sudo -n -u postgres createdb "$scratch_db"
+SCRATCH_DATABASE_URL="postgresql:///$scratch_db" \
+  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs --print-sql \
+  > /tmp/p0-8-3-smoke.sql
+chmod 0644 /tmp/p0-8-3-smoke.sql
+sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-3-smoke.sql
+sudo -n -u postgres dropdb --if-exists "$scratch_db"
+rm -f /tmp/p0-8-3-smoke.sql
+```
