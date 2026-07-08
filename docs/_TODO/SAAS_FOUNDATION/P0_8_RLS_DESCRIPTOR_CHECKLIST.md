@@ -53,7 +53,7 @@ Each application substage must use scratch/non-prod policy smoke before merge:
 
 - [x] P0.8.3 public direct-org SCOPED families.
 - [x] P0.8.4 public FK/denorm-path SCOPED families.
-- [ ] P0.8.5 integrator bridge/denorm SCOPED families.
+- [x] P0.8.5 integrator bridge/denorm SCOPED families.
 - [ ] P0.8.6 BOOTSTRAP hybrid policies.
 - [ ] P0.8.7 INFRA/LEGACY/TELEMETRY descriptors and unsupported user-ref denial.
 
@@ -109,6 +109,9 @@ bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && <P0.8.4 t
 
 ### P0.8.5 Integrator Bridge/Denorm Policy Application
 
+Status: executed on 2026-07-08 as migration
+`apps/webapp/db/drizzle-migrations/0162_p0_8_5_integrator_scoped_rls.sql`.
+
 Preflight required before code:
 
 - derive exact target set from descriptors where `table.startsWith("integrator.")` and `tier === "SCOPED"`;
@@ -121,6 +124,19 @@ Preflight required before code:
 - smoke with synthetic `integrator` schema tables and synthetic bridge rows only.
 
 Stop if the smoke needs real `integrator.users`, real messenger identities, or dev/prod data.
+
+Execution facts:
+
+- generated target set is exactly `13` `integrator` SCOPED tables;
+- source split matches P0.4: `P0.4.I1=5`, `P0.4.I2=3`, `P0.4.I3=4`, `P0.4.I4=1`;
+- direct user bridge, identity bridge, and mailings root descriptors use their P0.4 materialized
+  `organization_id` as `direct_org_column`;
+- parent-denorm child descriptors use their P0.4 copied `organization_id` as `denorm_org_column`;
+- policy generation does not recreate bridge joins; P0.4 source migrations/backfills remain the source
+  of non-NULL org semantics;
+- scratch smoke creates only synthetic `integrator` schema tables/roles/bridge rows, refuses
+  non-scratch/dev/prod DB names, and proves 13 targets, dormant unset/empty permit, org A/B isolation,
+  denorm source split behavior, and NOBYPASSRLS.
 
 Local gate shape:
 

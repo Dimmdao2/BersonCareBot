@@ -1135,6 +1135,13 @@
       "when": 1783532400000,
       "tag": "0161_p0_8_4_public_path_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1783536000000,
+      "tag": "0162_p0_8_5_integrator_scoped_rls",
+      "breakpoints": true
     }
   ]
 }

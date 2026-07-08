@@ -42,6 +42,10 @@ const checks = [
     label: "SAAS P0.8.4 public FK/denorm path policy generator",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-4-policy-generator.mjs"],
   },
+  {
+    label: "SAAS P0.8.5 integrator SCOPED policy generator",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-5-policy-generator.mjs"],
+  },
 ];
 
 for (const check of checks) {
