@@ -128,6 +128,12 @@ const SEGMENTS: SegmentDef[] = [
 
 const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(4,1.75rem)] gap-1 md:grid-cols-[repeat(10,1.75rem)]";
 
+function segmentKeyFromUrl(value: string | null): SegmentKey[] {
+  if (!value || value === "all") return [];
+  const segment = SEGMENTS.find((item) => item.urlValue === value);
+  return segment && segment.key !== "all" ? [segment.key] : [];
+}
+
 // ---------------------------------------------------------------------------
 // Icon filter helpers (icon-rail on list header)
 // ---------------------------------------------------------------------------
@@ -283,10 +289,9 @@ function clientSegmentPredicate(item: ClientListItem, key: SegmentKey): boolean 
   }
 }
 
-function applySegmentFilter(list: ClientListItem[], activeSegment: string | null): ClientListItem[] {
-  if (!activeSegment || activeSegment === "all") return list;
-  const key = activeSegment as SegmentKey;
-  return list.filter((item) => clientSegmentPredicate(item, key));
+function applySegmentFilters(list: ClientListItem[], activeSegments: SegmentKey[]): ClientListItem[] {
+  if (activeSegments.length === 0) return list;
+  return list.filter((item) => activeSegments.every((key) => clientSegmentPredicate(item, key)));
 }
 
 // ---------------------------------------------------------------------------
@@ -307,12 +312,6 @@ function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): 
   if (category === "all") return list;
   return list.filter((item) => getClientCategory(item) === category);
 }
-
-const CATEGORY_LABELS: Record<ClientCategory, string> = {
-  all: "Все",
-  client: "Клиенты",
-  subscriber_only: "Подписчики",
-};
 
 // ---------------------------------------------------------------------------
 // Segment count helper (computed from allClients using clientSegmentPredicate)
@@ -783,7 +782,7 @@ type PatientsContentProps = {
   listPromise: Promise<ClientListItem[]>;
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   patientPluralLabel: string;
-  activeSegment: string | null;
+  activeSegments: SegmentKey[];
   activeChannel: string | null;
   archivedOnly: boolean;
   searchQuery: string;
@@ -794,22 +793,20 @@ type PatientsContentProps = {
   selectedUserId: string | null;
   activeCategory: ClientCategory;
   displayIana?: string;
-  onSegmentChange: (value: string | null) => void;
+  onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
-  onToggleLegacyFilter: (key: keyof LegacyFiltersState) => void;
   onCycleRichIconFilter: (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
   onCycleTriIconFilter: (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
   onClearSearch: () => void;
   onSearchInput: (value: string) => void;
   onSelectPatient: (userId: string | null) => void;
-  onCategoryChange: (category: ClientCategory) => void;
 };
 
 function PatientsContent({
   listPromise,
   metricsPromise,
   patientPluralLabel,
-  activeSegment,
+  activeSegments,
   activeChannel,
   archivedOnly,
   searchQuery,
@@ -820,22 +817,20 @@ function PatientsContent({
   selectedUserId,
   activeCategory,
   displayIana,
-  onSegmentChange,
+  onSegmentToggle,
   onChannelChange,
-  onToggleLegacyFilter,
   onCycleRichIconFilter,
   onCycleTriIconFilter,
   onClearSearch,
   onSearchInput,
   onSelectPatient,
-  onCategoryChange,
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
 
   // Apply category filter first, then segment, then icon filters, then legacy filters
   let filtered = applyCategoryFilter(allClients, activeCategory);
-  filtered = applySegmentFilter(filtered, activeSegment);
+  filtered = applySegmentFilters(filtered, activeSegments);
   filtered = applyChannelFilter(filtered, activeChannel);
   filtered = applyIconFilters(filtered, iconFilters);
   // Legacy filters (AND-logic)
@@ -859,17 +854,17 @@ function PatientsContent({
     );
   }
 
-  // Context base for segment card counts (PAT-02/06):
-  // When a segment is active, other segment cards show counts within that segment's subset.
+  // Context base for segment card counts (PAT-02/06/#540):
+  // KPI cards are multi-select filters with AND policy. Each card shows the
+  // count for its own segment after all other selected KPI filters are applied,
+  // followed by the full total for that segment in the current category.
   const categoryBase = applyCategoryFilter(allClients, activeCategory);
-  const contextBase = activeSegment && activeSegment !== "all"
-    ? categoryBase.filter((c) => clientSegmentPredicate(c, activeSegment as SegmentKey))
-    : categoryBase;
+  const filteredBySegments = applySegmentFilters(categoryBase, activeSegments);
 
   // Determine if any filter is active (for "найдено N" header)
   const isAnyFilterActive =
     activeCategory !== "all" ||
-    (activeSegment !== null && activeSegment !== "all") ||
+    activeSegments.length > 0 ||
     activeChannel !== null ||
     Object.values(iconFilters).some((v) => v !== "off") ||
     legacyFilters.cancellations ||
@@ -881,11 +876,9 @@ function PatientsContent({
 
   // Segment tone: highlight active segment card
   function segmentTone(key: SegmentKey): "neutral" | "warning" {
-    const seg = SEGMENTS.find((s) => s.key === key);
-    if (!seg) return "neutral";
     const isActive =
-      (key === "all" && (activeSegment === null || activeSegment === "all") && !archivedOnly) ||
-      (seg.urlValue !== null && seg.urlValue === activeSegment);
+      (key === "all" && activeSegments.length === 0 && !archivedOnly) ||
+      activeSegments.includes(key);
     return isActive ? "warning" : "neutral";
   }
 
@@ -1158,37 +1151,20 @@ function PatientsContent({
             "rounded-lg border border-border bg-card p-3",
           )}
         >
-          {/* Category filter row — Все / Клиенты / Подписчики */}
-          <div className="mb-3 flex gap-1" role="group" aria-label="Категория клиентов">
-            {(["all", "client", "subscriber_only"] as ClientCategory[]).map((cat) => {
-              const count =
-                cat === "all"
-                  ? allClients.length
-                  : allClients.filter((item) => getClientCategory(item) === cat).length;
-              return (
-                <Button
-                  key={cat}
-                  type="button"
-                  variant={activeCategory === cat ? "default" : "outline"}
-                  aria-pressed={activeCategory === cat}
-                  onClick={() => onCategoryChange(cat)}
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
-                    activeCategory !== cat && "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {cat === "client" ? patientPluralLabel : CATEGORY_LABELS[cat]}
-                  <span className="tabular-nums opacity-70">{count}</span>
-                </Button>
-              );
-            })}
-          </div>
-
           {/* Segment stat cards — 3 per row on mobile, 5 on lg+ */}
           <DoctorMetricList className="grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-1.5">
             {SEGMENTS.map((seg) => {
+              const segmentContextBase =
+                seg.key === "all"
+                  ? categoryBase
+                  : applySegmentFilters(
+                      categoryBase,
+                      activeSegments.filter((key) => key !== seg.key),
+                    );
               const currentValue =
-                seg.key === "all" ? categoryBase.length : (getSegmentCount(seg.key, metrics, contextBase) ?? "—");
+                seg.key === "all"
+                  ? filteredBySegments.length
+                  : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? "—");
               const totalValue = seg.key === "all" ? categoryBase.length : getSegmentCount(seg.key, metrics, categoryBase);
               return (
                 <DoctorStatCard
@@ -1197,7 +1173,7 @@ function PatientsContent({
                   title={seg.title}
                   value={renderSegmentMetricValue(currentValue, totalValue)}
                   tone={segmentTone(seg.key)}
-                  onClick={() => onSegmentChange(seg.urlValue)}
+                  onClick={() => onSegmentToggle(seg.key)}
                 />
               );
             })}
@@ -1298,8 +1274,8 @@ export function PatientsPageClient({
   const [listPromise, setListPromise] = useState<Promise<ClientListItem[]>>(initialListPromise);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Segment / channel / archive state (sync to URL on change)
-  const [activeSegment, setActiveSegment] = useState<string | null>(initialFilters.segment);
+  // Segment / channel / archive state (segment and channel are client-side only)
+  const [activeSegments, setActiveSegments] = useState<SegmentKey[]>(() => segmentKeyFromUrl(initialFilters.segment));
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
 
@@ -1307,10 +1283,10 @@ export function PatientsPageClient({
   const [iconFilters, setIconFilters] = useState<IconFiltersState>(DEFAULT_ICON_FILTERS);
 
   // Legacy per-button filter state (client-side only)
-  const [legacyFilters, setLegacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
+  const [legacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
 
   // Category filter state (client-side only, S4.2)
-  const [activeCategory, setActiveCategory] = useState<ClientCategory>("all");
+  const [activeCategory] = useState<ClientCategory>("all");
 
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -1322,13 +1298,13 @@ export function PatientsPageClient({
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
-  const handleSegmentChange = useCallback(
-    (value: string | null) => {
-      // Segment is client-side only — no server round-trip
-      setActiveSegment(value);
-    },
-    [],
-  );
+  const handleSegmentToggle = useCallback((key: SegmentKey) => {
+    // Segment filters are client-side only and combine via AND.
+    setActiveSegments((prev) => {
+      if (key === "all") return [];
+      return prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key];
+    });
+  }, []);
 
   const handleChannelChange = useCallback(
     (channel: string | null, archived: boolean) => {
@@ -1358,18 +1334,11 @@ export function PatientsPageClient({
     // PAT-10: no fetchList call — client-side filtering resets automatically
   }, []);
 
-  const handleToggleLegacyFilter = useCallback(
-    (key: keyof LegacyFiltersState) => {
-      setLegacyFilters((prev) => ({ ...prev, [key]: !prev[key] }));
-    },
-    [],
-  );
-
   // Keep state in sync when server-side navigation occurs (Next.js router)
   useEffect(() => {
     setListPromise(initialListPromise);
     setSearchInput(initialFilters.q);
-    setActiveSegment(initialFilters.segment);
+    setActiveSegments(segmentKeyFromUrl(initialFilters.segment));
     setActiveChannel(null);
     setArchivedOnly(initialFilters.archivedOnly);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1393,17 +1362,13 @@ export function PatientsPageClient({
     setSelectedUserId(userId);
   }, []);
 
-  const handleCategoryChange = useCallback((category: ClientCategory) => {
-    setActiveCategory(category);
-  }, []);
-
   return (
     <Suspense fallback={<PatientListSkeleton />}>
       <PatientsContent
         listPromise={listPromise}
         metricsPromise={metricsPromise}
         patientPluralLabel={patientPluralLabel}
-        activeSegment={activeSegment}
+        activeSegments={activeSegments}
         activeChannel={activeChannel}
         archivedOnly={archivedOnly}
         searchQuery={searchQuery}
@@ -1414,15 +1379,13 @@ export function PatientsPageClient({
         selectedUserId={selectedUserId}
         activeCategory={activeCategory}
         displayIana={displayIana}
-        onSegmentChange={handleSegmentChange}
+        onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
-        onToggleLegacyFilter={handleToggleLegacyFilter}
         onCycleRichIconFilter={handleCycleRichIconFilter}
         onCycleTriIconFilter={handleCycleTriIconFilter}
         onClearSearch={clearSearch}
         onSearchInput={handleSearchInput}
         onSelectPatient={handleSelectPatient}
-        onCategoryChange={handleCategoryChange}
       />
     </Suspense>
   );

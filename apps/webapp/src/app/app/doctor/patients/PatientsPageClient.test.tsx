@@ -110,7 +110,7 @@ afterEach(() => {
 });
 
 describe("PatientsPageClient", () => {
-  it("keeps top category counts static and shows compact segment total when filtered count differs", async () => {
+  it("uses KPI cards as AND filters and shows compact current/total values", async () => {
     const user = userEvent.setup();
     await renderPatientsPage([
       client({
@@ -137,10 +137,8 @@ describe("PatientsPageClient", () => {
 
     await screen.findByRole("searchbox", { name: "Поиск пациентов" });
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
-    const categoryGroup = screen.getByRole("group", { name: "Категория клиентов" });
-    expect(within(categoryGroup).getByRole("button", { name: /Все 4/i })).toBeInTheDocument();
-    expect(within(categoryGroup).getByRole("button", { name: /Клиенты 3/i })).toBeInTheDocument();
-    expect(within(categoryGroup).getByRole("button", { name: /Подписчики 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Клиенты 3/i })).not.toBeInTheDocument();
     expect(screen.getByText("Каналы связи")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Приём в этом месяце" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Есть отмены" })).not.toBeInTheDocument();
@@ -151,15 +149,27 @@ describe("PatientsPageClient", () => {
     expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
-    expect(within(categoryGroup).getByRole("button", { name: /Все 4/i })).toBeInTheDocument();
-    expect(within(categoryGroup).getByRole("button", { name: /Клиенты 3/i })).toBeInTheDocument();
-    expect(within(categoryGroup).getByRole("button", { name: /Подписчики 1/i })).toBeInTheDocument();
 
     const supportCard = document.getElementById("doctor-patients-segment-on_support");
     expect(supportCard).not.toBeNull();
     expect(within(supportCard as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(within(supportCard as HTMLElement).getByText("2")).toBeInTheDocument();
     expect(within(supportCard as HTMLElement).queryByText("всего")).not.toBeInTheDocument();
+
+    expect(screen.getByText("С записью и сопровождением")).toBeInTheDocument();
+    expect(screen.getByText("Только запись")).toBeInTheDocument();
+    expect(screen.queryByText("Только сопровождение")).not.toBeInTheDocument();
+
+    await user.click(supportCard as HTMLElement);
+
+    expect(screen.getByText("С записью и сопровождением")).toBeInTheDocument();
+    expect(screen.queryByText("Только запись")).not.toBeInTheDocument();
+    expect(screen.queryByText("Только сопровождение")).not.toBeInTheDocument();
+
+    const appointmentsCard = document.getElementById("doctor-patients-segment-appointments");
+    expect(appointmentsCard).not.toBeNull();
+    expect(within(appointmentsCard as HTMLElement).getByText("1")).toBeInTheDocument();
+    expect(within(appointmentsCard as HTMLElement).getByText("2")).toBeInTheDocument();
   });
 
   it("filters channel buttons client-side without reloading the list", async () => {
