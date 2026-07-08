@@ -1,5 +1,6 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { and, asc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import {
   bePackageHistoryEvents,
   bePackageItems,
@@ -22,9 +23,18 @@ import type {
   SubscriptionPackageRecord,
 } from "@/modules/memberships/types";
 
+type DrizzleTx = Parameters<Parameters<DrizzleDb["transaction"]>[0]>[0];
+type MembershipsDb = DrizzleDb | DrizzleTx;
+
+const txStorage = new AsyncLocalStorage<DrizzleTx>();
+
+function getMembershipsDb(): MembershipsDb {
+  return txStorage.getStore() ?? getDrizzle();
+}
+
 async function loadPackageItems(packageIds: string[]): Promise<Map<string, PatientPackageItemRecord[]>> {
   if (packageIds.length === 0) return new Map();
-  const db = getDrizzle();
+  const db = getMembershipsDb();
   const rows = await db
     .select()
     .from(bePatientPackageItems)
@@ -106,7 +116,7 @@ async function loadCanonicalAppointmentStatuses(
 ): Promise<Map<string, CanonicalAppointmentStatus>> {
   const out = new Map<string, CanonicalAppointmentStatus>();
   if (appointmentIds.length === 0) return out;
-  const db = getDrizzle();
+  const db = getMembershipsDb();
   const idValues = sql.join(
     appointmentIds.map((id) => sql`(${id}::uuid)`),
     sql`, `,
@@ -158,7 +168,7 @@ async function loadCanonicalAppointmentStatuses(
 export function createPgMembershipsPort(): MembershipsPort {
   return {
     async listCatalogPackages(organizationId, activeOnly = true) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const pkgs = await db
         .select()
         .from(beSubscriptionPackages)
@@ -204,7 +214,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async getCatalogPackage(id, organizationId) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const rows = await db
         .select()
         .from(beSubscriptionPackages)
@@ -237,7 +247,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async upsertCatalogPackage(input: UpsertSubscriptionPackageInput) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const now = new Date().toISOString();
       let packageId = input.id;
       if (packageId) {
@@ -292,7 +302,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async getPatientPackage(id, organizationId) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const rows = await db
         .select()
         .from(bePatientPackages)
@@ -305,7 +315,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async listPatientPackagesForUser(platformUserId, organizationId, statuses) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const rows = await db
         .select()
         .from(bePatientPackages)
@@ -328,7 +338,7 @@ export function createPgMembershipsPort(): MembershipsPort {
 
     async listPatientPackagesForPatientIds(organizationId, platformUserIds) {
       if (platformUserIds.length === 0) return [];
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const rows = await db
         .select()
         .from(bePatientPackages)
@@ -343,7 +353,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async createManualPatientPackage(input: CreateManualPatientPackageInput) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const now = new Date().toISOString();
       const staffSold =
         input.activateImmediately === true ||
@@ -398,7 +408,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     async offerCatalogPackageToPatient(input) {
       const catalog = await this.getCatalogPackage(input.subscriptionPackageId, input.organizationId);
       if (!catalog) throw new Error("catalog_not_found");
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const now = new Date().toISOString();
       const inserted = await db
         .insert(bePatientPackages)
@@ -434,7 +444,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async updatePatientPackageNotes(id, organizationId, notes) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const now = new Date().toISOString();
       const rows = await db
         .update(bePatientPackages)
@@ -448,7 +458,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async listPackageAppointmentSessionSources(patientPackageId, organizationId, options) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const nowIso = options.nowIso ?? new Date().toISOString();
 
       // Step 1: find ALL appointments for this patient whose service is in the package,
@@ -524,7 +534,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async listRecalcCandidateAppointments(input) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       if (input.serviceIds.length === 0) return [];
 
       const apptRows = await db
@@ -589,16 +599,16 @@ export function createPgMembershipsPort(): MembershipsPort {
       // advisory lock (auto-released at COMMIT/ROLLBACK) keyed on a stable 64-bit hash of the
       // package id. Postgres blocks the second transaction until the first commits, so the second
       // pass reads balances AFTER the first pass's debits landed — no double-debit.
-      return db.transaction(async () => {
-        await db.execute(
+      return db.transaction(async (tx) => {
+        await tx.execute(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${patientPackageId}, 0))`,
         );
-        return fn();
+        return txStorage.run(tx, fn);
       });
     },
 
     async setPatientPackageStatus(id, organizationId, status, patch) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const now = new Date().toISOString();
       const set: Partial<typeof bePatientPackages.$inferInsert> = { status, updatedAt: now };
       if (patch?.paymentIntentId !== undefined) set.paymentIntentId = patch.paymentIntentId;
@@ -620,7 +630,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async appendUsage(input) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const now = new Date().toISOString();
       const inserted = await db
         .insert(bePackageUsages)
@@ -641,7 +651,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async listUsagesForPackage(patientPackageId, organizationId) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const rows = await db
         .select()
         .from(bePackageUsages)
@@ -656,7 +666,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async listUsagesForAppointment(appointmentId, organizationId) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const rows = await db
         .select()
         .from(bePackageUsages)
@@ -671,7 +681,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async appendHistoryEvent(input) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       await db.insert(bePackageHistoryEvents).values({
         organizationId: input.organizationId,
         patientPackageId: input.patientPackageId,
@@ -682,7 +692,7 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async listHistoryForPackage(patientPackageId, organizationId) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       const rows = await db
         .select()
         .from(bePackageHistoryEvents)
@@ -702,54 +712,106 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async setAppointmentPackageUsageRef(appointmentId, usageRef) {
-      const db = getDrizzle();
+      const db = getMembershipsDb();
       await db
         .update(beAppointments)
         .set({ packageUsageRef: usageRef, updatedAt: new Date().toISOString() })
         .where(eq(beAppointments.id, appointmentId));
     },
 
-    async recalcConsumeForAppointment(input) {
-      const db = getDrizzle();
+    async recalcCorrectCanceledAppointment(input) {
+      const db = getMembershipsDb();
       const now = new Date().toISOString();
-      try {
-        return await db.transaction(async (tx) => {
-          const inserted = await tx
-            .insert(bePackageUsages)
-            .values({
-              organizationId: input.organizationId,
-              patientPackageId: input.patientPackageId,
-              patientPackageItemId: input.patientPackageItemId,
-              appointmentId: input.appointmentId,
-              usageKind: "consume",
-              quantity: 1,
-              createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-              occurredAt: now,
-              createdAt: now,
-            })
-            .returning();
-          const usage = mapUsage(inserted[0]!);
-
-          await tx
-            .update(beAppointments)
-            .set({ packageUsageRef: usage.id, updatedAt: now })
-            .where(eq(beAppointments.id, input.appointmentId));
-
-          await tx.insert(bePackageHistoryEvents).values({
+      const run = async (executor: MembershipsDb) => {
+        const inserted = await executor
+          .insert(bePackageUsages)
+          .values({
             organizationId: input.organizationId,
             patientPackageId: input.patientPackageId,
-            eventType: "recalc_consumed",
-            payloadJson: {
-              appointmentId: input.appointmentId,
-              usageId: usage.id,
-              serviceId: input.serviceId,
-              ...(input.payloadJson ?? {}),
-            },
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            usageKind: "refund",
+            quantity: input.quantity,
+            comment: "recalc_correction_canceled_visit",
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
             occurredAt: now,
-          });
+            createdAt: now,
+          })
+          .returning();
+        const refund = mapUsage(inserted[0]!);
 
-          return usage;
+        await executor
+          .update(beAppointments)
+          .set({ packageUsageRef: null, updatedAt: now })
+          .where(eq(beAppointments.id, input.appointmentId));
+
+        await executor.insert(bePackageHistoryEvents).values({
+          organizationId: input.organizationId,
+          patientPackageId: input.patientPackageId,
+          eventType: "recalc_corrected_canceled",
+          payloadJson: {
+            appointmentId: input.appointmentId,
+            consumeUsageId: input.consumeUsageId,
+            refundUsageId: refund.id,
+            serviceId: input.serviceId,
+          },
+          occurredAt: now,
         });
+
+        return refund;
+      };
+
+      if (txStorage.getStore()) {
+        return run(db);
+      }
+      return getDrizzle().transaction(run);
+    },
+
+    async recalcConsumeForAppointment(input) {
+      const db = getMembershipsDb();
+      const now = new Date().toISOString();
+      const run = async (executor: MembershipsDb) => {
+        const inserted = await executor
+          .insert(bePackageUsages)
+          .values({
+            organizationId: input.organizationId,
+            patientPackageId: input.patientPackageId,
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            usageKind: "consume",
+            quantity: 1,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+            occurredAt: now,
+            createdAt: now,
+          })
+          .returning();
+        const usage = mapUsage(inserted[0]!);
+
+        await executor
+          .update(beAppointments)
+          .set({ packageUsageRef: usage.id, updatedAt: now })
+          .where(eq(beAppointments.id, input.appointmentId));
+
+        await executor.insert(bePackageHistoryEvents).values({
+          organizationId: input.organizationId,
+          patientPackageId: input.patientPackageId,
+          eventType: "recalc_consumed",
+          payloadJson: {
+            appointmentId: input.appointmentId,
+            usageId: usage.id,
+            serviceId: input.serviceId,
+            ...(input.payloadJson ?? {}),
+          },
+          occurredAt: now,
+        });
+
+        return usage;
+      };
+      try {
+        if (txStorage.getStore()) {
+          return await run(db);
+        }
+        return await getDrizzle().transaction(run);
       } catch (err) {
         // PostgreSQL unique_violation (23505): concurrent parallel call already inserted consume
         // for the same appointment — treat as duplicate_consume so the caller can skip gracefully.

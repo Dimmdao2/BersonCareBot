@@ -96,6 +96,16 @@ function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
     updatePatientPackageNotes: vi.fn(),
     listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([]),
     listRecalcCandidateAppointments: vi.fn().mockResolvedValue([]),
+    recalcCorrectCanceledAppointment: vi.fn().mockImplementation(async (input) => ({
+      id: 'u-refund',
+      patientPackageId: input.patientPackageId,
+      patientPackageItemId: input.patientPackageItemId,
+      appointmentId: input.appointmentId,
+      usageKind: 'refund' as const,
+      quantity: input.quantity,
+      comment: 'recalc_correction_canceled_visit',
+      occurredAt: new Date().toISOString(),
+    })),
     recalcConsumeForAppointment: vi.fn().mockImplementation(async (input) => ({
       id: `u-consume`,
       patientPackageId: input.patientPackageId,
@@ -921,10 +931,16 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
     expect(res.corrected).toEqual([
       { appointmentId: 'a-wrong', serviceId: 'svc-1', refundUsageId: 'u-refund' },
     ]);
-    expect(port.appendUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ appointmentId: 'a-wrong', usageKind: 'refund' }),
+    expect(port.recalcCorrectCanceledAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: 'a-wrong',
+        consumeUsageId: 'a-wrong-u0',
+        quantity: 1,
+      }),
     );
-    expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledWith('a-wrong', null);
+    expect(port.appendUsage).not.toHaveBeenCalled();
+    expect(port.setAppointmentPackageUsageRef).not.toHaveBeenCalled();
+    expect(port.appendHistoryEvent).not.toHaveBeenCalled();
   });
 
   it('T3 correction is idempotent: already-refunded cancelled consume is left alone', async () => {
@@ -943,7 +959,7 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
       nowIso: NOW,
     });
     expect(res.corrected).toHaveLength(0);
-    expect(port.appendUsage).not.toHaveBeenCalled();
+    expect(port.recalcCorrectCanceledAppointment).not.toHaveBeenCalled();
   });
 
   it('balance exhaustion → stop at zero, no minus, surplus to outOfBalance', async () => {

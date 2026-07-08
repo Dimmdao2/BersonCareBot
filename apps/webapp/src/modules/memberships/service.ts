@@ -1099,27 +1099,15 @@ export function createMembershipsService(deps: {
           if (!consume) continue;
           const alreadyRefunded = cand.usages.some((u) => u.usageKind === 'refund');
           if (alreadyRefunded) continue;
-          const refund = await deps.port.appendUsage({
+          const refund = await deps.port.recalcCorrectCanceledAppointment({
             organizationId: input.organizationId,
             patientPackageId: pkg.id,
             patientPackageItemId: consume.patientPackageItemId,
             appointmentId: cand.appointmentId,
-            usageKind: 'refund',
+            consumeUsageId: consume.id,
             quantity: consume.quantity,
-            comment: 'recalc_correction_canceled_visit',
             createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-          });
-          await deps.port.setAppointmentPackageUsageRef(cand.appointmentId, null);
-          await deps.port.appendHistoryEvent({
-            organizationId: input.organizationId,
-            patientPackageId: pkg.id,
-            eventType: 'recalc_corrected_canceled',
-            payloadJson: {
-              appointmentId: cand.appointmentId,
-              consumeUsageId: consume.id,
-              refundUsageId: refund.id,
-              serviceId: cand.serviceId,
-            },
+            serviceId: cand.serviceId,
           });
           remainingByItemId.set(
             consume.patientPackageItemId,

@@ -189,6 +189,24 @@ export type MembershipsPort = {
   setAppointmentPackageUsageRef(appointmentId: string, usageRef: string | null): Promise<void>;
 
   /**
+   * ST-03 atomic correction for bulk «Пересчитать».
+   * Executes in a single DB transaction:
+   *   1. INSERT refund into be_package_usages
+   *   2. clear appointment.packageUsageRef
+   *   3. INSERT recalc_corrected_canceled history event
+   */
+  recalcCorrectCanceledAppointment(input: {
+    organizationId: string;
+    patientPackageId: string;
+    patientPackageItemId: string;
+    appointmentId: string;
+    consumeUsageId: string;
+    quantity: number;
+    createdByPlatformUserId: string | null;
+    serviceId: string | null;
+  }): Promise<PackageUsageRecord>;
+
+  /**
    * ST-01 atomic consume for a single appointment during bulk «Пересчитать».
    * Executes in a single DB transaction:
    *   1. INSERT consume into be_package_usages
