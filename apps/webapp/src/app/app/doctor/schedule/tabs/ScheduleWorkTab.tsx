@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type MouseEvent } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -49,6 +49,7 @@ type Branch = {
   title: string;
   /** Short display name (e.g. «СПб», «Мск»). Migration 0117. */
   shortTitle: string | null;
+  color: string | null;
   isActive: boolean;
 };
 
@@ -285,40 +286,44 @@ function validateBreakRows(
 
 const BRANCH_COLORS = ["blue", "green", "violet", "orange"] as const;
 type BranchColor = typeof BRANCH_COLORS[number];
+const FALLBACK_BRANCH_HEX: Record<BranchColor, string> = {
+  blue: "#2563eb",
+  green: "#16a34a",
+  violet: "#7c3aed",
+  orange: "#ea580c",
+};
 
 function getBranchColor(branches: Branch[], branchId: string): BranchColor {
   const idx = branches.findIndex((b) => b.id === branchId);
   return BRANCH_COLORS[(idx >= 0 ? idx : 0) % BRANCH_COLORS.length] ?? "blue";
 }
 
-function branchColorActiveClass(color: BranchColor): string {
-  // §3.17: приглушённые тинты вместо ядрёной заливки — мягкий фон /10 +
-  // цветной текст + цветная граница (активный фильтр читается, но не «кричит»).
-  if (color === "blue") return "bg-blue-500/10 border-blue-500/35 text-blue-700";
-  if (color === "green") return "bg-green-500/10 border-green-600/35 text-green-700";
-  if (color === "violet") return "bg-violet-500/10 border-violet-500/35 text-violet-700";
-  return "bg-orange-500/10 border-orange-500/35 text-orange-700";
+function resolveBranchHex(branches: Branch[], branchId: string): string {
+  const branch = branches.find((b) => b.id === branchId);
+  return branch?.color ?? FALLBACK_BRANCH_HEX[getBranchColor(branches, branchId)];
 }
 
-function branchColorInactiveClass(color: BranchColor): string {
-  if (color === "blue") return "border-blue-500/30 text-blue-600 hover:bg-blue-500/5";
-  if (color === "green") return "border-green-600/30 text-green-700 hover:bg-green-500/5";
-  if (color === "violet") return "border-violet-500/30 text-violet-700 hover:bg-violet-500/5";
-  return "border-orange-500/30 text-orange-700 hover:bg-orange-500/5";
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : FALLBACK_BRANCH_HEX.blue;
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  };
 }
 
-function branchCellClass(color: BranchColor): string {
-  if (color === "blue") return "bg-blue-500/10 border-blue-500/35";
-  if (color === "green") return "bg-green-500/10 border-green-600/35";
-  if (color === "violet") return "bg-violet-500/10 border-violet-500/35";
-  return "bg-orange-500/10 border-orange-500/35";
+function rgba(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function branchDotClass(color: BranchColor): string {
-  if (color === "blue") return "text-blue-600";
-  if (color === "green") return "text-green-700";
-  if (color === "violet") return "text-violet-600";
-  return "text-orange-600";
+function branchStyle(hex: string, active = false): CSSProperties {
+  return {
+    "--branch-bg": rgba(hex, active ? 0.16 : 0.08),
+    "--branch-hover": rgba(hex, active ? 0.2 : 0.12),
+    "--branch-border": rgba(hex, active ? 0.42 : 0.3),
+    "--branch-fg": hex,
+  } as CSSProperties;
 }
 
 // ---------------------------------------------------------------------------
@@ -355,8 +360,8 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
   // §3.15: «выходной»/isClosed removed — a day either has a schedule or falls
   // back to weekday hours (no explicit closed state surfaced in the grid).
   const hasSchedule = record?.startMinute != null;
-  const color = hasSchedule && record?.branchId
-    ? getBranchColor(branches, record.branchId)
+  const branchHex = hasSchedule && record?.branchId
+    ? resolveBranchHex(branches, record.branchId)
     : undefined;
 
   // Resolved breaks for display
@@ -369,8 +374,8 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
   } else if (isToday) {
     // §3.17 / §3.10–3.12: muted transparent-green «сегодня» (no yellow).
     cellClass += "bg-emerald-500/10 border-emerald-500/40 ";
-  } else if (color) {
-    cellClass += branchCellClass(color) + " ";
+  } else if (branchHex) {
+    cellClass += "bg-[color:var(--branch-bg)] border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] ";
   } else if (effectiveHours?.source === "override") {
     // SCH-R-06: override = light blue tint
     cellClass += "bg-primary/10 border-primary/30 hover:bg-primary/15 ";
@@ -396,6 +401,7 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
       className={cellClass}
       aria-pressed={isSelected}
       aria-label={`${dateKey}${hasSchedule ? ` ${formatHourRange(record!.startMinute, record!.endMinute)}` : ""}`}
+      style={branchHex ? branchStyle(branchHex) : undefined}
       onClick={(e) => onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey)}
       onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey); } }}
       data-testid={`day-cell-${dateKey}`}
@@ -404,7 +410,7 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
         {isSelected ? `${day} ●` : day}
       </div>
       {effectiveHours?.source === "override" && effectiveHours.startMinute != null && (
-        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
+        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", branchHex ? "text-[color:var(--branch-fg)]" : "text-primary")}>
           {formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
         </div>
       )}
@@ -418,7 +424,7 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
       )}
       {/* Keep existing block for backward compat when effectiveHours not passed */}
       {!effectiveHours && hasSchedule && record?.startMinute != null && record?.endMinute != null && (
-        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
+        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", branchHex ? "text-[color:var(--branch-fg)]" : "text-primary")}>
           {formatHourRange(record.startMinute, record.endMinute)}
         </div>
       )}
@@ -1054,7 +1060,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               Все
             </Button>
             {branches.map((b) => {
-              const color = getBranchColor(branches, b.id);
+              const branchHex = resolveBranchHex(branches, b.id);
               const isActive = b.id === gridBranchFilter;
               return (
                 <Button
@@ -1063,9 +1069,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   variant="ghost"
                   size="sm"
                   onClick={() => setGridBranchFilter(b.id)}
+                  style={branchStyle(branchHex, isActive)}
                   className={cn(
                     "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
-                    isActive ? branchColorActiveClass(color) : branchColorInactiveClass(color),
+                    "border-[color:var(--branch-border)] text-[color:var(--branch-fg)]",
+                    isActive ? "bg-[color:var(--branch-bg)]" : "hover:bg-[color:var(--branch-hover)]",
                   )}
                   data-testid={`branch-btn-${b.id}`}
                 >

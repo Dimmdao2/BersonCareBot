@@ -6,6 +6,7 @@ const PatchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   /** Short display name (e.g. «СПб», «Мск»). Trimmed, ≤12 chars. Pass null to clear. */
   shortTitle: z.string().trim().max(12).nullable().optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).nullable().optional(),
   cityCode: z.string().min(1).max(80).optional(),
   address: z.string().max(500).nullable().optional(),
   timezone: z.string().max(80).optional(),
@@ -27,6 +28,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     id,
     title: parsed.data.title ?? existing.title,
     ...(parsed.data.shortTitle !== undefined ? { shortTitle: parsed.data.shortTitle } : {}),
+    ...(parsed.data.color !== undefined ? { color: parsed.data.color } : {}),
     cityCode: parsed.data.cityCode ?? existing.cityCode,
     address: parsed.data.address !== undefined ? parsed.data.address : existing.address,
     timezone: parsed.data.timezone ?? existing.timezone,

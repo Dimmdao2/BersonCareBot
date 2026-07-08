@@ -82,6 +82,8 @@ export const beBranches = pgTable(
     title: text().notNull(),
     /** Short display name (e.g. «СПб», «Мск»). Migration 0117. Nullable; UI falls back to title. */
     shortTitle: text("short_title"),
+    /** Hex color used by doctor calendar and work schedule surfaces. */
+    color: text(),
     cityCode: text("city_code").notNull(),
     address: text(),
     timezone: text().default("Europe/Moscow").notNull(),
@@ -99,6 +101,7 @@ export const beBranches = pgTable(
       name: "be_branches_organization_id_fkey",
     }).onDelete("cascade"),
     unique("uq_be_branches_org_city_title").on(table.organizationId, table.cityCode, table.title),
+    check("be_branches_color_hex_check", sql`${table.color} IS NULL OR ${table.color} ~ '^#[0-9A-Fa-f]{6}$'`),
   ],
 );
 

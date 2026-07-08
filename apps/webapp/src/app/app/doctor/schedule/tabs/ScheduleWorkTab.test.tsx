@@ -35,6 +35,7 @@ type MockBranch = {
   id: string;
   title: string;
   shortTitle: string | null;
+  color: string | null;
   isActive: boolean;
   cityCode: string;
   address: null;
@@ -43,8 +44,8 @@ type MockBranch = {
 };
 
 const BRANCHES: MockBranch[] = [
-  { id: "branch-spb", title: "Санкт-Петербург", shortTitle: "СПб", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
-  { id: "branch-msk", title: "Москва", shortTitle: "Мск", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
+  { id: "branch-spb", title: "Санкт-Петербург", shortTitle: "СПб", color: "#2563eb", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
+  { id: "branch-msk", title: "Москва", shortTitle: "Мск", color: "#dc2626", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
 ];
 
 const WORKING_DAY_ROWS = [
@@ -203,7 +204,7 @@ describe("ScheduleWorkTab", () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
-      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
+      expect(screen.getByTestId("branch-btn-branch-msk")).toHaveStyle("--branch-fg: #dc2626");
     });
   });
 
@@ -280,14 +281,14 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => expect(screen.getByTestId("branch-btn-branch-msk")).toBeInTheDocument());
 
     const mskButton = screen.getByTestId("branch-btn-branch-msk");
-    expect(mskButton.className).toContain("text-green-700");
-    expect(mskButton.className).toContain("border-green-600/30");
+    expect(mskButton).toHaveStyle("--branch-fg: #dc2626");
+    expect(mskButton.className).toContain("text-[color:var(--branch-fg)]");
 
     fireEvent.click(mskButton);
 
     await waitFor(() => {
-      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
-      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("border-green-600/35");
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-[color:var(--branch-bg)]");
+      expect(screen.getByTestId("branch-btn-branch-msk")).toHaveStyle("--branch-fg: #dc2626");
     });
   });
 
@@ -304,8 +305,8 @@ describe("ScheduleWorkTab", () => {
   it("colors scheduled day cells by branch palette", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => {
-      expect(screen.getByTestId("day-cell-2026-06-02").className).toContain("bg-blue-500/10");
-      expect(screen.getByTestId("day-cell-2026-06-03").className).toContain("bg-green-500/10");
+      expect(screen.getByTestId("day-cell-2026-06-02")).toHaveStyle("--branch-fg: #2563eb");
+      expect(screen.getByTestId("day-cell-2026-06-03")).toHaveStyle("--branch-fg: #dc2626");
     });
   });
 

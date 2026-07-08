@@ -485,9 +485,46 @@ function eventClassName(event: CalendarEvent): string {
     return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
   if (event.packageUsageRef || event.packageTitle)
     return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
+  if (event.branchColor)
+    return "text-foreground";
   // дефолтная запись чуть насыщеннее (R10 «чуть темнее для всего»); прошлые
   // дополнительно приглушаются через .fc-event-past opacity в <style>.
   return "!bg-primary/15 text-foreground !border-primary/35";
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return null;
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+function rgba(hex: string, alpha: number): string | null {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function appointmentBranchColors(event: CalendarAppointmentEvent): {
+  backgroundColor?: string;
+  borderColor?: string;
+} {
+  if (
+    !event.branchColor ||
+    isCancelledAppointmentStatus(event.status) ||
+    event.status === "awaiting_payment" ||
+    event.prepaymentPending ||
+    event.packageUsageRef ||
+    event.packageTitle
+  ) {
+    return {};
+  }
+  const backgroundColor = rgba(event.branchColor, 0.16);
+  const borderColor = rgba(event.branchColor, 0.42);
+  if (!backgroundColor || !borderColor) return {};
+  return { backgroundColor, borderColor };
 }
 
 function eventTitle(event: CalendarEvent): string {
@@ -1304,6 +1341,7 @@ export function ScheduleCalendarTab({
         durationEditable: !isCancelledAppointmentStatus(event.status),
         startEditable: !isCancelledAppointmentStatus(event.status),
         classNames: [eventClassName(event)],
+        ...appointmentBranchColors(event),
         extendedProps: {
           kind: event.kind,
           appointment: event,

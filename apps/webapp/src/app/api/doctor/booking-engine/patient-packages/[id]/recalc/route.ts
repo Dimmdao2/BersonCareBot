@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { emitPackageLinkedCalendarSync } from "@/app-layer/booking/emitPackageCalendarSync";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
-import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { emitPackageLinkedCalendarSync } from '@/app-layer/booking/emitPackageCalendarSync';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
+import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,7 +14,7 @@ export async function POST(_request: Request, context: RouteContext) {
   const { id: patientPackageId } = await context.params;
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   try {
     // IDOR/ownership (OQ-1): organizationId comes from the authenticated gate, and the service
@@ -34,7 +34,7 @@ export async function POST(_request: Request, context: RouteContext) {
     }
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "recalc_failed";
+    const msg = e instanceof Error ? e.message : 'recalc_failed';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

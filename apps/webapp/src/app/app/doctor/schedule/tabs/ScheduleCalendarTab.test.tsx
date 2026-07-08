@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
 // Mocks — прогрев чанков (webapp-tests-lean)
@@ -21,59 +21,61 @@ type FullCalendarRenderedEvent = {
   id?: string;
   title?: string;
   classNames?: string[];
+  backgroundColor?: string;
+  borderColor?: string;
 };
 
-vi.mock("@fullcalendar/react", () => ({
+vi.mock('@fullcalendar/react', () => ({
   default: (props: FullCalendarMockProps) => {
     lastFullCalendarProps = props;
-    const {
-      navLinkDayClick,
-      dateClick,
-      select,
-    } = props;
+    const { navLinkDayClick, dateClick, select } = props;
     return (
       <div data-testid="fullcalendar">
         <button
           data-testid="fc-day-header-click"
-          onClick={() => navLinkDayClick?.(new Date("2026-06-15T00:00:00Z"))}
+          onClick={() => navLinkDayClick?.(new Date('2026-06-15T00:00:00Z'))}
         >
           день-header
         </button>
         <button
           data-testid="fc-timegrid-click"
-          onClick={() =>
-            dateClick?.({ date: new Date("2026-06-17T11:00:00Z"), allDay: false })
-          }
+          onClick={() => dateClick?.({ date: new Date('2026-06-17T11:00:00Z'), allDay: false })}
         >
           timegrid-click
         </button>
         <button
           data-testid="fc-allday-click"
-          onClick={() =>
-            dateClick?.({ date: new Date("2026-06-17T00:00:00Z"), allDay: true })
-          }
+          onClick={() => dateClick?.({ date: new Date('2026-06-17T00:00:00Z'), allDay: true })}
         >
           allday-click
         </button>
         <button
           data-testid="fc-select"
-          onClick={() => select?.({ start: new Date("2026-06-17T14:00:00Z"), end: new Date("2026-06-17T15:00:00Z") })}
+          onClick={() =>
+            select?.({
+              start: new Date('2026-06-17T14:00:00Z'),
+              end: new Date('2026-06-17T15:00:00Z'),
+            })
+          }
         >
           select
         </button>
         {/* CR-2: click in post-shift nonworking zone (18:30 Moscow = 15:30 UTC) */}
         <button
           data-testid="fc-nonworking-click"
-          onClick={() =>
-            dateClick?.({ date: new Date("2026-06-17T15:30:00Z"), allDay: false })
-          }
+          onClick={() => dateClick?.({ date: new Date('2026-06-17T15:30:00Z'), allDay: false })}
         >
           nonworking-click
         </button>
         {/* #228: drag select in nonworking zone — start at 09:30 UTC (before working hours 10:00 UTC) */}
         <button
           data-testid="fc-select-nonworking"
-          onClick={() => select?.({ start: new Date("2026-06-17T09:30:00Z"), end: new Date("2026-06-17T10:00:00Z") })}
+          onClick={() =>
+            select?.({
+              start: new Date('2026-06-17T09:30:00Z'),
+              end: new Date('2026-06-17T10:00:00Z'),
+            })
+          }
         >
           select-nonworking
         </button>
@@ -81,13 +83,13 @@ vi.mock("@fullcalendar/react", () => ({
     );
   },
 }));
-vi.mock("@fullcalendar/daygrid", () => ({ default: {} }));
-vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
-vi.mock("@fullcalendar/interaction", () => ({ default: {} }));
-vi.mock("@fullcalendar/core/locales/ru", () => ({ default: {} }));
+vi.mock('@fullcalendar/daygrid', () => ({ default: {} }));
+vi.mock('@fullcalendar/timegrid', () => ({ default: {} }));
+vi.mock('@fullcalendar/interaction', () => ({ default: {} }));
+vi.mock('@fullcalendar/core/locales/ru', () => ({ default: {} }));
 
 // DoctorCalendarEventPanel — мокаем stub
-vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
+vi.mock('../../calendar/DoctorCalendarEventPanel', () => ({
   DoctorCalendarEventPanel: ({
     selected,
     onClose,
@@ -111,11 +113,11 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
   }) => (
     <div
       data-testid="event-panel"
-      data-start-in-create={startInCreate ? "true" : "false"}
-      data-create-initial-start={createInitialStart ?? ""}
-      data-create-initial-end={createInitialEnd ?? ""}
-      data-create-initial-branch-id={createInitialBranchId ?? ""}
-      data-create-initial-service-id={createInitialServiceId ?? ""}
+      data-start-in-create={startInCreate ? 'true' : 'false'}
+      data-create-initial-start={createInitialStart ?? ''}
+      data-create-initial-end={createInitialEnd ?? ''}
+      data-create-initial-branch-id={createInitialBranchId ?? ''}
+      data-create-initial-service-id={createInitialServiceId ?? ''}
     >
       {selected ? (
         <button data-testid="panel-close" onClick={onClose}>
@@ -135,12 +137,12 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
 }));
 
 // DoctorCalendarRescheduleDialog — мокаем stub (тяжёлый, не нужен в этих тестах)
-vi.mock("../../calendar/DoctorCalendarRescheduleDialog", () => ({
+vi.mock('../../calendar/DoctorCalendarRescheduleDialog', () => ({
   DoctorCalendarRescheduleDialog: () => null,
 }));
 
 // KpiPreviewModal — мокаем stub с data-testid, чтобы проверять items в тестах
-vi.mock("@/shared/ui/doctor/KpiPreviewModal", () => ({
+vi.mock('@/shared/ui/doctor/KpiPreviewModal', () => ({
   KpiPreviewModal: ({
     open,
     title,
@@ -162,7 +164,7 @@ vi.mock("@/shared/ui/doctor/KpiPreviewModal", () => ({
 }));
 
 // DoctorCalendarToolbarFilter
-vi.mock("../../calendar/DoctorCalendarToolbarFilter", () => ({
+vi.mock('../../calendar/DoctorCalendarToolbarFilter', () => ({
   DoctorCalendarToolbarFilter: ({
     noneLabel,
     onChange,
@@ -170,21 +172,21 @@ vi.mock("../../calendar/DoctorCalendarToolbarFilter", () => ({
     noneLabel: string;
     onChange: (v: string | null) => void;
   }) => (
-    <button data-testid={`filter-${noneLabel}`} onClick={() => onChange("branch-1")}>
+    <button data-testid={`filter-${noneLabel}`} onClick={() => onChange('branch-1')}>
       {noneLabel}
     </button>
   ),
 }));
 
 // resolveCalendarCreateFieldValue
-vi.mock("@/modules/booking-calendar/calendarCreateFieldMode", () => ({
+vi.mock('@/modules/booking-calendar/calendarCreateFieldMode', () => ({
   resolveCalendarCreateFieldValue: vi.fn(
     (_opts: unknown, _active: unknown, prev: string | null) => prev,
   ),
 }));
 
 // appointmentStatusLabel
-vi.mock("@/modules/booking-calendar/appointmentStatusLabels", () => ({
+vi.mock('@/modules/booking-calendar/appointmentStatusLabels', () => ({
   appointmentStatusLabel: (status: string) => `status:${status}`,
   isCancelledAppointmentStatus: () => false,
 }));
@@ -194,7 +196,7 @@ vi.mock("@/modules/booking-calendar/appointmentStatusLabels", () => ({
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
-  await import("./ScheduleCalendarTab");
+  await import('./ScheduleCalendarTab');
 }, 10_000);
 
 // ---------------------------------------------------------------------------
@@ -203,9 +205,9 @@ beforeAll(async () => {
 
 const makeCalendarResponse = (events: object[] = [], workingBounds?: object) => ({
   ok: true,
-  view: "3days",
-  anchorDate: "2026-06-13",
-  timeZone: "Europe/Moscow",
+  view: '3days',
+  anchorDate: '2026-06-13',
+  timeZone: 'Europe/Moscow',
   events,
   filters: { specialists: [], branches: [], rooms: [], services: [] },
   showWorkingHours: true,
@@ -238,34 +240,37 @@ function setupFetchMock(
   kpisResponse?: object,
   nearestWindowResponse?: object,
 ) {
-  vi.spyOn(global, "fetch").mockImplementation((input: RequestInfo | URL) => {
-    const url = typeof input === "string" ? input : input.toString();
-    if (url.includes("/api/doctor/schedule-kpis")) {
+  vi.spyOn(global, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    if (url.includes('/api/doctor/schedule-kpis')) {
       return Promise.resolve({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(kpisResponse ?? makeKpisResponse())),
         json: () => Promise.resolve(kpisResponse ?? makeKpisResponse()),
       } as Response);
     }
-    if (url.includes("/api/doctor/schedule/nearest-free-window")) {
+    if (url.includes('/api/doctor/schedule/nearest-free-window')) {
       return Promise.resolve({
         ok: true,
         json: () =>
           Promise.resolve(
-            nearestWindowResponse ?? { ok: true, window: { from: "2026-06-13T11:00:00", to: "2026-06-13T12:00:00" } },
+            nearestWindowResponse ?? {
+              ok: true,
+              window: { from: '2026-06-13T11:00:00', to: '2026-06-13T12:00:00' },
+            },
           ),
         text: () =>
           Promise.resolve(
             JSON.stringify(
               nearestWindowResponse ?? {
                 ok: true,
-                window: { from: "2026-06-13T11:00:00", to: "2026-06-13T12:00:00" },
+                window: { from: '2026-06-13T11:00:00', to: '2026-06-13T12:00:00' },
               },
             ),
           ),
       } as Response);
     }
-    if (url.includes("/api/doctor/settings")) {
+    if (url.includes('/api/doctor/settings')) {
       const response = { ok: true, settings: [] };
       return Promise.resolve({
         ok: true,
@@ -286,26 +291,26 @@ function setupFetchMock(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("ScheduleCalendarTab — v26 rebuild", () => {
+describe('ScheduleCalendarTab — v26 rebuild', () => {
   async function setup() {
-    const { ScheduleCalendarTab } = await import("./ScheduleCalendarTab");
+    const { ScheduleCalendarTab } = await import('./ScheduleCalendarTab');
     return ScheduleCalendarTab;
   }
 
   // ─── D1: Тулбар — переключатель видов ───────────────────────────────────────
 
-  describe("D1 — toolbar view switcher", () => {
-    it("renders 3 view switcher buttons: 3days/weekgrid/month (no feed)", async () => {
+  describe('D1 — toolbar view switcher', () => {
+    it('renders 3 view switcher buttons: 3days/weekgrid/month (no feed)', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("view-btn-3days")).toBeInTheDocument();
-        expect(screen.getByTestId("view-btn-weekgrid")).toBeInTheDocument();
-        expect(screen.getByTestId("view-btn-month")).toBeInTheDocument();
+        expect(screen.getByTestId('view-btn-3days')).toBeInTheDocument();
+        expect(screen.getByTestId('view-btn-weekgrid')).toBeInTheDocument();
+        expect(screen.getByTestId('view-btn-month')).toBeInTheDocument();
         // feed button must be gone
-        expect(screen.queryByTestId("view-btn-feed")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('view-btn-feed')).not.toBeInTheDocument();
       });
     });
 
@@ -315,49 +320,50 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.queryByTestId("view-btn-day")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('view-btn-day')).not.toBeInTheDocument();
       });
     });
 
-    it("defaults to 3days view and renders FullCalendar", async () => {
+    it('defaults to 3days view and renders FullCalendar', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("view-btn-3days")).toBeInTheDocument();
-        expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
+        expect(screen.getByTestId('view-btn-3days')).toBeInTheDocument();
+        expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
       });
     });
 
-    it("marks package appointments purple and prefixes the short package number", async () => {
+    it('marks package appointments purple and prefixes the short package number', async () => {
       setupFetchMock(
         makeCalendarResponse([
           {
-            kind: "appointment",
-            id: "appt-package",
-            startAt: "2026-06-17T10:00:00Z",
-            endAt: "2026-06-17T11:00:00Z",
-            status: "confirmed",
-            source: "booking_engine",
+            kind: 'appointment',
+            id: 'appt-package',
+            startAt: '2026-06-17T10:00:00Z',
+            endAt: '2026-06-17T11:00:00Z',
+            status: 'confirmed',
+            source: 'booking_engine',
             specialistId: null,
             specialistName: null,
             branchId: null,
             branchTitle: null,
+            branchColor: null,
             roomId: null,
             roomTitle: null,
             serviceId: null,
-            serviceTitle: "Сеанс",
-            platformUserId: "user-1",
-            patientName: "Иванова Мария",
+            serviceTitle: 'Сеанс',
+            platformUserId: 'user-1',
+            patientName: 'Иванова Мария',
             patientPhone: null,
             bookingStatus: null,
             rubitimeId: null,
             rubitimeManageUrl: null,
             paymentStatus: null,
             prepaymentPending: false,
-            packageUsageRef: "usage-1",
-            packageTitle: "Абонемент 10",
+            packageUsageRef: 'usage-1',
+            packageTitle: 'Абонемент 10',
             packageDisplayNumber: 1,
             rescheduleCount: 0,
             originalStartAt: null,
@@ -369,204 +375,251 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        const event = getLastFullCalendarEvents().find((item) => item.id === "appt-package");
-        expect(event?.title).toBe("аб.#001 Иванова Мария · Сеанс");
-        expect(event?.classNames?.join(" ")).toContain("!bg-violet-500/15");
+        const event = getLastFullCalendarEvents().find((item) => item.id === 'appt-package');
+        expect(event?.title).toBe('аб.#001 Иванова Мария · Сеанс');
+        expect(event?.classNames?.join(' ')).toContain('!bg-violet-500/15');
       });
     });
 
-    it("switching to weekgrid calls onDeepLinkChange(view, weekgrid)", async () => {
+    it('colors regular appointment events by branchColor', async () => {
+      setupFetchMock(
+        makeCalendarResponse([
+          {
+            kind: 'appointment',
+            id: 'appt-branch-color',
+            startAt: '2026-06-17T10:00:00Z',
+            endAt: '2026-06-17T11:00:00Z',
+            status: 'confirmed',
+            source: 'booking_engine',
+            specialistId: null,
+            specialistName: null,
+            branchId: 'branch-1',
+            branchTitle: 'Локация',
+            branchColor: '#dc2626',
+            roomId: null,
+            roomTitle: null,
+            serviceId: null,
+            serviceTitle: 'Сеанс',
+            platformUserId: 'user-1',
+            patientName: 'Иванова Мария',
+            patientPhone: null,
+            bookingStatus: null,
+            rubitimeId: null,
+            rubitimeManageUrl: null,
+            paymentStatus: null,
+            prepaymentPending: false,
+            packageUsageRef: null,
+            packageTitle: null,
+            packageDisplayNumber: null,
+            rescheduleCount: 0,
+            originalStartAt: null,
+            formComments: [],
+          },
+        ]),
+      );
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        const event = getLastFullCalendarEvents().find((item) => item.id === 'appt-branch-color');
+        expect(event?.classNames?.join(' ')).toContain('text-foreground');
+        expect(event?.backgroundColor).toBe('rgba(220, 38, 38, 0.16)');
+        expect(event?.borderColor).toBe('rgba(220, 38, 38, 0.42)');
+      });
+    });
+
+    it('switching to weekgrid calls onDeepLinkChange(view, weekgrid)', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
 
-      await waitFor(() => screen.getByTestId("view-btn-weekgrid"));
-      await user.click(screen.getByTestId("view-btn-weekgrid"));
+      await waitFor(() => screen.getByTestId('view-btn-weekgrid'));
+      await user.click(screen.getByTestId('view-btn-weekgrid'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("view", "weekgrid");
+      expect(onDeepLinkChange).toHaveBeenCalledWith('view', 'weekgrid');
     });
 
-    it("switching to month calls onDeepLinkChange(view, month)", async () => {
+    it('switching to month calls onDeepLinkChange(view, month)', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
 
-      await waitFor(() => screen.getByTestId("view-btn-month"));
-      await user.click(screen.getByTestId("view-btn-month"));
+      await waitFor(() => screen.getByTestId('view-btn-month'));
+      await user.click(screen.getByTestId('view-btn-month'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("view", "month");
+      expect(onDeepLinkChange).toHaveBeenCalledWith('view', 'month');
     });
 
-    it("shows period label + arrows in 3days view", async () => {
+    it('shows period label + arrows in 3days view', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("period-label")).toBeInTheDocument();
-        expect(screen.getByTestId("period-prev")).toBeInTheDocument();
-        expect(screen.getByTestId("period-next")).toBeInTheDocument();
+        expect(screen.getByTestId('period-label')).toBeInTheDocument();
+        expect(screen.getByTestId('period-prev')).toBeInTheDocument();
+        expect(screen.getByTestId('period-next')).toBeInTheDocument();
       });
     });
 
-    it("renders + Создать запись button always", async () => {
+    it('renders + Создать запись button always', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("create-appointment-btn")).toBeInTheDocument();
+        expect(screen.getByTestId('create-appointment-btn')).toBeInTheDocument();
       });
     });
 
-    it("renders filter buttons for Локация and Услуга", async () => {
+    it('renders filter buttons for Локация and Услуга', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-Локация")).toBeInTheDocument();
-        expect(screen.getByTestId("filter-Услуга")).toBeInTheDocument();
+        expect(screen.getByTestId('filter-Локация')).toBeInTheDocument();
+        expect(screen.getByTestId('filter-Услуга')).toBeInTheDocument();
       });
     });
   });
 
   // ─── D1b: Тумблер Календарь/Список ──────────────────────────────────────────
 
-  describe("D1b — render mode toggle (calendar / list)", () => {
-    it("renders both calendar and list toggle buttons in toolbar", async () => {
+  describe('D1b — render mode toggle (calendar / list)', () => {
+    it('renders both calendar and list toggle buttons in toolbar', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("render-btn-calendar")).toBeInTheDocument();
-        expect(screen.getByTestId("render-btn-list")).toBeInTheDocument();
+        expect(screen.getByTestId('render-btn-calendar')).toBeInTheDocument();
+        expect(screen.getByTestId('render-btn-list')).toBeInTheDocument();
       });
     });
 
-    it("defaults to calendar mode — fullcalendar visible, list-view absent", async () => {
+    it('defaults to calendar mode — fullcalendar visible, list-view absent', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
-        expect(screen.queryByTestId("list-view")).not.toBeInTheDocument();
+        expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
+        expect(screen.queryByTestId('list-view')).not.toBeInTheDocument();
       });
     });
 
-    it("switching to list mode shows list-view and hides fullcalendar", async () => {
+    it('switching to list mode shows list-view and hides fullcalendar', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
 
       await waitFor(() => {
-        expect(screen.getByTestId("list-view")).toBeInTheDocument();
-        expect(screen.queryByTestId("fullcalendar")).not.toBeInTheDocument();
+        expect(screen.getByTestId('list-view')).toBeInTheDocument();
+        expect(screen.queryByTestId('fullcalendar')).not.toBeInTheDocument();
       });
     });
 
-    it("switching back to calendar from list restores fullcalendar", async () => {
+    it('switching back to calendar from list restores fullcalendar', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
-      await waitFor(() => screen.getByTestId("list-view"));
-      await user.click(screen.getByTestId("render-btn-calendar"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
+      await waitFor(() => screen.getByTestId('list-view'));
+      await user.click(screen.getByTestId('render-btn-calendar'));
 
       await waitFor(() => {
-        expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
-        expect(screen.queryByTestId("list-view")).not.toBeInTheDocument();
+        expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
+        expect(screen.queryByTestId('list-view')).not.toBeInTheDocument();
       });
     });
 
-    it("toggle buttons are visible in day drill-down view too", async () => {
+    it('toggle buttons are visible in day drill-down view too', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "day" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'day' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("render-btn-calendar")).toBeInTheDocument();
-        expect(screen.getByTestId("render-btn-list")).toBeInTheDocument();
+        expect(screen.getByTestId('render-btn-calendar')).toBeInTheDocument();
+        expect(screen.getByTestId('render-btn-list')).toBeInTheDocument();
       });
     });
 
-    it("switching to list calls onDeepLinkChange(render, list)", async () => {
+    it('switching to list calls onDeepLinkChange(render, list)', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("render", "list");
+      expect(onDeepLinkChange).toHaveBeenCalledWith('render', 'list');
     });
 
-    it("initialises from deepLinkParams.render=list", async () => {
+    it('initialises from deepLinkParams.render=list', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ render: "list" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ render: 'list' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("list-view")).toBeInTheDocument();
-        expect(screen.queryByTestId("fullcalendar")).not.toBeInTheDocument();
+        expect(screen.getByTestId('list-view')).toBeInTheDocument();
+        expect(screen.queryByTestId('fullcalendar')).not.toBeInTheDocument();
       });
     });
   });
 
   // ─── D1c: List view groups by day ────────────────────────────────────────────
 
-  describe("D1c — list view groups appointments by day", () => {
-    it("list view shows day cards for days with appointments", async () => {
+  describe('D1c — list view groups appointments by day', () => {
+    it('list view shows day cards for days with appointments', async () => {
       const events = [
         {
-          kind: "appointment",
-          id: "appt-1",
-          startAt: "2026-06-13T10:00:00+03:00",
-          endAt: "2026-06-13T11:00:00+03:00",
-          status: "confirmed",
-          patientName: "Иванов Иван",
-          branchTitle: "Центр",
+          kind: 'appointment',
+          id: 'appt-1',
+          startAt: '2026-06-13T10:00:00+03:00',
+          endAt: '2026-06-13T11:00:00+03:00',
+          status: 'confirmed',
+          patientName: 'Иванов Иван',
+          branchTitle: 'Центр',
         },
         {
-          kind: "appointment",
-          id: "appt-2",
-          startAt: "2026-06-14T09:00:00+03:00",
-          endAt: "2026-06-14T10:00:00+03:00",
-          status: "confirmed",
-          patientName: "Петрова Анна",
+          kind: 'appointment',
+          id: 'appt-2',
+          startAt: '2026-06-14T09:00:00+03:00',
+          endAt: '2026-06-14T10:00:00+03:00',
+          status: 'confirmed',
+          patientName: 'Петрова Анна',
           branchTitle: null,
         },
       ];
       setupFetchMock(makeCalendarResponse(events));
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
 
       await waitFor(() => {
         // Day cards for each day that has appointments
-        expect(screen.getByTestId("list-day-2026-06-13")).toBeInTheDocument();
-        expect(screen.getByTestId("list-day-2026-06-14")).toBeInTheDocument();
+        expect(screen.getByTestId('list-day-2026-06-13')).toBeInTheDocument();
+        expect(screen.getByTestId('list-day-2026-06-14')).toBeInTheDocument();
         // Appointment buttons
-        expect(screen.getByTestId("list-appt-appt-1")).toBeInTheDocument();
-        expect(screen.getByTestId("list-appt-appt-2")).toBeInTheDocument();
+        expect(screen.getByTestId('list-appt-appt-1')).toBeInTheDocument();
+        expect(screen.getByTestId('list-appt-appt-2')).toBeInTheDocument();
       });
     });
 
@@ -574,160 +627,160 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     // прямо из Postgres timestamptz — формат "2026-06-13 10:00:00+02" (пробел, не "T").
     // Строгий DateTime.fromISO его не парсил → список был пуст, хотя FullCalendar показывал
     // записи. Фид с этим форматом должен по-прежнему группироваться по дням.
-    it("list view groups appointments with Postgres timestamptz format (space, short offset)", async () => {
+    it('list view groups appointments with Postgres timestamptz format (space, short offset)', async () => {
       const events = [
         {
-          kind: "appointment",
-          id: "appt-pg-1",
-          startAt: "2026-06-13 10:00:00+02",
-          endAt: "2026-06-13 11:00:00+02",
-          status: "confirmed",
-          patientName: "Иванов Иван",
-          branchTitle: "Центр",
+          kind: 'appointment',
+          id: 'appt-pg-1',
+          startAt: '2026-06-13 10:00:00+02',
+          endAt: '2026-06-13 11:00:00+02',
+          status: 'confirmed',
+          patientName: 'Иванов Иван',
+          branchTitle: 'Центр',
         },
         {
-          kind: "appointment",
-          id: "appt-pg-2",
-          startAt: "2026-06-14 09:00:00+02",
-          endAt: "2026-06-14 10:00:00+02",
-          status: "confirmed",
-          patientName: "Петрова Анна",
+          kind: 'appointment',
+          id: 'appt-pg-2',
+          startAt: '2026-06-14 09:00:00+02',
+          endAt: '2026-06-14 10:00:00+02',
+          status: 'confirmed',
+          patientName: 'Петрова Анна',
           branchTitle: null,
         },
       ];
       setupFetchMock(makeCalendarResponse(events));
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
 
       await waitFor(() => {
-        expect(screen.getByTestId("list-day-2026-06-13")).toBeInTheDocument();
-        expect(screen.getByTestId("list-day-2026-06-14")).toBeInTheDocument();
-        expect(screen.getByTestId("list-appt-appt-pg-1")).toBeInTheDocument();
-        expect(screen.getByTestId("list-appt-appt-pg-2")).toBeInTheDocument();
+        expect(screen.getByTestId('list-day-2026-06-13')).toBeInTheDocument();
+        expect(screen.getByTestId('list-day-2026-06-14')).toBeInTheDocument();
+        expect(screen.getByTestId('list-appt-appt-pg-1')).toBeInTheDocument();
+        expect(screen.getByTestId('list-appt-appt-pg-2')).toBeInTheDocument();
       });
     });
 
-    it("list view shows empty state when no appointments in period", async () => {
+    it('list view shows empty state when no appointments in period', async () => {
       setupFetchMock(makeCalendarResponse([]));
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
 
       await waitFor(() => {
-        expect(screen.getByTestId("list-empty")).toBeInTheDocument();
+        expect(screen.getByTestId('list-empty')).toBeInTheDocument();
       });
     });
 
-    it("clicking appointment in list view calls onDeepLinkChange(appt, id)", async () => {
+    it('clicking appointment in list view calls onDeepLinkChange(appt, id)', async () => {
       const appt = {
-        kind: "appointment",
-        id: "appt-99",
-        startAt: "2026-06-13T10:00:00+03:00",
-        endAt: "2026-06-13T11:00:00+03:00",
-        status: "confirmed",
-        patientName: "Тест",
+        kind: 'appointment',
+        id: 'appt-99',
+        startAt: '2026-06-13T10:00:00+03:00',
+        endAt: '2026-06-13T11:00:00+03:00',
+        status: 'confirmed',
+        patientName: 'Тест',
         branchTitle: null,
       };
       setupFetchMock(makeCalendarResponse([appt]));
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={onDeepLinkChange} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={onDeepLinkChange} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
 
-      await waitFor(() => screen.getByTestId("list-appt-appt-99"));
-      await user.click(screen.getByTestId("list-appt-appt-99"));
+      await waitFor(() => screen.getByTestId('list-appt-appt-99'));
+      await user.click(screen.getByTestId('list-appt-appt-99'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("appt", "appt-99");
+      expect(onDeepLinkChange).toHaveBeenCalledWith('appt', 'appt-99');
     });
 
-    it("list view has no load-more buttons (was feed-only)", async () => {
+    it('list view has no load-more buttons (was feed-only)', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("render-btn-list"));
-      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId('render-btn-list'));
+      await user.click(screen.getByTestId('render-btn-list'));
 
       await waitFor(() => {
-        expect(screen.queryByTestId("feed-load-past")).not.toBeInTheDocument();
-        expect(screen.queryByTestId("feed-load-future")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('feed-load-past')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('feed-load-future')).not.toBeInTheDocument();
       });
     });
   });
 
   // ─── D2: KPI ──────────────────────────────────────────────────────────────
 
-  describe("D2 — KPI row visibility", () => {
-    it("shows KPI row in 3days view", async () => {
+  describe('D2 — KPI row visibility', () => {
+    it('shows KPI row in 3days view', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("cal-kpi-row")).toBeInTheDocument();
+        expect(screen.getByTestId('cal-kpi-row')).toBeInTheDocument();
       });
     });
 
-    it("shows KPI row in weekgrid view", async () => {
+    it('shows KPI row in weekgrid view', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "weekgrid" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'weekgrid' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("cal-kpi-row")).toBeInTheDocument();
+        expect(screen.getByTestId('cal-kpi-row')).toBeInTheDocument();
       });
     });
 
-    it("shows KPI row in month view", async () => {
+    it('shows KPI row in month view', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "month" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'month' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("cal-kpi-row")).toBeInTheDocument();
+        expect(screen.getByTestId('cal-kpi-row')).toBeInTheDocument();
       });
     });
 
-    it("HIDES KPI row in day (drill-down) view", async () => {
+    it('HIDES KPI row in day (drill-down) view', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "day" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'day' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.queryByTestId("cal-kpi-row")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('cal-kpi-row')).not.toBeInTheDocument();
       });
     });
 
-    it("renders all 9 KPI cards", async () => {
+    it('renders all 9 KPI cards', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("kpi-recordsInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-pastInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-futureInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-bySubscriptionInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-firstVisitInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-repeatVisitInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-uniquePatientsInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-cancellationsInPeriod")).toBeInTheDocument();
-        expect(screen.getByTestId("kpi-reschedulesInPeriod")).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-recordsInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-pastInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-futureInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-bySubscriptionInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-firstVisitInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-repeatVisitInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-uniquePatientsInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-cancellationsInPeriod')).toBeInTheDocument();
+        expect(screen.getByTestId('kpi-reschedulesInPeriod')).toBeInTheDocument();
       });
     });
 
-    it("KPI shows value 0 when kpis null after load (zeros)", async () => {
+    it('KPI shows value 0 when kpis null after load (zeros)', async () => {
       setupFetchMock(makeCalendarResponse(), {
         ok: true,
         kpis: {
@@ -747,35 +800,33 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        const kpiEl = screen.getByTestId("kpi-recordsInPeriod");
+        const kpiEl = screen.getByTestId('kpi-recordsInPeriod');
         // Zero should render "0" not "—"
-        expect(kpiEl.textContent).toContain("0");
+        expect(kpiEl.textContent).toContain('0');
       });
     });
   });
 
   // ─── D3: Drill-down day ───────────────────────────────────────────────────
 
-  describe("D3 — drill-down day view", () => {
+  describe('D3 — drill-down day view', () => {
     it("shows '← Назад' button in day view", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "day" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'day' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("drill-back-btn")).toBeInTheDocument();
+        expect(screen.getByTestId('drill-back-btn')).toBeInTheDocument();
       });
     });
 
     it("'← Назад' is NOT shown in 3days/weekgrid/month", async () => {
-      for (const v of ["3days", "weekgrid", "month"] as const) {
+      for (const v of ['3days', 'weekgrid', 'month'] as const) {
         setupFetchMock(makeCalendarResponse());
         const Tab = await setup();
-        const { unmount } = render(
-          <Tab deepLinkParams={{ view: v }} onDeepLinkChange={vi.fn()} />,
-        );
+        const { unmount } = render(<Tab deepLinkParams={{ view: v }} onDeepLinkChange={vi.fn()} />);
         await waitFor(() => {
-          expect(screen.queryByTestId("drill-back-btn")).not.toBeInTheDocument();
+          expect(screen.queryByTestId('drill-back-btn')).not.toBeInTheDocument();
         });
         unmount();
       }
@@ -789,16 +840,16 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       // Simulate drill-down from weekgrid: deepLinkParams has from=weekgrid
       render(
         <Tab
-          deepLinkParams={{ view: "day", date: "2026-06-15", from: "weekgrid" }}
+          deepLinkParams={{ view: 'day', date: '2026-06-15', from: 'weekgrid' }}
           onDeepLinkChange={onDeepLinkChange}
         />,
       );
 
-      await waitFor(() => screen.getByTestId("drill-back-btn"));
-      await user.click(screen.getByTestId("drill-back-btn"));
+      await waitFor(() => screen.getByTestId('drill-back-btn'));
+      await user.click(screen.getByTestId('drill-back-btn'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("view", "weekgrid");
-      expect(onDeepLinkChange).toHaveBeenCalledWith("from", null);
+      expect(onDeepLinkChange).toHaveBeenCalledWith('view', 'weekgrid');
+      expect(onDeepLinkChange).toHaveBeenCalledWith('from', null);
     });
 
     it("clicking '← Назад' without from falls back to 3days", async () => {
@@ -806,70 +857,68 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
-      render(
-        <Tab deepLinkParams={{ view: "day" }} onDeepLinkChange={onDeepLinkChange} />,
-      );
+      render(<Tab deepLinkParams={{ view: 'day' }} onDeepLinkChange={onDeepLinkChange} />);
 
-      await waitFor(() => screen.getByTestId("drill-back-btn"));
-      await user.click(screen.getByTestId("drill-back-btn"));
+      await waitFor(() => screen.getByTestId('drill-back-btn'));
+      await user.click(screen.getByTestId('drill-back-btn'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("view", "3days");
+      expect(onDeepLinkChange).toHaveBeenCalledWith('view', '3days');
     });
   });
 
   // ─── D4: Calendar renders (non-list mode) ────────────────────────────────────
 
-  describe("D4 — calendar render mode", () => {
-    it("calendar mode renders FullCalendar for 3days/weekgrid/month/day", async () => {
-      for (const v of ["3days", "weekgrid", "month", "day"] as const) {
+  describe('D4 — calendar render mode', () => {
+    it('calendar mode renders FullCalendar for 3days/weekgrid/month/day', async () => {
+      for (const v of ['3days', 'weekgrid', 'month', 'day'] as const) {
         setupFetchMock(makeCalendarResponse());
         const Tab = await setup();
-        const { unmount } = render(
-          <Tab deepLinkParams={{ view: v }} onDeepLinkChange={vi.fn()} />,
-        );
+        const { unmount } = render(<Tab deepLinkParams={{ view: v }} onDeepLinkChange={vi.fn()} />);
         await waitFor(() => {
-          expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
+          expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
         });
         unmount();
       }
     });
 
-    it("uses custom day header content in time-grid views and custom day cell content in month view", async () => {
+    it('uses custom day header content in time-grid views and custom day cell content in month view', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      const { unmount } = render(<Tab deepLinkParams={{ view: "3days" }} onDeepLinkChange={vi.fn()} />);
+      const { unmount } = render(
+        <Tab deepLinkParams={{ view: '3days' }} onDeepLinkChange={vi.fn()} />,
+      );
 
-      await waitFor(() => expect(screen.getByTestId("fullcalendar")).toBeInTheDocument());
-      expect(typeof lastFullCalendarProps?.dayHeaderContent).toBe("function");
+      await waitFor(() => expect(screen.getByTestId('fullcalendar')).toBeInTheDocument());
+      expect(typeof lastFullCalendarProps?.dayHeaderContent).toBe('function');
       expect(lastFullCalendarProps?.dayCellContent).toBeUndefined();
 
       unmount();
-      render(<Tab deepLinkParams={{ view: "month" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'month' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => expect(screen.getByTestId("fullcalendar")).toBeInTheDocument());
-      expect(typeof lastFullCalendarProps?.dayCellContent).toBe("function");
+      await waitFor(() => expect(screen.getByTestId('fullcalendar')).toBeInTheDocument());
+      expect(typeof lastFullCalendarProps?.dayCellContent).toBe('function');
     });
 
-    it("renders today header circle around weekday and day number together in time-grid views", async () => {
+    it('renders today header circle around weekday and day number together in time-grid views', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "weekgrid" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'weekgrid' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => expect(screen.getByTestId("fullcalendar")).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByTestId('fullcalendar')).toBeInTheDocument());
       const dayHeaderContent = lastFullCalendarProps?.dayHeaderContent as
         | ((arg: { date: Date }) => unknown)
         | undefined;
-      expect(typeof dayHeaderContent).toBe("function");
+      expect(typeof dayHeaderContent).toBe('function');
 
       const headerNode = dayHeaderContent?.({ date: new Date() });
       expect(headerNode).toBeTruthy();
-      if (!headerNode || typeof headerNode !== "object" || !("props" in headerNode)) {
-        throw new Error("dayHeaderContent did not return a React element");
+      if (!headerNode || typeof headerNode !== 'object' || !('props' in headerNode)) {
+        throw new Error('dayHeaderContent did not return a React element');
       }
 
       const props = (headerNode as { props: { className?: string; children?: unknown[] } }).props;
-      expect(props.className).toContain("fc-timegrid-header-link");
-      expect(props.className).toContain("fc-today-circle");
+      expect(props.className).toContain('fc-timegrid-header-link');
+      expect(props.className).toContain('fc-today-circle');
       expect(Array.isArray(props.children)).toBe(true);
       expect(props.children).toHaveLength(2);
     });
@@ -877,15 +926,15 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
 
   // ─── D5: Right panel ─────────────────────────────────────────────────────
 
-  describe("D5 — right panel stub / event panel", () => {
-    it("shows empty stub when no appointment selected", async () => {
+  describe('D5 — right panel stub / event panel', () => {
+    it('shows empty stub when no appointment selected', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
-        expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
+        expect(screen.getByTestId('right-panel-empty')).toBeInTheDocument();
+        expect(screen.queryByTestId('event-panel')).not.toBeInTheDocument();
       });
     });
 
@@ -896,109 +945,104 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
 
       await waitFor(() => {
         // The right-panel-create-btn is gone from stub
-        expect(screen.queryByTestId("right-panel-create-btn")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('right-panel-create-btn')).not.toBeInTheDocument();
         // But toolbar CTA is still there
-        expect(screen.getByTestId("create-appointment-btn")).toBeInTheDocument();
+        expect(screen.getByTestId('create-appointment-btn')).toBeInTheDocument();
       });
     });
 
-    it("clicking CTA in toolbar shows DoctorCalendarEventPanel", async () => {
+    it('clicking CTA in toolbar shows DoctorCalendarEventPanel', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("create-appointment-btn"));
-      await user.click(screen.getByTestId("create-appointment-btn"));
+      await waitFor(() => screen.getByTestId('create-appointment-btn'));
+      await user.click(screen.getByTestId('create-appointment-btn'));
 
       await waitFor(() => {
-        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
-        expect(screen.queryByTestId("right-panel-empty")).not.toBeInTheDocument();
+        expect(screen.getByTestId('event-panel')).toBeInTheDocument();
+        expect(screen.queryByTestId('right-panel-empty')).not.toBeInTheDocument();
       });
     });
 
     // §3.6 — панель открывается сразу в режиме создания (startInCreate=true)
-    it("§3.6: CTA toolbar passes startInCreate=true to DoctorCalendarEventPanel", async () => {
+    it('§3.6: CTA toolbar passes startInCreate=true to DoctorCalendarEventPanel', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("create-appointment-btn"));
-      await user.click(screen.getByTestId("create-appointment-btn"));
+      await waitFor(() => screen.getByTestId('create-appointment-btn'));
+      await user.click(screen.getByTestId('create-appointment-btn'));
 
       await waitFor(() => {
-        const panel = screen.getByTestId("event-panel");
+        const panel = screen.getByTestId('event-panel');
         expect(panel).toBeInTheDocument();
-        expect(panel.getAttribute("data-start-in-create")).toBe("true");
+        expect(panel.getAttribute('data-start-in-create')).toBe('true');
       });
     });
   });
 
   // ─── D6: Deep-link ───────────────────────────────────────────────────────
 
-  describe("D6 — deep-link sync", () => {
-    it("initializes from deepLinkParams.view=weekgrid", async () => {
+  describe('D6 — deep-link sync', () => {
+    it('initializes from deepLinkParams.view=weekgrid', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "weekgrid" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ view: 'weekgrid' }} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
+        expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
         // KPI visible in weekgrid
-        expect(screen.getByTestId("cal-kpi-row")).toBeInTheDocument();
+        expect(screen.getByTestId('cal-kpi-row')).toBeInTheDocument();
       });
     });
 
-    it("deepLinkParams.date passed as anchor — period label contains June", async () => {
+    it('deepLinkParams.date passed as anchor — period label contains June', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(
-        <Tab
-          deepLinkParams={{ view: "3days", date: "2026-06-13" }}
-          onDeepLinkChange={vi.fn()}
-        />,
+        <Tab deepLinkParams={{ view: '3days', date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />,
       );
       await waitFor(() => {
-        const label = screen.getByTestId("period-label");
+        const label = screen.getByTestId('period-label');
         expect(label.textContent).toMatch(/июн/i);
       });
     });
 
-    it("onDeepLinkChange called with date when navigating with arrows", async () => {
+    it('onDeepLinkChange called with date when navigating with arrows', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
-      render(
-        <Tab
-          deepLinkParams={{ date: "2026-06-13" }}
-          onDeepLinkChange={onDeepLinkChange}
-        />,
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={onDeepLinkChange} />);
+
+      await waitFor(() => screen.getByTestId('period-next'));
+      await user.click(screen.getByTestId('period-next'));
+
+      expect(onDeepLinkChange).toHaveBeenCalledWith(
+        'date',
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       );
-
-      await waitFor(() => screen.getByTestId("period-next"));
-      await user.click(screen.getByTestId("period-next"));
-
-      expect(onDeepLinkChange).toHaveBeenCalledWith("date", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
     });
 
-    it("reloads calendar feed when schedule refresh event is dispatched", async () => {
+    it('reloads calendar feed when schedule refresh event is dispatched', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
       const fetchMock = vi.mocked(global.fetch);
       const initialCalendarCalls = fetchMock.mock.calls.filter(([input]) =>
-        String(input).includes("/api/doctor/booking-engine/calendar"),
+        String(input).includes('/api/doctor/booking-engine/calendar'),
       ).length;
 
-      window.dispatchEvent(new Event("doctor:schedule-calendar-refresh"));
+      window.dispatchEvent(new Event('doctor:schedule-calendar-refresh'));
 
       await waitFor(() => {
         const nextCalendarCalls = fetchMock.mock.calls.filter(([input]) =>
-          String(input).includes("/api/doctor/booking-engine/calendar"),
+          String(input).includes('/api/doctor/booking-engine/calendar'),
         ).length;
         expect(nextCalendarCalls).toBeGreaterThan(initialCalendarCalls);
       });
@@ -1007,148 +1051,148 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
 
   // ─── #228: dateClick/drag create draft; side click resets active draft ─────
 
-  describe("#228 — dateClick and drag create draft slots", () => {
-    it("clicking time-grid slot creates draft when no slot is active", async () => {
+  describe('#228 — dateClick and drag create draft slots', () => {
+    it('clicking time-grid slot creates draft when no slot is active', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-timegrid-click"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
+      await user.click(screen.getByTestId('fc-timegrid-click'));
       await waitFor(() => {
-        const panel = screen.getByTestId("event-panel");
+        const panel = screen.getByTestId('event-panel');
         expect(panel).toBeInTheDocument();
-        expect(panel.getAttribute("data-start-in-create")).toBe("true");
-        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T14:00");
-        expect(panel.getAttribute("data-create-initial-end")).toBe("2026-06-17T15:00");
+        expect(panel.getAttribute('data-start-in-create')).toBe('true');
+        expect(panel.getAttribute('data-create-initial-start')).toBe('2026-06-17T14:00');
+        expect(panel.getAttribute('data-create-initial-end')).toBe('2026-06-17T15:00');
       });
     });
 
-    it("clicking time-grid slot closes active create draft", async () => {
+    it('clicking time-grid slot closes active create draft', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-timegrid-click"));
-      await waitFor(() => screen.getByTestId("event-panel"));
-      await user.click(screen.getByTestId("fc-timegrid-click"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
+      await user.click(screen.getByTestId('fc-timegrid-click'));
+      await waitFor(() => screen.getByTestId('event-panel'));
+      await user.click(screen.getByTestId('fc-timegrid-click'));
 
       await waitFor(() => {
-        expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
-        expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
+        expect(screen.queryByTestId('event-panel')).not.toBeInTheDocument();
+        expect(screen.getByTestId('right-panel-empty')).toBeInTheDocument();
       });
     });
 
-    it("keeps dirty create draft when click-away confirm is declined", async () => {
+    it('keeps dirty create draft when click-away confirm is declined', async () => {
       setupFetchMock(makeCalendarResponse());
-      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-timegrid-click"));
-      await waitFor(() => screen.getByTestId("event-panel"));
-      await user.click(screen.getByTestId("panel-dirty"));
-      await user.click(screen.getByTestId("fc-timegrid-click"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
+      await user.click(screen.getByTestId('fc-timegrid-click'));
+      await waitFor(() => screen.getByTestId('event-panel'));
+      await user.click(screen.getByTestId('panel-dirty'));
+      await user.click(screen.getByTestId('fc-timegrid-click'));
 
       expect(confirmSpy).toHaveBeenCalled();
-      expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+      expect(screen.getByTestId('event-panel')).toBeInTheDocument();
       confirmSpy.mockRestore();
     });
 
-    it("select (drag) opens create panel with start/end time and drag duration", async () => {
+    it('select (drag) opens create panel with start/end time and drag duration', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-select"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
+      await user.click(screen.getByTestId('fc-select'));
 
       await waitFor(() => {
-        const panel = screen.getByTestId("event-panel");
+        const panel = screen.getByTestId('event-panel');
         expect(panel).toBeInTheDocument();
-        expect(panel.getAttribute("data-start-in-create")).toBe("true");
+        expect(panel.getAttribute('data-start-in-create')).toBe('true');
         // Fixed by #225-TZ: 14:00 UTC → 17:00 Moscow (UTC+3).
-        expect(panel.getAttribute("data-create-initial-start")).toBe("2026-06-17T17:00");
-        expect(panel.getAttribute("data-create-initial-end")).toBe("2026-06-17T18:00");
+        expect(panel.getAttribute('data-create-initial-start')).toBe('2026-06-17T17:00');
+        expect(panel.getAttribute('data-create-initial-end')).toBe('2026-06-17T18:00');
       });
     });
 
-    it("dateClick calls onDeepLinkChange(appt, null) when creating draft", async () => {
+    it('dateClick calls onDeepLinkChange(appt, null) when creating draft', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-timegrid-click"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
+      await user.click(screen.getByTestId('fc-timegrid-click'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("appt", null);
+      expect(onDeepLinkChange).toHaveBeenCalledWith('appt', null);
     });
   });
 
   // ─── #227: onChanged снимает панель и выделение ──────────────────────────
 
-  describe("#227 — onChanged closes panel (unselect on successful create)", () => {
-    it("onChanged hides the event panel and shows empty stub", async () => {
+  describe('#227 — onChanged closes panel (unselect on successful create)', () => {
+    it('onChanged hides the event panel and shows empty stub', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       // Открываем панель создания через drag (onSelect)
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-select"));
-      await waitFor(() => screen.getByTestId("event-panel"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
+      await user.click(screen.getByTestId('fc-select'));
+      await waitFor(() => screen.getByTestId('event-panel'));
 
       // Симулируем успешное создание (onChanged)
-      await user.click(screen.getByTestId("panel-changed"));
+      await user.click(screen.getByTestId('panel-changed'));
 
       await waitFor(() => {
-        expect(screen.queryByTestId("event-panel")).not.toBeInTheDocument();
-        expect(screen.getByTestId("right-panel-empty")).toBeInTheDocument();
+        expect(screen.queryByTestId('event-panel')).not.toBeInTheDocument();
+        expect(screen.getByTestId('right-panel-empty')).toBeInTheDocument();
       });
     });
 
-    it("onChanged calls onDeepLinkChange(appt, null)", async () => {
+    it('onChanged calls onDeepLinkChange(appt, null)', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const onDeepLinkChange = vi.fn();
       const user = userEvent.setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
-      await user.click(screen.getByTestId("fc-select"));
-      await waitFor(() => screen.getByTestId("event-panel"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
+      await user.click(screen.getByTestId('fc-select'));
+      await waitFor(() => screen.getByTestId('event-panel'));
 
       onDeepLinkChange.mockClear();
-      await user.click(screen.getByTestId("panel-changed"));
+      await user.click(screen.getByTestId('panel-changed'));
 
-      expect(onDeepLinkChange).toHaveBeenCalledWith("appt", null);
+      expect(onDeepLinkChange).toHaveBeenCalledWith('appt', null);
     });
   });
 
-  describe("#228 — onSelect creates draft in working and non-working zones", () => {
+  describe('#228 — onSelect creates draft in working and non-working zones', () => {
     // Helper: response with a working event 10:00-18:00 UTC on 2026-06-17.
     // Non-working zone includes 09:00-10:00 UTC (before working hours).
     // fc-select-nonworking fires at 09:30 UTC (before 10:00 UTC working start).
     const makeResponseWithWorkingEvent = () => ({
       ok: true,
-      view: "3days",
-      anchorDate: "2026-06-17",
-      timeZone: "UTC",
+      view: '3days',
+      anchorDate: '2026-06-17',
+      timeZone: 'UTC',
       events: [
         {
-          kind: "working",
-          id: "wk-1",
-          startAt: "2026-06-17T10:00:00Z",
-          endAt: "2026-06-17T18:00:00Z",
+          kind: 'working',
+          id: 'wk-1',
+          startAt: '2026-06-17T10:00:00Z',
+          endAt: '2026-06-17T18:00:00Z',
         },
       ],
       filters: { specialists: [], branches: [], rooms: [], services: [] },
@@ -1156,264 +1200,424 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       workingBounds: { minMinute: 540, maxMinute: 1080 }, // 09:00-18:00 slot
     });
 
-    it("drag in nonworking zone (09:30 UTC, before working 10:00 UTC) opens create panel", async () => {
+    it('drag in nonworking zone (09:30 UTC, before working 10:00 UTC) opens create panel', async () => {
       setupFetchMock(makeResponseWithWorkingEvent());
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-17' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
       // Wait for data to load (working events create nonworking fill)
       await new Promise((r) => setTimeout(r, 50));
 
       // Click fc-select-nonworking (09:30 UTC = before working 10:00 UTC)
-      await user.click(screen.getByTestId("fc-select-nonworking"));
+      await user.click(screen.getByTestId('fc-select-nonworking'));
 
       await new Promise((r) => setTimeout(r, 100));
       await waitFor(() => {
-        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+        expect(screen.getByTestId('event-panel')).toBeInTheDocument();
       });
     });
 
-    it("drag in working zone (14:00 UTC, within 10:00-18:00) DOES open create panel", async () => {
+    it('drag in working zone (14:00 UTC, within 10:00-18:00) DOES open create panel', async () => {
       setupFetchMock(makeResponseWithWorkingEvent());
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-17" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-17' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("fullcalendar"));
+      await waitFor(() => screen.getByTestId('fullcalendar'));
 
       // fc-select fires at 14:00 UTC (inside working hours 10:00-18:00)
-      await user.click(screen.getByTestId("fc-select"));
+      await user.click(screen.getByTestId('fc-select'));
 
       await waitFor(() => {
-        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+        expect(screen.getByTestId('event-panel')).toBeInTheDocument();
       });
     });
   });
 
   // ─── deriveSlotTimes helper (#231 SHIFT/EXPAND) ──────────────────────────
 
-  describe("deriveSlotTimes helper — #231 SHIFT/EXPAND window logic", () => {
+  describe('deriveSlotTimes helper — #231 SHIFT/EXPAND window logic', () => {
     // Сценарий 1: нет данных → 9:00–19:00
-    it("no data at all → default window 09:00–19:00", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      const result = deriveSlotTimes(null, [], "UTC");
-      expect(result.slotMinTime).toBe("09:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+    it('no data at all → default window 09:00–19:00', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
+      const result = deriveSlotTimes(null, [], 'UTC');
+      expect(result.slotMinTime).toBe('09:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
       expect(result.loMinute).toBe(540);
       expect(result.hiMinute).toBe(1140);
     });
 
     // Сценарий 2: одна запись 08:00–08:30 (ниже дефолта) → SHIFT вниз
-    it("single appointment at 08:00–08:30 keeps default width and expands with ±1h buffer", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('single appointment at 08:00–08:30 keeps default width and expands with ±1h buffer', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       const events = [
         {
-          kind: "appointment" as const, id: "e1",
-          startAt: "2026-06-13T08:00:00Z", endAt: "2026-06-13T08:30:00Z",
-          status: "confirmed" as const, patientName: "T", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e1',
+          startAt: '2026-06-13T08:00:00Z',
+          endAt: '2026-06-13T08:30:00Z',
+          status: 'confirmed' as const,
+          patientName: 'T',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
       ];
-      const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("07:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+      const result = deriveSlotTimes(null, events, 'UTC');
+      expect(result.slotMinTime).toBe('07:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
       expect(result.loMinute).toBe(420);
       expect(result.hiMinute).toBe(1140);
     });
 
     // Сценарий 3: одна запись 20:00–21:00 (выше дефолта) → SHIFT вверх
-    it("single appointment at 20:00–21:00 keeps default width and expands with ±1h buffer", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('single appointment at 20:00–21:00 keeps default width and expands with ±1h buffer', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       const events = [
         {
-          kind: "appointment" as const, id: "e2",
-          startAt: "2026-06-13T20:00:00Z", endAt: "2026-06-13T21:00:00Z",
-          status: "confirmed" as const, patientName: "T", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e2',
+          startAt: '2026-06-13T20:00:00Z',
+          endAt: '2026-06-13T21:00:00Z',
+          status: 'confirmed' as const,
+          patientName: 'T',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
       ];
-      const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("09:00:00");
-      expect(result.slotMaxTime).toBe("22:00:00");
+      const result = deriveSlotTimes(null, events, 'UTC');
+      expect(result.slotMinTime).toBe('09:00:00');
+      expect(result.slotMaxTime).toBe('22:00:00');
       expect(result.loMinute).toBe(540);
       expect(result.hiMinute).toBe(1320);
     });
 
     // Сценарий 4: записи 07:00 и 21:00 (span=14ч=840>600) → EXPAND
-    it("appointments at 07:00 and 21:00 expand outward from the default window", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('appointments at 07:00 and 21:00 expand outward from the default window', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       const events = [
         {
-          kind: "appointment" as const, id: "e3",
-          startAt: "2026-06-13T07:00:00Z", endAt: "2026-06-13T07:30:00Z",
-          status: "confirmed" as const, patientName: "T", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e3',
+          startAt: '2026-06-13T07:00:00Z',
+          endAt: '2026-06-13T07:30:00Z',
+          status: 'confirmed' as const,
+          patientName: 'T',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
         {
-          kind: "appointment" as const, id: "e4",
-          startAt: "2026-06-13T21:00:00Z", endAt: "2026-06-13T21:30:00Z",
-          status: "confirmed" as const, patientName: "T2", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e4',
+          startAt: '2026-06-13T21:00:00Z',
+          endAt: '2026-06-13T21:30:00Z',
+          status: 'confirmed' as const,
+          patientName: 'T2',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
       ];
-      const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("06:00:00");
-      expect(result.slotMaxTime).toBe("22:30:00");
+      const result = deriveSlotTimes(null, events, 'UTC');
+      expect(result.slotMinTime).toBe('06:00:00');
+      expect(result.slotMaxTime).toBe('22:30:00');
       expect(result.loMinute).toBe(360);
       expect(result.hiMinute).toBe(1350);
     });
 
     // Сценарий 5: рабочие часы 10:00–17:00 (уже дефолта) → SHIFT / остаётся 9–19
-    it("workingBounds 10:00–17:00 (fits in default) → window stays 09:00–19:00", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('workingBounds 10:00–17:00 (fits in default) → window stays 09:00–19:00', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       // dataLo=600, dataHi=1020, span=420 ≤ 600; внутри 540..1140 → 9–19
-      const result = deriveSlotTimes({ minMinute: 600, maxMinute: 1020 }, [], "UTC");
-      expect(result.slotMinTime).toBe("09:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+      const result = deriveSlotTimes({ minMinute: 600, maxMinute: 1020 }, [], 'UTC');
+      expect(result.slotMinTime).toBe('09:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
     });
 
     // Сценарий 6: рабочие часы 08:00–21:00 (span=780>600) → EXPAND
-    it("workingBounds 08:00–21:00 expands outward from the default window", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1260 }, [], "UTC");
-      expect(result.slotMinTime).toBe("08:00:00");
-      expect(result.slotMaxTime).toBe("21:00:00");
+    it('workingBounds 08:00–21:00 expands outward from the default window', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1260 }, [], 'UTC');
+      expect(result.slotMinTime).toBe('08:00:00');
+      expect(result.slotMaxTime).toBe('21:00:00');
       expect(result.loMinute).toBe(480);
       expect(result.hiMinute).toBe(1260);
     });
 
     // Сценарий 7: запись 10:00–18:00 (внутри дефолта) → ровно 9–19
-    it("appointment at 10:00–18:00 (inside default) → exactly 09:00–19:00", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('appointment at 10:00–18:00 (inside default) → exactly 09:00–19:00', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       const events = [
         {
-          kind: "appointment" as const, id: "e5",
-          startAt: "2026-06-13T10:00:00Z", endAt: "2026-06-13T18:00:00Z",
-          status: "confirmed" as const, patientName: "T", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e5',
+          startAt: '2026-06-13T10:00:00Z',
+          endAt: '2026-06-13T18:00:00Z',
+          status: 'confirmed' as const,
+          patientName: 'T',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
       ];
       // dataLo=600, dataHi=1080, span=480 ≤ 600; внутри 540..1140 → 9–19
-      const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("09:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+      const result = deriveSlotTimes(null, events, 'UTC');
+      expect(result.slotMinTime).toBe('09:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
     });
 
-    it("CAL-01: 08:00 working start expands only the lower edge", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, [], "UTC");
-      expect(result.slotMinTime).toBe("08:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+    it('CAL-01: 08:00 working start expands only the lower edge', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, [], 'UTC');
+      expect(result.slotMinTime).toBe('08:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
     });
 
     // CAL-01: 09:00 рабочие — внутри дефолта → 9–19
-    it("CAL-01: 09:00 working start → stays 09:00–19:00", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('CAL-01: 09:00 working start → stays 09:00–19:00', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       // dataLo=540, dataHi=1080, span=540 ≤ 600; внутри 540..1140 → 9–19
-      const result = deriveSlotTimes({ minMinute: 540, maxMinute: 1080 }, [], "UTC");
-      expect(result.slotMinTime).toBe("09:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+      const result = deriveSlotTimes({ minMinute: 540, maxMinute: 1080 }, [], 'UTC');
+      expect(result.slotMinTime).toBe('09:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
     });
 
     // CAL-01: запись до рабочего периода → EXPAND (span > DEFAULT_SIZE)
-    it("CAL-01: event at 07:30 before workingBounds 08:00–18:00 expands lower edge with extra hour", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('CAL-01: event at 07:30 before workingBounds 08:00–18:00 expands lower edge with extra hour', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       const events = [
         {
-          kind: "appointment" as const, id: "e1",
-          startAt: "2026-06-13T07:30:00Z", endAt: "2026-06-13T08:00:00Z",
-          status: "confirmed" as const, patientName: "Test", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e1',
+          startAt: '2026-06-13T07:30:00Z',
+          endAt: '2026-06-13T08:00:00Z',
+          status: 'confirmed' as const,
+          patientName: 'Test',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
       ];
-      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, events, "UTC");
-      expect(result.slotMinTime).toBe("06:30:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+      const result = deriveSlotTimes({ minMinute: 480, maxMinute: 1080 }, events, 'UTC');
+      expect(result.slotMinTime).toBe('06:30:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
       expect(result.loMinute).toBe(390);
       expect(result.hiMinute).toBe(1140);
     });
 
-    it("event at 07:00–08:00 (no workingBounds) keeps 09:00–19:00 and expands lower edge by one hour", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('event at 07:00–08:00 (no workingBounds) keeps 09:00–19:00 and expands lower edge by one hour', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       const events = [
         {
-          kind: "appointment" as const, id: "e1",
-          startAt: "2026-06-13T07:00:00Z", endAt: "2026-06-13T08:00:00Z",
-          status: "confirmed" as const, patientName: "T", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e1',
+          startAt: '2026-06-13T07:00:00Z',
+          endAt: '2026-06-13T08:00:00Z',
+          status: 'confirmed' as const,
+          patientName: 'T',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
       ];
-      const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("06:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+      const result = deriveSlotTimes(null, events, 'UTC');
+      expect(result.slotMinTime).toBe('06:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
       expect(result.loMinute).toBe(360);
       expect(result.hiMinute).toBe(1140);
     });
 
-    it("08:30 working start expands only the lower edge", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
-      const result = deriveSlotTimes({ minMinute: 510, maxMinute: 1080 }, [], "UTC");
-      expect(result.slotMinTime).toBe("08:30:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+    it('08:30 working start expands only the lower edge', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
+      const result = deriveSlotTimes({ minMinute: 510, maxMinute: 1080 }, [], 'UTC');
+      expect(result.slotMinTime).toBe('08:30:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
       expect(result.loMinute).toBe(510);
       expect(result.hiMinute).toBe(1140);
     });
 
-    it("single centered appointment at 15:00–16:00 does not shrink the window", async () => {
-      const { deriveSlotTimes } = await import("./ScheduleCalendarTab");
+    it('single centered appointment at 15:00–16:00 does not shrink the window', async () => {
+      const { deriveSlotTimes } = await import('./ScheduleCalendarTab');
       const events = [
         {
-          kind: "appointment" as const, id: "e6",
-          startAt: "2026-06-13T15:00:00Z", endAt: "2026-06-13T16:00:00Z",
-          status: "confirmed" as const, patientName: "T", source: "test",
-          specialistId: null, specialistName: null, branchId: null, branchTitle: null,
-          roomId: null, roomTitle: null, serviceId: null, serviceTitle: null,
-          platformUserId: null, patientPhone: null, bookingStatus: null,
-          rubitimeId: null, rubitimeManageUrl: null, paymentStatus: null,
-          prepaymentPending: false, packageUsageRef: null, packageTitle: null, packageDisplayNumber: null,
-          rescheduleCount: 0, originalStartAt: null, formComments: [],
+          kind: 'appointment' as const,
+          id: 'e6',
+          startAt: '2026-06-13T15:00:00Z',
+          endAt: '2026-06-13T16:00:00Z',
+          status: 'confirmed' as const,
+          patientName: 'T',
+          source: 'test',
+          specialistId: null,
+          specialistName: null,
+          branchId: null,
+          branchTitle: null,
+          branchColor: null,
+          roomId: null,
+          roomTitle: null,
+          serviceId: null,
+          serviceTitle: null,
+          platformUserId: null,
+          patientPhone: null,
+          bookingStatus: null,
+          rubitimeId: null,
+          rubitimeManageUrl: null,
+          paymentStatus: null,
+          prepaymentPending: false,
+          packageUsageRef: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
+          rescheduleCount: 0,
+          originalStartAt: null,
+          formComments: [],
         },
       ];
-      const result = deriveSlotTimes(null, events, "UTC");
-      expect(result.slotMinTime).toBe("09:00:00");
-      expect(result.slotMaxTime).toBe("19:00:00");
+      const result = deriveSlotTimes(null, events, 'UTC');
+      expect(result.slotMinTime).toBe('09:00:00');
+      expect(result.slotMaxTime).toBe('19:00:00');
     });
   });
 
@@ -1428,115 +1632,118 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
   //   - плитка «Первичных» = 2, модалка = {appt-1, appt-3}
   //   - плитка «Повторных» = 1, модалка = {appt-2}
 
-  describe("KPI modal tile==modal invariant (firstVisit/repeatVisit)", () => {
+  describe('KPI modal tile==modal invariant (firstVisit/repeatVisit)', () => {
     const makeThreeAppointmentsCalResponse = () =>
       makeCalendarResponse([
         {
-          kind: "appointment",
-          id: "appt-1",
-          startAt: "2026-06-13T10:00:00+03:00",
-          endAt: "2026-06-13T11:00:00+03:00",
-          status: "confirmed",
-          patientName: "Иванов Иван",
-          platformUserId: "user-1",
+          kind: 'appointment',
+          id: 'appt-1',
+          startAt: '2026-06-13T10:00:00+03:00',
+          endAt: '2026-06-13T11:00:00+03:00',
+          status: 'confirmed',
+          patientName: 'Иванов Иван',
+          platformUserId: 'user-1',
           rescheduleCount: 0,
           packageUsageRef: null,
-          packageTitle: null, packageDisplayNumber: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
           branchTitle: null,
         },
         {
-          kind: "appointment",
-          id: "appt-2",
-          startAt: "2026-06-13T12:00:00+03:00",
-          endAt: "2026-06-13T13:00:00+03:00",
-          status: "confirmed",
-          patientName: "Петрова Анна",
-          platformUserId: "user-2",
+          kind: 'appointment',
+          id: 'appt-2',
+          startAt: '2026-06-13T12:00:00+03:00',
+          endAt: '2026-06-13T13:00:00+03:00',
+          status: 'confirmed',
+          patientName: 'Петрова Анна',
+          platformUserId: 'user-2',
           rescheduleCount: 0,
           packageUsageRef: null,
-          packageTitle: null, packageDisplayNumber: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
           branchTitle: null,
         },
         {
-          kind: "appointment",
-          id: "appt-3",
-          startAt: "2026-06-14T09:00:00+03:00",
-          endAt: "2026-06-14T10:00:00+03:00",
-          status: "confirmed",
-          patientName: "Сидоров Пётр",
-          platformUserId: "user-3",
+          kind: 'appointment',
+          id: 'appt-3',
+          startAt: '2026-06-14T09:00:00+03:00',
+          endAt: '2026-06-14T10:00:00+03:00',
+          status: 'confirmed',
+          patientName: 'Сидоров Пётр',
+          platformUserId: 'user-3',
           rescheduleCount: 0,
           packageUsageRef: null,
-          packageTitle: null, packageDisplayNumber: null,
+          packageTitle: null,
+          packageDisplayNumber: null,
           branchTitle: null,
         },
       ]);
 
-    it("firstVisitInPeriod tile click: modal shows exactly the firstVisitIds from API", async () => {
+    it('firstVisitInPeriod tile click: modal shows exactly the firstVisitIds from API', async () => {
       // API says appt-1 and appt-3 are first visits
-      const firstVisitIds = ["appt-1", "appt-3"];
+      const firstVisitIds = ['appt-1', 'appt-3'];
       setupFetchMock(makeThreeAppointmentsCalResponse(), makeKpisResponse(firstVisitIds));
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("kpi-firstVisitInPeriod"));
-      await user.click(screen.getByTestId("kpi-firstVisitInPeriod"));
+      await waitFor(() => screen.getByTestId('kpi-firstVisitInPeriod'));
+      await user.click(screen.getByTestId('kpi-firstVisitInPeriod'));
 
       await waitFor(() => {
-        const modal = screen.getByTestId("kpi-modal");
+        const modal = screen.getByTestId('kpi-modal');
         expect(modal).toBeInTheDocument();
         // count attr matches tile value
-        expect(modal.getAttribute("data-count")).toBe("2");
+        expect(modal.getAttribute('data-count')).toBe('2');
         // exactly the two first-visit appointments are shown
-        expect(screen.getByTestId("modal-item-appt-1")).toBeInTheDocument();
-        expect(screen.getByTestId("modal-item-appt-3")).toBeInTheDocument();
+        expect(screen.getByTestId('modal-item-appt-1')).toBeInTheDocument();
+        expect(screen.getByTestId('modal-item-appt-3')).toBeInTheDocument();
         // repeat-only appointment is NOT in the modal
-        expect(screen.queryByTestId("modal-item-appt-2")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('modal-item-appt-2')).not.toBeInTheDocument();
       });
     });
 
-    it("repeatVisitInPeriod tile click: modal shows appointments NOT in firstVisitIds", async () => {
-      const firstVisitIds = ["appt-1", "appt-3"];
+    it('repeatVisitInPeriod tile click: modal shows appointments NOT in firstVisitIds', async () => {
+      const firstVisitIds = ['appt-1', 'appt-3'];
       setupFetchMock(makeThreeAppointmentsCalResponse(), makeKpisResponse(firstVisitIds));
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("kpi-repeatVisitInPeriod"));
-      await user.click(screen.getByTestId("kpi-repeatVisitInPeriod"));
+      await waitFor(() => screen.getByTestId('kpi-repeatVisitInPeriod'));
+      await user.click(screen.getByTestId('kpi-repeatVisitInPeriod'));
 
       await waitFor(() => {
-        const modal = screen.getByTestId("kpi-modal");
+        const modal = screen.getByTestId('kpi-modal');
         expect(modal).toBeInTheDocument();
         // count attr matches tile value (records - firstVisit = 3 - 2 = 1)
-        expect(modal.getAttribute("data-count")).toBe("1");
+        expect(modal.getAttribute('data-count')).toBe('1');
         // only appt-2 (repeat patient) is in the modal
-        expect(screen.getByTestId("modal-item-appt-2")).toBeInTheDocument();
+        expect(screen.getByTestId('modal-item-appt-2')).toBeInTheDocument();
         // first-visit appointments are NOT shown
-        expect(screen.queryByTestId("modal-item-appt-1")).not.toBeInTheDocument();
-        expect(screen.queryByTestId("modal-item-appt-3")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('modal-item-appt-1')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('modal-item-appt-3')).not.toBeInTheDocument();
       });
     });
 
-    it("firstVisitInPeriod modal count matches tile KPI value", async () => {
+    it('firstVisitInPeriod modal count matches tile KPI value', async () => {
       // Tile shows firstVisitInPeriod=2; modal must also show 2 items
-      const firstVisitIds = ["appt-1", "appt-3"];
+      const firstVisitIds = ['appt-1', 'appt-3'];
       setupFetchMock(makeThreeAppointmentsCalResponse(), makeKpisResponse(firstVisitIds));
       const Tab = await setup();
       const user = userEvent.setup();
-      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+      render(<Tab deepLinkParams={{ date: '2026-06-13' }} onDeepLinkChange={vi.fn()} />);
 
-      await waitFor(() => screen.getByTestId("kpi-firstVisitInPeriod"));
+      await waitFor(() => screen.getByTestId('kpi-firstVisitInPeriod'));
       // Read tile value
-      const tileEl = screen.getByTestId("kpi-firstVisitInPeriod");
-      const tileValue = parseInt(tileEl.textContent?.replace(/\D/g, "") ?? "0", 10);
+      const tileEl = screen.getByTestId('kpi-firstVisitInPeriod');
+      const tileValue = parseInt(tileEl.textContent?.replace(/\D/g, '') ?? '0', 10);
 
       await user.click(tileEl);
 
       await waitFor(() => {
-        const modal = screen.getByTestId("kpi-modal");
-        const modalCount = parseInt(modal.getAttribute("data-count") ?? "0", 10);
+        const modal = screen.getByTestId('kpi-modal');
+        const modalCount = parseInt(modal.getAttribute('data-count') ?? '0', 10);
         expect(modalCount).toBe(tileValue);
       });
     });
@@ -1544,35 +1751,35 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
 
   // ─── visibleRange helper ──────────────────────────────────────────────────
 
-  describe("visibleRange helper", () => {
-    it("3days: from=today, to=today+3days", async () => {
-      const { visibleRange } = await import("./ScheduleCalendarTab");
-      const result = visibleRange("3days", "2026-06-13", "Europe/Moscow");
-      expect(result.from).toContain("2026-06-13");
+  describe('visibleRange helper', () => {
+    it('3days: from=today, to=today+3days', async () => {
+      const { visibleRange } = await import('./ScheduleCalendarTab');
+      const result = visibleRange('3days', '2026-06-13', 'Europe/Moscow');
+      expect(result.from).toContain('2026-06-13');
       // to should be 2026-06-16 (3 days later)
-      expect(result.to).toContain("2026-06-16");
+      expect(result.to).toContain('2026-06-16');
     });
 
-    it("weekgrid: from=Monday, to=next-Monday", async () => {
-      const { visibleRange } = await import("./ScheduleCalendarTab");
+    it('weekgrid: from=Monday, to=next-Monday', async () => {
+      const { visibleRange } = await import('./ScheduleCalendarTab');
       // 2026-06-13 is a Saturday — week starts Mon 2026-06-08
-      const result = visibleRange("weekgrid", "2026-06-13", "Europe/Moscow");
-      expect(result.from).toContain("2026-06-08");
-      expect(result.to).toContain("2026-06-15");
+      const result = visibleRange('weekgrid', '2026-06-13', 'Europe/Moscow');
+      expect(result.from).toContain('2026-06-08');
+      expect(result.to).toContain('2026-06-15');
     });
 
-    it("month: from=2026-06-01, to=2026-07-01", async () => {
-      const { visibleRange } = await import("./ScheduleCalendarTab");
-      const result = visibleRange("month", "2026-06-13", "Europe/Moscow");
-      expect(result.from).toContain("2026-06-01");
-      expect(result.to).toContain("2026-07-01");
+    it('month: from=2026-06-01, to=2026-07-01', async () => {
+      const { visibleRange } = await import('./ScheduleCalendarTab');
+      const result = visibleRange('month', '2026-06-13', 'Europe/Moscow');
+      expect(result.from).toContain('2026-06-01');
+      expect(result.to).toContain('2026-07-01');
     });
 
-    it("day: from=anchor, to=anchor+1", async () => {
-      const { visibleRange } = await import("./ScheduleCalendarTab");
-      const result = visibleRange("day", "2026-06-13", "Europe/Moscow");
-      expect(result.from).toContain("2026-06-13");
-      expect(result.to).toContain("2026-06-14");
+    it('day: from=anchor, to=anchor+1', async () => {
+      const { visibleRange } = await import('./ScheduleCalendarTab');
+      const result = visibleRange('day', '2026-06-13', 'Europe/Moscow');
+      expect(result.from).toContain('2026-06-13');
+      expect(result.to).toContain('2026-06-14');
     });
   });
 });

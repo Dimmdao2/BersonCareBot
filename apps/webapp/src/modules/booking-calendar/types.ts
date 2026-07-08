@@ -1,4 +1,4 @@
-import type { AppointmentStatus } from "@/modules/booking-engine/types";
+import type { AppointmentStatus } from '@/modules/booking-engine/types';
 
 /**
  * Режимы отображения календаря.
@@ -8,9 +8,9 @@ import type { AppointmentStatus } from "@/modules/booking-engine/types";
  * - "3days"    — 3 дня (сегодня + 2 дня вперёд; часовая сетка); v26_1
  * - "feed"     — лента (бесконечный поток; диапазон задаётся явными from/to); v26_1
  */
-export type CalendarViewMode = "day" | "week" | "month" | "3days" | "feed";
+export type CalendarViewMode = 'day' | 'week' | 'month' | '3days' | 'feed';
 
-export type CalendarReadSource = "canonical" | "rubitime_legacy";
+export type CalendarReadSource = 'canonical' | 'rubitime_legacy';
 
 export type CalendarFilters = {
   organizationId: string;
@@ -29,6 +29,8 @@ export type CalendarFilterOption = {
   label: string;
   /** Short display name (only populated for branch options, migration 0117). */
   shortLabel?: string | null;
+  /** Hex color (only populated for branch options). */
+  color?: string | null;
 };
 
 export type CalendarServiceFilterOption = CalendarFilterOption & { durationMinutes: number };
@@ -41,7 +43,7 @@ export type CalendarFilterMeta = {
 };
 
 export type CalendarAppointmentEvent = {
-  kind: "appointment";
+  kind: 'appointment';
   id: string;
   startAt: string;
   endAt: string;
@@ -51,6 +53,7 @@ export type CalendarAppointmentEvent = {
   specialistName: string | null;
   branchId: string | null;
   branchTitle: string | null;
+  branchColor: string | null;
   roomId: string | null;
   roomTitle: string | null;
   serviceId: string | null;
@@ -72,7 +75,7 @@ export type CalendarAppointmentEvent = {
 };
 
 export type CalendarBlockEvent = {
-  kind: "block";
+  kind: 'block';
   id: string;
   startAt: string;
   endAt: string;
@@ -84,7 +87,7 @@ export type CalendarBlockEvent = {
 };
 
 export type CalendarWorkingEvent = {
-  kind: "working";
+  kind: 'working';
   id: string;
   startAt: string;
   endAt: string;
@@ -94,7 +97,7 @@ export type CalendarWorkingEvent = {
 };
 
 export type CalendarBreakEvent = {
-  kind: "break";
+  kind: 'break';
   id: string;
   startAt: string;
   endAt: string;
@@ -104,7 +107,7 @@ export type CalendarBreakEvent = {
 };
 
 export type CalendarFreeSlotEvent = {
-  kind: "freeSlot";
+  kind: 'freeSlot';
   id: string;
   startAt: string;
   endAt: string;

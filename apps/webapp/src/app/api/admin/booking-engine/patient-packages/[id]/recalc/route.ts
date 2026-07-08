@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAdminBookingEngine } from "../../../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireAdminBookingEngine } from '../../../_requireAdminBookingEngine';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,7 +13,7 @@ export async function POST(_request: Request, context: RouteContext) {
   const { id: patientPackageId } = await context.params;
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   try {
     const summary = await deps.memberships.recalcPastSessionsForPackage({
@@ -23,7 +23,7 @@ export async function POST(_request: Request, context: RouteContext) {
     });
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "recalc_failed";
+    const msg = e instanceof Error ? e.message : 'recalc_failed';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

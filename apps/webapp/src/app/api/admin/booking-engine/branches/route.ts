@@ -4,6 +4,7 @@ import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).nullable().optional(),
   cityCode: z.string().min(1).max(80),
   address: z.string().max(500).nullable().optional(),
   timezone: z.string().max(80).optional(),
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
   const branch = await gate.ctx.service.catalog.upsertBranch({
     organizationId: gate.ctx.organizationId,
     title: parsed.data.title.trim(),
+    color: parsed.data.color ?? null,
     cityCode: parsed.data.cityCode.trim().toLowerCase(),
     address: parsed.data.address ?? null,
     timezone: parsed.data.timezone,

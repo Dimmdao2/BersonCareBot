@@ -68,6 +68,7 @@ export function mapLegacyRecordToCalendarEvent(row: LegacyAppointmentRecordRow):
     specialistName: null,
     branchId: row.mapped_be_branch_id?.trim() || null,
     branchTitle: row.branch_name?.trim() || null,
+    branchColor: null,
     roomId: null,
     roomTitle: null,
     serviceId: null,

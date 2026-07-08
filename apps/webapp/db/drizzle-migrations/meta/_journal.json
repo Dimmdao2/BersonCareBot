@@ -1093,6 +1093,13 @@
       "when": 1789219200000,
       "tag": "0155_p0_4_rc_reference_categories_org",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1789305600000,
+      "tag": "0156_be_branches_color",
+      "breakpoints": true
     }
   ]
 }

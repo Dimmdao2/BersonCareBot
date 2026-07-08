@@ -52,6 +52,7 @@ function mapBranch(row: typeof beBranches.$inferSelect): BeBranch {
     organizationId: row.organizationId,
     title: row.title,
     shortTitle: row.shortTitle ?? null,
+    color: row.color ?? null,
     cityCode: row.cityCode,
     address: row.address ?? null,
     timezone: row.timezone,
@@ -204,6 +205,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         if ("shortTitle" in input) {
           patch.shortTitle = (input as { shortTitle?: string | null }).shortTitle ?? null;
         }
+        if ("color" in input) {
+          patch.color = (input as { color?: string | null }).color ?? null;
+        }
         await db.update(beBranches).set(patch).where(eq(beBranches.id, input.id));
         const row = await this.getBranch(input.id);
         if (!row) throw new Error("branch_not_found");
@@ -215,6 +219,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           organizationId: input.organizationId,
           title: input.title,
           shortTitle: (input as { shortTitle?: string | null }).shortTitle ?? null,
+          color: (input as { color?: string | null }).color ?? null,
           cityCode: input.cityCode,
           address: input.address ?? null,
           timezone: input.timezone ?? "Europe/Moscow",

@@ -29,33 +29,33 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 
 ## API «Пересчитать» — ST-02
 
-`POST /api/doctor/booking-engine/patient-packages/[id]/recalc` (+ admin mirror `/api/admin/...`) — gate `requireDoctorBookingEngine()` / `requireAdminBookingEngine()`; no body (package id from params). Calls `recalcPastSessionsForPackage({ organizationId (from gate), patientPackageId, createdByPlatformUserId })`, best-effort calendar sync per debited appointment (doctor route), returns `{ ok, summary: { debited, skipped, outOfBalance } }` counts for the toast. **IDOR/ownership (OQ-1):** `organizationId` from the gate scopes `getPatientPackage(id, organizationId)` — a foreign-org package → `package_not_found` (400); recalc can never touch another org's package (same guarantee as `consume`).
+`POST /api/doctor/booking-engine/patient-packages/[id]/recalc` (+ admin mirror `/api/admin/...`) — gate `requireDoctorBookingEngine()` / `requireAdminBookingEngine()`; no body (package id from params). Calls `recalcPastSessionsForPackage({ organizationId (from gate), patientPackageId, createdByPlatformUserId })`, best-effort calendar sync per debited appointment (doctor route), returns full `{ ok, summary }` with `debited[]`, `skipped[]`, `outOfBalance[]`, and `corrected[]`. **IDOR/ownership (OQ-1):** `organizationId` from the gate scopes `getPatientPackage(id, organizationId)` — a foreign-org package → `package_not_found` (400); recalc can never touch another org's package (same guarantee as `consume`).
 
 ## Patient APIs (`requirePatientApiBusinessAccess`)
 
-| Method | Path |
-|--------|------|
-| GET | `/api/booking/memberships` |
-| GET | `/api/booking/memberships/[id]` |
-| GET | `/api/booking/memberships/available?serviceId=` or `?branchServiceId=` |
-| GET | `/api/booking/memberships/catalog` |
-| POST | `/api/booking/memberships/purchase` |
-| GET | `/api/booking/memberships/payment-status` |
-| POST | `/api/booking/memberships/payments/mock-complete` |
+| Method | Path                                                                   |
+| ------ | ---------------------------------------------------------------------- |
+| GET    | `/api/booking/memberships`                                             |
+| GET    | `/api/booking/memberships/[id]`                                        |
+| GET    | `/api/booking/memberships/available?serviceId=` or `?branchServiceId=` |
+| GET    | `/api/booking/memberships/catalog`                                     |
+| POST   | `/api/booking/memberships/purchase`                                    |
+| GET    | `/api/booking/memberships/payment-status`                              |
+| POST   | `/api/booking/memberships/payments/mock-complete`                      |
 
 UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/memberships/[id]`, package picker in `ConfirmStepClient`.
 
 ## Staff APIs (admin + doctor mirror)
 
-| Method | Path |
-|--------|------|
-| GET/POST | `/api/admin/booking-engine/packages` |
+| Method   | Path                                                                                                                                   |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| GET/POST | `/api/admin/booking-engine/packages`                                                                                                   |
 | GET/POST | `/api/admin/booking-engine/patient-packages` (`?platformUserId=` on GET; manual POST optional `title`, `notes`; catalog offer `notes`) |
-| PATCH | `.../patient-packages/[id]` — `{ notes: string \| null }` |
-| GET | `.../patient-packages/[id]/sessions?includePast=` — session rows + server `actions` |
-| POST | `.../patient-packages/[id]/consume` |
-| POST | `.../appointments/[id]/package/detach` — `{ outcome?, confirmPastTwice? }` (late → `409 late_detach_choice_required`) |
-| POST | `.../appointments/[id]/package/unlink` / `refund` — thin wrappers → detach |
+| PATCH    | `.../patient-packages/[id]` — `{ notes: string \| null }`                                                                              |
+| GET      | `.../patient-packages/[id]/sessions?includePast=` — session rows + server `actions`                                                    |
+| POST     | `.../patient-packages/[id]/consume`                                                                                                    |
+| POST     | `.../appointments/[id]/package/detach` — `{ outcome?, confirmPastTwice? }` (late → `409 late_detach_choice_required`)                  |
+| POST     | `.../appointments/[id]/package/unlink` / `refund` — thin wrappers → detach                                                             |
 
 Same under `/api/doctor/booking-engine/...` where mirrored. Admin setting `booking_allow_doctor_unlink_past_package_sessions` (boolean, scope `admin`) gates past detach in UI/API.
 

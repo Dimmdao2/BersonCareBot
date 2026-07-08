@@ -13,6 +13,7 @@ export type DoctorScheduleBranch = {
   id: string;
   title: string;
   shortTitle: string | null;
+  color: string | null;
   isActive: boolean;
 };
 
@@ -24,6 +25,7 @@ type DoctorOverviewResponse = {
     id: string;
     title: string;
     shortTitle: string | null;
+    color: string | null;
     isActive: boolean;
   }[];
   specialists: { id: string; fullName: string; isActive: boolean }[];
@@ -48,7 +50,7 @@ export async function fetchDoctorScheduleBootstrap(): Promise<DoctorScheduleBoot
   }
   const branches = overview.branches
     .filter((b) => b.isActive)
-    .map((b) => ({ id: b.id, title: b.title, shortTitle: b.shortTitle, isActive: b.isActive }));
+    .map((b) => ({ id: b.id, title: b.title, shortTitle: b.shortTitle, color: b.color, isActive: b.isActive }));
   const ownSpecialist =
     overview.specialists.find((s) => s.isActive) ?? overview.specialists[0] ?? null;
   return {

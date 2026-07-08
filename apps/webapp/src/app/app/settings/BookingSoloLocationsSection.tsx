@@ -16,6 +16,7 @@ import {
 } from "@/app/app/settings/bookingSoloAdminApi";
 
 const BASE = "/api/admin/booking-engine";
+const DEFAULT_BRANCH_COLOR = "#2563eb";
 
 type BranchRow = SoloOverview["branches"][0];
 
@@ -28,11 +29,13 @@ export function BookingSoloLocationsSection() {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
+  const [color, setColor] = useState(DEFAULT_BRANCH_COLOR);
   const [timezone, setTimezone] = useState("Europe/Moscow");
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editShortTitle, setEditShortTitle] = useState("");
   const [editAddress, setEditAddress] = useState("");
+  const [editColor, setEditColor] = useState(DEFAULT_BRANCH_COLOR);
   const [editTimezone, setEditTimezone] = useState("Europe/Moscow");
   const [editSortOrder, setEditSortOrder] = useState("0");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -101,6 +104,13 @@ export function BookingSoloLocationsSection() {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
             />
+            <Input
+              type="color"
+              className="h-8 w-12 cursor-pointer px-1 py-0.5"
+              aria-label="Цвет локации"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+            />
             <Button
               type="button"
               size="sm"
@@ -116,12 +126,14 @@ export function BookingSoloLocationsSection() {
                       title: title.trim(),
                       cityCode: slugCityCode(title),
                       address: address.trim() || null,
+                      color,
                       timezone,
                       sortOrder: maxOrder + 10,
                     }),
                   });
                   setTitle("");
                   setAddress("");
+                  setColor(DEFAULT_BRANCH_COLOR);
                 })
               }
             >
@@ -155,6 +167,7 @@ export function BookingSoloLocationsSection() {
               <tr className="border-b bg-muted/40 text-left">
                 <th className="px-3 py-2 font-medium">Локация</th>
                 <th className="px-3 py-2 font-medium">Короткое название</th>
+                <th className="px-3 py-2 font-medium">Цвет</th>
                 <th className="px-3 py-2 font-medium">Адрес</th>
                 <th className="px-3 py-2 font-medium">Порядок</th>
                 <th className="px-3 py-2 font-medium">Показывать пациентам</th>
@@ -186,6 +199,26 @@ export function BookingSoloLocationsSection() {
                       />
                     ) : (
                       (b.shortTitle ?? "—")
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editId === b.id ? (
+                      <Input
+                        type="color"
+                        className="h-8 w-12 cursor-pointer px-1 py-0.5"
+                        aria-label={`Цвет ${b.title}`}
+                        value={editColor}
+                        onChange={(e) => setEditColor(e.target.value)}
+                      />
+                    ) : (
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="h-4 w-4 rounded-md border border-border"
+                          style={{ backgroundColor: b.color ?? DEFAULT_BRANCH_COLOR }}
+                          aria-hidden="true"
+                        />
+                        <span className="text-xs text-muted-foreground">{b.color ?? "—"}</span>
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2">
@@ -238,6 +271,7 @@ export function BookingSoloLocationsSection() {
                                 body: JSON.stringify({
                                   title: editTitle,
                                   shortTitle: editShortTitle.trim() || null,
+                                  color: editColor,
                                   address: editAddress.trim() || null,
                                   timezone: editTimezone,
                                   sortOrder: Number(editSortOrder),
@@ -272,6 +306,7 @@ export function BookingSoloLocationsSection() {
                           setEditTitle(b.title);
                           setEditShortTitle(b.shortTitle ?? "");
                           setEditAddress(b.address ?? "");
+                          setEditColor(b.color ?? DEFAULT_BRANCH_COLOR);
                           setEditTimezone(b.timezone);
                           setEditSortOrder(String(b.sortOrder));
                         }}
