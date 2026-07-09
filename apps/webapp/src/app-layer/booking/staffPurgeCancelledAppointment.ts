@@ -19,6 +19,7 @@ export async function staffPurgeCancelledAppointment(input: {
     organizationId: string;
     appointmentId: string;
   }) => Promise<string | null>;
+  runLocalPurge?: <T>(fn: () => Promise<T>) => Promise<T>;
 }): Promise<StaffPurgeCancelledAppointmentResult> {
   if (!input.deps.bookingEngine || !input.deps.appointmentProjection) {
     return { ok: false, error: "not_found" };
@@ -42,10 +43,12 @@ export async function staffPurgeCancelledAppointment(input: {
     getRubitimeAppointmentId: input.getRubitimeAppointmentId,
   });
 
-  const purged = await input.deps.appointmentProjection.softDeleteByCanonicalAppointmentId(
-    input.appointmentId,
-    rubitimeId,
-  );
+  const purge = () =>
+    input.deps.appointmentProjection!.softDeleteByCanonicalAppointmentId(
+      input.appointmentId,
+      rubitimeId,
+    );
+  const purged = input.runLocalPurge ? await input.runLocalPurge(purge) : await purge();
   if (!purged) {
     return { ok: false, error: "not_found" };
   }
