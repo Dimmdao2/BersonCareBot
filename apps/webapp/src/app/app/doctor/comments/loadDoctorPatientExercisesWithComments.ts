@@ -113,13 +113,16 @@ export type LoadDoctorPatientExercisesWithCommentsDeps = {
  */
 export async function loadDoctorPatientExercisesWithComments(
   deps: LoadDoctorPatientExercisesWithCommentsDeps,
-  context: { patientUserId: string; viewerUserId: string },
+  context: { patientUserId: string; viewerUserId: string; organizationId?: string },
   options?: { includePastPrograms?: boolean },
 ): Promise<PatientExercisesWithCommentsResult | null> {
   const { patientUserId, viewerUserId } = context;
   const includePast = options?.includePastPrograms ?? false;
 
-  const instances = await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
+  const allInstances = await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
+  const instances = context.organizationId
+    ? allInstances.filter((instance) => instance.organizationId === context.organizationId)
+    : allInstances;
   if (instances.length === 0) return null;
 
   // Select which instance(s) to aggregate
@@ -132,6 +135,7 @@ export async function loadDoctorPatientExercisesWithComments(
   if (!targetInstance) return null;
 
   const detail = await deps.treatmentProgramInstance.getInstanceById(targetInstance.id);
+  if (context.organizationId && detail.organizationId !== context.organizationId) return null;
 
   // Collect all exercise stageItems (all stages, all statuses)
   const allExerciseItems = detail.stages.flatMap((stage) =>

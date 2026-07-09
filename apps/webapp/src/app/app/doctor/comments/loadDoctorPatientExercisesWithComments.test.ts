@@ -4,6 +4,8 @@ import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary } 
 
 const PATIENT = "00000000-0000-4000-8000-000000000001";
 const VIEWER  = "00000000-0000-4000-8000-00000000000d";
+const ORGANIZATION_ID = "00000000-0000-4000-8000-0000000000aa";
+const OTHER_ORGANIZATION_ID = "00000000-0000-4000-8000-0000000000bb";
 const INST1   = "00000000-0000-4000-8000-bbbb00000001";
 const INST2   = "00000000-0000-4000-8000-bbbb00000002";
 
@@ -17,6 +19,7 @@ const ITEM_C1 = "00000000-0000-4000-8000-dddd00000003"; // closed stage
 function makeSummary(id: string, status: "active" | "completed" = "active"): TreatmentProgramInstanceSummary {
   return {
     id,
+    organizationId: ORGANIZATION_ID,
     patientUserId: PATIENT,
     templateId: null,
     assignedBy: null,
@@ -94,6 +97,30 @@ describe("loadDoctorPatientExercisesWithComments", () => {
       deps as unknown as Parameters<typeof loadDoctorPatientExercisesWithComments>[0],
       { patientUserId: PATIENT, viewerUserId: VIEWER },
     );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when active instances belong to another organization", async () => {
+    const summary = { ...makeSummary(INST1), organizationId: OTHER_ORGANIZATION_ID };
+    const deps = {
+      treatmentProgramInstance: {
+        listForPatientClinicalView: async () => [summary],
+        getInstanceById: async () => { throw new Error("should not be called"); },
+      },
+      programItemDiscussion: {
+        listUnreadCountsForViewerByStageItems: async () => [],
+      },
+    };
+
+    const result = await loadDoctorPatientExercisesWithComments(
+      deps as unknown as Parameters<typeof loadDoctorPatientExercisesWithComments>[0],
+      {
+        patientUserId: PATIENT,
+        viewerUserId: VIEWER,
+        organizationId: ORGANIZATION_ID,
+      },
+    );
+
     expect(result).toBeNull();
   });
 

@@ -18,7 +18,7 @@ import type { CommentPatientRow } from "./loadDoctorCommentPatients";
 export type LoadDoctorAllCommentPatientsDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, "supportStatus">,
+      filters: Pick<DoctorClientsFilters, "supportStatus" | "organizationId">,
       audience?: { excludedUserIds?: string[] },
     ): Promise<
       Array<{
@@ -35,7 +35,7 @@ export type LoadDoctorAllCommentPatientsDeps = {
       input: ListDoctorExerciseCommentsInput,
     ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
     listAllExerciseCommentsForDoctor(
-      input: { viewerUserId: string; limit: number },
+      input: { viewerUserId: string; organizationId?: string; limit: number },
     ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
@@ -50,7 +50,7 @@ export type LoadDoctorAllCommentPatientsDeps = {
  */
 export async function loadDoctorAllCommentPatients(
   deps: LoadDoctorAllCommentPatientsDeps,
-  context: { viewerUserId: string },
+  context: { viewerUserId: string; organizationId?: string },
   options?: { excludedUserIds?: string[] },
 ): Promise<CommentPatientRow[]> {
   const audience = options?.excludedUserIds?.length
@@ -61,6 +61,7 @@ export async function loadDoctorAllCommentPatients(
   // assignedByUserId scopes to this doctor's instances directly.
   const allRows = await deps.programItemDiscussion.listAllExerciseCommentsForDoctor({
     viewerUserId: context.viewerUserId,
+    organizationId: context.organizationId,
     limit: 2000,
   });
 
@@ -91,7 +92,10 @@ export async function loadDoctorAllCommentPatients(
 
   // Step 3: resolve patient display info — fetch ALL clients (no supportStatus filter)
   // so we include patients not on support. isOnSupport used as visual ★ marker only.
-  const allClients = await deps.doctorClientsPort.listClients({}, audience);
+  const allClients = await deps.doctorClientsPort.listClients(
+    { organizationId: context.organizationId },
+    audience,
+  );
   const clientById = new Map(
     allClients.map((c) => [
       c.userId.trim(),

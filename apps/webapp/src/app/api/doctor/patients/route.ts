@@ -10,13 +10,13 @@
  * Response: { clients: ClientListItem[] }
  */
 import { NextResponse } from "next/server";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { DoctorClientsFilters } from "@/modules/doctor-clients/ports";
 
 export async function GET(request: Request) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
@@ -27,7 +27,8 @@ export async function GET(request: Request) {
   const filters: DoctorClientsFilters = {
     search: q || undefined,
     archivedOnly: archived,
-    viewerUserId: auth.session.user.userId,
+    organizationId: gate.ctx.organizationId,
+    viewerUserId: gate.ctx.session.user.userId,
     // Segment
     supportStatus: segment === "on_support" ? "on" : undefined,
     hasActiveTreatmentProgram: segment === "with_program" ? true : undefined,

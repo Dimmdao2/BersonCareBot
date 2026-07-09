@@ -288,13 +288,18 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
 
     async listAllExerciseCommentsForDoctor(input: {
       viewerUserId: string;
+      organizationId?: string;
       limit: number;
       cursor?: DoctorExerciseCommentCursor | null;
     }): Promise<DoctorExerciseCommentRow[]> {
       const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      const organizationId = input.organizationId
+        ? assertUuid(input.organizationId, "organization_id")
+        : undefined;
       const safeLimit = Math.max(1, Math.trunc(input.limit));
       return port.listAllExerciseCommentsForDoctor({
         viewerUserId,
+        organizationId,
         limit: safeLimit,
         cursor: input.cursor ?? null,
       });

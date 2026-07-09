@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DoctorExerciseCommentRow } from "@/modules/program-item-discussion/types";
 
-const requireDoctorApiSessionMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async (_ctx: unknown, fn: () => Promise<unknown>) => fn()),
+);
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const loadDoctorAnalyticsAudienceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorApiSession: requireDoctorApiSessionMock,
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
@@ -18,6 +24,7 @@ vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
 import { GET } from "./route";
 
 const DOCTOR_ID = "00000000-0000-4000-8000-00000000000d";
+const ORGANIZATION_ID = "00000000-0000-4000-8000-0000000000aa";
 const P1 = "00000000-0000-4000-8000-000000000001";
 const INST = "00000000-0000-4000-8000-bbbb00000001";
 const ITEM1 = "00000000-0000-4000-8000-aaa000000001";
@@ -50,10 +57,18 @@ function makeRow(
   };
 }
 
-function authedSession() {
+function workspaceGate() {
   return {
     ok: true as const,
-    session: { user: { userId: DOCTOR_ID, role: "doctor", bindings: {} } },
+    ctx: {
+      session: { user: { userId: DOCTOR_ID, role: "doctor", bindings: {} } },
+      organizationId: ORGANIZATION_ID,
+      membershipId: "00000000-0000-4000-8000-0000000000bb",
+      membershipRole: "doctor",
+      specialistId: null,
+      canManageOrganization: false,
+      canManageAllSpecialists: false,
+    },
   };
 }
 
@@ -73,13 +88,15 @@ function defaultDeps(rows: DoctorExerciseCommentRow[]) {
 
 describe("GET /api/doctor/exercise-comments", () => {
   beforeEach(() => {
-    requireDoctorApiSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
     buildAppDepsMock.mockReset();
     loadDoctorAnalyticsAudienceMock.mockResolvedValue({ excludedUserIds: [] });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue(workspaceGate());
   });
 
-  it("returns 401 without doctor session", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue({
+  it("returns 401 without selected doctor workspace", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
     });
@@ -88,7 +105,6 @@ describe("GET /api/doctor/exercise-comments", () => {
   });
 
   it("returns empty list when no patients have comments (all-mode default)", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: { listClients: vi.fn(async () => []) },
       programItemDiscussion: {
@@ -106,7 +122,6 @@ describe("GET /api/doctor/exercise-comments", () => {
   });
 
   it("returns enriched items with patientDisplayName and href", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     const rows = [makeRow(P1, ITEM1, "2026-06-11T10:00:00.000Z")];
     buildAppDepsMock.mockReturnValue(defaultDeps(rows));
 
@@ -119,7 +134,6 @@ describe("GET /api/doctor/exercise-comments", () => {
   });
 
   it("returns 400 on malformed cursor", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     buildAppDepsMock.mockReturnValue(defaultDeps([]));
 
     const res = await GET(
@@ -129,7 +143,6 @@ describe("GET /api/doctor/exercise-comments", () => {
   });
 
   it("passes cursor to listExerciseCommentsForDoctor", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     const deps = defaultDeps([]);
     buildAppDepsMock.mockReturnValue(deps);
 
@@ -142,12 +155,11 @@ describe("GET /api/doctor/exercise-comments", () => {
 
     // default mode=all uses listAllExerciseCommentsForDoctor
     expect(deps.programItemDiscussion.listAllExerciseCommentsForDoctor).toHaveBeenCalledWith(
-      expect.objectContaining({ cursor }),
+      expect.objectContaining({ cursor, organizationId: ORGANIZATION_ID }),
     );
   });
 
   it("pagination: hasMore=true and nextCursor when more than PAGE_SIZE rows", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     // Return PAGE_SIZE (30) + 1 rows to trigger hasMore
     const rows = Array.from({ length: 31 }, (_, i) =>
       makeRow(
@@ -167,7 +179,6 @@ describe("GET /api/doctor/exercise-comments", () => {
   });
 
   it("search dobor: filters items by patient name and message body (q param)", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     const deps = {
       doctorClientsPort: {
         listClients: vi.fn(async () => [
@@ -201,7 +212,6 @@ describe("GET /api/doctor/exercise-comments", () => {
   });
 
   it("search dobor: hasMore=false even if more rows exist (search is not paginated)", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
     const rows = Array.from({ length: 31 }, (_, i) =>
       makeRow(P1, `00000000-0000-4000-8000-aaa0000000${String(i).padStart(2, "0")}`, `2026-06-${String(i + 1).padStart(2, "0")}T10:00:00.000Z`),
     );
@@ -212,5 +222,23 @@ describe("GET /api/doctor/exercise-comments", () => {
     );
     const data = await res.json() as { hasMore: boolean };
     expect(data.hasMore).toBe(false);
+  });
+
+  it("scopes all-mode comments and patient name resolution to the selected organization", async () => {
+    const deps = defaultDeps([makeRow(P1, ITEM1, "2026-06-11T10:00:00.000Z")]);
+    buildAppDepsMock.mockReturnValue(deps);
+
+    await GET(new Request("http://localhost/api/doctor/exercise-comments"));
+
+    expect(deps.programItemDiscussion.listAllExerciseCommentsForDoctor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        viewerUserId: DOCTOR_ID,
+        organizationId: ORGANIZATION_ID,
+      }),
+    );
+    expect(deps.doctorClientsPort.listClients).toHaveBeenCalledWith(
+      { organizationId: ORGANIZATION_ID },
+      undefined,
+    );
   });
 });

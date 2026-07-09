@@ -99,4 +99,52 @@ describe("doctor-stats service", () => {
     await optimizedService.getStats(audience);
     expect(getClientContactBreakdown).toHaveBeenCalledTimes(1);
   });
+
+  it("passes selected organization to stats dependencies", async () => {
+    const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const getAppointmentStats = vi.fn(async () => ({
+      pastVisitsInPeriod: 0,
+      cancelledVisitsInPeriod: 0,
+      bookingsCreatedInPeriod: 0,
+      cancellationActionsInPeriod: 0,
+      rescheduleActionsInPeriod: 0,
+      total: 0,
+      cancellations30d: 0,
+    }));
+    const getClientContactBreakdown = vi.fn(async () => contactBreakdown);
+    const getDashboardPatientMetrics = vi.fn(async () => ({
+      totalClients: 0,
+      onSupportCount: 0,
+      visitedThisCalendarMonthCount: 0,
+      withProgramCount: 0,
+      membershipsCount: 0,
+      subscriberCount: 0,
+      newCount: 0,
+      formerCount: 0,
+      cancellationsCount: 0,
+    }));
+    const getDashboardAppointmentMetrics = vi.fn(async () => ({
+      futureActiveCount: 0,
+      recordsInCalendarMonthTotal: 0,
+      cancellationsInCalendarMonth: 0,
+    }));
+    const scopedService = createDoctorStatsService({
+      getAppointmentStats,
+      getClientContactBreakdown,
+      getDashboardPatientMetrics,
+      getDashboardAppointmentMetrics,
+    });
+    const scopedAudience = { ...audience, organizationId };
+
+    await scopedService.getStats(scopedAudience);
+    await scopedService.getDashboardMetrics(scopedAudience);
+
+    expect(getAppointmentStats).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ organizationId }),
+    );
+    expect(getClientContactBreakdown).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
+    expect(getDashboardPatientMetrics).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
+    expect(getDashboardAppointmentMetrics).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
+  });
 });

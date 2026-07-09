@@ -3,8 +3,7 @@ import { z } from "zod";
 
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import {
   DOCTOR_TODAY_METRIC_KEYS,
   type DoctorAnalyticsMetricAccountItem,
@@ -45,11 +44,8 @@ function mapAppointmentMetricItem(metric: DoctorAnalyticsMetricKey, row: Appoint
 }
 
 export async function GET(req: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const url = new URL(req.url);
   const metricParsed = doctorMetricEnum.safeParse(url.searchParams.get("metric"));
@@ -76,6 +72,7 @@ export async function GET(req: Request) {
     if (appointmentFilter) {
       const rows = await deps.doctorAppointments.listAppointmentsForSpecialist(appointmentFilter, {
         excludedUserIds: audience.excludedUserIds,
+        organizationId: gate.ctx.organizationId,
       });
       const pageEnd = offset + limit + 1;
       const pageRows = rows.slice(offset, pageEnd);

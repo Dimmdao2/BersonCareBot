@@ -679,7 +679,12 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
     },
 
     async listAllExerciseCommentsForDoctor(
-      input: { viewerUserId: string; limit: number; cursor?: DoctorExerciseCommentCursor | null },
+      input: {
+        viewerUserId: string;
+        organizationId?: string;
+        limit: number;
+        cursor?: DoctorExerciseCommentCursor | null;
+      },
     ): Promise<DoctorExerciseCommentRow[]> {
       // Doctor-wide all-comments: no patient-ID fanout, shows answered threads.
       return queryDoctorExerciseComments(
@@ -687,6 +692,7 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           patientUserIds: [],
           assignedByUserId: input.viewerUserId,
           viewerUserId: input.viewerUserId,
+          organizationId: input.organizationId,
           limit: input.limit,
           cursor: input.cursor,
         },

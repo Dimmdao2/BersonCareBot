@@ -80,7 +80,11 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       },
     ),
     deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
-    deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
+    ).then((instances) =>
+      instances.filter((instance) => instance.organizationId === workspace.organizationId),
+    ),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientFiles.listFiles(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientComorbidities.listActive(patientUserId)),

@@ -1,17 +1,11 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 /** Пагинированный список прошедших записей (архив) для ленивой подгрузки. */
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
   const view = searchParams.get("view");
@@ -23,11 +17,16 @@ export async function GET(request: Request) {
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10)));
 
   const deps = buildAppDeps();
-  const appointments = await deps.doctorAppointments.listAppointmentsForSpecialist({
-    kind: "past",
-    limit,
-    offset,
-  });
+  const appointments = await deps.doctorAppointments.listAppointmentsForSpecialist(
+    {
+      kind: "past",
+      limit,
+      offset,
+    },
+    {
+      organizationId: gate.ctx.organizationId,
+    },
+  );
 
   return NextResponse.json({ ok: true, appointments });
 }

@@ -1,8 +1,8 @@
 /**
  * /app/doctor/patients — список пациентов врача.
- * Pattern: follows exercises/page.tsx (requireDoctorAccess → buildAppDeps → pass promise to Client).
+ * Pattern: follows exercises/page.tsx (workspace guard → buildAppDeps → pass promise to Client).
  */
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -25,7 +25,8 @@ type PageProps = {
 };
 
 export default async function DoctorPatientsPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const segment = typeof sp.segment === "string" ? sp.segment : null;
@@ -39,16 +40,17 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
   const { patientPluralLabel } = resolvePatientTerms(String(patientSingular));
 
-  const listPromise = deps.doctorClients.listClients(
-    {
-      // PAT-10: search is done client-side — do not pass q to DB
-      archivedOnly,
-      viewerUserId: session.user.userId,
-      // Segment and channel filters are applied client-side so toggles do not reload the list.
-    },
-  );
+  const listPromise = deps.doctorClients.listClients({
+    // PAT-10: search is done client-side — do not pass q to DB
+    archivedOnly,
+    organizationId: workspace.organizationId,
+    viewerUserId: session.user.userId,
+    // Segment and channel filters are applied client-side so toggles do not reload the list.
+  });
 
-  const metricsPromise = deps.doctorClientsPort.getDashboardPatientMetrics();
+  const metricsPromise = deps.doctorClientsPort.getDashboardPatientMetrics({
+    organizationId: workspace.organizationId,
+  });
 
   return (
     <DoctorAppShell title={patientPluralLabel} user={session.user} layout="full-height">

@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { loadDoctorCommentPatients } from "./loadDoctorCommentPatients";
 
 const P1 = "00000000-0000-4000-8000-000000000001";
 const P2 = "00000000-0000-4000-8000-000000000002";
 const P3 = "00000000-0000-4000-8000-000000000003";
 const VIEWER = "00000000-0000-4000-8000-00000000000d";
+const ORGANIZATION_ID = "00000000-0000-4000-8000-0000000000aa";
 
 const ITEM1 = "00000000-0000-4000-8000-aaa000000001";
 const ITEM2 = "00000000-0000-4000-8000-aaa000000002";
@@ -191,5 +192,30 @@ describe("loadDoctorCommentPatients", () => {
     await loadDoctorCommentPatients(deps, { viewerUserId: VIEWER }, { excludedUserIds: [] });
 
     expect(capturedAudience).toBeUndefined();
+  });
+
+  it("passes organizationId to client and unread-comment queries", async () => {
+    const listClients = vi.fn(async () => [makeClient(P1, "Иван")]);
+    const listUnreadExerciseCommentsForDoctor = vi.fn(async () => [makeUnreadRow(P1, ITEM1)]);
+    const deps = {
+      doctorClientsPort: { listClients },
+      programItemDiscussion: {
+        listUnreadExerciseCommentsForDoctor,
+        listUnreadCountsForViewerByStageItems: makeCountsMock(),
+      },
+    };
+
+    await loadDoctorCommentPatients(deps, {
+      viewerUserId: VIEWER,
+      organizationId: ORGANIZATION_ID,
+    });
+
+    expect(listClients).toHaveBeenCalledWith(
+      { supportStatus: "on", organizationId: ORGANIZATION_ID },
+      undefined,
+    );
+    expect(listUnreadExerciseCommentsForDoctor).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+    );
   });
 });

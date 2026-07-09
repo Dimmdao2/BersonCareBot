@@ -151,10 +151,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
   return {
     async listAppointmentsForSpecialist(
       filter: DoctorAppointmentsListFilter,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<AppointmentRow[]> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       // F1b: soft-deleted (deleted_at) canonical rows are hidden from all doctor reads.
       const base = and(
         eq(beAppointments.organizationId, organizationId),
@@ -291,10 +291,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getAppointmentStats(
       filter: DoctorAppointmentStatsFilter,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<AppointmentStats> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       const iana = await getAppDisplayTimeZone();
       const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
       const excluded = audience?.excludedUserIds ?? [];
@@ -399,9 +399,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getDashboardAppointmentMetrics(audience?: {
       excludedUserIds?: string[];
+      organizationId?: string;
     }): Promise<DoctorDashboardAppointmentMetrics> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
       const orgCond = and(
         eq(beAppointments.organizationId, organizationId),
@@ -458,10 +459,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getScheduleKpis(
       query: ScheduleKpisQuery,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<ScheduleKpis> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       const nowIso = new Date().toISOString();
       const { from, to: toExclusive, branchId, serviceId } = query;
       const excluded = audience?.excludedUserIds ?? [];

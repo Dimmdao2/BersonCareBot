@@ -12,6 +12,7 @@ let includeTestCache: IncludeTestCacheEntry | null = null;
 export type AnalyticsAudienceContext = {
   includeTestAccounts: boolean;
   excludedUserIds: string[];
+  organizationId?: string;
 };
 
 function readBooleanValueJson(valueJson: unknown): boolean {

@@ -46,6 +46,7 @@ export type ProgramItemDiscussionPort = {
    */
   listAllExerciseCommentsForDoctor(input: {
     viewerUserId: string;
+    organizationId?: string;
     limit: number;
     cursor?: DoctorExerciseCommentCursor | null;
   }): Promise<DoctorExerciseCommentRow[]>;

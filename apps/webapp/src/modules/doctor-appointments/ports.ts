@@ -88,7 +88,7 @@ export type DoctorDashboardAppointmentMetrics = {
   cancellationsInCalendarMonth: number;
 };
 
-export type DoctorAppointmentsAudience = { excludedUserIds?: string[] };
+export type DoctorAppointmentsAudience = { excludedUserIds?: string[]; organizationId?: string };
 
 /** KPI метрики для страницы «Расписание» врача (9 плиток в KPI-строке, ТЗ §4.1). */
 export type ScheduleKpis = {
@@ -155,7 +155,7 @@ export type DoctorAppointmentsPort = {
     audience?: { excludedUserIds?: string[] },
   ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
-  getDashboardAppointmentMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardAppointmentMetrics>;
+  getDashboardAppointmentMetrics(audience?: DoctorAppointmentsAudience): Promise<DoctorDashboardAppointmentMetrics>;
   /** KPI строка раздела «Расписание»: 9 метрик по произвольному диапазону + фильтры. */
   getScheduleKpis(
     query: ScheduleKpisQuery,

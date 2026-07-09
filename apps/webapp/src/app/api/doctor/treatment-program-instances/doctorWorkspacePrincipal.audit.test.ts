@@ -26,6 +26,16 @@ const mutatingRouteFiles = [
   "src/app/api/doctor/treatment-program-instances/[instanceId]/test-results/[resultId]/route.ts",
 ] as const;
 
+const readRouteFiles = [
+  "src/app/api/doctor/treatment-program-instances/[instanceId]/route.ts",
+  "src/app/api/doctor/treatment-program-instances/[instanceId]/discussion/route.ts",
+  "src/app/api/doctor/treatment-program-instances/[instanceId]/discussion/summary/route.ts",
+  "src/app/api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/discussion/route.ts",
+  "src/app/api/doctor/treatment-program-instances/[instanceId]/events/route.ts",
+  "src/app/api/doctor/treatment-program-instances/[instanceId]/action-log/route.ts",
+  "src/app/api/doctor/treatment-program-instances/[instanceId]/test-results/route.ts",
+] as const;
+
 const transactionBackedRepoFiles = [
   "src/infra/repos/pgTreatmentProgramInstance.ts",
   "src/infra/repos/pgTreatmentProgramEvents.ts",
@@ -85,5 +95,20 @@ describe("doctor treatment program instance principal cutover", () => {
   )("%s rejects existing instances outside the selected workspace before mutation", (file) => {
     const src = readSource(file);
     expect(src).toContain("organizationId !== gate.ctx.organizationId");
+  });
+
+  it.each(readRouteFiles)("%s scopes reads to selected workspace instance ownership", (file) => {
+    const src = readSource(file);
+    expect(src).toContain("requireDoctorWorkspaceApiContext");
+    expect(src).toContain("resolveDoctorInstanceInWorkspace");
+    expect(src).not.toContain("getCurrentSession");
+    expect(src).not.toContain("canAccessDoctor");
+  });
+
+  it("doctor instance read helper verifies instance organization and patient membership", () => {
+    const src = readSource("src/app/api/doctor/treatment-program-instances/_doctorInstanceWorkspace.ts");
+    expect(src).toContain("instance.organizationId !== ctx.organizationId");
+    expect(src).toContain("getClientIdentityForOrganization");
+    expect(src).toContain("ctx.organizationId");
   });
 });

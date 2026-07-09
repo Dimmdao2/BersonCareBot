@@ -54,7 +54,7 @@ export type CommentPatientRow = CommentPatientSearchFields & {
 export type LoadDoctorCommentPatientsDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, "supportStatus">,
+      filters: Pick<DoctorClientsFilters, "supportStatus" | "organizationId">,
       audience?: { excludedUserIds?: string[] },
     ): Promise<
       Array<{
@@ -85,14 +85,17 @@ export type LoadDoctorCommentPatientsDeps = {
  */
 export async function loadDoctorCommentPatients(
   deps: LoadDoctorCommentPatientsDeps,
-  context: { viewerUserId: string },
+  context: { viewerUserId: string; organizationId?: string },
   options?: { excludedUserIds?: string[] },
 ): Promise<CommentPatientRow[]> {
   const audience = options?.excludedUserIds?.length
     ? { excludedUserIds: options.excludedUserIds }
     : undefined;
 
-  const onSupport = await deps.doctorClientsPort.listClients({ supportStatus: "on" }, audience);
+  const onSupport = await deps.doctorClientsPort.listClients(
+    { supportStatus: "on", organizationId: context.organizationId },
+    audience,
+  );
   if (onSupport.length === 0) return [];
 
   const clientById = new Map(
@@ -112,6 +115,7 @@ export async function loadDoctorCommentPatients(
   const unreadRows = await deps.programItemDiscussion.listUnreadExerciseCommentsForDoctor({
     patientUserIds,
     viewerUserId: context.viewerUserId,
+    organizationId: context.organizationId,
     limit: 2000, // effectively unlimited; doctor supports at most dozens of patients
   });
 

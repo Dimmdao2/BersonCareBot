@@ -16,7 +16,8 @@
  */
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
 import type { TodayExerciseCommentAttentionItem } from "@/app/app/doctor/loadDoctorExerciseCommentAttention";
@@ -26,8 +27,8 @@ import { patientProgramInstanceHref } from "@/app/app/doctor/patients/patientPro
 const PAGE_SIZE = 30;
 
 export async function GET(request: Request) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
   const cursorParam = searchParams.get("cursor");
@@ -56,17 +57,22 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const viewerUserId = gate.ctx.session.user.userId;
+  const organizationId = gate.ctx.organizationId;
 
   let rows: Awaited<ReturnType<typeof deps.programItemDiscussion.listAllExerciseCommentsForDoctor>>;
   let nameById: Map<string, string>;
 
   if (mode === "all") {
     // Doctor-wide: no patient-ID fanout, no on-support gate, shows answered threads.
-    rows = await deps.programItemDiscussion.listAllExerciseCommentsForDoctor({
-      viewerUserId: auth.session.user.userId,
-      limit: PAGE_SIZE + 1,
-      cursor,
-    });
+    rows = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.programItemDiscussion.listAllExerciseCommentsForDoctor({
+        viewerUserId,
+        organizationId,
+        limit: PAGE_SIZE + 1,
+        cursor,
+      }),
+    );
     // Resolve display names for the result set only (N rows ≤ PAGE_SIZE+1).
     nameById = new Map();
     if (rows.length > 0) {
@@ -76,7 +82,7 @@ export async function GET(request: Request) {
         : undefined;
       const uniquePatientIds = [...new Set(rows.map((r) => r.patientUserId))];
       // listClients does NOT take explicit userId list, so we fetch all and filter.
-      const allClients = await deps.doctorClientsPort.listClients({}, clientAudience);
+      const allClients = await deps.doctorClientsPort.listClients({ organizationId }, clientAudience);
       const idSet = new Set(uniquePatientIds);
       for (const c of allClients) {
         if (idSet.has(c.userId.trim())) {
@@ -91,7 +97,7 @@ export async function GET(request: Request) {
       ? { excludedUserIds: audience.excludedUserIds }
       : undefined;
     const onSupport = await deps.doctorClientsPort.listClients(
-      { supportStatus: "on" },
+      { supportStatus: "on", organizationId },
       clientAudience,
     );
     if (onSupport.length === 0) {
@@ -99,12 +105,15 @@ export async function GET(request: Request) {
     }
     nameById = new Map(onSupport.map((c) => [c.userId.trim(), c.displayName.trim() || "—"]));
     const patientUserIds = [...nameById.keys()];
-    rows = await deps.programItemDiscussion.listExerciseCommentsForDoctor({
-      patientUserIds,
-      viewerUserId: auth.session.user.userId,
-      limit: PAGE_SIZE + 1,
-      cursor,
-    });
+    rows = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.programItemDiscussion.listExerciseCommentsForDoctor({
+        patientUserIds,
+        viewerUserId,
+        organizationId,
+        limit: PAGE_SIZE + 1,
+        cursor,
+      }),
+    );
   }
 
   const hasMoreRaw = rows.length > PAGE_SIZE;

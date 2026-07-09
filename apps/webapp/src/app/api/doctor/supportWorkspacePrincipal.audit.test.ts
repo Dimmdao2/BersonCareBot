@@ -31,6 +31,13 @@ const patientBoundReadRouteFiles = [
   "src/app/api/doctor/clients/[userId]/lfk-complex-exercises/[exerciseRowId]/route.ts",
 ] as const;
 
+const doctorCommentsReadRouteFiles = [
+  "src/app/api/doctor/comments/patients/route.ts",
+  "src/app/api/doctor/comments/patients/[patientUserId]/exercises/route.ts",
+  "src/app/api/doctor/exercise-comments/route.ts",
+  "src/app/api/doctor/comments/exercise-metrics/route.ts",
+] as const;
+
 const principalBackedRepoFiles = [
   "src/infra/repos/pgDoctorNotes.ts",
   "src/infra/repos/pgDoctorPatientSupport.ts",
@@ -92,6 +99,35 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(src).toContain("gate.ctx.organizationId");
     expect(src).not.toContain("getCurrentSession");
     expect(src).not.toContain("canAccessDoctor");
+  });
+
+  it.each(doctorCommentsReadRouteFiles)("%s scopes comment reads to the selected workspace", (file) => {
+    const src = readSource(file);
+    expect(src).toContain("requireDoctorWorkspaceApiContext");
+    expect(src).toContain("withDoctorWorkspacePrincipal");
+    if (file === "src/app/api/doctor/comments/exercise-metrics/route.ts") {
+      expect(src).toContain("resolveDoctorInstanceInWorkspace");
+    } else {
+      expect(src).toContain("organizationId");
+    }
+    expect(src).not.toContain("getCurrentSession");
+    expect(src).not.toContain("canAccessDoctor");
+  });
+
+  it("doctor comment patient drill-down resolves the patient through the selected organization", () => {
+    const src = readSource("src/app/api/doctor/comments/patients/[patientUserId]/exercises/route.ts");
+    expect(src).toContain("getClientIdentityForOrganization");
+    expect(src).toContain("gate.ctx.organizationId");
+    expect(src).toContain("patientUserId: identity.userId");
+  });
+
+  it("doctor comment exercise metrics resolves the instance and stage item before reading metrics", () => {
+    const src = readSource("src/app/api/doctor/comments/exercise-metrics/route.ts");
+    expect(src).toContain("resolveDoctorInstanceInWorkspace");
+    expect(src).toContain("itemBelongsToInstance");
+    expect(src.indexOf("resolveDoctorInstanceInWorkspace")).toBeLessThan(
+      src.indexOf("listExerciseMetricsForWindow"),
+    );
   });
 
   it("doctor message mutations reject conversations outside the selected workspace", () => {
@@ -280,10 +316,86 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(src).toContain("getClientIdentityForOrganization");
     expect(src).toContain("workspace.organizationId");
     expect(src).toContain("const patientUserId = identity.userId");
+    expect(src).toContain("deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId)");
+    expect(src).toContain("instance.organizationId === workspace.organizationId");
     expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getClinicalState(patientUserId))");
     expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId))");
     expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId))");
     expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientComorbidities.listActive(patientUserId))");
+  });
+
+  it("doctor communications SSR comments use the selected workspace organization", () => {
+    const page = readSource("src/app/app/doctor/communications/page.tsx");
+    expect(page).toContain("requireDoctorWorkspaceContext");
+    expect(page).toContain("withDoctorWorkspacePrincipal(workspace");
+    expect(page).toContain("organizationId: workspace.organizationId");
+    expect(page).not.toContain("requireDoctorAccess");
+
+    const tabLoader = readSource("src/app/app/doctor/comments/loadDoctorExerciseCommentsForTab.ts");
+    expect(tabLoader).toContain("organizationId: context.organizationId");
+    const patientLoader = readSource("src/app/app/doctor/comments/loadDoctorCommentPatients.ts");
+    expect(patientLoader).toContain("organizationId: context.organizationId");
+  });
+
+  it("doctor Today SSR dashboard uses the selected workspace organization", () => {
+    const page = readSource("src/app/app/doctor/page.tsx");
+    expect(page).toContain("requireDoctorWorkspaceContext");
+    expect(page).toContain("withDoctorWorkspacePrincipal(workspace");
+    expect(page).toContain("organizationId: workspace.organizationId");
+    expect(page).toContain("const workspaceAudience =");
+    expect(page).toContain("deps.doctorStats.getStats(workspaceAudience)");
+    expect(page).toContain("deps.doctorAppointments.getDashboardAppointmentMetrics(");
+    expect(page).toContain("organizationId: workspace.organizationId");
+    expect(page).toContain("loadTodayWorkingBounds(deps, displayIana, workspace.organizationId)");
+    expect(page).not.toContain("requireDoctorAccess");
+
+    const loader = readSource("src/app/app/doctor/loadDoctorTodayDashboard.ts");
+    expect(loader).toContain("organizationId?: string");
+    expect(loader).toContain("{ supportStatus: \"on\", organizationId: deps.organizationId }");
+    expect(loader).toContain("organizationId: deps.organizationId");
+    expect(loader).toContain("unreadFromUsers({ organizationId: deps.organizationId })");
+    expect(loader).toContain("instance.organizationId === deps.organizationId");
+    const attention = readSource("src/app/app/doctor/loadDoctorExerciseCommentAttention.ts");
+    expect(attention).toContain("organizationId?: string");
+    expect(attention).toContain("instance.organizationId === deps.organizationId");
+
+    const appointmentsRepo = readSource("src/infra/repos/pgDoctorAppointments.ts");
+    expect(appointmentsRepo).toContain("legacyAppointmentOrganizationClause");
+    expect(appointmentsRepo).toContain("be_external_entity_mappings m_scope");
+    expect(appointmentsRepo).toContain("m_scope.entity_type = 'appointment'");
+    expect(appointmentsRepo).toContain("m_scope.organization_id");
+    expect(appointmentsRepo).toContain("bea_scope.organization_id");
+    expect(appointmentsRepo).toContain("audience?.organizationId");
+    const clientsRepo = readSource("src/infra/repos/pgDoctorClients.ts");
+    expect(clientsRepo).toContain("legacyAppointmentOrgPredicate");
+    expect(clientsRepo).toContain("be_external_entity_mappings m_scope");
+    expect(clientsRepo).toContain("appendSqlOrganizationEnrollment");
+    expect(clientsRepo).toContain("dps.organization_id");
+    expect(clientsRepo).toContain("tpi.organization_id");
+    expect(clientsRepo).toContain("pp.organization_id");
+    const supportRepo = readSource("src/infra/repos/pgSupportCommunication.ts");
+    expect(supportRepo).toContain("sc.organization_id = $4::uuid");
+    expect(supportRepo).toContain("c.organization_id = $1::uuid");
+  });
+
+  it("doctor appointment list surfaces use the selected workspace organization", () => {
+    const page = readSource("src/app/app/doctor/appointments/page.tsx");
+    expect(page).toContain("requireDoctorWorkspaceContext");
+    expect(page).toContain("const session = workspace.session");
+    expect(page).toContain("organizationId: workspace.organizationId");
+    expect(page).not.toContain("requireDoctorAccess");
+
+    const listRoute = readSource("src/app/api/doctor/appointments/list/route.ts");
+    expect(listRoute).toContain("requireDoctorWorkspaceApiContext");
+    expect(listRoute).toContain("organizationId: gate.ctx.organizationId");
+    expect(listRoute).not.toContain("getCurrentSession");
+    expect(listRoute).not.toContain("canAccessDoctor");
+
+    const analyticsRoute = readSource("src/app/api/doctor/analytics-metric-accounts/route.ts");
+    expect(analyticsRoute).toContain("requireDoctorWorkspaceApiContext");
+    expect(analyticsRoute).toContain("organizationId: gate.ctx.organizationId");
+    expect(analyticsRoute).not.toContain("getCurrentSession");
+    expect(analyticsRoute).not.toContain("canAccessDoctor");
   });
 
   it("doctor patient comorbidity routes require selected workspace membership and principal context", () => {
@@ -429,6 +541,24 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(clinicalRepo).toContain("requiredPrincipalOrganizationId()");
     expect(clinicalRepo).toContain("organization_principal_required");
     expect(clinicalRepo).toContain("eq(clinicalVisit.organizationId, organizationId)");
+  });
+
+  it("doctor patient list route scopes list filters to the selected workspace organization", () => {
+    const src = readSource("src/app/api/doctor/patients/route.ts");
+    expect(src).toContain("requireDoctorWorkspaceApiContext");
+    expect(src).toContain("organizationId: gate.ctx.organizationId");
+    expect(src).toContain("viewerUserId: gate.ctx.session.user.userId");
+    expect(src).not.toContain("requireDoctorApiSession");
+
+    const page = readSource("src/app/app/doctor/patients/page.tsx");
+    expect(page).toContain("requireDoctorWorkspaceContext");
+    expect(page).toContain("const session = workspace.session");
+    expect(page).toContain("organizationId: workspace.organizationId");
+    expect(page).toContain("deps.doctorClientsPort.getDashboardPatientMetrics({");
+    expect(page.indexOf("deps.doctorClientsPort.getDashboardPatientMetrics({")).toBeLessThan(
+      page.indexOf("organizationId: workspace.organizationId", page.indexOf("deps.doctorClientsPort.getDashboardPatientMetrics({")),
+    );
+    expect(page).not.toContain("requireDoctorAccess");
   });
 
   it("patient comorbidities repo stamps and checks organization principal for comorbidity writes", () => {

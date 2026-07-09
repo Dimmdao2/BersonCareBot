@@ -40,6 +40,7 @@ export type TodayExerciseCommentAttentionItem = {
 /** Минимальный срез зависимостей, нужных загрузчику (подмножество `DoctorTodayDashboardDeps`). */
 export type DoctorExerciseCommentAttentionDeps = {
   doctorUserId?: string;
+  organizationId?: string;
   treatmentProgramInstance?: {
     listForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
@@ -122,10 +123,16 @@ export async function loadDoctorExerciseCommentAttention(
   const perPatientRows = await Promise.all(
     [...patientDisplayNameById.keys()].map(async (patientUserId) => {
       try {
-        const instances = await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
+        const allInstances = await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
+        const instances = deps.organizationId
+          ? allInstances.filter((instance) => instance.organizationId === deps.organizationId)
+          : allInstances;
         const active = pickActivePlanInstance(instances);
         if (!active) return [] as TodayExerciseCommentAttentionItem[];
         const detail = await deps.treatmentProgramInstance!.getInstanceById(active.id);
+        if (deps.organizationId && detail.organizationId !== deps.organizationId) {
+          return [] as TodayExerciseCommentAttentionItem[];
+        }
         const activeExerciseItems = detail.stages.flatMap((stage) =>
           stage.items.filter((item) => item.status === "active" && item.itemType === "exercise"),
         );

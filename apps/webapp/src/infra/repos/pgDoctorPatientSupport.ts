@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
@@ -107,11 +107,15 @@ export async function upsertClientSupportProfile(params: {
   });
 }
 
-export async function listOnSupportPatientUserIds(): Promise<Set<string>> {
+export async function listOnSupportPatientUserIds(organizationId?: string): Promise<Set<string>> {
   const db = getDrizzle();
   const rows = await db
     .select({ patientUserId: doctorPatientSupport.patientUserId })
     .from(doctorPatientSupport)
-    .where(eq(doctorPatientSupport.onSupport, true));
+    .where(
+      organizationId
+        ? and(eq(doctorPatientSupport.onSupport, true), eq(doctorPatientSupport.organizationId, organizationId))
+        : eq(doctorPatientSupport.onSupport, true),
+    );
   return new Set(rows.map((r) => r.patientUserId));
 }

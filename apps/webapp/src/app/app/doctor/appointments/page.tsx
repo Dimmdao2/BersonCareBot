@@ -4,7 +4,7 @@
  * tab=schedule: настройка рабочего расписания (только admin).
  */
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { DoctorAppointmentsListClient } from "./DoctorAppointmentsListClient";
@@ -18,7 +18,8 @@ type Props = {
 };
 
 export default async function DoctorAppointmentsPage({ searchParams }: Props) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const params = await searchParams;
   const tab = params.tab === "schedule" ? "schedule" : "appointments";
   const view = params.view === "past" ? "past" : "future";
@@ -29,6 +30,7 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
     tab === "appointments"
       ? await deps.doctorAppointments.listAppointmentsForSpecialist(
           view === "past" ? { kind: "past", limit: 50, offset: 0 } : { kind: "futureActive" },
+          { organizationId: workspace.organizationId },
         )
       : [];
 

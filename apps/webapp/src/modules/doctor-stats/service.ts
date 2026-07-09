@@ -44,7 +44,7 @@ export type DoctorDashboardMetrics = {
   };
 };
 
-type AudienceArg = { excludedUserIds?: string[] };
+type AudienceArg = { excludedUserIds?: string[]; organizationId?: string };
 
 export type DoctorStatsServiceDeps = {
   getAppointmentStats: (
@@ -67,7 +67,10 @@ export type DoctorStatsServiceDeps = {
 export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
   return {
     async getStats(audience: AnalyticsAudienceContext): Promise<DoctorStatsState> {
-      const aud = { excludedUserIds: audience.excludedUserIds };
+      const aud = {
+        excludedUserIds: audience.excludedUserIds,
+        organizationId: audience.organizationId,
+      };
       const [appointmentStats, contactBreakdown] = await Promise.all([
         deps.getAppointmentStats({ kind: "range", range: "week" }, aud),
         deps.getClientContactBreakdown(aud),
@@ -94,7 +97,10 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
     },
 
     async getDashboardMetrics(audience: AnalyticsAudienceContext): Promise<DoctorDashboardMetrics> {
-      const aud = { excludedUserIds: audience.excludedUserIds };
+      const aud = {
+        excludedUserIds: audience.excludedUserIds,
+        organizationId: audience.organizationId,
+      };
       const [p, a] = await Promise.all([
         deps.getDashboardPatientMetrics(aud),
         deps.getDashboardAppointmentMetrics(aud),

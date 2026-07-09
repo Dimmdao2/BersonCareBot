@@ -29,7 +29,7 @@ export const DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE = 50;
 export type LoadDoctorExerciseCommentsForTabDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, "supportStatus">,
+      filters: Pick<DoctorClientsFilters, "supportStatus" | "organizationId">,
       audience?: { excludedUserIds?: string[] },
     ): Promise<Array<{ userId: string; displayName: string }>>;
   };
@@ -42,7 +42,7 @@ export type LoadDoctorExerciseCommentsForTabDeps = {
 
 export async function loadDoctorExerciseCommentsForTab(
   deps: LoadDoctorExerciseCommentsForTabDeps,
-  context: { viewerUserId: string; excludedUserIds?: string[] },
+  context: { viewerUserId: string; organizationId?: string; excludedUserIds?: string[] },
   options?: { limit?: number; cursor?: DoctorExerciseCommentCursor | null },
 ): Promise<{
   items: TodayExerciseCommentAttentionItem[];
@@ -55,7 +55,10 @@ export async function loadDoctorExerciseCommentsForTab(
       ? { excludedUserIds: context.excludedUserIds }
       : undefined;
 
-  const onSupport = await deps.doctorClientsPort.listClients({ supportStatus: "on" }, audience);
+  const onSupport = await deps.doctorClientsPort.listClients(
+    { supportStatus: "on", organizationId: context.organizationId },
+    audience,
+  );
   if (onSupport.length === 0) {
     return { items: [], nextCursor: null, hasMore: false };
   }
@@ -68,6 +71,7 @@ export async function loadDoctorExerciseCommentsForTab(
   const rows = await deps.programItemDiscussion.listUnreadExerciseCommentsForDoctor({
     patientUserIds,
     viewerUserId: context.viewerUserId,
+    organizationId: context.organizationId,
     limit: limit + 1,
     cursor: options?.cursor ?? null,
   });
