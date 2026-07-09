@@ -138,6 +138,7 @@ Completed slices:
 - [x] T0.3.13: migrated doctor/admin booking working-days PUT mutations (`upsert`, `close`, `clear`) to `withDoctorWorkspacePrincipal(...)` around only `bookingScheduling.upsertWorkingDays/closeWorkingDays/clearWorkingDays`. `pgBookingScheduling` now runs those working-days writes through Drizzle transactions. GET/list working-days remains a deferred read-path slice.
 - [x] T0.3.14: migrated doctor/admin booking package catalog upserts to `withDoctorWorkspacePrincipal(...)` around only `memberships.upsertCatalogPackage`. `pgMemberships.upsertCatalogPackage` now runs package/items write plus readback through a Drizzle transaction. GET/list and PATCH pre-read remain outside-principal/deferred read paths.
 - [x] T0.3.15: migrated doctor/admin booking product catalog `POST` upserts to `withDoctorWorkspacePrincipal(...)` around only `products.upsertProduct`. `pgProducts.upsertProduct` now runs create/update branches through Drizzle transactions. Product GET/list and pay-link/purchase/payment flows remain outside-principal/deferred slices.
+- [x] T0.3.16: migrated doctor/admin booking working-hours mutations (`POST`, `PATCH`, `DELETE`) to `withDoctorWorkspacePrincipal(...)` around only `bookingScheduling.createWorkingHours/updateWorkingHours/deactivateWorkingHours`. `pgBookingScheduling` now runs those working-hours writes through Drizzle transactions. GET/list and doctor ownership pre-reads remain outside-principal.
 
 Recommended order:
 

@@ -18,6 +18,7 @@ const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TMPL = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const WD = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const SPEC = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const WH = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
 function templateRow() {
   return {
@@ -46,6 +47,20 @@ function rawWorkingDayRow(overrides: Partial<Record<string, unknown>> = {}) {
     breaks: [],
     is_closed: false,
     ...overrides,
+  };
+}
+
+function workingHoursRow() {
+  return {
+    id: WH,
+    organizationId: ORG,
+    specialistId: SPEC,
+    branchId: null,
+    roomId: null,
+    weekday: 1,
+    startMinute: 540,
+    endMinute: 1080,
+    isActive: true,
   };
 }
 
@@ -199,5 +214,89 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(deleteFrom).toHaveBeenCalledTimes(1);
     expect(where).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates working hours through db.transaction", async () => {
+    const returning = vi.fn(async () => [workingHoursRow()]);
+    const values = vi.fn(() => ({ returning }));
+    const insert = vi.fn(() => ({ values }));
+    const tx = { insert };
+    const db = {
+      insert: vi.fn(() => {
+        throw new Error("db insert should not run outside transaction");
+      }),
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgBookingSchedulingPort(async () => ORG);
+    const row = await port.createWorkingHours({
+      organizationId: ORG,
+      specialistId: SPEC,
+      weekday: 1,
+      startMinute: 540,
+      endMinute: 1080,
+    });
+
+    expect(row).toEqual(expect.objectContaining({ id: WH, organizationId: ORG }));
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("updates working hours through db.transaction", async () => {
+    const returning = vi.fn(async () => [{ ...workingHoursRow(), endMinute: 1020 }]);
+    const where = vi.fn(() => ({ returning }));
+    const set = vi.fn(() => ({ where }));
+    const update = vi.fn(() => ({ set }));
+    const tx = { update };
+    const db = {
+      update: vi.fn(() => {
+        throw new Error("db update should not run outside transaction");
+      }),
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgBookingSchedulingPort(async () => ORG);
+    const row = await port.updateWorkingHours({
+      organizationId: ORG,
+      id: WH,
+      endMinute: 1020,
+    });
+
+    expect(row).toEqual(expect.objectContaining({ id: WH, endMinute: 1020 }));
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("deactivates working hours through db.transaction", async () => {
+    const where = vi.fn(async () => undefined);
+    const set = vi.fn(() => ({ where }));
+    const update = vi.fn(() => ({ set }));
+    const tx = { update };
+    const db = {
+      update: vi.fn(() => {
+        throw new Error("db update should not run outside transaction");
+      }),
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgBookingSchedulingPort(async () => ORG);
+    await port.deactivateWorkingHours(ORG, WH);
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ isActive: false }));
+    expect(where).toHaveBeenCalledTimes(1);
+    expect(db.update).not.toHaveBeenCalled();
   });
 });

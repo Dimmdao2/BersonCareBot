@@ -435,61 +435,36 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async createWorkingHours(input) {
       const db = getDrizzle();
-      if (input.replace) {
-        if (input.specialistId === undefined) {
-          throw new Error("replace=true requires specialistId for scope safety");
-        }
-        const deactConds = [
-          eq(beWh.organizationId, input.organizationId),
-          eq(beWh.weekday, input.weekday),
-          eq(beWh.isActive, true),
-        ];
-        if (input.specialistId === null) deactConds.push(isNull(beWh.specialistId));
-        else deactConds.push(eq(beWh.specialistId, input.specialistId));
-        if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
-        else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
-        const inserted = await db.transaction(async (tx) => {
+      const inserted = await db.transaction(async (tx) => {
+        if (input.replace) {
+          if (input.specialistId === undefined) {
+            throw new Error("replace=true requires specialistId for scope safety");
+          }
+          const deactConds = [
+            eq(beWh.organizationId, input.organizationId),
+            eq(beWh.weekday, input.weekday),
+            eq(beWh.isActive, true),
+          ];
+          if (input.specialistId === null) deactConds.push(isNull(beWh.specialistId));
+          else deactConds.push(eq(beWh.specialistId, input.specialistId));
+          if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
+          else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
           await tx.update(beWh).set({ isActive: false, updatedAt: new Date().toISOString() }).where(and(...deactConds));
-          return tx
-            .insert(beWh)
-            .values({
-              organizationId: input.organizationId,
-              specialistId: input.specialistId ?? null,
-              branchId: input.branchId ?? null,
-              roomId: input.roomId ?? null,
-              weekday: input.weekday,
-              startMinute: input.startMinute,
-              endMinute: input.endMinute,
-              isActive: true,
-            })
-            .returning();
-        });
-        const row = inserted[0]!;
-        return {
-          id: row.id,
-          organizationId: row.organizationId,
-          specialistId: row.specialistId,
-          branchId: row.branchId,
-          roomId: row.roomId,
-          weekday: row.weekday,
-          startMinute: row.startMinute,
-          endMinute: row.endMinute,
-          isActive: row.isActive,
-        };
-      }
-      const inserted = await db
-        .insert(beWh)
-        .values({
-          organizationId: input.organizationId,
-          specialistId: input.specialistId ?? null,
-          branchId: input.branchId ?? null,
-          roomId: input.roomId ?? null,
-          weekday: input.weekday,
-          startMinute: input.startMinute,
-          endMinute: input.endMinute,
-          isActive: true,
-        })
-        .returning();
+        }
+        return tx
+          .insert(beWh)
+          .values({
+            organizationId: input.organizationId,
+            specialistId: input.specialistId ?? null,
+            branchId: input.branchId ?? null,
+            roomId: input.roomId ?? null,
+            weekday: input.weekday,
+            startMinute: input.startMinute,
+            endMinute: input.endMinute,
+            isActive: true,
+          })
+          .returning();
+      });
       const row = inserted[0]!;
       return {
         id: row.id,
@@ -511,11 +486,13 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       if (input.startMinute != null) patch.startMinute = input.startMinute;
       if (input.endMinute != null) patch.endMinute = input.endMinute;
       if (input.isActive != null) patch.isActive = input.isActive;
-      const updated = await db
-        .update(beWh)
-        .set(patch)
-        .where(and(eq(beWh.id, input.id), eq(beWh.organizationId, input.organizationId)))
-        .returning();
+      const updated = await db.transaction((tx) =>
+        tx
+          .update(beWh)
+          .set(patch)
+          .where(and(eq(beWh.id, input.id), eq(beWh.organizationId, input.organizationId)))
+          .returning(),
+      );
       const row = updated[0];
       if (!row) throw new Error("working_hours_not_found");
       return {
@@ -533,10 +510,12 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async deactivateWorkingHours(organizationId, id) {
       const db = getDrizzle();
-      await db
-        .update(beWh)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(beWh.id, id), eq(beWh.organizationId, organizationId)));
+      await db.transaction((tx) =>
+        tx
+          .update(beWh)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(beWh.id, id), eq(beWh.organizationId, organizationId))),
+      );
     },
 
     // ── Per-date working days ────────────────────────────────────────────────

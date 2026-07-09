@@ -1,9 +1,28 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../_requireAdminBookingEngine", () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 const listWorkingHoursAdminMock = vi.hoisted(() => vi.fn());
@@ -29,6 +48,18 @@ import { GET, POST, PATCH, DELETE } from "./route";
 describe("/api/admin/booking-engine/working-hours", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
+    createWorkingHoursMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return { id: "wh-1" };
+    });
+    updateWorkingHoursMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return { id: "wh-1" };
+    });
+    deactivateWorkingHoursMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
   });
 
   it("GET returns rows and fallback flag", async () => {
@@ -44,6 +75,7 @@ describe("/api/admin/booking-engine/working-hours", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.usesFallback).toBe(true);
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("POST creates working hours row", async () => {
@@ -51,8 +83,6 @@ describe("/api/admin/booking-engine/working-hours", () => {
       ok: true,
       ctx: { organizationId: "org-1" },
     });
-    createWorkingHoursMock.mockResolvedValue({ id: "wh-1" });
-
     const res = await POST(
       new Request("http://localhost/api/admin/booking-engine/working-hours", {
         method: "POST",
@@ -62,6 +92,11 @@ describe("/api/admin/booking-engine/working-hours", () => {
     );
     expect(res.status).toBe(200);
     expect(createWorkingHoursMock).toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "admin.booking-engine.working-hours.create",
+      expect.any(Function),
+    );
   });
 
   it("POST rejects startMinute >= endMinute", async () => {
@@ -86,8 +121,6 @@ describe("/api/admin/booking-engine/working-hours", () => {
       ok: true,
       ctx: { organizationId: "org-1" },
     });
-    updateWorkingHoursMock.mockResolvedValue({ id: "wh-1" });
-
     const res = await PATCH(
       new Request("http://localhost/api/admin/booking-engine/working-hours", {
         method: "PATCH",
@@ -97,6 +130,11 @@ describe("/api/admin/booking-engine/working-hours", () => {
     );
     expect(res.status).toBe(200);
     expect(updateWorkingHoursMock).toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "admin.booking-engine.working-hours.update",
+      expect.any(Function),
+    );
   });
 
   it("DELETE deactivates working hours row", async () => {
@@ -110,8 +148,13 @@ describe("/api/admin/booking-engine/working-hours", () => {
     );
     expect(res.status).toBe(200);
     expect(deactivateWorkingHoursMock).toHaveBeenCalledWith(
-      "11111111-1111-4111-8111-111111111111",
       "org-1",
+      "11111111-1111-4111-8111-111111111111",
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "admin.booking-engine.working-hours.deactivate",
+      expect.any(Function),
     );
   });
 });
