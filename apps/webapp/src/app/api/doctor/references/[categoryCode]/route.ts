@@ -3,6 +3,8 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -53,13 +55,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ categoryCode: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { categoryCode } = await context.params;
   if (!categoryCode?.trim()) {
@@ -82,11 +79,13 @@ export async function POST(
   }
 
   try {
-    const item = await deps.references.insertItem({
-      categoryCode: cat.code,
-      code: makeDoctorItemCode(),
-      title: parsed.data.title,
-    });
+    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.references.insertItem({
+        categoryCode: cat.code,
+        code: makeDoctorItemCode(),
+        title: parsed.data.title,
+      }),
+    );
     return NextResponse.json({
       ok: true,
       item: { id: item.id, code: item.code, title: item.title },

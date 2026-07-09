@@ -1,8 +1,12 @@
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, or } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { courses as coursesTable } from "../../../db/schema/courses";
+import { contentPages } from "../../../db/schema/schema";
+import { treatmentProgramTemplates } from "../../../db/schema/treatmentProgramTemplates";
 import type { CoursesPort } from "@/modules/courses/ports";
 import type {
   CourseRecord,
@@ -13,6 +17,34 @@ import type {
   UpdateCourseInput,
 } from "@/modules/courses/types";
 import { COURSE_USAGE_DETAIL_LIMIT } from "@/modules/courses/types";
+
+function optionalPrincipalOrganizationId(): string | null {
+  return getCurrentDbPrincipalOrganizationId() ?? null;
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = optionalPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId;
+}
+
+function organizationReadCondition(organizationId: string | null) {
+  if (!organizationId) return undefined;
+  return or(eq(coursesTable.organizationId, organizationId), isNull(coursesTable.organizationId));
+}
 
 function mapRow(row: typeof coursesTable.$inferSelect): CourseRecord {
   return {
@@ -80,6 +112,11 @@ async function loadCourseUsageSummary(
   courseId: string,
 ): Promise<CourseUsageSnapshot | null> {
   const lim = COURSE_USAGE_DETAIL_LIMIT;
+  const principalOrganizationId = optionalPrincipalOrganizationId();
+  const organizationPredicate = principalOrganizationId
+    ? ` AND (c.organization_id = $2::uuid OR c.organization_id IS NULL)`
+    : "";
+  const values = principalOrganizationId ? [courseId, principalOrganizationId] : [courseId];
   const r = await runPgPoolPgText<{
     tpl_id: string | null;
     tpl_title: string | null;
@@ -165,8 +202,8 @@ async function loadCourseUsageSummary(
           ) q) AS arch_page_refs
      FROM courses c
      LEFT JOIN treatment_program_templates tpl ON tpl.id = c.program_template_id
-     WHERE c.id = $1::uuid`,
-    [courseId],
+     WHERE c.id = $1::uuid${organizationPredicate}`,
+    values,
   );
   const row = r.rows[0];
   if (!row || row.tpl_id == null || row.tpl_id === "") return null;
@@ -214,6 +251,8 @@ export function createPgCoursesPort(): CoursesPort {
     async listForDoctor(filter) {
       const db = getDrizzle();
       const conds = [];
+      const orgCond = organizationReadCondition(optionalPrincipalOrganizationId());
+      if (orgCond) conds.push(orgCond);
       if (filter.status) {
         conds.push(eq(coursesTable.status, filter.status));
       } else if (!filter.includeArchived) {
@@ -229,34 +268,56 @@ export function createPgCoursesPort(): CoursesPort {
 
     async getById(id) {
       const db = getDrizzle();
-      const rows = await db.select().from(coursesTable).where(eq(coursesTable.id, id)).limit(1);
+      const orgCond = organizationReadCondition(optionalPrincipalOrganizationId());
+      const rows = await db
+        .select()
+        .from(coursesTable)
+        .where(and(eq(coursesTable.id, id), ...(orgCond ? [orgCond] : [])))
+        .limit(1);
       return rows[0] ? mapRow(rows[0]) : null;
     },
 
     async create(input: CreateCourseInput) {
-      const db = getDrizzle();
+      const organizationId = currentPrincipalOrganizationId();
       const access = input.accessSettings ?? {};
-      const rows = await db
-        .insert(coursesTable)
-        .values({
-          title: input.title,
-          description: input.description ?? null,
-          programTemplateId: input.programTemplateId,
-          introLessonPageId: input.introLessonPageId ?? null,
-          accessSettings: access,
-          status: input.status ?? "draft",
-          priceMinor: input.priceMinor ?? 0,
-          currency: input.currency ?? "RUB",
-        })
-        .returning();
+      const rows = await runDrizzleMutationTransaction(async (tx) => {
+        const [template] = await tx
+          .select({ organizationId: treatmentProgramTemplates.organizationId })
+          .from(treatmentProgramTemplates)
+          .where(eq(treatmentProgramTemplates.id, input.programTemplateId))
+          .limit(1);
+        currentWriteOrganizationId(template?.organizationId);
+        if (input.introLessonPageId) {
+          const [page] = await tx
+            .select({ organizationId: contentPages.organizationId })
+            .from(contentPages)
+            .where(eq(contentPages.id, input.introLessonPageId))
+            .limit(1);
+          currentWriteOrganizationId(page?.organizationId);
+        }
+        return tx
+          .insert(coursesTable)
+          .values({
+            organizationId,
+            title: input.title,
+            description: input.description ?? null,
+            programTemplateId: input.programTemplateId,
+            introLessonPageId: input.introLessonPageId ?? null,
+            accessSettings: access,
+            status: input.status ?? "draft",
+            priceMinor: input.priceMinor ?? 0,
+            currency: input.currency ?? "RUB",
+          })
+          .returning();
+      });
       const row = rows[0];
       if (!row) throw new Error("Не удалось создать курс");
       return mapRow(row);
     },
 
     async update(id, patch: UpdateCourseInput) {
-      const db = getDrizzle();
       const sets: Partial<typeof coursesTable.$inferInsert> = {
+        organizationId: currentPrincipalOrganizationId(),
         updatedAt: new Date().toISOString(),
       };
       if (patch.title !== undefined) sets.title = patch.title;
@@ -268,11 +329,36 @@ export function createPgCoursesPort(): CoursesPort {
       if (patch.priceMinor !== undefined) sets.priceMinor = patch.priceMinor;
       if (patch.currency !== undefined) sets.currency = patch.currency;
 
-      const rows = await db
-        .update(coursesTable)
-        .set(sets)
-        .where(eq(coursesTable.id, id))
-        .returning();
+      const rows = await runDrizzleMutationTransaction(async (tx) => {
+        const [existing] = await tx
+          .select({ organizationId: coursesTable.organizationId })
+          .from(coursesTable)
+          .where(eq(coursesTable.id, id))
+          .limit(1);
+        if (!existing) return [];
+        currentWriteOrganizationId(existing.organizationId);
+        if (patch.programTemplateId !== undefined) {
+          const [template] = await tx
+            .select({ organizationId: treatmentProgramTemplates.organizationId })
+            .from(treatmentProgramTemplates)
+            .where(eq(treatmentProgramTemplates.id, patch.programTemplateId))
+            .limit(1);
+          currentWriteOrganizationId(template?.organizationId);
+        }
+        if (patch.introLessonPageId !== undefined && patch.introLessonPageId !== null) {
+          const [page] = await tx
+            .select({ organizationId: contentPages.organizationId })
+            .from(contentPages)
+            .where(eq(contentPages.id, patch.introLessonPageId))
+            .limit(1);
+          currentWriteOrganizationId(page?.organizationId);
+        }
+        return tx
+          .update(coursesTable)
+          .set(sets)
+          .where(eq(coursesTable.id, id))
+          .returning();
+      });
       return rows[0] ? mapRow(rows[0]) : null;
     },
 

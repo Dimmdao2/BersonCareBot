@@ -1,15 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { insertMock, findCatMock, listMock, buildAppDepsMock, getSessionMock } = vi.hoisted(() => {
+const {
+  insertMock,
+  findCatMock,
+  listMock,
+  buildAppDepsMock,
+  getSessionMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+} = vi.hoisted(() => {
   const insertMockInner = vi.fn();
   const findCatMockInner = vi.fn();
   const listMockInner = vi.fn();
   const getSessionMockInner = vi.fn();
+  const requireDoctorWorkspaceApiContextMockInner = vi.fn();
+  const withDoctorWorkspacePrincipalMockInner = vi.fn((_: unknown, fn: () => unknown) => fn());
   return {
     insertMock: insertMockInner,
     findCatMock: findCatMockInner,
     listMock: listMockInner,
     getSessionMock: getSessionMockInner,
+    requireDoctorWorkspaceApiContextMock: requireDoctorWorkspaceApiContextMockInner,
+    withDoctorWorkspacePrincipalMock: withDoctorWorkspacePrincipalMockInner,
     buildAppDepsMock: vi.fn(() => ({
       references: {
         insertItem: insertMockInner,
@@ -26,6 +38,13 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getSessionMock,
 }));
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
+}));
 
 import { GET, POST } from "./route";
 
@@ -35,6 +54,13 @@ describe("/api/doctor/references/[categoryCode]", () => {
     findCatMock.mockReset();
     listMock.mockReset();
     getSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "org-1", session: { user: { userId: "d1", role: "doctor" } } },
+    });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
   });
 
   it("GET returns 401 without session", async () => {
@@ -93,7 +119,10 @@ describe("/api/doctor/references/[categoryCode]", () => {
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
     const res = await POST(
       new Request("http://localhost/api/doctor/references/symptom_type", {
         method: "POST",
@@ -106,8 +135,9 @@ describe("/api/doctor/references/[categoryCode]", () => {
   });
 
   it("returns 403 for non-doctor session", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "p1", role: "client", displayName: "P", bindings: {} },
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
     });
     const res = await POST(
       new Request("http://localhost/api/doctor/references/symptom_type", {
@@ -153,6 +183,10 @@ describe("/api/doctor/references/[categoryCode]", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean };
     expect(data.ok).toBe(true);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      expect.any(Function),
+    );
   });
 
   it("returns 403 when category is not user-extensible", async () => {
