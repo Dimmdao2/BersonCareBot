@@ -179,4 +179,17 @@ describe("doctor support/task workspace principal cutover", () => {
       expect(src).toContain("gate.ctx.organizationId");
     }
   });
+
+  it("doctor supplementary contact routes require selected workspace membership before contact operations", () => {
+    for (const file of [
+      "src/app/api/doctor/clients/[userId]/supplementary-contacts/route.ts",
+      "src/app/api/doctor/clients/[userId]/supplementary-contacts/[contactId]/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("withDoctorWorkspacePrincipal");
+      expect(src).toContain("gate.ctx.organizationId");
+    }
+  });
 });

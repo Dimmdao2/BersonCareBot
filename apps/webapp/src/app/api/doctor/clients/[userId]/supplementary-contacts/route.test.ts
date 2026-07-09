@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 import { PlatformUserContactValidationError } from "@/modules/platform-user-contacts/types";
 
-const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
+const getClientIdentityForOrganizationMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getCurrentSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -14,17 +22,27 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 const uid = "a0000000-0000-4000-8000-000000000001";
 const contactId = "b0000000-0000-4000-8000-000000000002";
+const organizationId = "d0000000-0000-4000-8000-000000000001";
 
 describe("doctor supplementary-contacts routes", () => {
   beforeEach(() => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+    vi.clearAllMocks();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId,
+        session: { user: { userId: "doc-1", role: "doctor" } },
+      },
+    });
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    getClientIdentityForOrganizationMock.mockResolvedValue({
+      userId: uid,
+      phone: "+79001112233",
+      email: "identity@example.com",
+    });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentity: vi.fn().mockResolvedValue({
-          userId: uid,
-          phone: "+79001112233",
-          email: "identity@example.com",
-        }),
+        getClientIdentityForOrganization: getClientIdentityForOrganizationMock,
       },
       platformUserContacts: {
         listForPlatformUser: vi.fn().mockResolvedValue([
@@ -67,6 +85,41 @@ describe("doctor supplementary-contacts routes", () => {
     const json = (await res.json()) as { ok?: boolean; contacts?: { id: string }[] };
     expect(res.status).toBe(200);
     expect(json.contacts?.map((c) => c.id)).toEqual([contactId]);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(uid, organizationId);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+      expect.any(Function),
+    );
+  });
+
+  it("GET returns workspace gate response when doctor workspace is unavailable", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "organization_selection_required" }, { status: 409 }),
+    });
+
+    const { GET } = await import("./route");
+    const res = await GET(new Request("http://localhost"), { params: Promise.resolve({ userId: uid }) });
+
+    expect(res.status).toBe(409);
+    expect(buildAppDepsMock).not.toHaveBeenCalled();
+  });
+
+  it("POST returns 404 when client is outside selected organization", async () => {
+    getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactType: "email", value: "alt@example.com" }),
+      }),
+      { params: Promise.resolve({ userId: uid }) },
+    );
+
+    expect(res.status).toBe(404);
+    expect(buildAppDepsMock().platformUserContacts.upsertIfNotIdentityDuplicate).not.toHaveBeenCalled();
   });
 
   it("POST rejects identity duplicate", async () => {
@@ -86,6 +139,7 @@ describe("doctor supplementary-contacts routes", () => {
     const json = (await res.json()) as { ok?: boolean; error?: string };
     expect(res.status).toBe(400);
     expect(json.error).toBe("matches_identity");
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(uid, organizationId);
   });
 
   it("DELETE removes contact", async () => {
@@ -96,7 +150,24 @@ describe("doctor supplementary-contacts routes", () => {
     const json = (await res.json()) as { ok?: boolean };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(uid, organizationId);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+      expect.any(Function),
+    );
     expect(buildAppDepsMock().platformUserContacts.deleteStaffManagedContact).toHaveBeenCalled();
+  });
+
+  it("DELETE returns 404 when client is outside selected organization", async () => {
+    getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
+
+    const { DELETE } = await import("./[contactId]/route");
+    const res = await DELETE(new Request("http://localhost"), {
+      params: Promise.resolve({ userId: uid, contactId }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(buildAppDepsMock().platformUserContacts.deleteStaffManagedContact).not.toHaveBeenCalled();
   });
 
   it("DELETE rejects auto-saved contacts", async () => {
