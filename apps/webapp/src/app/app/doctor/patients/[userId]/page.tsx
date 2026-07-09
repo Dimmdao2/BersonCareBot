@@ -66,12 +66,20 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId)),
     deps.doctorNotes.listForUser(patientUserId),
     deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false),
-    deps.doctorProactiveInsights.listForPatient({ patientUserId, displayIana }),
+    deps.doctorProactiveInsights.listForPatient({
+      patientUserId,
+      organizationId: workspace.organizationId,
+      displayIana,
+    }),
     loadDoctorPatientProgramActivity(
       { programItemDiscussion: deps.programItemDiscussion },
-      { patientUserId, viewerUserId: session.user.userId },
+      {
+        patientUserId,
+        viewerUserId: session.user.userId,
+        organizationId: workspace.organizationId,
+      },
     ),
-    deps.doctorClientsPort.listPatientAppointments(patientUserId),
+    deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
     deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientFiles.listFiles(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId)),

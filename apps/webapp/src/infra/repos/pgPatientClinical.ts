@@ -953,6 +953,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     },
 
     async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+      const organizationId = requiredPrincipalOrganizationId();
       const db = getDrizzle();
       const rows = await db
         .select({ appointmentRecordId: clinicalVisit.appointmentRecordId })
@@ -960,6 +961,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(
           and(
             eq(clinicalVisit.patientUserId, patientUserId),
+            eq(clinicalVisit.organizationId, organizationId),
             // Only non-null links
           ),
         );

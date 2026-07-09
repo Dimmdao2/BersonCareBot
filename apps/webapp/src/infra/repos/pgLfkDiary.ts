@@ -253,6 +253,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
 
   async listSessionsInRange(params) {
     const lim = Math.min(params.limit ?? 2000, 5000);
+    const orgCondition = params.organizationId ? "AND s.organization_id = $5::uuid" : "";
     if (params.complexId) {
       const result = await runWebappPgText<LfkSessionDbRow>(
         `SELECT ${SESSION_SELECT}
@@ -260,13 +261,15 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
          JOIN lfk_complexes c ON c.id = s.complex_id
          WHERE s.user_id = $1 AND s.complex_id = $2
            AND s.completed_at >= $3::timestamptz AND s.completed_at < $4::timestamptz
+           ${orgCondition}
          ORDER BY s.completed_at DESC
-         LIMIT $5`,
+         LIMIT ${params.organizationId ? "$6" : "$5"}`,
         [
           params.userId,
           params.complexId,
           params.fromCompletedAt,
           params.toCompletedAtExclusive,
+          ...(params.organizationId ? [params.organizationId] : []),
           lim,
         ]
       );
@@ -278,9 +281,16 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
        JOIN lfk_complexes c ON c.id = s.complex_id
        WHERE s.user_id = $1
          AND s.completed_at >= $2::timestamptz AND s.completed_at < $3::timestamptz
+         ${params.organizationId ? "AND s.organization_id = $4::uuid" : ""}
        ORDER BY s.completed_at DESC
-       LIMIT $4`,
-      [params.userId, params.fromCompletedAt, params.toCompletedAtExclusive, lim]
+       LIMIT ${params.organizationId ? "$5" : "$4"}`,
+      [
+        params.userId,
+        params.fromCompletedAt,
+        params.toCompletedAtExclusive,
+        ...(params.organizationId ? [params.organizationId] : []),
+        lim,
+      ]
     );
     return result.rows.map(rowToSession);
   },

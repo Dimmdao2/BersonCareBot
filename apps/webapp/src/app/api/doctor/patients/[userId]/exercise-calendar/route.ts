@@ -12,7 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const FALLBACK_IANA = "UTC";
@@ -35,8 +35,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -74,10 +74,18 @@ export async function GET(
   const toCompletedAtExclusive = toExclusive.toISOString().slice(0, 10);
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
 
   // Resolve patient's local timezone for program_action_log date bucketing.
   // Falls back to UTC when the patient hasn't set a timezone yet.
-  const patientIana = (await deps.patientCalendarTimezone.getIanaForUser(userId)) ?? FALLBACK_IANA;
+  const patientIana = (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? FALLBACK_IANA;
 
   // Fetch all three sources in parallel:
   //  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
@@ -85,13 +93,20 @@ export async function GET(
   //  3. program_action_log (done) — treatment program exercise completions (primary source)
   const [sessions, practiceCompletions, programDoneItems] = await Promise.all([
     deps.diaries.listLfkSessionsInRange({
-      userId,
+      userId: patientUserId,
+      organizationId: gate.ctx.organizationId,
       fromCompletedAt: fromDate,
       toCompletedAtExclusive,
     }),
-    deps.patientPractice.listByUserInUtcRange(userId, fromDate, toCompletedAtExclusive),
+    deps.patientPractice.listByUserInUtcRange(
+      patientUserId,
+      fromDate,
+      toCompletedAtExclusive,
+      gate.ctx.organizationId,
+    ),
     deps.programActionLog.listDoneItemsByLocalDateInWindowForPatient({
-      patientUserId: userId,
+      patientUserId,
+      organizationId: gate.ctx.organizationId,
       windowStartUtcIso: fromDate,
       windowEndUtcExclusiveIso: toCompletedAtExclusive,
       displayIana: patientIana,

@@ -239,7 +239,7 @@ export type DoctorClientsPort = {
     audience?: { excludedUserIds?: string[] },
   ): Promise<ClientListItem[]>;
   /** История записей пациента по userId (прошедшие + предстоящие), новые сверху. */
-  listPatientAppointments(userId: string): Promise<PatientAppointmentItem[]>;
+  listPatientAppointments(userId: string, organizationId?: string): Promise<PatientAppointmentItem[]>;
   /**
    * Агрегат шапки карточки пациента (для нового раздела «Пациенты»).
    * Возвращает null, если пользователь не найден или не является клиентом.

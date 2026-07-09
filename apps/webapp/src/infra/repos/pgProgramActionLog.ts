@@ -346,6 +346,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
         .where(
           and(
             eq(logTable.patientUserId, params.patientUserId),
+            params.organizationId ? eq(logTable.organizationId, params.organizationId) : undefined,
             eq(logTable.actionType, "done"),
             gte(logTable.createdAt, params.windowStartUtcIso),
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
@@ -398,6 +399,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
         .where(
           and(
             eq(logTable.patientUserId, params.patientUserId),
+            params.organizationId ? eq(logTable.organizationId, params.organizationId) : undefined,
             eq(logTable.actionType, "done"),
             gte(logTable.createdAt, params.windowStartUtcIso),
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),

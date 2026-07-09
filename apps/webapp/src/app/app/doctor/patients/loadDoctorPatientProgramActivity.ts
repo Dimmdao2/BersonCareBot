@@ -38,7 +38,7 @@ const UNREAD_SCAN_LIMIT = 50;
 
 export async function loadDoctorPatientProgramActivity(
   deps: DoctorPatientProgramActivityDeps,
-  params: { patientUserId: string; viewerUserId: string },
+  params: { patientUserId: string; viewerUserId: string; organizationId?: string },
 ): Promise<DoctorPatientProgramActivity> {
   const patientUserIds = [params.patientUserId];
 
@@ -46,11 +46,13 @@ export async function loadDoctorPatientProgramActivity(
     deps.programItemDiscussion.listUnreadExerciseCommentsForDoctor({
       patientUserIds,
       viewerUserId: params.viewerUserId,
+      organizationId: params.organizationId,
       limit: UNREAD_SCAN_LIMIT,
     }),
     deps.programItemDiscussion.listExerciseCommentsForDoctor({
       patientUserIds,
       viewerUserId: params.viewerUserId,
+      organizationId: params.organizationId,
       limit: 1,
     }),
   ]);

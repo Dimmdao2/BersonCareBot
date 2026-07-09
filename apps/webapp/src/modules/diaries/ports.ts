@@ -122,6 +122,7 @@ export type LfkDiaryPort = {
     userId: string;
     fromCompletedAt: string;
     toCompletedAtExclusive: string;
+    organizationId?: string;
     complexId?: string | null;
     limit?: number;
   }): Promise<LfkSession[]>;

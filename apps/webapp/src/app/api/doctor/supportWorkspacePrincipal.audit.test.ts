@@ -359,6 +359,59 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(page).toContain("listPatientPackagesForUser(patientUserId, workspace.organizationId)");
   });
 
+  it("doctor patient adjunct read routes use selected workspace membership and canonical patient id", () => {
+    for (const file of [
+      "src/app/api/doctor/patients/[userId]/appointments/route.ts",
+      "src/app/api/doctor/patients/[userId]/appointments/unlinked/route.ts",
+      "src/app/api/doctor/patients/[userId]/exercise-calendar/route.ts",
+      "src/app/api/doctor/patients/[userId]/program-activity/route.ts",
+      "src/app/api/doctor/patients/[userId]/proactive-insights/route.ts",
+      "src/app/api/doctor/clients/[userId]/history/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("gate.ctx.organizationId");
+      expect(src).toContain("identity.userId");
+      expect(src).not.toContain("requireDoctorApiSession");
+      expect(src).not.toContain("getDefaultOrganizationId");
+    }
+
+    const unlinkedRoute = readSource("src/app/api/doctor/patients/[userId]/appointments/unlinked/route.ts");
+    expect(unlinkedRoute).toContain("withDoctorWorkspacePrincipal");
+    expect(unlinkedRoute).toContain("listLinkedAppointmentRecordIds(identity.userId)");
+
+    const appointmentsRoute = readSource("src/app/api/doctor/patients/[userId]/appointments/route.ts");
+    expect(appointmentsRoute).toContain("listPatientAppointments(");
+    expect(appointmentsRoute).toContain("gate.ctx.organizationId");
+    const exerciseRoute = readSource("src/app/api/doctor/patients/[userId]/exercise-calendar/route.ts");
+    expect(exerciseRoute).toContain("organizationId: gate.ctx.organizationId");
+    expect(exerciseRoute).toContain("listByUserInUtcRange(");
+    const programActivityRoute = readSource("src/app/api/doctor/patients/[userId]/program-activity/route.ts");
+    expect(programActivityRoute).toContain("organizationId: gate.ctx.organizationId");
+    const proactiveRoute = readSource("src/app/api/doctor/patients/[userId]/proactive-insights/route.ts");
+    expect(proactiveRoute).toContain("organizationId: gate.ctx.organizationId");
+
+    const doctorClientsRepo = readSource("src/infra/repos/pgDoctorClients.ts");
+    expect(doctorClientsRepo).toContain("listPatientAppointments(userId: string, organizationId?: string)");
+    expect(doctorClientsRepo).toContain("bea_scope.organization_id = $2::uuid");
+    const patientPracticeRepo = readSource("src/infra/repos/pgPatientPracticeCompletions.ts");
+    expect(patientPracticeRepo).toContain("eq(patientPracticeCompletions.organizationId, organizationId)");
+    const programActionLogRepo = readSource("src/infra/repos/pgProgramActionLog.ts");
+    expect(programActionLogRepo).toContain("eq(logTable.organizationId, params.organizationId)");
+    const programItemDiscussionRepo = readSource("src/infra/repos/pgProgramItemDiscussion.ts");
+    expect(programItemDiscussionRepo).toContain("eq(treatmentProgramInstances.organizationId, organizationId)");
+    const proactiveRepo = readSource("src/infra/repos/pgDoctorProactiveInsights.ts");
+    expect(proactiveRepo).toContain("dps.organization_id = $2::uuid");
+    expect(proactiveRepo).toContain("tpi.organization_id = $2::uuid");
+
+    const clinicalRepo = readSource("src/infra/repos/pgPatientClinical.ts");
+    expect(clinicalRepo).toContain("listLinkedAppointmentRecordIds(patientUserId");
+    expect(clinicalRepo).toContain("requiredPrincipalOrganizationId()");
+    expect(clinicalRepo).toContain("organization_principal_required");
+    expect(clinicalRepo).toContain("eq(clinicalVisit.organizationId, organizationId)");
+  });
+
   it("patient comorbidities repo stamps and checks organization principal for comorbidity writes", () => {
     const src = readSource("src/infra/repos/pgPatientComorbidities.ts");
     expect(src).toContain("getCurrentDbPrincipalOrganizationId");

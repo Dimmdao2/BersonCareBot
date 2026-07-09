@@ -445,7 +445,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return list;
     },
 
-    async listPatientAppointments(userId: string): Promise<PatientAppointmentItem[]> {
+    async listPatientAppointments(userId: string, organizationId?: string): Promise<PatientAppointmentItem[]> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
 
@@ -573,8 +573,30 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            AND ar.id IS NOT NULL
            AND ar.deleted_at IS NULL
            AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+           AND (
+             $2::uuid IS NULL
+             OR (
+               ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+               AND EXISTS (
+                 SELECT 1
+                 FROM be_appointments bea_scope
+                 WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                   AND bea_scope.organization_id = $2::uuid
+               )
+             )
+             OR EXISTS (
+               SELECT 1
+               FROM be_external_entity_mappings m_scope
+               JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+               WHERE m_scope.external_id = ar.integrator_record_id
+                 AND m_scope.entity_type = 'appointment'
+                 AND m_scope.external_system = 'rubitime'
+                 AND m_scope.organization_id = $2::uuid
+                 AND bea_scope.organization_id = $2::uuid
+             )
+           )
          ORDER BY ar.record_at DESC NULLS LAST`,
-        [canonicalId],
+        [canonicalId, organizationId ?? null],
       );
 
       const now = Date.now();

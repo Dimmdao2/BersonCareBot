@@ -24,6 +24,7 @@ export type PatientPracticePort = {
     userId: string,
     fromUtcIso: string,
     toUtcExclusiveIso: string,
+    organizationId?: string,
   ): Promise<PatientPracticeCompletionRow[]>;
   getByIdForUser(completionId: string, userId: string): Promise<PatientPracticeCompletionRow | null>;
   updateFeelingById(completionId: string, userId: string, feeling: number): Promise<boolean>;

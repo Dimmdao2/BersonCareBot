@@ -19,15 +19,15 @@ import { randomUUID } from "node:crypto";
 // ---------------------------------------------------------------------------
 
 const {
-  requireDoctorApiSessionMock,
+  requireDoctorWorkspaceApiContextMock,
   buildAppDepsMock,
 } = vi.hoisted(() => ({
-  requireDoctorApiSessionMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
   buildAppDepsMock: vi.fn(),
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorApiSession: (...args: unknown[]) => requireDoctorApiSessionMock(...args),
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -40,9 +40,15 @@ import { GET } from "./route";
 // Helpers
 // ---------------------------------------------------------------------------
 
-const DOCTOR_SESSION = {
+const ORG_ID = "10000000-0000-4000-8000-000000000001";
+const CANONICAL_USER_ID = "00000000-0000-4000-8000-0000000000cc";
+
+const DOCTOR_GATE = {
   ok: true as const,
-  session: { user: { userId: "doctor-uuid-111", role: "doctor" } },
+  ctx: {
+    organizationId: ORG_ID,
+    session: { user: { userId: "doctor-uuid-111", role: "doctor" } },
+  },
 };
 
 function makeRequest(userId: string, from?: string, to?: string): Request {
@@ -61,8 +67,14 @@ function makeDeps(overrides: {
   practiceCompletions?: Array<{ completedAt: string; source: string }>;
   programDoneItems?: Array<{ localDate: string; itemId: string; instanceId: string }>;
   patientIana?: string | null;
+  identity?: { userId: string } | null;
 }) {
   return {
+    doctorClientsPort: {
+      getClientIdentityForOrganization: vi.fn().mockResolvedValue(
+        overrides.identity !== undefined ? overrides.identity : { userId: CANONICAL_USER_ID },
+      ),
+    },
     diaries: {
       listLfkSessionsInRange: vi.fn().mockResolvedValue(overrides.lfkSessions ?? []),
     },
@@ -89,11 +101,11 @@ describe("GET /api/doctor/patients/[userId]/exercise-calendar", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    requireDoctorApiSessionMock.mockResolvedValue(DOCTOR_SESSION);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue(DOCTOR_GATE);
   });
 
   it("returns 401 when not authenticated", async () => {
-    requireDoctorApiSessionMock.mockResolvedValue({
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: false,
       response: new Response(null, { status: 401 }),
     });
@@ -108,6 +120,18 @@ describe("GET /api/doctor/patients/[userId]/exercise-calendar", () => {
     const body = await res.json() as { ok: boolean; error: string };
     expect(body.ok).toBe(false);
     expect(body.error).toBe("invalid_date_params");
+  });
+
+  it("returns 404 before loading calendar sources outside selected workspace", async () => {
+    const deps = makeDeps({ identity: null });
+    buildAppDepsMock.mockReturnValue(deps);
+
+    const res = await GET(makeRequest(userId, "2026-06-01", "2026-06-30"), { params: makeParams(userId) });
+
+    expect(res.status).toBe(404);
+    expect(deps.doctorClientsPort.getClientIdentityForOrganization).toHaveBeenCalledWith(userId, ORG_ID);
+    expect(deps.patientCalendarTimezone.getIanaForUser).not.toHaveBeenCalled();
+    expect(deps.diaries.listLfkSessionsInRange).not.toHaveBeenCalled();
   });
 
   it("returns empty days when all sources are empty", async () => {
@@ -173,8 +197,22 @@ describe("GET /api/doctor/patients/[userId]/exercise-calendar", () => {
     const deps = makeDeps({ patientIana: null });
     buildAppDepsMock.mockReturnValue(deps);
     await GET(makeRequest(userId, "2026-06-01", "2026-06-30"), { params: makeParams(userId) });
+    expect(deps.patientCalendarTimezone.getIanaForUser).toHaveBeenCalledWith(CANONICAL_USER_ID);
+    expect(deps.diaries.listLfkSessionsInRange).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: CANONICAL_USER_ID, organizationId: ORG_ID }),
+    );
+    expect(deps.patientPractice.listByUserInUtcRange).toHaveBeenCalledWith(
+      CANONICAL_USER_ID,
+      expect.any(String),
+      expect.any(String),
+      ORG_ID,
+    );
     expect(deps.programActionLog.listDoneItemsByLocalDateInWindowForPatient).toHaveBeenCalledWith(
-      expect.objectContaining({ displayIana: "UTC" }),
+      expect.objectContaining({
+        patientUserId: CANONICAL_USER_ID,
+        organizationId: ORG_ID,
+        displayIana: "UTC",
+      }),
     );
   });
 

@@ -102,7 +102,7 @@ async function queryDoctorExerciseComments(
   input: ListDoctorExerciseCommentsInput,
   opts: { unreadOnly: boolean; showAnswered?: boolean },
 ): Promise<DoctorExerciseCommentRow[]> {
-  const { patientUserIds, assignedByUserId, viewerUserId, limit, cursor } = input;
+  const { patientUserIds, assignedByUserId, viewerUserId, organizationId, limit, cursor } = input;
   // Need at least one scope method.
   if (!assignedByUserId && patientUserIds.length === 0) return [];
   const safeLimit = Math.max(1, Math.trunc(limit));
@@ -170,6 +170,7 @@ async function queryDoctorExerciseComments(
       .where(
         and(
           patientScopeCondition,
+          organizationId ? eq(treatmentProgramInstances.organizationId, organizationId) : undefined,
           eq(treatmentProgramInstances.status, "active"),
           sql`${treatmentProgramInstances.assignmentSource} = ANY(ARRAY['doctor','course']::text[])`,
           eq(treatmentProgramInstanceStageItems.itemType, "exercise"),

@@ -110,7 +110,7 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
       return rows.map(mapRow);
     },
 
-    async listByUserInUtcRange(userId, fromUtcIso, toUtcExclusiveIso) {
+    async listByUserInUtcRange(userId, fromUtcIso, toUtcExclusiveIso, organizationId) {
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -118,6 +118,7 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
         .where(
           and(
             eq(patientPracticeCompletions.userId, userId),
+            organizationId ? eq(patientPracticeCompletions.organizationId, organizationId) : undefined,
             gte(patientPracticeCompletions.completedAt, fromUtcIso),
             lt(patientPracticeCompletions.completedAt, toUtcExclusiveIso),
           ),

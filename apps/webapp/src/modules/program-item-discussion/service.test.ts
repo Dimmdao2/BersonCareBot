@@ -58,6 +58,7 @@ describe("program item discussion service", () => {
 });
 
 const VIEWER = "aaaaaaaa-aaaa-4aaa-8aaa-000000000001";
+const ORG = "dddddddd-dddd-4ddd-8ddd-000000000001";
 const PATIENT_A = "bbbbbbbb-bbbb-4bbb-8bbb-000000000001";
 const PATIENT_B = "bbbbbbbb-bbbb-4bbb-8bbb-000000000002";
 const PATIENT_C = "bbbbbbbb-bbbb-4bbb-8bbb-000000000003";
@@ -85,8 +86,51 @@ describe("listUnreadExerciseCommentsForDoctor — service validation", () => {
     const portFn = vi.fn().mockResolvedValue([]);
     const port = { listUnreadExerciseCommentsForDoctor: portFn } as unknown as ProgramItemDiscussionPort;
     const svc = createProgramItemDiscussionService(port);
-    await svc.listUnreadExerciseCommentsForDoctor({ patientUserIds: [PATIENT_A], viewerUserId: VIEWER, limit: 5 });
-    expect(portFn).toHaveBeenCalledWith({ patientUserIds: [PATIENT_A], viewerUserId: VIEWER, limit: 5, cursor: null });
+    await svc.listUnreadExerciseCommentsForDoctor({
+      patientUserIds: [PATIENT_A],
+      viewerUserId: VIEWER,
+      organizationId: ORG,
+      limit: 5,
+    });
+    expect(portFn).toHaveBeenCalledWith({
+      patientUserIds: [PATIENT_A],
+      viewerUserId: VIEWER,
+      organizationId: ORG,
+      limit: 5,
+      cursor: null,
+    });
+  });
+
+  it("delegates exercise comment history with selected organization", async () => {
+    const portFn = vi.fn().mockResolvedValue([]);
+    const port = { listExerciseCommentsForDoctor: portFn } as unknown as ProgramItemDiscussionPort;
+    const svc = createProgramItemDiscussionService(port);
+    await svc.listExerciseCommentsForDoctor({
+      patientUserIds: [PATIENT_A],
+      viewerUserId: VIEWER,
+      organizationId: ORG,
+      limit: 1,
+    });
+    expect(portFn).toHaveBeenCalledWith({
+      patientUserIds: [PATIENT_A],
+      viewerUserId: VIEWER,
+      organizationId: ORG,
+      limit: 1,
+      cursor: null,
+    });
+  });
+
+  it("rejects invalid organizationId", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    const svc = createProgramItemDiscussionService(port);
+    await expect(
+      svc.listExerciseCommentsForDoctor({
+        patientUserIds: [PATIENT_A],
+        viewerUserId: VIEWER,
+        organizationId: "bad",
+        limit: 1,
+      }),
+    ).rejects.toThrow("organization_id_invalid");
   });
 });
 

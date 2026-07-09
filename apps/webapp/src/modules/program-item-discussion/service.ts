@@ -245,15 +245,20 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
     async listUnreadExerciseCommentsForDoctor(input: {
       patientUserIds: string[];
       viewerUserId: string;
+      organizationId?: string;
       limit: number;
       cursor?: DoctorExerciseCommentCursor | null;
     }): Promise<DoctorExerciseCommentRow[]> {
       const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      const organizationId = input.organizationId
+        ? assertUuid(input.organizationId, "organization_id")
+        : undefined;
       const patientUserIds = [...new Set(input.patientUserIds.map((id) => assertUuid(id, "patient_user_id")))];
       const safeLimit = Math.max(1, Math.trunc(input.limit));
       return port.listUnreadExerciseCommentsForDoctor({
         patientUserIds,
         viewerUserId,
+        organizationId,
         limit: safeLimit,
         cursor: input.cursor ?? null,
       });
@@ -262,15 +267,20 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
     async listExerciseCommentsForDoctor(input: {
       patientUserIds: string[];
       viewerUserId: string;
+      organizationId?: string;
       limit: number;
       cursor?: DoctorExerciseCommentCursor | null;
     }): Promise<DoctorExerciseCommentRow[]> {
       const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      const organizationId = input.organizationId
+        ? assertUuid(input.organizationId, "organization_id")
+        : undefined;
       const patientUserIds = [...new Set(input.patientUserIds.map((id) => assertUuid(id, "patient_user_id")))];
       const safeLimit = Math.max(1, Math.trunc(input.limit));
       return port.listExerciseCommentsForDoctor({
         patientUserIds,
         viewerUserId,
+        organizationId,
         limit: safeLimit,
         cursor: input.cursor ?? null,
       });
