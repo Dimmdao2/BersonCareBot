@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const SpecialistSchema = z.object({
@@ -41,25 +42,37 @@ export async function POST(request: Request) {
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
   if (parsed.data.kind === "service_location") {
-    const row = await gate.ctx.service.services.upsertServiceLocationAvailability({
-      organizationId: gate.ctx.organizationId,
-      serviceId: parsed.data.serviceId,
-      branchId: parsed.data.branchId,
-      isActive: parsed.data.isActive,
-    });
+    const data = parsed.data;
+    const row = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "admin.booking-engine.availability.service-location.upsert",
+      () =>
+        gate.ctx.service.services.upsertServiceLocationAvailability({
+          organizationId: gate.ctx.organizationId,
+          serviceId: data.serviceId,
+          branchId: data.branchId,
+          isActive: data.isActive,
+        }),
+    );
     return NextResponse.json({ ok: true, locationAvailability: row });
   }
-  const row = await gate.ctx.service.services.upsertSpecialistServiceAvailability({
-    organizationId: gate.ctx.organizationId,
-    specialistId: parsed.data.specialistId,
-    serviceId: parsed.data.serviceId,
-    branchId: parsed.data.branchId ?? null,
-    roomId: parsed.data.roomId ?? null,
-    cityCode: parsed.data.cityCode ?? null,
-    durationMinutesOverride: parsed.data.durationMinutesOverride ?? null,
-    priceMinorOverride: parsed.data.priceMinorOverride ?? null,
-    isActive: parsed.data.isActive,
-    sortOrder: parsed.data.sortOrder,
-  });
+  const data = parsed.data;
+  const row = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "admin.booking-engine.availability.specialist-service.upsert",
+    () =>
+      gate.ctx.service.services.upsertSpecialistServiceAvailability({
+        organizationId: gate.ctx.organizationId,
+        specialistId: data.specialistId,
+        serviceId: data.serviceId,
+        branchId: data.branchId ?? null,
+        roomId: data.roomId ?? null,
+        cityCode: data.cityCode ?? null,
+        durationMinutesOverride: data.durationMinutesOverride ?? null,
+        priceMinorOverride: data.priceMinorOverride ?? null,
+        isActive: data.isActive,
+        sortOrder: data.sortOrder,
+      }),
+  );
   return NextResponse.json({ ok: true, specialistAvailability: row });
 }

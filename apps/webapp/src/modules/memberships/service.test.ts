@@ -683,6 +683,54 @@ describe('createMembershipsService', () => {
     ).rejects.toThrow('appointment_already_linked_to_package');
   });
 
+  it('manualConsume runs appointment status transition inside the write runner', async () => {
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([]),
+    });
+    let insideRunner = false;
+    const transitionsInsideRunner: boolean[] = [];
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: 'appt-manual',
+        packageUsageRef: null,
+        status: 'visit_confirmed',
+        organizationId: 'org-1',
+      }),
+      getStatusBeforePackageCharge: vi.fn(),
+      transitionAppointmentStatus: vi.fn().mockImplementation(async () => {
+        transitionsInsideRunner.push(insideRunner);
+      }),
+    };
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+
+    await svc.manualConsume(
+      {
+        organizationId: 'org-1',
+        patientPackageId: 'pp-1',
+        patientPackageItemId: 'i1',
+        appointmentId: 'appt-manual',
+        createdByPlatformUserId: 'doc-1',
+      },
+      {
+        runMembershipWrite: async (fn) => {
+          insideRunner = true;
+          try {
+            return await fn();
+          } finally {
+            insideRunner = false;
+          }
+        },
+      },
+    );
+
+    expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledWith({
+      appointmentId: 'appt-manual',
+      toStatus: 'charged_to_package',
+      payload: { source: 'membership_manual_consume' },
+    });
+    expect(transitionsInsideRunner).toEqual([true]);
+  });
+
   it('unlinkAppointmentFromPackage releases reserve', async () => {
     const port = makePort();
     const svc = createMembershipsService({ port, payments: null, bookingEngine: null });

@@ -32,6 +32,14 @@ function getMembershipsDb(): MembershipsDb {
   return txStorage.getStore() ?? getDrizzle();
 }
 
+async function runMembershipsTransaction<T>(fn: (db: MembershipsDb) => Promise<T>): Promise<T> {
+  const activeTx = txStorage.getStore();
+  if (activeTx) {
+    return fn(activeTx);
+  }
+  return getDrizzle().transaction((tx) => txStorage.run(tx, () => fn(tx)));
+}
+
 async function loadPackageItems(packageIds: string[]): Promise<Map<string, PatientPackageItemRecord[]>> {
   if (packageIds.length === 0) return new Map();
   const db = getMembershipsDb();
@@ -300,11 +308,7 @@ export function createPgMembershipsPort(): MembershipsPort {
         if (!result) throw new Error("package_upsert_failed");
         return result;
       };
-      const activeTx = txStorage.getStore();
-      if (activeTx) {
-        return run(activeTx);
-      }
-      return getDrizzle().transaction((tx) => txStorage.run(tx, () => run(tx)));
+      return runMembershipsTransaction(run);
     },
 
     async getPatientPackage(id, organizationId) {
@@ -359,7 +363,6 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async createManualPatientPackage(input: CreateManualPatientPackageInput) {
-      const db = getMembershipsDb();
       const now = new Date().toISOString();
       const staffSold =
         input.activateImmediately === true ||
@@ -371,96 +374,100 @@ export function createPgMembershipsPort(): MembershipsPort {
       const soldAt = input.soldAt ?? (staffSold ? now : null);
       const paidAmountMinor = input.paidAmountMinor ?? (staffSold ? input.priceMinor : null);
       const paidCurrency = input.paidCurrency ?? input.currency ?? "RUB";
-      const inserted = await db
-        .insert(bePatientPackages)
-        .values({
-          organizationId: input.organizationId,
-          platformUserId: input.platformUserId,
-          status,
-          title: input.title?.trim() || "Индивидуальный",
-          priceMinor: input.priceMinor,
-          currency: input.currency ?? "RUB",
-          validityDays: input.validityDays ?? null,
-          deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
-          assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
-          notes: input.notes ?? null,
-          soldAt,
-          paidAmountMinor,
-          paidCurrency: staffSold || paidAmountMinor != null ? paidCurrency : null,
-          validFrom: status === "active" ? now : null,
-          validUntil:
-            status === "active" && input.validityDays
-              ? new Date(Date.now() + input.validityDays * 86400000).toISOString()
-              : null,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-      const pkgId = inserted[0]!.id;
-      await db.insert(bePatientPackageItems).values(
-        input.items.map((it, idx) => ({
-          patientPackageId: pkgId,
-          serviceId: it.serviceId,
-          quantityInitial: it.quantity,
-          sortOrder: it.sortOrder ?? idx,
-          createdAt: now,
-        })),
-      );
-      const pkg = await this.getPatientPackage(pkgId, input.organizationId);
-      if (!pkg) throw new Error("package_create_failed");
-      return pkg;
+      return runMembershipsTransaction(async (db) => {
+        const inserted = await db
+          .insert(bePatientPackages)
+          .values({
+            organizationId: input.organizationId,
+            platformUserId: input.platformUserId,
+            status,
+            title: input.title?.trim() || "Индивидуальный",
+            priceMinor: input.priceMinor,
+            currency: input.currency ?? "RUB",
+            validityDays: input.validityDays ?? null,
+            deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
+            assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
+            notes: input.notes ?? null,
+            soldAt,
+            paidAmountMinor,
+            paidCurrency: staffSold || paidAmountMinor != null ? paidCurrency : null,
+            validFrom: status === "active" ? now : null,
+            validUntil:
+              status === "active" && input.validityDays
+                ? new Date(Date.now() + input.validityDays * 86400000).toISOString()
+                : null,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning();
+        const pkgId = inserted[0]!.id;
+        await db.insert(bePatientPackageItems).values(
+          input.items.map((it, idx) => ({
+            patientPackageId: pkgId,
+            serviceId: it.serviceId,
+            quantityInitial: it.quantity,
+            sortOrder: it.sortOrder ?? idx,
+            createdAt: now,
+          })),
+        );
+        const pkg = await this.getPatientPackage(pkgId, input.organizationId);
+        if (!pkg) throw new Error("package_create_failed");
+        return pkg;
+      });
     },
 
     async offerCatalogPackageToPatient(input) {
       const catalog = await this.getCatalogPackage(input.subscriptionPackageId, input.organizationId);
       if (!catalog) throw new Error("catalog_not_found");
-      const db = getMembershipsDb();
       const now = new Date().toISOString();
-      const inserted = await db
-        .insert(bePatientPackages)
-        .values({
-          organizationId: input.organizationId,
-          platformUserId: input.platformUserId,
-          subscriptionPackageId: catalog.id,
-          status: "offered",
-          title: catalog.title,
-          priceMinor: catalog.priceMinor,
-          currency: catalog.currency,
-          validityDays: catalog.validityDays,
-          deductionMode: catalog.deductionMode,
-          assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
-          notes: input.notes ?? null,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-      const pkgId = inserted[0]!.id;
-      await db.insert(bePatientPackageItems).values(
-        catalog.items.map((it, idx) => ({
-          patientPackageId: pkgId,
-          serviceId: it.serviceId,
-          quantityInitial: it.quantity,
-          sortOrder: it.sortOrder ?? idx,
-          createdAt: now,
-        })),
-      );
-      const pkg = await this.getPatientPackage(pkgId, input.organizationId);
-      if (!pkg) throw new Error("package_offer_failed");
-      return pkg;
+      return runMembershipsTransaction(async (db) => {
+        const inserted = await db
+          .insert(bePatientPackages)
+          .values({
+            organizationId: input.organizationId,
+            platformUserId: input.platformUserId,
+            subscriptionPackageId: catalog.id,
+            status: "offered",
+            title: catalog.title,
+            priceMinor: catalog.priceMinor,
+            currency: catalog.currency,
+            validityDays: catalog.validityDays,
+            deductionMode: catalog.deductionMode,
+            assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
+            notes: input.notes ?? null,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning();
+        const pkgId = inserted[0]!.id;
+        await db.insert(bePatientPackageItems).values(
+          catalog.items.map((it, idx) => ({
+            patientPackageId: pkgId,
+            serviceId: it.serviceId,
+            quantityInitial: it.quantity,
+            sortOrder: it.sortOrder ?? idx,
+            createdAt: now,
+          })),
+        );
+        const pkg = await this.getPatientPackage(pkgId, input.organizationId);
+        if (!pkg) throw new Error("package_offer_failed");
+        return pkg;
+      });
     },
 
     async updatePatientPackageNotes(id, organizationId, notes) {
-      const db = getMembershipsDb();
       const now = new Date().toISOString();
-      const rows = await db
-        .update(bePatientPackages)
-        .set({ notes, updatedAt: now })
-        .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
-        .returning();
-      const row = rows[0];
-      if (!row) return null;
-      const itemsMap = await loadPackageItems([id]);
-      return mapPatientPackage(row, itemsMap.get(id) ?? []);
+      return runMembershipsTransaction(async (db) => {
+        const rows = await db
+          .update(bePatientPackages)
+          .set({ notes, updatedAt: now })
+          .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
+          .returning();
+        const row = rows[0];
+        if (!row) return null;
+        const itemsMap = await loadPackageItems([id]);
+        return mapPatientPackage(row, itemsMap.get(id) ?? []);
+      });
     },
 
     async listPackageAppointmentSessionSources(patientPackageId, organizationId, options) {
@@ -614,7 +621,6 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async setPatientPackageStatus(id, organizationId, status, patch) {
-      const db = getMembershipsDb();
       const now = new Date().toISOString();
       const set: Partial<typeof bePatientPackages.$inferInsert> = { status, updatedAt: now };
       if (patch?.paymentIntentId !== undefined) set.paymentIntentId = patch.paymentIntentId;
@@ -624,36 +630,39 @@ export function createPgMembershipsPort(): MembershipsPort {
       if (patch?.soldAt !== undefined) set.soldAt = patch.soldAt;
       if (patch?.paidAmountMinor !== undefined) set.paidAmountMinor = patch.paidAmountMinor;
       if (patch?.paidCurrency !== undefined) set.paidCurrency = patch.paidCurrency;
-      const rows = await db
-        .update(bePatientPackages)
-        .set(set)
-        .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
-        .returning();
-      const row = rows[0];
-      if (!row) return null;
-      const itemsMap = await loadPackageItems([id]);
-      return mapPatientPackage(row, itemsMap.get(id) ?? []);
+      return runMembershipsTransaction(async (db) => {
+        const rows = await db
+          .update(bePatientPackages)
+          .set(set)
+          .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
+          .returning();
+        const row = rows[0];
+        if (!row) return null;
+        const itemsMap = await loadPackageItems([id]);
+        return mapPatientPackage(row, itemsMap.get(id) ?? []);
+      });
     },
 
     async appendUsage(input) {
-      const db = getMembershipsDb();
       const now = new Date().toISOString();
-      const inserted = await db
-        .insert(bePackageUsages)
-        .values({
-          organizationId: input.organizationId,
-          patientPackageId: input.patientPackageId,
-          patientPackageItemId: input.patientPackageItemId,
-          appointmentId: input.appointmentId ?? null,
-          usageKind: input.usageKind,
-          quantity: input.quantity ?? 1,
-          comment: input.comment ?? null,
-          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-          occurredAt: now,
-          createdAt: now,
-        })
-        .returning();
-      return mapUsage(inserted[0]!);
+      return runMembershipsTransaction(async (db) => {
+        const inserted = await db
+          .insert(bePackageUsages)
+          .values({
+            organizationId: input.organizationId,
+            patientPackageId: input.patientPackageId,
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId ?? null,
+            usageKind: input.usageKind,
+            quantity: input.quantity ?? 1,
+            comment: input.comment ?? null,
+            createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+            occurredAt: now,
+            createdAt: now,
+          })
+          .returning();
+        return mapUsage(inserted[0]!);
+      });
     },
 
     async listUsagesForPackage(patientPackageId, organizationId) {
@@ -784,13 +793,14 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async appendHistoryEvent(input) {
-      const db = getMembershipsDb();
-      await db.insert(bePackageHistoryEvents).values({
-        organizationId: input.organizationId,
-        patientPackageId: input.patientPackageId,
-        eventType: input.eventType,
-        payloadJson: input.payloadJson ?? {},
-        occurredAt: new Date().toISOString(),
+      await runMembershipsTransaction(async (db) => {
+        await db.insert(bePackageHistoryEvents).values({
+          organizationId: input.organizationId,
+          patientPackageId: input.patientPackageId,
+          eventType: input.eventType,
+          payloadJson: input.payloadJson ?? {},
+          occurredAt: new Date().toISOString(),
+        });
       });
     },
 
@@ -815,11 +825,12 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async setAppointmentPackageUsageRef(appointmentId, usageRef) {
-      const db = getMembershipsDb();
-      await db
-        .update(beAppointments)
-        .set({ packageUsageRef: usageRef, updatedAt: new Date().toISOString() })
-        .where(eq(beAppointments.id, appointmentId));
+      await runMembershipsTransaction(async (db) => {
+        await db
+          .update(beAppointments)
+          .set({ packageUsageRef: usageRef, updatedAt: new Date().toISOString() })
+          .where(eq(beAppointments.id, appointmentId));
+      });
     },
 
     async recalcCorrectCanceledAppointment(input) {

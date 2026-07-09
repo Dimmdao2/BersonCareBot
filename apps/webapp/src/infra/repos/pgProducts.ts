@@ -135,16 +135,18 @@ export function createPgProductsPort(): ProductsPort {
 
     async createPayLink(input) {
       const db = getDrizzle();
-      const [row] = await db
-        .insert(beProductPayLinks)
-        .values({
-          organizationId: input.organizationId,
-          productId: input.productId,
-          token: input.token,
-          expiresAt: input.expiresAt ?? null,
-          maxUses: input.maxUses ?? null,
-        })
-        .returning();
+      const [row] = await db.transaction((tx) =>
+        tx
+          .insert(beProductPayLinks)
+          .values({
+            organizationId: input.organizationId,
+            productId: input.productId,
+            token: input.token,
+            expiresAt: input.expiresAt ?? null,
+            maxUses: input.maxUses ?? null,
+          })
+          .returning(),
+      );
       return mapPayLink(row);
     },
 
@@ -283,22 +285,26 @@ export function createPgProductsPort(): ProductsPort {
       if (patch?.buyerPhoneNormalized !== undefined) {
         set.buyerPhoneNormalized = patch.buyerPhoneNormalized;
       }
-      const [row] = await db
-        .update(beProductPurchases)
-        .set(set)
-        .where(and(eq(beProductPurchases.id, id), eq(beProductPurchases.organizationId, organizationId)))
-        .returning();
+      const [row] = await db.transaction((tx) =>
+        tx
+          .update(beProductPurchases)
+          .set(set)
+          .where(and(eq(beProductPurchases.id, id), eq(beProductPurchases.organizationId, organizationId)))
+          .returning(),
+      );
       return row ? mapPurchase(row) : null;
     },
 
     async appendHistoryEvent(input) {
       const db = getDrizzle();
-      await db.insert(beProductHistoryEvents).values({
-        organizationId: input.organizationId,
-        productPurchaseId: input.productPurchaseId,
-        eventType: input.eventType,
-        payloadJson: input.payloadJson ?? {},
-      });
+      await db.transaction((tx) =>
+        tx.insert(beProductHistoryEvents).values({
+          organizationId: input.organizationId,
+          productPurchaseId: input.productPurchaseId,
+          eventType: input.eventType,
+          payloadJson: input.payloadJson ?? {},
+        }),
+      );
     },
   };
 }

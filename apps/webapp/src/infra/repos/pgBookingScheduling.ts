@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
 import type { BreakInterval } from "@/modules/booking-scheduling/ports";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
 import {
   beAppointments,
@@ -291,33 +292,34 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
     },
 
     async upsertBufferMinutes({ organizationId, specialistId, minutes }) {
-      const db = getDrizzle();
       const safeMinutes = Math.max(0, Math.min(240, Math.round(minutes)));
       const scopeConds = [
         eq(beAvailabilityRules.organizationId, organizationId),
         eq(beAvailabilityRules.ruleType, "buffer_minutes"),
         specialistId ? eq(beAvailabilityRules.specialistId, specialistId) : isNull(beAvailabilityRules.specialistId),
       ];
-      const existing = await db
-        .select({ id: beAvailabilityRules.id })
-        .from(beAvailabilityRules)
-        .where(and(...scopeConds))
-        .limit(1);
       const now = new Date().toISOString();
-      if (existing[0]) {
-        await db
-          .update(beAvailabilityRules)
-          .set({ config: { minutes: safeMinutes }, isActive: true, updatedAt: now })
-          .where(eq(beAvailabilityRules.id, existing[0].id));
-        return;
-      }
-      await db.insert(beAvailabilityRules).values({
-        organizationId,
-        specialistId: specialistId ?? null,
-        branchId: null,
-        ruleType: "buffer_minutes",
-        config: { minutes: safeMinutes },
-        isActive: true,
+      await runWebappTransaction(async (tx) => {
+        const existing = await tx
+          .select({ id: beAvailabilityRules.id })
+          .from(beAvailabilityRules)
+          .where(and(...scopeConds))
+          .limit(1);
+        if (existing[0]) {
+          await tx
+            .update(beAvailabilityRules)
+            .set({ config: { minutes: safeMinutes }, isActive: true, updatedAt: now })
+            .where(eq(beAvailabilityRules.id, existing[0].id));
+          return;
+        }
+        await tx.insert(beAvailabilityRules).values({
+          organizationId,
+          specialistId: specialistId ?? null,
+          branchId: null,
+          ruleType: "buffer_minutes",
+          config: { minutes: safeMinutes },
+          isActive: true,
+        });
       });
     },
 

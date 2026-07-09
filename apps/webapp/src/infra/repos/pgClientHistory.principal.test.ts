@@ -75,4 +75,54 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
     );
     expect(returning).toHaveBeenCalledTimes(1);
   });
+
+  it("upserts booking profiles through db.transaction", async () => {
+    const selectLimit = vi.fn(async () => []);
+    const selectWhere = vi.fn(() => ({ limit: selectLimit }));
+    const selectFrom = vi.fn(() => ({ where: selectWhere }));
+    const select = vi.fn(() => ({ from: selectFrom }));
+    const returning = vi.fn(async () => [
+      {
+        platformUserId: PATIENT,
+        organizationId: ORG,
+        isProblematic: true,
+        bookingBlocked: false,
+        problematicNote: null,
+        updatedAt: "2026-07-09T00:00:00.000Z",
+        updatedBy: DOCTOR,
+      },
+    ]);
+    const values = vi.fn(() => ({ returning }));
+    const insert = vi.fn(() => ({ values }));
+    const tx = { insert };
+    const db = {
+      select,
+      insert: vi.fn(() => {
+        throw new Error("db insert should not run outside transaction");
+      }),
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgClientHistoryPort();
+    const row = await port.upsertBookingProfile({
+      organizationId: ORG,
+      platformUserId: PATIENT,
+      isProblematic: true,
+      updatedBy: DOCTOR,
+    });
+
+    expect(row).toEqual(
+      expect.objectContaining({
+        organizationId: ORG,
+        platformUserId: PATIENT,
+        isProblematic: true,
+      }),
+    );
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(db.insert).not.toHaveBeenCalled();
+  });
 });

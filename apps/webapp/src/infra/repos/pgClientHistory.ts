@@ -803,38 +803,42 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       const now = new Date().toISOString();
       const existing = await this.getBookingProfile(input.organizationId, input.platformUserId);
       if (existing) {
-        const rows = await db
-          .update(bePatientBookingProfiles)
-          .set({
-            isProblematic: input.isProblematic ?? existing.isProblematic,
-            bookingBlocked: input.bookingBlocked ?? existing.bookingBlocked,
-            problematicNote:
-              input.problematicNote !== undefined ? input.problematicNote : existing.problematicNote,
-            updatedAt: now,
-            updatedBy: input.updatedBy,
-          })
-          .where(
-            and(
-              eq(bePatientBookingProfiles.organizationId, input.organizationId),
-              eq(bePatientBookingProfiles.platformUserId, input.platformUserId),
-            ),
-          )
-          .returning();
+        const rows = await db.transaction((tx) =>
+          tx
+            .update(bePatientBookingProfiles)
+            .set({
+              isProblematic: input.isProblematic ?? existing.isProblematic,
+              bookingBlocked: input.bookingBlocked ?? existing.bookingBlocked,
+              problematicNote:
+                input.problematicNote !== undefined ? input.problematicNote : existing.problematicNote,
+              updatedAt: now,
+              updatedBy: input.updatedBy,
+            })
+            .where(
+              and(
+                eq(bePatientBookingProfiles.organizationId, input.organizationId),
+                eq(bePatientBookingProfiles.platformUserId, input.platformUserId),
+              ),
+            )
+            .returning(),
+        );
         return mapProfile(rows[0]!);
       }
 
-      const rows = await db
-        .insert(bePatientBookingProfiles)
-        .values({
-          organizationId: input.organizationId,
-          platformUserId: input.platformUserId,
-          isProblematic: input.isProblematic ?? false,
-          bookingBlocked: input.bookingBlocked ?? false,
-          problematicNote: input.problematicNote ?? null,
-          updatedAt: now,
-          updatedBy: input.updatedBy,
-        })
-        .returning();
+      const rows = await db.transaction((tx) =>
+        tx
+          .insert(bePatientBookingProfiles)
+          .values({
+            organizationId: input.organizationId,
+            platformUserId: input.platformUserId,
+            isProblematic: input.isProblematic ?? false,
+            bookingBlocked: input.bookingBlocked ?? false,
+            problematicNote: input.problematicNote ?? null,
+            updatedAt: now,
+            updatedBy: input.updatedBy,
+          })
+          .returning(),
+      );
       return mapProfile(rows[0]!);
     },
 

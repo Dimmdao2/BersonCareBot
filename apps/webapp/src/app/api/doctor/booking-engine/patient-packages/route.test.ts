@@ -3,6 +3,21 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const offerCatalogPackageToPatientMock = vi.hoisted(() => vi.fn());
 const createManualPatientPackageMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
@@ -17,11 +32,20 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
+}));
+
 import { POST } from "./route";
+
+type MembershipWriteOptions = {
+  runMembershipWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
 
 describe("/api/doctor/booking-engine/patient-packages POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -29,8 +53,24 @@ describe("/api/doctor/booking-engine/patient-packages POST", () => {
         session: { user: { userId: "550e8400-e29b-41d4-a716-446655440099" } },
       },
     });
-    offerCatalogPackageToPatientMock.mockResolvedValue({ id: "pp-1", status: "offered" });
-    createManualPatientPackageMock.mockResolvedValue({ id: "pp-2", status: "active" });
+    offerCatalogPackageToPatientMock.mockImplementation(
+      async (_input: unknown, options?: MembershipWriteOptions) =>
+        options?.runMembershipWrite
+          ? options.runMembershipWrite(async () => {
+              expect(principalState.inside).toBe(true);
+              return { id: "pp-1", status: "offered" };
+            })
+          : { id: "pp-1", status: "offered" },
+    );
+    createManualPatientPackageMock.mockImplementation(
+      async (_input: unknown, options?: MembershipWriteOptions) =>
+        options?.runMembershipWrite
+          ? options.runMembershipWrite(async () => {
+              expect(principalState.inside).toBe(true);
+              return { id: "pp-2", status: "active" };
+            })
+          : { id: "pp-2", status: "active" },
+    );
   });
 
   it("passes notes on catalog offer", async () => {
@@ -48,6 +88,12 @@ describe("/api/doctor/booking-engine/patient-packages POST", () => {
     );
     expect(offerCatalogPackageToPatientMock).toHaveBeenCalledWith(
       expect.objectContaining({ notes: "комментарий" }),
+      expect.objectContaining({ runMembershipWrite: expect.any(Function) }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.patient-packages.catalog-offer",
+      expect.any(Function),
     );
   });
 
@@ -67,6 +113,12 @@ describe("/api/doctor/booking-engine/patient-packages POST", () => {
     );
     expect(createManualPatientPackageMock).toHaveBeenCalledWith(
       expect.objectContaining({ title: undefined, notes: "n" }),
+      expect.objectContaining({ runMembershipWrite: expect.any(Function) }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.patient-packages.manual-create",
+      expect.any(Function),
     );
   });
 

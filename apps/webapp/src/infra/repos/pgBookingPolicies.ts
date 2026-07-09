@@ -1,5 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import {
   beCancellationPolicies,
   beReschedulePolicies,
@@ -87,13 +88,46 @@ export function createPgBookingPoliciesPort(): BookingPoliciesPort {
     },
 
     async upsertCancellationPolicy(input: UpsertCancellationPolicyInput) {
-      const db = getDrizzle();
       const scopeEntityId = normalizeScopeEntityId(input.scopeLevel, input.scopeEntityId, input.organizationId);
       const now = new Date().toISOString();
       if (input.id) {
-        await db
-          .update(beCancellationPolicies)
-          .set({
+        const id = input.id;
+        const row = await runWebappTransaction(async (tx) => {
+          await tx
+            .update(beCancellationPolicies)
+            .set({
+              scopeLevel: input.scopeLevel,
+              scopeEntityId,
+              title: input.title,
+              isActive: input.isActive,
+              freeCancelHoursBefore: input.freeCancelHoursBefore,
+              cancellationAllowed: input.cancellationAllowed,
+              lateCancellationBehavior: input.lateCancellationBehavior,
+              refundPrepaymentOnLate: input.refundPrepaymentOnLate,
+              chargePackageSessionOnLate: input.chargePackageSessionOnLate,
+              requiresStaffConfirmation: input.requiresStaffConfirmation,
+              notifyPatient: input.notifyPatient,
+              notifyStaff: input.notifyStaff,
+              sortOrder: input.sortOrder,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(beCancellationPolicies.id, id),
+                eq(beCancellationPolicies.organizationId, input.organizationId),
+              ),
+            );
+          const rows = await tx.select().from(beCancellationPolicies).where(eq(beCancellationPolicies.id, id)).limit(1);
+          return rows[0] ? mapCancel(rows[0]) : null;
+        });
+        if (!row) throw new Error("policy_not_found");
+        return row;
+      }
+      const inserted = await runWebappTransaction((tx) =>
+        tx
+          .insert(beCancellationPolicies)
+          .values({
+            organizationId: input.organizationId,
             scopeLevel: input.scopeLevel,
             scopeEntityId,
             title: input.title,
@@ -107,54 +141,54 @@ export function createPgBookingPoliciesPort(): BookingPoliciesPort {
             notifyPatient: input.notifyPatient,
             notifyStaff: input.notifyStaff,
             sortOrder: input.sortOrder,
+            createdAt: now,
             updatedAt: now,
           })
-          .where(
-            and(
-              eq(beCancellationPolicies.id, input.id),
-              eq(beCancellationPolicies.organizationId, input.organizationId),
-            ),
-          );
-        const rows = await db
-          .select()
-          .from(beCancellationPolicies)
-          .where(eq(beCancellationPolicies.id, input.id))
-          .limit(1);
-        if (!rows[0]) throw new Error("policy_not_found");
-        return mapCancel(rows[0]);
-      }
-      const inserted = await db
-        .insert(beCancellationPolicies)
-        .values({
-          organizationId: input.organizationId,
-          scopeLevel: input.scopeLevel,
-          scopeEntityId,
-          title: input.title,
-          isActive: input.isActive,
-          freeCancelHoursBefore: input.freeCancelHoursBefore,
-          cancellationAllowed: input.cancellationAllowed,
-          lateCancellationBehavior: input.lateCancellationBehavior,
-          refundPrepaymentOnLate: input.refundPrepaymentOnLate,
-          chargePackageSessionOnLate: input.chargePackageSessionOnLate,
-          requiresStaffConfirmation: input.requiresStaffConfirmation,
-          notifyPatient: input.notifyPatient,
-          notifyStaff: input.notifyStaff,
-          sortOrder: input.sortOrder,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+          .returning(),
+      );
       return mapCancel(inserted[0]!);
     },
 
     async upsertReschedulePolicy(input: UpsertReschedulePolicyInput) {
-      const db = getDrizzle();
       const scopeEntityId = normalizeScopeEntityId(input.scopeLevel, input.scopeEntityId, input.organizationId);
       const now = new Date().toISOString();
       if (input.id) {
-        await db
-          .update(beReschedulePolicies)
-          .set({
+        const id = input.id;
+        const row = await runWebappTransaction(async (tx) => {
+          await tx
+            .update(beReschedulePolicies)
+            .set({
+              scopeLevel: input.scopeLevel,
+              scopeEntityId,
+              title: input.title,
+              isActive: input.isActive,
+              selfRescheduleHoursBefore: input.selfRescheduleHoursBefore,
+              maxSelfReschedules: input.maxSelfReschedules,
+              allowDifferentBranch: input.allowDifferentBranch,
+              allowDifferentCity: input.allowDifferentCity,
+              allowDifferentSpecialist: input.allowDifferentSpecialist,
+              allowDifferentService: input.allowDifferentService,
+              limitExceededBehavior: input.limitExceededBehavior,
+              requiresStaffConfirmation: input.requiresStaffConfirmation,
+              notifyPatient: input.notifyPatient,
+              notifyStaff: input.notifyStaff,
+              sortOrder: input.sortOrder,
+              updatedAt: now,
+            })
+            .where(
+              and(eq(beReschedulePolicies.id, id), eq(beReschedulePolicies.organizationId, input.organizationId)),
+            );
+          const rows = await tx.select().from(beReschedulePolicies).where(eq(beReschedulePolicies.id, id)).limit(1);
+          return rows[0] ? mapReschedule(rows[0]) : null;
+        });
+        if (!row) throw new Error("policy_not_found");
+        return row;
+      }
+      const inserted = await runWebappTransaction((tx) =>
+        tx
+          .insert(beReschedulePolicies)
+          .values({
+            organizationId: input.organizationId,
             scopeLevel: input.scopeLevel,
             scopeEntityId,
             title: input.title,
@@ -170,42 +204,11 @@ export function createPgBookingPoliciesPort(): BookingPoliciesPort {
             notifyPatient: input.notifyPatient,
             notifyStaff: input.notifyStaff,
             sortOrder: input.sortOrder,
+            createdAt: now,
             updatedAt: now,
           })
-          .where(
-            and(eq(beReschedulePolicies.id, input.id), eq(beReschedulePolicies.organizationId, input.organizationId)),
-          );
-        const rows = await db
-          .select()
-          .from(beReschedulePolicies)
-          .where(eq(beReschedulePolicies.id, input.id))
-          .limit(1);
-        if (!rows[0]) throw new Error("policy_not_found");
-        return mapReschedule(rows[0]);
-      }
-      const inserted = await db
-        .insert(beReschedulePolicies)
-        .values({
-          organizationId: input.organizationId,
-          scopeLevel: input.scopeLevel,
-          scopeEntityId,
-          title: input.title,
-          isActive: input.isActive,
-          selfRescheduleHoursBefore: input.selfRescheduleHoursBefore,
-          maxSelfReschedules: input.maxSelfReschedules,
-          allowDifferentBranch: input.allowDifferentBranch,
-          allowDifferentCity: input.allowDifferentCity,
-          allowDifferentSpecialist: input.allowDifferentSpecialist,
-          allowDifferentService: input.allowDifferentService,
-          limitExceededBehavior: input.limitExceededBehavior,
-          requiresStaffConfirmation: input.requiresStaffConfirmation,
-          notifyPatient: input.notifyPatient,
-          notifyStaff: input.notifyStaff,
-          sortOrder: input.sortOrder,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+          .returning(),
+      );
       return mapReschedule(inserted[0]!);
     },
 

@@ -175,6 +175,7 @@ Known coverage:
 - Webapp doctor CMS page save action now uses `requireDoctorWorkspaceContext()` and the app-layer doctor workspace principal helper from T0.3.22 around only `deps.contentPages.updateFull/upsert(...)`. `pgContentPages.upsert` and `updateFull` now run through Drizzle transactions and stamp `organization_id` from the active DB principal when present; section/page/course pre-reads and slug-retarget side effects remain outside-principal.
 - Webapp doctor course and treatment-program-template catalog API writes now use `requireDoctorWorkspaceApiContext()` and the app-layer doctor workspace principal helper from T0.3.30 around only narrow service write runners (`runCourseWrite`, `runTemplateWrite`). `pgCourses.create/update` and `pgTreatmentProgram` template/stage/item/group/reorder/expand mutations now run through `runWebappTransaction(...)`; course intro/usage checks, template/stage/item/group validation, item-ref reads, and expand previews remain outside-principal.
 - Webapp admin media file/folder mutations and admin reference archive now use workspace principal wiring from T0.3.31 around only DB write phases. Media writes intentionally use `requireDoctorWorkspaceApiContext()` because `/api/admin/media` backs the doctor media library; reference archive uses admin+adminMode workspace context. Media file/folder repo writes and `pgReferences.archiveItem` now run through transaction-backed repo calls; S3 phases, usage checks, folder validation, subtree checks, and item pre-reads remain outside-principal.
+- Webapp booking-engine residual writes from the T0.3.32 tail audit now use workspace principal wiring from T0.3.33: admin branch/service/room/specialist/specialist-room/availability/policy/prepayment/scheduling-settings mutations, doctor/admin patient-package create/offer/notes/consume, product pay-link create, patient-product consume, and doctor booking-profile PATCH. Membership/product service write runners keep payment/provider calls, calendar refresh, system-settings sync, prechecks, and readbacks outside-principal while DB write phases run under source-specific principal callbacks and transaction-backed repo calls.
 - Telegram/MAX integrator webhooks already resolve org and wrap event pipeline through integrator organization principal helper.
 - Media-worker transcode processing is wrapped by job organization where available.
 
@@ -182,7 +183,7 @@ Known gaps:
 
 - Webapp plain `getDrizzle()` and pool-based reads/writes do not automatically pin `app.org`.
 - Webapp doctor/admin gates resolve `organizationId`, but route handlers are not centrally wrapped.
-- T0.3.23 tail audit found remaining doctor/admin mutation residuals before T0.4. Follow-ups #613-#620 are closed in code/docs; do not treat T0.3 as closed until a final tail audit passes.
+- T0.3.32 final tail audit found additional doctor/admin mutation residuals before T0.4. Follow-up #623 is closed in code/docs; remaining blockers are #624-#628. Do not treat T0.3 as closed until #624-#628 are done/sealed and a clean final tail audit passes.
 - Patient APIs need enrollment-derived org, not default organization.
 - Integrator `DbPort.query` and cached pool Drizzle paths are plain pool operations unless they run in `db.tx`.
 - Scheduler has no outer org; scoped writes must derive org per job/row.
