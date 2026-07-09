@@ -51,7 +51,7 @@ Commands were run against non-test TypeScript files unless otherwise noted.
 | Webapp modules/app-layer/app files using DB helper APIs (explorer count) | 45 |
 | API route files total (explorer count) | 489 |
 | API route files with DB signals | 27 |
-| Server action files total (local count) | 15 |
+| Server action files total (top-level `"use server"` files) | 28 |
 | Server action files with DB signals | 1 |
 | Files using `getPool(` | 74 |
 | Files using `getDrizzle(` | 86 |
@@ -102,9 +102,38 @@ These route files had `getPool`, `getDrizzle`, `runWebappPgText`, direct query, 
 - `apps/webapp/src/app/api/media/presign/route.ts`
 - `apps/webapp/src/app/api/patient/media/program-submission/presign/route.ts`
 
-Only one server action currently has a DB/principal signal:
+## Webapp Server Action Entrypoints
 
+All App Router server action entrypoints at T0.1. Only one currently has a direct DB/principal signal, but all 28 top-level `"use server"` files are T0 entrypoints because most reach DB through services:
+
+- `apps/webapp/src/app/app/doctor/broadcasts/actions.ts`
+- `apps/webapp/src/app/app/doctor/clinical-tests/actions.ts`
+- `apps/webapp/src/app/app/doctor/clinical-tests/actionsInline.ts`
+- `apps/webapp/src/app/app/doctor/content/actions.ts`
+- `apps/webapp/src/app/app/doctor/content/contentPageAuthActions.ts`
+- `apps/webapp/src/app/app/doctor/content/inlineEditorActions.ts`
+- `apps/webapp/src/app/app/doctor/content/lifecycleActions.ts`
 - `apps/webapp/src/app/app/doctor/content/motivation/actions.ts`
+- `apps/webapp/src/app/app/doctor/content/reorderContentPages.ts`
+- `apps/webapp/src/app/app/doctor/content/sections/actions.ts`
+- `apps/webapp/src/app/app/doctor/content/sections/reorderContentSections.ts`
+- `apps/webapp/src/app/app/doctor/content/sections/sectionVisibilityActions.ts`
+- `apps/webapp/src/app/app/doctor/exercises/actions.ts`
+- `apps/webapp/src/app/app/doctor/exercises/actionsInline.ts`
+- `apps/webapp/src/app/app/doctor/lfk-templates/actions.ts`
+- `apps/webapp/src/app/app/doctor/patient-home/patientHomeDoctorSettingsActions.ts`
+- `apps/webapp/src/app/app/doctor/recommendations/actions.ts`
+- `apps/webapp/src/app/app/doctor/recommendations/actionsInline.ts`
+- `apps/webapp/src/app/app/doctor/references/actions.ts`
+- `apps/webapp/src/app/app/doctor/test-sets/actions.ts`
+- `apps/webapp/src/app/app/doctor/test-sets/actionsInline.ts`
+- `apps/webapp/src/app/app/patient/diary/lfk/actions.ts`
+- `apps/webapp/src/app/app/patient/diary/symptoms/actions.ts`
+- `apps/webapp/src/app/app/patient/notifications/notificationPrefsActions.ts`
+- `apps/webapp/src/app/app/patient/profile/actions.ts`
+- `apps/webapp/src/app/app/patient/reminders/actions.ts`
+- `apps/webapp/src/app/app/settings/doctorNotificationPrefsActions.ts`
+- `apps/webapp/src/app/app/settings/patient-home/actions.ts`
 
 ## Current Principal Coverage
 
@@ -139,6 +168,7 @@ Known gaps:
 Existing guard:
 
 - `scripts/check-db-chokepoint.mjs`
+- `docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs`
 - included in `scripts/check-saas-db-regression.mjs`
 
 It currently enforces:
@@ -146,6 +176,7 @@ It currently enforces:
 - no runtime `new Pool` outside named provider allowlist;
 - no runtime `.connect()` outside checkout helpers and documented ops keep path;
 - no raw SQL signal in guarded webapp layers outside the current S5 allowlist.
+- exact T0.1 route/action/principal inventory parity with current source discovery.
 
 It does not enforce:
 
@@ -154,7 +185,7 @@ It does not enforce:
 - that all SCOPED reads have a principal;
 - that patient-wall GUCs are present.
 
-T0.1 should decide whether to extend this guard or create a separate T0 inventory guard.
+T0.1 adds the inventory guard above. Later T0 stages should extend it only when a new exact inventory stays cheap and low-noise.
 
 ## T0 Risk Register
 

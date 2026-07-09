@@ -62,11 +62,12 @@ Goal: turn the current surface snapshot into an enforceable inventory before any
 
 Checklist:
 
-- [ ] Reconcile `T0_DB_ACCESS_SURFACE.md` with `scripts/check-db-chokepoint.mjs` and `P0_7_WRITER_CENSUS.md`.
-- [ ] Split DB paths into: transaction-principal-safe, plain pool/Drizzle unsafe under RLS, infra/legacy/global exempt, and needs-decision.
-- [ ] Decide the runtime principal contract: current `app.org` only vs adding a patient/user GUC for patient-wall enforcement.
-- [ ] If patient wall is in T0 scope, design the carrier/API first; do not hide it in a webapp route slice.
-- [ ] Add or update a static inventory guard only if it prevents new unclassified T0 entrypoints without large allowlists.
+- [x] Reconcile `T0_DB_ACCESS_SURFACE.md` with `scripts/check-db-chokepoint.mjs` and `P0_7_WRITER_CENSUS.md`.
+- [x] Split DB paths into: transaction-principal-safe, plain pool/Drizzle unsafe under RLS, infra/legacy/global exempt, and needs-decision.
+- [x] Record the runtime principal contract gap: current carrier sets `app.org` only; patient/user GUC design remains blocked from route slices until T0.5 defines it.
+- [x] Record the patient-wall rule: no T0.3/T0.4 slice may claim patient-wall enforcement until the carrier/API is explicitly designed.
+- [x] Add or update a static inventory guard only if it prevents new unclassified T0 entrypoints without large allowlists.
+- [x] Wire the T0 inventory guard into `check:saas-db-regression` only if it stays deterministic and cheap.
 
 Local gate:
 

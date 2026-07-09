@@ -11,6 +11,14 @@ const checks = [
     command: ["node", "scripts/check-db-chokepoint.mjs", "--self-test"],
   },
   {
+    label: "T0 DB access surface inventory",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs"],
+  },
+  {
+    label: "T0 DB access surface inventory self-test",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs", "--self-test"],
+  },
+  {
     label: "system_settings accessor guard",
     command: ["node", "apps/webapp/scripts/check-system-settings-accessors.mjs"],
   },
