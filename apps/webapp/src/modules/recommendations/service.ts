@@ -19,6 +19,17 @@ import type {
 } from "./types";
 import { recommendationArchiveRequiresAcknowledgement } from "./types";
 
+export type RecommendationWriteOptions = {
+  runRecommendationWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runRecommendationWrite<T>(
+  options: RecommendationWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return options?.runRecommendationWrite ? options.runRecommendationWrite(fn) : fn();
+}
+
 function normalizeOptionalCatalogText(raw: string | null | undefined): string | null {
   if (raw == null) return null;
   const t = raw.trim();
@@ -57,7 +68,11 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
       return port.getById(id);
     },
 
-    async createRecommendation(input: CreateRecommendationInput, createdBy: string | null) {
+    async createRecommendation(
+      input: CreateRecommendationInput,
+      createdBy: string | null,
+      options?: RecommendationWriteOptions,
+    ) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название рекомендации обязательно");
       const bodyMd = input.bodyMd?.trim() ?? "";
@@ -79,13 +94,15 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
         frequencyText: normalizeOptionalCatalogText(input.frequencyText),
         durationText: normalizeOptionalCatalogText(input.durationText),
       };
-      return port.create(
-        input.domain === undefined ? basePayload : { ...basePayload, domain: domainForCreate },
-        createdBy,
+      return runRecommendationWrite(options, () =>
+        port.create(
+          input.domain === undefined ? basePayload : { ...basePayload, domain: domainForCreate },
+          createdBy,
+        ),
       );
     },
 
-    async updateRecommendation(id: string, input: UpdateRecommendationInput) {
+    async updateRecommendation(id: string, input: UpdateRecommendationInput, options?: RecommendationWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new Error("Рекомендация не найдена");
       if (existing.isArchived) {
@@ -122,7 +139,7 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
         kind: "update",
         existingDomain: existing.domain,
       });
-      const row = await port.update(id, patch);
+      const row = await runRecommendationWrite(options, () => port.update(id, patch));
       if (!row) throw new Error("Рекомендация не найдена");
       return row;
     },
@@ -131,7 +148,11 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
       return port.getRecommendationUsageSummary(recommendationId);
     },
 
-    async archiveRecommendation(id: string, options?: ArchiveRecommendationOptions) {
+    async archiveRecommendation(
+      id: string,
+      options?: ArchiveRecommendationOptions,
+      writeOptions?: RecommendationWriteOptions,
+    ) {
       const existing = await port.getById(id);
       if (!existing) throw new RecommendationArchiveNotFoundError();
       if (existing.isArchived) throw new RecommendationArchiveAlreadyArchivedError();
@@ -141,16 +162,16 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
         throw new RecommendationUsageConfirmationRequiredError(usage);
       }
 
-      const ok = await port.archive(id);
+      const ok = await runRecommendationWrite(writeOptions, () => port.archive(id));
       if (!ok) throw new RecommendationArchiveNotFoundError();
     },
 
-    async unarchiveRecommendation(id: string) {
+    async unarchiveRecommendation(id: string, options?: RecommendationWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new RecommendationArchiveNotFoundError();
       if (!existing.isArchived) throw new RecommendationUnarchiveNotArchivedError();
 
-      const ok = await port.unarchive(id);
+      const ok = await runRecommendationWrite(options, () => port.unarchive(id));
       if (!ok) throw new RecommendationArchiveNotFoundError();
     },
   };

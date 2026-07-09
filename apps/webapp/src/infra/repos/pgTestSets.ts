@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { runPgPoolPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import {
   clinicalTestRegions,
   clinicalTests as clinicalTestsTable,
@@ -330,21 +330,21 @@ export function createPgTestSetsPort(): TestSetsPort {
     },
 
     async create(input: CreateTestSetInput, createdBy: string | null): Promise<TestSet> {
-      const db = getDrizzle();
-      const rows = await db
-        .insert(testSetsTable)
-        .values({
-          title: input.title,
-          description: input.description ?? null,
-          publicationStatus: input.publicationStatus ?? "draft",
-          createdBy,
-        })
-        .returning();
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .insert(testSetsTable)
+          .values({
+            title: input.title,
+            description: input.description ?? null,
+            publicationStatus: input.publicationStatus ?? "draft",
+            createdBy,
+          })
+          .returning(),
+      );
       return { ...mapMeta(rows[0]), items: [] };
     },
 
     async update(id: string, input: UpdateTestSetInput): Promise<TestSet | null> {
-      const db = getDrizzle();
       const patch: Partial<typeof testSetsTable.$inferInsert> = {
         updatedAt: new Date().toISOString(),
       };
@@ -352,39 +352,38 @@ export function createPgTestSetsPort(): TestSetsPort {
       if (input.description !== undefined) patch.description = input.description;
       if (input.publicationStatus !== undefined) patch.publicationStatus = input.publicationStatus;
 
-      const rows = await db
-        .update(testSetsTable)
-        .set(patch)
-        .where(eq(testSetsTable.id, id))
-        .returning();
+      const rows = await runWebappTransaction((tx) =>
+        tx.update(testSetsTable).set(patch).where(eq(testSetsTable.id, id)).returning(),
+      );
       if (!rows[0]) return null;
       const items = await loadItemsForSet(id);
       return { ...mapMeta(rows[0]), items };
     },
 
     async archive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(testSetsTable)
-        .set({ isArchived: true, updatedAt: new Date().toISOString() })
-        .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, false)))
-        .returning({ id: testSetsTable.id });
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .update(testSetsTable)
+          .set({ isArchived: true, updatedAt: new Date().toISOString() })
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, false)))
+          .returning({ id: testSetsTable.id }),
+      );
       return rows.length > 0;
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(testSetsTable)
-        .set({ isArchived: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
-        .returning({ id: testSetsTable.id });
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .update(testSetsTable)
+          .set({ isArchived: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
+          .returning({ id: testSetsTable.id }),
+      );
       return rows.length > 0;
     },
 
     async replaceItems(testSetId: string, items: TestSetItemInput[]): Promise<void> {
-      const db = getDrizzle();
-      await db.transaction(async (tx) => {
+      await runWebappTransaction(async (tx) => {
         await tx.delete(testSetItemsTable).where(eq(testSetItemsTable.testSetId, testSetId));
         if (items.length > 0) {
           await tx.insert(testSetItemsTable).values(

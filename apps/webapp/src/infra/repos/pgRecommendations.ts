@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { runPgPoolPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import {
   recommendationRegions,
   recommendations as recommendationsTable,
@@ -311,9 +311,8 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     },
 
     async create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation> {
-      const db = getDrizzle();
       const merged = mergeCatalogBodyRegionIds(input.bodyRegionId, input.bodyRegionIds ?? null);
-      return await db.transaction(async (tx) => {
+      return await runWebappTransaction(async (tx) => {
         const rows = await tx
           .insert(recommendationsTable)
           .values({
@@ -340,7 +339,6 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     },
 
     async update(id: string, input: UpdateRecommendationInput): Promise<Recommendation | null> {
-      const db = getDrizzle();
       const patch: Partial<typeof recommendationsTable.$inferInsert> = {
         updatedAt: new Date().toISOString(),
       };
@@ -363,7 +361,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         patch.bodyRegionId = regionMerged[0] ?? null;
       }
 
-      return await db.transaction(async (tx) => {
+      return await runWebappTransaction(async (tx) => {
         const rows = await tx
           .update(recommendationsTable)
           .set(patch)
@@ -390,22 +388,24 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     },
 
     async archive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(recommendationsTable)
-        .set({ isArchived: true, updatedAt: new Date().toISOString() })
-        .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
-        .returning({ id: recommendationsTable.id });
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .update(recommendationsTable)
+          .set({ isArchived: true, updatedAt: new Date().toISOString() })
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
+          .returning({ id: recommendationsTable.id }),
+      );
       return rows.length > 0;
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(recommendationsTable)
-        .set({ isArchived: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
-        .returning({ id: recommendationsTable.id });
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .update(recommendationsTable)
+          .set({ isArchived: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
+          .returning({ id: recommendationsTable.id }),
+      );
       return rows.length > 0;
     },
 

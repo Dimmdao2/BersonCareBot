@@ -1,7 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: vi.fn(),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => fn(),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", async () => {
@@ -21,11 +35,22 @@ import { POST } from "./route";
 describe("POST /api/doctor/clinical-tests", () => {
   beforeEach(() => {
     resetInMemoryClinicalTestsStore();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        session: { user: { userId: "d1", role: "doctor", bindings: {} } },
+      },
+    });
     vi.mocked(getCurrentSession).mockReset();
   });
 
-  it("returns 401 without session", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue(null);
+  it("returns auth gate response", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",
@@ -36,10 +61,11 @@ describe("POST /api/doctor/clinical-tests", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 for client role", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    } as never);
+  it("propagates workspace gate denial", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({ ok: false, error: "doctor_workspace_membership_required" }, { status: 403 }),
+    });
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",
@@ -51,9 +77,6 @@ describe("POST /api/doctor/clinical-tests", () => {
   });
 
   it("creates test with assessmentKind from catalog", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",
@@ -68,9 +91,6 @@ describe("POST /api/doctor/clinical-tests", () => {
   });
 
   it("returns 400 when assessmentKind not in catalog", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",

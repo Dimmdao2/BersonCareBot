@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() => vi.fn());
@@ -69,5 +70,12 @@ describe("createPgTestSetsPort usage summary", () => {
     expect(sql).toContain("tsi.test_set_id = $1::uuid");
     expect(sql).toContain("item_type = 'clinical_test'");
     expect(sql).toContain("test_attempts");
+  });
+
+  it("catalog writes use the webapp transaction chokepoint", () => {
+    const src = readFileSync(new URL("./pgTestSets.ts", import.meta.url), "utf8");
+    expect(src).toContain("runWebappTransaction");
+    expect(src.match(/runWebappTransaction/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
+    expect(src).not.toContain("db.transaction");
   });
 });

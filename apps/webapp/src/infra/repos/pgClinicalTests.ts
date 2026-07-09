@@ -1,7 +1,7 @@
 import { and, eq, desc, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { runPgPoolPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { clinicalTestRegions, clinicalTests as clinicalTestsTable } from "../../../db/schema/clinicalTests";
 import type { ClinicalTestsPort } from "@/modules/tests/ports";
 import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "@/modules/tests/clinicalTestScoring";
@@ -379,13 +379,12 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
     },
 
     async create(input: CreateClinicalTestInput, createdBy: string | null): Promise<ClinicalTest> {
-      const db = getDrizzle();
       const media = normalizeMedia(input.media ?? []);
       const merged = mergeCatalogBodyRegionIds(
         input.bodyRegionId?.trim() || null,
         input.bodyRegionIds ?? null,
       );
-      return await db.transaction(async (tx) => {
+      return await runWebappTransaction(async (tx) => {
         const rows = await tx
           .insert(clinicalTestsTable)
           .values({
@@ -412,7 +411,6 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
     },
 
     async update(id: string, input: UpdateClinicalTestInput): Promise<ClinicalTest | null> {
-      const db = getDrizzle();
       const patch: Partial<typeof clinicalTestsTable.$inferInsert> = {
         updatedAt: new Date().toISOString(),
       };
@@ -435,7 +433,7 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         patch.bodyRegionId = regionMerged[0] ?? null;
       }
 
-      return await db.transaction(async (tx) => {
+      return await runWebappTransaction(async (tx) => {
         const rows = await tx
           .update(clinicalTestsTable)
           .set(patch)
@@ -462,22 +460,24 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
     },
 
     async archive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(clinicalTestsTable)
-        .set({ isArchived: true, updatedAt: new Date().toISOString() })
-        .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
-        .returning({ id: clinicalTestsTable.id });
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .update(clinicalTestsTable)
+          .set({ isArchived: true, updatedAt: new Date().toISOString() })
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
+          .returning({ id: clinicalTestsTable.id }),
+      );
       return rows.length > 0;
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(clinicalTestsTable)
-        .set({ isArchived: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
-        .returning({ id: clinicalTestsTable.id });
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .update(clinicalTestsTable)
+          .set({ isArchived: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
+          .returning({ id: clinicalTestsTable.id }),
+      );
       return rows.length > 0;
     },
 
