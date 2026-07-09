@@ -1,19 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 export type SectionVisibilityState = { ok: boolean; error?: string };
 
 export async function setSectionRequiresAuth(slug: string, requiresAuth: boolean): Promise<SectionVisibilityState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const s = slug?.trim();
   if (!s) return { ok: false, error: "Нет slug" };
 
   const deps = buildAppDeps();
   try {
-    await deps.contentSections.update(s, { requiresAuth });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.section.requires-auth", () =>
+      deps.contentSections.update(s, { requiresAuth }),
+    );
   } catch (e) {
     console.error("setSectionRequiresAuth", e);
     return { ok: false, error: "Не удалось обновить доступ" };
@@ -28,13 +31,15 @@ export async function setSectionRequiresAuth(slug: string, requiresAuth: boolean
 }
 
 export async function setSectionVisibility(slug: string, isVisible: boolean): Promise<SectionVisibilityState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const s = slug?.trim();
   if (!s) return { ok: false, error: "Нет slug" };
 
   const deps = buildAppDeps();
   try {
-    await deps.contentSections.update(s, { isVisible });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.section.visibility", () =>
+      deps.contentSections.update(s, { isVisible }),
+    );
   } catch (e) {
     console.error("setSectionVisibility", e);
     return { ok: false, error: "Не удалось обновить видимость" };

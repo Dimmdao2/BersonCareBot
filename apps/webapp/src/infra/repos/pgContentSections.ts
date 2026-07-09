@@ -160,40 +160,42 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
     },
     async update(slug, patch) {
       const db = getDrizzle();
-      const setPayload: Partial<typeof contentSections.$inferInsert> = {
-        updatedAt: sql`now()` as unknown as string,
-      };
-      if (patch.title !== undefined) setPayload.title = patch.title;
-      if (patch.description !== undefined) setPayload.description = patch.description;
-      if (patch.sortOrder !== undefined) setPayload.sortOrder = patch.sortOrder;
-      if (patch.isVisible !== undefined) setPayload.isVisible = patch.isVisible;
-      if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
-      if (patch.coverImageUrl !== undefined) setPayload.coverImageUrl = patch.coverImageUrl;
-      if (patch.iconImageUrl !== undefined) setPayload.iconImageUrl = patch.iconImageUrl;
-      if (patch.kind !== undefined || patch.systemParentCode !== undefined) {
-        const curRows = await db.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
-        const cur = curRows[0];
-        if (!cur) return;
-        const nextKind = patch.kind !== undefined ? patch.kind : normalizeKind(cur.kind);
-        const curParent =
-          cur.systemParentCode != null && isSystemParentCode(cur.systemParentCode)
-            ? cur.systemParentCode
-            : null;
-        const nextParent =
-          patch.systemParentCode !== undefined
-            ? patch.systemParentCode
-            : nextKind === "system"
-              ? curParent
+      await db.transaction(async (tx) => {
+        const setPayload: Partial<typeof contentSections.$inferInsert> = {
+          updatedAt: sql`now()` as unknown as string,
+        };
+        if (patch.title !== undefined) setPayload.title = patch.title;
+        if (patch.description !== undefined) setPayload.description = patch.description;
+        if (patch.sortOrder !== undefined) setPayload.sortOrder = patch.sortOrder;
+        if (patch.isVisible !== undefined) setPayload.isVisible = patch.isVisible;
+        if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
+        if (patch.coverImageUrl !== undefined) setPayload.coverImageUrl = patch.coverImageUrl;
+        if (patch.iconImageUrl !== undefined) setPayload.iconImageUrl = patch.iconImageUrl;
+        if (patch.kind !== undefined || patch.systemParentCode !== undefined) {
+          const curRows = await tx.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
+          const cur = curRows[0];
+          if (!cur) return;
+          const nextKind = patch.kind !== undefined ? patch.kind : normalizeKind(cur.kind);
+          const curParent =
+            cur.systemParentCode != null && isSystemParentCode(cur.systemParentCode)
+              ? cur.systemParentCode
               : null;
-        const resolvedParent = nextKind === "article" ? null : nextParent;
-        if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
-          throw new Error("invalid_content_section_taxonomy");
+          const nextParent =
+            patch.systemParentCode !== undefined
+              ? patch.systemParentCode
+              : nextKind === "system"
+                ? curParent
+                : null;
+          const resolvedParent = nextKind === "article" ? null : nextParent;
+          if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
+            throw new Error("invalid_content_section_taxonomy");
+          }
+          setPayload.kind = nextKind;
+          setPayload.systemParentCode = resolvedParent;
         }
-        setPayload.kind = nextKind;
-        setPayload.systemParentCode = resolvedParent;
-      }
-      if (Object.keys(setPayload).length <= 1) return;
-      await db.update(contentSections).set(setPayload).where(eq(contentSections.slug, slug));
+        if (Object.keys(setPayload).length <= 1) return;
+        await tx.update(contentSections).set(setPayload).where(eq(contentSections.slug, slug));
+      });
     },
     async reorderSlugs(orderedSlugs) {
       const slugs = orderedSlugs.map((s) => String(s).trim()).filter(Boolean);

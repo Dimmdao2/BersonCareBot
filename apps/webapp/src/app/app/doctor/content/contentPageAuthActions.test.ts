@@ -15,17 +15,17 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     contentPages: {
-      updateLifecycle,
       getById,
+      updateLifecycle,
     },
   }),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 
-import { applyContentLifecycle } from "./lifecycleActions";
+import { setContentPageRequiresAuth } from "./contentPageAuthActions";
 
-describe("applyContentLifecycle", () => {
+describe("setContentPageRequiresAuth", () => {
   beforeEach(() => {
     updateLifecycle.mockReset();
     getById.mockReset();
@@ -42,11 +42,7 @@ describe("applyContentLifecycle", () => {
     });
     getById.mockImplementation(async () => {
       expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
-      return {
-        id: "550e8400-e29b-41d4-a716-446655440000",
-        slug: "faq",
-        section: "help",
-      };
+      return { id: "page-1", slug: "faq", section: "help" };
     });
     updateLifecycle.mockImplementation(async () => {
       expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
@@ -56,18 +52,14 @@ describe("applyContentLifecycle", () => {
     });
   });
 
-  it("archives a page", async () => {
-    const fd = new FormData();
-    fd.set("id", "550e8400-e29b-41d4-a716-446655440000");
-    fd.set("op", "archive");
-    const res = await applyContentLifecycle(null, fd);
-    expect(res.ok).toBe(true);
-    expect(updateLifecycle).toHaveBeenCalledWith(
-      "550e8400-e29b-41d4-a716-446655440000",
-      expect.objectContaining({ archivedAt: expect.any(String) }),
-    );
-    expect(getById).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000");
+  it("updates page auth under the selected organization principal", async () => {
+    const result = await setContentPageRequiresAuth(" page-1 ", true);
+
+    expect(result).toEqual({ ok: true });
     expect(requireDoctorWorkspaceContext).toHaveBeenCalledTimes(1);
+    expect(getById).toHaveBeenCalledWith("page-1");
+    expect(updateLifecycle).toHaveBeenCalledWith("page-1", { requiresAuth: true });
+    expect(revalidatePath).toHaveBeenCalledWith("/app/doctor/content");
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });

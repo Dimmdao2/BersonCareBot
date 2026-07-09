@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
-const updateLifecycle = vi.fn();
-const getById = vi.fn();
+const updateSection = vi.fn();
 const requireDoctorWorkspaceContext = vi.fn();
 const revalidatePath = vi.fn();
 
@@ -14,21 +13,19 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    contentPages: {
-      updateLifecycle,
-      getById,
+    contentSections: {
+      update: updateSection,
     },
   }),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 
-import { applyContentLifecycle } from "./lifecycleActions";
+import { setSectionRequiresAuth, setSectionVisibility } from "./sectionVisibilityActions";
 
-describe("applyContentLifecycle", () => {
+describe("section visibility actions", () => {
   beforeEach(() => {
-    updateLifecycle.mockReset();
-    getById.mockReset();
+    updateSection.mockReset();
     revalidatePath.mockReset();
     requireDoctorWorkspaceContext.mockReset();
     requireDoctorWorkspaceContext.mockResolvedValue({
@@ -40,15 +37,7 @@ describe("applyContentLifecycle", () => {
       canManageOrganization: false,
       canManageAllSpecialists: false,
     });
-    getById.mockImplementation(async () => {
-      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
-      return {
-        id: "550e8400-e29b-41d4-a716-446655440000",
-        slug: "faq",
-        section: "help",
-      };
-    });
-    updateLifecycle.mockImplementation(async () => {
+    updateSection.mockImplementation(async () => {
       expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
     });
     revalidatePath.mockImplementation(() => {
@@ -56,18 +45,21 @@ describe("applyContentLifecycle", () => {
     });
   });
 
-  it("archives a page", async () => {
-    const fd = new FormData();
-    fd.set("id", "550e8400-e29b-41d4-a716-446655440000");
-    fd.set("op", "archive");
-    const res = await applyContentLifecycle(null, fd);
-    expect(res.ok).toBe(true);
-    expect(updateLifecycle).toHaveBeenCalledWith(
-      "550e8400-e29b-41d4-a716-446655440000",
-      expect.objectContaining({ archivedAt: expect.any(String) }),
-    );
-    expect(getById).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000");
+  it("updates section auth under the selected organization principal", async () => {
+    const result = await setSectionRequiresAuth(" warmups ", true);
+
+    expect(result).toEqual({ ok: true });
     expect(requireDoctorWorkspaceContext).toHaveBeenCalledTimes(1);
+    expect(updateSection).toHaveBeenCalledWith("warmups", { requiresAuth: true });
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("updates section visibility under the selected organization principal", async () => {
+    const result = await setSectionVisibility(" warmups ", false);
+
+    expect(result).toEqual({ ok: true });
+    expect(requireDoctorWorkspaceContext).toHaveBeenCalledTimes(1);
+    expect(updateSection).toHaveBeenCalledWith("warmups", { isVisible: false });
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });

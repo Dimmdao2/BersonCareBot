@@ -225,7 +225,9 @@ export function createPgContentPagesPort(): ContentPagesPort {
       if (patch.deletedAt !== undefined) setPayload.deletedAt = patch.deletedAt;
       if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
       if (Object.keys(setPayload).length <= 1) return;
-      await db.update(contentPages).set(setPayload).where(eq(contentPages.id, id));
+      await db.transaction(async (tx) => {
+        await tx.update(contentPages).set(setPayload).where(eq(contentPages.id, id));
+      });
     },
 
     async reorderInSection(section, orderedIds) {

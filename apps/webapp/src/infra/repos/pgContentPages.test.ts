@@ -1,8 +1,26 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   inMemoryContentPagesPort,
   resetInMemoryContentPagesStoreForTests,
 } from "@/infra/repos/pgContentPages";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+describe("pgContentPages (runtime constraints)", () => {
+  it("runs lifecycle updates through a Drizzle transaction", () => {
+    const src = readFileSync(join(__dirname, "pgContentPages.ts"), "utf8");
+    const start = src.indexOf("    async updateLifecycle(id, patch)");
+    const end = src.indexOf("    async reorderInSection(section, orderedIds)", start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const method = src.slice(start, end);
+    expect(method).toContain("await db.transaction");
+    expect(method).toContain("tx.update(contentPages)");
+  });
+});
 
 describe("inMemoryContentPagesPort (linked_course_id)", () => {
   beforeEach(() => {
