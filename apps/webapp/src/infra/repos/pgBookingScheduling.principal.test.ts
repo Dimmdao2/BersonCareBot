@@ -16,6 +16,8 @@ import { createPgBookingSchedulingPort } from "./pgBookingScheduling";
 
 const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TMPL = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const WD = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const SPEC = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 
 function templateRow() {
   return {
@@ -28,6 +30,22 @@ function templateRow() {
     breaks: [],
     sortOrder: 0,
     isActive: true,
+  };
+}
+
+function rawWorkingDayRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: WD,
+    organization_id: ORG,
+    specialist_id: SPEC,
+    branch_id: null,
+    room_id: null,
+    work_date: "2026-07-10",
+    start_minute: 540,
+    end_minute: 1080,
+    breaks: [],
+    is_closed: false,
+    ...overrides,
   };
 }
 
@@ -92,6 +110,94 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledTimes(1);
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ isActive: false }));
+    expect(where).toHaveBeenCalledTimes(1);
+  });
+
+  it("upserts working days through db.transaction", async () => {
+    const execute = vi.fn(async () => ({ rows: [rawWorkingDayRow()] }));
+    const tx = { execute };
+    const db = {
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgBookingSchedulingPort(async () => ORG);
+    const rows = await port.upsertWorkingDays({
+      organizationId: ORG,
+      specialistId: SPEC,
+      dates: ["2026-07-10"],
+      startMinute: 540,
+      endMinute: 1080,
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: WD,
+        organizationId: ORG,
+        specialistId: SPEC,
+        workDate: "2026-07-10",
+        isClosed: false,
+      }),
+    ]);
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes working days through db.transaction", async () => {
+    const execute = vi.fn(async () => ({
+      rows: [rawWorkingDayRow({ start_minute: null, end_minute: null, is_closed: true })],
+    }));
+    const tx = { execute };
+    const db = {
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgBookingSchedulingPort(async () => ORG);
+    const rows = await port.closeWorkingDays({
+      organizationId: ORG,
+      specialistId: SPEC,
+      dates: ["2026-07-10"],
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: WD,
+        organizationId: ORG,
+        specialistId: SPEC,
+        startMinute: null,
+        endMinute: null,
+        isClosed: true,
+      }),
+    ]);
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears working days through db.transaction", async () => {
+    const where = vi.fn(async () => undefined);
+    const deleteFrom = vi.fn(() => ({ where }));
+    const tx = { delete: deleteFrom };
+    const db = {
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgBookingSchedulingPort(async () => ORG);
+    await port.clearWorkingDays({
+      organizationId: ORG,
+      specialistId: SPEC,
+      dates: ["2026-07-10"],
+    });
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(deleteFrom).toHaveBeenCalledTimes(1);
     expect(where).toHaveBeenCalledTimes(1);
   });
 });

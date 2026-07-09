@@ -576,30 +576,32 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       const sentinelId = "00000000-0000-0000-0000-000000000000";
       const effectiveBreaks: BreakInterval[] = breaks ?? [];
       const breaksJson = JSON.stringify(effectiveBreaks);
-      for (const workDate of dates) {
-        // Use raw SQL for conflict target because the unique index is expression-based (COALESCE)
-        const rows = await db.execute<RawWorkingDayRow>(
-          sql`INSERT INTO be_working_days
-            (organization_id, specialist_id, branch_id, room_id, work_date,
-             start_minute, end_minute, breaks, is_closed, updated_at)
-          VALUES
-            (${organizationId}, ${specialistId ?? null}, ${branchId ?? null}, ${roomId ?? null}, ${workDate},
-             ${startMinute}, ${endMinute},
-             ${breaksJson}::jsonb, false, ${now})
-          ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
-          DO UPDATE SET
-            branch_id = EXCLUDED.branch_id,
-            room_id = EXCLUDED.room_id,
-            start_minute = EXCLUDED.start_minute,
-            end_minute = EXCLUDED.end_minute,
-            breaks = EXCLUDED.breaks,
-            is_closed = false,
-            updated_at = EXCLUDED.updated_at
-          RETURNING *`,
-        );
-        const row = rows.rows[0] as RawWorkingDayRow | undefined;
-        if (row) results.push(mapRawWorkingDayRow(row));
-      }
+      await db.transaction(async (tx) => {
+        for (const workDate of dates) {
+          // Use raw SQL for conflict target because the unique index is expression-based (COALESCE).
+          const rows = await tx.execute<RawWorkingDayRow>(
+            sql`INSERT INTO be_working_days
+              (organization_id, specialist_id, branch_id, room_id, work_date,
+               start_minute, end_minute, breaks, is_closed, updated_at)
+            VALUES
+              (${organizationId}, ${specialistId ?? null}, ${branchId ?? null}, ${roomId ?? null}, ${workDate},
+               ${startMinute}, ${endMinute},
+               ${breaksJson}::jsonb, false, ${now})
+            ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
+            DO UPDATE SET
+              branch_id = EXCLUDED.branch_id,
+              room_id = EXCLUDED.room_id,
+              start_minute = EXCLUDED.start_minute,
+              end_minute = EXCLUDED.end_minute,
+              breaks = EXCLUDED.breaks,
+              is_closed = false,
+              updated_at = EXCLUDED.updated_at
+            RETURNING *`,
+          );
+          const row = rows.rows[0] as RawWorkingDayRow | undefined;
+          if (row) results.push(mapRawWorkingDayRow(row));
+        }
+      });
       return results;
     },
 
@@ -608,26 +610,28 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       const now = new Date().toISOString();
       const results: WorkingDayRecord[] = [];
       const sentinelId = "00000000-0000-0000-0000-000000000000";
-      for (const workDate of dates) {
-        const rows = await db.execute<RawWorkingDayRow>(
-          sql`INSERT INTO be_working_days
-            (organization_id, specialist_id, branch_id, room_id, work_date,
-             start_minute, end_minute, breaks, is_closed, updated_at)
-          VALUES
-            (${organizationId}, ${specialistId ?? null}, NULL, NULL, ${workDate},
-             NULL, NULL, '[]'::jsonb, true, ${now})
-          ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
-          DO UPDATE SET
-            start_minute = NULL,
-            end_minute = NULL,
-            breaks = '[]'::jsonb,
-            is_closed = true,
-            updated_at = EXCLUDED.updated_at
-          RETURNING *`,
-        );
-        const row = rows.rows[0] as RawWorkingDayRow | undefined;
-        if (row) results.push(mapRawWorkingDayRow(row));
-      }
+      await db.transaction(async (tx) => {
+        for (const workDate of dates) {
+          const rows = await tx.execute<RawWorkingDayRow>(
+            sql`INSERT INTO be_working_days
+              (organization_id, specialist_id, branch_id, room_id, work_date,
+               start_minute, end_minute, breaks, is_closed, updated_at)
+            VALUES
+              (${organizationId}, ${specialistId ?? null}, NULL, NULL, ${workDate},
+               NULL, NULL, '[]'::jsonb, true, ${now})
+            ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
+            DO UPDATE SET
+              start_minute = NULL,
+              end_minute = NULL,
+              breaks = '[]'::jsonb,
+              is_closed = true,
+              updated_at = EXCLUDED.updated_at
+            RETURNING *`,
+          );
+          const row = rows.rows[0] as RawWorkingDayRow | undefined;
+          if (row) results.push(mapRawWorkingDayRow(row));
+        }
+      });
       return results;
     },
 
@@ -643,7 +647,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
           : specialistId
             ? eq(beWd.specialistId, specialistId)
             : undefined;
-      await db.delete(beWd).where(and(...baseConds, specialistCond));
+      await db.transaction((tx) => tx.delete(beWd).where(and(...baseConds, specialistCond)));
     },
 
     // ── Schedule templates ───────────────────────────────────────────────────
