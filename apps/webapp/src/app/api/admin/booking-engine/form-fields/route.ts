@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const upsertBody = z.object({
@@ -20,11 +21,10 @@ export async function GET() {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
-  if (!deps.bookingEngine || !deps.bookingForm) {
+  if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: "booking_engine_unavailable" }, { status: 503 });
   }
-  const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
-  const fields = await deps.bookingForm.listAdminFields(orgId);
+  const fields = await deps.bookingForm.listAdminFields(gate.ctx.organizationId);
   return NextResponse.json({ ok: true, fields });
 }
 
@@ -36,13 +36,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   const deps = buildAppDeps();
-  if (!deps.bookingEngine || !deps.bookingForm) {
+  if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: "booking_engine_unavailable" }, { status: 503 });
   }
-  const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
-  const field = await deps.bookingForm.upsertAdminField(orgId, {
-    ...parsed.data,
-    placeholder: parsed.data.placeholder ?? null,
-  });
+  const bookingForm = deps.bookingForm;
+  const field = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.form-fields.upsert", () =>
+    bookingForm.upsertAdminField(gate.ctx.organizationId, {
+      ...parsed.data,
+      placeholder: parsed.data.placeholder ?? null,
+    }),
+  );
   return NextResponse.json({ ok: true, field });
 }
