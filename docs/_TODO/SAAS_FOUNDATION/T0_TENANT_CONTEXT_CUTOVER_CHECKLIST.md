@@ -35,7 +35,7 @@ Checklist:
 - [x] Create this checklist.
 - [x] Run targeted docs/check validation.
 - [x] Run read-only audit on the plan/checklist.
-- [ ] Update `LOG.md`, commit, backup-push, then update taskdb: `commit_ref <hash>`, `seal_test true`, `seal_audit true`, `status done`, and a concise final `note`.
+- [x] Update `LOG.md`, commit, backup-push, then update taskdb: `commit_ref <hash>`, `seal_test true`, `seal_audit true`, `status done`, and a concise final `note`.
 
 Local gate:
 
@@ -91,11 +91,15 @@ Goal: define central webapp request/process wrappers before moving route familie
 
 Checklist:
 
-- [ ] Add a small app-layer principal wrapper design for doctor/admin workspace context.
-- [ ] Define patient enrollment/org resolution for patient APIs without default-org fallback.
-- [ ] Define public/booking org source rules: host/profile/link/explicit booking data, or legacy exempt.
-- [ ] Define M2M/integrator-origin webapp route org source rules.
-- [ ] Document which wrappers are allowed to call `runWithDbOrganizationPrincipal`.
+- [x] Add a small app-layer principal wrapper design for doctor/admin workspace context.
+- [x] Define patient enrollment/org resolution for patient APIs without default-org fallback.
+- [x] Define public/booking org source rules: host/profile/link/explicit booking data, or legacy exempt.
+- [x] Define M2M/integrator-origin webapp route org source rules.
+- [x] Document which wrappers are allowed to call `runWithDbOrganizationPrincipal`.
+
+Artifact:
+
+- `T0_2_REQUEST_PRINCIPAL_CONTEXT_PLAN.md`
 
 Local gate:
 
