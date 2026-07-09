@@ -329,9 +329,12 @@ export const pgReferencesPort: ReferencesPort = {
   },
 
   async archiveItem(itemId) {
-    await runWebappPgText(
-      `UPDATE reference_items SET is_active = false WHERE id = $1 AND deleted_at IS NULL`,
-      [itemId],
+    await runWebappTransaction((tx) =>
+      runWebappPgText(
+        `UPDATE reference_items SET is_active = false WHERE id = $1 AND deleted_at IS NULL`,
+        [itemId],
+        tx,
+      ),
     );
   },
 

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { pgValidateManualFolderParent } from "@/app-layer/media/clientMediaFolders";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
@@ -44,11 +46,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const raw = await request.json().catch(() => null);
   const parsed = postBodySchema.safeParse(raw);
@@ -77,7 +77,9 @@ export async function POST(request: Request) {
     const folder = await deps.media.createFolder({
       name: parsed.data.name,
       parentId,
-      createdBy: session.user.userId,
+      createdBy: workspace.session.user.userId,
+    }, {
+      runMediaWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "admin.media.folders.create", fn),
     });
     return NextResponse.json({ ok: true, folder });
   } catch {

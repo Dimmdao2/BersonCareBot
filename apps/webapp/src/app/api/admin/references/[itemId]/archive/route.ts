@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requireAdminWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 /** Админ: soft-delete значения справочника (is_active = false). */
 export async function PATCH(
   _request: Request,
   context: { params: Promise<{ itemId: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session || session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdminWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { itemId } = await context.params;
   if (!itemId?.trim()) {
@@ -23,6 +23,8 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  await deps.references.archiveItem(item.id);
+  await withDoctorWorkspacePrincipal(workspace, "admin.references.archive", () =>
+    deps.references.archiveItem(item.id),
+  );
   return NextResponse.json({ ok: true });
 }

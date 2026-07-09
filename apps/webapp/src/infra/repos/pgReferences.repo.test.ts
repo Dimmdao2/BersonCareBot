@@ -212,4 +212,18 @@ describe("pgReferencesPort (repo SQL parity)", () => {
     expect(updateCall?.[1]).toEqual(["item-1"]);
     expect(updateCall?.[2]).toBe(tx);
   });
+
+  it("archiveItem runs the update through the transaction executor", async () => {
+    const tx = { tx: true };
+    runWebappTransactionMock.mockImplementationOnce(async (fn: (transaction: unknown) => Promise<void>) => fn(tx));
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await pgReferencesPort.archiveItem("item-1");
+
+    expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    const updateCall = runWebappPgTextMock.mock.calls[0];
+    expect(String(updateCall?.[0] ?? "")).toContain("UPDATE reference_items SET is_active = false");
+    expect(updateCall?.[1]).toEqual(["item-1"]);
+    expect(updateCall?.[2]).toBe(tx);
+  });
 });

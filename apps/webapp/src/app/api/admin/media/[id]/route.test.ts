@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MediaWriteOptions } from "@/modules/media/service";
 
 const {
   getSessionMock,
+  requireAdminWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+  principalState,
   findUsageMock,
   deleteHardMock,
   updateDisplayNameMock,
@@ -12,6 +16,7 @@ const {
   folderExistsMock,
   isInSubtreeMock,
 } = vi.hoisted(() => {
+  const principalState = { inside: false };
   const findUsageMockInner = vi.fn().mockResolvedValue([]);
   const deleteHardMockInner = vi.fn().mockResolvedValue(true);
   const updateDisplayNameMockInner = vi.fn().mockResolvedValue(true);
@@ -22,6 +27,18 @@ const {
   const isInSubtreeMockInner = vi.fn();
   return {
     getSessionMock: vi.fn(),
+    requireAdminWorkspaceApiContextMock: vi.fn(),
+    withDoctorWorkspacePrincipalMock: vi.fn(
+      async <T,>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+        principalState.inside = true;
+        try {
+          return await fn();
+        } finally {
+          principalState.inside = false;
+        }
+      },
+    ),
+    principalState,
     findUsageMock: findUsageMockInner,
     deleteHardMock: deleteHardMockInner,
     updateDisplayNameMock: updateDisplayNameMockInner,
@@ -46,6 +63,14 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getSessionMock,
 }));
 
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireAdminWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
@@ -62,6 +87,18 @@ vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
 import { DELETE, GET, PATCH } from "./route";
 
 const mediaId = "11111111-1111-4111-8111-111111111111";
+const adminWorkspace = {
+  organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  session: {
+    user: {
+      userId: "admin-1",
+    },
+  },
+};
+
+function gateResponse(status: number) {
+  return new Response(JSON.stringify({ ok: false }), { status });
+}
 
 describe("GET /api/admin/media/[id]", () => {
   beforeEach(() => {
@@ -121,14 +158,19 @@ describe("GET /api/admin/media/[id]", () => {
 describe("DELETE /api/admin/media/[id]", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
+    requireAdminWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    principalState.inside = false;
     findUsageMock.mockReset();
     deleteHardMock.mockReset();
     updateDisplayNameMock.mockReset();
     getByIdMock.mockReset();
+    requireAdminWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: adminWorkspace });
+    deleteHardMock.mockResolvedValue(true);
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    requireAdminWorkspaceApiContextMock.mockResolvedValue({ ok: false, response: gateResponse(401) });
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
     });
@@ -136,7 +178,7 @@ describe("DELETE /api/admin/media/[id]", () => {
   });
 
   it("returns 403 for client role", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "client" } });
+    requireAdminWorkspaceApiContextMock.mockResolvedValue({ ok: false, response: gateResponse(403) });
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
     });
@@ -144,7 +186,6 @@ describe("DELETE /api/admin/media/[id]", () => {
   });
 
   it("returns 409 when media is used and no confirmation", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
     findUsageMock.mockResolvedValue([{ pageId: "p1", pageSlug: "slug-1", field: "image_url" }]);
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`), {
       params: Promise.resolve({ id: mediaId }),
@@ -154,7 +195,6 @@ describe("DELETE /api/admin/media/[id]", () => {
   });
 
   it("deletes media with confirmation flag", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     findUsageMock.mockResolvedValue([{ pageId: "p1", pageSlug: "slug-1", field: "video_url" }]);
     deleteHardMock.mockResolvedValue(true);
     const res = await DELETE(
@@ -167,11 +207,13 @@ describe("DELETE /api/admin/media/[id]", () => {
     const body = (await res.json()) as { ok: boolean; scheduled?: boolean };
     expect(body.ok).toBe(true);
     expect(body.scheduled).toBe(true);
-    expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
+    expect(deleteHardMock).toHaveBeenCalledWith(
+      mediaId,
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
   });
 
   it("deletes discussion-only media when confirmUsed is set", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     findUsageMock.mockResolvedValue([
       {
         pageId: "m1",
@@ -187,11 +229,13 @@ describe("DELETE /api/admin/media/[id]", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
+    expect(deleteHardMock).toHaveBeenCalledWith(
+      mediaId,
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
   });
 
   it("returns 404 if media already removed", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     findUsageMock.mockResolvedValue([]);
     deleteHardMock.mockResolvedValue(false);
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`), {
@@ -201,7 +245,6 @@ describe("DELETE /api/admin/media/[id]", () => {
   });
 
   it("returns 409 when confirmDelete is missing", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
     });
@@ -211,7 +254,6 @@ describe("DELETE /api/admin/media/[id]", () => {
   });
 
   it("renames media display name", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     updateDisplayNameMock.mockResolvedValue(true);
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
@@ -227,11 +269,14 @@ describe("DELETE /api/admin/media/[id]", () => {
     const body = (await res.json()) as { ok: boolean; displayName: string };
     expect(body.ok).toBe(true);
     expect(body.displayName).toBe("Видео для библиотеки");
-    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, "Видео для библиотеки");
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(
+      mediaId,
+      "Видео для библиотеки",
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
   });
 
   it("clears display name when empty string provided", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
     updateDisplayNameMock.mockResolvedValue(true);
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
@@ -244,11 +289,14 @@ describe("DELETE /api/admin/media/[id]", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, null);
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(
+      mediaId,
+      null,
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
   });
 
   it("clears display name when null provided", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
     updateDisplayNameMock.mockResolvedValue(true);
     const res = await PATCH(
       new Request(`http://localhost/api/admin/media/${mediaId}`, {
@@ -261,7 +309,34 @@ describe("DELETE /api/admin/media/[id]", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, null);
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(
+      mediaId,
+      null,
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
+  });
+
+  it("executes delete through the admin media principal option", async () => {
+    findUsageMock.mockResolvedValue([]);
+    deleteHardMock.mockImplementation(async (_mediaId: unknown, options: MediaWriteOptions) => {
+      expect(principalState.inside).toBe(false);
+      expect(options.runMediaWrite).toBeDefined();
+      return options.runMediaWrite!(async () => {
+        expect(principalState.inside).toBe(true);
+        return true;
+      });
+    });
+
+    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      adminWorkspace,
+      "admin.media.files.delete",
+      expect.any(Function),
+    );
   });
 });
 
@@ -278,7 +353,7 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
     folderExistsMock.mockReset();
     isInSubtreeMock.mockReset();
 
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    requireAdminWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: adminWorkspace });
     validateFolderMock.mockResolvedValue({ ok: true });
     folderExistsMock.mockResolvedValue(true);
     updateMediaFolderMock.mockResolvedValue(true);
@@ -325,7 +400,11 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(updateMediaFolderMock).toHaveBeenCalledWith(mediaId, anotherPatientFolderId);
+    expect(updateMediaFolderMock).toHaveBeenCalledWith(
+      mediaId,
+      anotherPatientFolderId,
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
   });
 
   it("does not trigger ST-07 gate when file is in a standard folder", async () => {
@@ -347,7 +426,11 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(updateMediaFolderMock).toHaveBeenCalledWith(mediaId, anotherPatientFolderId);
+    expect(updateMediaFolderMock).toHaveBeenCalledWith(
+      mediaId,
+      anotherPatientFolderId,
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
   });
 });
 
@@ -358,7 +441,7 @@ describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient fo
     updateDisplayNameMock.mockReset();
     isInSubtreeMock.mockReset();
 
-    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    requireAdminWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: adminWorkspace });
     updateDisplayNameMock.mockResolvedValue(true);
   });
 
@@ -380,7 +463,11 @@ describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient fo
     const body = (await res.json()) as { ok: boolean; displayName: string };
     expect(body.ok).toBe(true);
     expect(body.displayName).toBe("Видео ЛФК для плеча");
-    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, "Видео ЛФК для плеча");
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(
+      mediaId,
+      "Видео ЛФК для плеча",
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
     // The move-out guard must NOT have been consulted for a displayName-only change
     expect(isInSubtreeMock).not.toHaveBeenCalled();
   });
@@ -398,7 +485,11 @@ describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient fo
     );
 
     expect(res.status).toBe(200);
-    expect(updateDisplayNameMock).toHaveBeenCalledWith(mediaId, null);
+    expect(updateDisplayNameMock).toHaveBeenCalledWith(
+      mediaId,
+      null,
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
     expect(isInSubtreeMock).not.toHaveBeenCalled();
   });
 });

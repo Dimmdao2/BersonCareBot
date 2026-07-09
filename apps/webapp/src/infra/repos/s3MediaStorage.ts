@@ -3,12 +3,13 @@ import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
-import { startPoolTransaction, withPoolClient } from "@/infra/db/withClient";
+import { startPoolTransaction, withPoolTransaction } from "@/infra/db/withClient";
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
 import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
   runWebappSql,
+  runWebappTransaction,
 } from "@/infra/db/runWebappSql";
 import { logger } from "@/infra/logging/logger";
 import {
@@ -357,21 +358,25 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async updateDisplayName(mediaId: string, displayName: string | null) {
       const normalized = displayName?.trim() || null;
-      const res = await runWebappSql(
-        getWebappSqlDb(),
-        sql`UPDATE media_files m
-            SET display_name = ${normalized}
-          WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
+      const res = await runWebappTransaction((tx) =>
+        runWebappSql(
+          tx,
+          sql`UPDATE media_files m
+              SET display_name = ${normalized}
+            WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
+        ),
       );
       return (res.rowCount ?? 0) > 0;
     },
 
     async updateMediaFolder(mediaId: string, folderId: string | null) {
-      const res = await runWebappSql(
-        getWebappSqlDb(),
-        sql`UPDATE media_files m
-            SET folder_id = ${folderId}
-          WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
+      const res = await runWebappTransaction((tx) =>
+        runWebappSql(
+          tx,
+          sql`UPDATE media_files m
+              SET folder_id = ${folderId}
+            WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
+        ),
       );
       return (res.rowCount ?? 0) > 0;
     },
@@ -453,7 +458,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async deleteHard(mediaId: string) {
       const pool = getPool();
-      return withPoolClient(pool, async (client) => {
+      return withPoolTransaction(pool, async (client) => {
         await pgSessionAdvisoryLock(client, mediaId);
         try {
           const db = getWebappSqlFromPgClient(client);

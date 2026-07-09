@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { MediaStoragePort } from "./ports";
 import { createMediaService } from "./service";
 import { mockMediaStoragePort } from "@/infra/repos/mockMediaStorage";
 
@@ -36,5 +37,28 @@ describe("media service", () => {
     const service = createMediaService(mockMediaStoragePort);
     const url = await service.getUrl("media-nonexistent");
     expect(url).toBeNull();
+  });
+
+  it("runs media mutation calls through write options only around the port write", async () => {
+    const calls: string[] = [];
+    const port: MediaStoragePort = {
+      ...mockMediaStoragePort,
+      updateDisplayName: vi.fn(async () => {
+        calls.push("updateDisplayName");
+        return true;
+      }),
+    };
+    const service = createMediaService(port);
+
+    await service.updateDisplayName("media-1", "Name", {
+      runMediaWrite: async (fn) => {
+        calls.push("runner:start");
+        const result = await fn();
+        calls.push("runner:end");
+        return result;
+      },
+    });
+
+    expect(calls).toEqual(["runner:start", "updateDisplayName", "runner:end"]);
   });
 });

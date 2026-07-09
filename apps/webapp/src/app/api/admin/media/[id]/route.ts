@@ -3,6 +3,8 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { pgIsFolderInClientSubtree, pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import type { MediaUsageRef } from "@/modules/media/types";
@@ -57,11 +59,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
@@ -88,7 +88,9 @@ export async function DELETE(
     return NextResponse.json({ ok: false, error: "media_in_use", usage }, { status: 409 });
   }
 
-  const deleted = await deps.media.deleteHard(id);
+  const deleted = await deps.media.deleteHard(id, {
+    runMediaWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "admin.media.files.delete", fn),
+  });
   if (!deleted) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -104,11 +106,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
@@ -155,7 +155,9 @@ export async function PATCH(
         }
       }
     }
-    const moved = await deps.media.updateMediaFolder(id, parsedBody.data.folderId);
+    const moved = await deps.media.updateMediaFolder(id, parsedBody.data.folderId, {
+      runMediaWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "admin.media.files.update", fn),
+    });
     if (!moved) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
@@ -167,7 +169,9 @@ export async function PATCH(
       typeof parsedBody.data.displayName === "string"
         ? parsedBody.data.displayName.trim() || null
         : null;
-    const updated = await deps.media.updateDisplayName(id, normalized);
+    const updated = await deps.media.updateDisplayName(id, normalized, {
+      runMediaWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "admin.media.files.update", fn),
+    });
     if (!updated) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }

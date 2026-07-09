@@ -174,6 +174,7 @@ Known coverage:
 - Webapp doctor CMS section rename/delete actions now use `requireDoctorWorkspaceContext()` and the app-layer doctor workspace principal helper from T0.3.21 around only `deps.contentSections.renameSectionSlug/deleteSectionWithPageReassign(...)`; both repo methods were already transaction-backed.
 - Webapp doctor CMS page save action now uses `requireDoctorWorkspaceContext()` and the app-layer doctor workspace principal helper from T0.3.22 around only `deps.contentPages.updateFull/upsert(...)`. `pgContentPages.upsert` and `updateFull` now run through Drizzle transactions and stamp `organization_id` from the active DB principal when present; section/page/course pre-reads and slug-retarget side effects remain outside-principal.
 - Webapp doctor course and treatment-program-template catalog API writes now use `requireDoctorWorkspaceApiContext()` and the app-layer doctor workspace principal helper from T0.3.30 around only narrow service write runners (`runCourseWrite`, `runTemplateWrite`). `pgCourses.create/update` and `pgTreatmentProgram` template/stage/item/group/reorder/expand mutations now run through `runWebappTransaction(...)`; course intro/usage checks, template/stage/item/group validation, item-ref reads, and expand previews remain outside-principal.
+- Webapp admin media file/folder mutations and admin reference archive now use workspace principal wiring from T0.3.31 around only DB write phases. Media writes intentionally use `requireDoctorWorkspaceApiContext()` because `/api/admin/media` backs the doctor media library; reference archive uses admin+adminMode workspace context. Media file/folder repo writes and `pgReferences.archiveItem` now run through transaction-backed repo calls; S3 phases, usage checks, folder validation, subtree checks, and item pre-reads remain outside-principal.
 - Telegram/MAX integrator webhooks already resolve org and wrap event pipeline through integrator organization principal helper.
 - Media-worker transcode processing is wrapped by job organization where available.
 
@@ -181,7 +182,7 @@ Known gaps:
 
 - Webapp plain `getDrizzle()` and pool-based reads/writes do not automatically pin `app.org`.
 - Webapp doctor/admin gates resolve `organizationId`, but route handlers are not centrally wrapped.
-- T0.3.23 tail audit found remaining doctor/admin mutation residuals before T0.4. Closed follow-ups: booking manual create (#613), booking cancelled appointment purge (#614), booking package detach/refund/unlink (#615), doctor broadcasts (#616), doctor LFK exercise/template catalog (#617), doctor clinical/recommendation/test-set catalog (#618), and doctor courses/treatment-template catalog (#619). Remaining follow-up: admin media/references (#620). Do not treat T0.3 as closed until #620 is done/sealed and a final tail audit passes.
+- T0.3.23 tail audit found remaining doctor/admin mutation residuals before T0.4. Follow-ups #613-#620 are closed in code/docs; do not treat T0.3 as closed until a final tail audit passes.
 - Patient APIs need enrollment-derived org, not default organization.
 - Integrator `DbPort.query` and cached pool Drizzle paths are plain pool operations unless they run in `db.tx`.
 - Scheduler has no outer org; scoped writes must derive org per job/row.

@@ -1,17 +1,50 @@
 /** @vitest-environment node */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MediaWriteOptions } from "@/modules/media/service";
 
-const { getSessionMock, listFoldersMock, listAllMock, createFolderMock, pgExistsMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn(),
-  listFoldersMock: vi.fn(),
-  listAllMock: vi.fn(),
-  createFolderMock: vi.fn(),
-  pgExistsMock: vi.fn(),
-}));
+const {
+  getSessionMock,
+  requireAdminWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+  principalState,
+  listFoldersMock,
+  listAllMock,
+  createFolderMock,
+  pgExistsMock,
+} = vi.hoisted(() => {
+  const principalState = { inside: false };
+  return {
+    getSessionMock: vi.fn(),
+    requireAdminWorkspaceApiContextMock: vi.fn(),
+    withDoctorWorkspacePrincipalMock: vi.fn(
+      async <T,>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+        principalState.inside = true;
+        try {
+          return await fn();
+        } finally {
+          principalState.inside = false;
+        }
+      },
+    ),
+    principalState,
+    listFoldersMock: vi.fn(),
+    listAllMock: vi.fn(),
+    createFolderMock: vi.fn(),
+    pgExistsMock: vi.fn(),
+  };
+});
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getSessionMock,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireAdminWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -34,6 +67,15 @@ vi.mock("@/app-layer/media/clientMediaFolders", () => ({
 }));
 
 import { GET, POST } from "./route";
+
+const adminWorkspace = {
+  organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  session: {
+    user: {
+      userId: "admin-1",
+    },
+  },
+};
 
 describe("GET /api/admin/media/folders", () => {
   beforeEach(() => {
@@ -79,8 +121,11 @@ describe("POST /api/admin/media/folders", () => {
     createFolderMock.mockReset();
     pgExistsMock.mockReset();
     validateParentMock.mockReset();
+    requireAdminWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    principalState.inside = false;
     validateParentMock.mockResolvedValue({ ok: true });
-    getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "doctor" } });
+    requireAdminWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: adminWorkspace });
   });
 
   it("returns 404 when parent missing", async () => {
@@ -130,5 +175,45 @@ describe("POST /api/admin/media/folders", () => {
     const j = (await res.json()) as { ok: boolean; folder?: { name: string } };
     expect(j.ok).toBe(true);
     expect(j.folder?.name).toBe("Sub");
+    expect(createFolderMock).toHaveBeenCalledWith(
+      {
+        name: "Sub",
+        parentId: pid,
+        createdBy: "admin-1",
+      },
+      expect.objectContaining({ runMediaWrite: expect.any(Function) }),
+    );
+  });
+
+  it("runs create inside admin media folder principal option", async () => {
+    pgExistsMock.mockResolvedValue(true);
+    createFolderMock.mockImplementation(async (_input: unknown, options: MediaWriteOptions) => {
+      expect(principalState.inside).toBe(false);
+      expect(options.runMediaWrite).toBeDefined();
+      return options.runMediaWrite!(async () => {
+        expect(principalState.inside).toBe(true);
+        return {
+          id: "22222222-2222-4222-8222-222222222222",
+          parentId: null,
+          name: "Sub",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        };
+      });
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/admin/media/folders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Sub" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      adminWorkspace,
+      "admin.media.folders.create",
+      expect.any(Function),
+    );
   });
 });

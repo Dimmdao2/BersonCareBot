@@ -160,6 +160,24 @@ export async function requireDoctorWorkspaceApiContext(options?: {
   return resolved;
 }
 
+/** Для Route Handlers под `/api/admin/*`: admin + adminMode + resolved organization membership. */
+export async function requireAdminWorkspaceApiContext(options?: {
+  selectedOrganizationId?: string | null;
+}): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+  const session = await getCurrentSession();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  if (session.user.role !== "admin" || !session.adminMode) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  if (!resolved.ok) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
+  }
+  return resolved;
+}
+
 /** Есть ли привязка хотя бы одного мессенджера (альтернатива телефону для части сценариев). */
 export function hasMessengerBinding(session: AppSession): boolean {
   const b = session.user.bindings;
