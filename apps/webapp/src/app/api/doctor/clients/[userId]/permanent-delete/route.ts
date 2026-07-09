@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { runStrictPurgePlatformUser } from "@/app-layer/merge/strictPlatformUserPurge";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const bodySchema = z.object({
@@ -17,6 +18,10 @@ export async function POST(request: Request, context: { params: Promise<{ userId
   const adminGate = await requireAdminModeSession();
   if (!adminGate.ok) {
     return adminGate.response;
+  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) {
+    return gate.response;
   }
 
   const { userId } = await context.params;
@@ -34,12 +39,21 @@ export async function POST(request: Request, context: { params: Promise<{ userId
   }
 
   const deps = buildAppDeps();
-  const role = await deps.doctorClientsPort.getPlatformUserRole(userId);
+  const identityInWorkspace = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identityInWorkspace) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const targetUserId = identityInWorkspace.userId;
+
+  const role = await deps.doctorClientsPort.getPlatformUserRole(targetUserId);
   if (role !== "client") {
     return NextResponse.json({ ok: false, error: "not_client" }, { status: 404 });
   }
 
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentity(targetUserId);
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -48,7 +62,7 @@ export async function POST(request: Request, context: { params: Promise<{ userId
   }
 
   const result = await runStrictPurgePlatformUser({
-    targetId: userId,
+    targetId: targetUserId,
     actorId: adminGate.session.user.userId,
     audit: { enabled: true },
   });

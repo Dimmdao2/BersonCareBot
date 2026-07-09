@@ -18,5 +18,8 @@ export async function requireAdminModeSession(): Promise<
   if (session.user.role !== "admin") {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
+  if (session.adminMode !== true) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "admin_mode_required" }, { status: 403 }) };
+  }
   return { ok: true, session };
 }

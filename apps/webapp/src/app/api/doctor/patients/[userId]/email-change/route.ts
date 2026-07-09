@@ -12,7 +12,9 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   startEmailChallenge,
@@ -30,10 +32,10 @@ export async function POST(
 ) {
   ensureAuthModulePortsBound();
 
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
-  if (auth.session.user.role !== "admin") {
+  if (gate.ctx.session.user.role !== "admin") {
     return NextResponse.json(
       { ok: false, error: "forbidden", message: "Только администратор может менять email пациента" },
       { status: 403 },
@@ -60,7 +62,18 @@ export async function POST(
     );
   }
 
-  const result = await startEmailChallenge(userId, parsed.data.email);
+  const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    startEmailChallenge(identity.userId, parsed.data.email),
+  );
   if (!result.ok) {
     const status =
       result.code === "rate_limited" || result.code === "too_many_attempts"
@@ -95,10 +108,10 @@ export async function GET(
 ) {
   ensureAuthModulePortsBound();
 
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
-  if (auth.session.user.role !== "admin") {
+  if (gate.ctx.session.user.role !== "admin") {
     return NextResponse.json(
       { ok: false, error: "forbidden", message: "Только администратор может просматривать ожидающий email" },
       { status: 403 },
@@ -110,6 +123,17 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
   }
 
-  const pending = await getPendingEmailChallenge(userId);
+  const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const pending = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    getPendingEmailChallenge(identity.userId),
+  );
   return NextResponse.json({ ok: true, pending });
 }

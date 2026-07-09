@@ -168,16 +168,31 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(symptomDiaryRepo).toContain("organization_id");
   });
 
-  it("doctor global client lifecycle routes require selected workspace membership before global flag writes", () => {
+  it("doctor global client lifecycle routes require selected workspace membership before global writes", () => {
     for (const file of [
       "src/app/api/doctor/clients/[userId]/block/route.ts",
       "src/app/api/doctor/clients/[userId]/archive/route.ts",
+      "src/app/api/doctor/clients/[userId]/permanent-delete/route.ts",
+      "src/app/api/doctor/patients/[userId]/email-change/route.ts",
     ]) {
       const src = readSource(file);
       expect(src).toContain("requireDoctorWorkspaceApiContext");
       expect(src).toContain("getClientIdentityForOrganization");
       expect(src).toContain("gate.ctx.organizationId");
     }
+
+    const purgeRoute = readSource("src/app/api/doctor/clients/[userId]/permanent-delete/route.ts");
+    expect(purgeRoute).toContain("requireAdminModeSession");
+    expect(purgeRoute).toContain("const targetUserId = identityInWorkspace.userId");
+    expect(purgeRoute).toContain("targetId: targetUserId");
+    expect(purgeRoute.indexOf("getClientIdentityForOrganization")).toBeLessThan(
+      purgeRoute.indexOf("runStrictPurgePlatformUser({"),
+    );
+
+    const emailRoute = readSource("src/app/api/doctor/patients/[userId]/email-change/route.ts");
+    expect(emailRoute).toContain("withDoctorWorkspacePrincipal");
+    expect(emailRoute).toContain("startEmailChallenge(identity.userId");
+    expect(emailRoute).toContain("getPendingEmailChallenge(identity.userId)");
   });
 
   it("doctor global patient profile routes require selected workspace membership before global profile writes", () => {

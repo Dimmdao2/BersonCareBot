@@ -3,17 +3,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const purgeMock = vi.fn();
 
-const { getSessionMock, buildAppDepsMock, getPlatformUserRoleMock, getClientIdentityMock } = vi.hoisted(() => {
+const {
+  getSessionMock,
+  requireDoctorWorkspaceApiContextMock,
+  buildAppDepsMock,
+  getPlatformUserRoleMock,
+  getClientIdentityMock,
+  getClientIdentityForOrganizationMock,
+} = vi.hoisted(() => {
   const getPlatformUserRoleMockInner = vi.fn();
   const getClientIdentityMockInner = vi.fn();
+  const getClientIdentityForOrganizationMockInner = vi.fn();
   return {
     getSessionMock: vi.fn(),
+    requireDoctorWorkspaceApiContextMock: vi.fn(),
     getPlatformUserRoleMock: getPlatformUserRoleMockInner,
     getClientIdentityMock: getClientIdentityMockInner,
+    getClientIdentityForOrganizationMock: getClientIdentityForOrganizationMockInner,
     buildAppDepsMock: vi.fn(() => ({
       doctorClientsPort: {
         getPlatformUserRole: getPlatformUserRoleMockInner,
         getClientIdentity: getClientIdentityMockInner,
+        getClientIdentityForOrganization: getClientIdentityForOrganizationMockInner,
       },
     })),
   };
@@ -28,10 +39,15 @@ vi.mock("@/app-layer/merge/strictPlatformUserPurge", () => ({
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: getSessionMock,
 }));
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
 
 import { POST } from "./route";
 
 const uid = "00000000-0000-4000-8000-000000000001";
+const canonicalUid = "00000000-0000-4000-8000-000000000002";
+const organizationId = "10000000-0000-4000-8000-000000000001";
 
 const adminModeOk = {
   ok: true as const,
@@ -46,11 +62,21 @@ const adminModeOk = {
 describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
     getPlatformUserRoleMock.mockReset();
     getClientIdentityMock.mockReset();
+    getClientIdentityForOrganizationMock.mockReset();
     purgeMock.mockReset();
     getPlatformUserRoleMock.mockResolvedValue("client");
     getSessionMock.mockResolvedValue(adminModeOk);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId,
+        session: adminModeOk.session,
+      },
+    });
+    getClientIdentityForOrganizationMock.mockResolvedValue({ userId: canonicalUid });
   });
 
   it("returns 409 when client is not archived", async () => {
@@ -73,6 +99,8 @@ describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
       { params: Promise.resolve({ userId: uid }) },
     );
     expect(res.status).toBe(409);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(uid, organizationId);
+    expect(getClientIdentityMock).toHaveBeenCalledWith(canonicalUid);
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
@@ -113,9 +141,11 @@ describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
       { params: Promise.resolve({ userId: uid }) },
     );
     expect(res.status).toBe(200);
+    expect(getPlatformUserRoleMock).toHaveBeenCalledWith(canonicalUid);
+    expect(getClientIdentityMock).toHaveBeenCalledWith(canonicalUid);
     expect(purgeMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        targetId: uid,
+        targetId: canonicalUid,
         actorId: "a1",
         audit: { enabled: true },
       }),
@@ -142,6 +172,26 @@ describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
       { params: Promise.resolve({ userId: uid }) },
     );
     expect(res.status).toBe(400);
+    expect(getClientIdentityForOrganizationMock).not.toHaveBeenCalled();
+    expect(purgeMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 before purge checks when client is outside selected workspace", async () => {
+    getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
+
+    const res = await POST(
+      new Request(`http://localhost/api/doctor/clients/${uid}/permanent-delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmUserId: uid }),
+      }),
+      { params: Promise.resolve({ userId: uid }) },
+    );
+
+    expect(res.status).toBe(404);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(uid, organizationId);
+    expect(getPlatformUserRoleMock).not.toHaveBeenCalled();
+    expect(getClientIdentityMock).not.toHaveBeenCalled();
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
@@ -159,6 +209,7 @@ describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
       { params: Promise.resolve({ userId: uid }) },
     );
     expect(res.status).toBe(403);
+    expect(requireDoctorWorkspaceApiContextMock).not.toHaveBeenCalled();
     expect(purgeMock).not.toHaveBeenCalled();
   });
 });
