@@ -4,8 +4,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
@@ -17,13 +15,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ userId: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -31,12 +24,17 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const notes = await deps.doctorNotes.listForUser(userId);
+  const notes = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.doctorNotes.listForUser(identity.userId),
+  );
   return NextResponse.json({ ok: true, notes });
 }
 
@@ -71,7 +69,7 @@ export async function POST(
   try {
     const note = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.doctorNotes.create({
-        userId,
+        userId: identity.userId,
         authorId: session.user.userId,
         text: parsed.data.text,
       }),

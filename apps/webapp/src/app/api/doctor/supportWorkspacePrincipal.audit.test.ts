@@ -21,6 +21,16 @@ const mutatingRouteFiles = [
   "src/app/api/doctor/tasks/[taskId]/complete/route.ts",
 ] as const;
 
+const patientBoundReadRouteFiles = [
+  "src/app/api/doctor/clients/[userId]/notes/route.ts",
+  "src/app/api/doctor/clients/[userId]/support-settings/route.ts",
+  "src/app/api/doctor/clients/[userId]/tasks/route.ts",
+  "src/app/api/doctor/clients/[userId]/tasks/summary/route.ts",
+  "src/app/api/doctor/clients/[userId]/treatment-program-instances/route.ts",
+  "src/app/api/doctor/clients/[userId]/program-day-activity/route.ts",
+  "src/app/api/doctor/clients/[userId]/lfk-complex-exercises/[exerciseRowId]/route.ts",
+] as const;
+
 const principalBackedRepoFiles = [
   "src/infra/repos/pgDoctorNotes.ts",
   "src/infra/repos/pgDoctorPatientSupport.ts",
@@ -73,6 +83,15 @@ describe("doctor support/task workspace principal cutover", () => {
       expect(src).toContain("getClientIdentityForOrganization");
       expect(src).toContain("gate.ctx.organizationId");
     }
+  });
+
+  it.each(patientBoundReadRouteFiles)("%s resolves patient-bound access through the selected workspace", (file) => {
+    const src = readSource(file);
+    expect(src).toContain("requireDoctorWorkspaceApiContext");
+    expect(src).toContain("getClientIdentityForOrganization");
+    expect(src).toContain("gate.ctx.organizationId");
+    expect(src).not.toContain("getCurrentSession");
+    expect(src).not.toContain("canAccessDoctor");
   });
 
   it("doctor message mutations reject conversations outside the selected workspace", () => {

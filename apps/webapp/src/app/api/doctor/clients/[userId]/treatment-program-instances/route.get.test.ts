@@ -1,36 +1,45 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  getSessionMock,
   listClinicalMock,
-  getClientIdentityMock,
+  getClientIdentityForOrganizationMock,
   buildAppDepsMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
 } = vi.hoisted(() => {
   const listClinicalMockInner = vi.fn();
   return {
-    getSessionMock: vi.fn(),
     listClinicalMock: listClinicalMockInner,
-    getClientIdentityMock: vi.fn(),
+    getClientIdentityForOrganizationMock: vi.fn(),
     buildAppDepsMock: vi.fn(() => ({
       treatmentProgramInstance: {
         listForPatientClinicalView: listClinicalMockInner,
       },
       doctorClientsPort: {
-        getClientIdentity: getClientIdentityMock,
+        getClientIdentityForOrganization: getClientIdentityForOrganizationMock,
       },
     })),
+    requireDoctorWorkspaceApiContextMock: vi.fn(),
+    withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, fn: () => unknown) => fn()),
   };
 });
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: buildAppDepsMock }));
-vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) => withDoctorWorkspacePrincipalMock(ctx, fn),
+}));
 
 import { GET } from "./route";
 
 const PATIENT_ID = "00000000-0000-4000-8000-000000000001";
+const CANONICAL_PATIENT_ID = "00000000-0000-4000-8000-000000000011";
+const ORG_ID = "22222222-2222-4222-8222-222222222222";
 const DOCTOR_INSTANCE = {
   id: "11111111-1111-4111-8111-111111111111",
-  patientUserId: PATIENT_ID,
+  patientUserId: CANONICAL_PATIENT_ID,
   templateId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   assignedBy: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   assignmentSource: "doctor" as const,
@@ -43,14 +52,25 @@ const DOCTOR_INSTANCE = {
 
 describe("GET /api/doctor/clients/[userId]/treatment-program-instances", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
     listClinicalMock.mockReset();
-    getClientIdentityMock.mockReset();
-    getSessionMock.mockResolvedValue({
-      user: { userId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", role: "doctor", bindings: {} },
+    getClientIdentityForOrganizationMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        session: { user: { userId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", role: "doctor", bindings: {} } },
+        organizationId: ORG_ID,
+        membershipId: "33333333-3333-4333-8333-333333333333",
+        membershipRole: "doctor",
+        specialistId: null,
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
     });
-    getClientIdentityMock.mockResolvedValue({
-      userId: PATIENT_ID,
+    getClientIdentityForOrganizationMock.mockResolvedValue({
+      userId: CANONICAL_PATIENT_ID,
       displayName: "P",
       phone: "+70000000000",
       bindings: {},
@@ -69,6 +89,7 @@ describe("GET /api/doctor/clients/[userId]/treatment-program-instances", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toMatchObject({ ok: true, items: [DOCTOR_INSTANCE] });
-    expect(listClinicalMock).toHaveBeenCalledWith(PATIENT_ID);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(PATIENT_ID, ORG_ID);
+    expect(listClinicalMock).toHaveBeenCalledWith(CANONICAL_PATIENT_ID);
   });
 });

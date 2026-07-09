@@ -48,6 +48,10 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
     async listForOwner({ ownerUserId, patientUserId, includeCompleted = false, limit }) {
       const db = getDrizzle();
       const conditions = [eq(specialistTasks.ownerUserId, ownerUserId)];
+      const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+      if (principalOrganizationId) {
+        conditions.push(eq(specialistTasks.organizationId, principalOrganizationId));
+      }
       if (patientUserId === null) {
         conditions.push(isNull(specialistTasks.patientUserId));
       } else if (patientUserId !== undefined) {

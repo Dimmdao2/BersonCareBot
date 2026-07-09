@@ -34,8 +34,11 @@ export function createPgDoctorNotesPort(): DoctorNotesPort {
         updated_at: Date;
       }>(
         `SELECT id, organization_id, user_id, author_id, text, created_at, updated_at
-         FROM doctor_notes WHERE user_id = $1 ORDER BY created_at DESC`,
-        [userId]
+         FROM doctor_notes
+         WHERE user_id = $1
+           AND ($2::uuid IS NULL OR organization_id = $2::uuid)
+         ORDER BY created_at DESC`,
+        [userId, getCurrentDbPrincipalOrganizationId()]
       );
       return r.rows.map((row) => ({
         id: row.id,

@@ -390,8 +390,13 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       instanceId: string,
     ): Promise<TreatmentProgramInstanceDetail | null> {
       const db = getDrizzleOrMutationTx();
+      const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
       const inst = await db.query.treatmentProgramInstances.findFirst({
-        where: and(eq(instTable.id, instanceId), eq(instTable.patientUserId, patientUserId)),
+        where: and(
+          eq(instTable.id, instanceId),
+          eq(instTable.patientUserId, patientUserId),
+          ...(principalOrganizationId ? [eq(instTable.organizationId, principalOrganizationId)] : []),
+        ),
       });
       if (!inst) return null;
       const stagesRows = await db
@@ -421,10 +426,16 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
 
     async listInstancesForPatient(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]> {
       const db = getDrizzleOrMutationTx();
+      const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
       const rows = await db
         .select()
         .from(instTable)
-        .where(eq(instTable.patientUserId, patientUserId))
+        .where(
+          and(
+            eq(instTable.patientUserId, patientUserId),
+            ...(principalOrganizationId ? [eq(instTable.organizationId, principalOrganizationId)] : []),
+          ),
+        )
         .orderBy(desc(instTable.updatedAt), desc(instTable.id));
       return rows.map(mapInstance);
     },
@@ -433,10 +444,17 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       patientUserId: string,
     ): Promise<TreatmentProgramInstanceSummary[]> {
       const db = getDrizzleOrMutationTx();
+      const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
       const rows = await db
         .select()
         .from(instTable)
-        .where(and(eq(instTable.patientUserId, patientUserId), ne(instTable.assignmentSource, "promo")))
+        .where(
+          and(
+            eq(instTable.patientUserId, patientUserId),
+            ne(instTable.assignmentSource, "promo"),
+            ...(principalOrganizationId ? [eq(instTable.organizationId, principalOrganizationId)] : []),
+          ),
+        )
         .orderBy(desc(instTable.updatedAt), desc(instTable.id));
       return rows.map(mapInstance);
     },

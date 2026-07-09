@@ -2,6 +2,7 @@
  * PostgreSQL implementation of LfkDiaryPort.
  * Tables: lfk_complexes, lfk_sessions (see webapp/migrations/005_lfk_complexes_and_sessions.sql).
  */
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { MediaPreviewStatus } from "@/modules/media/types";
@@ -393,14 +394,16 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     rowId: string;
     localComment: string | null;
   }): Promise<void> {
+    const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
     const r = await runWebappPgText(
       `UPDATE lfk_complex_exercises ce
        SET local_comment = $3
        FROM lfk_complexes c
        WHERE ce.id = $1::uuid
          AND ce.complex_id = c.id
-         AND ${userMatchSql("c", 2)}`,
-      [params.rowId, params.userId, params.localComment]
+         AND ${userMatchSql("c", 2)}
+         AND ($4::uuid IS NULL OR c.organization_id = $4::uuid)`,
+      [params.rowId, params.userId, params.localComment, principalOrganizationId]
     );
     if (r.rowCount === 0) {
       throw new Error("Строка упражнения не найдена или нет доступа");

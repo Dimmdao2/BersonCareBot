@@ -22,6 +22,7 @@ vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
 }));
 
 const patientUserId = "a0000000-0000-4000-8000-000000000001";
+const canonicalPatientUserId = "a0000000-0000-4000-8000-000000000011";
 const doctorUserId = "b0000000-0000-4000-8000-000000000002";
 const otherDoctorId = "c0000000-0000-4000-8000-000000000003";
 const organizationId = "e0000000-0000-4000-8000-000000000005";
@@ -60,7 +61,10 @@ describe("doctor client specialist tasks route", () => {
   });
 
   it("GET returns 401 without session", async () => {
-    getCurrentSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
     const { GET } = await import("./route");
     const res = await GET(new Request("http://localhost"), {
       params: Promise.resolve({ userId: patientUserId }),
@@ -69,7 +73,10 @@ describe("doctor client specialist tasks route", () => {
   });
 
   it("GET returns 403 for client role", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client" } });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
     const { GET } = await import("./route");
     const res = await GET(new Request("http://localhost"), {
       params: Promise.resolve({ userId: patientUserId }),
@@ -80,7 +87,7 @@ describe("doctor client specialist tasks route", () => {
   it("GET returns 404 when patient not found", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: doctorUserId, role: "doctor" } });
     buildAppDepsMock.mockReturnValue({
-      doctorClientsPort: { getPatientClientIdentity: vi.fn().mockResolvedValue(null) },
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn().mockResolvedValue(null) },
       specialistTasks: { listPatientTasks: vi.fn() },
     });
     const { GET } = await import("./route");
@@ -95,7 +102,7 @@ describe("doctor client specialist tasks route", () => {
     const listPatientTasks = vi.fn().mockResolvedValue([sampleTask]);
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getPatientClientIdentity: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: canonicalPatientUserId }),
       },
       specialistTasks: { listPatientTasks },
     });
@@ -107,14 +114,14 @@ describe("doctor client specialist tasks route", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.tasks).toHaveLength(1);
-    expect(listPatientTasks).toHaveBeenCalledWith(doctorUserId, patientUserId, false);
+    expect(listPatientTasks).toHaveBeenCalledWith(doctorUserId, canonicalPatientUserId, false);
   });
 
   it("POST returns 400 on invalid body", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: doctorUserId, role: "doctor" } });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getPatientClientIdentity: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: patientUserId }),
       },
       specialistTasks: { create: vi.fn() },
     });
@@ -135,7 +142,7 @@ describe("doctor client specialist tasks route", () => {
     const create = vi.fn().mockResolvedValue(sampleTask);
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: canonicalPatientUserId }),
       },
       specialistTasks: { create },
     });
@@ -154,7 +161,7 @@ describe("doctor client specialist tasks route", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerUserId: doctorUserId,
-        patientUserId,
+        patientUserId: canonicalPatientUserId,
         title: "Позвонить",
         isImportant: true,
       }),
@@ -171,7 +178,7 @@ describe("GET /api/doctor/clients/:userId/tasks/summary", () => {
     });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getPatientClientIdentity: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: canonicalPatientUserId }),
       },
       specialistTasks: { getPatientSummary },
     });
@@ -183,7 +190,7 @@ describe("GET /api/doctor/clients/:userId/tasks/summary", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.summary?.openCount).toBe(2);
-    expect(getPatientSummary).toHaveBeenCalledWith(doctorUserId, patientUserId);
+    expect(getPatientSummary).toHaveBeenCalledWith(doctorUserId, canonicalPatientUserId);
   });
 });
 

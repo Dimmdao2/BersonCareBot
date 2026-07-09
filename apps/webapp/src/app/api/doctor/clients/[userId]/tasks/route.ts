@@ -4,8 +4,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { specialistTaskBodySchema } from "@/modules/specialist-tasks/apiSchemas";
@@ -14,11 +12,9 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -26,14 +22,19 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getPatientClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
   if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   const includeCompleted = new URL(request.url).searchParams.get("includeCompleted") === "1";
-  const tasks = await deps.specialistTasks.listPatientTasks(
-    session.user.userId,
-    userId,
-    includeCompleted,
+  const tasks = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.specialistTasks.listPatientTasks(
+      session.user.userId,
+      identity.userId,
+      includeCompleted,
+    ),
   );
   return NextResponse.json({ ok: true, tasks });
 }
@@ -68,7 +69,7 @@ export async function POST(
     const task = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.specialistTasks.create({
         ownerUserId: session.user.userId,
-        patientUserId: userId,
+        patientUserId: identity.userId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         dueAt: parsed.data.dueAt ?? null,

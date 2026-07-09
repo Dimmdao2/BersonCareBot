@@ -22,6 +22,7 @@ vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
 }));
 
 const patientUserId = "a0000000-0000-4000-8000-000000000001";
+const canonicalPatientUserId = "a0000000-0000-4000-8000-000000000011";
 const workspaceCtx = {
   session: { user: { userId: "doc-1", role: "doctor", bindings: {} } },
   organizationId: "b0000000-0000-4000-8000-000000000002",
@@ -43,7 +44,7 @@ describe("doctor client support-settings route", () => {
   it("GET returns profile and effective policy", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
     const getClientSupport = vi.fn().mockResolvedValue({
-      patientUserId,
+      patientUserId: canonicalPatientUserId,
       onSupport: true,
       commentsEnabled: null,
       mediaEnabled: null,
@@ -57,7 +58,7 @@ describe("doctor client support-settings route", () => {
     });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentity: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: canonicalPatientUserId }),
       },
       doctorClients: { getClientSupport, getPatientProgramInteractionPolicy },
     });
@@ -75,12 +76,14 @@ describe("doctor client support-settings route", () => {
     expect(json.ok).toBe(true);
     expect(json.profile?.onSupport).toBe(true);
     expect(json.effectivePolicy?.mediaAllowed).toBe(false);
+    expect(getClientSupport).toHaveBeenCalledWith(canonicalPatientUserId);
+    expect(getPatientProgramInteractionPolicy).toHaveBeenCalledWith(canonicalPatientUserId);
   });
 
   it("PATCH updates support profile", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
     const updateClientSupport = vi.fn().mockResolvedValue({
-      patientUserId,
+      patientUserId: canonicalPatientUserId,
       onSupport: false,
       commentsEnabled: true,
       mediaEnabled: null,
@@ -94,7 +97,7 @@ describe("doctor client support-settings route", () => {
     });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: canonicalPatientUserId }),
       },
       doctorClients: { updateClientSupport, getPatientProgramInteractionPolicy },
     });
@@ -113,7 +116,7 @@ describe("doctor client support-settings route", () => {
     expect(json.ok).toBe(true);
     expect(json.profile?.onSupport).toBe(false);
     expect(updateClientSupport).toHaveBeenCalledWith({
-      patientUserId,
+      patientUserId: canonicalPatientUserId,
       onSupport: false,
       commentsEnabled: true,
       actorId: "doc-1",

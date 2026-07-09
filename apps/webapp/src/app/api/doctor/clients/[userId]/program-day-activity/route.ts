@@ -13,8 +13,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 const querySchema = z.object({
   instanceId: z.string().uuid(),
@@ -32,13 +32,8 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -71,15 +66,23 @@ export async function GET(
   try {
     const deps = buildAppDeps();
 
-    // Verify the user exists
-    const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+    const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+      userId,
+      gate.ctx.organizationId,
+    );
     if (!identity) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    const instance = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.getInstanceForPatient(identity.userId, instanceId),
+    );
+    if (!instance) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
     // Read diary snapshots for the user in the date range
     const snapshots = await deps.patientDiarySnapshots.listForUserDateRange(
-      userId,
+      identity.userId,
       fromDate,
       toLocalDate,
     );
@@ -114,7 +117,10 @@ export async function GET(
     }
 
     return NextResponse.json({ ok: true, days });
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message === "Программа не найдена") {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

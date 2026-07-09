@@ -42,8 +42,9 @@ describe("pgDoctorNotes", () => {
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("doctor_notes");
+    expect(sql).toContain("organization_id = $2::uuid");
     expect(sql).toContain("ORDER BY created_at DESC");
-    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["user-1"]);
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["user-1", "org-1"]);
   });
 
   it("create inserts note and returns mapped row", async () => {
