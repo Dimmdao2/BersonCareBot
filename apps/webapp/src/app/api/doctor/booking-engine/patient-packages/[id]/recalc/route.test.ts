@@ -1,10 +1,26 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
-const recalcPastSessionsForPackageMock = vi.hoisted(() => vi.fn());
+const recalcPastSessionsForPackageDbPhaseMock = vi.hoisted(() => vi.fn());
+const refreshRecalcPastSessionsCalendarMock = vi.hoisted(() => vi.fn());
 const getAppointmentMock = vi.hoisted(() => vi.fn());
 const emitPackageLinkedCalendarSyncMock = vi.hoisted(() => vi.fn());
 const membershipsModuleEnabled = vi.hoisted(() => ({ value: true }));
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock('../../../_requireDoctorBookingEngine', () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
@@ -13,9 +29,16 @@ vi.mock('../../../_requireDoctorBookingEngine', () => ({
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     memberships: membershipsModuleEnabled.value
-      ? { recalcPastSessionsForPackage: recalcPastSessionsForPackageMock }
+      ? {
+          recalcPastSessionsForPackageDbPhase: recalcPastSessionsForPackageDbPhaseMock,
+          refreshRecalcPastSessionsCalendar: refreshRecalcPastSessionsCalendarMock,
+        }
       : null,
   }),
+}));
+
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock('@/modules/integrator/bookingM2mApi', () => ({
@@ -49,8 +72,10 @@ describe('POST patient-packages/[id]/recalc', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     membershipsModuleEnabled.value = true;
+    principalState.inside = false;
     requireDoctorBookingEngineMock.mockResolvedValue(makeGate());
     emitPackageLinkedCalendarSyncMock.mockResolvedValue('ok');
+    refreshRecalcPastSessionsCalendarMock.mockResolvedValue(undefined);
   });
 
   it('happy-path: returns full summary and triggers calendar sync for each debited appointment', async () => {
@@ -76,8 +101,25 @@ describe('POST patient-packages/[id]/recalc', () => {
       outOfBalance: [{ appointmentId: 'appt-4', serviceId: 'svc-1' }],
       corrected: [{ appointmentId: 'appt-5', serviceId: 'svc-1', refundUsageId: 'refund-1' }],
     };
-    recalcPastSessionsForPackageMock.mockResolvedValue(summary);
-    getAppointmentMock.mockResolvedValueOnce(fakeAppt1).mockResolvedValueOnce(fakeAppt2);
+    recalcPastSessionsForPackageDbPhaseMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return { summary, appointmentsToRefresh: [APPT_ID_1, APPT_ID_2] };
+    });
+    refreshRecalcPastSessionsCalendarMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+    });
+    getAppointmentMock
+      .mockImplementationOnce(async () => {
+        expect(principalState.inside).toBe(false);
+        return fakeAppt1;
+      })
+      .mockImplementationOnce(async () => {
+        expect(principalState.inside).toBe(false);
+        return fakeAppt2;
+      });
+    emitPackageLinkedCalendarSyncMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+    });
 
     const res = await POST(req(), {
       params: Promise.resolve({ id: PKG_ID }),
@@ -87,11 +129,17 @@ describe('POST patient-packages/[id]/recalc', () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.summary).toEqual(summary);
-    expect(recalcPastSessionsForPackageMock).toHaveBeenCalledWith({
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'doctor.booking-engine.patient-packages.recalc',
+      expect.any(Function),
+    );
+    expect(recalcPastSessionsForPackageDbPhaseMock).toHaveBeenCalledWith({
       organizationId: 'org-1',
       patientPackageId: PKG_ID,
       createdByPlatformUserId: 'u1',
     });
+    expect(refreshRecalcPastSessionsCalendarMock).toHaveBeenCalledWith([APPT_ID_1, APPT_ID_2]);
     expect(getAppointmentMock).toHaveBeenCalledTimes(2);
     expect(getAppointmentMock).toHaveBeenCalledWith(APPT_ID_1);
     expect(getAppointmentMock).toHaveBeenCalledWith(APPT_ID_2);
@@ -111,7 +159,9 @@ describe('POST patient-packages/[id]/recalc', () => {
     });
 
     expect(res.status).toBe(403);
-    expect(recalcPastSessionsForPackageMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+    expect(recalcPastSessionsForPackageDbPhaseMock).not.toHaveBeenCalled();
+    expect(refreshRecalcPastSessionsCalendarMock).not.toHaveBeenCalled();
   });
 
   it('returns 503 when memberships module is unavailable', async () => {
@@ -135,7 +185,10 @@ describe('POST patient-packages/[id]/recalc', () => {
       outOfBalance: [],
       corrected: [],
     };
-    recalcPastSessionsForPackageMock.mockResolvedValue(emptySummary);
+    recalcPastSessionsForPackageDbPhaseMock.mockResolvedValue({
+      summary: emptySummary,
+      appointmentsToRefresh: [],
+    });
 
     const res = await POST(req(), {
       params: Promise.resolve({ id: PKG_ID }),
@@ -145,12 +198,13 @@ describe('POST patient-packages/[id]/recalc', () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.summary).toEqual(emptySummary);
+    expect(refreshRecalcPastSessionsCalendarMock).toHaveBeenCalledWith([]);
     expect(getAppointmentMock).not.toHaveBeenCalled();
     expect(emitPackageLinkedCalendarSyncMock).not.toHaveBeenCalled();
   });
 
   it('maps a service error to 400', async () => {
-    recalcPastSessionsForPackageMock.mockRejectedValue(new Error('package_not_found'));
+    recalcPastSessionsForPackageDbPhaseMock.mockRejectedValue(new Error('package_not_found'));
 
     const res = await POST(req(), {
       params: Promise.resolve({ id: PKG_ID }),
@@ -159,5 +213,6 @@ describe('POST patient-packages/[id]/recalc', () => {
 
     expect(res.status).toBe(400);
     expect(body).toEqual({ ok: false, error: 'package_not_found' });
+    expect(refreshRecalcPastSessionsCalendarMock).not.toHaveBeenCalled();
   });
 });

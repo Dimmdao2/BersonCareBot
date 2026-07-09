@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireAdminBookingEngine } from '../../../_requireAdminBookingEngine';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -15,12 +16,20 @@ export async function POST(_request: Request, context: RouteContext) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
+  const memberships = deps.memberships;
   try {
-    const summary = await deps.memberships.recalcPastSessionsForPackage({
-      organizationId: gate.ctx.organizationId,
-      patientPackageId,
-      createdByPlatformUserId: gate.ctx.session.user.userId,
-    });
+    const result = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'admin.booking-engine.patient-packages.recalc',
+      () =>
+        memberships.recalcPastSessionsForPackageDbPhase({
+          organizationId: gate.ctx.organizationId,
+          patientPackageId,
+          createdByPlatformUserId: gate.ctx.session.user.userId,
+        }),
+    );
+    await memberships.refreshRecalcPastSessionsCalendar(result.appointmentsToRefresh);
+    const { summary } = result;
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'recalc_failed';

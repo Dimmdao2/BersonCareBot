@@ -129,6 +129,7 @@ Completed slices:
 - [x] T0.3.4: migrated the doctor CMS reorder server actions for content pages and content sections from role-only access to `requireDoctorWorkspaceContext()` and wrapped only their transaction-safe reorder mutations with `withDoctorWorkspacePrincipal(...)`.
 - [x] T0.3.5: wrapped only admin/doctor booking-engine working schedule template create/delete mutations with `withDoctorWorkspacePrincipal(...)` and converted the matching PostgreSQL repo methods to Drizzle transactions. GET/list and `POST?action=apply` remain unwrapped/deferred.
 - [x] T0.3.6: migrated doctor treatment-program test-attempt accept route from role-only auth to `requireDoctorWorkspaceApiContext()` and wrapped only the transaction-safe `doctorAcceptTestAttempt(...)` mutation with `withDoctorWorkspacePrincipal(...)`. Instance/patient access pre-reads remain outside the wrapper.
+- [x] T0.3.7: split membership patient-package recalc into a transaction-safe DB phase (`recalcPastSessionsForPackageDbPhase`) and post-DB best-effort calendar refresh, moved package load/status refresh/candidate/usages/recalc writes under `runWithPackageLock(...)`, and wrapped only the admin/doctor recalc DB phase with `withDoctorWorkspacePrincipal(...)`. Membership calendar refresh plus doctor `getAppointment(...)` / `emitPackageLinkedCalendarSync(...)` remain outside the principal wrapper.
 
 Recommended order:
 

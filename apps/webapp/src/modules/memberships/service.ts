@@ -1080,47 +1080,46 @@ export function createMembershipsService(deps: {
      * the calendar — mirroring `consumeForAppointment`. Balance is always DERIVED from the
      * ledger; nothing is mutated directly.
      */
-    async recalcPastSessionsForPackage(input: {
+    async recalcPastSessionsForPackageDbPhase(input: {
       organizationId: string;
       patientPackageId: string;
       createdByPlatformUserId?: string | null;
       nowIso?: string;
-    }): Promise<RecalcPastSessionsSummary> {
-      const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
-      if (!raw) throw new Error('package_not_found');
-      const pkg = await refreshPatientPackageRecord(raw);
-
-      const summary: RecalcPastSessionsSummary = {
-        patientPackageId: pkg.id,
-        debited: [],
-        skipped: [],
-        outOfBalance: [],
-        corrected: [],
-      };
-
-      // Only active packages within validity can be debited. Nothing to do otherwise.
-      if (pkg.status !== 'active' || !isPatientPackageWithinValidity(pkg)) {
-        return summary;
-      }
-
-      const soldAtIso = pkg.soldAt ?? pkg.validFrom ?? pkg.createdAt;
-      const nowIso = input.nowIso ?? new Date().toISOString();
-      if (soldAtIso >= nowIso) {
-        return summary;
-      }
-
-      const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
-      const serviceIds = [...packageServiceIds];
-      if (serviceIds.length === 0) return summary;
-
+    }): Promise<{ summary: RecalcPastSessionsSummary; appointmentsToRefresh: string[] }> {
       // ST-02: serialize the whole read-balance→debit pass under a per-package lock so two
       // concurrent «Пересчитать» requests can never both read the same balance and double-debit.
       // The pg port runs this inside an advisory-locked transaction; the fake port mutexes it.
-      const appointmentsToRefresh: string[] = [];
-      const lockedSummary = await deps.port.runWithPackageLock(
-        pkg.id,
-        pkg.organizationId,
+      return deps.port.runWithPackageLock(
+        input.patientPackageId,
+        input.organizationId,
         async () => {
+          const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
+          if (!raw) throw new Error('package_not_found');
+          const pkg = await refreshPatientPackageRecord(raw);
+          const summary: RecalcPastSessionsSummary = {
+            patientPackageId: pkg.id,
+            debited: [],
+            skipped: [],
+            outOfBalance: [],
+            corrected: [],
+          };
+          const appointmentsToRefresh: string[] = [];
+
+          // Only active packages within validity can be debited. Nothing to do otherwise.
+          if (pkg.status !== 'active' || !isPatientPackageWithinValidity(pkg)) {
+            return { summary, appointmentsToRefresh };
+          }
+
+          const soldAtIso = pkg.soldAt ?? pkg.validFrom ?? pkg.createdAt;
+          const nowIso = input.nowIso ?? new Date().toISOString();
+          if (soldAtIso >= nowIso) {
+            return { summary, appointmentsToRefresh };
+          }
+
+          const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
+          const serviceIds = [...packageServiceIds];
+          if (serviceIds.length === 0) return { summary, appointmentsToRefresh };
+
           const candidates = await deps.port.listRecalcCandidateAppointments({
             organizationId: input.organizationId,
             platformUserId: pkg.platformUserId,
@@ -1282,15 +1281,27 @@ export function createMembershipsService(deps: {
             });
           }
 
-          return summary;
+          return { summary, appointmentsToRefresh };
         },
       );
+    },
 
-      for (const appointmentId of appointmentsToRefresh) {
+    async refreshRecalcPastSessionsCalendar(appointmentIds: readonly string[]): Promise<void> {
+      for (const appointmentId of appointmentIds) {
         await refreshPackageCalendarForAppointment(appointmentId);
       }
+    },
 
-      return lockedSummary;
+    async recalcPastSessionsForPackage(input: {
+      organizationId: string;
+      patientPackageId: string;
+      createdByPlatformUserId?: string | null;
+      nowIso?: string;
+    }): Promise<RecalcPastSessionsSummary> {
+      const result = await this.recalcPastSessionsForPackageDbPhase(input);
+      await this.refreshRecalcPastSessionsCalendar(result.appointmentsToRefresh);
+
+      return result.summary;
     },
 
     async onVisitConfirmed(appointmentId: string, organizationId: string) {
