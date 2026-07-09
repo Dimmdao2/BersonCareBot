@@ -13,6 +13,7 @@ import {
 } from "@bersoncare/platform-merge";
 import {
   computeConflictKeyFromCandidateIds,
+  currentAuditOrganizationId,
   type AuditLogStatus,
 } from "@/infra/adminAuditLog";
 import { getPool } from "@/infra/db/client";
@@ -303,13 +304,14 @@ async function recordMessengerBindBlockedImpl(
     ...enrichedFields,
   };
   const status: AuditLogStatus = "error";
+  const organizationId = currentAuditOrganizationId();
 
   if (!conflictKey) {
     await runIdentityClientPgText(
       client,
-      `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
-       VALUES (NULL, 'messenger_phone_bind_anomaly', $1, NULL, $2::jsonb, $3)`,
-      [candidateIds[0] ?? null, JSON.stringify(baseDetails), status],
+      `INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
+       VALUES ($1::uuid, NULL, 'messenger_phone_bind_anomaly', $2, NULL, $3::jsonb, $4)`,
+      [organizationId, candidateIds[0] ?? null, JSON.stringify(baseDetails), status],
     );
     return;
   }
@@ -340,14 +342,15 @@ async function recordMessengerBindBlockedImpl(
 
   await runIdentityClientPgText(
     client,
-    `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-     VALUES (NULL, 'messenger_phone_bind_blocked', $1, $2, $3::jsonb, $4, 1, now())
+    `INSERT INTO admin_audit_log
+       (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
+     VALUES ($1::uuid, NULL, 'messenger_phone_bind_blocked', $2, $3, $4::jsonb, $5, 1, now())
      ON CONFLICT (conflict_key) WHERE resolved_at IS NULL DO UPDATE
        SET details = admin_audit_log.details || EXCLUDED.details,
            repeat_count = admin_audit_log.repeat_count + 1,
            last_seen_at = now(),
            status = EXCLUDED.status`,
-    [candidateIds[0] ?? null, conflictKey, JSON.stringify(baseDetails), status],
+    [organizationId, candidateIds[0] ?? null, conflictKey, JSON.stringify(baseDetails), status],
   );
 }
 

@@ -20,7 +20,7 @@ function txPgText<T = unknown>(
   return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
 }
 
-function currentAuditOrganizationId(): string {
+export function currentAuditOrganizationId(): string {
   return getCurrentDbPrincipalOrganizationId() ?? DEFAULT_ORGANIZATION_ID;
 }
 
