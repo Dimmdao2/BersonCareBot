@@ -70,13 +70,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "specialist_not_configured" }, { status: 409 });
     }
     try {
-      await deps.bookingScheduling.applyScheduleTemplate({
-        organizationId: gate.ctx.organizationId,
-        templateId: parsed.data.templateId,
-        dates: parsed.data.dates,
-        // FORCED: own specialist only — apply writes per-date rows scoped by specialist.
-        specialistId,
-      });
+      await withDoctorWorkspacePrincipal(
+        gate.ctx,
+        "doctor.booking-engine.working-schedule-templates.apply",
+        () =>
+          bookingScheduling.applyScheduleTemplate({
+            organizationId: gate.ctx.organizationId,
+            templateId: parsed.data.templateId,
+            dates: parsed.data.dates,
+            // FORCED: own specialist only — apply writes per-date rows scoped by specialist.
+            specialistId,
+          }),
+      );
       return NextResponse.json({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown";

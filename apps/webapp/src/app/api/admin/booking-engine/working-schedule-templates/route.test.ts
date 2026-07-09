@@ -145,7 +145,10 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
   describe("POST (apply)", () => {
     it("applies template to dates", async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
-      applyScheduleTemplateMock.mockResolvedValue([]);
+      applyScheduleTemplateMock.mockImplementation(async () => {
+        expect(principalState.inside).toBe(true);
+        return [];
+      });
       const res = await POST(
         new Request("http://localhost/api/admin/booking-engine/working-schedule-templates?action=apply", {
           method: "POST",
@@ -163,7 +166,11 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
           dates: ["2026-06-10", "2026-06-11"],
         }),
       );
-      expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+      expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: ORG }),
+        "admin.booking-engine.working-schedule-templates.apply",
+        expect.any(Function),
+      );
     });
 
     it("returns 400 when templateId missing for apply", async () => {
@@ -177,6 +184,7 @@ describe("/api/admin/booking-engine/working-schedule-templates", () => {
       );
       expect(res.status).toBe(400);
       expect(applyScheduleTemplateMock).not.toHaveBeenCalled();
+      expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
     });
   });
 

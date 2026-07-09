@@ -61,12 +61,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
     }
     try {
-      await deps.bookingScheduling.applyScheduleTemplate({
-        organizationId: gate.ctx.organizationId,
-        templateId: parsed.data.templateId,
-        dates: parsed.data.dates,
-        specialistId: resolveNullableUuid(parsed.data.specialistId ?? undefined),
-      });
+      await withDoctorWorkspacePrincipal(
+        gate.ctx,
+        "admin.booking-engine.working-schedule-templates.apply",
+        () =>
+          bookingScheduling.applyScheduleTemplate({
+            organizationId: gate.ctx.organizationId,
+            templateId: parsed.data.templateId,
+            dates: parsed.data.dates,
+            specialistId: resolveNullableUuid(parsed.data.specialistId ?? undefined),
+          }),
+      );
       return NextResponse.json({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown";

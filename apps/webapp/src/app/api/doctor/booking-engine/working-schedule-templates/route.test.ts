@@ -100,11 +100,11 @@ describe("/api/doctor/booking-engine/working-schedule-templates", () => {
     );
   });
 
-  it("applies a template without principal wrapper", async () => {
+  it("applies a template inside doctor workspace principal and forces own specialist", async () => {
     requireDoctorBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
     resolveDoctorOwnSpecialistIdMock.mockResolvedValue(SPECIALIST);
     applyScheduleTemplateMock.mockImplementation(async () => {
-      expect(principalState.inside).toBe(false);
+      expect(principalState.inside).toBe(true);
       return [];
     });
 
@@ -125,6 +125,29 @@ describe("/api/doctor/booking-engine/working-schedule-templates", () => {
       dates: ["2026-06-10"],
       specialistId: SPECIALIST,
     });
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG }),
+      "doctor.booking-engine.working-schedule-templates.apply",
+      expect.any(Function),
+    );
+  });
+
+  it("rejects apply before principal wrapper when own specialist is missing", async () => {
+    requireDoctorBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
+    resolveDoctorOwnSpecialistIdMock.mockResolvedValue(null);
+
+    const res = await POST(
+      new Request("http://localhost/api/doctor/booking-engine/working-schedule-templates?action=apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: TMPL, dates: ["2026-06-10"] }),
+      }),
+    );
+    const json = (await res.json()) as { ok: boolean; error: string };
+
+    expect(res.status).toBe(409);
+    expect(json).toEqual({ ok: false, error: "specialist_not_configured" });
+    expect(applyScheduleTemplateMock).not.toHaveBeenCalled();
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
