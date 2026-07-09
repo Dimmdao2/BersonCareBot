@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/infra/logging/logger";
 import {
@@ -36,7 +37,7 @@ async function archiveDoctorLfkTemplateCore(
   | { kind: "needs_confirmation"; usage: LfkTemplateUsageSnapshot }
   | { kind: "invalid"; error: string }
 > {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указан шаблон комплекса" };
@@ -44,7 +45,14 @@ async function archiveDoctorLfkTemplateCore(
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await deps.lfkTemplates.archiveTemplate(id, { acknowledgeUsageWarning });
+    await deps.lfkTemplates.archiveTemplate(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runTemplateWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.archive", fn),
+      },
+    );
     return { kind: "archived" };
   } catch (e) {
     if (isLfkTemplateUsageConfirmationRequiredError(e)) {
@@ -64,14 +72,17 @@ async function archiveDoctorLfkTemplateCore(
 async function unarchiveDoctorLfkTemplateCore(
   formData: FormData,
 ): Promise<{ kind: "unarchived"; id: string } | { kind: "invalid"; error: string }> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указан шаблон комплекса" };
 
   const deps = buildAppDeps();
   try {
-    await deps.lfkTemplates.unarchiveTemplate(id);
+    await deps.lfkTemplates.unarchiveTemplate(id, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.unarchive", fn),
+    });
     return { kind: "unarchived", id };
   } catch (e) {
     if (isTemplateArchiveNotFoundError(e)) {
@@ -86,12 +97,19 @@ async function unarchiveDoctorLfkTemplateCore(
 }
 
 export async function createLfkTemplateDraft(formData: FormData) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const titleRaw = formData.get("title");
   const title =
     typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : "Новый шаблон";
   const deps = buildAppDeps();
-  const t = await deps.lfkTemplates.createTemplate({ title }, session.user.userId);
+  const t = await deps.lfkTemplates.createTemplate(
+    { title },
+    workspace.session.user.userId,
+    {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.create", fn),
+    },
+  );
   revalidatePath(BASE);
   redirect(`${BASE}/${t.id}`);
 }
@@ -102,15 +120,22 @@ export async function createLfkTemplateDraftFromEditor(payload: {
   exercises: TemplateExerciseInput[];
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
-    const session = await requireDoctorAccess();
+    const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
     const titleRaw = payload.title.trim();
     const title = titleRaw || "Новый комплекс";
     const created = await deps.lfkTemplates.createTemplate(
       { title, description: payload.description },
-      session.user.userId,
+      workspace.session.user.userId,
+      {
+        runTemplateWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.create", fn),
+      },
     );
-    await deps.lfkTemplates.updateExercises(created.id, payload.exercises);
+    await deps.lfkTemplates.updateExercises(created.id, payload.exercises, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update-exercises", fn),
+    });
     revalidatePath(BASE);
     revalidatePath(`${BASE}/${created.id}`);
     return { ok: true, id: created.id };
@@ -126,18 +151,28 @@ export async function persistLfkTemplateDraft(payload: {
   exercises: TemplateExerciseInput[];
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await requireDoctorAccess();
+    const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
     const cur = await deps.lfkTemplates.getTemplate(payload.templateId);
     if (!cur) return { ok: false, error: "Шаблон не найден" };
     if (cur.status === "archived") {
       return { ok: false, error: "Комплекс в архиве. Верните из архива, чтобы редактировать." };
     }
-    await deps.lfkTemplates.updateTemplate(payload.templateId, {
-      title: payload.title,
-      description: payload.description,
+    await deps.lfkTemplates.updateTemplate(
+      payload.templateId,
+      {
+        title: payload.title,
+        description: payload.description,
+      },
+      {
+        runTemplateWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update", fn),
+      },
+    );
+    await deps.lfkTemplates.updateExercises(payload.templateId, payload.exercises, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update-exercises", fn),
     });
-    await deps.lfkTemplates.updateExercises(payload.templateId, payload.exercises);
     revalidatePath(BASE);
     revalidatePath(`${BASE}/${payload.templateId}`);
     return { ok: true };
@@ -150,9 +185,12 @@ export async function publishLfkTemplateAction(
   templateId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await requireDoctorAccess();
+    const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
-    await deps.lfkTemplates.publishTemplate(templateId);
+    await deps.lfkTemplates.publishTemplate(templateId, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.publish", fn),
+    });
     revalidatePath(BASE);
     revalidatePath(`${BASE}/${templateId}`);
     return { ok: true };

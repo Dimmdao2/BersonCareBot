@@ -10,6 +10,21 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 
 import { createPgLfkTemplatesPort } from "./pgLfkTemplates";
 
+const templateId = "00000000-0000-4000-8000-000000000001";
+
+function templateHeaderRow(overrides: Partial<{ id: string; title: string; status: string }> = {}) {
+  return {
+    id: templateId,
+    title: "T",
+    description: null,
+    status: "draft",
+    created_by: null,
+    created_at: new Date("2026-01-01T00:00:00.000Z"),
+    updated_at: new Date("2026-01-01T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
 describe("createPgLfkTemplatesPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
@@ -135,6 +150,51 @@ describe("createPgLfkTemplatesPort", () => {
     expect(u.activePatientLfkAssignmentRefs).toHaveLength(1);
     expect(u.activePatientLfkAssignmentRefs[0]?.kind).toBe("patient_lfk_assignment_client");
     expect(u.publishedTreatmentProgramTemplateRefs[0]?.title).toBe("Программа");
+  });
+
+  it("create inserts template through one webapp transaction", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [templateHeaderRow()] });
+    const port = createPgLfkTemplatesPort();
+    const out = await port.create({ title: "T" }, null);
+    expect(out.id).toBe(templateId);
+    expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    const txSql = runWebappPgTextMock.mock.calls
+      .filter((c) => c[2] != null)
+      .map((c) => String(c[0]))
+      .join("\n");
+    expect(txSql).toContain("INSERT INTO lfk_complex_templates");
+  });
+
+  it("update patches template through one webapp transaction before reloading", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [templateHeaderRow({ title: "New" })] })
+      .mockResolvedValueOnce({ rows: [templateHeaderRow({ title: "New" })] })
+      .mockResolvedValueOnce({ rows: [] });
+    const port = createPgLfkTemplatesPort();
+    const out = await port.update(templateId, { title: "New" });
+    expect(out?.title).toBe("New");
+    expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    const txSql = runWebappPgTextMock.mock.calls
+      .filter((c) => c[2] != null)
+      .map((c) => String(c[0]))
+      .join("\n");
+    expect(txSql).toContain("UPDATE lfk_complex_templates SET");
+  });
+
+  it("setStatus updates template status through one webapp transaction before reloading", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [templateHeaderRow({ status: "published" })] })
+      .mockResolvedValueOnce({ rows: [templateHeaderRow({ status: "published" })] })
+      .mockResolvedValueOnce({ rows: [] });
+    const port = createPgLfkTemplatesPort();
+    const out = await port.setStatus(templateId, "published");
+    expect(out?.status).toBe("published");
+    expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    const txSql = runWebappPgTextMock.mock.calls
+      .filter((c) => c[2] != null)
+      .map((c) => String(c[0]))
+      .join("\n");
+    expect(txSql).toContain("UPDATE lfk_complex_templates SET status");
   });
 
   it("updateExercises deletes then inserts in sort order and touches updated_at", async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import {
   LfkTemplateUsageConfirmationRequiredError,
   TemplateArchiveAlreadyArchivedError,
@@ -52,6 +52,22 @@ describe("lfk-templates service", () => {
     await svc.archiveTemplate(t.id, { acknowledgeUsageWarning: true });
     const got = await svc.getTemplate(t.id);
     expect(got?.status).toBe("archived");
+  });
+
+  it("archiveTemplate runs only the status write through write options", async () => {
+    const port = inMemoryLfkTemplatesPort;
+    const t = await port.create({ title: "Scoped" }, null);
+    const svc = createLfkTemplatesService(port);
+    const runTemplateWriteSpy = vi.fn();
+    const runTemplateWrite = async <T,>(fn: () => Promise<T>): Promise<T> => {
+      runTemplateWriteSpy();
+      return fn();
+    };
+
+    await svc.archiveTemplate(t.id, undefined, { runTemplateWrite });
+
+    expect(runTemplateWriteSpy).toHaveBeenCalledTimes(1);
+    expect((await svc.getTemplate(t.id))?.status).toBe("archived");
   });
 
   it("archiveTemplate succeeds without acknowledgement when only draft program templates reference", async () => {

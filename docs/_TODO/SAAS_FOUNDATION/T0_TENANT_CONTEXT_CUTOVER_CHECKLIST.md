@@ -150,6 +150,7 @@ Completed slices:
 - [x] T0.3.25: migrated doctor/admin booking cancelled appointment purge routes to `withDoctorWorkspacePrincipal(...)` around only the local projection purge via `staffPurgeCancelledAppointment.runLocalPurge`. Appointment validation/pre-reads, Rubitime remove-record, and `booking.deleted` emission remain outside-principal.
 - [x] T0.3.26: migrated doctor/admin booking package detach/refund/unlink routes to `withDoctorWorkspacePrincipal(...)` around only `memberships.detachAppointmentPackage` via `runPackageDetach.runDetachMutation`. Appointment/policy/settings pre-reads and package calendar sync remain outside-principal.
 - [x] T0.3.27: migrated doctor broadcast `executeBroadcastAction` and `saveDraftAction` to `requireDoctorWorkspaceContext()` and `withDoctorWorkspacePrincipal(...)` around the delivery commit and draft-save writes. `pgBroadcastDrafts.saveDraft` now runs through a Drizzle transaction so `app.org` is applied by the central transaction hook. Preview/list/load/count read paths remain role-only.
+- [x] T0.3.28: migrated doctor LFK exercise/template catalog mutations to workspace principal with narrow service write runners. Exercise/template pre-read and usage validation remains outside-principal; exercise create/update/archive/unarchive/bulk-create and template create/update/updateExercises/publish/archive/unarchive writes run under source-specific principal callbacks and transaction-backed repos.
 
 Recommended order:
 

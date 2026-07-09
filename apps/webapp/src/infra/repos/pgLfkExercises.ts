@@ -689,17 +689,23 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     },
 
     async archive(id: string): Promise<boolean> {
-      const r = await runWebappPgText(
-        `UPDATE lfk_exercises SET is_archived = true, updated_at = now() WHERE id = $1 AND is_archived = false`,
-        [id],
+      const r = await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE lfk_exercises SET is_archived = true, updated_at = now() WHERE id = $1 AND is_archived = false`,
+          [id],
+          tx,
+        ),
       );
       return (r.rowCount ?? 0) > 0;
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const r = await runWebappPgText(
-        `UPDATE lfk_exercises SET is_archived = false, updated_at = now() WHERE id = $1 AND is_archived = true`,
-        [id],
+      const r = await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE lfk_exercises SET is_archived = false, updated_at = now() WHERE id = $1 AND is_archived = true`,
+          [id],
+          tx,
+        ),
       );
       return (r.rowCount ?? 0) > 0;
     },

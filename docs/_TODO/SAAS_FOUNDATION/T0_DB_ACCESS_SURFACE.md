@@ -180,7 +180,7 @@ Known gaps:
 
 - Webapp plain `getDrizzle()` and pool-based reads/writes do not automatically pin `app.org`.
 - Webapp doctor/admin gates resolve `organizationId`, but route handlers are not centrally wrapped.
-- T0.3.23 tail audit found remaining doctor/admin mutation residuals before T0.4. Closed follow-ups: booking manual create (#613), booking cancelled appointment purge (#614), booking package detach/refund/unlink (#615), doctor broadcasts (#616). Remaining follow-ups: doctor LFK exercise/template catalog (#617), doctor clinical/recommendation/test-set catalog (#618), doctor courses/treatment-template catalog (#619), and admin media/references (#620). Do not treat T0.3 as closed until these are done/sealed and a final tail audit passes.
+- T0.3.23 tail audit found remaining doctor/admin mutation residuals before T0.4. Closed follow-ups: booking manual create (#613), booking cancelled appointment purge (#614), booking package detach/refund/unlink (#615), doctor broadcasts (#616), doctor LFK exercise/template catalog (#617). Remaining follow-ups: doctor clinical/recommendation/test-set catalog (#618), doctor courses/treatment-template catalog (#619), and admin media/references (#620). Do not treat T0.3 as closed until these are done/sealed and a final tail audit passes.
 - Patient APIs need enrollment-derived org, not default organization.
 - Integrator `DbPort.query` and cached pool Drizzle paths are plain pool operations unless they run in `db.tx`.
 - Scheduler has no outer org; scoped writes must derive org per job/row.
