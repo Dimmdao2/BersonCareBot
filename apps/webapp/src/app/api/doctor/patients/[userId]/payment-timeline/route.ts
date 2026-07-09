@@ -8,15 +8,14 @@
  * Response:
  *   { ok: true, timeline: PaymentTimelineEntry[], totalCashMinor: number, totalAcquiringMinor: number }
  *
- * Auth: requireDoctorBookingEngine (doctor/admin session + organizationId for booking events).
- * The booking-engine gate is used so we can pass organizationId to listHistoryForUser without
- * a second lookup. It already validates doctor role, so no double-auth is needed.
+ * Auth: selected doctor workspace + target-patient membership in that workspace.
  */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorBookingEngine } from "../../../booking-engine/_requireDoctorBookingEngine";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import type { PatientPayment } from "@/modules/patient-payments/ports";
 import type { PaymentHistoryEventRecord } from "@/modules/payments/types";
 
@@ -83,8 +82,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  // requireDoctorBookingEngine: validates doctor/admin session AND resolves organizationId
-  const gate = await requireDoctorBookingEngine();
+  const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await params;
@@ -93,12 +91,19 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
 
   // Fetch both sources in parallel
   const [patientPayments, historyEvents] = await Promise.all([
-    deps.patientPayments.listPayments(userId),
+    withDoctorWorkspacePrincipal(gate.ctx, () => deps.patientPayments.listPayments(identity.userId)),
     deps.payments
-      ? deps.payments.listPaymentHistoryForUser(userId, gate.ctx.organizationId)
+      ? deps.payments.listPaymentHistoryForUser(identity.userId, gate.ctx.organizationId)
       : ([] as PaymentHistoryEventRecord[]),
   ]);
 

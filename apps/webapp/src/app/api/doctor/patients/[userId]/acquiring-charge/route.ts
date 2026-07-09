@@ -2,7 +2,7 @@
  * POST /api/doctor/patients/[userId]/acquiring-charge
  *
  * Doctor-initiated acquiring payment charge for a patient.
- * Requires an active doctor session.
+ * Requires selected doctor workspace membership.
  *
  * Body: { amountMinor: int>0, currency?: string, description?: string }
  *
@@ -22,6 +22,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const postBodySchema = z.object({
@@ -34,8 +35,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorWorkspaceApiContext();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -59,10 +60,17 @@ export async function POST(
   const { amountMinor, currency, description } = parsed.data;
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
 
   // Initiate the charge via the acquiring gateway.
   const chargeResult = await deps.acquiringGateway.createCharge({
-    patientUserId: userId,
+    patientUserId: identity.userId,
     amountMinor,
     currency,
     description,
@@ -93,16 +101,18 @@ export async function POST(
   }
 
   // Record the pending payment in the patient ledger.
-  const payment = await deps.patientPayments.recordAcquiringCharge({
-    organizationId: auth.ctx.organizationId,
-    patientUserId: userId,
-    amountMinor,
-    currency,
-    description: description ?? null,
-    provider: providerId,
-    providerPaymentId: chargeResult.providerPaymentId,
-    createdBy: auth.ctx.session.user.userId,
-  });
+  const payment = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientPayments.recordAcquiringCharge({
+      organizationId: gate.ctx.organizationId,
+      patientUserId: identity.userId,
+      amountMinor,
+      currency,
+      description: description ?? null,
+      provider: providerId,
+      providerPaymentId: chargeResult.providerPaymentId,
+      createdBy: gate.ctx.session.user.userId,
+    }),
+  );
 
   return NextResponse.json(
     {

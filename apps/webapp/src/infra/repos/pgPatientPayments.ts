@@ -3,9 +3,9 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { getCurrentDbPrincipalOrganizationId, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { getWebappSqlFromPgClient } from "@/infra/db/runWebappSql";
 import { withTransaction } from "@/infra/db/withClient";
 import type {
@@ -45,14 +45,28 @@ function runPatientPaymentMutation<T>(
   );
 }
 
+function requiredPrincipalOrganizationId(): string {
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  if (!organizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return organizationId;
+}
+
 export function createPgPatientPaymentsPort(): PatientPaymentsPort {
   return {
     async listPayments(patientUserId: string): Promise<PatientPayment[]> {
+      const organizationId = requiredPrincipalOrganizationId();
       const db = getDrizzle();
       const rows = await db
         .select()
         .from(patientPayment)
-        .where(eq(patientPayment.patientUserId, patientUserId))
+        .where(
+          and(
+            eq(patientPayment.patientUserId, patientUserId),
+            eq(patientPayment.organizationId, organizationId),
+          ),
+        )
         .orderBy(desc(patientPayment.createdAt));
       return rows.map(rowToPayment);
     },
@@ -103,7 +117,12 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
           status,
           ...(providerPaymentId !== undefined ? { providerPaymentId } : {}),
         })
-          .where(eq(patientPayment.id, id)),
+          .where(
+            and(
+              eq(patientPayment.id, id),
+              eq(patientPayment.organizationId, organizationId),
+            ),
+          ),
       );
     },
 

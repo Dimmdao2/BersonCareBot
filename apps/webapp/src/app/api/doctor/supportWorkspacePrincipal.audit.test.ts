@@ -302,6 +302,48 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(folderRepo).toContain("folderOrgScopeCondition(),");
   });
 
+  it("doctor patient payment routes, repo, and SSR preload use selected workspace principal", () => {
+    for (const file of [
+      "src/app/api/doctor/patients/[userId]/payments/route.ts",
+      "src/app/api/doctor/patients/[userId]/payment-timeline/route.ts",
+      "src/app/api/doctor/patients/[userId]/acquiring-charge/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("gate.ctx.organizationId");
+      expect(src).toContain("identity.userId");
+    }
+
+    const paymentsRoute = readSource("src/app/api/doctor/patients/[userId]/payments/route.ts");
+    expect(paymentsRoute).toContain("withDoctorWorkspacePrincipal");
+    expect(paymentsRoute).toContain("deps.patientPayments.listPaymentsWithSummary(identity.userId)");
+    expect(paymentsRoute).toContain("patientUserId: identity.userId");
+
+    const timelineRoute = readSource("src/app/api/doctor/patients/[userId]/payment-timeline/route.ts");
+    expect(timelineRoute).toContain("withDoctorWorkspacePrincipal");
+    expect(timelineRoute).toContain("deps.patientPayments.listPayments(identity.userId)");
+    expect(timelineRoute).toContain("listPaymentHistoryForUser(identity.userId, gate.ctx.organizationId)");
+
+    const acquiringRoute = readSource("src/app/api/doctor/patients/[userId]/acquiring-charge/route.ts");
+    expect(acquiringRoute).toContain("patientUserId: identity.userId");
+    expect(acquiringRoute).toContain("deps.acquiringGateway.createCharge");
+    expect(acquiringRoute.indexOf("getClientIdentityForOrganization")).toBeLessThan(
+      acquiringRoute.indexOf("deps.acquiringGateway.createCharge"),
+    );
+
+    const repo = readSource("src/infra/repos/pgPatientPayments.ts");
+    expect(repo).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(repo).toContain("organization_principal_required");
+    expect(repo).toContain("eq(patientPayment.organizationId, organizationId)");
+    expect(repo).toContain("runWithDbOrganizationPrincipal(organizationId");
+
+    const page = readSource("src/app/app/doctor/patients/[userId]/page.tsx");
+    expect(page).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientPayments.listPaymentsWithSummary(patientUserId))");
+    expect(page).toContain("listPaymentHistoryForUser(patientUserId, workspace.organizationId)");
+    expect(page).toContain("listPatientPackagesForUser(patientUserId, workspace.organizationId)");
+  });
+
   it("patient comorbidities repo stamps and checks organization principal for comorbidity writes", () => {
     const src = readSource("src/infra/repos/pgPatientComorbidities.ts");
     expect(src).toContain("getCurrentDbPrincipalOrganizationId");

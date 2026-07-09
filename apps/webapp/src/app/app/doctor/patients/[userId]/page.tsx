@@ -76,23 +76,20 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     withDoctorWorkspacePrincipal(workspace, () => deps.patientFiles.listFiles(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientComorbidities.listActive(patientUserId)),
-    deps.patientPayments.listPaymentsWithSummary(patientUserId),
+    withDoctorWorkspacePrincipal(workspace, () => deps.patientPayments.listPaymentsWithSummary(patientUserId)),
     deps.platformUserContacts.listForPlatformUser(patientUserId),
   ]);
 
   // Unpack payments summary — listPaymentsWithSummary returns { payments, totalPaidMinor }.
   const patientPaymentRows = paymentsSummary.payments;
 
-  // Assemble finances timeline (same logic as payment-timeline route).
-  const orgId = await deps.bookingEngine?.organization.getDefaultOrganizationId().catch(() => null) ?? null;
-
-  // Parallel-fetch remaining SSR data that depends on orgId or is otherwise independent.
+  // Parallel-fetch remaining SSR data that depends on selected workspace or is otherwise independent.
   const [historyEvents, initialPackages, , initialSupportEffectivePolicy] = await Promise.all([
-    deps.payments && orgId
-      ? deps.payments.listPaymentHistoryForUser(patientUserId, orgId).catch(() => [])
+    deps.payments
+      ? deps.payments.listPaymentHistoryForUser(patientUserId, workspace.organizationId).catch(() => [])
       : Promise.resolve([] as Awaited<ReturnType<NonNullable<typeof deps.payments>["listPaymentHistoryForUser"]>>),
-    deps.memberships && orgId
-      ? deps.memberships.listPatientPackagesForUser(patientUserId, orgId).catch(() => null)
+    deps.memberships
+      ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId).catch(() => null)
       : Promise.resolve(null),
     deps.doctorClients.getClientSupport(patientUserId).catch(() => null), // fetched but only effectivePolicy is surfaced to UI
     deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId).catch((): PatientProgramInteractionPolicy | null => null),
