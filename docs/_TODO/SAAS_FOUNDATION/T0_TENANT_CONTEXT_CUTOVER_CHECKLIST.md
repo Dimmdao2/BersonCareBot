@@ -137,6 +137,7 @@ Completed slices:
 - [x] T0.3.12: migrated doctor booking appointment staff comment POST from manual role/default-org checks to `requireDoctorBookingEngine()` workspace context and wrapped only `clientHistory.createAppointmentComment(...)` with `withDoctorWorkspacePrincipal(...)`. `pgClientHistory.createAppointmentComment` now inserts through a Drizzle transaction. GET/list comments remains a deferred read-path slice.
 - [x] T0.3.13: migrated doctor/admin booking working-days PUT mutations (`upsert`, `close`, `clear`) to `withDoctorWorkspacePrincipal(...)` around only `bookingScheduling.upsertWorkingDays/closeWorkingDays/clearWorkingDays`. `pgBookingScheduling` now runs those working-days writes through Drizzle transactions. GET/list working-days remains a deferred read-path slice.
 - [x] T0.3.14: migrated doctor/admin booking package catalog upserts to `withDoctorWorkspacePrincipal(...)` around only `memberships.upsertCatalogPackage`. `pgMemberships.upsertCatalogPackage` now runs package/items write plus readback through a Drizzle transaction. GET/list and PATCH pre-read remain outside-principal/deferred read paths.
+- [x] T0.3.15: migrated doctor/admin booking product catalog `POST` upserts to `withDoctorWorkspacePrincipal(...)` around only `products.upsertProduct`. `pgProducts.upsertProduct` now runs create/update branches through Drizzle transactions. Product GET/list and pay-link/purchase/payment flows remain outside-principal/deferred slices.
 
 Recommended order:
 

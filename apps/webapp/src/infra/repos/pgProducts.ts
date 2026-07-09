@@ -100,35 +100,37 @@ export function createPgProductsPort(): ProductsPort {
 
     async upsertProduct(input) {
       const db = getDrizzle();
-      const values = {
-        organizationId: input.organizationId,
-        productType: input.productType,
-        title: input.title,
-        description: input.description ?? null,
-        priceMinor: input.priceMinor,
-        currency: input.currency ?? "RUB",
-        compositionJson: input.compositionJson ?? {},
-        accessRulesJson: input.accessRulesJson ?? {},
-        paymentRulesJson: input.paymentRulesJson ?? {},
-        validityDays: input.validityDays ?? null,
-        courseId: input.courseId ?? null,
-        subscriptionPackageId: input.subscriptionPackageId ?? null,
-        showInPatientCatalog: input.showInPatientCatalog ?? true,
-        payByLinkEnabled: input.payByLinkEnabled ?? false,
-        isActive: input.isActive ?? true,
-        updatedAt: new Date().toISOString(),
-      };
-      if (input.id) {
-        const [row] = await db
-          .update(beProducts)
-          .set(values)
-          .where(and(eq(beProducts.id, input.id), eq(beProducts.organizationId, input.organizationId)))
-          .returning();
-        if (!row) throw new Error("product_not_found");
+      return db.transaction(async (tx) => {
+        const values = {
+          organizationId: input.organizationId,
+          productType: input.productType,
+          title: input.title,
+          description: input.description ?? null,
+          priceMinor: input.priceMinor,
+          currency: input.currency ?? "RUB",
+          compositionJson: input.compositionJson ?? {},
+          accessRulesJson: input.accessRulesJson ?? {},
+          paymentRulesJson: input.paymentRulesJson ?? {},
+          validityDays: input.validityDays ?? null,
+          courseId: input.courseId ?? null,
+          subscriptionPackageId: input.subscriptionPackageId ?? null,
+          showInPatientCatalog: input.showInPatientCatalog ?? true,
+          payByLinkEnabled: input.payByLinkEnabled ?? false,
+          isActive: input.isActive ?? true,
+          updatedAt: new Date().toISOString(),
+        };
+        if (input.id) {
+          const [row] = await tx
+            .update(beProducts)
+            .set(values)
+            .where(and(eq(beProducts.id, input.id), eq(beProducts.organizationId, input.organizationId)))
+            .returning();
+          if (!row) throw new Error("product_not_found");
+          return mapProduct(row);
+        }
+        const [row] = await tx.insert(beProducts).values(values).returning();
         return mapProduct(row);
-      }
-      const [row] = await db.insert(beProducts).values(values).returning();
-      return mapProduct(row);
+      });
     },
 
     async createPayLink(input) {
