@@ -88,6 +88,7 @@ function runChecks(overrides = {}) {
     "-l",
     "runWithDbOrganizationPrincipal",
     "apps/webapp/src/app",
+    "apps/webapp/src/app-layer",
     "apps/webapp/src/modules",
     "apps/webapp/src/infra",
     "apps/integrator/src",

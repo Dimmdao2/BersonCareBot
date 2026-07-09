@@ -141,7 +141,7 @@ Files using `runWithDbOrganizationPrincipal` in runtime code:
 
 - `apps/integrator/src/infra/principal/organizationPrincipal.ts`
 - `apps/media-worker/src/runMediaWorkerSql.ts`
-- `apps/webapp/src/app/app/doctor/content/motivation/actions.ts`
+- `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`
 - `apps/webapp/src/infra/repos/pgPatientPayments.ts`
 - `apps/webapp/src/infra/repos/pgPayments.ts`
 - `packages/db-principal/src/index.ts`
@@ -149,7 +149,7 @@ Files using `runWithDbOrganizationPrincipal` in runtime code:
 Known coverage:
 
 - Webapp payment and patient-payment write paths have focused org principal wiring from P0.7.6.
-- Webapp motivation reorder action has focused org principal wiring from P0.7.2.
+- Webapp motivation reorder action now uses the app-layer doctor workspace principal helper from T0.3.1.
 - Telegram/MAX integrator webhooks already resolve org and wrap event pipeline through integrator organization principal helper.
 - Media-worker transcode processing is wrapped by job organization where available.
 

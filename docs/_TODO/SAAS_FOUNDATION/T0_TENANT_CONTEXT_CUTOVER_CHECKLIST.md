@@ -121,6 +121,10 @@ Rollback/cutover notes:
 
 Goal: convert webapp runtime families in small, testable slices.
 
+Completed slices:
+
+- [x] T0.3.1: added `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts` with focused tests and migrated `apps/webapp/src/app/app/doctor/content/motivation/actions.ts` reorder path from direct `runWithDbOrganizationPrincipal` to the named doctor workspace principal helper.
+
 Recommended order:
 
 1. Doctor/admin workspace routes and the remaining server actions.

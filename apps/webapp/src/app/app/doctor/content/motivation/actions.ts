@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { env } from "@/config/env";
 
 export type MotivationActionState = { ok: boolean; error?: string };
@@ -87,7 +87,7 @@ export async function reorderMotivationQuotes(orderedIds: string[]): Promise<Reo
 
   try {
     const deps = buildAppDeps();
-    await runWithDbOrganizationPrincipal(workspace.organizationId, () =>
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.reorder", () =>
       deps.doctorMotivationQuotesEditor.reorderQuotes(ids),
     );
   } catch (e) {
