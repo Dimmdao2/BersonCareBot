@@ -15,7 +15,7 @@
 | `{SERVER}` | `http://127.0.0.1:5200` (один постоянный Next dev на feat) |
 | `{DEV_LOGIN}` | `curl -s -c /tmp/r3.cookies -L "{SERVER}/api/auth/dev-bypass?token=dev%3Adoctor&next=/app/doctor"` (admin: `dev%3Aadmin`) |
 | `{SEAL_LEDGER}` | `/home/dev/orch/round3/SEAL_LEDGER.md` (+ `verify-seals.sh`) |
-| `{RUN_TESTS}` | `/home/dev/orch/run-tests.sh "<cmd>"` (flock-мьютекс, один за раз) |
+| `{RUN_TESTS}` | Прямой запуск нужной команды (`pnpm ...`) разрешён; `/home/dev/orch/run-tests.sh "<cmd>"` только опциональный throttling/fallback, если доступен |
 | `{SCREENSHOTS}` | `{REPO_ROOT}/.claude/screenshots/<ITEM>/` (owner-facing история) |
 | `{QUEUE}` / `{STATUS}` / `{ESCALATIONS}` | `/home/dev/orch/round3/{QUEUE.md, STATUS.json, ESCALATIONS.md}` |
 | `{ETALON_UI}` | страница упражнений врача + `apps/webapp/src/shared/ui/doctor/*` |
