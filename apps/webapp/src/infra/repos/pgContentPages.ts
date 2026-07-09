@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { contentPages } from "../../../db/schema/schema";
 
@@ -142,11 +143,13 @@ export function createPgContentPagesPort(): ContentPagesPort {
 
     async upsert(page) {
       const db = getDrizzle();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
       const linked =
         page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
           ? page.linkedCourseId.trim()
           : null;
       const values = {
+        organizationId,
         section: page.section,
         slug: page.slug,
         title: page.title,
@@ -162,27 +165,33 @@ export function createPgContentPagesPort(): ContentPagesPort {
         linkedCourseId: linked,
         updatedAt: sql`now()` as unknown as string,
       };
-      const rows = await db
-        .insert(contentPages)
-        .values(values)
-        .onConflictDoUpdate({
-          target: [contentPages.section, contentPages.slug],
-          set: {
-            title: page.title,
-            summary: page.summary,
-            bodyMd: page.bodyMd,
-            bodyHtml: page.bodyHtml,
-            sortOrder: page.sortOrder,
-            isPublished: page.isPublished,
-            requiresAuth: page.requiresAuth ?? false,
-            videoUrl: page.videoUrl,
-            videoType: page.videoType,
-            imageUrl: page.imageUrl,
-            linkedCourseId: linked,
-            updatedAt: sql`now()` as unknown as string,
-          },
-        })
-        .returning({ id: contentPages.id });
+      const updateSet: Partial<typeof contentPages.$inferInsert> = {
+        title: page.title,
+        summary: page.summary,
+        bodyMd: page.bodyMd,
+        bodyHtml: page.bodyHtml,
+        sortOrder: page.sortOrder,
+        isPublished: page.isPublished,
+        requiresAuth: page.requiresAuth ?? false,
+        videoUrl: page.videoUrl,
+        videoType: page.videoType,
+        imageUrl: page.imageUrl,
+        linkedCourseId: linked,
+        updatedAt: sql`now()` as unknown as string,
+      };
+      if (organizationId) {
+        updateSet.organizationId = organizationId;
+      }
+      const rows = await db.transaction((tx) =>
+        tx
+          .insert(contentPages)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [contentPages.section, contentPages.slug],
+            set: updateSet,
+          })
+          .returning({ id: contentPages.id }),
+      );
       const id = rows[0]?.id;
       if (!id) throw new Error("content_pages upsert returned no id");
       return id;
@@ -190,29 +199,33 @@ export function createPgContentPagesPort(): ContentPagesPort {
 
     async updateFull(id, page) {
       const db = getDrizzle();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
       const linked =
         page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
           ? page.linkedCourseId.trim()
           : null;
-      await db
-        .update(contentPages)
-        .set({
-          section: page.section,
-          slug: page.slug,
-          title: page.title,
-          summary: page.summary,
-          bodyMd: page.bodyMd,
-          bodyHtml: page.bodyHtml,
-          sortOrder: page.sortOrder,
-          isPublished: page.isPublished,
-          requiresAuth: page.requiresAuth ?? false,
-          videoUrl: page.videoUrl,
-          videoType: page.videoType,
-          imageUrl: page.imageUrl,
-          linkedCourseId: linked,
-          updatedAt: sql`now()` as unknown as string,
-        })
-        .where(eq(contentPages.id, id));
+      const setPayload: Partial<typeof contentPages.$inferInsert> = {
+        section: page.section,
+        slug: page.slug,
+        title: page.title,
+        summary: page.summary,
+        bodyMd: page.bodyMd,
+        bodyHtml: page.bodyHtml,
+        sortOrder: page.sortOrder,
+        isPublished: page.isPublished,
+        requiresAuth: page.requiresAuth ?? false,
+        videoUrl: page.videoUrl,
+        videoType: page.videoType,
+        imageUrl: page.imageUrl,
+        linkedCourseId: linked,
+        updatedAt: sql`now()` as unknown as string,
+      };
+      if (organizationId) {
+        setPayload.organizationId = organizationId;
+      }
+      await db.transaction(async (tx) => {
+        await tx.update(contentPages).set(setPayload).where(eq(contentPages.id, id));
+      });
     },
 
     async updateLifecycle(id, patch) {

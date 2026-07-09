@@ -9,16 +9,52 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+function readPgContentPagesSource(): string {
+  return readFileSync(join(__dirname, "pgContentPages.ts"), "utf8");
+}
+
+function methodSource(source: string, startMarker: string, endMarker: string): string {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return source.slice(start, end);
+}
+
 describe("pgContentPages (runtime constraints)", () => {
   it("runs lifecycle updates through a Drizzle transaction", () => {
-    const src = readFileSync(join(__dirname, "pgContentPages.ts"), "utf8");
-    const start = src.indexOf("    async updateLifecycle(id, patch)");
-    const end = src.indexOf("    async reorderInSection(section, orderedIds)", start);
-    expect(start).toBeGreaterThanOrEqual(0);
-    expect(end).toBeGreaterThan(start);
-    const method = src.slice(start, end);
+    const method = methodSource(
+      readPgContentPagesSource(),
+      "    async updateLifecycle(id, patch)",
+      "    async reorderInSection(section, orderedIds)",
+    );
     expect(method).toContain("await db.transaction");
     expect(method).toContain("tx.update(contentPages)");
+  });
+
+  it("runs page upserts through a Drizzle transaction and stamps current principal org", () => {
+    const method = methodSource(
+      readPgContentPagesSource(),
+      "    async upsert(page)",
+      "    async updateFull(id, page)",
+    );
+    expect(method).toContain("getCurrentDbPrincipalOrganizationId()");
+    expect(method).toContain("await db.transaction");
+    expect(method).toContain("organizationId");
+    expect(method).toContain("updateSet.organizationId = organizationId");
+  });
+
+  it("runs full page updates through a Drizzle transaction and does not clear org without principal", () => {
+    const method = methodSource(
+      readPgContentPagesSource(),
+      "    async updateFull(id, page)",
+      "    async updateLifecycle(id, patch)",
+    );
+    expect(method).toContain("getCurrentDbPrincipalOrganizationId()");
+    expect(method).toContain("await db.transaction");
+    expect(method).toContain("tx.update(contentPages)");
+    expect(method).toContain("setPayload.organizationId = organizationId");
+    expect(method).not.toMatch(/organizationId:\s*null/);
   });
 });
 

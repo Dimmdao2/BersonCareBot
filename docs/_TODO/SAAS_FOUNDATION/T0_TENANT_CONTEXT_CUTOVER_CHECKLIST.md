@@ -144,6 +144,7 @@ Completed slices:
 - [x] T0.3.19: migrated doctor/admin booking working-schedule-template `POST ?action=apply` to `withDoctorWorkspacePrincipal(...)` around `bookingScheduling.applyScheduleTemplate`. Doctor apply still resolves/forces own specialist before the wrapper; `applyScheduleTemplate` writes via transaction-backed `upsertWorkingDays`.
 - [x] T0.3.20: migrated doctor CMS section metadata actions (`saveContentSection`, `attachArticleSectionToSystemFolder`) to `requireDoctorWorkspaceContext()` and `withDoctorWorkspacePrincipal(...)` around only `contentSections.upsert/update`. `pgContentSections.upsert` now runs through a Drizzle transaction and stamps `organization_id` from the active DB principal.
 - [x] T0.3.21: migrated doctor CMS section rename/delete actions (`renameContentSectionSlug`, `deleteContentSection`) to `requireDoctorWorkspaceContext()` and `withDoctorWorkspacePrincipal(...)` around only `contentSections.renameSectionSlug/deleteSectionWithPageReassign`. Underlying repo methods were already transaction-backed.
+- [x] T0.3.22: migrated doctor CMS page save action (`saveContentPage`) to `requireDoctorWorkspaceContext()` and `withDoctorWorkspacePrincipal(...)` around only `contentPages.updateFull/upsert`. `pgContentPages.upsert/updateFull` now run through Drizzle transactions and stamp `organization_id` from the active DB principal when present; pre-write reads and slug-retarget side effects remain outside-principal.
 
 Recommended order:
 

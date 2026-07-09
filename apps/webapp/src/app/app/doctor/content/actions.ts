@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -13,7 +14,7 @@ export async function saveContentPage(
   _prev: SaveContentPageState | null,
   formData: FormData,
 ): Promise<SaveContentPageState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   const section = (formData.get("section") as string)?.trim() || "";
@@ -120,21 +121,23 @@ export async function saveContentPage(
     }
 
     try {
-      await deps.contentPages.updateFull(editingId, {
-        section,
-        slug,
-        title,
-        summary,
-        bodyMd: bodyMdStored,
-        bodyHtml: bodyHtmlStored,
-        sortOrder,
-        isPublished,
-        requiresAuth,
-        videoUrl,
-        videoType,
-        imageUrl,
-        linkedCourseId,
-      });
+      await withDoctorWorkspacePrincipal(workspace, "doctor.content.page.update-full", () =>
+        deps.contentPages.updateFull(editingId, {
+          section,
+          slug,
+          title,
+          summary,
+          bodyMd: bodyMdStored,
+          bodyHtml: bodyHtmlStored,
+          sortOrder,
+          isPublished,
+          requiresAuth,
+          videoUrl,
+          videoType,
+          imageUrl,
+          linkedCourseId,
+        }),
+      );
     } catch (err) {
       console.error("saveContentPage failed:", err);
       return { ok: false, error: "Не удалось сохранить страницу. Попробуйте ещё раз." };
@@ -178,21 +181,23 @@ export async function saveContentPage(
   }
 
   try {
-    await deps.contentPages.upsert({
-      section,
-      slug,
-      title,
-      summary,
-      bodyMd: bodyMdStored,
-      bodyHtml: bodyHtmlStored,
-      sortOrder,
-      isPublished,
-      requiresAuth,
-      videoUrl,
-      videoType,
-      imageUrl,
-      linkedCourseId,
-    });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.page.upsert", () =>
+      deps.contentPages.upsert({
+        section,
+        slug,
+        title,
+        summary,
+        bodyMd: bodyMdStored,
+        bodyHtml: bodyHtmlStored,
+        sortOrder,
+        isPublished,
+        requiresAuth,
+        videoUrl,
+        videoType,
+        imageUrl,
+        linkedCourseId,
+      }),
+    );
   } catch (err) {
     console.error("saveContentPage failed:", err);
     return { ok: false, error: "Не удалось сохранить страницу. Попробуйте ещё раз." };

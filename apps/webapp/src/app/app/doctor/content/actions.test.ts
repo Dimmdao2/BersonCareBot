@@ -6,6 +6,22 @@ const listAllMock = vi.fn();
 const getCourseForDoctorMock = vi.fn();
 const getByIdMock = vi.fn();
 const updateFullMock = vi.fn();
+const requireDoctorWorkspaceContextMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 const { retargetHomeMock, retargetReminderMock } = vi.hoisted(() => ({
   retargetHomeMock: vi.fn().mockResolvedValue(undefined),
@@ -18,6 +34,11 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorAccess: vi.fn().mockResolvedValue({ user: { id: "doc-1" } }),
+  requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -37,6 +58,17 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { saveContentPage } from "./actions";
 
+function workspaceContext() {
+  return {
+    organizationId: "org-1",
+    session: {
+      user: {
+        userId: "00000000-0000-4000-8000-000000000001",
+      },
+    },
+  };
+}
+
 function formWith(entries: Record<string, string>) {
   const fd = new FormData();
   for (const [k, v] of Object.entries(entries)) {
@@ -48,6 +80,10 @@ function formWith(entries: Record<string, string>) {
 describe("saveContentPage", () => {
   beforeEach(() => {
     upsertMock.mockClear();
+    requireDoctorWorkspaceContextMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
+    withDoctorWorkspacePrincipalMock.mockClear();
+    principalState.inside = false;
     listAllMock.mockReset();
     listAllMock.mockResolvedValue([]);
     getCourseForDoctorMock.mockReset();
@@ -70,7 +106,9 @@ describe("saveContentPage", () => {
   });
 
   it("stores body_md and clears body_html when md is non-empty", async () => {
-    upsertMock.mockResolvedValue(undefined);
+    upsertMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
     const fd = formWith({
       section: "lessons",
       slug: "test-page",
@@ -87,6 +125,12 @@ describe("saveContentPage", () => {
         slug: "test-page",
       }),
     );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "doctor.content.page.upsert",
+      expect.any(Function),
+    );
+    expect(principalState.inside).toBe(false);
   });
 
   it("keeps legacy body_html when body_md is empty", async () => {
@@ -223,7 +267,9 @@ describe("saveContentPage", () => {
   });
 
   it("keeps existing sort order when editing with page_id", async () => {
-    updateFullMock.mockResolvedValue(undefined);
+    updateFullMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
     const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     getByIdMock.mockResolvedValue({
       id: pageId,
@@ -261,17 +307,26 @@ describe("saveContentPage", () => {
     expect(retargetReminderMock).not.toHaveBeenCalled();
     expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ sortOrder: 7 }));
     expect(upsertMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "doctor.content.page.update-full",
+      expect.any(Function),
+    );
+    expect(principalState.inside).toBe(false);
   });
 
   it("allows changing slug when editing with page_id", async () => {
     const order: string[] = [];
     updateFullMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
       order.push("update");
     });
     retargetHomeMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
       order.push("home");
     });
     retargetReminderMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
       order.push("reminder");
     });
     const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -398,7 +453,10 @@ describe("saveContentPage", () => {
   });
 
   it("returns error when listAll fails", async () => {
-    listAllMock.mockRejectedValue(new Error("db unavailable"));
+    listAllMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+      throw new Error("db unavailable");
+    });
     const fd = formWith({
       section: "lessons",
       slug: "any",
@@ -410,6 +468,8 @@ describe("saveContentPage", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/список страниц/i);
     expect(upsertMock).not.toHaveBeenCalled();
+    expect(updateFullMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   const publishedCourseId = "11111111-1111-4111-8111-111111111111";
@@ -445,18 +505,21 @@ describe("saveContentPage", () => {
   });
 
   it("rejects linked_course_id when course is not published", async () => {
-    getCourseForDoctorMock.mockResolvedValue({
-      id: publishedCourseId,
-      status: "draft",
-      programTemplateId: "22222222-2222-4222-8222-222222222222",
-      title: "Draft",
-      description: null,
-      introLessonPageId: null,
-      accessSettings: {},
-      priceMinor: 0,
-      currency: "RUB",
-      createdAt: "",
-      updatedAt: "",
+    getCourseForDoctorMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+      return {
+        id: publishedCourseId,
+        status: "draft",
+        programTemplateId: "22222222-2222-4222-8222-222222222222",
+        title: "Draft",
+        description: null,
+        introLessonPageId: null,
+        accessSettings: {},
+        priceMinor: 0,
+        currency: "RUB",
+        createdAt: "",
+        updatedAt: "",
+      };
     });
     const fd = formWith({
       section: "lessons",
@@ -469,6 +532,7 @@ describe("saveContentPage", () => {
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("saves linked_course_id when course is published", async () => {
