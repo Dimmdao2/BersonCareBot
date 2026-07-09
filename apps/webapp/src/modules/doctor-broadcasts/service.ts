@@ -50,6 +50,10 @@ export type DoctorBroadcastsServiceDeps = {
   fanOutBroadcastEmailDeps?: FanOutBroadcastEmailDeps;
 };
 
+export type DoctorBroadcastExecutionOptions = {
+  runDeliveryCommit?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
 const CATEGORIES: BroadcastCategory[] = [
   "service",
   "organizational",
@@ -87,7 +91,10 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       };
     },
 
-    async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
+    async execute(
+      command: BroadcastCommand,
+      options?: DoctorBroadcastExecutionOptions,
+    ): Promise<{ auditEntry: BroadcastAuditEntry }> {
       const channels = resolvedChannels(command);
       const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels, command.category);
       const {
@@ -127,12 +134,15 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         errorCount: 0,
         blockedRecipientCount: 0,
       };
-      const entry = await deps.doctorBroadcastDeliveryCommitPort.commitAuditAndDeliveryQueue({
-        auditId,
-        audit: auditBase,
-        jobs,
-        recipientUserIds: eligibleClients.map((c) => c.userId),
-      });
+      const runDeliveryCommit = options?.runDeliveryCommit ?? (<T>(fn: () => Promise<T>) => fn());
+      const entry = await runDeliveryCommit(() =>
+        deps.doctorBroadcastDeliveryCommitPort.commitAuditAndDeliveryQueue({
+          auditId,
+          audit: auditBase,
+          jobs,
+          recipientUserIds: eligibleClients.map((c) => c.userId),
+        }),
+      );
 
       if (deps.patientInboundChatPort) {
         for (const client of eligibleClients) {
