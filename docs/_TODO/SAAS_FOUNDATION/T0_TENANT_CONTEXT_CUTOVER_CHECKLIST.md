@@ -124,6 +124,7 @@ Goal: convert webapp runtime families in small, testable slices.
 Completed slices:
 
 - [x] T0.3.1: added `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts` with focused tests and migrated `apps/webapp/src/app/app/doctor/content/motivation/actions.ts` reorder path from direct `runWithDbOrganizationPrincipal` to the named doctor workspace principal helper.
+- [x] T0.3.2: made `apps/webapp/src/app-layer/db/drizzle.ts` apply the current `app.org` principal inside Drizzle transactions when AsyncLocalStorage principal exists; added focused tests and narrowed the DB chokepoint guard exception to exactly one `set_config('app.org', ...)` fragment.
 
 Recommended order:
 

@@ -18,7 +18,7 @@ This file records the runtime surface that T0 must cut over. It is not a replace
 Webapp:
 
 - `apps/webapp/src/infra/db/client.ts` - `getPool()`
-- `apps/webapp/src/app-layer/db/drizzle.ts` - `getDrizzle()`
+- `apps/webapp/src/app-layer/db/drizzle.ts` - `getDrizzle()`; T0.3.2 applies the current `app.org` principal inside Drizzle transactions when AsyncLocalStorage principal exists.
 - `apps/webapp/src/infra/db/runWebappSql.ts` - `runWebappSql`, `runWebappPgText`, `runPgPoolPgText`
 - `apps/webapp/src/infra/db/withClient.ts` - `withClient`, `withTransaction`
 
@@ -177,6 +177,7 @@ It currently enforces:
 - no runtime `.connect()` outside checkout helpers and documented ops keep path;
 - no raw SQL signal in guarded webapp layers outside the current S5 allowlist.
 - exact T0.1 route/action/principal inventory parity with current source discovery.
+- the T0.3.2 Drizzle transaction principal hook has a narrow DB chokepoint guard exception for exactly one `set_config('app.org', ...)` SQL fragment, not a general app-layer SQL exception.
 
 It does not enforce:
 
