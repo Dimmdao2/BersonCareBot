@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() => vi.fn());
@@ -70,5 +71,11 @@ describe("createPgCoursesPort usage summary", () => {
     expect(sql).toContain("treatment_program_instances");
     expect(sql).toContain("content_pages");
     expect(sql).toContain("linked_course_id");
+  });
+
+  it("course catalog writes use the webapp transaction chokepoint", () => {
+    const src = readFileSync(new URL("./pgCourses.ts", import.meta.url), "utf8");
+    expect(src).toContain("runWebappTransaction");
+    expect(src.match(/runWebappTransaction/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
   });
 });

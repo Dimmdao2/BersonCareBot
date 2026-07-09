@@ -1,7 +1,9 @@
 /** Wave 3 phase 15C — treatment program raw SQL parity via `runWebappPgText`. */
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runWebappTransactionMock = vi.hoisted(() => vi.fn());
 
 const TPL_ID = "00000000-0000-4000-8000-000000000001";
 const PREVIEW_MEDIA_ID = "11111111-1111-4111-8111-111111111111";
@@ -41,6 +43,7 @@ function makeSelectChain(orderByResult: unknown[] = [tplListRow]) {
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: (queryText: string, values?: readonly unknown[], db?: unknown) =>
     runWebappPgTextMock(queryText, values, db),
+  runWebappTransaction: runWebappTransactionMock,
 }));
 
 vi.mock("@/app-layer/db/drizzle", () => ({
@@ -73,6 +76,8 @@ import { createPgTreatmentProgramPort } from "./pgTreatmentProgram";
 describe("createPgTreatmentProgramPort usage summary", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    runWebappTransactionMock.mockReset();
+    runWebappTransactionMock.mockImplementation(async (fn) => fn({ rollback: vi.fn() }));
   });
 
   it("getTreatmentProgramTemplateUsageSummary runs aggregate query for template_id and courses.program_template_id", async () => {
@@ -136,6 +141,13 @@ describe("createPgTreatmentProgramPort usage summary", () => {
       patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     });
     expect(u.publishedCourseRefs[0]).toMatchObject({ kind: "course", title: "Курс" });
+  });
+
+  it("template catalog writes use the webapp transaction chokepoint", () => {
+    const src = readFileSync(new URL("./pgTreatmentProgram.ts", import.meta.url), "utf8");
+    expect(src).toContain("runWebappTransaction");
+    expect(src.match(/runWebappTransaction/g)?.length ?? 0).toBeGreaterThanOrEqual(18);
+    expect(src).not.toContain("db.transaction");
   });
 });
 

@@ -1,7 +1,7 @@
 /** Wave 3 phase 15C — list preview / usage summary SQL via `runWebappPgText`. */
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
 import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
 import {
@@ -490,8 +490,7 @@ function sameUuidOrder(a: string[], b: string[]): boolean {
 export function createPgTreatmentProgramPort(): TreatmentProgramPort {
   return {
     async createTemplate(input: CreateTreatmentProgramTemplateInput, createdBy: string | null) {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      return runWebappTransaction(async (tx) => {
         const [row] = await tx
           .insert(tplTable)
           .values({
@@ -521,17 +520,18 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async updateTemplate(id: string, input: UpdateTreatmentProgramTemplateInput) {
-      const db = getDrizzle();
       const patch: Partial<typeof tplTable.$inferInsert> = {
         updatedAt: new Date().toISOString(),
       };
       if (input.title !== undefined) patch.title = input.title;
       if (input.description !== undefined) patch.description = input.description;
       if (input.status !== undefined) patch.status = input.status;
-      const [row] = await db.update(tplTable).set(patch).where(eq(tplTable.id, id)).returning();
-      if (!row) return null;
-      const counts = await templateCountsForOne(db, id);
-      return mapTemplate(row, counts);
+      return runWebappTransaction(async (tx) => {
+        const [row] = await tx.update(tplTable).set(patch).where(eq(tplTable.id, id)).returning();
+        if (!row) return null;
+        const counts = await templateCountsForOne(tx, id);
+        return mapTemplate(row, counts);
+      });
     },
 
     async getTemplateById(id: string): Promise<TreatmentProgramTemplateDetail | null> {
@@ -633,12 +633,13 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async deleteTemplate(id: string) {
-      const db = getDrizzle();
-      const rows = await db
-        .update(tplTable)
-        .set({ status: "archived", updatedAt: new Date().toISOString() })
-        .where(and(eq(tplTable.id, id), ne(tplTable.status, "archived")))
-        .returning({ id: tplTable.id });
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .update(tplTable)
+          .set({ status: "archived", updatedAt: new Date().toISOString() })
+          .where(and(eq(tplTable.id, id), ne(tplTable.status, "archived")))
+          .returning({ id: tplTable.id }),
+      );
       return rows.length > 0;
     },
 
@@ -647,8 +648,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async createStage(templateId: string, input: CreateTreatmentProgramStageInput) {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      return runWebappTransaction(async (tx) => {
         const [{ max }] = await tx
           .select({ max: sql<number>`coalesce(max(${stageTable.sortOrder}), -1)` })
           .from(stageTable)
@@ -674,78 +674,81 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async updateStage(stageId: string, input: UpdateTreatmentProgramStageInput) {
-      const db = getDrizzle();
-      const [cur] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
-      if (!cur) return null;
-      if (input.sortOrder !== undefined) {
-        if (cur.sortOrder === 0 && input.sortOrder !== 0) {
-          throw new Error("Этап «Общие рекомендации» (порядок 0) нельзя перевести на другой порядок");
-        }
-        if (cur.sortOrder !== 0 && input.sortOrder === 0) {
-          throw new Error("Порядок 0 зарезервирован для этапа «Общие рекомендации»");
-        }
-        if (input.sortOrder !== cur.sortOrder) {
-          const clash = await db
-            .select({ id: stageTable.id })
-            .from(stageTable)
-            .where(
-              and(eq(stageTable.templateId, cur.templateId), eq(stageTable.sortOrder, input.sortOrder)),
-            )
-            .limit(1);
-          if (clash[0] && clash[0].id !== stageId) {
-            throw new Error("Этап с таким порядком уже существует");
+      return runWebappTransaction(async (tx) => {
+        const [cur] = await tx.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+        if (!cur) return null;
+        if (input.sortOrder !== undefined) {
+          if (cur.sortOrder === 0 && input.sortOrder !== 0) {
+            throw new Error("Этап «Общие рекомендации» (порядок 0) нельзя перевести на другой порядок");
+          }
+          if (cur.sortOrder !== 0 && input.sortOrder === 0) {
+            throw new Error("Порядок 0 зарезервирован для этапа «Общие рекомендации»");
+          }
+          if (input.sortOrder !== cur.sortOrder) {
+            const clash = await tx
+              .select({ id: stageTable.id })
+              .from(stageTable)
+              .where(
+                and(eq(stageTable.templateId, cur.templateId), eq(stageTable.sortOrder, input.sortOrder)),
+              )
+              .limit(1);
+            if (clash[0] && clash[0].id !== stageId) {
+              throw new Error("Этап с таким порядком уже существует");
+            }
           }
         }
-      }
-      const patch: Partial<typeof stageTable.$inferInsert> = {};
-      if (input.title !== undefined) patch.title = input.title;
-      if (input.description !== undefined) patch.description = input.description;
-      if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
-      if (input.goals !== undefined) patch.goals = input.goals;
-      if (input.objectives !== undefined) patch.objectives = input.objectives;
-      if (input.expectedDurationDays !== undefined) patch.expectedDurationDays = input.expectedDurationDays;
-      if (input.expectedDurationText !== undefined) patch.expectedDurationText = input.expectedDurationText;
-      const [row] = await db.update(stageTable).set(patch).where(eq(stageTable.id, stageId)).returning();
-      return row ? mapStage(row) : null;
+        const patch: Partial<typeof stageTable.$inferInsert> = {};
+        if (input.title !== undefined) patch.title = input.title;
+        if (input.description !== undefined) patch.description = input.description;
+        if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
+        if (input.goals !== undefined) patch.goals = input.goals;
+        if (input.objectives !== undefined) patch.objectives = input.objectives;
+        if (input.expectedDurationDays !== undefined) patch.expectedDurationDays = input.expectedDurationDays;
+        if (input.expectedDurationText !== undefined) patch.expectedDurationText = input.expectedDurationText;
+        const [row] = await tx.update(stageTable).set(patch).where(eq(stageTable.id, stageId)).returning();
+        return row ? mapStage(row) : null;
+      });
     },
 
     async deleteStage(stageId: string) {
-      const db = getDrizzle();
-      const [cur] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
-      if (!cur) return false;
-      if (cur.sortOrder === 0) {
-        throw new Error("Нельзя удалить этап «Общие рекомендации»");
-      }
-      const res = await db.delete(stageTable).where(eq(stageTable.id, stageId)).returning({ id: stageTable.id });
-      return res.length > 0;
+      return runWebappTransaction(async (tx) => {
+        const [cur] = await tx.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+        if (!cur) return false;
+        if (cur.sortOrder === 0) {
+          throw new Error("Нельзя удалить этап «Общие рекомендации»");
+        }
+        const res = await tx.delete(stageTable).where(eq(stageTable.id, stageId)).returning({ id: stageTable.id });
+        return res.length > 0;
+      });
     },
 
     async addStageItem(stageId: string, input: CreateTreatmentProgramStageItemInput) {
-      const db = getDrizzle();
-      const [st] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
-      if (!st) throw new Error("Этап не найден");
-      if (st.sortOrder === 0 && input.itemType !== "recommendation") {
-        throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
-      }
-      const [{ max }] = await db
-        .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
-        .from(itemTable)
-        .where(eq(itemTable.stageId, stageId));
-      const sortOrder = input.sortOrder ?? max + 1;
-      const [row] = await db
-        .insert(itemTable)
-        .values({
-          stageId,
-          itemType: input.itemType,
-          itemRefId: input.itemRefId,
-          sortOrder,
-          comment: input.comment ?? null,
-          settings: input.settings ?? undefined,
-          groupId: input.groupId ?? null,
-        })
-        .returning();
-      if (!row) throw new Error("insert failed");
-      return mapItem(row);
+      return runWebappTransaction(async (tx) => {
+        const [st] = await tx.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+        if (!st) throw new Error("Этап не найден");
+        if (st.sortOrder === 0 && input.itemType !== "recommendation") {
+          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        }
+        const [{ max }] = await tx
+          .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, stageId));
+        const sortOrder = input.sortOrder ?? max + 1;
+        const [row] = await tx
+          .insert(itemTable)
+          .values({
+            stageId,
+            itemType: input.itemType,
+            itemRefId: input.itemRefId,
+            sortOrder,
+            comment: input.comment ?? null,
+            settings: input.settings ?? undefined,
+            groupId: input.groupId ?? null,
+          })
+          .returning();
+        if (!row) throw new Error("insert failed");
+        return mapItem(row);
+      });
     },
 
     async getStageItemById(itemId: string) {
@@ -757,7 +760,6 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async updateStageItem(itemId: string, input: UpdateTreatmentProgramStageItemInput) {
-      const db = getDrizzle();
       const patch: Partial<typeof itemTable.$inferInsert> = {};
       if (input.itemType !== undefined) patch.itemType = input.itemType;
       if (input.itemRefId !== undefined) patch.itemRefId = input.itemRefId;
@@ -765,89 +767,97 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       if (input.comment !== undefined) patch.comment = input.comment;
       if (input.settings !== undefined) patch.settings = input.settings ?? undefined;
       if (input.groupId !== undefined) patch.groupId = input.groupId;
-      const [row] = await db.update(itemTable).set(patch).where(eq(itemTable.id, itemId)).returning();
+      const [row] = await runWebappTransaction((tx) =>
+        tx.update(itemTable).set(patch).where(eq(itemTable.id, itemId)).returning(),
+      );
       return row ? mapItem(row) : null;
     },
 
     async deleteStageItem(itemId: string) {
-      const db = getDrizzle();
-      const res = await db.delete(itemTable).where(eq(itemTable.id, itemId)).returning({ id: itemTable.id });
+      const res = await runWebappTransaction((tx) =>
+        tx.delete(itemTable).where(eq(itemTable.id, itemId)).returning({ id: itemTable.id }),
+      );
       return res.length > 0;
     },
 
     async createTemplateStageGroup(stageId: string, input: CreateTreatmentProgramTemplateStageGroupInput) {
-      const db = getDrizzle();
-      const [st] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
-      if (!st) throw new Error("Этап не найден");
-      if (st.sortOrder === 0) {
-        throw new Error("На этапе «Общие рекомендации» нельзя создавать группы");
-      }
-      const [{ max }] = await db
-        .select({ max: sql<number>`coalesce(max(${tplGroupTable.sortOrder}), -1)` })
-        .from(tplGroupTable)
-        .where(eq(tplGroupTable.stageId, stageId));
-      const sortOrder = input.sortOrder ?? max + 1;
-      const title = input.title?.trim() ?? "";
-      if (!title) throw new Error("Название группы обязательно");
-      const [row] = await db
-        .insert(tplGroupTable)
-        .values({
-          stageId,
-          title,
-          description: input.description?.trim() ?? null,
-          scheduleText: input.scheduleText?.trim() ?? null,
-          sortOrder,
-          systemKind: null,
-        })
-        .returning();
-      if (!row) throw new Error("insert group failed");
-      return mapTemplateGroup(row);
+      return runWebappTransaction(async (tx) => {
+        const [st] = await tx.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+        if (!st) throw new Error("Этап не найден");
+        if (st.sortOrder === 0) {
+          throw new Error("На этапе «Общие рекомендации» нельзя создавать группы");
+        }
+        const [{ max }] = await tx
+          .select({ max: sql<number>`coalesce(max(${tplGroupTable.sortOrder}), -1)` })
+          .from(tplGroupTable)
+          .where(eq(tplGroupTable.stageId, stageId));
+        const sortOrder = input.sortOrder ?? max + 1;
+        const title = input.title?.trim() ?? "";
+        if (!title) throw new Error("Название группы обязательно");
+        const [row] = await tx
+          .insert(tplGroupTable)
+          .values({
+            stageId,
+            title,
+            description: input.description?.trim() ?? null,
+            scheduleText: input.scheduleText?.trim() ?? null,
+            sortOrder,
+            systemKind: null,
+          })
+          .returning();
+        if (!row) throw new Error("insert group failed");
+        return mapTemplateGroup(row);
+      });
     },
 
     async updateTemplateStageGroup(groupId: string, input: UpdateTreatmentProgramTemplateStageGroupInput) {
-      const db = getDrizzle();
-      const [cur] = await db.select().from(tplGroupTable).where(eq(tplGroupTable.id, groupId)).limit(1);
-      if (!cur) return null;
-      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
-        if (
-          input.title !== undefined ||
-          input.sortOrder !== undefined ||
-          input.description !== undefined ||
-          input.scheduleText !== undefined
-        ) {
-          throw new Error("Системную группу нельзя редактировать");
+      return runWebappTransaction(async (tx) => {
+        const [cur] = await tx.select().from(tplGroupTable).where(eq(tplGroupTable.id, groupId)).limit(1);
+        if (!cur) return null;
+        if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
+          if (
+            input.title !== undefined ||
+            input.sortOrder !== undefined ||
+            input.description !== undefined ||
+            input.scheduleText !== undefined
+          ) {
+            throw new Error("Системную группу нельзя редактировать");
+          }
+          return mapTemplateGroup(cur);
         }
-        return mapTemplateGroup(cur);
-      }
-      const patch: Partial<typeof tplGroupTable.$inferInsert> = {};
-      if (input.title !== undefined) {
-        const t = input.title.trim();
-        if (!t) throw new Error("Название группы обязательно");
-        patch.title = t;
-      }
-      if (input.description !== undefined) patch.description = input.description?.trim() ?? null;
-      if (input.scheduleText !== undefined) patch.scheduleText = input.scheduleText?.trim() ?? null;
-      if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
-      const [row] = await db.update(tplGroupTable).set(patch).where(eq(tplGroupTable.id, groupId)).returning();
-      return row ? mapTemplateGroup(row) : null;
+        const patch: Partial<typeof tplGroupTable.$inferInsert> = {};
+        if (input.title !== undefined) {
+          const t = input.title.trim();
+          if (!t) throw new Error("Название группы обязательно");
+          patch.title = t;
+        }
+        if (input.description !== undefined) patch.description = input.description?.trim() ?? null;
+        if (input.scheduleText !== undefined) patch.scheduleText = input.scheduleText?.trim() ?? null;
+        if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
+        const [row] = await tx.update(tplGroupTable).set(patch).where(eq(tplGroupTable.id, groupId)).returning();
+        return row ? mapTemplateGroup(row) : null;
+      });
     },
 
     async deleteTemplateStageGroup(groupId: string) {
-      const db = getDrizzle();
-      const [cur] = await db.select().from(tplGroupTable).where(eq(tplGroupTable.id, groupId)).limit(1);
-      if (!cur) return false;
-      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
-        throw new Error("Системную группу нельзя удалить");
-      }
-      await db.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
-      const res = await db.delete(tplGroupTable).where(eq(tplGroupTable.id, groupId)).returning({ id: tplGroupTable.id });
-      return res.length > 0;
+      return runWebappTransaction(async (tx) => {
+        const [cur] = await tx.select().from(tplGroupTable).where(eq(tplGroupTable.id, groupId)).limit(1);
+        if (!cur) return false;
+        if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
+          throw new Error("Системную группу нельзя удалить");
+        }
+        await tx.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
+        const res = await tx
+          .delete(tplGroupTable)
+          .where(eq(tplGroupTable.id, groupId))
+          .returning({ id: tplGroupTable.id });
+        return res.length > 0;
+      });
     },
 
     async reorderTemplateStages(templateId: string, orderedStageIds: string[]) {
-      const db = getDrizzle();
       const TEMP_OFFSET = 100_000;
-      return db.transaction(async (tx) => {
+      return runWebappTransaction(async (tx) => {
         const stagesRows = await tx
           .select({ id: stageTable.id, sortOrder: stageTable.sortOrder })
           .from(stageTable)
@@ -873,8 +883,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async reorderTemplateStageItems(stageId: string, orderedItemIds: string[]) {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      return runWebappTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramTemplateStages.findFirst({
           where: eq(stageTable.id, stageId),
         });
@@ -896,8 +905,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      return runWebappTransaction(async (tx) => {
         const rows = await tx
           .select({ id: tplGroupTable.id, systemKind: tplGroupTable.systemKind })
           .from(tplGroupTable)
@@ -944,8 +952,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async expandLfkComplexIntoStageItems(
       input: ExpandLfkComplexIntoStageItemsPortInput,
     ): Promise<ExpandLfkComplexIntoStageItemsResult> {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      return runWebappTransaction(async (tx) => {
         const stageRow = await tx.query.treatmentProgramTemplateStages.findFirst({
           where: eq(stageTable.id, input.stageId),
         });
@@ -1073,8 +1080,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async expandTestSetIntoTemplateStageItems(
       input: ExpandTestSetIntoTemplateStageItemsPortInput,
     ): Promise<ExpandTestSetIntoTemplateStageItemsResult> {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      return runWebappTransaction(async (tx) => {
         const stageRow = await tx.query.treatmentProgramTemplateStages.findFirst({
           where: eq(stageTable.id, input.stageId),
         });

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   isTreatmentProgramTemplateAlreadyArchivedError,
   isTreatmentProgramTemplateArchiveNotFoundError,
@@ -34,11 +36,9 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -50,7 +50,18 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const deps = buildAppDeps();
   const { acknowledgeUsageWarning, ...patch } = parsed.data;
   try {
-    const row = await deps.treatmentProgram.updateTemplate(id, patch, { acknowledgeUsageWarning });
+    const source =
+      patch.status === "archived"
+        ? "doctor.treatment-program-templates.archive"
+        : "doctor.treatment-program-templates.update";
+    const row = await deps.treatmentProgram.updateTemplate(
+      id,
+      patch,
+      { acknowledgeUsageWarning },
+      {
+        runTemplateWrite: (fn) => withDoctorWorkspacePrincipal(workspace, source, fn),
+      },
+    );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
     if (isTreatmentProgramTemplateUsageConfirmationRequiredError(e)) {
@@ -67,11 +78,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
 /** Архивация (DELETE): при необходимости подтверждения usage — 409; повтор с `?acknowledgeUsageWarning=1`. */
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const url = new URL(request.url);
@@ -80,7 +89,14 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
 
   const deps = buildAppDeps();
   try {
-    await deps.treatmentProgram.deleteTemplate(id, { acknowledgeUsageWarning });
+    await deps.treatmentProgram.deleteTemplate(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runTemplateWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.archive", fn),
+      },
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (isTreatmentProgramTemplateUsageConfirmationRequiredError(e)) {

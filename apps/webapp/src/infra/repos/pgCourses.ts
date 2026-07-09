@@ -1,7 +1,7 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { runPgPoolPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { courses as coursesTable } from "../../../db/schema/courses";
 import type { CoursesPort } from "@/modules/courses/ports";
 import type {
@@ -234,28 +234,28 @@ export function createPgCoursesPort(): CoursesPort {
     },
 
     async create(input: CreateCourseInput) {
-      const db = getDrizzle();
       const access = input.accessSettings ?? {};
-      const rows = await db
-        .insert(coursesTable)
-        .values({
-          title: input.title,
-          description: input.description ?? null,
-          programTemplateId: input.programTemplateId,
-          introLessonPageId: input.introLessonPageId ?? null,
-          accessSettings: access,
-          status: input.status ?? "draft",
-          priceMinor: input.priceMinor ?? 0,
-          currency: input.currency ?? "RUB",
-        })
-        .returning();
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .insert(coursesTable)
+          .values({
+            title: input.title,
+            description: input.description ?? null,
+            programTemplateId: input.programTemplateId,
+            introLessonPageId: input.introLessonPageId ?? null,
+            accessSettings: access,
+            status: input.status ?? "draft",
+            priceMinor: input.priceMinor ?? 0,
+            currency: input.currency ?? "RUB",
+          })
+          .returning(),
+      );
       const row = rows[0];
       if (!row) throw new Error("Не удалось создать курс");
       return mapRow(row);
     },
 
     async update(id, patch: UpdateCourseInput) {
-      const db = getDrizzle();
       const sets: Partial<typeof coursesTable.$inferInsert> = {
         updatedAt: new Date().toISOString(),
       };
@@ -268,11 +268,9 @@ export function createPgCoursesPort(): CoursesPort {
       if (patch.priceMinor !== undefined) sets.priceMinor = patch.priceMinor;
       if (patch.currency !== undefined) sets.currency = patch.currency;
 
-      const rows = await db
-        .update(coursesTable)
-        .set(sets)
-        .where(eq(coursesTable.id, id))
-        .returning();
+      const rows = await runWebappTransaction((tx) =>
+        tx.update(coursesTable).set(sets).where(eq(coursesTable.id, id)).returning(),
+      );
       return rows[0] ? mapRow(rows[0]) : null;
     },
 
