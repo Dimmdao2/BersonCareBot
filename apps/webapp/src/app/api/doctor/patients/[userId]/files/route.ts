@@ -11,7 +11,8 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { presignGetUrl, presignPutUrl } from "@/app-layer/media/s3Client";
@@ -47,8 +48,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -67,7 +68,17 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const files = await deps.patientFiles.listFiles(userId, category);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+  const files = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientFiles.listFiles(patientUserId, category),
+  );
 
   // Attach presigned GET URLs for preview/download when S3 is configured.
   const s3Available = isS3MediaEnabled(env);
@@ -92,8 +103,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -117,21 +128,34 @@ export async function POST(
   const s3Key = patientFileS3Key(fileId, fileName);
   const s3Bucket = env.S3_PRIVATE_BUCKET ?? "bersonservices-private";
 
-  // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
-  const patientFolder = await pgEnsureClientPatientFolder(userId);
-
   const deps = buildAppDeps();
-  const file = await deps.patientFiles.createFile({
-    patientUserId: userId,
-    category,
-    fileName,
-    s3Key,
-    s3Bucket,
-    mimeType,
-    sizeBytes,
-    uploadedByUserId: auth.session.user.userId,
-    folderId: patientFolder.id,
-  });
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
+  // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
+  const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    pgEnsureClientPatientFolder(patientUserId),
+  );
+
+  const file = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientFiles.createFile({
+      patientUserId,
+      category,
+      fileName,
+      s3Key,
+      s3Bucket,
+      mimeType,
+      sizeBytes,
+      uploadedByUserId: gate.ctx.session.user.userId,
+      folderId: patientFolder.id,
+    }),
+  );
 
   // TODO(upload): return presigned PUT URL for direct browser upload when S3 is available.
   let uploadUrl: string | null = null;

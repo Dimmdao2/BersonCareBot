@@ -253,6 +253,42 @@ describe("doctor support/task workspace principal cutover", () => {
     }
   });
 
+  it("doctor patient file routes and SSR preload require selected workspace membership and principal context", () => {
+    for (const file of [
+      "src/app/api/doctor/patients/[userId]/files/route.ts",
+      "src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("withDoctorWorkspacePrincipal");
+      expect(src).toContain("gate.ctx.organizationId");
+      expect(src).toContain("identity.userId");
+    }
+
+    const page = readSource("src/app/app/doctor/patients/[userId]/page.tsx");
+    expect(page).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientFiles.listFiles(patientUserId))");
+  });
+
+  it("patient files and client media folder repos use organization principal for file/folder rows", () => {
+    const filesRepo = readSource("src/infra/repos/pgPatientFiles.ts");
+    expect(filesRepo).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(filesRepo).toContain("runDrizzleMutationTransaction");
+    expect(filesRepo).toContain("currentPrincipalOrganizationId");
+    expect(filesRepo).toContain("currentWriteOrganizationId");
+    expect(filesRepo).toContain("organization_principal_mismatch");
+    expect(filesRepo).toContain("organization_principal_required");
+    expect(filesRepo).toContain("patient_file_visit_patient_mismatch");
+    expect(filesRepo).toContain("organizationId,");
+
+    const folderRepo = readSource("src/infra/repos/pgClientMediaFolders.ts");
+    expect(folderRepo).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(folderRepo).toContain("folderOrgScopeCondition");
+    expect(folderRepo).toContain("currentOrganizationValues");
+    expect(folderRepo).toContain("organizationId");
+    expect(folderRepo).toContain("folderOrgScopeCondition(),");
+  });
+
   it("patient comorbidities repo stamps and checks organization principal for comorbidity writes", () => {
     const src = readSource("src/infra/repos/pgPatientComorbidities.ts");
     expect(src).toContain("getCurrentDbPrincipalOrganizationId");

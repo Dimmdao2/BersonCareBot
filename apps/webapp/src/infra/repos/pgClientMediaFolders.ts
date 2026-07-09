@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { mediaFolders, platformUsers } from "../../../db/schema/schema";
 import {
@@ -10,6 +11,22 @@ import {
 } from "@/modules/media/clientFilesFolders";
 import type { MediaFolderKind, MediaFolderRecord } from "@/modules/media/types";
 import { pgGetMediaFolderById } from "./mediaFoldersRepo";
+
+function currentOrganizationId(): string | undefined {
+  return getCurrentDbPrincipalOrganizationId();
+}
+
+function currentOrganizationValues(): { organizationId?: string } {
+  const organizationId = currentOrganizationId();
+  return organizationId ? { organizationId } : {};
+}
+
+function folderOrgScopeCondition() {
+  const organizationId = currentOrganizationId();
+  return organizationId
+    ? sql`(${mediaFolders.organizationId} = ${organizationId} OR ${mediaFolders.organizationId} IS NULL)`
+    : undefined;
+}
 
 function mapFolderRow(row: {
   id: string;
@@ -33,7 +50,7 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
   const [hasRoot] = await db
     .select({ id: mediaFolders.id })
     .from(mediaFolders)
-    .where(eq(mediaFolders.kind, "client_files_root"))
+    .where(and(eq(mediaFolders.kind, "client_files_root"), folderOrgScopeCondition()))
     .limit(1);
   if (hasRoot) return;
 
@@ -41,12 +58,13 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
   // so existing root folders are recognised and promoted rather than duplicated.
   await db
     .update(mediaFolders)
-    .set({ kind: "client_files_root", updatedAt: sql`now()` })
+    .set({ kind: "client_files_root", ...currentOrganizationValues(), updatedAt: sql`now()` })
     .where(
       and(
         sql`${mediaFolders.parentId} IS NULL`,
         eq(mediaFolders.kind, "standard"),
         sql`${mediaFolders.nameNormalized} IN (${CLIENT_FILES_ROOT_FOLDER_NAME.toLowerCase()}, ${CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY.toLowerCase()})`,
+        folderOrgScopeCondition(),
       ),
     );
 }
@@ -56,7 +74,7 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
   const [existing] = await db
     .select()
     .from(mediaFolders)
-    .where(eq(mediaFolders.kind, "client_files_root"))
+    .where(and(eq(mediaFolders.kind, "client_files_root"), folderOrgScopeCondition()))
     .limit(1);
   if (existing) {
     // If the folder exists but still carries the legacy name, rename it in-place.
@@ -64,7 +82,7 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
     if (existing.nameNormalized === CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY.toLowerCase()) {
       const [renamed] = await db
         .update(mediaFolders)
-        .set({ name: CLIENT_FILES_ROOT_FOLDER_NAME, updatedAt: sql`now()` })
+        .set({ name: CLIENT_FILES_ROOT_FOLDER_NAME, ...currentOrganizationValues(), updatedAt: sql`now()` })
         .where(eq(mediaFolders.id, existing.id))
         .returning();
       if (renamed) return mapFolderRow(renamed);
@@ -77,7 +95,7 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
   const [promoted] = await db
     .select()
     .from(mediaFolders)
-    .where(eq(mediaFolders.kind, "client_files_root"))
+    .where(and(eq(mediaFolders.kind, "client_files_root"), folderOrgScopeCondition()))
     .limit(1);
   if (promoted) return mapFolderRow(promoted);
 
@@ -87,6 +105,7 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
       name: CLIENT_FILES_ROOT_FOLDER_NAME,
       parentId: null,
       kind: "client_files_root",
+      ...currentOrganizationValues(),
     })
     .returning();
   if (!created) throw new Error("client_files_root_create_failed");
@@ -121,6 +140,7 @@ async function insertClientPatientFolder(
   const [created] = await db
     .insert(mediaFolders)
     .values({
+      ...currentOrganizationValues(),
       name: params.name,
       parentId: params.parentId,
       kind: "client_patient",
@@ -136,7 +156,13 @@ export async function pgEnsureClientPatientFolder(patientUserId: string): Promis
   const [existing] = await db
     .select()
     .from(mediaFolders)
-    .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
+    .where(
+      and(
+        eq(mediaFolders.kind, "client_patient"),
+        eq(mediaFolders.patientUserId, patientUserId),
+        folderOrgScopeCondition(),
+      ),
+    )
     .limit(1);
   if (existing) return mapFolderRow(existing);
 
@@ -172,7 +198,13 @@ export async function pgEnsureClientPatientFolder(patientUserId: string): Promis
   const [retry] = await db
     .select()
     .from(mediaFolders)
-    .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
+    .where(
+      and(
+        eq(mediaFolders.kind, "client_patient"),
+        eq(mediaFolders.patientUserId, patientUserId),
+        folderOrgScopeCondition(),
+      ),
+    )
     .limit(1);
   if (retry) return mapFolderRow(retry);
   throw new Error("client_patient_folder_create_failed");

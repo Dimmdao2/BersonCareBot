@@ -116,6 +116,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
   return {
     async getClinicalState(patientUserId: string): Promise<ClinicalState> {
       const db = getDrizzle();
+      const organizationId = principalOrganizationId();
 
       const complaintRows = await db
         .select()
@@ -219,6 +220,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
 
     async listVisits(patientUserId: string): Promise<Visit[]> {
       const db = getDrizzle();
+      const organizationId = principalOrganizationId();
 
       const visitRows = await db
         .select()
@@ -269,7 +271,12 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const fileRows = await db
         .select()
         .from(patientFiles)
-        .where(inArray(patientFiles.visitId, visitIds))
+        .where(
+          and(
+            inArray(patientFiles.visitId, visitIds),
+            organizationId ? eq(patientFiles.organizationId, organizationId) : undefined,
+          ),
+        )
         .orderBy(asc(patientFiles.createdAt));
 
       // Package data by clinical_visit.appointmentRecordId. The visit stores
