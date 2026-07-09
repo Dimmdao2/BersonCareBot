@@ -180,6 +180,20 @@ describe("doctor support/task workspace principal cutover", () => {
     }
   });
 
+  it("doctor global patient profile routes require selected workspace membership before global profile writes", () => {
+    for (const file of [
+      "src/app/api/doctor/patients/[userId]/route.ts",
+      "src/app/api/doctor/patients/[userId]/fio/route.ts",
+      "src/app/api/doctor/patients/[userId]/physical/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("withDoctorWorkspacePrincipal");
+      expect(src).toContain("gate.ctx.organizationId");
+    }
+  });
+
   it("doctor supplementary contact routes require selected workspace membership before contact operations", () => {
     for (const file of [
       "src/app/api/doctor/clients/[userId]/supplementary-contacts/route.ts",

@@ -24,6 +24,10 @@ generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only)
   org-scoped model needs a separate product/schema decision: keep global account lifecycle
   semantics, or move archive to enrollment state and support-chat blocking to an org-scoped
   support/messaging policy table.
+- Doctor patient profile semantics: current FIO, birth date, gender, height, and weight
+  fields live on global `platform_users`. T0.3.36H only hardens doctor routes with selected
+  workspace membership authorization before global profile reads/writes. A true org-scoped
+  per-clinic profile override model needs a separate product/schema decision and migration.
 - White-label scope and custom-domain packaging by tariff: exact fields, redirect semantics, certificate
   operations, and suspension behavior are R5 commercial SaaS work, not Phase 0.
 
