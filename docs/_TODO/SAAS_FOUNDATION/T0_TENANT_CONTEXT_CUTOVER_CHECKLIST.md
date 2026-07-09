@@ -127,6 +127,7 @@ Completed slices:
 - [x] T0.3.2: made `apps/webapp/src/app-layer/db/drizzle.ts` apply the current `app.org` principal inside Drizzle transactions when AsyncLocalStorage principal exists; added focused tests and narrowed the DB chokepoint guard exception to exactly one `set_config('app.org', ...)` fragment.
 - [x] T0.3.3: wrapped only the canonical admin/doctor booking-engine appointment lifecycle mutations (`manual-cancel`, `manual-reschedule`, `manual-no-show`) with `withDoctorWorkspacePrincipal(...)`. Auth gates, body parsing, Rubitime pre-sync/rollback, and after-canonical side effects remain outside the wrapper; booking helpers are not globally wrapped.
 - [x] T0.3.4: migrated the doctor CMS reorder server actions for content pages and content sections from role-only access to `requireDoctorWorkspaceContext()` and wrapped only their transaction-safe reorder mutations with `withDoctorWorkspacePrincipal(...)`.
+- [x] T0.3.5: wrapped only admin/doctor booking-engine working schedule template create/delete mutations with `withDoctorWorkspacePrincipal(...)` and converted the matching PostgreSQL repo methods to Drizzle transactions. GET/list and `POST?action=apply` remain unwrapped/deferred.
 
 Recommended order:
 

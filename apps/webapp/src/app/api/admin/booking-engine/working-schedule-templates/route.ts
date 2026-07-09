@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const breakIntervalSchema = z.object({
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
+  const bookingScheduling = deps.bookingScheduling;
 
   if (action === "apply") {
     const parsed = applyBody.safeParse(await request.json().catch(() => null));
@@ -78,11 +80,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   try {
-    const row = await deps.bookingScheduling.createScheduleTemplate({
-      organizationId: gate.ctx.organizationId,
-      ...parsed.data,
-      branchId: resolveNullableUuid(parsed.data.branchId ?? undefined),
-    });
+    const row = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "admin.booking-engine.working-schedule-templates.create",
+      () =>
+        bookingScheduling.createScheduleTemplate({
+          organizationId: gate.ctx.organizationId,
+          ...parsed.data,
+          branchId: resolveNullableUuid(parsed.data.branchId ?? undefined),
+        }),
+    );
     return NextResponse.json({ ok: true, row });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
@@ -99,6 +106,11 @@ export async function DELETE(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
-  await deps.bookingScheduling.deleteScheduleTemplate(id, gate.ctx.organizationId);
+  const bookingScheduling = deps.bookingScheduling;
+  await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "admin.booking-engine.working-schedule-templates.delete",
+    () => bookingScheduling.deleteScheduleTemplate(id, gate.ctx.organizationId),
+  );
   return NextResponse.json({ ok: true });
 }

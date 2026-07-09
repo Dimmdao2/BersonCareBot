@@ -660,28 +660,32 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async createScheduleTemplate({ organizationId, branchId, name, startMinute, endMinute, breaks, sortOrder }: CreateScheduleTemplateInput) {
       const db = getDrizzle();
-      const inserted = await db
-        .insert(beStmpl)
-        .values({
-          organizationId,
-          branchId: branchId ?? null,
-          name,
-          startMinute,
-          endMinute,
-          breaks: breaks ?? [],
-          sortOrder: sortOrder ?? 0,
-          isActive: true,
-        })
-        .returning();
+      const inserted = await db.transaction((tx) =>
+        tx
+          .insert(beStmpl)
+          .values({
+            organizationId,
+            branchId: branchId ?? null,
+            name,
+            startMinute,
+            endMinute,
+            breaks: breaks ?? [],
+            sortOrder: sortOrder ?? 0,
+            isActive: true,
+          })
+          .returning(),
+      );
       return mapTemplateRow(inserted[0]!);
     },
 
     async deleteScheduleTemplate(organizationId, id) {
       const db = getDrizzle();
-      await db
-        .update(beStmpl)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(beStmpl.id, id), eq(beStmpl.organizationId, organizationId)));
+      await db.transaction((tx) =>
+        tx
+          .update(beStmpl)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(beStmpl.id, id), eq(beStmpl.organizationId, organizationId))),
+      );
     },
 
     // ── Nearest free window (C3) ─────────────────────────────────────────────
