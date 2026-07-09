@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 export async function POST(
   _request: Request,
   context: { params: Promise<{ instanceId: string; attemptId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const workspace = gate.ctx;
 
   const { instanceId, attemptId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(attemptId).success) {
@@ -30,11 +28,16 @@ export async function POST(
     if (!identity) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
-    await deps.treatmentProgramProgress.doctorAcceptTestAttempt({
-      instanceId,
-      attemptId,
-      doctorUserId: session.user.userId,
-    });
+    await withDoctorWorkspacePrincipal(
+      workspace,
+      "doctor.treatment-program.test-attempt.accept",
+      () =>
+        deps.treatmentProgramProgress.doctorAcceptTestAttempt({
+          instanceId,
+          attemptId,
+          doctorUserId: workspace.session.user.userId,
+        }),
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

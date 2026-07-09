@@ -153,6 +153,7 @@ Known coverage:
 - Webapp admin/doctor booking-engine manual appointment lifecycle mutation calls for cancel/reschedule/no-show now use the app-layer doctor workspace principal helper from T0.3.3. The surrounding pre-reads/external sync/side effects remain outside the wrapper until later slices classify those DB paths.
 - Webapp doctor CMS content page/section reorder server actions now use the app-layer doctor workspace principal helper from T0.3.4 around their transaction-safe reorder mutations.
 - Webapp admin/doctor booking-engine working schedule template create/delete mutations now use the app-layer doctor workspace principal helper from T0.3.5; the underlying PostgreSQL repo methods are transaction-bound so the Drizzle `app.org` hook applies. Listing and template application remain deferred.
+- Webapp doctor treatment-program test-attempt accept route now uses the app-layer doctor workspace principal helper from T0.3.6 around only the transaction-safe accept mutation. Instance and client identity pre-reads remain outside the wrapper.
 - Telegram/MAX integrator webhooks already resolve org and wrap event pipeline through integrator organization principal helper.
 - Media-worker transcode processing is wrapped by job organization where available.
 
