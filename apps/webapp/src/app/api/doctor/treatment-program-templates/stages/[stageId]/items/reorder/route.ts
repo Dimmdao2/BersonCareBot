@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const postBodySchema = z.object({
   orderedItemIds: z.array(z.string().uuid()).min(1),
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { stageId } = await ctx.params;
   if (!z.string().uuid().safeParse(stageId).success) {
@@ -28,7 +25,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
 
   const deps = buildAppDeps();
   try {
-    await deps.treatmentProgram.reorderTemplateStageItems(stageId, parsed.data.orderedItemIds);
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgram.reorderTemplateStageItems(stageId, parsed.data.orderedItemIds),
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
@@ -37,11 +39,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
@@ -51,13 +50,15 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const row = await deps.treatmentProgram.createTemplate(
-      {
-        title: parsed.data.title,
-        description: parsed.data.description ?? null,
-        status: parsed.data.status,
-      },
-      session.user.userId,
+    const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgram.createTemplate(
+        {
+          title: parsed.data.title,
+          description: parsed.data.description ?? null,
+          status: parsed.data.status,
+        },
+        gate.ctx.session.user.userId,
+      ),
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {

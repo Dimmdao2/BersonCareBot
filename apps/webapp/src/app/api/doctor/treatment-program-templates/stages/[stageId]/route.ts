@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
@@ -15,11 +15,8 @@ const patchBodySchema = z.object({
 });
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { stageId } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -30,7 +27,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ stageId: 
 
   const deps = buildAppDeps();
   try {
-    const stage = await deps.treatmentProgram.updateStage(stageId, parsed.data);
+    const stage = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgram.updateStage(stageId, parsed.data),
+    );
     return NextResponse.json({ ok: true, stage });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
@@ -39,16 +38,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ stageId: 
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ stageId: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { stageId } = await ctx.params;
   const deps = buildAppDeps();
   try {
-    await deps.treatmentProgram.deleteStage(stageId);
+    await withDoctorWorkspacePrincipal(gate.ctx, () => deps.treatmentProgram.deleteStage(stageId));
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
