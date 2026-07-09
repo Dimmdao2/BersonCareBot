@@ -186,6 +186,35 @@ Rollback/cutover notes:
 
 - Each route family must be independently revertible.
 
+## T0.4-pre Integrator/Public Schema Cleanup Gate
+
+Goal: remove or explicitly classify integrator/public duplicate mirrors before principalizing integrator and media-worker runtime paths.
+
+Canonical roadmap: [`T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md`](T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md).
+
+This gate is intended to run after T0.3 and before T0.4. The purpose is to avoid spending T0.4 effort wrapping tables and flows that should be removed, moved to `public`, or retained only as technical integrator state.
+
+Minimum gate:
+
+- [ ] Inventory `public`/`integrator` duplicate and legacy candidates: settings, reminders, Rubitime projections, channel contacts, conversations/questions, queues/logs.
+- [ ] Produce a table matrix with readers, writers, row counts, DB dependencies, target owner, migration/backfill need, and drop readiness.
+- [ ] Record ADR decisions for settings mirror removal, reminder scheduling ownership, Rubitime sunset, channel contacts, conversations/questions, and retention.
+- [ ] Build dry-run-first audit/backfill/reconcile/drop scripts that can be rehearsed on dev/test and repeated on production.
+- [ ] Remove runtime code references before any drop.
+- [ ] Validate on dev and test with focused tests, SaaS DB regression, and drop/access-denied smoke.
+- [ ] Update this checklist and `T0_DB_ACCESS_SURFACE.md` so T0.4 covers only surviving integrator/media-worker paths.
+
+Skipped scope:
+
+- No destructive production DB action without explicit owner approval, backup, and test rollout pass.
+- No real external sends during dev/test cleanup.
+- No broad re-architecture of technical queues/logs unless they are true business mirrors or block tenant safety.
+
+Rollback/cutover notes:
+
+- Prefer a staged sequence: disable writers, deploy no-reference code, rehearse drop in test, then drop in production.
+- Dropping stale tables is the final enforcement proof, but only after code and DB dependency scans show no surviving references.
+
 ## T0.4 Integrator And Media-Worker Path Slices
 
 Goal: make process-runtime DB paths principal-safe without breaking queues, webhooks, or legacy Rubitime behavior.
