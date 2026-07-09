@@ -161,8 +161,11 @@ export function createPatientClinicalService({
       return patientClinicalPort.setDiagnosisClinicalStatus(input);
     },
 
-    async getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
-      return patientClinicalPort.getDiagnosisStatusHistory(diagnosisId);
+    async getDiagnosisStatusHistory(
+      patientUserId: string,
+      diagnosisId: string,
+    ): Promise<DiagnosisStatusHistoryEntry[]> {
+      return patientClinicalPort.getDiagnosisStatusHistory(patientUserId, diagnosisId);
     },
 
     // -- Анамнез -------------------------------------------------------------

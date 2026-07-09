@@ -4,7 +4,8 @@
  */
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
@@ -28,8 +29,17 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     notFound();
   }
 
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    workspace.organizationId,
+  );
+  if (!identity) {
+    notFound();
+  }
+  const patientUserId = identity.userId;
 
   const displayIana = await getAppDisplayTimeZone();
 
@@ -50,24 +60,24 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     paymentsSummary,
     rawContactRows,
   ] = await Promise.all([
-    deps.doctorClients.getPatientCardHeader(userId),
-    deps.doctorClients.getPatientPhysical(userId),
-    deps.patientClinical.getClinicalState(userId),
-    deps.patientClinical.listVisits(userId),
-    deps.doctorNotes.listForUser(userId),
-    deps.specialistTasks.listPatientTasks(session.user.userId, userId, false),
-    deps.doctorProactiveInsights.listForPatient({ patientUserId: userId, displayIana }),
+    deps.doctorClients.getPatientCardHeader(patientUserId),
+    deps.doctorClients.getPatientPhysical(patientUserId),
+    withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getClinicalState(patientUserId)),
+    withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId)),
+    deps.doctorNotes.listForUser(patientUserId),
+    deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false),
+    deps.doctorProactiveInsights.listForPatient({ patientUserId, displayIana }),
     loadDoctorPatientProgramActivity(
       { programItemDiscussion: deps.programItemDiscussion },
-      { patientUserId: userId, viewerUserId: session.user.userId },
+      { patientUserId, viewerUserId: session.user.userId },
     ),
-    deps.doctorClientsPort.listPatientAppointments(userId),
-    deps.treatmentProgramInstance.listForPatientClinicalView(userId),
-    deps.patientFiles.listFiles(userId),
-    deps.patientClinical.getAnamnesis(userId),
-    deps.patientComorbidities.listActive(userId),
-    deps.patientPayments.listPaymentsWithSummary(userId),
-    deps.platformUserContacts.listForPlatformUser(userId),
+    deps.doctorClientsPort.listPatientAppointments(patientUserId),
+    deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
+    deps.patientFiles.listFiles(patientUserId),
+    withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId)),
+    deps.patientComorbidities.listActive(patientUserId),
+    deps.patientPayments.listPaymentsWithSummary(patientUserId),
+    deps.platformUserContacts.listForPlatformUser(patientUserId),
   ]);
 
   // Unpack payments summary — listPaymentsWithSummary returns { payments, totalPaidMinor }.
@@ -79,13 +89,13 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   // Parallel-fetch remaining SSR data that depends on orgId or is otherwise independent.
   const [historyEvents, initialPackages, , initialSupportEffectivePolicy] = await Promise.all([
     deps.payments && orgId
-      ? deps.payments.listPaymentHistoryForUser(userId, orgId).catch(() => [])
+      ? deps.payments.listPaymentHistoryForUser(patientUserId, orgId).catch(() => [])
       : Promise.resolve([] as Awaited<ReturnType<NonNullable<typeof deps.payments>["listPaymentHistoryForUser"]>>),
     deps.memberships && orgId
-      ? deps.memberships.listPatientPackagesForUser(userId, orgId).catch(() => null)
+      ? deps.memberships.listPatientPackagesForUser(patientUserId, orgId).catch(() => null)
       : Promise.resolve(null),
-    deps.doctorClients.getClientSupport(userId).catch(() => null), // fetched but only effectivePolicy is surfaced to UI
-    deps.doctorClients.getPatientProgramInteractionPolicy(userId).catch((): PatientProgramInteractionPolicy | null => null),
+    deps.doctorClients.getClientSupport(patientUserId).catch(() => null), // fetched but only effectivePolicy is surfaced to UI
+    deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId).catch((): PatientProgramInteractionPolicy | null => null),
   ]);
 
   type TimelineEntry = {

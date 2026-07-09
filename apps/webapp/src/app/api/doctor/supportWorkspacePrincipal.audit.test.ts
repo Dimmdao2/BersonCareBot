@@ -194,6 +194,50 @@ describe("doctor support/task workspace principal cutover", () => {
     }
   });
 
+  it("doctor clinical core routes require selected workspace membership and principal context", () => {
+    for (const file of [
+      "src/app/api/doctor/patients/[userId]/clinical/route.ts",
+      "src/app/api/doctor/patients/[userId]/anamnesis/route.ts",
+      "src/app/api/doctor/patients/[userId]/visits/route.ts",
+      "src/app/api/doctor/patients/[userId]/visits/[visitId]/route.ts",
+      "src/app/api/doctor/patients/[userId]/complaints/[complaintId]/route.ts",
+      "src/app/api/doctor/patients/[userId]/diagnoses/[diagnosisId]/route.ts",
+      "src/app/api/doctor/patients/[userId]/diagnoses/[diagnosisId]/status/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("withDoctorWorkspacePrincipal");
+      expect(src).toContain("gate.ctx.organizationId");
+      expect(src).toContain("identity.userId");
+    }
+  });
+
+  it("patient clinical repo stamps and checks organization principal for clinical writes", () => {
+    const src = readSource("src/infra/repos/pgPatientClinical.ts");
+    expect(src).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(src).toContain("runDrizzleMutationTransaction");
+    expect(src).toContain("currentWriteOrganizationId");
+    expect(src).toContain("organization_principal_mismatch");
+    expect(src).toContain("organizationId");
+    expect(src).toContain("clinical_target_not_found");
+    expect(src).toContain("ar.platform_user_id = pu.id");
+    expect(src).toContain("user_phone_history");
+    expect(src).toContain("getDiagnosisStatusHistory(");
+    expect(src).toContain("eq(clinicalDiagnosis.patientUserId, patientUserId)");
+  });
+
+  it("doctor patient card SSR clinical reads run under selected workspace principal", () => {
+    const src = readSource("src/app/app/doctor/patients/[userId]/page.tsx");
+    expect(src).toContain("requireDoctorWorkspaceContext");
+    expect(src).toContain("getClientIdentityForOrganization");
+    expect(src).toContain("workspace.organizationId");
+    expect(src).toContain("const patientUserId = identity.userId");
+    expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getClinicalState(patientUserId))");
+    expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId))");
+    expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId))");
+  });
+
   it("doctor supplementary contact routes require selected workspace membership before contact operations", () => {
     for (const file of [
       "src/app/api/doctor/clients/[userId]/supplementary-contacts/route.ts",

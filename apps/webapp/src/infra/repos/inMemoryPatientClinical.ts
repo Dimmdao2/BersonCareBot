@@ -551,7 +551,9 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     return true;
   },
 
-  async getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
+  async getDiagnosisStatusHistory(patientUserId: string, diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
+    const diagnosis = diagnoses.find((d) => d.id === diagnosisId && d.patientUserId === patientUserId);
+    if (!diagnosis) return [];
     return diagnosisStatusHistory
       .filter((h) => h.diagnosisId === diagnosisId)
       .sort((a, b) => a.changedAt.localeCompare(b.changedAt))

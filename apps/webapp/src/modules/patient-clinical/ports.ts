@@ -326,7 +326,7 @@ export interface PatientClinicalPort {
   setDiagnosisClinicalStatus(input: SetDiagnosisClinicalStatusInput): Promise<boolean>;
 
   /** История изменений клинического статуса (старые→новые). */
-  getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]>;
+  getDiagnosisStatusHistory(patientUserId: string, diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]>;
 
   // -- Анамнез (append-log, не per-visit) -----------------------------------
 

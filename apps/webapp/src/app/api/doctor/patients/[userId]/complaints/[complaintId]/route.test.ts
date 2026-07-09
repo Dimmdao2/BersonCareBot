@@ -22,52 +22,49 @@ import { PATCH } from "./route";
 const ORG_ID = "10000000-0000-4000-8000-000000000001";
 const PATIENT_ID = "00000000-0000-4000-8000-000000000001";
 const CANONICAL_PATIENT_ID = "00000000-0000-4000-8000-000000000002";
-const VISIT_ID = "00000000-0000-4000-8000-0000000000aa";
+const COMPLAINT_ID = "00000000-0000-4000-8000-0000000000cc";
 
-describe("PATCH /api/doctor/patients/[userId]/visits/[visitId]", () => {
+describe("doctor patient complaint route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {
         organizationId: ORG_ID,
-        session: { user: { userId: "00000000-0000-4000-8000-00000000000d", role: "doctor" } },
+        session: { user: { userId: "doc-1", role: "doctor" } },
       },
     });
     withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
   });
 
-  it("updates visit fields for canonical patient under selected workspace principal", async () => {
+  it("updates complaint for canonical patient under selected workspace principal", async () => {
     const getClientIdentityForOrganization = vi.fn().mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
-    const updateVisitFields = vi.fn().mockResolvedValue(true);
+    const updateComplaintFields = vi.fn().mockResolvedValue(true);
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: { getClientIdentityForOrganization },
-      patientClinical: { updateVisitFields },
+      patientClinical: { updateComplaintFields },
     });
 
     const res = await PATCH(
-      new Request(`http://localhost/api/doctor/patients/${PATIENT_ID}/visits/${VISIT_ID}`, {
+      new Request("http://localhost", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          manipulations: "Свободный текст\nМобилизация",
-          recommendations: "Ходьба\n1 раз · ежедневно",
-        }),
+        body: JSON.stringify({ text: "Боль в плече", priority: true }),
       }),
-      { params: Promise.resolve({ userId: PATIENT_ID, visitId: VISIT_ID }) },
+      { params: Promise.resolve({ userId: PATIENT_ID, complaintId: COMPLAINT_ID }) },
     );
 
     expect(res.status).toBe(200);
     expect(getClientIdentityForOrganization).toHaveBeenCalledWith(PATIENT_ID, ORG_ID);
+    expect(updateComplaintFields).toHaveBeenCalledWith({
+      patientUserId: CANONICAL_PATIENT_ID,
+      complaintId: COMPLAINT_ID,
+      text: "Боль в плече",
+      priority: true,
+    });
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORG_ID }),
       expect.any(Function),
     );
-    expect(updateVisitFields).toHaveBeenCalledWith({
-      patientUserId: CANONICAL_PATIENT_ID,
-      visitId: VISIT_ID,
-      manipulations: "Свободный текст\nМобилизация",
-      recommendations: "Ходьба\n1 раз · ежедневно",
-    });
   });
 });

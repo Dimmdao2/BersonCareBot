@@ -6,7 +6,8 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const bodySchema = z
@@ -35,8 +36,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; visitId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, visitId } = await params;
   if (
@@ -62,11 +63,30 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
-  const ok = await deps.patientClinical.updateVisitFields({
-    patientUserId: userId,
-    visitId,
-    ...parsed.data,
-  });
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
+  let ok: boolean;
+  try {
+    ok = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.patientClinical.updateVisitFields({
+        patientUserId,
+        visitId,
+        ...parsed.data,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "organization_principal_mismatch") {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    throw error;
+  }
   if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   return NextResponse.json({ ok: true });
