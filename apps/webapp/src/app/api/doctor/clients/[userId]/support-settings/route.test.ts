@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -11,9 +13,33 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) => withDoctorWorkspacePrincipalMock(ctx, fn),
+}));
+
 const patientUserId = "a0000000-0000-4000-8000-000000000001";
+const workspaceCtx = {
+  session: { user: { userId: "doc-1", role: "doctor", bindings: {} } },
+  organizationId: "b0000000-0000-4000-8000-000000000002",
+  membershipId: "c0000000-0000-4000-8000-000000000003",
+  membershipRole: "doctor",
+  specialistId: null,
+  canManageOrganization: false,
+  canManageAllSpecialists: false,
+};
 
 describe("doctor client support-settings route", () => {
+  beforeEach(() => {
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+  });
+
   it("GET returns profile and effective policy", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
     const getClientSupport = vi.fn().mockResolvedValue({
@@ -68,7 +94,7 @@ describe("doctor client support-settings route", () => {
     });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentity: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: patientUserId }),
       },
       doctorClients: { updateClientSupport, getPatientProgramInteractionPolicy },
     });

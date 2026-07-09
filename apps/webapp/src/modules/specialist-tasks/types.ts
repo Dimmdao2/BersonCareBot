@@ -1,5 +1,6 @@
 export type SpecialistTaskRow = {
   id: string;
+  organizationId?: string | null;
   ownerUserId: string;
   patientUserId: string | null;
   title: string;

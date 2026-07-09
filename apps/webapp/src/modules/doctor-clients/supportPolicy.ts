@@ -1,5 +1,6 @@
 /** Per-patient row from `doctor_patient_support` (null row = defaults only). */
 export type ClientSupportProfile = {
+  organizationId?: string | null;
   patientUserId: string;
   onSupport: boolean;
   /** Момент начала сопровождения (ISO); null если не на сопровождении. */

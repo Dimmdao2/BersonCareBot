@@ -1,9 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runDrizzleMutationTransactionMock = vi.hoisted(() => vi.fn());
+const returningMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
+}));
+
+vi.mock("@/infra/db/drizzleMutationTx", () => ({
+  runDrizzleMutationTransaction: runDrizzleMutationTransactionMock,
+}));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => "org-1",
 }));
 
 import { createPgDoctorNotesPort } from "./pgDoctorNotes";
@@ -11,6 +21,17 @@ import { createPgDoctorNotesPort } from "./pgDoctorNotes";
 describe("pgDoctorNotes", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    runDrizzleMutationTransactionMock.mockReset();
+    returningMock.mockReset();
+    runDrizzleMutationTransactionMock.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn({
+        insert: () => ({
+          values: () => ({
+            returning: returningMock,
+          }),
+        }),
+      }),
+    );
   });
 
   it("listForUser queries doctor_notes ordered by created_at desc", async () => {
@@ -30,19 +51,31 @@ describe("pgDoctorNotes", () => {
       rows: [
         {
           id: "n1",
-          user_id: "u1",
-          author_id: "a1",
+          organizationId: "org-1",
+          userId: "u1",
+          authorId: "a1",
           text: "note",
-          created_at: new Date("2026-01-01T00:00:00.000Z"),
-          updated_at: new Date("2026-01-01T00:00:00.000Z"),
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
         },
       ],
     });
+    returningMock.mockResolvedValueOnce([
+      {
+        id: "n1",
+        organizationId: "org-1",
+        userId: "u1",
+        authorId: "a1",
+        text: "note",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
     const port = createPgDoctorNotesPort();
     const row = await port.create({ userId: "u1", authorId: "a1", text: "note" });
 
     expect(row.id).toBe("n1");
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("INSERT INTO doctor_notes");
+    expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
+    expect(returningMock).toHaveBeenCalledTimes(1);
   });
 });

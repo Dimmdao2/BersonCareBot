@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -11,12 +13,31 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) => withDoctorWorkspacePrincipalMock(ctx, fn),
+}));
+
 const patientUserId = "a0000000-0000-4000-8000-000000000001";
 const doctorUserId = "b0000000-0000-4000-8000-000000000002";
 const otherDoctorId = "c0000000-0000-4000-8000-000000000003";
+const organizationId = "e0000000-0000-4000-8000-000000000005";
+const workspaceCtx = {
+  session: { user: { userId: doctorUserId, role: "doctor", bindings: {} } },
+  organizationId,
+  membershipId: "f0000000-0000-4000-8000-000000000006",
+  membershipRole: "doctor",
+  specialistId: null,
+  canManageOrganization: false,
+  canManageAllSpecialists: false,
+};
 
 const sampleTask = {
   id: "d0000000-0000-4000-8000-000000000004",
+  organizationId,
   ownerUserId: doctorUserId,
   patientUserId,
   title: "Позвонить",
@@ -31,6 +52,13 @@ const sampleTask = {
 };
 
 describe("doctor client specialist tasks route", () => {
+  beforeEach(() => {
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+  });
+
   it("GET returns 401 without session", async () => {
     getCurrentSessionMock.mockResolvedValue(null);
     const { GET } = await import("./route");
@@ -107,7 +135,7 @@ describe("doctor client specialist tasks route", () => {
     const create = vi.fn().mockResolvedValue(sampleTask);
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getPatientClientIdentity: vi.fn().mockResolvedValue({ userId: patientUserId }),
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: patientUserId }),
       },
       specialistTasks: { create },
     });
@@ -160,10 +188,22 @@ describe("GET /api/doctor/clients/:userId/tasks/summary", () => {
 });
 
 describe("POST /api/doctor/tasks/:taskId/complete", () => {
+  beforeEach(() => {
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+  });
+
   it("completes task for owner", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: doctorUserId, role: "doctor" } });
     const complete = vi.fn().mockResolvedValue({ ...sampleTask, completedAt: "2026-06-02T00:00:00.000Z" });
-    buildAppDepsMock.mockReturnValue({ specialistTasks: { complete } });
+    buildAppDepsMock.mockReturnValue({
+      specialistTasks: {
+        getByIdForOwner: vi.fn().mockResolvedValue(sampleTask),
+        complete,
+      },
+    });
     const { POST } = await import("../../../tasks/[taskId]/complete/route");
     const res = await POST(new Request("http://localhost", { method: "POST" }), {
       params: Promise.resolve({ taskId: sampleTask.id }),
@@ -174,6 +214,13 @@ describe("POST /api/doctor/tasks/:taskId/complete", () => {
 });
 
 describe("GET/POST /api/doctor/tasks", () => {
+  beforeEach(() => {
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+  });
+
   it("GET lists global tasks", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: doctorUserId, role: "doctor" } });
     const listForOwner = vi.fn().mockResolvedValue([sampleTask]);
@@ -189,7 +236,7 @@ describe("GET/POST /api/doctor/tasks", () => {
   it("POST rejects non-client patientUserId", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: doctorUserId, role: "doctor" } });
     buildAppDepsMock.mockReturnValue({
-      doctorClientsPort: { getPatientClientIdentity: vi.fn().mockResolvedValue(null) },
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn().mockResolvedValue(null) },
       specialistTasks: { create: vi.fn() },
     });
     const { POST } = await import("../../../tasks/route");
@@ -208,6 +255,16 @@ describe("GET/POST /api/doctor/tasks", () => {
 });
 
 describe("doctor tasks by id route", () => {
+  beforeEach(() => {
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { ...workspaceCtx, session: { user: { userId: otherDoctorId, role: "doctor", bindings: {} } } },
+    });
+  });
+
   it("PATCH returns 404 for another owner task", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { userId: otherDoctorId, role: "doctor" } });
     buildAppDepsMock.mockReturnValue({

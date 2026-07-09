@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { specialistTasks } from "../../../db/schema/specialistTasks";
 import type {
   CreateSpecialistTaskInput,
@@ -12,6 +14,7 @@ import type { SpecialistTaskPatientSummary, SpecialistTaskRow } from "@/modules/
 function mapRow(row: typeof specialistTasks.$inferSelect): SpecialistTaskRow {
   return {
     id: row.id,
+    organizationId: row.organizationId ?? null,
     ownerUserId: row.ownerUserId,
     patientUserId: row.patientUserId,
     title: row.title,
@@ -24,6 +27,20 @@ function mapRow(row: typeof specialistTasks.$inferSelect): SpecialistTaskRow {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
 }
 
 export function createPgSpecialistTasksPort(): SpecialistTasksPort {
@@ -59,28 +76,29 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
     },
 
     async create(input: CreateSpecialistTaskInput) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
-      const inserted = await db
-        .insert(specialistTasks)
-        .values({
-          ownerUserId: input.ownerUserId,
-          patientUserId: input.patientUserId,
-          title: input.title,
-          description: input.description ?? null,
-          dueAt: input.dueAt ?? null,
-          remindAt: input.remindAt ?? null,
-          isImportant: input.isImportant ?? false,
-          updatedAt: now,
-        })
-        .returning();
-      const row = inserted[0];
-      if (!row) throw new Error("specialist_tasks insert failed");
-      return mapRow(row);
+      return runDrizzleMutationTransaction(async (tx) => {
+        const inserted = await tx
+          .insert(specialistTasks)
+          .values({
+            organizationId: currentWriteOrganizationId(),
+            ownerUserId: input.ownerUserId,
+            patientUserId: input.patientUserId,
+            title: input.title,
+            description: input.description ?? null,
+            dueAt: input.dueAt ?? null,
+            remindAt: input.remindAt ?? null,
+            isImportant: input.isImportant ?? false,
+            updatedAt: now,
+          })
+          .returning();
+        const row = inserted[0];
+        if (!row) throw new Error("specialist_tasks insert failed");
+        return mapRow(row);
+      });
     },
 
     async update(taskId, ownerUserId, patch: UpdateSpecialistTaskInput) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
       const set: Partial<typeof specialistTasks.$inferInsert> = { updatedAt: now };
       if (patch.title !== undefined) set.title = patch.title;
@@ -92,38 +110,59 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
       }
       if (patch.isImportant !== undefined) set.isImportant = patch.isImportant;
 
-      const updated = await db
-        .update(specialistTasks)
-        .set(set)
-        .where(and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)))
-        .returning();
-      return updated[0] ? mapRow(updated[0]) : null;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx.query.specialistTasks.findFirst({
+          where: and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)),
+        });
+        if (!existing) return null;
+        const updated = await tx
+          .update(specialistTasks)
+          .set({ ...set, organizationId: currentWriteOrganizationId(existing.organizationId) })
+          .where(and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)))
+          .returning();
+        return updated[0] ? mapRow(updated[0]) : null;
+      });
     },
 
     async complete(taskId, ownerUserId) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
-      const updated = await db
-        .update(specialistTasks)
-        .set({ completedAt: now, updatedAt: now })
-        .where(
-          and(
-            eq(specialistTasks.id, taskId),
-            eq(specialistTasks.ownerUserId, ownerUserId),
-            isNull(specialistTasks.completedAt),
-          ),
-        )
-        .returning();
-      return updated[0] ? mapRow(updated[0]) : null;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx.query.specialistTasks.findFirst({
+          where: and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)),
+        });
+        if (!existing || existing.completedAt) return null;
+        const updated = await tx
+          .update(specialistTasks)
+          .set({
+            organizationId: currentWriteOrganizationId(existing.organizationId),
+            completedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(specialistTasks.id, taskId),
+              eq(specialistTasks.ownerUserId, ownerUserId),
+              isNull(specialistTasks.completedAt),
+            ),
+          )
+          .returning();
+        return updated[0] ? mapRow(updated[0]) : null;
+      });
     },
 
     async delete(taskId, ownerUserId) {
-      const db = getDrizzle();
-      const deleted = await db
-        .delete(specialistTasks)
-        .where(and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)))
-        .returning({ id: specialistTasks.id });
-      return deleted.length > 0;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx.query.specialistTasks.findFirst({
+          where: and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)),
+        });
+        if (!existing) return false;
+        currentWriteOrganizationId(existing.organizationId);
+        const deleted = await tx
+          .delete(specialistTasks)
+          .where(and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)))
+          .returning({ id: specialistTasks.id });
+        return deleted.length > 0;
+      });
     },
 
     async getPatientSummary(ownerUserId, patientUserId) {
@@ -161,11 +200,20 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
     },
 
     async markReminderSent(taskId, sentAtIso) {
-      const db = getDrizzle();
-      await db
-        .update(specialistTasks)
-        .set({ reminderSentAt: sentAtIso, updatedAt: sentAtIso })
-        .where(and(eq(specialistTasks.id, taskId), isNull(specialistTasks.reminderSentAt)));
+      await runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx.query.specialistTasks.findFirst({
+          where: eq(specialistTasks.id, taskId),
+        });
+        if (!existing) return;
+        await tx
+          .update(specialistTasks)
+          .set({
+            organizationId: currentWriteOrganizationId(existing.organizationId),
+            reminderSentAt: sentAtIso,
+            updatedAt: sentAtIso,
+          })
+          .where(and(eq(specialistTasks.id, taskId), isNull(specialistTasks.reminderSentAt)));
+      });
     },
   };
 }
