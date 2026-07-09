@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const upsertMock = vi.fn();
 const updateMock = vi.fn();
 const renameSectionSlugMock = vi.fn();
+const deleteSectionWithPageReassignMock = vi.fn();
 const getBySlugMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const requireDoctorWorkspaceContextMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
@@ -42,13 +43,19 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       upsert: upsertMock,
       update: updateMock,
       renameSectionSlug: renameSectionSlugMock,
+      deleteSectionWithPageReassign: deleteSectionWithPageReassignMock,
       getBySlug: getBySlugMock,
     },
   }),
 }));
 
 import { revalidatePath } from "next/cache";
-import { attachArticleSectionToSystemFolder, renameContentSectionSlug, saveContentSection } from "./actions";
+import {
+  attachArticleSectionToSystemFolder,
+  deleteContentSection,
+  renameContentSectionSlug,
+  saveContentSection,
+} from "./actions";
 
 function formWith(entries: Record<string, string>) {
   const fd = new FormData();
@@ -56,6 +63,17 @@ function formWith(entries: Record<string, string>) {
     fd.set(k, v);
   }
   return fd;
+}
+
+function workspaceContext() {
+  return {
+    organizationId: "org-1",
+    session: {
+      user: {
+        userId: "00000000-0000-4000-8000-000000000001",
+      },
+    },
+  };
 }
 
 describe("saveContentSection", () => {
@@ -66,7 +84,7 @@ describe("saveContentSection", () => {
     getBySlugMock.mockReset();
     getBySlugMock.mockResolvedValue(null);
     requireDoctorWorkspaceContextMock.mockReset();
-    requireDoctorWorkspaceContextMock.mockResolvedValue({ organizationId: "org-1" });
+    requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
     withDoctorWorkspacePrincipalMock.mockClear();
     principalState.inside = false;
     vi.mocked(revalidatePath).mockClear();
@@ -97,7 +115,7 @@ describe("saveContentSection", () => {
       }),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      { organizationId: "org-1" },
+      workspaceContext(),
       "doctor.content.section.upsert",
       expect.any(Function),
     );
@@ -193,7 +211,10 @@ describe("saveContentSection", () => {
   });
 
   it("renames section slug through content sections port", async () => {
-    renameSectionSlugMock.mockResolvedValue({ ok: true, newSlug: "new-sec" });
+    renameSectionSlugMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return { ok: true, newSlug: "new-sec" };
+    });
     const fd = formWith({
       old_slug: "old-sec",
       new_slug: "new-sec",
@@ -204,6 +225,11 @@ describe("saveContentSection", () => {
     expect(renameSectionSlugMock).toHaveBeenCalledWith("old-sec", "new-sec", {
       changedByUserId: "00000000-0000-4000-8000-000000000001",
     });
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "doctor.content.section.rename",
+      expect.any(Function),
+    );
     expect(revalidatePath).toHaveBeenCalledWith("/app/doctor/content/sections");
     expect(revalidatePath).toHaveBeenCalledWith("/app/patient/sections/old-sec");
     expect(revalidatePath).toHaveBeenCalledWith("/app/patient/sections/new-sec");
@@ -218,6 +244,7 @@ describe("saveContentSection", () => {
     const res = await renameContentSectionSlug(null, fd);
     expect(res?.ok).toBe(false);
     expect(renameSectionSlugMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("rejects rename from CMS unassigned bucket slug", async () => {
@@ -258,7 +285,7 @@ describe("attachArticleSectionToSystemFolder", () => {
     updateMock.mockClear();
     getBySlugMock.mockReset();
     requireDoctorWorkspaceContextMock.mockReset();
-    requireDoctorWorkspaceContextMock.mockResolvedValue({ organizationId: "org-1" });
+    requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
     withDoctorWorkspacePrincipalMock.mockClear();
     principalState.inside = false;
     vi.mocked(revalidatePath).mockClear();
@@ -283,7 +310,7 @@ describe("attachArticleSectionToSystemFolder", () => {
       systemParentCode: "situations",
     });
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      { organizationId: "org-1" },
+      workspaceContext(),
       "doctor.content.section.attach-to-folder",
       expect.any(Function),
     );
@@ -312,6 +339,52 @@ describe("attachArticleSectionToSystemFolder", () => {
     expect(res.ok).toBe(false);
     expect(getBySlugMock).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteContentSection", () => {
+  beforeEach(() => {
+    deleteSectionWithPageReassignMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
+    withDoctorWorkspacePrincipalMock.mockClear();
+    principalState.inside = false;
+    vi.mocked(revalidatePath).mockClear();
+  });
+
+  it("deletes section through content sections port inside principal", async () => {
+    deleteSectionWithPageReassignMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return { ok: true, movedPageCount: 2 };
+    });
+    const fd = formWith({
+      section_slug: "old-sec",
+      confirm_delete: "on",
+    });
+
+    const res = await deleteContentSection(null, fd);
+
+    expect(res).toEqual({ ok: true, movedPageCount: 2 });
+    expect(deleteSectionWithPageReassignMock).toHaveBeenCalledWith("old-sec");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "doctor.content.section.delete",
+      expect.any(Function),
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/app/doctor/content/sections");
+    expect(revalidatePath).toHaveBeenCalledWith("/app/settings/patient-home");
+  });
+
+  it("rejects delete without confirmation before principal wrapper", async () => {
+    const fd = formWith({
+      section_slug: "old-sec",
+    });
+
+    const res = await deleteContentSection(null, fd);
+
+    expect(res.ok).toBe(false);
+    expect(deleteSectionWithPageReassignMock).not.toHaveBeenCalled();
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 });

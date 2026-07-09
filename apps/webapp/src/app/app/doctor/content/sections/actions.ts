@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
@@ -192,7 +192,7 @@ export async function renameContentSectionSlug(
   _prev: RenameContentSectionSlugState,
   formData: FormData,
 ): Promise<RenameContentSectionSlugState> {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   if (formData.get("confirm_rename") !== "on") {
@@ -213,9 +213,11 @@ export async function renameContentSectionSlug(
     return { ok: false, error: "Зарезервированный slug недопустим" };
   }
 
-  const result = await deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {
-    changedByUserId: session.user.userId,
-  });
+  const result = await withDoctorWorkspacePrincipal(workspace, "doctor.content.section.rename", () =>
+    deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {
+      changedByUserId: workspace.session.user.userId,
+    }),
+  );
   if (!result.ok) return result;
 
   revalidatePath("/app/doctor/content/sections");
@@ -234,7 +236,7 @@ export async function deleteContentSection(
   _prev: DeleteContentSectionState | null,
   formData: FormData,
 ): Promise<DeleteContentSectionState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   if (formData.get("confirm_delete") !== "on") {
@@ -246,7 +248,9 @@ export async function deleteContentSection(
     return { ok: false, error: "Не указан раздел" };
   }
 
-  const result = await deps.contentSections.deleteSectionWithPageReassign(slug);
+  const result = await withDoctorWorkspacePrincipal(workspace, "doctor.content.section.delete", () =>
+    deps.contentSections.deleteSectionWithPageReassign(slug),
+  );
   if (!result.ok) {
     return { ok: false, error: result.error };
   }
