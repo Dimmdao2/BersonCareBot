@@ -368,20 +368,22 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async createScheduleBlock(input) {
       const db = getDrizzle();
-      const inserted = await db
-        .insert(beSb)
-        .values({
-          organizationId: input.organizationId,
-          specialistId: input.specialistId ?? null,
-          branchId: input.branchId ?? null,
-          roomId: input.roomId ?? null,
-          startAt: input.startAt,
-          endAt: input.endAt,
-          blockType: input.blockType,
-          title: input.title ?? null,
-          createdByActorId: input.createdByActorId ?? null,
-        })
-        .returning();
+      const inserted = await db.transaction((tx) =>
+        tx
+          .insert(beSb)
+          .values({
+            organizationId: input.organizationId,
+            specialistId: input.specialistId ?? null,
+            branchId: input.branchId ?? null,
+            roomId: input.roomId ?? null,
+            startAt: input.startAt,
+            endAt: input.endAt,
+            blockType: input.blockType,
+            title: input.title ?? null,
+            createdByActorId: input.createdByActorId ?? null,
+          })
+          .returning(),
+      );
       const row = inserted[0]!;
       return {
         id: row.id,
@@ -398,7 +400,9 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async deleteScheduleBlock(organizationId, blockId) {
       const db = getDrizzle();
-      await db.delete(beSb).where(and(eq(beSb.id, blockId), eq(beSb.organizationId, organizationId)));
+      await db.transaction((tx) =>
+        tx.delete(beSb).where(and(eq(beSb.id, blockId), eq(beSb.organizationId, organizationId))),
+      );
     },
 
     async listWorkingHoursAdmin({ organizationId, specialistId, branchId, roomId, weekday }) {
