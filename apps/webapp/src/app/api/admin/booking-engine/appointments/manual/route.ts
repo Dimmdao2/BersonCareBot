@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
   }
   const { ctx } = gate;
   const orgId = parsed.data.organizationId ?? ctx.organizationId;
+  const principalCtx = { ...ctx, organizationId: orgId };
   const deps = buildAppDeps();
   const syncPort = createBookingSyncPort();
   const bridgeEnabled = await isStaffRubitimeOutboundEnabled(deps);
@@ -118,21 +120,26 @@ export async function POST(request: Request) {
         durationMinutes: parsed.data.durationMinutes,
       });
     }
-    const appointment = await ctx.service.createAppointment({
-      organizationId: orgId,
-      branchId: parsed.data.branchId ?? null,
-      roomId: parsed.data.roomId ?? null,
-      specialistId: resolvedSpecialistId,
-      serviceId: parsed.data.serviceId ?? null,
-      platformUserId: parsed.data.platformUserId ?? null,
-      startAt: parsed.data.startAt,
-      endAt: parsed.data.endAt,
-      durationMinutes: parsed.data.durationMinutes,
-      source: "admin_manual",
-      status: "confirmed",
-      phoneNormalized: parsed.data.phoneNormalized ?? null,
-      actorId: ctx.session.user.userId,
-    });
+    const appointment = await withDoctorWorkspacePrincipal(
+      principalCtx,
+      "admin.booking-engine.appointments.manual-create",
+      () =>
+        ctx.service.createAppointment({
+          organizationId: orgId,
+          branchId: parsed.data.branchId ?? null,
+          roomId: parsed.data.roomId ?? null,
+          specialistId: resolvedSpecialistId,
+          serviceId: parsed.data.serviceId ?? null,
+          platformUserId: parsed.data.platformUserId ?? null,
+          startAt: parsed.data.startAt,
+          endAt: parsed.data.endAt,
+          durationMinutes: parsed.data.durationMinutes,
+          source: "admin_manual",
+          status: "confirmed",
+          phoneNormalized: parsed.data.phoneNormalized ?? null,
+          actorId: ctx.session.user.userId,
+        }),
+    );
 
     let syncedRubitimeId: string | null = null;
     let projectionWarning: string | undefined;

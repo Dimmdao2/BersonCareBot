@@ -146,6 +146,7 @@ Completed slices:
 - [x] T0.3.21: migrated doctor CMS section rename/delete actions (`renameContentSectionSlug`, `deleteContentSection`) to `requireDoctorWorkspaceContext()` and `withDoctorWorkspacePrincipal(...)` around only `contentSections.renameSectionSlug/deleteSectionWithPageReassign`. Underlying repo methods were already transaction-backed.
 - [x] T0.3.22: migrated doctor CMS page save action (`saveContentPage`) to `requireDoctorWorkspaceContext()` and `withDoctorWorkspacePrincipal(...)` around only `contentPages.updateFull/upsert`. `pgContentPages.upsert/updateFull` now run through Drizzle transactions and stamp `organization_id` from the active DB principal when present; pre-write reads and slug-retarget side effects remain outside-principal.
 - [x] T0.3.23: ran the doctor/admin write-path tail audit. Result: not clean; residuals were converted into #613-#620. T0.4 remains blocked until #613-#620 are done/sealed and a final tail audit passes.
+- [x] T0.3.24: migrated doctor/admin booking manual appointment create POST mutations to `withDoctorWorkspacePrincipal(...)` around only `ctx.service.createAppointment`. The admin route uses the effective request/body `orgId` for the principal context; slot checks, Rubitime sync/rollback, package reserve, and events remain outside-principal.
 
 Recommended order:
 

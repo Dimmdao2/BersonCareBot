@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   emitPackageLinkedCalendarSync,
 } from "@/app-layer/booking/emitPackageCalendarSync";
@@ -121,21 +122,23 @@ export async function POST(request: Request) {
         durationMinutes: parsed.data.durationMinutes,
       });
     }
-    let appointment = await ctx.service.createAppointment({
-      organizationId: ctx.organizationId,
-      branchId: parsed.data.branchId ?? null,
-      roomId: parsed.data.roomId ?? null,
-      specialistId: resolvedSpecialistId,
-      serviceId: parsed.data.serviceId ?? null,
-      platformUserId: parsed.data.platformUserId ?? null,
-      startAt: parsed.data.startAt,
-      endAt: parsed.data.endAt,
-      durationMinutes: parsed.data.durationMinutes,
-      source: "admin_manual",
-      status: "confirmed",
-      phoneNormalized: parsed.data.phoneNormalized ?? null,
-      actorId: ctx.session.user.userId,
-    });
+    let appointment = await withDoctorWorkspacePrincipal(ctx, "doctor.booking-engine.appointments.manual-create", () =>
+      ctx.service.createAppointment({
+        organizationId: ctx.organizationId,
+        branchId: parsed.data.branchId ?? null,
+        roomId: parsed.data.roomId ?? null,
+        specialistId: resolvedSpecialistId,
+        serviceId: parsed.data.serviceId ?? null,
+        platformUserId: parsed.data.platformUserId ?? null,
+        startAt: parsed.data.startAt,
+        endAt: parsed.data.endAt,
+        durationMinutes: parsed.data.durationMinutes,
+        source: "admin_manual",
+        status: "confirmed",
+        phoneNormalized: parsed.data.phoneNormalized ?? null,
+        actorId: ctx.session.user.userId,
+      }),
+    );
 
     let syncedRubitimeId: string | null = null;
     let projectionWarning: string | undefined;
