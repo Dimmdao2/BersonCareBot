@@ -167,4 +167,16 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(symptomDiaryRepo).toContain("getCurrentDbPrincipalOrganizationId");
     expect(symptomDiaryRepo).toContain("organization_id");
   });
+
+  it("doctor global client lifecycle routes require selected workspace membership before global flag writes", () => {
+    for (const file of [
+      "src/app/api/doctor/clients/[userId]/block/route.ts",
+      "src/app/api/doctor/clients/[userId]/archive/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("gate.ctx.organizationId");
+    }
+  });
 });

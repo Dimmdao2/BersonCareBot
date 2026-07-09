@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
-const { getSessionMock, getPlatformUserRoleMock, getClientIdentityMock, setUserArchivedMock } = vi.hoisted(() => {
+const { getPlatformUserRoleMock, getClientIdentityMock, setUserArchivedMock } = vi.hoisted(() => {
   const getPlatformUserRoleMockInner = vi.fn();
   const getClientIdentityMockInner = vi.fn();
   const setUserArchivedMockInner = vi.fn();
   return {
-    getSessionMock: vi.fn(),
     getPlatformUserRoleMock: getPlatformUserRoleMockInner,
     getClientIdentityMock: getClientIdentityMockInner,
     setUserArchivedMock: setUserArchivedMockInner,
   };
 });
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const buildAppDepsMock = vi.hoisted(() => vi.fn());
+const getClientIdentityForOrganizationMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/repos/pgDoctorClients", () => ({
   createPgDoctorClientsPort: () => ({
@@ -19,20 +22,41 @@ vi.mock("@/infra/repos/pgDoctorClients", () => ({
     setUserArchived: setUserArchivedMock,
   }),
 }));
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getSessionMock,
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => buildAppDepsMock(),
 }));
 
 import { PATCH } from "./route";
 
 const uid = "00000000-0000-4000-8000-000000000001";
+const organizationId = "10000000-0000-4000-8000-000000000001";
 
 describe("PATCH /api/doctor/clients/[userId]/archive", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    buildAppDepsMock.mockReset();
+    getClientIdentityForOrganizationMock.mockReset();
     getPlatformUserRoleMock.mockReset();
     getClientIdentityMock.mockReset();
     setUserArchivedMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId,
+        session: { user: { userId: "d1", role: "doctor", bindings: {} } },
+      },
+    });
+    getClientIdentityForOrganizationMock.mockResolvedValue({ userId: uid });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: getClientIdentityForOrganizationMock,
+      },
+    });
     getPlatformUserRoleMock.mockResolvedValue("client");
     getClientIdentityMock.mockResolvedValue({
       userId: uid,
@@ -46,8 +70,11 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
     });
   });
 
-  it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+  it("returns workspace gate response when doctor workspace is unavailable", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "organization_selection_required" }, { status: 409 }),
+    });
     const res = await PATCH(
       new Request(`http://localhost/api/doctor/clients/${uid}/archive`, {
         method: "PATCH",
@@ -56,13 +83,11 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
       }),
       { params: Promise.resolve({ userId: uid }) },
     );
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(409);
+    expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 
   it("archives for doctor", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     const res = await PATCH(
       new Request(`http://localhost/api/doctor/clients/${uid}/archive`, {
         method: "PATCH",
@@ -74,13 +99,25 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean };
     expect(body.ok).toBe(true);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(uid, organizationId);
     expect(setUserArchivedMock).toHaveBeenCalledWith(uid, true);
   });
 
+  it("returns 404 when client is outside selected organization", async () => {
+    getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
+    const res = await PATCH(
+      new Request(`http://localhost/api/doctor/clients/${uid}/archive`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: true }),
+      }),
+      { params: Promise.resolve({ userId: uid }) },
+    );
+    expect(res.status).toBe(404);
+    expect(setUserArchivedMock).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when not a client role", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     getPlatformUserRoleMock.mockResolvedValueOnce("doctor");
     const res = await PATCH(
       new Request(`http://localhost/api/doctor/clients/${uid}/archive`, {

@@ -18,6 +18,12 @@ generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only)
 ## Open product decisions (do NOT block Phase 0)
 - Intra-clinic card visibility `card_visibility_policy` on `be_organizations`: default `all` (every org specialist sees every org patient) vs `assigned`. Deferred — a column + optional 2nd RLS predicate, switchable later. Default `all`.
 - Cross-region enrollment policy (region phase).
+- Doctor client block/archive semantics: current implementation uses global account flags
+  `platform_users.is_blocked` / `platform_users.is_archived`. T0.3.36 only hardens doctor
+  routes with workspace membership authorization before writing those global flags. A true
+  org-scoped model needs a separate product/schema decision: keep global account lifecycle
+  semantics, or move archive to enrollment state and support-chat blocking to an org-scoped
+  support/messaging policy table.
 - White-label scope and custom-domain packaging by tariff: exact fields, redirect semantics, certificate
   operations, and suspension behavior are R5 commercial SaaS work, not Phase 0.
 
