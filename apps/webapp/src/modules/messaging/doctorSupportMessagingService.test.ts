@@ -13,6 +13,7 @@ vi.mock("./relayOutbound", () => ({
 function makeConversationRow(overrides: Partial<SupportConversationRow> = {}): SupportConversationRow {
   return {
     id: "conv-1",
+    organizationId: null,
     integratorConversationId: "integrator-conv-1",
     platformUserId: "user-1",
     integratorUserId: null,
@@ -47,6 +48,7 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     getConversationByIntegratorId: async () => null,
     listUnansweredQuestionsForAdmin: async () => [],
     getQuestionByIntegratorConversationId: async () => null,
+    claimLegacyConversationForOrganization: async () => true,
     ensureWebappConversationForUser: async () => ({ id: "conv-webapp-1" }),
     appendWebappMessage: async () => ({ id: "msg-webapp-1", created: true }),
     listMessagesSince: async () => [],

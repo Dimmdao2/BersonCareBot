@@ -6,6 +6,9 @@ const mutatingRouteFiles = [
   "src/app/api/doctor/clients/[userId]/notes/route.ts",
   "src/app/api/doctor/clients/[userId]/support-settings/route.ts",
   "src/app/api/doctor/clients/[userId]/tasks/route.ts",
+  "src/app/api/doctor/messages/[conversationId]/route.ts",
+  "src/app/api/doctor/messages/[conversationId]/read/route.ts",
+  "src/app/api/doctor/messages/conversations/ensure/route.ts",
   "src/app/api/doctor/tasks/route.ts",
   "src/app/api/doctor/tasks/[taskId]/route.ts",
   "src/app/api/doctor/tasks/[taskId]/complete/route.ts",
@@ -14,6 +17,7 @@ const mutatingRouteFiles = [
 const principalBackedRepoFiles = [
   "src/infra/repos/pgDoctorNotes.ts",
   "src/infra/repos/pgDoctorPatientSupport.ts",
+  "src/infra/repos/pgSupportCommunication.ts",
   "src/infra/repos/pgSpecialistTasks.ts",
 ] as const;
 
@@ -31,7 +35,12 @@ describe("doctor support/task workspace principal cutover", () => {
   it.each(principalBackedRepoFiles)("%s uses principal-aware transactions and organization stamping", (file) => {
     const src = readSource(file);
     expect(src).toContain("runDrizzleMutationTransaction");
-    expect(src).toContain("organizationId: currentWriteOrganizationId");
+    expect(src).toContain("currentWriteOrganizationId");
+    if (file === "src/infra/repos/pgSupportCommunication.ts") {
+      expect(src).toContain("organization_id");
+    } else {
+      expect(src).toContain("organizationId: currentWriteOrganizationId");
+    }
   });
 
   it("task update/delete/complete routes reject tasks outside the selected workspace", () => {
@@ -46,11 +55,36 @@ describe("doctor support/task workspace principal cutover", () => {
       "src/app/api/doctor/clients/[userId]/notes/route.ts",
       "src/app/api/doctor/clients/[userId]/support-settings/route.ts",
       "src/app/api/doctor/clients/[userId]/tasks/route.ts",
+      "src/app/api/doctor/messages/conversations/ensure/route.ts",
       "src/app/api/doctor/tasks/route.ts",
     ]) {
       const src = readSource(file);
       expect(src).toContain("getClientIdentityForOrganization");
       expect(src).toContain("gate.ctx.organizationId");
+    }
+  });
+
+  it("doctor message mutations reject conversations outside the selected workspace", () => {
+    for (const file of [
+      "src/app/api/doctor/messages/[conversationId]/route.ts",
+      "src/app/api/doctor/messages/[conversationId]/read/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("conversationBelongsToWorkspace");
+      expect(src).toContain("full.conversation");
+      expect(src).toContain("gate.ctx.organizationId");
+    }
+  });
+
+  it("doctor message read and write routes preserve legacy unowned conversations", () => {
+    for (const file of [
+      "src/app/api/doctor/messages/[conversationId]/route.ts",
+      "src/app/api/doctor/messages/[conversationId]/read/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("return conversation.organizationId == null");
+      expect(src).toContain("claimLegacyConversationForWorkspace");
+      expect(src).toContain("claimLegacyConversationForOrganization");
     }
   });
 });

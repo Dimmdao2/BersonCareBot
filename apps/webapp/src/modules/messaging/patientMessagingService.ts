@@ -100,6 +100,7 @@ export function createPatientMessagingService(
 
       const message: SupportConversationMessageRow = {
         id: messageId,
+        organizationId: null,
         integratorMessageId,
         conversationId: targetConversationId,
         senderRole: "user",

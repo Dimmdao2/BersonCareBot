@@ -5,25 +5,58 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { serializeSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 
 const postBodySchema = z.object({
   text: z.string().min(1).max(4000),
 });
 
+type WorkspaceConversationRef = {
+  organizationId?: string | null;
+  platformUserId?: string | null;
+};
+
+async function conversationBelongsToWorkspace(
+  deps: ReturnType<typeof buildAppDeps>,
+  conversation: WorkspaceConversationRef,
+  organizationId: string,
+): Promise<boolean> {
+  if (conversation.organizationId) {
+    return conversation.organizationId === organizationId;
+  }
+  if (!conversation.platformUserId) {
+    return conversation.organizationId == null;
+  }
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    conversation.platformUserId,
+    organizationId,
+  );
+  return Boolean(identity);
+}
+
+async function claimLegacyConversationForWorkspace(
+  deps: ReturnType<typeof buildAppDeps>,
+  conversationId: string,
+  conversation: WorkspaceConversationRef,
+  organizationId: string,
+): Promise<boolean> {
+  if (conversation.organizationId != null) {
+    return true;
+  }
+  return deps.supportCommunication.claimLegacyConversationForOrganization({
+    conversationId,
+    organizationId,
+  });
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ conversationId: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { conversationId } = await context.params;
   if (!conversationId?.trim() || !z.string().uuid().safeParse(conversationId).success) {
@@ -35,6 +68,21 @@ export async function GET(
   const since = sinceRaw?.trim() ? sinceRaw.trim() : undefined;
 
   const deps = buildAppDeps();
+  const full = await deps.supportCommunication.getConversationWithMessages(conversationId);
+  if (!full || !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (
+    !(await claimLegacyConversationForWorkspace(
+      deps,
+      conversationId,
+      full.conversation,
+      gate.ctx.organizationId,
+    ))
+  ) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
   const data = await deps.messaging.doctorSupport.getMessages(conversationId, {
     sinceCreatedAt: since ?? null,
     limit: 100,
@@ -53,13 +101,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ conversationId: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { conversationId } = await context.params;
   if (!conversationId?.trim() || !z.string().uuid().safeParse(conversationId).success) {
@@ -73,7 +116,24 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const result = await deps.messaging.doctorSupport.sendAdminReply(conversationId, parsed.data.text);
+  const full = await deps.supportCommunication.getConversationWithMessages(conversationId);
+  if (!full || !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (
+    !(await claimLegacyConversationForWorkspace(
+      deps,
+      conversationId,
+      full.conversation,
+      gate.ctx.organizationId,
+    ))
+  ) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.messaging.doctorSupport.sendAdminReply(conversationId, parsed.data.text),
+  );
   if (!result.ok) {
     if (result.error === "not_found") {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
