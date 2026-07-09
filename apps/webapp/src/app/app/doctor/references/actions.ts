@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
@@ -125,7 +125,7 @@ export async function saveReferenceCatalog(input: {
 }
 
 export async function addReferenceItem(formData: FormData): Promise<void> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = parseCategoryCode(formData);
   const code = (formData.get("code") as string | null)?.trim() ?? "";
   const title = (formData.get("title") as string | null)?.trim() ?? "";
@@ -136,39 +136,45 @@ export async function addReferenceItem(formData: FormData): Promise<void> {
     throw new Error("title_required");
   }
   const deps = buildAppDeps();
-  await deps.references.insertItemStaff({
-    categoryCode,
-    code,
-    title,
-    sortOrder: parseSortOrder(formData.get("sortOrder")),
-  });
+  await withDoctorWorkspacePrincipal(workspace, "doctor.references.add-item", () =>
+    deps.references.insertItemStaff({
+      categoryCode,
+      code,
+      title,
+      sortOrder: parseSortOrder(formData.get("sortOrder")),
+    }),
+  );
   revalidateReferencePaths(categoryCode);
 }
 
 export async function saveReferenceItem(formData: FormData): Promise<void> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = parseCategoryCode(formData);
   const itemId = (formData.get("itemId") as string | null)?.trim() ?? "";
   const title = (formData.get("title") as string | null)?.trim() ?? "";
   if (!itemId) throw new Error("item_required");
   if (!title) throw new Error("title_required");
   const deps = buildAppDeps();
-  await deps.references.updateItem(itemId, {
-    title,
-    sortOrder: parseSortOrder(formData.get("sortOrder")),
-  });
+  await withDoctorWorkspacePrincipal(workspace, "doctor.references.save-item", () =>
+    deps.references.updateItem(itemId, {
+      title,
+      sortOrder: parseSortOrder(formData.get("sortOrder")),
+    }),
+  );
   revalidateReferencePaths(categoryCode);
 }
 
 export async function toggleReferenceItem(formData: FormData): Promise<void> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = parseCategoryCode(formData);
   const itemId = (formData.get("itemId") as string | null)?.trim() ?? "";
   const nextActiveRaw = (formData.get("nextActive") as string | null)?.trim() ?? "";
   const nextActive = nextActiveRaw === "true";
   if (!itemId) throw new Error("item_required");
   const deps = buildAppDeps();
-  await deps.references.updateItem(itemId, { isActive: nextActive });
+  await withDoctorWorkspacePrincipal(workspace, "doctor.references.toggle-item", () =>
+    deps.references.updateItem(itemId, { isActive: nextActive }),
+  );
   revalidateReferencePaths(categoryCode);
 }
 
@@ -176,7 +182,7 @@ export type SoftDeleteReferenceItemResult = { ok: true } | { ok: false; code: st
 
 /** Soft-delete reference item (deleted_at); distinct from archive (is_active). */
 export async function softDeleteReferenceItem(formData: FormData): Promise<SoftDeleteReferenceItemResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   let categoryCode: string;
   try {
     categoryCode = parseCategoryCode(formData);
@@ -190,7 +196,9 @@ export async function softDeleteReferenceItem(formData: FormData): Promise<SoftD
   if (!itemId) return { ok: false, code: "item_required" };
   const deps = buildAppDeps();
   try {
-    await deps.references.softDeleteItem(itemId);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.references.soft-delete-item", () =>
+      deps.references.softDeleteItem(itemId),
+    );
   } catch (err) {
     logServerRuntimeError("softDeleteReferenceItem", err, { categoryCode, itemId });
     return { ok: false, code: "delete_failed" };

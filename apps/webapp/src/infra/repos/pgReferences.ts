@@ -151,27 +151,49 @@ export const pgReferencesPort: ReferencesPort = {
   },
 
   async insertItemStaff(params) {
-    const cat = await pgReferencesPort.findCategoryByCode(params.categoryCode);
-    if (!cat) {
-      throw new Error("category_not_found");
-    }
-    const meta = params.metaJson ?? {};
-    const result = await runWebappPgText<{
-      id: string;
-      category_id: string;
-      code: string;
-      title: string;
-      sort_order: number;
-      is_active: boolean;
-      deleted_at: Date | string | null;
-      meta_json: Record<string, unknown>;
-    }>(
-      `INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)
-       VALUES ($1, $2, $3, $4, true, $5::jsonb)
-       RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
-      [cat.id, params.code, params.title, params.sortOrder ?? 999, JSON.stringify(meta)],
-    );
-    return rowItem(result.rows[0]!);
+    let inserted: ReferenceItem | null = null;
+    await runWebappTransaction(async (tx) => {
+      const catRes = await runWebappPgText<{
+        id: string;
+        organization_id: string | null;
+      }>(
+        `SELECT id, organization_id
+         FROM reference_categories WHERE code = $1`,
+        [params.categoryCode],
+        tx,
+      );
+      const cat = catRes.rows[0] ?? null;
+      if (!cat) {
+        throw new Error("category_not_found");
+      }
+      const meta = params.metaJson ?? {};
+      const result = await runWebappPgText<{
+        id: string;
+        category_id: string;
+        code: string;
+        title: string;
+        sort_order: number;
+        is_active: boolean;
+        deleted_at: Date | string | null;
+        meta_json: Record<string, unknown>;
+      }>(
+        `INSERT INTO reference_items (organization_id, category_id, code, title, sort_order, is_active, meta_json)
+         VALUES ($1, $2, $3, $4, $5, true, $6::jsonb)
+         RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
+        [
+          cat.organization_id,
+          cat.id,
+          params.code,
+          params.title,
+          params.sortOrder ?? 999,
+          JSON.stringify(meta),
+        ],
+        tx,
+      );
+      inserted = rowItem(result.rows[0]!);
+    });
+    if (!inserted) throw new Error("insert_failed");
+    return inserted;
   },
 
   async updateItem(itemId, input) {
@@ -194,21 +216,24 @@ export const pgReferencesPort: ReferencesPort = {
       throw new Error("empty_update");
     }
     values.push(itemId);
-    const res = await runWebappPgText<{
-      id: string;
-      category_id: string;
-      code: string;
-      title: string;
-      sort_order: number;
-      is_active: boolean;
-      deleted_at: Date | string | null;
-      meta_json: Record<string, unknown>;
-    }>(
-      `UPDATE reference_items
-       SET ${updates.join(", ")}
-       WHERE id = $${idx} AND deleted_at IS NULL
-       RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
-      values,
+    const res = await runWebappTransaction((tx) =>
+      runWebappPgText<{
+        id: string;
+        category_id: string;
+        code: string;
+        title: string;
+        sort_order: number;
+        is_active: boolean;
+        deleted_at: Date | string | null;
+        meta_json: Record<string, unknown>;
+      }>(
+        `UPDATE reference_items
+         SET ${updates.join(", ")}
+         WHERE id = $${idx} AND deleted_at IS NULL
+         RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
+        values,
+        tx,
+      ),
     );
     if (!res.rows[0]) throw new Error("item_not_found");
     return rowItem(res.rows[0]);
@@ -311,9 +336,12 @@ export const pgReferencesPort: ReferencesPort = {
   },
 
   async softDeleteItem(itemId) {
-    await runWebappPgText(
-      `UPDATE reference_items SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`,
-      [itemId],
+    await runWebappTransaction((tx) =>
+      runWebappPgText(
+        `UPDATE reference_items SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`,
+        [itemId],
+        tx,
+      ),
     );
   },
 

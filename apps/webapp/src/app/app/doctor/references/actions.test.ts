@@ -4,11 +4,17 @@ import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 const {
   revalidatePathMock,
   saveCatalogMock,
+  insertItemStaffMock,
+  updateItemMock,
+  softDeleteItemMock,
   requireDoctorAccessMock,
   requireDoctorWorkspaceContextMock,
 } = vi.hoisted(() => ({
   revalidatePathMock: vi.fn(),
   saveCatalogMock: vi.fn(),
+  insertItemStaffMock: vi.fn(),
+  updateItemMock: vi.fn(),
+  softDeleteItemMock: vi.fn(),
   requireDoctorAccessMock: vi.fn(),
   requireDoctorWorkspaceContextMock: vi.fn(),
 }));
@@ -28,11 +34,20 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     references: {
       saveCatalog: saveCatalogMock,
+      insertItemStaff: insertItemStaffMock,
+      updateItem: updateItemMock,
+      softDeleteItem: softDeleteItemMock,
     },
   }),
 }));
 
-import { saveReferenceCatalog } from "./actions";
+import {
+  addReferenceItem,
+  saveReferenceCatalog,
+  saveReferenceItem,
+  softDeleteReferenceItem,
+  toggleReferenceItem,
+} from "./actions";
 
 function workspaceContext() {
   return {
@@ -51,6 +66,12 @@ describe("saveReferenceCatalog", () => {
     revalidatePathMock.mockReset();
     saveCatalogMock.mockReset();
     saveCatalogMock.mockResolvedValue(undefined);
+    insertItemStaffMock.mockReset();
+    insertItemStaffMock.mockResolvedValue(undefined);
+    updateItemMock.mockReset();
+    updateItemMock.mockResolvedValue(undefined);
+    softDeleteItemMock.mockReset();
+    softDeleteItemMock.mockResolvedValue(undefined);
     requireDoctorAccessMock.mockReset();
     requireDoctorWorkspaceContextMock.mockReset();
     requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
@@ -164,6 +185,107 @@ describe("saveReferenceCatalog", () => {
     expect(result).toEqual({ ok: false, code: "invalid_add_payload", invalidValue: "bad-code" });
     expect(saveCatalogMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+});
+
+describe("single reference item actions", () => {
+  beforeEach(() => {
+    revalidatePathMock.mockReset();
+    saveCatalogMock.mockReset();
+    saveCatalogMock.mockResolvedValue(undefined);
+    insertItemStaffMock.mockReset();
+    insertItemStaffMock.mockResolvedValue(undefined);
+    updateItemMock.mockReset();
+    updateItemMock.mockResolvedValue(undefined);
+    softDeleteItemMock.mockReset();
+    softDeleteItemMock.mockResolvedValue(undefined);
+    requireDoctorAccessMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
+  });
+
+  it("adds an item under the selected organization principal and revalidates after it clears", async () => {
+    const events: string[] = [];
+    insertItemStaffMock.mockImplementation(async () => {
+      events.push("insert");
+      expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
+    });
+    revalidatePathMock.mockImplementation(() => {
+      events.push("revalidate");
+      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+    });
+    const formData = new FormData();
+    formData.set("categoryCode", " body_region ");
+    formData.set("code", " neck ");
+    formData.set("title", " Шея ");
+    formData.set("sortOrder", "7");
+
+    await addReferenceItem(formData);
+
+    expect(requireDoctorAccessMock).not.toHaveBeenCalled();
+    expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
+    expect(insertItemStaffMock).toHaveBeenCalledWith({
+      categoryCode: "body_region",
+      code: "neck",
+      title: "Шея",
+      sortOrder: 7,
+    });
+    expect(events).toEqual(["insert", "revalidate", "revalidate"]);
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("saves item fields under the selected organization principal", async () => {
+    updateItemMock.mockImplementation(async () => {
+      expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
+    });
+    const formData = new FormData();
+    formData.set("categoryCode", "body_region");
+    formData.set("itemId", "item-1");
+    formData.set("title", "Шея");
+    formData.set("sortOrder", "3");
+
+    await saveReferenceItem(formData);
+
+    expect(requireDoctorAccessMock).not.toHaveBeenCalled();
+    expect(updateItemMock).toHaveBeenCalledWith("item-1", {
+      title: "Шея",
+      sortOrder: 3,
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/references/body_region");
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("toggles item activity under the selected organization principal", async () => {
+    updateItemMock.mockImplementation(async () => {
+      expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
+    });
+    const formData = new FormData();
+    formData.set("categoryCode", "body_region");
+    formData.set("itemId", "item-1");
+    formData.set("nextActive", "false");
+
+    await toggleReferenceItem(formData);
+
+    expect(requireDoctorAccessMock).not.toHaveBeenCalled();
+    expect(updateItemMock).toHaveBeenCalledWith("item-1", { isActive: false });
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("soft-deletes an item under the selected organization principal", async () => {
+    softDeleteItemMock.mockImplementation(async () => {
+      expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
+    });
+    const formData = new FormData();
+    formData.set("categoryCode", "body_region");
+    formData.set("itemId", "item-1");
+
+    const result = await softDeleteReferenceItem(formData);
+
+    expect(result).toEqual({ ok: true });
+    expect(requireDoctorAccessMock).not.toHaveBeenCalled();
+    expect(softDeleteItemMock).toHaveBeenCalledWith("item-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/references/body_region");
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });
