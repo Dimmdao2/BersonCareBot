@@ -227,6 +227,19 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(src).toContain("eq(clinicalDiagnosis.patientUserId, patientUserId)");
   });
 
+  it("doctor diagnosis catalog route and repo use selected workspace principal", () => {
+    const route = readSource("src/app/api/doctor/patients/[userId]/diagnosis-catalog/route.ts");
+    expect(route).toContain("requireDoctorWorkspaceApiContext");
+    expect(route).toContain("getClientIdentityForOrganization");
+    expect(route).toContain("withDoctorWorkspacePrincipal");
+    expect(route).toContain("gate.ctx.organizationId");
+
+    const repo = readSource("src/infra/repos/pgPatientClinical.ts");
+    expect(repo).toContain("eq(clinicalDiagnosisCatalog.organizationId, organizationId)");
+    expect(repo).toContain("insert(clinicalDiagnosisCatalog)");
+    expect(repo).toContain("organizationId,");
+  });
+
   it("doctor patient card SSR clinical reads run under selected workspace principal", () => {
     const src = readSource("src/app/app/doctor/patients/[userId]/page.tsx");
     expect(src).toContain("requireDoctorWorkspaceContext");

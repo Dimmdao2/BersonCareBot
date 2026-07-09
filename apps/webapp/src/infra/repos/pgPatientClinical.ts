@@ -108,6 +108,14 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   return principalOrganizationId ?? fallbackOrganizationId;
 }
 
+function requiredPrincipalOrganizationId(): string {
+  const organizationId = currentWriteOrganizationId();
+  if (!organizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return organizationId;
+}
+
 function principalOrganizationId(): string | undefined {
   return getCurrentDbPrincipalOrganizationId();
 }
@@ -392,11 +400,17 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     },
 
     async searchDiagnosisCatalog(query: string): Promise<DiagnosisCatalogSuggestion[]> {
+      const organizationId = requiredPrincipalOrganizationId();
       const db = getDrizzle();
       const rows = await db
         .select()
         .from(clinicalDiagnosisCatalog)
-        .where(ilike(clinicalDiagnosisCatalog.label, `%${query}%`))
+        .where(
+          and(
+            ilike(clinicalDiagnosisCatalog.label, `%${query}%`),
+            eq(clinicalDiagnosisCatalog.organizationId, organizationId),
+          ),
+        )
         .orderBy(asc(clinicalDiagnosisCatalog.label))
         .limit(20);
       return rows.map((r) => ({ id: r.id, label: r.label, note: r.note ?? null }));
@@ -405,15 +419,18 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async createDiagnosisCatalogEntry(
       params: CreateDiagnosisCatalogParams,
     ): Promise<DiagnosisCatalogSuggestion> {
-      const db = getDrizzle();
-      const inserted = await db
-        .insert(clinicalDiagnosisCatalog)
-        .values({
-          label: params.label,
-          note: params.note ?? null,
-          createdBy: params.createdBy,
-        })
-        .returning();
+      const organizationId = requiredPrincipalOrganizationId();
+      const inserted = await runDrizzleMutationTransaction((tx) =>
+        tx
+          .insert(clinicalDiagnosisCatalog)
+          .values({
+            organizationId,
+            label: params.label,
+            note: params.note ?? null,
+            createdBy: params.createdBy,
+          })
+          .returning(),
+      );
       const row = inserted[0];
       if (!row) throw new Error("clinical_diagnosis_catalog insert failed");
       return { id: row.id, label: row.label, note: row.note ?? null };
