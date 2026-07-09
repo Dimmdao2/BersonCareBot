@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 
 function parseSortOrder(raw: FormDataEntryValue | null): number {
@@ -60,10 +61,9 @@ export async function saveReferenceCatalog(input: {
   updates: CatalogRowInput[];
   additions: CatalogAddInput[];
 }): Promise<SaveReferenceCatalogResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const categoryCode = input.categoryCode.trim();
   if (!categoryCode) return { ok: false, code: "category_required" };
-  const deps = buildAppDeps();
   const updates = input.updates.map((item) => ({
     id: item.id.trim(),
     code: item.code.trim(),
@@ -100,8 +100,11 @@ export async function saveReferenceCatalog(input: {
           : badAddition.title || badAddition.code;
     return { ok: false, code: "invalid_add_payload", invalidValue };
   }
+  const deps = buildAppDeps();
   try {
-    await deps.references.saveCatalog(categoryCode, { updates, additions });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.references.save-catalog", () =>
+      deps.references.saveCatalog(categoryCode, { updates, additions }),
+    );
   } catch (err) {
     if (err instanceof Error && SAVE_CATALOG_KNOWN_CODES.has(err.message)) {
       const conflictingCodes = (err as Error & { conflictingCodes?: string[] }).conflictingCodes;

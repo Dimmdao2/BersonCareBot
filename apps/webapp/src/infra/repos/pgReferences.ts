@@ -215,8 +215,6 @@ export const pgReferencesPort: ReferencesPort = {
   },
 
   async saveCatalog(categoryCode, input) {
-    const cat = await pgReferencesPort.findCategoryByCode(categoryCode);
-    if (!cat) throw new Error("category_not_found");
     const updateNormCodes = input.updates.map((u) => u.code.trim().toLowerCase());
     const additionNormCodes = input.additions.map((a) => a.code.trim().toLowerCase());
     const allNormCodes = [...updateNormCodes, ...additionNormCodes];
@@ -231,6 +229,27 @@ export const pgReferencesPort: ReferencesPort = {
       throw err;
     }
     await runWebappTransaction(async (tx) => {
+      const catRes = await runWebappPgText<{
+        id: string;
+        organization_id: string | null;
+        code: string;
+        title: string;
+        is_user_extensible: boolean;
+        tenant_id: string | null;
+      }>(
+        `SELECT id, organization_id, code, title, is_user_extensible, tenant_id
+         FROM reference_categories WHERE code = $1`,
+        [categoryCode],
+        tx,
+      );
+      const catRow = catRes.rows[0] ?? null;
+      const cat = catRow
+        ? {
+            id: String(catRow.id),
+            organizationId: catRow.organization_id ? String(catRow.organization_id) : null,
+          }
+        : null;
+      if (!cat) throw new Error("category_not_found");
       const currentRes = await runWebappPgText<{ id: string; code: string }>(
         `SELECT id, code FROM reference_items WHERE category_id = $1 AND deleted_at IS NULL`,
         [cat.id],
@@ -275,9 +294,9 @@ export const pgReferencesPort: ReferencesPort = {
       }
       for (const addition of input.additions) {
         await runWebappPgText(
-          `INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)
-           VALUES ($1, $2, $3, $4, true, '{}'::jsonb)`,
-          [cat.id, addition.code.trim().toLowerCase(), addition.title, addition.sortOrder],
+          `INSERT INTO reference_items (organization_id, category_id, code, title, sort_order, is_active, meta_json)
+           VALUES ($1, $2, $3, $4, $5, true, '{}'::jsonb)`,
+          [cat.organizationId, cat.id, addition.code.trim().toLowerCase(), addition.title, addition.sortOrder],
           tx,
         );
       }
