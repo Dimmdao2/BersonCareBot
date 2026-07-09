@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export type ReorderContentSectionsState = { ok: boolean; error?: string };
 
 export async function reorderContentSections(orderedSlugs: string[]): Promise<ReorderContentSectionsState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   if (!Array.isArray(orderedSlugs) || orderedSlugs.length === 0) {
     return { ok: false, error: "Пустой порядок" };
   }
@@ -16,7 +17,9 @@ export async function reorderContentSections(orderedSlugs: string[]): Promise<Re
 
   const deps = buildAppDeps();
   try {
-    await deps.contentSections.reorderSlugs(slugs);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.sections.reorder", () =>
+      deps.contentSections.reorderSlugs(slugs),
+    );
   } catch (e) {
     console.error("reorderContentSections", e);
     return { ok: false, error: "Не удалось сохранить порядок" };
