@@ -1,13 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, listAdminAuditLogMock, countOpenAutoMergeConflictsMock } = vi.hoisted(() => ({
+const {
+  requireAdminModeSessionMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+  listAdminAuditLogMock,
+  countOpenAutoMergeConflictsMock,
+} = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
+  withDoctorWorkspacePrincipalMock: vi.fn((_ctx: unknown, fn: () => unknown) => fn()),
   listAdminAuditLogMock: vi.fn(),
   countOpenAutoMergeConflictsMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 vi.mock("@/app-layer/db/client", () => ({
@@ -24,9 +41,15 @@ import { GET } from "./route";
 describe("GET /api/admin/audit-log", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
     listAdminAuditLogMock.mockReset();
     countOpenAutoMergeConflictsMock.mockReset();
     countOpenAutoMergeConflictsMock.mockResolvedValue(0);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    });
   });
 
   it("returns 403 when not admin mode", async () => {
@@ -45,6 +68,23 @@ describe("GET /api/admin/audit-log", () => {
     });
     const res = await GET(new Request("http://localhost/api/admin/audit-log?from=not-a-date"));
     expect(res.status).toBe(400);
+  });
+
+  it("returns workspace gate response before audit reads", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "organization_selection_required" }), {
+        status: 409,
+      }),
+    });
+    const res = await GET(new Request("http://localhost/api/admin/audit-log?page=1"));
+    expect(res.status).toBe(409);
+    expect(listAdminAuditLogMock).not.toHaveBeenCalled();
+    expect(countOpenAutoMergeConflictsMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 when from is after to", async () => {
@@ -75,6 +115,10 @@ describe("GET /api/admin/audit-log", () => {
     expect(body.openAutoMergeConflictCount).toBe(0);
     expect(listAdminAuditLogMock).toHaveBeenCalled();
     expect(countOpenAutoMergeConflictsMock).toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      expect.any(Function),
+    );
   });
 
   it("passes excludeSystemHealth to list when query flag set", async () => {

@@ -1,12 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, resolveAdminAuditConflictByIdMock } = vi.hoisted(() => ({
+const {
+  requireAdminModeSessionMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+  resolveAdminAuditConflictByIdMock,
+} = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
+  withDoctorWorkspacePrincipalMock: vi.fn((_ctx: unknown, fn: () => unknown) => fn()),
   resolveAdminAuditConflictByIdMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 vi.mock("@/app-layer/db/client", () => ({
@@ -22,7 +38,13 @@ import { POST } from "./route";
 describe("POST /api/admin/audit-log/resolve", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
     resolveAdminAuditConflictByIdMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    });
   });
 
   it("returns 403 when gate fails", async () => {
@@ -56,6 +78,28 @@ describe("POST /api/admin/audit-log/resolve", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns workspace gate response before resolving audit row", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "organization_selection_required" }), {
+        status: 409,
+      }),
+    });
+    const res = await POST(
+      new Request("http://localhost/api/admin/audit-log/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "6ef47437-fbed-4d47-a3d4-de6a4ea609cb" }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(resolveAdminAuditConflictByIdMock).not.toHaveBeenCalled();
+  });
+
   it("returns 200 when resolve succeeds", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
@@ -73,5 +117,9 @@ describe("POST /api/admin/audit-log/resolve", () => {
     const body = (await res.json()) as { ok: boolean; updated?: boolean };
     expect(body.ok).toBe(true);
     expect(body.updated).toBe(true);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      expect.any(Function),
+    );
   });
 });

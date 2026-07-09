@@ -5,6 +5,8 @@
 import { NextResponse } from "next/server";
 import { getPool } from "@/app-layer/db/client";
 import { countOpenAutoMergeConflicts, listAdminAuditLog } from "@/app-layer/admin/auditLog";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import {
   adminAuditListFilterFromQuery,
   adminAuditListQuerySchema,
@@ -14,6 +16,8 @@ import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 export async function GET(req: Request) {
   const gate = await requireAdminModeSession();
   if (!gate.ok) return gate.response;
+  const workspaceGate = await requireDoctorWorkspaceApiContext();
+  if (!workspaceGate.ok) return workspaceGate.response;
 
   const url = new URL(req.url);
   const raw = Object.fromEntries(url.searchParams.entries());
@@ -33,22 +37,24 @@ export async function GET(req: Request) {
   }
 
   const pool = getPool();
-  const [result, openAutoMergeConflictCount] = await Promise.all([
-    listAdminAuditLog(pool, {
-      page: filter.page,
-      limit: filter.limit,
-      action: filter.action,
-      targetId: filter.targetId,
-      involvesPlatformUserId: filter.involvesPlatformUserId,
-      status: filter.status,
-      fromInclusive: filter.fromInclusive,
-      toInclusive: filter.toInclusive,
-      ...(filter.actionPrefix ? { actionPrefix: filter.actionPrefix } : {}),
-      ...(filter.systemHealthScopeOnly ? { systemHealthScopeOnly: true } : {}),
-      ...(filter.excludeActionPrefix ? { excludeActionPrefix: filter.excludeActionPrefix } : {}),
-    }),
-    countOpenAutoMergeConflicts(pool),
-  ]);
+  const [result, openAutoMergeConflictCount] = await withDoctorWorkspacePrincipal(workspaceGate.ctx, () =>
+    Promise.all([
+      listAdminAuditLog(pool, {
+        page: filter.page,
+        limit: filter.limit,
+        action: filter.action,
+        targetId: filter.targetId,
+        involvesPlatformUserId: filter.involvesPlatformUserId,
+        status: filter.status,
+        fromInclusive: filter.fromInclusive,
+        toInclusive: filter.toInclusive,
+        ...(filter.actionPrefix ? { actionPrefix: filter.actionPrefix } : {}),
+        ...(filter.systemHealthScopeOnly ? { systemHealthScopeOnly: true } : {}),
+        ...(filter.excludeActionPrefix ? { excludeActionPrefix: filter.excludeActionPrefix } : {}),
+      }),
+      countOpenAutoMergeConflicts(pool),
+    ]),
+  );
 
   return NextResponse.json({ ok: true, ...result, openAutoMergeConflictCount });
 }

@@ -8,6 +8,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 import { getPool } from "@/app-layer/db/client";
 import { writeAuditLog } from "@/app-layer/admin/auditLog";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
@@ -47,6 +49,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   if (!adminGate.ok) {
     return adminGate.response;
   }
+  const workspaceGate = await requireDoctorWorkspaceApiContext();
+  if (!workspaceGate.ok) return workspaceGate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -139,17 +143,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   }
 
   const fieldsChanged = Object.keys(patch);
-  await writeAuditLog(pool, {
-    actorId: adminGate.session.user.userId,
-    action: "admin_client_profile_patch",
-    targetId: canonicalId,
-    details: {
-      fields: fieldsChanged,
-      emailTouched: patch.email !== undefined,
-      phoneTouched: patch.phoneNormalized !== undefined,
-    },
-    status: "ok",
-  });
+  await withDoctorWorkspacePrincipal(workspaceGate.ctx, () =>
+    writeAuditLog(pool, {
+      actorId: adminGate.session.user.userId,
+      action: "admin_client_profile_patch",
+      targetId: canonicalId,
+      details: {
+        fields: fieldsChanged,
+        emailTouched: patch.email !== undefined,
+        phoneTouched: patch.phoneNormalized !== undefined,
+      },
+      status: "ok",
+    }),
+  );
 
   return NextResponse.json({ ok: true, userId: canonicalId });
 }

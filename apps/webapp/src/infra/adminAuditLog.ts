@@ -3,11 +3,14 @@
  * R0/S3S routes the open-conflict transaction through `withPoolTransaction`.
  */
 import { createHash } from "node:crypto";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import type { Pool, PoolClient } from "pg";
 import { ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS } from "@/modules/admin/adminAuditListQuery";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { withPoolTransaction } from "@/infra/db/withClient";
 import { logger } from "@/infra/logging/logger";
+
+const DEFAULT_ORGANIZATION_ID = "a0000000-0000-4000-8000-000000000001";
 
 function txPgText<T = unknown>(
   client: PoolClient,
@@ -15,6 +18,14 @@ function txPgText<T = unknown>(
   values: readonly unknown[] = [],
 ) {
   return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+}
+
+function currentAuditOrganizationId(): string {
+  return getCurrentDbPrincipalOrganizationId() ?? DEFAULT_ORGANIZATION_ID;
+}
+
+function currentPrincipalOrganizationId(): string | null {
+  return getCurrentDbPrincipalOrganizationId() ?? null;
 }
 
 export type AuditLogStatus = "ok" | "partial_failure" | "error";
@@ -85,11 +96,13 @@ function isPgUniqueViolation(err: unknown): boolean {
  */
 export async function writeAuditLog(_pool: Pool, entry: AuditLogWriteEntry): Promise<void> {
   const status: AuditLogStatus = entry.status ?? "ok";
+  const organizationId = currentAuditOrganizationId();
   try {
     await runWebappPgText(
-      `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
-       VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6)`,
+      `INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7)`,
       [
+        organizationId,
         entry.actorId,
         entry.action,
         entry.targetId ?? null,
@@ -134,11 +147,13 @@ export async function writeAuditLogDedupeOpenConflictKey(
   entry: AuditLogWriteEntry & { conflictKey: string },
 ): Promise<void> {
   const status: AuditLogStatus = entry.status ?? "ok";
+  const organizationId = currentAuditOrganizationId();
   try {
     await runWebappPgText(
-      `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
-       VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6)`,
+      `INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7)`,
       [
+        organizationId,
         entry.actorId,
         entry.action,
         entry.targetId ?? null,
@@ -186,6 +201,7 @@ export async function upsertOpenConflictLog(
 ): Promise<UpsertOpenConflictLogResult> {
   const { candidateIds } = input;
   const action = (input.action ?? "auto_merge_conflict").trim() || "auto_merge_conflict";
+  const organizationId = currentAuditOrganizationId();
   if (!candidateIds.length) {
     // Plan contract: empty candidateIds is anomaly-path without conflict_key.
     await writeAuditLog(pool, {
@@ -259,9 +275,10 @@ export async function upsertOpenConflictLog(
       try {
         await txPgText(
           client,
-          `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-           VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6, 1, now())`,
-          [input.actorId, action, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
+          `INSERT INTO admin_audit_log
+             (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
+           VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7, 1, now())`,
+          [organizationId, input.actorId, action, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
         );
         return true;
       } catch (err) {
@@ -346,10 +363,14 @@ export type ListAdminAuditLogParams = {
 /** Count of distinct open `auto_merge_conflict` rows (`resolved_at IS NULL`). */
 export async function countOpenAutoMergeConflicts(_pool: Pool): Promise<number> {
   try {
+    const principalOrganizationId = currentPrincipalOrganizationId();
+    const orgSql = principalOrganizationId ? " AND organization_id = $1::uuid" : "";
+    const values = principalOrganizationId ? [principalOrganizationId] : [];
     const r = await runWebappPgText<{ n: string }>(
       `SELECT count(*)::text AS n
        FROM admin_audit_log
-       WHERE action = 'auto_merge_conflict' AND resolved_at IS NULL`,
+       WHERE action = 'auto_merge_conflict' AND resolved_at IS NULL${orgSql}`,
+      values,
     );
     return Number(r.rows[0]?.n ?? 0);
   } catch (err) {
@@ -373,6 +394,12 @@ export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogPa
   const conditions: string[] = ["1=1"];
   const values: unknown[] = [];
   let i = 1;
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  if (principalOrganizationId) {
+    conditions.push(`l.organization_id = $${i}::uuid`);
+    values.push(principalOrganizationId);
+    i++;
+  }
 
   if (params.action) {
     conditions.push(`l.action = $${i}`);
@@ -513,10 +540,13 @@ export type ResolveAdminAuditConflictResult =
 export async function resolveAdminAuditConflictById(_pool: Pool, id: string): Promise<ResolveAdminAuditConflictResult> {
   const trimmed = id.trim();
   if (!trimmed) return { ok: false, error: "not_found" };
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const orgSql = principalOrganizationId ? " AND organization_id = $2::uuid" : "";
+  const orgValues = principalOrganizationId ? [principalOrganizationId] : [];
 
   const meta = await runWebappPgText<{ action: string; resolved_at: string | null }>(
-    `SELECT action, resolved_at FROM admin_audit_log WHERE id = $1::uuid`,
-    [trimmed],
+    `SELECT action, resolved_at FROM admin_audit_log WHERE id = $1::uuid${orgSql}`,
+    [trimmed, ...orgValues],
   );
   const row = meta.rows[0];
   if (!row) return { ok: false, error: "not_found" };
@@ -529,10 +559,13 @@ export async function resolveAdminAuditConflictById(_pool: Pool, id: string): Pr
     `UPDATE admin_audit_log
      SET resolved_at = NOW()
      WHERE id = $1::uuid
+       ${principalOrganizationId ? "AND organization_id = $3::uuid" : ""}
        AND resolved_at IS NULL
        AND action = ANY($2::text[])
      RETURNING id`,
-    [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS]],
+    principalOrganizationId
+      ? [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS], principalOrganizationId]
+      : [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS]],
   );
   if ((upd.rowCount ?? 0) === 0) {
     return { ok: false, error: "already_resolved" };
