@@ -1625,7 +1625,7 @@ export const onlineIntakeRequests = pgTable("online_intake_requests", {
 			foreignColumns: [platformUsers.id],
 			name: "online_intake_requests_user_id_fkey"
 		}),
-	check("online_intake_requests_status_check", sql`status = ANY (ARRAY['new'::text, 'in_review'::text, 'contacted'::text, 'closed'::text])`),
+	check("online_intake_requests_status_check", sql`status = ANY (ARRAY['new'::text, 'in_review'::text, 'contacted'::text, 'booked'::text, 'rejected'::text, 'closed'::text])`),
 	check("online_intake_requests_type_check", sql`type = ANY (ARRAY['lfk'::text, 'nutrition'::text])`),
 ]);
 

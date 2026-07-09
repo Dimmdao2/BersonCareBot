@@ -8,6 +8,8 @@ const mutatingRouteFiles = [
   "src/app/api/doctor/clients/[userId]/tasks/route.ts",
   "src/app/api/doctor/comments/route.ts",
   "src/app/api/doctor/comments/[id]/route.ts",
+  "src/app/api/doctor/online-intake/[id]/reply/route.ts",
+  "src/app/api/doctor/online-intake/[id]/status/route.ts",
   "src/app/api/doctor/messages/[conversationId]/route.ts",
   "src/app/api/doctor/messages/[conversationId]/read/route.ts",
   "src/app/api/doctor/messages/conversations/ensure/route.ts",
@@ -110,5 +112,32 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(collectionRoute).toContain("ensureDoctorCommentTargetInWorkspace");
     expect(collectionRoute).toContain("deps.treatmentProgramInstance.getInstanceById");
     expect(collectionRoute).toContain("instance.organizationId === organizationId");
+  });
+
+  it("doctor online-intake routes scope reads and writes to the selected workspace", () => {
+    for (const file of [
+      "src/app/api/doctor/online-intake/route.ts",
+      "src/app/api/doctor/online-intake/[id]/route.ts",
+      "src/app/api/doctor/online-intake/stats/route.ts",
+      "src/app/api/doctor/online-intake/[id]/reply/route.ts",
+      "src/app/api/doctor/online-intake/[id]/status/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("withDoctorWorkspacePrincipal");
+    }
+
+    const replyRoute = readSource("src/app/api/doctor/online-intake/[id]/reply/route.ts");
+    expect(replyRoute).toContain("intake.organizationId !== gate.ctx.organizationId");
+    expect(replyRoute).toContain("getClientIdentityForOrganization");
+
+    const statusRoute = readSource("src/app/api/doctor/online-intake/[id]/status/route.ts");
+    expect(statusRoute).toContain("intake.organizationId !== gate.ctx.organizationId");
+
+    const repo = readSource("src/infra/repos/pgOnlineIntake.ts");
+    expect(repo).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(repo).toContain("currentWriteOrganizationId");
+    expect(repo).toContain("organization_principal_mismatch");
+    expect(repo).toContain("organization_id, from_status, to_status");
   });
 });

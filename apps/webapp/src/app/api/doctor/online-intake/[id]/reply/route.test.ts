@@ -1,15 +1,28 @@
+import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const organizationId = "10000000-0000-4000-8000-000000000001";
+const otherOrganizationId = "20000000-0000-4000-8000-000000000002";
+
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
 const getRequestForDoctorMock = vi.hoisted(() => vi.fn());
 const changeStatusMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const getClientIdentityForOrganizationMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ id: "patient-1" }),
+);
 const ensureConversationMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ conversationId: "conv-1" }),
 );
 const sendAdminReplyMock = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getCurrentSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 vi.mock("@/app-layer/di/onlineIntakeDeps", () => ({
@@ -21,6 +34,9 @@ vi.mock("@/app-layer/di/onlineIntakeDeps", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
+    doctorClientsPort: {
+      getClientIdentityForOrganization: getClientIdentityForOrganizationMock,
+    },
     messaging: {
       doctorSupport: {
         ensureConversationForPatient: ensureConversationMock,
@@ -48,34 +64,36 @@ function call(req: Request) {
 
 describe("POST /api/doctor/online-intake/[id]/reply", () => {
   beforeEach(() => {
-    getCurrentSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId,
+        session: { user: { userId: "d1", role: "doctor", bindings: {}, displayName: "D" } },
+      },
+    });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     getRequestForDoctorMock.mockReset();
     changeStatusMock.mockClear();
+    getClientIdentityForOrganizationMock.mockClear();
+    getClientIdentityForOrganizationMock.mockResolvedValue({ id: "patient-1" });
     ensureConversationMock.mockClear();
     sendAdminReplyMock.mockClear();
     sendAdminReplyMock.mockResolvedValue({ ok: true });
   });
 
-  it("401 без сессии", async () => {
-    getCurrentSessionMock.mockResolvedValue(null);
+  it("returns workspace gate response", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await call(makeRequest({ text: "привет" }));
     expect(res.status).toBe(401);
     expect(getRequestForDoctorMock).not.toHaveBeenCalled();
   });
 
-  it("403 для пациента (client)", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
-    const res = await call(makeRequest({ text: "привет" }));
-    expect(res.status).toBe(403);
-    expect(getRequestForDoctorMock).not.toHaveBeenCalled();
-  });
-
   it("400 при пустом тексте", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     const res = await call(makeRequest({ text: "" }));
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error?: string };
@@ -83,20 +101,31 @@ describe("POST /api/doctor/online-intake/[id]/reply", () => {
   });
 
   it("404 когда заявка не найдена", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     getRequestForDoctorMock.mockResolvedValue(null);
     const res = await call(makeRequest({ text: "привет" }));
     expect(res.status).toBe(404);
     expect(sendAdminReplyMock).not.toHaveBeenCalled();
   });
 
+  it("404 когда заявка из другой организации", async () => {
+    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new", organizationId: otherOrganizationId });
+    const res = await call(makeRequest({ text: "привет" }));
+    expect(res.status).toBe(404);
+    expect(getClientIdentityForOrganizationMock).not.toHaveBeenCalled();
+    expect(sendAdminReplyMock).not.toHaveBeenCalled();
+  });
+
+  it("404 когда пациент заявки не принадлежит выбранной организации", async () => {
+    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new", organizationId });
+    getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
+    const res = await call(makeRequest({ text: "привет" }));
+    expect(res.status).toBe(404);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith("patient-1", organizationId);
+    expect(sendAdminReplyMock).not.toHaveBeenCalled();
+  });
+
   it("отправляет ответ и авто-переводит new → in_review", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
-    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new" });
+    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new", organizationId });
 
     const res = await call(makeRequest({ text: "Здравствуйте" }));
     expect(res.status).toBe(200);
@@ -105,16 +134,17 @@ describe("POST /api/doctor/online-intake/[id]/reply", () => {
 
     expect(ensureConversationMock).toHaveBeenCalledWith("patient-1");
     expect(sendAdminReplyMock).toHaveBeenCalledWith("conv-1", "Здравствуйте");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+      expect.any(Function),
+    );
     expect(changeStatusMock).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: ID, toStatus: "in_review", changedBy: "d1" }),
     );
   });
 
   it("НЕ меняет статус, если заявка уже не в статусе new", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
-    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "in_review" });
+    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "in_review", organizationId });
 
     const res = await call(makeRequest({ text: "Ещё сообщение" }));
     expect(res.status).toBe(200);
@@ -123,10 +153,7 @@ describe("POST /api/doctor/online-intake/[id]/reply", () => {
   });
 
   it("ok:true даже если авто-переход статуса упал (partial-success: сообщение уже ушло)", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
-    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new" });
+    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new", organizationId });
     changeStatusMock.mockRejectedValue(new Error("db_connection_error"));
 
     const res = await call(makeRequest({ text: "Здравствуйте" }));
@@ -139,10 +166,7 @@ describe("POST /api/doctor/online-intake/[id]/reply", () => {
   });
 
   it("400, когда отправка ответа провалилась", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
-    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new" });
+    getRequestForDoctorMock.mockResolvedValue({ userId: "patient-1", status: "new", organizationId });
     sendAdminReplyMock.mockResolvedValue({ ok: false, error: "conversation_closed" });
 
     const res = await call(makeRequest({ text: "привет" }));
