@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
@@ -22,7 +23,7 @@ export async function saveContentSection(
   _prev: SaveContentSectionState | null,
   formData: FormData,
 ): Promise<SaveContentSectionState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   const slug = (formData.get("slug") as string)?.trim() || "";
@@ -91,18 +92,20 @@ export async function saveContentSection(
   }
 
   try {
-    await deps.contentSections.upsert({
-      slug,
-      title,
-      description,
-      sortOrder,
-      isVisible,
-      requiresAuth,
-      coverImageUrl,
-      iconImageUrl,
-      kind,
-      systemParentCode,
-    });
+    await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.contentSections.upsert({
+        slug,
+        title,
+        description,
+        sortOrder,
+        isVisible,
+        requiresAuth,
+        coverImageUrl,
+        iconImageUrl,
+        kind,
+        systemParentCode,
+      }),
+    );
   } catch (err) {
     console.error("saveContentSection failed:", err);
     return { ok: false, error: "Не удалось сохранить раздел. Попробуйте ещё раз." };
@@ -125,7 +128,7 @@ export async function attachArticleSectionToSystemFolder(
   _prev: AttachArticleSectionToFolderState | null,
   formData: FormData,
 ): Promise<AttachArticleSectionToFolderState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   const slug = ((formData.get("section_slug") as string) ?? "").trim();
@@ -162,10 +165,12 @@ export async function attachArticleSectionToSystemFolder(
   }
 
   try {
-    await deps.contentSections.update(slug, {
-      kind,
-      systemParentCode,
-    });
+    await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.contentSections.update(slug, {
+        kind,
+        systemParentCode,
+      }),
+    );
   } catch (err) {
     console.error("attachArticleSectionToSystemFolder failed:", err);
     return { ok: false, error: "Не удалось перенести раздел. Попробуйте ещё раз." };
@@ -187,7 +192,7 @@ export async function renameContentSectionSlug(
   _prev: RenameContentSectionSlugState,
   formData: FormData,
 ): Promise<RenameContentSectionSlugState> {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   if (formData.get("confirm_rename") !== "on") {
@@ -208,9 +213,11 @@ export async function renameContentSectionSlug(
     return { ok: false, error: "Зарезервированный slug недопустим" };
   }
 
-  const result = await deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {
-    changedByUserId: session.user.userId,
-  });
+  const result = await withDoctorWorkspacePrincipal(workspace, () =>
+    deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {
+      changedByUserId: workspace.session.user.userId,
+    }),
+  );
   if (!result.ok) return result;
 
   revalidatePath("/app/doctor/content/sections");
@@ -229,7 +236,7 @@ export async function deleteContentSection(
   _prev: DeleteContentSectionState | null,
   formData: FormData,
 ): Promise<DeleteContentSectionState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   if (formData.get("confirm_delete") !== "on") {
@@ -241,7 +248,9 @@ export async function deleteContentSection(
     return { ok: false, error: "Не указан раздел" };
   }
 
-  const result = await deps.contentSections.deleteSectionWithPageReassign(slug);
+  const result = await withDoctorWorkspacePrincipal(workspace, () =>
+    deps.contentSections.deleteSectionWithPageReassign(slug),
+  );
   if (!result.ok) {
     return { ok: false, error: result.error };
   }

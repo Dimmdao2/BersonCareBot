@@ -1,6 +1,9 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { contentPages } from "../../../db/schema/schema";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import { contentPages, contentSections } from "../../../db/schema/schema";
+import { courses as coursesTable } from "../../../db/schema/courses";
 
 export type ContentPageRow = {
   id: string;
@@ -63,6 +66,52 @@ const patientVisible = and(
   isNull(contentPages.archivedAt),
   isNull(contentPages.deletedAt),
 );
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId;
+}
+
+type ContentPagesMutationTx = ReturnType<typeof getDrizzle>;
+
+async function assertContentPageSectionOrganization(
+  tx: ContentPagesMutationTx,
+  section: string,
+): Promise<void> {
+  const [row] = await tx
+    .select({ organizationId: contentSections.organizationId })
+    .from(contentSections)
+    .where(eq(contentSections.slug, section))
+    .limit(1);
+  currentWriteOrganizationId(row?.organizationId);
+}
+
+async function assertLinkedCourseOrganization(
+  tx: ContentPagesMutationTx,
+  linkedCourseId: string | null,
+): Promise<void> {
+  if (!linkedCourseId) return;
+  const [row] = await tx
+    .select({ organizationId: coursesTable.organizationId })
+    .from(coursesTable)
+    .where(eq(coursesTable.id, linkedCourseId))
+    .limit(1);
+  currentWriteOrganizationId(row?.organizationId);
+}
 
 function mapDrizzleRow(row: typeof contentPages.$inferSelect): ContentPageRow {
   return {
@@ -141,12 +190,13 @@ export function createPgContentPagesPort(): ContentPagesPort {
     },
 
     async upsert(page) {
-      const db = getDrizzle();
+      const organizationId = currentPrincipalOrganizationId();
       const linked =
         page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
           ? page.linkedCourseId.trim()
           : null;
       const values = {
+        organizationId,
         section: page.section,
         slug: page.slug,
         title: page.title,
@@ -162,12 +212,64 @@ export function createPgContentPagesPort(): ContentPagesPort {
         linkedCourseId: linked,
         updatedAt: sql`now()` as unknown as string,
       };
-      const rows = await db
-        .insert(contentPages)
-        .values(values)
-        .onConflictDoUpdate({
-          target: [contentPages.section, contentPages.slug],
-          set: {
+      const rows = await runDrizzleMutationTransaction(async (tx) => {
+        await assertContentPageSectionOrganization(tx, page.section);
+        await assertLinkedCourseOrganization(tx, linked);
+        const [existing] = await tx
+          .select({ organizationId: contentPages.organizationId })
+          .from(contentPages)
+          .where(and(eq(contentPages.section, page.section), eq(contentPages.slug, page.slug)))
+          .limit(1);
+        currentWriteOrganizationId(existing?.organizationId);
+        return tx
+          .insert(contentPages)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [contentPages.section, contentPages.slug],
+            set: {
+              organizationId,
+              title: page.title,
+              summary: page.summary,
+              bodyMd: page.bodyMd,
+              bodyHtml: page.bodyHtml,
+              sortOrder: page.sortOrder,
+              isPublished: page.isPublished,
+              requiresAuth: page.requiresAuth ?? false,
+              videoUrl: page.videoUrl,
+              videoType: page.videoType,
+              imageUrl: page.imageUrl,
+              linkedCourseId: linked,
+              updatedAt: sql`now()` as unknown as string,
+            },
+          })
+          .returning({ id: contentPages.id });
+      });
+      const id = rows[0]?.id;
+      if (!id) throw new Error("content_pages upsert returned no id");
+      return id;
+    },
+
+    async updateFull(id, page) {
+      const organizationId = currentPrincipalOrganizationId();
+      const linked =
+        page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
+          ? page.linkedCourseId.trim()
+          : null;
+      await runDrizzleMutationTransaction(async (tx) => {
+        const [existing] = await tx
+          .select({ organizationId: contentPages.organizationId })
+          .from(contentPages)
+          .where(eq(contentPages.id, id))
+          .limit(1);
+        currentWriteOrganizationId(existing?.organizationId);
+        await assertContentPageSectionOrganization(tx, page.section);
+        await assertLinkedCourseOrganization(tx, linked);
+        await tx
+          .update(contentPages)
+          .set({
+            organizationId,
+            section: page.section,
+            slug: page.slug,
             title: page.title,
             summary: page.summary,
             bodyMd: page.bodyMd,
@@ -180,62 +282,45 @@ export function createPgContentPagesPort(): ContentPagesPort {
             imageUrl: page.imageUrl,
             linkedCourseId: linked,
             updatedAt: sql`now()` as unknown as string,
-          },
-        })
-        .returning({ id: contentPages.id });
-      const id = rows[0]?.id;
-      if (!id) throw new Error("content_pages upsert returned no id");
-      return id;
-    },
-
-    async updateFull(id, page) {
-      const db = getDrizzle();
-      const linked =
-        page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
-          ? page.linkedCourseId.trim()
-          : null;
-      await db
-        .update(contentPages)
-        .set({
-          section: page.section,
-          slug: page.slug,
-          title: page.title,
-          summary: page.summary,
-          bodyMd: page.bodyMd,
-          bodyHtml: page.bodyHtml,
-          sortOrder: page.sortOrder,
-          isPublished: page.isPublished,
-          requiresAuth: page.requiresAuth ?? false,
-          videoUrl: page.videoUrl,
-          videoType: page.videoType,
-          imageUrl: page.imageUrl,
-          linkedCourseId: linked,
-          updatedAt: sql`now()` as unknown as string,
-        })
-        .where(eq(contentPages.id, id));
+          })
+          .where(eq(contentPages.id, id));
+      });
     },
 
     async updateLifecycle(id, patch) {
-      const db = getDrizzle();
+      const organizationId = currentPrincipalOrganizationId();
       const setPayload: Partial<typeof contentPages.$inferInsert> = {
+        organizationId,
         updatedAt: sql`now()` as unknown as string,
       };
       if (patch.isPublished !== undefined) setPayload.isPublished = patch.isPublished;
       if (patch.archivedAt !== undefined) setPayload.archivedAt = patch.archivedAt;
       if (patch.deletedAt !== undefined) setPayload.deletedAt = patch.deletedAt;
       if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
-      if (Object.keys(setPayload).length <= 1) return;
-      await db.update(contentPages).set(setPayload).where(eq(contentPages.id, id));
+      if (Object.keys(setPayload).length <= 2) return;
+      await runDrizzleMutationTransaction(async (tx) => {
+        const [existing] = await tx
+          .select({ organizationId: contentPages.organizationId })
+          .from(contentPages)
+          .where(eq(contentPages.id, id))
+          .limit(1);
+        currentWriteOrganizationId(existing?.organizationId);
+        await tx.update(contentPages).set(setPayload).where(eq(contentPages.id, id));
+      });
     },
 
     async reorderInSection(section, orderedIds) {
       if (orderedIds.length === 0) return;
-      const db = getDrizzle();
-      await db.transaction(async (tx) => {
+      const organizationId = currentPrincipalOrganizationId();
+      await runDrizzleMutationTransaction(async (tx) => {
+        await assertContentPageSectionOrganization(tx, section);
         const check = await tx
-          .select({ id: contentPages.id })
+          .select({ id: contentPages.id, organizationId: contentPages.organizationId })
           .from(contentPages)
           .where(eq(contentPages.section, section));
+        for (const row of check) {
+          currentWriteOrganizationId(row.organizationId);
+        }
         const inDb = new Set(check.map((r) => r.id));
         if (inDb.size !== orderedIds.length) {
           throw new Error("reorder: count mismatch");
@@ -249,6 +334,7 @@ export function createPgContentPagesPort(): ContentPagesPort {
           await tx
             .update(contentPages)
             .set({
+              organizationId,
               sortOrder: i,
               updatedAt: sql`now()` as unknown as string,
             })

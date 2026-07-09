@@ -7,9 +7,16 @@ const getCourseForDoctorMock = vi.fn();
 const getByIdMock = vi.fn();
 const updateFullMock = vi.fn();
 
-const { retargetHomeMock, retargetReminderMock } = vi.hoisted(() => ({
+const {
+  retargetHomeMock,
+  retargetReminderMock,
+  requireDoctorWorkspaceContextMock,
+  withDoctorWorkspacePrincipalMock,
+} = vi.hoisted(() => ({
   retargetHomeMock: vi.fn().mockResolvedValue(undefined),
   retargetReminderMock: vi.fn().mockResolvedValue(undefined),
+  requireDoctorWorkspaceContextMock: vi.fn(),
+  withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, fn: () => unknown) => fn()),
 }));
 
 vi.mock("next/cache", () => ({
@@ -17,7 +24,12 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorAccess: vi.fn().mockResolvedValue({ user: { id: "doc-1" } }),
+  requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -59,6 +71,13 @@ describe("saveContentPage", () => {
     retargetReminderMock.mockReset();
     retargetHomeMock.mockResolvedValue(undefined);
     retargetReminderMock.mockResolvedValue(undefined);
+    requireDoctorWorkspaceContextMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockResolvedValue({
+      organizationId: "org-1",
+      session: { user: { userId: "doc-1", role: "doctor" } },
+    });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     getBySlugMock.mockResolvedValue({
       id: "s1",
       slug: "lessons",
