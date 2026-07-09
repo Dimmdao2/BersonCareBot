@@ -861,18 +861,20 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
     async createAppointmentComment(input) {
       const db = getDrizzle();
       const now = new Date().toISOString();
-      const rows = await db
-        .insert(beAppointmentStaffComments)
-        .values({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          platformUserId: input.platformUserId,
-          authorId: input.authorId,
-          body: input.body,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+      const rows = await db.transaction((tx) =>
+        tx
+          .insert(beAppointmentStaffComments)
+          .values({
+            organizationId: input.organizationId,
+            appointmentId: input.appointmentId,
+            platformUserId: input.platformUserId,
+            authorId: input.authorId,
+            body: input.body,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning(),
+      );
       return mapStaffComment(rows[0]!);
     },
   };
