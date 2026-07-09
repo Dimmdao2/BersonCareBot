@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
   isHelpSectionSlug,
@@ -22,7 +23,7 @@ export async function saveContentSection(
   _prev: SaveContentSectionState | null,
   formData: FormData,
 ): Promise<SaveContentSectionState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   const slug = (formData.get("slug") as string)?.trim() || "";
@@ -91,18 +92,20 @@ export async function saveContentSection(
   }
 
   try {
-    await deps.contentSections.upsert({
-      slug,
-      title,
-      description,
-      sortOrder,
-      isVisible,
-      requiresAuth,
-      coverImageUrl,
-      iconImageUrl,
-      kind,
-      systemParentCode,
-    });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.section.upsert", () =>
+      deps.contentSections.upsert({
+        slug,
+        title,
+        description,
+        sortOrder,
+        isVisible,
+        requiresAuth,
+        coverImageUrl,
+        iconImageUrl,
+        kind,
+        systemParentCode,
+      }),
+    );
   } catch (err) {
     console.error("saveContentSection failed:", err);
     return { ok: false, error: "Не удалось сохранить раздел. Попробуйте ещё раз." };
@@ -125,7 +128,7 @@ export async function attachArticleSectionToSystemFolder(
   _prev: AttachArticleSectionToFolderState | null,
   formData: FormData,
 ): Promise<AttachArticleSectionToFolderState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
 
   const slug = ((formData.get("section_slug") as string) ?? "").trim();
@@ -162,10 +165,12 @@ export async function attachArticleSectionToSystemFolder(
   }
 
   try {
-    await deps.contentSections.update(slug, {
-      kind,
-      systemParentCode,
-    });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.section.attach-to-folder", () =>
+      deps.contentSections.update(slug, {
+        kind,
+        systemParentCode,
+      }),
+    );
   } catch (err) {
     console.error("attachArticleSectionToSystemFolder failed:", err);
     return { ok: false, error: "Не удалось перенести раздел. Попробуйте ещё раз." };

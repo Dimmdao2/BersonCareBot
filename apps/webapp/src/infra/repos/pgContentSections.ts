@@ -1,4 +1,5 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   ContentSectionRow,
@@ -122,7 +123,9 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         throw new Error("invalid_content_section_taxonomy");
       }
       const db = getDrizzle();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
       const values = {
+        organizationId,
         slug: section.slug,
         title: section.title,
         description: section.description,
@@ -135,25 +138,31 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         systemParentCode,
         updatedAt: sql`now()` as unknown as string,
       };
-      const rows = await db
-        .insert(contentSections)
-        .values(values)
-        .onConflictDoUpdate({
-          target: contentSections.slug,
-          set: {
-            title: section.title,
-            description: section.description,
-            sortOrder: section.sortOrder,
-            isVisible: section.isVisible,
-            requiresAuth: section.requiresAuth ?? false,
-            coverImageUrl: section.coverImageUrl ?? null,
-            iconImageUrl: section.iconImageUrl ?? null,
-            kind,
-            systemParentCode,
-            updatedAt: sql`now()` as unknown as string,
-          },
-        })
-        .returning({ id: contentSections.id });
+      const updateSet: Partial<typeof contentSections.$inferInsert> = {
+        title: section.title,
+        description: section.description,
+        sortOrder: section.sortOrder,
+        isVisible: section.isVisible,
+        requiresAuth: section.requiresAuth ?? false,
+        coverImageUrl: section.coverImageUrl ?? null,
+        iconImageUrl: section.iconImageUrl ?? null,
+        kind,
+        systemParentCode,
+        updatedAt: sql`now()` as unknown as string,
+      };
+      if (organizationId) {
+        updateSet.organizationId = organizationId;
+      }
+      const rows = await db.transaction((tx) =>
+        tx
+          .insert(contentSections)
+          .values(values)
+          .onConflictDoUpdate({
+            target: contentSections.slug,
+            set: updateSet,
+          })
+          .returning({ id: contentSections.id }),
+      );
       const id = rows[0]?.id;
       if (!id) throw new Error("content_sections upsert returned no id");
       return id;

@@ -142,6 +142,7 @@ Completed slices:
 - [x] T0.3.17: migrated admin booking schedule-block mutations (`POST`, `DELETE`) to `withDoctorWorkspacePrincipal(...)` around only `bookingScheduling.createScheduleBlock/deleteScheduleBlock`. `pgBookingScheduling` now runs those schedule-block writes through Drizzle transactions. GET/list remains outside-principal.
 - [x] T0.3.18: migrated admin booking form-field `POST` upsert to `withDoctorWorkspacePrincipal(...)` around only `bookingForm.upsertAdminField`. The route now uses workspace `gate.ctx.organizationId` instead of default-org fallback for GET/POST. `pgBookingForm.upsertFieldAdmin` now runs create/update branches through Drizzle transactions.
 - [x] T0.3.19: migrated doctor/admin booking working-schedule-template `POST ?action=apply` to `withDoctorWorkspacePrincipal(...)` around `bookingScheduling.applyScheduleTemplate`. Doctor apply still resolves/forces own specialist before the wrapper; `applyScheduleTemplate` writes via transaction-backed `upsertWorkingDays`.
+- [x] T0.3.20: migrated doctor CMS section metadata actions (`saveContentSection`, `attachArticleSectionToSystemFolder`) to `requireDoctorWorkspaceContext()` and `withDoctorWorkspacePrincipal(...)` around only `contentSections.upsert/update`. `pgContentSections.upsert` now runs through a Drizzle transaction and stamps `organization_id` from the active DB principal.
 
 Recommended order:
 

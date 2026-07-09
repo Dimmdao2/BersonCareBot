@@ -4,6 +4,22 @@ const upsertMock = vi.fn();
 const updateMock = vi.fn();
 const renameSectionSlugMock = vi.fn();
 const getBySlugMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+const requireDoctorWorkspaceContextMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -13,6 +29,11 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorAccess: vi.fn().mockResolvedValue({
     user: { userId: "00000000-0000-4000-8000-000000000001" },
   }),
+  requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -44,11 +65,17 @@ describe("saveContentSection", () => {
     renameSectionSlugMock.mockReset();
     getBySlugMock.mockReset();
     getBySlugMock.mockResolvedValue(null);
+    requireDoctorWorkspaceContextMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockResolvedValue({ organizationId: "org-1" });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    principalState.inside = false;
     vi.mocked(revalidatePath).mockClear();
   });
 
   it("saves when title and slug valid", async () => {
-    upsertMock.mockResolvedValue(undefined);
+    upsertMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
     const fd = formWith({
       slug: "new-sec",
       title: "Новый раздел",
@@ -68,6 +95,11 @@ describe("saveContentSection", () => {
         kind: "article",
         systemParentCode: null,
       }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      { organizationId: "org-1" },
+      "doctor.content.section.upsert",
+      expect.any(Function),
     );
   });
 
@@ -106,6 +138,7 @@ describe("saveContentSection", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/зарезервирован/i);
     expect(upsertMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("rejects reserved slug on create", async () => {
@@ -224,6 +257,10 @@ describe("attachArticleSectionToSystemFolder", () => {
   beforeEach(() => {
     updateMock.mockClear();
     getBySlugMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockReset();
+    requireDoctorWorkspaceContextMock.mockResolvedValue({ organizationId: "org-1" });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    principalState.inside = false;
     vi.mocked(revalidatePath).mockClear();
   });
 
@@ -233,7 +270,9 @@ describe("attachArticleSectionToSystemFolder", () => {
       kind: "article",
       systemParentCode: null,
     });
-    updateMock.mockResolvedValue(undefined);
+    updateMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
     const fd = new FormData();
     fd.set("section_slug", "antistress");
     fd.set("system_parent_code", "situations");
@@ -243,6 +282,11 @@ describe("attachArticleSectionToSystemFolder", () => {
       kind: "system",
       systemParentCode: "situations",
     });
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      { organizationId: "org-1" },
+      "doctor.content.section.attach-to-folder",
+      expect.any(Function),
+    );
   });
 
   it("rejects when section is not article", async () => {
@@ -257,6 +301,7 @@ describe("attachArticleSectionToSystemFolder", () => {
     const res = await attachArticleSectionToSystemFolder(null, fd);
     expect(res.ok).toBe(false);
     expect(updateMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("rejects immutable slug", async () => {
@@ -267,5 +312,6 @@ describe("attachArticleSectionToSystemFolder", () => {
     expect(res.ok).toBe(false);
     expect(getBySlugMock).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 });

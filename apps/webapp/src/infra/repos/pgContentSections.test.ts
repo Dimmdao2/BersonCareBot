@@ -25,6 +25,19 @@ describe("pgContentSections (runtime constraints)", () => {
     expect(method).toContain("await db.transaction");
     expect(method).toContain("tx.update(contentSections)");
   });
+
+  it("runs section upserts through a Drizzle transaction and stamps current principal org", () => {
+    const src = readFileSync(join(__dirname, "pgContentSections.ts"), "utf8");
+    const start = src.indexOf("    async upsert(section: ContentSectionUpsertInput)");
+    const end = src.indexOf("    async update(slug, patch)", start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const method = src.slice(start, end);
+    expect(method).toContain("getCurrentDbPrincipalOrganizationId()");
+    expect(method).toContain("await db.transaction");
+    expect(method).toContain("tx");
+    expect(method).toContain("organizationId");
+  });
 });
 
 describe("inMemoryContentSectionsPort", () => {
