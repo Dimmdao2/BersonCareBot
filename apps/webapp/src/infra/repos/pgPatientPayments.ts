@@ -6,8 +6,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
-import { getWebappSqlFromPgClient } from "@/infra/db/runWebappSql";
-import { withTransaction } from "@/infra/db/withClient";
+import { runWebappTransaction, type WebappSqlTransactionExecutor } from "@/infra/db/runWebappSql";
 import type {
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
@@ -38,11 +37,9 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
 
 function runPatientPaymentMutation<T>(
   organizationId: string,
-  fn: (db: DrizzleDb) => Promise<T>,
+  fn: (db: DrizzleDb | WebappSqlTransactionExecutor) => Promise<T>,
 ): Promise<T> {
-  return runWithDbOrganizationPrincipal(organizationId, () =>
-    withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb)),
-  );
+  return runWithDbOrganizationPrincipal(organizationId, () => runWebappTransaction(fn));
 }
 
 export function createPgPatientPaymentsPort(): PatientPaymentsPort {

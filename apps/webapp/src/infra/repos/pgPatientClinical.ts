@@ -5,7 +5,9 @@
  */
 
 import { and, asc, desc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -371,26 +373,30 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async createDiagnosisCatalogEntry(
       params: CreateDiagnosisCatalogParams,
     ): Promise<DiagnosisCatalogSuggestion> {
-      const db = getDrizzle();
-      const inserted = await db
-        .insert(clinicalDiagnosisCatalog)
-        .values({
-          label: params.label,
-          note: params.note ?? null,
-          createdBy: params.createdBy,
-        })
-        .returning();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      const inserted = await runWebappTransaction((tx) =>
+        tx
+          .insert(clinicalDiagnosisCatalog)
+          .values({
+            organizationId,
+            label: params.label,
+            note: params.note ?? null,
+            createdBy: params.createdBy,
+          })
+          .returning(),
+      );
       const row = inserted[0];
       if (!row) throw new Error("clinical_diagnosis_catalog insert failed");
       return { id: row.id, label: row.label, note: row.note ?? null };
     },
 
     async createVisit(input: CreateVisitInput): Promise<string> {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      return runWebappTransaction(async (tx) => {
         const insertedVisit = await tx
           .insert(clinicalVisit)
           .values({
+            organizationId,
             patientUserId: input.patientUserId,
             visitType: input.visitType,
             visitedAt: input.visitedAt,
@@ -414,6 +420,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             const insertedComplaint = await tx
               .insert(clinicalComplaint)
               .values({
+                organizationId,
                 patientUserId: input.patientUserId,
                 text: c.text,
                 description: c.description ?? null,
@@ -425,6 +432,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             const complaintId = insertedComplaint[0]?.id;
             if (!complaintId) throw new Error("clinical_complaint insert failed");
             await tx.insert(clinicalComplaintUpdate).values({
+              organizationId,
               complaintId,
               visitId,
               note: null,
@@ -434,6 +442,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           }
           for (const d of input.diagnoses ?? []) {
             await tx.insert(clinicalDiagnosis).values({
+              organizationId,
               patientUserId: input.patientUserId,
               catalogId: d.catalogId ?? null,
               text: d.text,
@@ -446,6 +455,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         } else {
           for (const u of input.complaintUpdates ?? []) {
             await tx.insert(clinicalComplaintUpdate).values({
+              organizationId,
               complaintId: u.complaintId,
               visitId,
               note: u.note,
@@ -462,6 +472,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           for (const u of input.diagnosisUpdates ?? []) {
             const nextStatus = u.removed ? "resolved" : "refined";
             await tx.insert(clinicalDiagnosisUpdate).values({
+              organizationId,
               diagnosisId: u.diagnosisId,
               visitId,
               refinement: u.refinement ?? null,
@@ -489,17 +500,18 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       if (input.text !== undefined) set.text = input.text;
       if (input.priority !== undefined) set.priority = input.priority;
       if (Object.keys(set).length === 0) return false;
-      const db = getDrizzle();
-      const updated = await db
-        .update(clinicalComplaint)
-        .set(set)
-        .where(
-          and(
-            eq(clinicalComplaint.id, input.complaintId),
-            eq(clinicalComplaint.patientUserId, input.patientUserId),
-          ),
-        )
-        .returning({ id: clinicalComplaint.id });
+      const updated = await runWebappTransaction((tx) =>
+        tx
+          .update(clinicalComplaint)
+          .set(set)
+          .where(
+            and(
+              eq(clinicalComplaint.id, input.complaintId),
+              eq(clinicalComplaint.patientUserId, input.patientUserId),
+            ),
+          )
+          .returning({ id: clinicalComplaint.id }),
+      );
       return updated.length > 0;
     },
 
@@ -509,17 +521,18 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       if (input.priority !== undefined) set.priority = input.priority;
       if (input.comment !== undefined) set.comment = input.comment;
       if (Object.keys(set).length === 0) return false;
-      const db = getDrizzle();
-      const updated = await db
-        .update(clinicalDiagnosis)
-        .set(set)
-        .where(
-          and(
-            eq(clinicalDiagnosis.id, input.diagnosisId),
-            eq(clinicalDiagnosis.patientUserId, input.patientUserId),
-          ),
-        )
-        .returning({ id: clinicalDiagnosis.id });
+      const updated = await runWebappTransaction((tx) =>
+        tx
+          .update(clinicalDiagnosis)
+          .set(set)
+          .where(
+            and(
+              eq(clinicalDiagnosis.id, input.diagnosisId),
+              eq(clinicalDiagnosis.patientUserId, input.patientUserId),
+            ),
+          )
+          .returning({ id: clinicalDiagnosis.id }),
+      );
       return updated.length > 0;
     },
 
@@ -541,25 +554,26 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       if (input.trialResults !== undefined) set.trialResults = input.trialResults;
       if (input.recommendations !== undefined) set.recommendations = input.recommendations;
       if (Object.keys(set).length === 0) return false;
-      const db = getDrizzle();
-      const updated = await db
-        .update(clinicalVisit)
-        .set(set)
-        .where(
-          and(
-            eq(clinicalVisit.id, input.visitId),
-            eq(clinicalVisit.patientUserId, input.patientUserId),
-          ),
-        )
-        .returning({ id: clinicalVisit.id });
+      const updated = await runWebappTransaction((tx) =>
+        tx
+          .update(clinicalVisit)
+          .set(set)
+          .where(
+            and(
+              eq(clinicalVisit.id, input.visitId),
+              eq(clinicalVisit.patientUserId, input.patientUserId),
+            ),
+          )
+          .returning({ id: clinicalVisit.id }),
+      );
       return updated.length > 0;
     },
 
     // -- Клинический статус диагноза ------------------------------------------
 
     async setDiagnosisClinicalStatus(input: SetDiagnosisClinicalStatusInput): Promise<boolean> {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      return runWebappTransaction(async (tx) => {
         // Fetch current status (also validates patientUserId scope).
         const existing = await tx
           .select({ id: clinicalDiagnosis.id, clinicalStatus: clinicalDiagnosis.clinicalStatus })
@@ -581,6 +595,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .where(eq(clinicalDiagnosis.id, input.diagnosisId));
 
         await tx.insert(clinicalDiagnosisStatusHistory).values({
+          organizationId,
           diagnosisId: input.diagnosisId,
           oldStatus,
           newStatus: input.newStatus,
@@ -666,37 +681,49 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async appendAnamnesisTrauma(
       input: AppendAnamnesisTraumaInput,
     ): Promise<AnamnesisTraumaEntry> {
-      const db = getDrizzle();
-      const rows = await db
-        .insert(clinicalAnamnesisTrauma)
-        .values({
-          patientUserId: input.patientUserId,
-          year: input.year,
-          what: input.what,
-          type: input.type,
-          immobilization: input.immobilization,
-          createdBy: input.createdBy,
-        })
-        .returning();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .insert(clinicalAnamnesisTrauma)
+          .values({
+            organizationId,
+            patientUserId: input.patientUserId,
+            year: input.year,
+            what: input.what,
+            type: input.type,
+            immobilization: input.immobilization,
+            createdBy: input.createdBy,
+          })
+          .returning(),
+      );
       const row = rows[0];
       if (!row) throw new Error("clinical_anamnesis_trauma insert failed");
-      return { id: row.id, year: row.year, what: row.what, type: row.type, immobilization: row.immobilization };
+      return {
+        id: row.id,
+        year: row.year,
+        what: row.what,
+        type: row.type,
+        immobilization: row.immobilization,
+      };
     },
 
     async appendAnamnesisIllness(
       input: AppendAnamnesisIllnessInput,
     ): Promise<AnamnesisIllnessEntry> {
-      const db = getDrizzle();
-      const rows = await db
-        .insert(clinicalAnamnesisIllness)
-        .values({
-          patientUserId: input.patientUserId,
-          period: input.period,
-          what: input.what,
-          comment: input.comment,
-          createdBy: input.createdBy,
-        })
-        .returning();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .insert(clinicalAnamnesisIllness)
+          .values({
+            organizationId,
+            patientUserId: input.patientUserId,
+            period: input.period,
+            what: input.what,
+            comment: input.comment,
+            createdBy: input.createdBy,
+          })
+          .returning(),
+      );
       const row = rows[0];
       if (!row) throw new Error("clinical_anamnesis_illness insert failed");
       return { id: row.id, period: row.period, what: row.what, comment: row.comment };
@@ -705,16 +732,19 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async appendAnamnesisLifestyle(
       input: AppendAnamnesisLifestyleInput,
     ): Promise<AnamnesisLifestyleEntry> {
-      const db = getDrizzle();
-      const rows = await db
-        .insert(clinicalAnamnesisLifestyle)
-        .values({
-          patientUserId: input.patientUserId,
-          recordDate: input.recordDate,
-          text: input.text,
-          createdBy: input.createdBy,
-        })
-        .returning();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      const rows = await runWebappTransaction((tx) =>
+        tx
+          .insert(clinicalAnamnesisLifestyle)
+          .values({
+            organizationId,
+            patientUserId: input.patientUserId,
+            recordDate: input.recordDate,
+            text: input.text,
+            createdBy: input.createdBy,
+          })
+          .returning(),
+      );
       const row = rows[0];
       if (!row) throw new Error("clinical_anamnesis_lifestyle insert failed");
       return { id: row.id, date: fmtDisplayDate(row.recordDate), text: row.text };

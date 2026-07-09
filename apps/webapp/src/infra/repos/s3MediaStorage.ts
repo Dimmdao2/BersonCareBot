@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { env } from "@/config/env";
@@ -119,8 +120,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       await s3PutObjectBody(key, buf, params.mimeType);
 
       const folderId = params.folderId ?? null;
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
       await getWebappSqlDb().insert(mediaFiles).values({
         id,
+        organizationId,
         originalName: params.filename,
         storedPath: key,
         s3Key: key,
@@ -508,8 +511,10 @@ export async function insertPendingMediaFileTx(
   },
 ): Promise<void> {
   const db = getWebappSqlFromPgClient(client);
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   await db.insert(mediaFiles).values({
     id: params.id,
+    organizationId,
     originalName: params.filename,
     storedPath: params.key,
     s3Key: params.key,
@@ -536,8 +541,10 @@ export async function insertPendingProgramSubmissionMediaFileTx(
 ): Promise<void> {
   const isVideo = params.mimeType.toLowerCase().startsWith("video/");
   const db = getWebappSqlFromPgClient(client);
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   await db.insert(mediaFiles).values({
     id: params.id,
+    organizationId,
     originalName: params.filename,
     storedPath: params.key,
     s3Key: params.key,
@@ -561,8 +568,10 @@ export async function insertPendingMediaFile(params: {
   userId: string;
   folderId?: string | null;
 }): Promise<void> {
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   await getWebappSqlDb().insert(mediaFiles).values({
     id: params.id,
+    organizationId,
     originalName: params.filename,
     storedPath: params.key,
     s3Key: params.key,

@@ -3,7 +3,7 @@
  */
 import { getPool } from "@/infra/db/client";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type { ChannelBindings } from "@/shared/types/session";
 import type {
@@ -1104,18 +1104,24 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
-      await runWebappPgText(
-        `UPDATE platform_users SET birth_date = $2::date, updated_at = now()
-         WHERE id = $1::uuid AND role = 'client'`,
-        [userId, birthDate],
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET birth_date = $2::date, updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          [userId, birthDate],
+          tx,
+        ),
       );
     },
 
     async setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void> {
-      await runWebappPgText(
-        `UPDATE platform_users SET gender = $2, updated_at = now()
-         WHERE id = $1::uuid AND role = 'client'`,
-        [userId, gender],
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET gender = $2, updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          [userId, gender],
+          tx,
+        ),
       );
     },
 
@@ -1142,10 +1148,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         sets.push(`patronymic = $${params.length}`);
       }
       if (sets.length === 0) return;
-      await runWebappPgText(
-        `UPDATE platform_users SET ${sets.join(", ")}, updated_at = now()
-         WHERE id = $1::uuid AND role = 'client'`,
-        params,
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET ${sets.join(", ")}, updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          params,
+          tx,
+        ),
       );
     },
 
@@ -1174,9 +1183,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         sets.push(`weight_kg = $${values.length}::integer`);
       }
       if (sets.length <= 1) return; // only updated_at, nothing to do
-      await runWebappPgText(
-        `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1::uuid AND role = 'client'`,
-        values,
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1::uuid AND role = 'client'`,
+          values,
+          tx,
+        ),
       );
     },
 

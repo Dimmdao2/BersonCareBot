@@ -9,8 +9,9 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorApiSession, requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const statusSchema = z
   .enum(["active", "removed", "all"])
@@ -65,8 +66,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -90,12 +91,17 @@ export async function POST(
 
   const deps = buildAppDeps();
   try {
-    const comorbidity = await deps.patientComorbidities.add({
-      patientUserId: userId,
-      text: parsed.data.text,
-      since: parsed.data.since ?? null,
-      createdBy: auth.session.user.userId,
-    });
+    const comorbidity = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.comorbidities.create",
+      () =>
+        deps.patientComorbidities.add({
+          patientUserId: userId,
+          text: parsed.data.text,
+          since: parsed.data.since ?? null,
+          createdBy: gate.ctx.session.user.userId,
+        }),
+    );
     return NextResponse.json({ ok: true, comorbidity }, { status: 201 });
   } catch (err) {
     if (err instanceof Error && err.message === "comorbidity_text_required") {

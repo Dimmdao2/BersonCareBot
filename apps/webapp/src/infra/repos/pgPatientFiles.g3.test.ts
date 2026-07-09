@@ -32,12 +32,16 @@ function makeMockInsertBuilder(returnRows: MockInsertReturn[]) {
   return builder;
 }
 
-const mockDrizzle = {
+const mockDrizzle = vi.hoisted(() => ({
   insert: vi.fn(),
-};
+}));
 
 vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: () => mockDrizzle,
+}));
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappTransaction: (fn: (tx: typeof mockDrizzle) => Promise<unknown>) => fn(mockDrizzle),
 }));
 
 // ── Import subject after mock is hoisted ──────────────────────────────────────

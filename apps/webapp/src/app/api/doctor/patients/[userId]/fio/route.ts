@@ -9,8 +9,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const bodySchema = z.object({
   firstName: z.string().trim().max(200).nullable().optional(),
@@ -25,8 +26,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -70,17 +71,19 @@ export async function PATCH(
 
   const deps = buildAppDeps();
 
-  if (Object.keys(nameFields).length > 0) {
-    await deps.doctorClients.setPatientNames(userId, nameFields);
-  }
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.fio.update", async () => {
+    if (Object.keys(nameFields).length > 0) {
+      await deps.doctorClients.setPatientNames(userId, nameFields);
+    }
 
-  if (hasBirthDate) {
-    await deps.doctorClients.setPatientBirthDate(userId, data.birthDate ?? null);
-  }
+    if (hasBirthDate) {
+      await deps.doctorClients.setPatientBirthDate(userId, data.birthDate ?? null);
+    }
 
-  if (hasGender) {
-    await deps.doctorClients.setPatientGender(userId, data.gender ?? null);
-  }
+    if (hasGender) {
+      await deps.doctorClients.setPatientGender(userId, data.gender ?? null);
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

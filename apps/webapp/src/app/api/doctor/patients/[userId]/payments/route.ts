@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireDoctorApiSession, requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const postBodySchema = z.object({
   amountMinor: z.number().int().positive(),
@@ -70,16 +71,21 @@ export async function POST(
   const b = parsed.data;
 
   const deps = buildAppDeps();
-  const payment = await deps.patientPayments.addCashPayment({
-    organizationId: auth.ctx.organizationId,
-    patientUserId: userId,
-    amountMinor: b.amountMinor,
-    currency: b.currency,
-    comment: b.comment ?? null,
-    service: b.service ?? null,
-    visitId: b.visitId ?? null,
-    createdBy: auth.ctx.session.user.userId,
-  });
+  const payment = await withDoctorWorkspacePrincipal(
+    auth.ctx,
+    "doctor.patients.payments.cash.create",
+    () =>
+      deps.patientPayments.addCashPayment({
+        organizationId: auth.ctx.organizationId,
+        patientUserId: userId,
+        amountMinor: b.amountMinor,
+        currency: b.currency,
+        comment: b.comment ?? null,
+        service: b.service ?? null,
+        visitId: b.visitId ?? null,
+        createdBy: auth.ctx.session.user.userId,
+      }),
+  );
 
   return NextResponse.json({ ok: true, payment }, { status: 201 });
 }

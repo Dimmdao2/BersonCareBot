@@ -12,8 +12,12 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import {
+  requireDoctorApiSession,
+  requireDoctorWorkspaceApiContext,
+} from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { DIAGNOSIS_CLINICAL_STATUS_VALUES } from "@/modules/patient-clinical/ports";
 
 const patchBodySchema = z.object({
@@ -29,8 +33,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; diagnosisId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { ctx } = gate;
 
   const { userId, diagnosisId } = await params;
   if (!uuidSchema.safeParse(userId).success || !uuidSchema.safeParse(diagnosisId).success) {
@@ -53,13 +58,18 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
-  const ok = await deps.patientClinical.setDiagnosisClinicalStatus({
-    patientUserId: userId,
-    diagnosisId,
-    newStatus: parsed.data.status as (typeof DIAGNOSIS_CLINICAL_STATUS_VALUES)[number],
-    changedBy: auth.session.user.userId,
-    note: parsed.data.note ?? null,
-  });
+  const ok = await withDoctorWorkspacePrincipal(
+    ctx,
+    "doctor.patients.clinical.diagnosis-status.update",
+    () =>
+      deps.patientClinical.setDiagnosisClinicalStatus({
+        patientUserId: userId,
+        diagnosisId,
+        newStatus: parsed.data.status as (typeof DIAGNOSIS_CLINICAL_STATUS_VALUES)[number],
+        changedBy: ctx.session.user.userId,
+        note: parsed.data.note ?? null,
+      }),
+  );
 
   if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 

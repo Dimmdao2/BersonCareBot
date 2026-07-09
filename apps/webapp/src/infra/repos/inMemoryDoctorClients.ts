@@ -163,6 +163,7 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       else if (!params.onSupport) supportStartedAt = null;
     }
     const profile: ClientSupportProfile = {
+      organizationId: existing?.organizationId ?? null,
       patientUserId: params.patientUserId,
       onSupport: nextOnSupport,
       supportStartedAt,

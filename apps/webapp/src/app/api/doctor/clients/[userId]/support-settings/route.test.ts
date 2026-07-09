@@ -1,30 +1,49 @@
 import { describe, expect, it, vi } from "vitest";
 
-const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getCurrentSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: (...args: unknown[]) => withDoctorWorkspacePrincipalMock(...args),
+}));
+
 const patientUserId = "a0000000-0000-4000-8000-000000000001";
+const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const workspaceCtx = {
+  session: { user: { userId: "doc-1", role: "doctor" } },
+  organizationId,
+  membershipId: "membership-1",
+  membershipRole: "doctor",
+  specialistId: "specialist-1",
+  canManageOrganization: false,
+  canManageAllSpecialists: false,
+};
 
 describe("doctor client support-settings route", () => {
   it("GET returns profile and effective policy", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+    withDoctorWorkspacePrincipalMock.mockImplementation(async (_ctx, _source, fn) => fn());
     const getClientSupport = vi.fn().mockResolvedValue({
+      organizationId,
       patientUserId,
       onSupport: true,
+      supportStartedAt: "2026-01-01",
       commentsEnabled: null,
       mediaEnabled: null,
       updatedAt: "2026-01-01",
       updatedBy: "doc-1",
     });
     const getPatientProgramInteractionPolicy = vi.fn().mockResolvedValue({
+      organizationId,
       onSupport: true,
       commentsAllowed: true,
       mediaAllowed: false,
@@ -49,19 +68,28 @@ describe("doctor client support-settings route", () => {
     expect(json.ok).toBe(true);
     expect(json.profile?.onSupport).toBe(true);
     expect(json.effectivePolicy?.mediaAllowed).toBe(false);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      workspaceCtx,
+      "doctor.clients.support-settings.read",
+      expect.any(Function),
+    );
   });
 
   it("PATCH updates support profile", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+    withDoctorWorkspacePrincipalMock.mockImplementation(async (_ctx, _source, fn) => fn());
     const updateClientSupport = vi.fn().mockResolvedValue({
+      organizationId,
       patientUserId,
       onSupport: false,
+      supportStartedAt: null,
       commentsEnabled: true,
       mediaEnabled: null,
       updatedAt: "2026-01-02",
       updatedBy: "doc-1",
     });
     const getPatientProgramInteractionPolicy = vi.fn().mockResolvedValue({
+      organizationId,
       onSupport: false,
       commentsAllowed: true,
       mediaAllowed: false,
@@ -92,5 +120,10 @@ describe("doctor client support-settings route", () => {
       commentsEnabled: true,
       actorId: "doc-1",
     });
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      workspaceCtx,
+      "doctor.clients.support-settings.update",
+      expect.any(Function),
+    );
   });
 });

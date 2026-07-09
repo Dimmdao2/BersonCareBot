@@ -1,5 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction, type WebappSqlExecutor } from "@/infra/db/runWebappSql";
 import { mediaFolders, platformUsers } from "../../../db/schema/schema";
 import {
   CLIENT_FILES_ROOT_FOLDER_NAME,
@@ -29,7 +31,8 @@ function mapFolderRow(row: {
   };
 }
 
-async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizzle>): Promise<void> {
+async function promoteLegacyClientFilesRootFolder(db: WebappSqlExecutor): Promise<void> {
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   const [hasRoot] = await db
     .select({ id: mediaFolders.id })
     .from(mediaFolders)
@@ -41,7 +44,7 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
   // so existing root folders are recognised and promoted rather than duplicated.
   await db
     .update(mediaFolders)
-    .set({ kind: "client_files_root", updatedAt: sql`now()` })
+    .set({ kind: "client_files_root", organizationId, updatedAt: sql`now()` })
     .where(
       and(
         sql`${mediaFolders.parentId} IS NULL`,
@@ -51,8 +54,8 @@ async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizz
     );
 }
 
-export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord> {
-  const db = getDrizzle();
+async function ensureClientFilesRootFolder(db: WebappSqlExecutor): Promise<MediaFolderRecord> {
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   const [existing] = await db
     .select()
     .from(mediaFolders)
@@ -64,7 +67,7 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
     if (existing.nameNormalized === CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY.toLowerCase()) {
       const [renamed] = await db
         .update(mediaFolders)
-        .set({ name: CLIENT_FILES_ROOT_FOLDER_NAME, updatedAt: sql`now()` })
+        .set({ name: CLIENT_FILES_ROOT_FOLDER_NAME, organizationId, updatedAt: sql`now()` })
         .where(eq(mediaFolders.id, existing.id))
         .returning();
       if (renamed) return mapFolderRow(renamed);
@@ -84,6 +87,7 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
   const [created] = await db
     .insert(mediaFolders)
     .values({
+      organizationId,
       name: CLIENT_FILES_ROOT_FOLDER_NAME,
       parentId: null,
       kind: "client_files_root",
@@ -93,10 +97,14 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
   return mapFolderRow(created);
 }
 
+export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord> {
+  return runWebappTransaction((tx) => ensureClientFilesRootFolder(tx));
+}
+
 async function resolvePatientDisplayNameAndPhone(
+  db: WebappSqlExecutor,
   patientUserId: string,
 ): Promise<{ displayName: string; phoneNormalized: string | null }> {
-  const db = getDrizzle();
   const [row] = await db
     .select({
       firstName: platformUsers.firstName,
@@ -115,12 +123,14 @@ async function resolvePatientDisplayNameAndPhone(
 }
 
 async function insertClientPatientFolder(
-  db: ReturnType<typeof getDrizzle>,
+  db: WebappSqlExecutor,
   params: { parentId: string; patientUserId: string; name: string },
 ): Promise<MediaFolderRecord> {
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   const [created] = await db
     .insert(mediaFolders)
     .values({
+      organizationId,
       name: params.name,
       parentId: params.parentId,
       kind: "client_patient",
@@ -132,50 +142,51 @@ async function insertClientPatientFolder(
 }
 
 export async function pgEnsureClientPatientFolder(patientUserId: string): Promise<MediaFolderRecord> {
-  const db = getDrizzle();
-  const [existing] = await db
-    .select()
-    .from(mediaFolders)
-    .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
-    .limit(1);
-  if (existing) return mapFolderRow(existing);
+  return runWebappTransaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(mediaFolders)
+      .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
+      .limit(1);
+    if (existing) return mapFolderRow(existing);
 
-  const root = await pgEnsureClientFilesRootFolder();
-  const { displayName, phoneNormalized } = await resolvePatientDisplayNameAndPhone(patientUserId);
-  const primaryName = clientPatientFolderBaseName(displayName);
-  const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId, phoneNormalized);
+    const root = await ensureClientFilesRootFolder(tx);
+    const { displayName, phoneNormalized } = await resolvePatientDisplayNameAndPhone(tx, patientUserId);
+    const primaryName = clientPatientFolderBaseName(displayName);
+    const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId, phoneNormalized);
 
-  try {
-    return await insertClientPatientFolder(db, {
-      parentId: root.id,
-      patientUserId,
-      name: primaryName,
-    });
-  } catch (error) {
-    const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null;
-    if (code !== "23505") throw error;
-  }
-
-  if (primaryName !== fallbackName) {
     try {
-      return await insertClientPatientFolder(db, {
+      return await insertClientPatientFolder(tx, {
         parentId: root.id,
         patientUserId,
-        name: fallbackName,
+        name: primaryName,
       });
     } catch (error) {
       const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null;
       if (code !== "23505") throw error;
     }
-  }
 
-  const [retry] = await db
-    .select()
-    .from(mediaFolders)
-    .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
-    .limit(1);
-  if (retry) return mapFolderRow(retry);
-  throw new Error("client_patient_folder_create_failed");
+    if (primaryName !== fallbackName) {
+      try {
+        return await insertClientPatientFolder(tx, {
+          parentId: root.id,
+          patientUserId,
+          name: fallbackName,
+        });
+      } catch (error) {
+        const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null;
+        if (code !== "23505") throw error;
+      }
+    }
+
+    const [retry] = await tx
+      .select()
+      .from(mediaFolders)
+      .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
+      .limit(1);
+    if (retry) return mapFolderRow(retry);
+    throw new Error("client_patient_folder_create_failed");
+  });
 }
 
 /** SQL fragment: folder ids in the client-files subtree (root + patient folders). */

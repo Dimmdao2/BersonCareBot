@@ -7,8 +7,9 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const severitySchema = z.number().int().min(0).max(10);
 
@@ -69,8 +70,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { ctx } = gate;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -94,25 +96,27 @@ export async function POST(
   const b = parsed.data;
 
   const deps = buildAppDeps();
-  const visitId = await deps.patientClinical.createVisit({
-    patientUserId: userId,
-    visitType: b.visitType,
-    visitedAt: b.date,
-    location: b.location ?? null,
-    service: b.service ?? null,
-    duration: b.duration ?? null,
-    anamnesisText: b.anamnesisText ?? null,
-    appointmentRecordId: b.appointmentRecordId ?? null,
-    exam: b.exam ?? null,
-    manipulations: b.manipulations ?? null,
-    trialResults: b.trialResults ?? null,
-    recommendations: b.recommendations ?? null,
-    createdBy: auth.session.user.userId,
-    complaints: b.complaints,
-    diagnoses: b.diagnoses,
-    complaintUpdates: b.complaintUpdates,
-    diagnosisUpdates: b.diagnosisUpdates,
-  });
+  const visitId = await withDoctorWorkspacePrincipal(ctx, "doctor.patients.clinical.visit.create", () =>
+    deps.patientClinical.createVisit({
+      patientUserId: userId,
+      visitType: b.visitType,
+      visitedAt: b.date,
+      location: b.location ?? null,
+      service: b.service ?? null,
+      duration: b.duration ?? null,
+      anamnesisText: b.anamnesisText ?? null,
+      appointmentRecordId: b.appointmentRecordId ?? null,
+      exam: b.exam ?? null,
+      manipulations: b.manipulations ?? null,
+      trialResults: b.trialResults ?? null,
+      recommendations: b.recommendations ?? null,
+      createdBy: ctx.session.user.userId,
+      complaints: b.complaints,
+      diagnoses: b.diagnoses,
+      complaintUpdates: b.complaintUpdates,
+      diagnosisUpdates: b.diagnosisUpdates,
+    }),
+  );
 
   return NextResponse.json({ ok: true, visitId }, { status: 201 });
 }

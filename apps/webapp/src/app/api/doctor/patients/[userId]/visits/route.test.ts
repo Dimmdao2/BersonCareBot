@@ -1,20 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireDoctorApiSessionMock, createVisitMock, buildAppDepsMock } = vi.hoisted(() => {
+const {
+  requireDoctorWorkspaceApiContextMock,
+  createVisitMock,
+  buildAppDepsMock,
+  withDoctorWorkspacePrincipalMock,
+  principalState,
+} = vi.hoisted(() => {
   const createVisitMockInner = vi.fn();
+  const principalState = { inside: false };
   return {
-    requireDoctorApiSessionMock: vi.fn(),
+    requireDoctorWorkspaceApiContextMock: vi.fn(),
     createVisitMock: createVisitMockInner,
     buildAppDepsMock: vi.fn(() => ({
       patientClinical: {
         createVisit: createVisitMockInner,
       },
     })),
+    withDoctorWorkspacePrincipalMock: vi.fn(
+      async <T,>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+        principalState.inside = true;
+        try {
+          return await fn();
+        } finally {
+          principalState.inside = false;
+        }
+      },
+    ),
+    principalState,
   };
 });
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorApiSession: requireDoctorApiSessionMock,
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -27,20 +49,28 @@ const DOCTOR_ID = "00000000-0000-4000-8000-00000000000d";
 const PATIENT_ID = "00000000-0000-4000-8000-000000000001";
 const VISIT_ID = "00000000-0000-4000-8000-0000000000aa";
 
-function authedSession() {
+function workspaceGate() {
   return {
     ok: true as const,
-    session: { user: { userId: DOCTOR_ID, role: "doctor", bindings: {} } },
+    ctx: {
+      organizationId: "00000000-0000-4000-8000-0000000000f1",
+      session: { user: { userId: DOCTOR_ID, role: "doctor", bindings: {} } },
+    },
   };
 }
 
 describe("POST /api/doctor/patients/[userId]/visits", () => {
   beforeEach(() => {
-    requireDoctorApiSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
     createVisitMock.mockReset();
     buildAppDepsMock.mockClear();
-    requireDoctorApiSessionMock.mockResolvedValue(authedSession());
-    createVisitMock.mockResolvedValue(VISIT_ID);
+    principalState.inside = false;
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue(workspaceGate());
+    createVisitMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return VISIT_ID;
+    });
   });
 
   it("forwards manipulation and recommendation text into visit creation", async () => {
@@ -67,6 +97,11 @@ describe("POST /api/doctor/patients/[userId]/visits", () => {
         recommendations: "Ходьба\n1 раз · ежедневно",
         createdBy: DOCTOR_ID,
       }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "00000000-0000-4000-8000-0000000000f1" }),
+      "doctor.patients.clinical.visit.create",
+      expect.any(Function),
     );
   });
 });

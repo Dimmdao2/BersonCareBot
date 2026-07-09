@@ -12,8 +12,9 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const patchSchema = z
   .union([
@@ -37,8 +38,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; comorbidityId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, comorbidityId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -66,7 +67,11 @@ export async function PATCH(
   const deps = buildAppDeps();
 
   if ("action" in parsed.data && parsed.data.action === "restore") {
-    const ok = await deps.patientComorbidities.restore(userId, comorbidityId);
+    const ok = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.comorbidities.restore",
+      () => deps.patientComorbidities.restore(userId, comorbidityId),
+    );
     if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     return NextResponse.json({ ok: true });
   }
@@ -74,12 +79,17 @@ export async function PATCH(
   // editText branch
   const editData = parsed.data as { text?: string; since?: string | null };
   try {
-    const ok = await deps.patientComorbidities.editText({
-      patientUserId: userId,
-      comorbidityId,
-      ...(editData.text !== undefined ? { text: editData.text } : {}),
-      ...(editData.since !== undefined ? { since: editData.since } : {}),
-    });
+    const ok = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.comorbidities.update",
+      () =>
+        deps.patientComorbidities.editText({
+          patientUserId: userId,
+          comorbidityId,
+          ...(editData.text !== undefined ? { text: editData.text } : {}),
+          ...(editData.since !== undefined ? { since: editData.since } : {}),
+        }),
+    );
     if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   } catch (err) {
     if (err instanceof Error && err.message === "comorbidity_text_required") {
@@ -98,8 +108,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ userId: string; comorbidityId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, comorbidityId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -110,7 +120,11 @@ export async function DELETE(
   }
 
   const deps = buildAppDeps();
-  const ok = await deps.patientComorbidities.markRemoved(userId, comorbidityId);
+  const ok = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.patients.comorbidities.delete",
+    () => deps.patientComorbidities.markRemoved(userId, comorbidityId),
+  );
   if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

@@ -23,6 +23,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const postBodySchema = z.object({
   amountMinor: z.number().int().positive(),
@@ -93,16 +94,21 @@ export async function POST(
   }
 
   // Record the pending payment in the patient ledger.
-  const payment = await deps.patientPayments.recordAcquiringCharge({
-    organizationId: auth.ctx.organizationId,
-    patientUserId: userId,
-    amountMinor,
-    currency,
-    description: description ?? null,
-    provider: providerId,
-    providerPaymentId: chargeResult.providerPaymentId,
-    createdBy: auth.ctx.session.user.userId,
-  });
+  const payment = await withDoctorWorkspacePrincipal(
+    auth.ctx,
+    "doctor.patients.payments.acquiring.record",
+    () =>
+      deps.patientPayments.recordAcquiringCharge({
+        organizationId: auth.ctx.organizationId,
+        patientUserId: userId,
+        amountMinor,
+        currency,
+        description: description ?? null,
+        provider: providerId,
+        providerPaymentId: chargeResult.providerPaymentId,
+        createdBy: auth.ctx.session.user.userId,
+      }),
+  );
 
   return NextResponse.json(
     {

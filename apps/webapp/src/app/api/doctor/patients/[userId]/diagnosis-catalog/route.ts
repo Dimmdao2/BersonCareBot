@@ -8,8 +8,12 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import {
+  requireDoctorApiSession,
+  requireDoctorWorkspaceApiContext,
+} from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const createBodySchema = z.object({
   label: z.string().min(1).max(500),
@@ -41,8 +45,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { ctx } = gate;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -65,11 +70,16 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const entry = await deps.patientClinical.createDiagnosisCatalogEntry({
-    label: parsed.data.label,
-    note: parsed.data.note ?? null,
-    createdBy: auth.session.user.userId,
-  });
+  const entry = await withDoctorWorkspacePrincipal(
+    ctx,
+    "doctor.patients.clinical.diagnosis-catalog.create",
+    () =>
+      deps.patientClinical.createDiagnosisCatalogEntry({
+        label: parsed.data.label,
+        note: parsed.data.note ?? null,
+        createdBy: ctx.session.user.userId,
+      }),
+  );
 
   return NextResponse.json({ ok: true, entry }, { status: 201 });
 }

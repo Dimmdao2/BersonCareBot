@@ -4,8 +4,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const patchBodySchema = z.object({
   onSupport: z.boolean().optional(),
@@ -17,11 +17,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -32,16 +29,23 @@ export async function GET(
   const identity = await deps.doctorClientsPort.getClientIdentity(userId);
   if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
-  const [profile, policy] = await Promise.all([
-    deps.doctorClients.getClientSupport(userId),
-    deps.doctorClients.getPatientProgramInteractionPolicy(userId),
-  ]);
+  const [profile, policy] = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.clients.support-settings.read",
+    () =>
+      Promise.all([
+        deps.doctorClients.getClientSupport(userId),
+        deps.doctorClients.getPatientProgramInteractionPolicy(userId),
+      ]),
+  );
 
   return NextResponse.json({
     ok: true,
     profile: profile ?? {
+      organizationId: gate.ctx.organizationId,
       patientUserId: userId,
       onSupport: false,
+      supportStartedAt: null,
       commentsEnabled: null,
       mediaEnabled: null,
       updatedAt: null,
@@ -55,11 +59,8 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -76,12 +77,19 @@ export async function PATCH(
   const identity = await deps.doctorClientsPort.getClientIdentity(userId);
   if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
-  const profile = await deps.doctorClients.updateClientSupport({
-    patientUserId: userId,
-    ...parsed.data,
-    actorId: session.user.userId,
-  });
-  const effectivePolicy = await deps.doctorClients.getPatientProgramInteractionPolicy(userId);
+  const [profile, effectivePolicy] = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.clients.support-settings.update",
+    async () => {
+      const updatedProfile = await deps.doctorClients.updateClientSupport({
+        patientUserId: userId,
+        ...parsed.data,
+        actorId: gate.ctx.session.user.userId,
+      });
+      const updatedPolicy = await deps.doctorClients.getPatientProgramInteractionPolicy(userId);
+      return [updatedProfile, updatedPolicy] as const;
+    },
+  );
 
   return NextResponse.json({ ok: true, profile, effectivePolicy });
 }

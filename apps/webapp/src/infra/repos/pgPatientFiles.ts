@@ -4,7 +4,9 @@
  */
 
 import { and, eq, asc } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import type {
   CreatePatientFileParams,
   PatientFileCategory,
@@ -58,62 +60,68 @@ export function createPgPatientFilesPort(): PatientFilesPort {
     },
 
     async createFile(params: CreatePatientFileParams): Promise<PatientFileRecord> {
-      const db = getDrizzle();
-      // When a folderId is provided, co-create a media_files entry so the upload
-      // appears in the patient's «Пациенты» media library folder (PFI-ST-04).
-      let mediaFileId: string | null = null;
-      if (params.folderId) {
-        const [mf] = await db.insert(mediaFiles).values({
-          displayName: params.fileName,
-          originalName: params.fileName,
-          storedPath: params.s3Key,
-          s3Key: params.s3Key,
-          mimeType: params.mimeType,
-          sizeBytes: params.sizeBytes,
-          uploadedBy: params.uploadedByUserId,
-          folderId: params.folderId,
-          status: "ready",
-          previewStatus: "pending",
-        }).returning({ id: mediaFiles.id });
-        mediaFileId = mf?.id ?? null;
-      }
-      const inserted = await db
-        .insert(patientFiles)
-        .values({
-          patientUserId: params.patientUserId,
-          category: params.category,
-          fileName: params.fileName,
-          s3Key: params.s3Key,
-          s3Bucket: params.s3Bucket,
-          mimeType: params.mimeType,
-          sizeBytes: params.sizeBytes,
-          uploadedByUserId: params.uploadedByUserId,
-          mediaFileId,
-        })
-        .returning();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      const inserted = await runWebappTransaction(async (tx) => {
+        // When a folderId is provided, co-create a media_files entry so the upload
+        // appears in the patient's «Пациенты» media library folder (PFI-ST-04).
+        let mediaFileId: string | null = null;
+        if (params.folderId) {
+          const [mf] = await tx.insert(mediaFiles).values({
+            organizationId,
+            displayName: params.fileName,
+            originalName: params.fileName,
+            storedPath: params.s3Key,
+            s3Key: params.s3Key,
+            mimeType: params.mimeType,
+            sizeBytes: params.sizeBytes,
+            uploadedBy: params.uploadedByUserId,
+            folderId: params.folderId,
+            status: "ready",
+            previewStatus: "pending",
+          }).returning({ id: mediaFiles.id });
+          mediaFileId = mf?.id ?? null;
+        }
+        return tx
+          .insert(patientFiles)
+          .values({
+            organizationId,
+            patientUserId: params.patientUserId,
+            category: params.category,
+            fileName: params.fileName,
+            s3Key: params.s3Key,
+            s3Bucket: params.s3Bucket,
+            mimeType: params.mimeType,
+            sizeBytes: params.sizeBytes,
+            uploadedByUserId: params.uploadedByUserId,
+            mediaFileId,
+          })
+          .returning();
+      });
       const row = inserted[0];
       if (!row) throw new Error("patient_files insert failed");
       return mapRow(row);
     },
 
     async linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null> {
-      const db = getDrizzle();
-      const updated = await db
-        .update(patientFiles)
-        .set({ visitId })
-        .where(eq(patientFiles.id, id))
-        .returning();
+      const updated = await runWebappTransaction((tx) =>
+        tx
+          .update(patientFiles)
+          .set({ visitId })
+          .where(eq(patientFiles.id, id))
+          .returning(),
+      );
       const row = updated[0];
       return row ? mapRow(row) : null;
     },
 
     async renameFile(id: string, fileName: string): Promise<PatientFileRecord | null> {
-      const db = getDrizzle();
-      const updated = await db
-        .update(patientFiles)
-        .set({ fileName })
-        .where(eq(patientFiles.id, id))
-        .returning();
+      const updated = await runWebappTransaction((tx) =>
+        tx
+          .update(patientFiles)
+          .set({ fileName })
+          .where(eq(patientFiles.id, id))
+          .returning(),
+      );
       const row = updated[0];
       return row ? mapRow(row) : null;
     },

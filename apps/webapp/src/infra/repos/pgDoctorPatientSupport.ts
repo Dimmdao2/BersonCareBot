@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import type { ClientSupportProfile } from "@/modules/doctor-clients/supportPolicy";
 import { doctorPatientSupport } from "../../../db/schema/doctorPatientSupport";
 
 function mapRow(row: typeof doctorPatientSupport.$inferSelect): ClientSupportProfile {
   return {
+    organizationId: row.organizationId ?? null,
     patientUserId: row.patientUserId,
     onSupport: row.onSupport,
     supportStartedAt: row.supportStartedAt,
@@ -35,12 +37,14 @@ export async function upsertClientSupportProfile(params: {
   const db = getDrizzle();
   const now = new Date().toISOString();
   const existing = await getClientSupportProfile(params.patientUserId);
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
 
   if (!existing) {
     const startingOnSupport = params.onSupport ?? false;
     const inserted = await db
       .insert(doctorPatientSupport)
       .values({
+        organizationId,
         patientUserId: params.patientUserId,
         onSupport: startingOnSupport,
         // Дата начала сопровождения фиксируется при первом включении on_support.
@@ -60,6 +64,9 @@ export async function upsertClientSupportProfile(params: {
     updatedAt: now,
     updatedBy: params.updatedBy,
   };
+  if (organizationId && !existing.organizationId) {
+    patch.organizationId = organizationId;
+  }
   if (params.onSupport !== undefined) {
     patch.onSupport = params.onSupport;
     // Включаем сопровождение → проставляем дату начала, если её ещё нет.

@@ -11,13 +11,14 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorApiSession, requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { presignGetUrl, presignPutUrl } from "@/app-layer/media/s3Client";
 import type { PatientFileCategory } from "@/modules/patient-files/ports";
 import { PATIENT_FILE_CATEGORIES } from "@/modules/patient-files/ports";
 import { pgEnsureClientPatientFolder } from "@/app-layer/media/clientMediaFolders";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const FILE_PRESIGN_GET_TTL = 3600; // 1 hour
 
@@ -92,8 +93,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -117,21 +118,26 @@ export async function POST(
   const s3Key = patientFileS3Key(fileId, fileName);
   const s3Bucket = env.S3_PRIVATE_BUCKET ?? "bersonservices-private";
 
-  // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
-  const patientFolder = await pgEnsureClientPatientFolder(userId);
-
   const deps = buildAppDeps();
-  const file = await deps.patientFiles.createFile({
-    patientUserId: userId,
-    category,
-    fileName,
-    s3Key,
-    s3Bucket,
-    mimeType,
-    sizeBytes,
-    uploadedByUserId: auth.session.user.userId,
-    folderId: patientFolder.id,
-  });
+  const file = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.patients.files.create",
+    async () => {
+      // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
+      const patientFolder = await pgEnsureClientPatientFolder(userId);
+      return deps.patientFiles.createFile({
+        patientUserId: userId,
+        category,
+        fileName,
+        s3Key,
+        s3Bucket,
+        mimeType,
+        sizeBytes,
+        uploadedByUserId: gate.ctx.session.user.userId,
+        folderId: patientFolder.id,
+      });
+    },
+  );
 
   // TODO(upload): return presigned PUT URL for direct browser upload when S3 is available.
   let uploadUrl: string | null = null;

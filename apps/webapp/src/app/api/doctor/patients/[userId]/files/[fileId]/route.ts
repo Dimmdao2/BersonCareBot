@@ -5,10 +5,11 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorApiSession, requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { presignGetUrl } from "@/app-layer/media/s3Client";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const FILE_PRESIGN_GET_TTL = 3600;
 
@@ -59,8 +60,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; fileId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, fileId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -93,11 +94,19 @@ export async function PATCH(
   let updated: Awaited<ReturnType<typeof deps.patientFiles.getFile>> = existing;
 
   if (parsed.data.visitId !== undefined) {
-    updated = await deps.patientFiles.linkFileToVisit(fileId, parsed.data.visitId);
+    updated = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.files.link",
+      () => deps.patientFiles.linkFileToVisit(fileId, parsed.data.visitId!),
+    );
   }
 
   if (parsed.data.fileName !== undefined) {
-    updated = await deps.patientFiles.renameFile(fileId, parsed.data.fileName);
+    updated = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.files.rename",
+      () => deps.patientFiles.renameFile(fileId, parsed.data.fileName!),
+    );
   }
 
   if (!updated) {

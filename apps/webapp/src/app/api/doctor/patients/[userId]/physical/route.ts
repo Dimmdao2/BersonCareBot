@@ -13,8 +13,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorApiSession, requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const patchSchema = z.object({
   heightCm: z
@@ -63,8 +64,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -92,10 +93,12 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
-  await deps.doctorClients.setPatientPhysical(userId, {
-    ...(("heightCm" in data) && { heightCm: data.heightCm ?? null }),
-    ...(("weightKg" in data) && { weightKg: data.weightKg ?? null }),
-  });
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.physical.update", () =>
+    deps.doctorClients.setPatientPhysical(userId, {
+      ...(("heightCm" in data) && { heightCm: data.heightCm ?? null }),
+      ...(("weightKg" in data) && { weightKg: data.weightKg ?? null }),
+    }),
+  );
 
   return NextResponse.json({ ok: true });
 }

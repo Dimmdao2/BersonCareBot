@@ -6,8 +6,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const bodySchema = z
   .object({
@@ -23,8 +24,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; diagnosisId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { ctx } = gate;
 
   const { userId, diagnosisId } = await params;
   if (
@@ -50,13 +52,15 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
-  const ok = await deps.patientClinical.updateDiagnosisFields({
-    patientUserId: userId,
-    diagnosisId,
-    text: parsed.data.text,
-    priority: parsed.data.priority,
-    comment: parsed.data.comment,
-  });
+  const ok = await withDoctorWorkspacePrincipal(ctx, "doctor.patients.clinical.diagnosis.update", () =>
+    deps.patientClinical.updateDiagnosisFields({
+      patientUserId: userId,
+      diagnosisId,
+      text: parsed.data.text,
+      priority: parsed.data.priority,
+      comment: parsed.data.comment,
+    }),
+  );
   if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   return NextResponse.json({ ok: true });

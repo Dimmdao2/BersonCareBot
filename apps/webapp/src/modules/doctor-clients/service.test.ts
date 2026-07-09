@@ -59,6 +59,7 @@ describe("doctor-clients service", () => {
     },
     async updateClientSupport(params) {
       return {
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         patientUserId: params.patientUserId,
         onSupport: params.onSupport ?? false,
         supportStartedAt: null,
@@ -127,6 +128,7 @@ describe("doctor-clients service", () => {
       ...mockPort,
       async getClientSupport() {
         return {
+          organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           patientUserId: "user-1",
           onSupport: false,
           supportStartedAt: null,
@@ -151,6 +153,7 @@ describe("doctor-clients service", () => {
       listSupplementaryContacts: async () => [],
     });
     const policy = await policyService.getPatientProgramInteractionPolicy("user-1");
+    expect(policy.organizationId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(policy.onSupport).toBe(false);
     expect(policy.commentsAllowed).toBe(true);
     expect(policy.mediaAllowed).toBe(true);
@@ -256,6 +259,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     },
     async updateClientSupport(params) {
       return {
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         patientUserId: params.patientUserId,
         onSupport: params.onSupport ?? false,
         supportStartedAt: null,

@@ -10,8 +10,12 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import {
+  requireDoctorApiSession,
+  requireDoctorWorkspaceApiContext,
+} from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 // -- Request body schemas ----------------------------------------------------
 
@@ -66,8 +70,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { ctx } = gate;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -89,39 +94,54 @@ export async function POST(
     );
   }
   const b = parsed.data;
-  const createdBy = auth.session.user.userId;
+  const createdBy = ctx.session.user.userId;
 
   const deps = buildAppDeps();
 
   if (b.section === "trauma") {
-    const entry = await deps.patientClinical.appendAnamnesisTrauma({
-      patientUserId: userId,
-      year: b.year,
-      what: b.what,
-      type: b.type,
-      immobilization: b.immobilization,
-      createdBy,
-    });
+    const entry = await withDoctorWorkspacePrincipal(
+      ctx,
+      "doctor.patients.clinical.anamnesis.trauma.create",
+      () =>
+        deps.patientClinical.appendAnamnesisTrauma({
+          patientUserId: userId,
+          year: b.year,
+          what: b.what,
+          type: b.type,
+          immobilization: b.immobilization,
+          createdBy,
+        }),
+    );
     return NextResponse.json({ ok: true, entry }, { status: 201 });
   }
 
   if (b.section === "illness") {
-    const entry = await deps.patientClinical.appendAnamnesisIllness({
-      patientUserId: userId,
-      period: b.period,
-      what: b.what,
-      comment: b.comment,
-      createdBy,
-    });
+    const entry = await withDoctorWorkspacePrincipal(
+      ctx,
+      "doctor.patients.clinical.anamnesis.illness.create",
+      () =>
+        deps.patientClinical.appendAnamnesisIllness({
+          patientUserId: userId,
+          period: b.period,
+          what: b.what,
+          comment: b.comment,
+          createdBy,
+        }),
+    );
     return NextResponse.json({ ok: true, entry }, { status: 201 });
   }
 
   // section === "lifestyle"
-  const entry = await deps.patientClinical.appendAnamnesisLifestyle({
-    patientUserId: userId,
-    recordDate: b.recordDate,
-    text: b.text,
-    createdBy,
-  });
+  const entry = await withDoctorWorkspacePrincipal(
+    ctx,
+    "doctor.patients.clinical.anamnesis.lifestyle.create",
+    () =>
+      deps.patientClinical.appendAnamnesisLifestyle({
+        patientUserId: userId,
+        recordDate: b.recordDate,
+        text: b.text,
+        createdBy,
+      }),
+  );
   return NextResponse.json({ ok: true, entry }, { status: 201 });
 }

@@ -1,10 +1,12 @@
 /** @vitest-environment node */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
 
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const insertMock = vi.hoisted(() => vi.fn());
+const insertValuesMock = vi.hoisted(() => vi.fn());
 const connectQueryMock = vi.hoisted(() => vi.fn());
 const s3PutObjectBodyMock = vi.hoisted(() => vi.fn());
 const s3DeleteObjectMock = vi.hoisted(() => vi.fn());
@@ -67,6 +69,7 @@ describe("createS3MediaStoragePort", () => {
   beforeEach(() => {
     runWebappSqlMock.mockReset();
     insertMock.mockReset();
+    insertValuesMock.mockReset();
     connectQueryMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     s3DeleteObjectMock.mockReset();
@@ -75,7 +78,7 @@ describe("createS3MediaStoragePort", () => {
     s3DeleteObjectMock.mockResolvedValue(undefined);
     s3ListObjectKeysUnderPrefixMock.mockResolvedValue([]);
     insertMock.mockReturnValue({
-      values: vi.fn().mockResolvedValue(undefined),
+      values: insertValuesMock.mockResolvedValue(undefined),
     });
   });
 
@@ -99,6 +102,27 @@ describe("createS3MediaStoragePort", () => {
     expect(insertMock).toHaveBeenCalled();
     expect(result.record.id).toBe("11111111-1111-4111-8111-111111111111");
     expect(result.url).toBe("/api/media/11111111-1111-4111-8111-111111111111");
+  });
+
+  it("upload stamps ready row with active organization principal", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [{ id: "11111111-1111-4111-8111-111111111111" }] });
+
+    const port = createS3MediaStoragePort();
+    await runWithDbOrganizationPrincipal("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", () =>
+      port.upload({
+        body: new Uint8Array([1]).buffer,
+        filename: "pic.png",
+        mimeType: "image/png",
+        userId: "22222222-2222-4222-8222-222222222222",
+      }),
+    );
+
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "11111111-1111-4111-8111-111111111111",
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    );
   });
 
   it("getUrl returns app media path when s3_key is set", async () => {

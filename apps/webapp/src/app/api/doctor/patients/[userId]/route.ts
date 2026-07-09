@@ -11,8 +11,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorApiSession, requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const patchPatientSchema = z.object({
   birthDate: z
@@ -52,8 +53,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -77,21 +78,23 @@ export async function PATCH(
 
   const deps = buildAppDeps();
 
-  if ("birthDate" in parsed.data) {
-    await deps.doctorClients.setPatientBirthDate(userId, parsed.data.birthDate ?? null);
-  }
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.profile.update", async () => {
+    if ("birthDate" in parsed.data) {
+      await deps.doctorClients.setPatientBirthDate(userId, parsed.data.birthDate ?? null);
+    }
 
-  if ("gender" in parsed.data) {
-    await deps.doctorClients.setPatientGender(userId, parsed.data.gender ?? null);
-  }
+    if ("gender" in parsed.data) {
+      await deps.doctorClients.setPatientGender(userId, parsed.data.gender ?? null);
+    }
 
-  const nameFields: { displayName?: string; firstName?: string | null; lastName?: string | null } = {};
-  if ("displayName" in parsed.data) nameFields.displayName = parsed.data.displayName;
-  if ("firstName" in parsed.data) nameFields.firstName = parsed.data.firstName ?? null;
-  if ("lastName" in parsed.data) nameFields.lastName = parsed.data.lastName ?? null;
-  if (Object.keys(nameFields).length > 0) {
-    await deps.doctorClients.setPatientNames(userId, nameFields);
-  }
+    const nameFields: { displayName?: string; firstName?: string | null; lastName?: string | null } = {};
+    if ("displayName" in parsed.data) nameFields.displayName = parsed.data.displayName;
+    if ("firstName" in parsed.data) nameFields.firstName = parsed.data.firstName ?? null;
+    if ("lastName" in parsed.data) nameFields.lastName = parsed.data.lastName ?? null;
+    if (Object.keys(nameFields).length > 0) {
+      await deps.doctorClients.setPatientNames(userId, nameFields);
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }
