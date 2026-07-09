@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import {
   isTestSetArchiveAlreadyArchivedError,
   isTestSetArchiveNotFoundError,
@@ -29,11 +31,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -44,7 +43,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   const deps = buildAppDeps();
   try {
-    const item = await deps.testSets.updateTestSet(id, parsed.data);
+    const item = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.testSets.updateTestSet(id, parsed.data));
     return NextResponse.json({ ok: true, item });
   } catch {
     return NextResponse.json({ ok: false, error: "not_found_or_invalid" }, { status: 400 });
@@ -53,11 +52,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
 /** Архивация (DELETE): при необходимости подтверждения usage — 409; повтор с `?acknowledgeUsageWarning=1`. */
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id } = await ctx.params;
   const url = new URL(request.url);
@@ -66,7 +62,9 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
 
   const deps = buildAppDeps();
   try {
-    await deps.testSets.archiveTestSet(id, { acknowledgeUsageWarning });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.testSets.archiveTestSet(id, { acknowledgeUsageWarning }),
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (isTestSetUsageConfirmationRequiredError(e)) {

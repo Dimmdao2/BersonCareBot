@@ -1,5 +1,7 @@
 import { asc, eq } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { clinicalTestMeasureKinds } from "../../../db/schema/clinicalTests";
 import type { ClinicalTestMeasureKindsPort, ClinicalTestMeasureKindRow } from "@/modules/tests/measureKindsPorts";
 import { measureKindLabelToCode } from "@/modules/tests/measureKindCode";
@@ -11,6 +13,14 @@ function mapRow(row: typeof clinicalTestMeasureKinds.$inferSelect): ClinicalTest
     label: row.label,
     sortOrder: row.sortOrder,
   };
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
 }
 
 export function createPgClinicalTestMeasureKindsPort(): ClinicalTestMeasureKindsPort {
@@ -25,6 +35,7 @@ export function createPgClinicalTestMeasureKindsPort(): ClinicalTestMeasureKinds
     },
 
     async upsertMeasureKindByLabel(label: string): Promise<{ row: ClinicalTestMeasureKindRow; created: boolean }> {
+      currentPrincipalOrganizationId();
       const db = getDrizzle();
       const code = measureKindLabelToCode(label);
       const existing = await db
@@ -36,14 +47,16 @@ export function createPgClinicalTestMeasureKindsPort(): ClinicalTestMeasureKinds
         return { row: mapRow(existing[0]), created: false };
       }
       const trimmed = label.trim();
-      const rows = await db
-        .insert(clinicalTestMeasureKinds)
-        .values({
-          code,
-          label: trimmed,
-          sortOrder: 0,
-        })
-        .returning();
+      const rows = await runDrizzleMutationTransaction((tx) =>
+        tx
+          .insert(clinicalTestMeasureKinds)
+          .values({
+            code,
+            label: trimmed,
+            sortOrder: 0,
+          })
+          .returning(),
+      );
       return { row: mapRow(rows[0]), created: true };
     },
 
@@ -51,7 +64,8 @@ export function createPgClinicalTestMeasureKindsPort(): ClinicalTestMeasureKinds
       updates: { id: string; label: string; sortOrder: number }[],
     ): Promise<ClinicalTestMeasureKindRow[]> {
       const db = getDrizzle();
-      await db.transaction(async (tx) => {
+      currentPrincipalOrganizationId();
+      await runDrizzleMutationTransaction(async (tx) => {
         for (const u of updates) {
           await tx
             .update(clinicalTestMeasureKinds)

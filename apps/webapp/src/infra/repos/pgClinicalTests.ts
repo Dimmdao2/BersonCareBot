@@ -1,6 +1,8 @@
 import { and, eq, desc, ilike, inArray, or, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { clinicalTestRegions, clinicalTests as clinicalTestsTable } from "../../../db/schema/clinicalTests";
 import type { ClinicalTestsPort } from "@/modules/tests/ports";
@@ -68,6 +70,25 @@ function mapRow(row: typeof clinicalTestsTable.$inferSelect, m2mBodyRegionIds: r
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId;
 }
 
 function parseClinicalTestUsageRefs(raw: unknown): ClinicalTestUsageRef[] {
@@ -379,16 +400,17 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
     },
 
     async create(input: CreateClinicalTestInput, createdBy: string | null): Promise<ClinicalTest> {
-      const db = getDrizzle();
       const media = normalizeMedia(input.media ?? []);
       const merged = mergeCatalogBodyRegionIds(
         input.bodyRegionId?.trim() || null,
         input.bodyRegionIds ?? null,
       );
-      return await db.transaction(async (tx) => {
+      const organizationId = currentWriteOrganizationId();
+      return await runDrizzleMutationTransaction(async (tx) => {
         const rows = await tx
           .insert(clinicalTestsTable)
           .values({
+            organizationId,
             title: input.title,
             description: input.description ?? null,
             testType: input.testType ?? null,
@@ -404,7 +426,7 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         const tid = rows[0].id;
         if (merged.length > 0) {
           await tx.insert(clinicalTestRegions).values(
-            merged.map((bodyRegionId) => ({ clinicalTestId: tid, bodyRegionId })),
+            merged.map((bodyRegionId) => ({ organizationId, clinicalTestId: tid, bodyRegionId })),
           );
         }
         return mapRow(rows[0], merged);
@@ -435,10 +457,18 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         patch.bodyRegionId = regionMerged[0] ?? null;
       }
 
-      return await db.transaction(async (tx) => {
+      currentPrincipalOrganizationId();
+      return await runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: clinicalTestsTable.organizationId })
+          .from(clinicalTestsTable)
+          .where(eq(clinicalTestsTable.id, id))
+          .limit(1);
+        if (!existing[0]) return null;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(clinicalTestsTable)
-          .set(patch)
+          .set({ ...patch, organizationId })
           .where(eq(clinicalTestsTable.id, id))
           .returning();
         if (!rows[0]) return null;
@@ -446,7 +476,7 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
           await tx.delete(clinicalTestRegions).where(eq(clinicalTestRegions.clinicalTestId, id));
           if (regionMerged.length > 0) {
             await tx.insert(clinicalTestRegions).values(
-              regionMerged.map((bodyRegionId) => ({ clinicalTestId: id, bodyRegionId })),
+              regionMerged.map((bodyRegionId) => ({ organizationId, clinicalTestId: id, bodyRegionId })),
             );
           }
         }
@@ -462,23 +492,41 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
     },
 
     async archive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(clinicalTestsTable)
-        .set({ isArchived: true, updatedAt: new Date().toISOString() })
-        .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
-        .returning({ id: clinicalTestsTable.id });
-      return rows.length > 0;
+      currentPrincipalOrganizationId();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: clinicalTestsTable.organizationId })
+          .from(clinicalTestsTable)
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
+          .limit(1);
+        if (!existing[0]) return false;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        const rows = await tx
+          .update(clinicalTestsTable)
+          .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
+          .returning({ id: clinicalTestsTable.id });
+        return rows.length > 0;
+      });
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(clinicalTestsTable)
-        .set({ isArchived: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
-        .returning({ id: clinicalTestsTable.id });
-      return rows.length > 0;
+      currentPrincipalOrganizationId();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: clinicalTestsTable.organizationId })
+          .from(clinicalTestsTable)
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
+          .limit(1);
+        if (!existing[0]) return false;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        const rows = await tx
+          .update(clinicalTestsTable)
+          .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
+          .returning({ id: clinicalTestsTable.id });
+        return rows.length > 0;
+      });
     },
 
     async getClinicalTestUsageSummary(id: string): Promise<ClinicalTestUsageSnapshot> {

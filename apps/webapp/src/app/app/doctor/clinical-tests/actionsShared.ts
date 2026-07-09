@@ -1,4 +1,5 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/infra/logging/logger";
 import type { ClinicalTestMediaItem, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
@@ -73,7 +74,7 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
   | { ok: true; testId: string; wasUpdate: boolean }
   | { ok: false; error: string }
 > {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
 
   const idRaw = formData.get("id");
   const titleField = formData.get("title");
@@ -160,32 +161,36 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
       if (cur.isArchived) {
         return { ok: false, error: "Тест в архиве. Верните из архива, чтобы редактировать." };
       }
-      await deps.clinicalTests.updateClinicalTest(id, {
-        title,
-        description: description || null,
-        testType: testType || null,
-        assessmentKind,
-        bodyRegionIds,
-        scoring,
-        rawText,
-        tags,
-        media,
-      });
+      await withDoctorWorkspacePrincipal(workspace, () =>
+        deps.clinicalTests.updateClinicalTest(id, {
+          title,
+          description: description || null,
+          testType: testType || null,
+          assessmentKind,
+          bodyRegionIds,
+          scoring,
+          rawText,
+          tags,
+          media,
+        }),
+      );
       return { ok: true, testId: id, wasUpdate: true };
     }
-    const row = await deps.clinicalTests.createClinicalTest(
-      {
-        title,
-        description: description || null,
-        testType: testType || null,
-        assessmentKind,
-        bodyRegionIds,
-        scoring,
-        rawText,
-        tags,
-        media,
-      },
-      session.user.userId,
+    const row = await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.clinicalTests.createClinicalTest(
+        {
+          title,
+          description: description || null,
+          testType: testType || null,
+          assessmentKind,
+          bodyRegionIds,
+          scoring,
+          rawText,
+          tags,
+          media,
+        },
+        workspace.session.user.userId,
+      ),
     );
     return { ok: true, testId: row.id, wasUpdate: false };
   } catch (e) {
@@ -194,7 +199,7 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
 }
 
 export async function archiveClinicalTestCore(formData: FormData): Promise<ArchiveClinicalTestCoreResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указан тест" };
@@ -202,7 +207,9 @@ export async function archiveClinicalTestCore(formData: FormData): Promise<Archi
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await deps.clinicalTests.archiveClinicalTest(id, { acknowledgeUsageWarning });
+    await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.clinicalTests.archiveClinicalTest(id, { acknowledgeUsageWarning }),
+    );
     return { kind: "archived", id };
   } catch (e) {
     if (isClinicalTestUsageConfirmationRequiredError(e)) {
@@ -220,14 +227,14 @@ export async function archiveClinicalTestCore(formData: FormData): Promise<Archi
 }
 
 export async function unarchiveClinicalTestCore(formData: FormData): Promise<UnarchiveClinicalTestCoreResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указан тест" };
 
   const deps = buildAppDeps();
   try {
-    await deps.clinicalTests.unarchiveClinicalTest(id);
+    await withDoctorWorkspacePrincipal(workspace, () => deps.clinicalTests.unarchiveClinicalTest(id));
     return { kind: "unarchived", id };
   } catch (e) {
     if (isClinicalTestArchiveNotFoundError(e)) {

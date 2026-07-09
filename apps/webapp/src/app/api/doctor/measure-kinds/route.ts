@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const postBodySchema = z.object({
   label: z.string().min(1).max(500),
@@ -31,11 +33,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
@@ -45,7 +44,9 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const { row, created } = await deps.measureKinds.createMeasureKindFromLabel(parsed.data.label);
+    const { row, created } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.measureKinds.createMeasureKindFromLabel(parsed.data.label),
+    );
     return NextResponse.json({ ok: true, item: row, created });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
@@ -54,11 +55,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
@@ -68,7 +66,9 @@ export async function PATCH(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const items = await deps.measureKinds.saveMeasureKindsOrderAndLabels(parsed.data.items);
+    const items = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.measureKinds.saveMeasureKindsOrderAndLabels(parsed.data.items),
+    );
     return NextResponse.json({ ok: true, items });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

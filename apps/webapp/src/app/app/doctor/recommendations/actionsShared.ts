@@ -1,4 +1,5 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/infra/logging/logger";
 import {
@@ -83,7 +84,7 @@ export async function saveRecommendationCore(formData: FormData): Promise<
   | { ok: true; recommendationId: string; wasUpdate: boolean }
   | { ok: false; error: string }
 > {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
 
   const idRaw = formData.get("id");
   const titleField = formData.get("title");
@@ -140,32 +141,36 @@ export async function saveRecommendationCore(formData: FormData): Promise<
       if (cur.isArchived) {
         return { ok: false, error: "Рекомендация в архиве. Верните из архива, чтобы редактировать." };
       }
-      await deps.recommendations.updateRecommendation(id, {
-        title,
-        bodyMd,
-        tags,
-        media,
-        domain,
-        bodyRegionIds,
-        quantityText: quantityTextRaw,
-        frequencyText: frequencyTextRaw,
-        durationText: durationTextRaw,
-      });
+      await withDoctorWorkspacePrincipal(workspace, () =>
+        deps.recommendations.updateRecommendation(id, {
+          title,
+          bodyMd,
+          tags,
+          media,
+          domain,
+          bodyRegionIds,
+          quantityText: quantityTextRaw,
+          frequencyText: frequencyTextRaw,
+          durationText: durationTextRaw,
+        }),
+      );
       return { ok: true, recommendationId: id, wasUpdate: true };
     }
-    const row = await deps.recommendations.createRecommendation(
-      {
-        title,
-        bodyMd,
-        tags,
-        media,
-        domain,
-        bodyRegionIds,
-        quantityText: quantityTextRaw,
-        frequencyText: frequencyTextRaw,
-        durationText: durationTextRaw,
-      },
-      session.user.userId,
+    const row = await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.recommendations.createRecommendation(
+        {
+          title,
+          bodyMd,
+          tags,
+          media,
+          domain,
+          bodyRegionIds,
+          quantityText: quantityTextRaw,
+          frequencyText: frequencyTextRaw,
+          durationText: durationTextRaw,
+        },
+        workspace.session.user.userId,
+      ),
     );
     return { ok: true, recommendationId: row.id, wasUpdate: false };
   } catch (e) {
@@ -174,7 +179,7 @@ export async function saveRecommendationCore(formData: FormData): Promise<
 }
 
 export async function archiveRecommendationCore(formData: FormData): Promise<ArchiveRecommendationCoreResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указана рекомендация" };
@@ -182,7 +187,9 @@ export async function archiveRecommendationCore(formData: FormData): Promise<Arc
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await deps.recommendations.archiveRecommendation(id, { acknowledgeUsageWarning });
+    await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.recommendations.archiveRecommendation(id, { acknowledgeUsageWarning }),
+    );
     return { kind: "archived", id };
   } catch (e) {
     if (isRecommendationUsageConfirmationRequiredError(e)) {
@@ -200,14 +207,14 @@ export async function archiveRecommendationCore(formData: FormData): Promise<Arc
 }
 
 export async function unarchiveRecommendationCore(formData: FormData): Promise<UnarchiveRecommendationCoreResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указана рекомендация" };
 
   const deps = buildAppDeps();
   try {
-    await deps.recommendations.unarchiveRecommendation(id);
+    await withDoctorWorkspacePrincipal(workspace, () => deps.recommendations.unarchiveRecommendation(id));
     return { kind: "unarchived", id };
   } catch (e) {
     if (isRecommendationArchiveNotFoundError(e)) {
