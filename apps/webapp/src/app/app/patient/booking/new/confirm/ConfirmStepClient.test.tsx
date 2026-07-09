@@ -190,9 +190,31 @@ describe("ConfirmStepClient", () => {
     await waitFor(() => {
       expect(push).toHaveBeenCalledTimes(1);
       const dest: string = push.mock.calls[0]?.[0] ?? "";
-      expect(dest).toContain("/app/patient/booking/new/done");
+      expect(dest).toContain("/app/patient/booking/done");
       expect(dest).toContain(`bookingId=${encodeURIComponent(mockBooking.id)}`);
       expect(dest).toContain(`cityCode=msk`);
+    });
+  });
+
+  it("uses custom done redirect path for public create success", async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmStepClient
+        type="online"
+        category="rehab_lfk"
+        doneRedirectPath="/book/done"
+        {...baseProps}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Подтвердить запись/i }));
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledTimes(1);
+      const dest: string = push.mock.calls[0]?.[0] ?? "";
+      expect(dest).toContain("/book/done");
+      expect(dest).toContain(`bookingId=${encodeURIComponent(mockBooking.id)}`);
+      expect(dest).not.toContain("/app/patient/booking/done");
     });
   });
 

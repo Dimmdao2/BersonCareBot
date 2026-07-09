@@ -23,7 +23,7 @@ const baseProps = {
   serviceTitle: "Сеанс реабилитации",
   locationLabel: "Москва, ул. Тверская, 1",
   bookingId: "abc-123",
-  backToHubHref: "/app/patient/booking/new",
+  backToHubHref: "/app/patient/booking",
   appDisplayTimeZone: "Europe/Moscow",
 } as const;
 

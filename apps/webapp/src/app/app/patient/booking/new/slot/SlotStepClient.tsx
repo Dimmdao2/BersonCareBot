@@ -38,6 +38,14 @@ type SlotStepOptions = {
 
 type Props = (InPersonProps | OnlineProps) & SlotStepOptions;
 
+function todayIsoDate(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function buildConfirmQuery(
   props: Props,
   date: string,
@@ -104,7 +112,12 @@ export function SlotStepClient(props: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
 
-  const effectiveDate = selectedDate ?? slotsState.availableDates[0] ?? null;
+  const today = todayIsoDate();
+  const firstSelectableDate = useMemo(
+    () => slotsState.availableDates.find((date) => date >= today) ?? null,
+    [slotsState.availableDates, today],
+  );
+  const effectiveDate = selectedDate ?? firstSelectableDate;
   const canContinue = Boolean(effectiveDate && selectedSlot);
 
   return (

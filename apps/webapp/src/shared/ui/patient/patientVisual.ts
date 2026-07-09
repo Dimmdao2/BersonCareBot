@@ -38,7 +38,7 @@ export const patientHeroBookingCardChromeClass = cn(
 );
 
 /**
- * Секция как блок выбора города/услуг на `/app/patient/booking/new` — общий примитив для расписания, профиля и т.д.
+ * Секция как блок выбора города/услуг на `/app/patient/booking` — общий примитив для расписания, профиля и т.д.
  */
 export const patientHeroBookingSectionClass = cn(
   patientHeroBookingCardChromeClass,
