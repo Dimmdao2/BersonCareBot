@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { runPackageDetach } from "@/app/api/booking-engine/packageDetachShared";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireDoctorBookingEngine } from "../../../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
@@ -23,5 +24,7 @@ export async function POST(request: Request, context: RouteContext) {
     createdByPlatformUserId: gate.ctx.session.user.userId,
     outcome: parsed.data.outcome,
     confirmPastTwice: parsed.data.confirmPastTwice,
+    runDetachMutation: (fn) =>
+      withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.package.detach", fn),
   });
 }
