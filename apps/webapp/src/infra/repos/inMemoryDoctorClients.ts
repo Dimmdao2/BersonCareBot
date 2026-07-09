@@ -103,6 +103,10 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     return this.getClientIdentity(userId);
   },
 
+  async getClientIdentityForOrganization(userId: string, _organizationId: string): Promise<ClientIdentity | null> {
+    return this.getPatientClientIdentity(userId);
+  },
+
   async getPlatformUserRole(userId: string): Promise<string | null> {
     return STUB_CLIENTS.some((c) => c.userId === userId) ? "client" : null;
   },

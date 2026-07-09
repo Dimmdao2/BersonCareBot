@@ -37,6 +37,9 @@ describe("doctor-clients service", () => {
     async getPatientClientIdentity(userId: string) {
       return this.getClientIdentity(userId);
     },
+    async getClientIdentityForOrganization(userId: string, _organizationId: string) {
+      return this.getPatientClientIdentity(userId);
+    },
     async getPlatformUserRole(userId: string) {
       return userId === "user-1" ? "client" : null;
     },
@@ -233,6 +236,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     },
     async getPatientClientIdentity(userId: string) {
       return this.getClientIdentity(userId);
+    },
+    async getClientIdentityForOrganization(userId: string, _organizationId: string) {
+      return this.getPatientClientIdentity(userId);
     },
     async getPlatformUserRole(userId: string) {
       return userId === "user-1" ? "client" : null;

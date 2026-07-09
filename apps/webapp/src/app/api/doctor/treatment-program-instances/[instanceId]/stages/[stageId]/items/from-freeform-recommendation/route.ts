@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
@@ -15,11 +15,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ instanceId: string; stageId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, stageId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
@@ -35,7 +33,7 @@ export async function POST(
   const deps = buildAppDeps();
   try {
     const inst = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!inst) {
+    if (!inst || inst.organizationId !== gate.ctx.organizationId) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst.patientUserId);
@@ -43,13 +41,15 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
-    const result = await deps.treatmentProgramInstance.doctorAddFreeformRecommendationToStageZero({
-      instanceId,
-      stageId,
-      actorId: session.user.userId,
-      title: parsed.data.title,
-      bodyMd: parsed.data.bodyMd,
-    });
+    const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.doctorAddFreeformRecommendationToStageZero({
+        instanceId,
+        stageId,
+        actorId: session.user.userId,
+        title: parsed.data.title,
+        bodyMd: parsed.data.bodyMd,
+      }),
+    );
 
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({

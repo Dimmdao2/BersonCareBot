@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { instanceEditorBatchBodySchema } from "@/modules/treatment-program/instanceEditorBatchSchema";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
@@ -11,11 +11,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ instanceId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success) {
@@ -31,7 +29,7 @@ export async function POST(
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!inst0) {
+    if (!inst0 || inst0.organizationId !== gate.ctx.organizationId) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
@@ -39,11 +37,13 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
-    const item = await deps.treatmentProgramInstance.doctorApplyInstanceEditorBatch({
-      instanceId,
-      actorId: session.user.userId,
-      draft: parsed.data.draft,
-    });
+    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.doctorApplyInstanceEditorBatch({
+        instanceId,
+        actorId: session.user.userId,
+        draft: parsed.data.draft,
+      }),
+    );
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {

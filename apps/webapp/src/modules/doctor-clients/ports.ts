@@ -250,6 +250,8 @@ export type DoctorClientsPort = {
   /** Lightweight role lookup for routes that must distinguish missing users from non-clients. */
   getPlatformUserRole(userId: string): Promise<string | null>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
+  /** Patient identity visible inside a concrete organization workspace. */
+  getClientIdentityForOrganization(userId: string, organizationId: string): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
   getDashboardPatientMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardPatientMetrics>;

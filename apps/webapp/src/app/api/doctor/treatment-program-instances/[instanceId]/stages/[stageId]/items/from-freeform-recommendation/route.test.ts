@@ -8,11 +8,8 @@ const freeformMock = vi.fn();
 const getInstanceByIdMock = vi.fn();
 const getClientIdentityMock = vi.fn();
 
-const getCurrentSessionMock = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({
-    user: { userId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", role: "doctor", bindings: {} },
-  }),
-);
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
 
 vi.mock("@/app-layer/cache/revalidatePatientTreatmentProgramUi", () => ({
   revalidatePatientTreatmentProgramUi: vi.fn(),
@@ -30,8 +27,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) => withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 import { POST } from "./route";
@@ -42,6 +43,16 @@ const STAGE_ZERO_ID = "22222222-2222-4222-8222-222222222222";
 /** Другой этап (например sort_order > 0) — в URL запроса. */
 const STAGE_NON_ZERO_ID = "44444444-4444-4444-8444-444444444444";
 const PATIENT_ID = "33333333-3333-4333-8333-333333333333";
+const DOCTOR_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const workspaceCtx = {
+  session: { user: { userId: DOCTOR_ID, role: "doctor", bindings: {} } },
+  organizationId: "55555555-5555-4555-8555-555555555555",
+  membershipId: "66666666-6666-4666-8666-666666666666",
+  membershipRole: "doctor",
+  specialistId: null,
+  canManageOrganization: false,
+  canManageAllSpecialists: false,
+};
 
 function postRequest(body: unknown, stageIdInUrl: string = STAGE_ZERO_ID) {
   return POST(
@@ -62,11 +73,13 @@ describe("POST .../from-freeform-recommendation", () => {
     freeformMock.mockReset();
     getInstanceByIdMock.mockReset();
     getClientIdentityMock.mockReset();
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", role: "doctor", bindings: {} },
-    });
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
     getInstanceByIdMock.mockResolvedValue({
       id: INSTANCE_ID,
+      organizationId: workspaceCtx.organizationId,
       patientUserId: PATIENT_ID,
       templateId: null,
       title: "План",
@@ -99,10 +112,11 @@ describe("POST .../from-freeform-recommendation", () => {
     const body = (await res.json()) as { ok: boolean; recommendationId?: string };
     expect(body.ok).toBe(true);
     expect(body.recommendationId).toBe("rec-1");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(workspaceCtx, expect.any(Function));
     expect(freeformMock).toHaveBeenCalledWith({
       instanceId: INSTANCE_ID,
       stageId: STAGE_ZERO_ID,
-      actorId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      actorId: DOCTOR_ID,
       title: "T",
       bodyMd: "Body",
     });
@@ -115,15 +129,19 @@ describe("POST .../from-freeform-recommendation", () => {
   });
 
   it("401 без сессии", async () => {
-    getCurrentSessionMock.mockResolvedValueOnce(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await postRequest({ title: "T", bodyMd: "x" });
     expect(res.status).toBe(401);
     expect(freeformMock).not.toHaveBeenCalled();
   });
 
   it("403 для роли без доступа к кабинету врача", async () => {
-    getCurrentSessionMock.mockResolvedValueOnce({
-      user: { userId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", role: "client", bindings: {} },
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({ ok: false, error: "forbidden" }, { status: 403 }),
     });
     const res = await postRequest({ title: "T", bodyMd: "x" });
     expect(res.status).toBe(403);

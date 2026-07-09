@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 const postBodySchema = z.object({
@@ -13,11 +13,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ instanceId: string; stageId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, stageId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
@@ -33,16 +31,21 @@ export async function POST(
   const deps = buildAppDeps();
   try {
     const inst = await deps.treatmentProgramInstance.getInstanceById(instanceId);
+    if (!inst || inst.organizationId !== gate.ctx.organizationId) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst.patientUserId);
     if (!identity) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
-    await deps.treatmentProgramInstance.doctorReorderInstanceStageGroups({
-      instanceId,
-      stageId,
-      actorId: session.user.userId,
-      orderedGroupIds: parsed.data.orderedGroupIds,
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.doctorReorderInstanceStageGroups({
+        instanceId,
+        stageId,
+        actorId: session.user.userId,
+        orderedGroupIds: parsed.data.orderedGroupIds,
+      }),
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

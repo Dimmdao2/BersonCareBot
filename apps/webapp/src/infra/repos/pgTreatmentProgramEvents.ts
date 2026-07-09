@@ -1,7 +1,10 @@
 import { and, desc, eq, inArray, max } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { treatmentProgramEvents as eventTable } from "../../../db/schema/treatmentProgramEvents";
+import { treatmentProgramInstances as instTable } from "../../../db/schema/treatmentProgramInstances";
 import type { TreatmentProgramEventsPort } from "@/modules/treatment-program/ports";
 import type {
   AppendTreatmentProgramEventInput,
@@ -33,24 +36,43 @@ function mapRow(row: typeof eventTable.$inferSelect): TreatmentProgramEventRow {
   };
 }
 
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
+}
+
 export function createPgTreatmentProgramEventsPort(): TreatmentProgramEventsPort {
   return {
     async appendEvent(input: AppendTreatmentProgramEventInput): Promise<TreatmentProgramEventRow> {
-      const db = getDrizzle();
-      const [row] = await db
-        .insert(eventTable)
-        .values({
-          instanceId: input.instanceId,
-          actorId: input.actorId,
-          eventType: input.eventType,
-          targetType: input.targetType,
-          targetId: input.targetId,
-          payload: input.payload ?? {},
-          reason: input.reason ?? null,
-        })
-        .returning();
-      if (!row) throw new Error("insert treatment_program_event failed");
-      return mapRow(row);
+      return runDrizzleMutationTransaction(async (tx) => {
+        const inst = await tx.query.treatmentProgramInstances.findFirst({
+          where: eq(instTable.id, input.instanceId),
+        });
+        const [row] = await tx
+          .insert(eventTable)
+          .values({
+            organizationId: currentWriteOrganizationId(inst?.organizationId),
+            instanceId: input.instanceId,
+            actorId: input.actorId,
+            eventType: input.eventType,
+            targetType: input.targetType,
+            targetId: input.targetId,
+            payload: input.payload ?? {},
+            reason: input.reason ?? null,
+          })
+          .returning();
+        if (!row) throw new Error("insert treatment_program_event failed");
+        return mapRow(row);
+      });
     },
 
     async listEventsForInstance(instanceId: string, limit = 200): Promise<TreatmentProgramEventRow[]> {

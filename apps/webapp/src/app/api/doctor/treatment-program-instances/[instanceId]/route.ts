@@ -3,6 +3,8 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 const patchBodySchema = z
@@ -17,7 +19,9 @@ export async function GET(
   context: { params: Promise<{ instanceId: string }> },
 ) {
   const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
   if (!canAccessDoctor(session.user.role)) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
@@ -44,11 +48,9 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ instanceId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success) {
@@ -63,12 +65,18 @@ export async function PATCH(
 
   const deps = buildAppDeps();
   try {
-    const item = await deps.treatmentProgramInstance.updateInstance({
-      instanceId,
-      title: parsed.data.title,
-      status: parsed.data.status,
-      actorId: session.user.userId,
-    });
+    const inst = await deps.treatmentProgramInstance.getInstanceById(instanceId);
+    if (!inst || inst.organizationId !== gate.ctx.organizationId) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.updateInstance({
+        instanceId,
+        title: parsed.data.title,
+        status: parsed.data.status,
+        actorId: session.user.userId,
+      }),
+    );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import { platformUsers } from "../../../db/schema/schema";
 import {
@@ -43,6 +45,20 @@ function mapResult(row: typeof resultTable.$inferSelect): TreatmentProgramTestRe
     decidedBy: row.decidedBy ?? null,
     createdAt: row.createdAt,
   };
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
 }
 
 function pendingEvaluationGlobalWhere() {
@@ -97,35 +113,41 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
     },
 
     async createAttempt(input: { stageItemId: string; patientUserId: string }) {
-      const db = getDrizzle();
-      const existingRow = await db.query.treatmentProgramTestAttempts.findFirst({
-        where: and(
-          eq(attemptTable.instanceStageItemId, input.stageItemId),
-          eq(attemptTable.patientUserId, input.patientUserId),
-          isNull(attemptTable.submittedAt),
-        ),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existingRow = await tx.query.treatmentProgramTestAttempts.findFirst({
+          where: and(
+            eq(attemptTable.instanceStageItemId, input.stageItemId),
+            eq(attemptTable.patientUserId, input.patientUserId),
+            isNull(attemptTable.submittedAt),
+          ),
+        });
+        if (existingRow) return mapAttempt(existingRow);
+        const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(itemTable.id, input.stageItemId),
+        });
+        const [row] = await tx
+          .insert(attemptTable)
+          .values({
+            organizationId: currentWriteOrganizationId(stageItem?.organizationId),
+            instanceStageItemId: input.stageItemId,
+            patientUserId: input.patientUserId,
+          })
+          .returning();
+        if (!row) throw new Error("insert attempt failed");
+        return mapAttempt(row);
       });
-      if (existingRow) return mapAttempt(existingRow);
-      const [row] = await db
-        .insert(attemptTable)
-        .values({
-          instanceStageItemId: input.stageItemId,
-          patientUserId: input.patientUserId,
-        })
-        .returning();
-      if (!row) throw new Error("insert attempt failed");
-      return mapAttempt(row);
     },
 
     async markAttemptSubmitted(attemptId: string) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
-      const updated = await db
-        .update(attemptTable)
-        .set({ submittedAt: now })
-        .where(and(eq(attemptTable.id, attemptId), isNull(attemptTable.submittedAt)))
-        .returning({ id: attemptTable.id });
-      return { didTransitionToSubmitted: updated.length > 0 };
+      return runDrizzleMutationTransaction(async (tx) => {
+        const updated = await tx
+          .update(attemptTable)
+          .set({ submittedAt: now })
+          .where(and(eq(attemptTable.id, attemptId), isNull(attemptTable.submittedAt)))
+          .returning({ id: attemptTable.id });
+        return { didTransitionToSubmitted: updated.length > 0 };
+      });
     },
 
     async listAttemptsForStageItem(stageItemId: string, patientUserId: string, limit = 40) {
@@ -141,10 +163,9 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
     },
 
     async acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
       const errStale = "Нельзя принять неактуальную попытку";
-      await db.transaction(async (tx) => {
+      await runDrizzleMutationTransaction(async (tx) => {
         const rows = await tx
           .select({
             attempt: attemptTable,
@@ -196,8 +217,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       stageItemId: string;
       patientUserId: string;
     }): Promise<TreatmentProgramTestAttemptRow> {
-      const db = getDrizzle();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const meta = await tx
           .select({ item: itemTable, inst: instanceTable })
           .from(itemTable)
@@ -249,6 +269,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         const [row] = await tx
           .insert(attemptTable)
           .values({
+            organizationId: currentWriteOrganizationId(m.item.organizationId, m.inst.organizationId),
             instanceStageItemId: input.stageItemId,
             patientUserId: input.patientUserId,
           })
@@ -265,34 +286,39 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       normalizedDecision: NormalizedTestDecision;
       decidedBy: string | null;
     }) {
-      const db = getDrizzle();
-      const existing = await db.query.treatmentProgramTestResults.findFirst({
-        where: and(eq(resultTable.attemptId, input.attemptId), eq(resultTable.testId, input.testId)),
-      });
-      if (existing) {
-        const [row] = await db
-          .update(resultTable)
-          .set({
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx.query.treatmentProgramTestResults.findFirst({
+          where: and(eq(resultTable.attemptId, input.attemptId), eq(resultTable.testId, input.testId)),
+        });
+        if (existing) {
+          const [row] = await tx
+            .update(resultTable)
+            .set({
+              rawValue: input.rawValue,
+              normalizedDecision: input.normalizedDecision,
+              decidedBy: input.decidedBy,
+            })
+            .where(eq(resultTable.id, existing.id))
+            .returning();
+          return mapResult(row!);
+        }
+        const attempt = await tx.query.treatmentProgramTestAttempts.findFirst({
+          where: eq(attemptTable.id, input.attemptId),
+        });
+        const [row] = await tx
+          .insert(resultTable)
+          .values({
+            organizationId: currentWriteOrganizationId(attempt?.organizationId),
+            attemptId: input.attemptId,
+            testId: input.testId,
             rawValue: input.rawValue,
             normalizedDecision: input.normalizedDecision,
             decidedBy: input.decidedBy,
           })
-          .where(eq(resultTable.id, existing.id))
           .returning();
-        return mapResult(row!);
-      }
-      const [row] = await db
-        .insert(resultTable)
-        .values({
-          attemptId: input.attemptId,
-          testId: input.testId,
-          rawValue: input.rawValue,
-          normalizedDecision: input.normalizedDecision,
-          decidedBy: input.decidedBy,
-        })
-        .returning();
-      if (!row) throw new Error("insert result failed");
-      return mapResult(row);
+        if (!row) throw new Error("insert result failed");
+        return mapResult(row);
+      });
     },
 
     async listResultsForAttempt(attemptId: string) {
@@ -453,16 +479,17 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       resultId: string,
       input: { normalizedDecision: NormalizedTestDecision; decidedBy: string },
     ) {
-      const db = getDrizzle();
-      const [row] = await db
-        .update(resultTable)
-        .set({
-          normalizedDecision: input.normalizedDecision,
-          decidedBy: input.decidedBy,
-        })
-        .where(eq(resultTable.id, resultId))
-        .returning();
-      return row ? mapResult(row) : null;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const [row] = await tx
+          .update(resultTable)
+          .set({
+            normalizedDecision: input.normalizedDecision,
+            decidedBy: input.decidedBy,
+          })
+          .where(eq(resultTable.id, resultId))
+          .returning();
+        return row ? mapResult(row) : null;
+      });
     },
 
     async hasAnyAttemptForStageItem(stageItemId: string) {

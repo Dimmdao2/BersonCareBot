@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import {
   programItemDiscussionMessages,
   programItemDiscussionReads,
@@ -38,6 +40,20 @@ function mapMessage(row: typeof programItemDiscussionMessages.$inferSelect): Pro
     supportMessageId: row.supportMessageId,
     createdAt: row.createdAt,
   };
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
 }
 
 function mapMessageFields(row: {
@@ -204,26 +220,32 @@ async function queryDoctorExerciseComments(
 export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
   return {
     async insertMessage(input: ProgramItemDiscussionMessageInsert): Promise<ProgramItemDiscussionMessage> {
-      const db = getDrizzle();
       try {
-        const [row] = await db
-          .insert(programItemDiscussionMessages)
-          .values({
-            instanceStageItemId: input.instanceStageItemId,
-            patientUserId: input.patientUserId,
-            senderRole: input.senderRole,
-            origin: input.origin,
-            body: input.body ?? null,
-            mediaFileId: input.mediaFileId ?? null,
-            supportMessageId: input.supportMessageId ?? null,
-            createdAt: input.createdAt ?? new Date().toISOString(),
-          })
-          .returning();
-        if (!row) throw new Error("program_item_discussion_insert_failed");
-        return mapMessage(row);
+        return await runDrizzleMutationTransaction(async (tx) => {
+          const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+            where: eq(treatmentProgramInstanceStageItems.id, input.instanceStageItemId),
+          });
+          const [row] = await tx
+            .insert(programItemDiscussionMessages)
+            .values({
+              organizationId: currentWriteOrganizationId(stageItem?.organizationId),
+              instanceStageItemId: input.instanceStageItemId,
+              patientUserId: input.patientUserId,
+              senderRole: input.senderRole,
+              origin: input.origin,
+              body: input.body ?? null,
+              mediaFileId: input.mediaFileId ?? null,
+              supportMessageId: input.supportMessageId ?? null,
+              createdAt: input.createdAt ?? new Date().toISOString(),
+            })
+            .returning();
+          if (!row) throw new Error("program_item_discussion_insert_failed");
+          return mapMessage(row);
+        });
       } catch (error) {
         const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null;
         if (code === "23505" && input.supportMessageId) {
+          const db = getDrizzle();
           const [existing] = await db
             .select()
             .from(programItemDiscussionMessages)
@@ -466,21 +488,26 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
     },
 
     async markRead(params: { patientUserId: string; stageItemId: string; lastReadAt?: string }): Promise<void> {
-      const db = getDrizzle();
       const lastReadAt = params.lastReadAt ?? new Date().toISOString();
-      await db
-        .insert(programItemDiscussionReads)
-        .values({
-          patientUserId: params.patientUserId,
-          instanceStageItemId: params.stageItemId,
-          lastReadAt,
-        })
-        .onConflictDoUpdate({
-          target: [programItemDiscussionReads.patientUserId, programItemDiscussionReads.instanceStageItemId],
-          set: {
-            lastReadAt: sql`GREATEST(${programItemDiscussionReads.lastReadAt}, ${lastReadAt}::timestamptz)`,
-          },
+      await runDrizzleMutationTransaction(async (tx) => {
+        const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(treatmentProgramInstanceStageItems.id, params.stageItemId),
         });
+        await tx
+          .insert(programItemDiscussionReads)
+          .values({
+            organizationId: currentWriteOrganizationId(stageItem?.organizationId),
+            patientUserId: params.patientUserId,
+            instanceStageItemId: params.stageItemId,
+            lastReadAt,
+          })
+          .onConflictDoUpdate({
+            target: [programItemDiscussionReads.patientUserId, programItemDiscussionReads.instanceStageItemId],
+            set: {
+              lastReadAt: sql`GREATEST(${programItemDiscussionReads.lastReadAt}, ${lastReadAt}::timestamptz)`,
+            },
+          });
+      });
     },
 
     async getUnreadCount(params: { patientUserId: string; stageItemId: string }): Promise<number> {
@@ -629,12 +656,13 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
     },
 
     async deleteMessageById(messageId: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .delete(programItemDiscussionMessages)
-        .where(eq(programItemDiscussionMessages.id, messageId))
-        .returning({ id: programItemDiscussionMessages.id });
-      return rows.length > 0;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const rows = await tx
+          .delete(programItemDiscussionMessages)
+          .where(eq(programItemDiscussionMessages.id, messageId))
+          .returning({ id: programItemDiscussionMessages.id });
+        return rows.length > 0;
+      });
     },
 
     async listUnreadExerciseCommentsForDoctor(

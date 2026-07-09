@@ -1,42 +1,85 @@
 import { and, count, desc, eq, gte, lt, max, or, isNull, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { programActionLog as logTable } from "../../../db/schema/programActionLog";
+import {
+  treatmentProgramInstanceStageItems as itemTable,
+  treatmentProgramInstanceStages as stageTable,
+  treatmentProgramInstances as instTable,
+} from "../../../db/schema/treatmentProgramInstances";
 import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
 import type { ProgramActionLogInsert, ProgramActionLogListRow, ProgramActionType } from "@/modules/treatment-program/types";
 import { PROGRAM_ACTION_TYPES } from "@/modules/treatment-program/types";
 import { programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
 
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
+}
+
 export function createPgProgramActionLogPort(): ProgramActionLogPort {
   return {
     async insertAction(input: ProgramActionLogInsert) {
-      const db = getDrizzle();
-      const [row] = await db
-        .insert(logTable)
-        .values({
-          instanceId: input.instanceId,
-          instanceStageItemId: input.instanceStageItemId,
-          patientUserId: input.patientUserId,
-          sessionId: input.sessionId ?? null,
-          actionType: input.actionType,
-          payload: input.payload ?? null,
-          note: input.note ?? null,
-        })
-        .returning({ id: logTable.id, createdAt: logTable.createdAt });
-      if (!row) throw new Error("insert program_action_log failed");
-      return { id: row.id, createdAt: row.createdAt };
+      return runDrizzleMutationTransaction(async (tx) => {
+        const inst = await tx.query.treatmentProgramInstances.findFirst({
+          where: eq(instTable.id, input.instanceId),
+        });
+        const [stageItem] = await tx
+          .select({
+            stageItemOrganizationId: itemTable.organizationId,
+            stageOrganizationId: stageTable.organizationId,
+            instanceId: stageTable.instanceId,
+          })
+          .from(itemTable)
+          .innerJoin(stageTable, eq(stageTable.id, itemTable.stageId))
+          .where(eq(itemTable.id, input.instanceStageItemId))
+          .limit(1);
+        if (!inst || !stageItem || stageItem.instanceId !== input.instanceId) {
+          throw new Error("program_action_log_parent_mismatch");
+        }
+        const [row] = await tx
+          .insert(logTable)
+          .values({
+            organizationId: currentWriteOrganizationId(
+              inst.organizationId,
+              stageItem.stageOrganizationId,
+              stageItem.stageItemOrganizationId,
+            ),
+            instanceId: input.instanceId,
+            instanceStageItemId: input.instanceStageItemId,
+            patientUserId: input.patientUserId,
+            sessionId: input.sessionId ?? null,
+            actionType: input.actionType,
+            payload: input.payload ?? null,
+            note: input.note ?? null,
+          })
+          .returning({ id: logTable.id, createdAt: logTable.createdAt });
+        if (!row) throw new Error("insert program_action_log failed");
+        return { id: row.id, createdAt: row.createdAt };
+      });
     },
 
     async updateLatestSimpleDonePayload(params) {
-      const db = getDrizzle();
-      const [row] = await db
-        .update(logTable)
-        .set({
-          payload: sql<Record<string, unknown>>`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.payloadPatch)}::jsonb`,
-        })
-        .where(
-          eq(
-            logTable.id,
-            sql`(
+      return runDrizzleMutationTransaction(async (tx) => {
+        const [row] = await tx
+          .update(logTable)
+          .set({
+            payload: sql<Record<string, unknown>>`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.payloadPatch)}::jsonb`,
+          })
+          .where(
+            eq(
+              logTable.id,
+              sql`(
               select id
               from program_action_log
               where instance_id = ${params.instanceId}
@@ -50,10 +93,11 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
               order by created_at desc
               limit 1
             )`,
-          ),
-        )
-        .returning({ id: logTable.id });
-      return Boolean(row);
+            ),
+          )
+          .returning({ id: logTable.id });
+        return Boolean(row);
+      });
     },
 
     async getLatestSimpleDonePayload(params) {
@@ -79,39 +123,41 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     },
 
     async deleteSimpleDoneInWindow(params) {
-      const db = getDrizzle();
-      await db
-        .delete(logTable)
-        .where(
-          and(
-            eq(logTable.instanceId, params.instanceId),
-            eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.instanceStageItemId, params.instanceStageItemId),
-            eq(logTable.actionType, "done"),
-            gte(logTable.createdAt, params.windowStartIso),
-            lt(logTable.createdAt, params.windowEndIso),
-            or(
-              isNull(logTable.payload),
-              sql`coalesce(${logTable.payload}->>'source', '') not in ('test_submitted', 'lfk_exercise_done')`,
+      await runDrizzleMutationTransaction(async (tx) => {
+        await tx
+          .delete(logTable)
+          .where(
+            and(
+              eq(logTable.instanceId, params.instanceId),
+              eq(logTable.patientUserId, params.patientUserId),
+              eq(logTable.instanceStageItemId, params.instanceStageItemId),
+              eq(logTable.actionType, "done"),
+              gte(logTable.createdAt, params.windowStartIso),
+              lt(logTable.createdAt, params.windowEndIso),
+              or(
+                isNull(logTable.payload),
+                sql`coalesce(${logTable.payload}->>'source', '') not in ('test_submitted', 'lfk_exercise_done')`,
+              ),
             ),
-          ),
-        );
+          );
+      });
     },
 
     async deleteAllDoneInWindow(params) {
-      const db = getDrizzle();
-      await db
-        .delete(logTable)
-        .where(
-          and(
-            eq(logTable.instanceId, params.instanceId),
-            eq(logTable.patientUserId, params.patientUserId),
-            eq(logTable.instanceStageItemId, params.instanceStageItemId),
-            eq(logTable.actionType, "done"),
-            gte(logTable.createdAt, params.windowStartIso),
-            lt(logTable.createdAt, params.windowEndIso),
-          ),
-        );
+      await runDrizzleMutationTransaction(async (tx) => {
+        await tx
+          .delete(logTable)
+          .where(
+            and(
+              eq(logTable.instanceId, params.instanceId),
+              eq(logTable.patientUserId, params.patientUserId),
+              eq(logTable.instanceStageItemId, params.instanceStageItemId),
+              eq(logTable.actionType, "done"),
+              gte(logTable.createdAt, params.windowStartIso),
+              lt(logTable.createdAt, params.windowEndIso),
+            ),
+          );
+      });
     },
 
     async listDoneItemIdsInWindow(params) {

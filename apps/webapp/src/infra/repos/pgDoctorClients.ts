@@ -977,6 +977,27 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return this.getClientIdentity(userId);
     },
 
+    async getClientIdentityForOrganization(userId: string, organizationId: string): Promise<ClientIdentity | null> {
+      const pool = getPool();
+      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const membershipRow = await runWebappPgText<{ id: string }>(
+        `SELECT pu.id
+         FROM platform_users pu
+         WHERE pu.id = $1::uuid
+           AND pu.role = 'client'
+           AND EXISTS (
+             SELECT 1
+             FROM org_enrollments oe
+             WHERE oe.platform_user_id = pu.id
+               AND oe.organization_id = $2::uuid
+               AND oe.status = 'active'
+           )`,
+        [canonicalId, organizationId],
+      );
+      if (!membershipRow.rows[0]) return null;
+      return this.getClientIdentity(canonicalId);
+    },
+
     async getPlatformUserRole(userId: string): Promise<string | null> {
       const roleRow = await runWebappPgText<{ role: string }>(
         `SELECT role FROM platform_users WHERE id = $1::uuid`,

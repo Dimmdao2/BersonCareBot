@@ -1,7 +1,9 @@
 import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   getDrizzleOrMutationTx,
+  runDrizzleMutationTransaction,
   runInDrizzleMutationTransaction,
 } from "@/infra/db/drizzleMutationTx";
 import {
@@ -72,6 +74,7 @@ function sameUuidOrder(a: string[], b: string[]): boolean {
 function mapInstance(row: typeof instTable.$inferSelect): TreatmentProgramInstanceSummary {
   return {
     id: row.id,
+    organizationId: row.organizationId ?? null,
     patientUserId: row.patientUserId,
     templateId: row.templateId ?? null,
     assignedBy: row.assignedBy ?? null,
@@ -82,6 +85,20 @@ function mapInstance(row: typeof instTable.$inferSelect): TreatmentProgramInstan
     updatedAt: row.updatedAt,
     patientPlanLastOpenedAt: row.patientPlanLastOpenedAt ?? null,
   };
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
 }
 
 function mapStage(row: typeof stageTable.$inferSelect): TreatmentProgramInstanceStageRow {
@@ -178,10 +195,10 @@ function toDetail(
 }
 
 async function touchInstanceUpdatedAt(
-  db: Pick<ReturnType<typeof getDrizzle>, "update">,
+  executor: Pick<ReturnType<typeof getDrizzle>, "update">,
   instanceId: string,
 ): Promise<void> {
-  await db
+  await executor
     .update(instTable)
     .set({ updatedAt: new Date().toISOString() })
     .where(eq(instTable.id, instanceId));
@@ -190,11 +207,11 @@ async function touchInstanceUpdatedAt(
 export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstancePort {
   return {
     async createInstanceTree(input: CreateTreatmentProgramInstanceTreeInput): Promise<TreatmentProgramInstanceDetail> {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const [inst] = await tx
           .insert(instTable)
           .values({
+            organizationId: currentWriteOrganizationId(),
             templateId: input.templateId,
             patientUserId: input.patientUserId,
             assignedBy: input.assignedBy,
@@ -211,6 +228,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           const [srow] = await tx
             .insert(stageTable)
             .values({
+              organizationId: currentWriteOrganizationId(inst.organizationId),
               instanceId: inst.id,
               sourceStageId: stResolved.sourceStageId,
               title: stResolved.title,
@@ -252,6 +270,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
             const [grow] = await tx
               .insert(instGroupTable)
               .values({
+                organizationId: currentWriteOrganizationId(srow.organizationId, inst.organizationId),
                 stageId: srow.id,
                 sourceGroupId: g.sourceGroupId ?? null,
                 title: g.title,
@@ -290,6 +309,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
               );
             }
             await tx.insert(itemTable).values({
+              organizationId: currentWriteOrganizationId(srow.organizationId, inst.organizationId),
               stageId: srow.id,
               itemType: it.itemType,
               itemRefId: it.itemRefId,
@@ -459,36 +479,36 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       stageItemId: string,
       localComment: string | null,
     ): Promise<TreatmentProgramInstanceStageItemRow | null> {
-      const db = getDrizzleOrMutationTx();
-      const inst = await db.query.treatmentProgramInstances.findFirst({
-        where: eq(instTable.id, instanceId),
-      });
-      if (!inst) return null;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const inst = await tx.query.treatmentProgramInstances.findFirst({
+          where: eq(instTable.id, instanceId),
+        });
+        if (!inst) return null;
 
-      const itemRow = await db.query.treatmentProgramInstanceStageItems.findFirst({
-        where: eq(itemTable.id, stageItemId),
-      });
-      if (!itemRow) return null;
-      const stageRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, itemRow.stageId),
-      });
-      if (!stageRow || stageRow.instanceId !== instanceId) return null;
+        const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(itemTable.id, stageItemId),
+        });
+        if (!itemRow) return null;
+        const stageRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, itemRow.stageId),
+        });
+        if (!stageRow || stageRow.instanceId !== instanceId) return null;
 
-      const nextLocal = localComment === null ? null : localComment.trim() || null;
+        const nextLocal = localComment === null ? null : localComment.trim() || null;
 
-      const [updated] = await db
-        .update(itemTable)
-        .set({ localComment: nextLocal })
-        .where(eq(itemTable.id, stageItemId))
-        .returning();
-      return updated ? mapItem(updated) : null;
+        const [updated] = await tx
+          .update(itemTable)
+          .set({ localComment: nextLocal })
+          .where(eq(itemTable.id, stageItemId))
+          .returning();
+        return updated ? mapItem(updated) : null;
+      });
     },
 
     async updateInstanceMeta(
       instanceId: string,
       patch: { title?: string; status?: "active" | "completed" },
     ): Promise<TreatmentProgramInstanceSummary | null> {
-      const db = getDrizzleOrMutationTx();
       const rowPatch: Partial<typeof instTable.$inferInsert> = {
         updatedAt: new Date().toISOString(),
       };
@@ -498,8 +518,10 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         rowPatch.title = t;
       }
       if (patch.status !== undefined) rowPatch.status = patch.status;
-      const [row] = await db.update(instTable).set(rowPatch).where(eq(instTable.id, instanceId)).returning();
-      return row ? mapInstance(row) : null;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const [row] = await tx.update(instTable).set(rowPatch).where(eq(instTable.id, instanceId)).returning();
+        return row ? mapInstance(row) : null;
+      });
     },
 
     async updateInstanceStage(
@@ -507,8 +529,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       stageId: string,
       patch: { status: TreatmentProgramInstanceStageStatus; skipReason?: string | null },
     ) {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
           where: eq(stageTable.id, stageId),
         });
@@ -566,66 +587,67 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       stageId: string,
       patch: UpdateTreatmentProgramInstanceStageMetadataInput,
     ) {
-      const db = getDrizzleOrMutationTx();
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, stageId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return null;
+
+        const rowPatch: Partial<typeof stageTable.$inferInsert> = {};
+        if (patch.title !== undefined) {
+          const t = patch.title.trim();
+          if (!t) return null;
+          rowPatch.title = t;
+        }
+        if (patch.description !== undefined) rowPatch.description = patch.description;
+        if (patch.goals !== undefined) rowPatch.goals = patch.goals;
+        if (patch.objectives !== undefined) rowPatch.objectives = patch.objectives;
+        if (patch.expectedDurationDays !== undefined) {
+          rowPatch.expectedDurationDays = patch.expectedDurationDays;
+        }
+        if (patch.expectedDurationText !== undefined) {
+          rowPatch.expectedDurationText = patch.expectedDurationText;
+        }
+
+        const [updated] = await tx
+          .update(stageTable)
+          .set(rowPatch)
+          .where(eq(stageTable.id, stageId))
+          .returning();
+        if (!updated) return null;
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return mapStage(updated);
       });
-      if (!stRow || stRow.instanceId !== instanceId) return null;
-
-      const rowPatch: Partial<typeof stageTable.$inferInsert> = {};
-      if (patch.title !== undefined) {
-        const t = patch.title.trim();
-        if (!t) return null;
-        rowPatch.title = t;
-      }
-      if (patch.description !== undefined) rowPatch.description = patch.description;
-      if (patch.goals !== undefined) rowPatch.goals = patch.goals;
-      if (patch.objectives !== undefined) rowPatch.objectives = patch.objectives;
-      if (patch.expectedDurationDays !== undefined) {
-        rowPatch.expectedDurationDays = patch.expectedDurationDays;
-      }
-      if (patch.expectedDurationText !== undefined) {
-        rowPatch.expectedDurationText = patch.expectedDurationText;
-      }
-
-      const [updated] = await db
-        .update(stageTable)
-        .set(rowPatch)
-        .where(eq(stageTable.id, stageId))
-        .returning();
-      if (!updated) return null;
-      await touchInstanceUpdatedAt(db, instanceId);
-      return mapStage(updated);
     },
 
     async setStageItemCompletedAt(instanceId: string, itemId: string, completedAt: string | null) {
-      const db = getDrizzleOrMutationTx();
-      const inst = await db.query.treatmentProgramInstances.findFirst({
-        where: eq(instTable.id, instanceId),
-      });
-      if (!inst) return null;
+      return runDrizzleMutationTransaction(async (tx) => {
+        const inst = await tx.query.treatmentProgramInstances.findFirst({
+          where: eq(instTable.id, instanceId),
+        });
+        if (!inst) return null;
 
-      const itemRow = await db.query.treatmentProgramInstanceStageItems.findFirst({
-        where: eq(itemTable.id, itemId),
-      });
-      if (!itemRow) return null;
-      const stageRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, itemRow.stageId),
-      });
-      if (!stageRow || stageRow.instanceId !== instanceId) return null;
+        const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(itemTable.id, itemId),
+        });
+        if (!itemRow) return null;
+        const stageRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, itemRow.stageId),
+        });
+        if (!stageRow || stageRow.instanceId !== instanceId) return null;
 
-      const [updated] = await db
-        .update(itemTable)
-        .set({ completedAt })
-        .where(eq(itemTable.id, itemId))
-        .returning();
-      if (updated) await touchInstanceUpdatedAt(db, instanceId);
-      return updated ? mapItem(updated) : null;
+        const [updated] = await tx
+          .update(itemTable)
+          .set({ completedAt })
+          .where(eq(itemTable.id, itemId))
+          .returning();
+        if (updated) await touchInstanceUpdatedAt(tx, instanceId);
+        return updated ? mapItem(updated) : null;
+      });
     },
 
     async addInstanceStage(instanceId: string, input: AddTreatmentProgramInstanceStageInput) {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const inst = await tx.query.treatmentProgramInstances.findFirst({
           where: eq(instTable.id, instanceId),
         });
@@ -633,6 +655,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         const [srow] = await tx
           .insert(stageTable)
           .values({
+            organizationId: currentWriteOrganizationId(inst.organizationId),
             instanceId,
             sourceStageId: input.sourceStageId ?? null,
             title: input.title,
@@ -651,6 +674,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         if (!srow) return null;
         if (input.sortOrder > 0) {
           await tx.insert(instGroupTable).values({
+            organizationId: currentWriteOrganizationId(srow.organizationId, inst.organizationId),
             stageId: srow.id,
             sourceGroupId: null,
             title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
@@ -660,6 +684,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
             systemKind: "recommendations",
           });
           await tx.insert(instGroupTable).values({
+            organizationId: currentWriteOrganizationId(srow.organizationId, inst.organizationId),
             stageId: srow.id,
             sourceGroupId: null,
             title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
@@ -675,14 +700,15 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     },
 
     async removeInstanceStage(instanceId: string, stageId: string) {
-      const db = getDrizzleOrMutationTx();
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, stageId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return false;
+        await tx.delete(stageTable).where(eq(stageTable.id, stageId));
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return true;
       });
-      if (!stRow || stRow.instanceId !== instanceId) return false;
-      await db.delete(stageTable).where(eq(stageTable.id, stageId));
-      await touchInstanceUpdatedAt(db, instanceId);
-      return true;
     },
 
     async addInstanceStageItem(
@@ -690,37 +716,39 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       stageId: string,
       input: AddTreatmentProgramInstanceStageItemInput,
     ) {
-      const db = getDrizzleOrMutationTx();
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, stageId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return null;
+        if (input.groupId) {
+          const grRows = await tx.select().from(instGroupTable).where(eq(instGroupTable.id, input.groupId)).limit(1);
+          const gr = grRows[0];
+          if (!gr || gr.stageId !== stageId) return null;
+        }
+        const [irow] = await tx
+          .insert(itemTable)
+          .values({
+            organizationId: currentWriteOrganizationId(stRow.organizationId),
+            stageId,
+            itemType: input.itemType,
+            itemRefId: input.itemRefId,
+            sortOrder: input.sortOrder,
+            comment: input.comment,
+            localComment: null,
+            settings: input.settings ?? undefined,
+            snapshot: input.snapshot,
+            completedAt: null,
+            isActionable: input.isActionable ?? null,
+            status: input.status ?? "active",
+            groupId: input.groupId ?? null,
+            lastViewedAt: null,
+          })
+          .returning();
+        if (!irow) return null;
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return mapItem(irow);
       });
-      if (!stRow || stRow.instanceId !== instanceId) return null;
-      if (input.groupId) {
-        const grRows = await db.select().from(instGroupTable).where(eq(instGroupTable.id, input.groupId)).limit(1);
-        const gr = grRows[0];
-        if (!gr || gr.stageId !== stageId) return null;
-      }
-      const [irow] = await db
-        .insert(itemTable)
-        .values({
-          stageId,
-          itemType: input.itemType,
-          itemRefId: input.itemRefId,
-          sortOrder: input.sortOrder,
-          comment: input.comment,
-          localComment: null,
-          settings: input.settings ?? undefined,
-          snapshot: input.snapshot,
-          completedAt: null,
-          isActionable: input.isActionable ?? null,
-          status: input.status ?? "active",
-          groupId: input.groupId ?? null,
-          lastViewedAt: null,
-        })
-        .returning();
-      if (!irow) return null;
-      await touchInstanceUpdatedAt(db, instanceId);
-      return mapItem(irow);
     },
 
     async createFreeformRecommendationAndStageItem(input: {
@@ -730,8 +758,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       bodyMd: string;
       createdBy: string | null;
     }): Promise<{ item: TreatmentProgramInstanceStageItemRow; recommendationId: string } | null> {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
           where: eq(stageTable.id, input.stageId),
         });
@@ -744,6 +771,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         const [rec] = await tx
           .insert(recommendationsTable)
           .values({
+            organizationId: currentWriteOrganizationId(stRow.organizationId),
             title,
             bodyMd,
             tags: [TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG],
@@ -770,6 +798,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         const [irow] = await tx
           .insert(itemTable)
           .values({
+            organizationId: currentWriteOrganizationId(stRow.organizationId),
             stageId: input.stageId,
             itemType: "recommendation",
             itemRefId: rec.id,
@@ -795,9 +824,8 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     async expandTestSetIntoInstanceStageItems(
       input: ExpandTestSetIntoInstanceStageItemsPortInput,
     ): Promise<ExpandTestSetIntoInstanceStageItemsResult | null> {
-      const db = getDrizzleOrMutationTx();
       const snapshots = createPgTreatmentProgramItemSnapshotPort();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
           where: eq(stageTable.id, input.stageId),
         });
@@ -862,6 +890,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           const [irow] = await tx
             .insert(itemTable)
             .values({
+              organizationId: currentWriteOrganizationId(stRow.organizationId),
               stageId: input.stageId,
               itemType: "clinical_test",
               itemRefId: line.testId,
@@ -882,7 +911,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           inserted.push(mapItem(irow));
           added += 1;
         }
-        await touchInstanceUpdatedAt(db, input.instanceId);
+        await touchInstanceUpdatedAt(tx, input.instanceId);
         return { added, skipped, items: inserted };
       });
     },
@@ -890,9 +919,8 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     async expandLfkComplexIntoInstanceStageItems(
       input: ExpandLfkComplexIntoInstanceStageItemsPortInput,
     ): Promise<ExpandLfkComplexIntoInstanceStageItemsResult | null> {
-      const db = getDrizzleOrMutationTx();
       const snapshots = createPgTreatmentProgramItemSnapshotPort();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
           where: eq(stageTable.id, input.stageId),
         });
@@ -949,6 +977,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           const [irow] = await tx
             .insert(itemTable)
             .values({
+              organizationId: currentWriteOrganizationId(stRow.organizationId),
               stageId: input.stageId,
               itemType: "exercise",
               itemRefId: exerciseId,
@@ -986,41 +1015,42 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         settings?: Record<string, unknown> | null;
       },
     ) {
-      const db = getDrizzleOrMutationTx();
-      const itemRow = await db.query.treatmentProgramInstanceStageItems.findFirst({
-        where: eq(itemTable.id, itemId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(itemTable.id, itemId),
+        });
+        if (!itemRow) return null;
+        const stageRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, itemRow.stageId),
+        });
+        if (!stageRow || stageRow.instanceId !== instanceId) return null;
+
+        if (patch.groupId !== undefined && patch.groupId !== null) {
+          const gr = await tx
+            .select()
+            .from(instGroupTable)
+            .where(eq(instGroupTable.id, patch.groupId))
+            .limit(1);
+          const g = gr[0];
+          if (!g || g.stageId !== itemRow.stageId) return null;
+        }
+
+        const rowPatch: Partial<typeof itemTable.$inferInsert> = {};
+        if (patch.status !== undefined) rowPatch.status = patch.status;
+        if (patch.isActionable !== undefined) rowPatch.isActionable = patch.isActionable;
+        if (patch.groupId !== undefined) rowPatch.groupId = patch.groupId;
+        if (patch.settings !== undefined) rowPatch.settings = patch.settings;
+
+        if (Object.keys(rowPatch).length === 0) return mapItem(itemRow);
+
+        const [updated] = await tx
+          .update(itemTable)
+          .set(rowPatch)
+          .where(eq(itemTable.id, itemId))
+          .returning();
+        if (updated) await touchInstanceUpdatedAt(tx, instanceId);
+        return updated ? mapItem(updated) : null;
       });
-      if (!itemRow) return null;
-      const stageRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, itemRow.stageId),
-      });
-      if (!stageRow || stageRow.instanceId !== instanceId) return null;
-
-      if (patch.groupId !== undefined && patch.groupId !== null) {
-        const gr = await db
-          .select()
-          .from(instGroupTable)
-          .where(eq(instGroupTable.id, patch.groupId))
-          .limit(1);
-        const g = gr[0];
-        if (!g || g.stageId !== itemRow.stageId) return null;
-      }
-
-      const rowPatch: Partial<typeof itemTable.$inferInsert> = {};
-      if (patch.status !== undefined) rowPatch.status = patch.status;
-      if (patch.isActionable !== undefined) rowPatch.isActionable = patch.isActionable;
-      if (patch.groupId !== undefined) rowPatch.groupId = patch.groupId;
-      if (patch.settings !== undefined) rowPatch.settings = patch.settings;
-
-      if (Object.keys(rowPatch).length === 0) return mapItem(itemRow);
-
-      const [updated] = await db
-        .update(itemTable)
-        .set(rowPatch)
-        .where(eq(itemTable.id, itemId))
-        .returning();
-      if (updated) await touchInstanceUpdatedAt(db, instanceId);
-      return updated ? mapItem(updated) : null;
     },
 
     async patchInstanceStageItemWithEvent(
@@ -1043,9 +1073,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       if (patch.groupId !== undefined) rowPatch.groupId = patch.groupId;
       if (patch.settings !== undefined) rowPatch.settings = patch.settings;
       if (Object.keys(rowPatch).length === 0) return null;
-
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({
           where: eq(itemTable.id, itemId),
         });
@@ -1078,6 +1106,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           .where(eq(instTable.id, instanceId));
 
         await tx.insert(eventTable).values({
+          organizationId: currentWriteOrganizationId(stageRow.organizationId),
           instanceId: eventInput.instanceId,
           actorId: eventInput.actorId,
           eventType: eventInput.eventType,
@@ -1092,8 +1121,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     },
 
     async deleteInstanceStageItem(instanceId: string, itemId: string): Promise<boolean> {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const joined = await tx
           .select({
             item: itemTable,
@@ -1134,41 +1162,41 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       itemId: string,
       input: ReplaceTreatmentProgramInstanceStageItemInput,
     ) {
-      const db = getDrizzleOrMutationTx();
-      const itemRow = await db.query.treatmentProgramInstanceStageItems.findFirst({
-        where: eq(itemTable.id, itemId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(itemTable.id, itemId),
+        });
+        if (!itemRow) return null;
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, itemRow.stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return null;
+        const [updated] = await tx
+          .update(itemTable)
+          .set({
+            itemType: input.itemType,
+            itemRefId: input.itemRefId,
+            sortOrder: input.sortOrder ?? itemRow.sortOrder,
+            comment: input.comment === undefined ? itemRow.comment : input.comment,
+            settings: input.settings === undefined ? itemRow.settings : input.settings,
+            snapshot: input.snapshot,
+            completedAt: null,
+            status: "active",
+            isActionable: null,
+            groupId: null,
+            lastViewedAt: null,
+            createdAt: new Date().toISOString(),
+          })
+          .where(eq(itemTable.id, itemId))
+          .returning();
+        if (!updated) return null;
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return mapItem(updated);
       });
-      if (!itemRow) return null;
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, itemRow.stageId),
-      });
-      if (!stRow || stRow.instanceId !== instanceId) return null;
-      const [updated] = await db
-        .update(itemTable)
-        .set({
-          itemType: input.itemType,
-          itemRefId: input.itemRefId,
-          sortOrder: input.sortOrder ?? itemRow.sortOrder,
-          comment: input.comment === undefined ? itemRow.comment : input.comment,
-          settings: input.settings === undefined ? itemRow.settings : input.settings,
-          snapshot: input.snapshot,
-          completedAt: null,
-          status: "active",
-          isActionable: null,
-          groupId: null,
-          lastViewedAt: null,
-          createdAt: new Date().toISOString(),
-        })
-        .where(eq(itemTable.id, itemId))
-        .returning();
-      if (!updated) return null;
-      await touchInstanceUpdatedAt(db, instanceId);
-      return mapItem(updated);
     },
 
     async reorderInstanceStages(instanceId: string, orderedStageIds: string[]) {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const stagesRows = await tx
           .select({ id: stageTable.id, sortOrder: stageTable.sortOrder })
           .from(stageTable)
@@ -1192,8 +1220,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     },
 
     async reorderInstanceStageItems(instanceId: string, stageId: string, orderedItemIds: string[]) {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
           where: eq(stageTable.id, stageId),
         });
@@ -1223,33 +1250,35 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       stageId: string,
       input: CreateTreatmentProgramInstanceStageGroupInput,
     ) {
-      const db = getDrizzleOrMutationTx();
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, stageId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return null;
+        const title = input.title?.trim() ?? "";
+        if (!title) return null;
+        const [{ max }] = await tx
+          .select({ max: sql<number>`coalesce(max(${instGroupTable.sortOrder}), -1)` })
+          .from(instGroupTable)
+          .where(eq(instGroupTable.stageId, stageId));
+        const sortOrder = input.sortOrder ?? max + 1;
+        const [row] = await tx
+          .insert(instGroupTable)
+          .values({
+            organizationId: currentWriteOrganizationId(stRow.organizationId),
+            stageId,
+            sourceGroupId: null,
+            title,
+            description: input.description?.trim() ?? null,
+            scheduleText: input.scheduleText?.trim() ?? null,
+            sortOrder,
+            systemKind: null,
+          })
+          .returning();
+        if (!row) return null;
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return mapInstanceGroup(row);
       });
-      if (!stRow || stRow.instanceId !== instanceId) return null;
-      const title = input.title?.trim() ?? "";
-      if (!title) return null;
-      const [{ max }] = await db
-        .select({ max: sql<number>`coalesce(max(${instGroupTable.sortOrder}), -1)` })
-        .from(instGroupTable)
-        .where(eq(instGroupTable.stageId, stageId));
-      const sortOrder = input.sortOrder ?? max + 1;
-      const [row] = await db
-        .insert(instGroupTable)
-        .values({
-          stageId,
-          sourceGroupId: null,
-          title,
-          description: input.description?.trim() ?? null,
-          scheduleText: input.scheduleText?.trim() ?? null,
-          sortOrder,
-          systemKind: null,
-        })
-        .returning();
-      if (!row) return null;
-      await touchInstanceUpdatedAt(db, instanceId);
-      return mapInstanceGroup(row);
     },
 
     async updateInstanceStageGroup(
@@ -1257,50 +1286,51 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       groupId: string,
       input: UpdateTreatmentProgramInstanceStageGroupInput,
     ) {
-      const db = getDrizzleOrMutationTx();
-      const grRows = await db.select().from(instGroupTable).where(eq(instGroupTable.id, groupId)).limit(1);
-      const gr = grRows[0];
-      if (!gr) return null;
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, gr.stageId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const grRows = await tx.select().from(instGroupTable).where(eq(instGroupTable.id, groupId)).limit(1);
+        const gr = grRows[0];
+        if (!gr) return null;
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, gr.stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return null;
+        const patch: Partial<typeof instGroupTable.$inferInsert> = {};
+        const isSystem = gr.systemKind === "recommendations" || gr.systemKind === "tests";
+        if (input.title !== undefined && !isSystem) {
+          const t = input.title.trim();
+          if (!t) return null;
+          patch.title = t;
+        }
+        if (input.description !== undefined && !isSystem) patch.description = input.description?.trim() ?? null;
+        if (input.scheduleText !== undefined && !isSystem) patch.scheduleText = input.scheduleText?.trim() ?? null;
+        if (input.sortOrder !== undefined && !isSystem) patch.sortOrder = input.sortOrder;
+        if (Object.keys(patch).length === 0) return mapInstanceGroup(gr);
+        const [row] = await tx.update(instGroupTable).set(patch).where(eq(instGroupTable.id, groupId)).returning();
+        if (!row) return null;
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return mapInstanceGroup(row);
       });
-      if (!stRow || stRow.instanceId !== instanceId) return null;
-      const patch: Partial<typeof instGroupTable.$inferInsert> = {};
-      const isSystem = gr.systemKind === "recommendations" || gr.systemKind === "tests";
-      if (input.title !== undefined && !isSystem) {
-        const t = input.title.trim();
-        if (!t) return null;
-        patch.title = t;
-      }
-      if (input.description !== undefined && !isSystem) patch.description = input.description?.trim() ?? null;
-      if (input.scheduleText !== undefined && !isSystem) patch.scheduleText = input.scheduleText?.trim() ?? null;
-      if (input.sortOrder !== undefined && !isSystem) patch.sortOrder = input.sortOrder;
-      if (Object.keys(patch).length === 0) return mapInstanceGroup(gr);
-      const [row] = await db.update(instGroupTable).set(patch).where(eq(instGroupTable.id, groupId)).returning();
-      if (!row) return null;
-      await touchInstanceUpdatedAt(db, instanceId);
-      return mapInstanceGroup(row);
     },
 
     async deleteInstanceStageGroup(instanceId: string, groupId: string) {
-      const db = getDrizzleOrMutationTx();
-      const grRows = await db.select().from(instGroupTable).where(eq(instGroupTable.id, groupId)).limit(1);
-      const gr = grRows[0];
-      if (!gr) return false;
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, gr.stageId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const grRows = await tx.select().from(instGroupTable).where(eq(instGroupTable.id, groupId)).limit(1);
+        const gr = grRows[0];
+        if (!gr) return false;
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, gr.stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return false;
+        if (gr.systemKind === "recommendations" || gr.systemKind === "tests") return false;
+        await tx.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
+        const res = await tx.delete(instGroupTable).where(eq(instGroupTable.id, groupId)).returning({ id: instGroupTable.id });
+        if (res.length > 0) await touchInstanceUpdatedAt(tx, instanceId);
+        return res.length > 0;
       });
-      if (!stRow || stRow.instanceId !== instanceId) return false;
-      if (gr.systemKind === "recommendations" || gr.systemKind === "tests") return false;
-      await db.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
-      const res = await db.delete(instGroupTable).where(eq(instGroupTable.id, groupId)).returning({ id: instGroupTable.id });
-      if (res.length > 0) await touchInstanceUpdatedAt(db, instanceId);
-      return res.length > 0;
     },
 
     async reorderInstanceStageGroups(instanceId: string, stageId: string, orderedGroupIds: string[]) {
-      const db = getDrizzleOrMutationTx();
-      return db.transaction(async (tx) => {
+      return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
           where: eq(stageTable.id, stageId),
         });
@@ -1329,12 +1359,13 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     },
 
     async touchPatientPlanLastOpenedAt(patientUserId: string, instanceId: string): Promise<void> {
-      const db = getDrizzleOrMutationTx();
       const now = new Date().toISOString();
-      await db
-        .update(instTable)
-        .set({ patientPlanLastOpenedAt: now, updatedAt: now })
-        .where(and(eq(instTable.id, instanceId), eq(instTable.patientUserId, patientUserId)));
+      await runDrizzleMutationTransaction(async (tx) => {
+        await tx
+          .update(instTable)
+          .set({ patientPlanLastOpenedAt: now, updatedAt: now })
+          .where(and(eq(instTable.id, instanceId), eq(instTable.patientUserId, patientUserId)));
+      });
     },
 
     async markStageItemViewedIfNever(
@@ -1342,26 +1373,27 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       instanceId: string,
       stageItemId: string,
     ): Promise<{ updated: boolean }> {
-      const db = getDrizzleOrMutationTx();
       const now = new Date().toISOString();
-      const itemRow = await db.query.treatmentProgramInstanceStageItems.findFirst({
-        where: eq(itemTable.id, stageItemId),
+      return runDrizzleMutationTransaction(async (tx) => {
+        const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(itemTable.id, stageItemId),
+        });
+        if (!itemRow || itemRow.lastViewedAt != null) return { updated: false };
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, itemRow.stageId),
+        });
+        if (!stRow || stRow.instanceId !== instanceId) return { updated: false };
+        const instRow = await tx.query.treatmentProgramInstances.findFirst({
+          where: and(eq(instTable.id, instanceId), eq(instTable.patientUserId, patientUserId)),
+        });
+        if (!instRow) return { updated: false };
+        const [u] = await tx
+          .update(itemTable)
+          .set({ lastViewedAt: now })
+          .where(and(eq(itemTable.id, stageItemId), isNull(itemTable.lastViewedAt)))
+          .returning({ id: itemTable.id });
+        return { updated: Boolean(u) };
       });
-      if (!itemRow || itemRow.lastViewedAt != null) return { updated: false };
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
-        where: eq(stageTable.id, itemRow.stageId),
-      });
-      if (!stRow || stRow.instanceId !== instanceId) return { updated: false };
-      const instRow = await db.query.treatmentProgramInstances.findFirst({
-        where: and(eq(instTable.id, instanceId), eq(instTable.patientUserId, patientUserId)),
-      });
-      if (!instRow) return { updated: false };
-      const [u] = await db
-        .update(itemTable)
-        .set({ lastViewedAt: now })
-        .where(and(eq(itemTable.id, stageItemId), isNull(itemTable.lastViewedAt)))
-        .returning({ id: itemTable.id });
-      return { updated: Boolean(u) };
     },
 
     async runInMutationTransaction<T>(fn: () => Promise<T>): Promise<T> {

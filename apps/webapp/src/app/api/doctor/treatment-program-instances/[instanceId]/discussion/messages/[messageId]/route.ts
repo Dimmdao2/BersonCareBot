@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 export async function DELETE(
   _request: Request,
   context: { params: Promise<{ instanceId: string; messageId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { instanceId, messageId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(messageId).success) {
@@ -21,7 +18,7 @@ export async function DELETE(
 
   const deps = buildAppDeps();
   const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-  if (!instance) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!instance || instance.organizationId !== gate.ctx.organizationId) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   const identity = await deps.doctorClientsPort.getClientIdentity(instance.patientUserId);
   if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
@@ -31,10 +28,12 @@ export async function DELETE(
   }
 
   try {
-    await deps.programItemDiscussion.deletePatientMediaMessage({
-      messageId,
-      patientUserId: instance.patientUserId,
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.programItemDiscussion.deletePatientMediaMessage({
+        messageId,
+        patientUserId: instance.patientUserId,
+      }),
+    );
     return NextResponse.json({ ok: true, deleted: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
