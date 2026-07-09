@@ -6,6 +6,9 @@ const mutatingRouteFiles = [
   "src/app/api/doctor/clients/[userId]/notes/route.ts",
   "src/app/api/doctor/clients/[userId]/support-settings/route.ts",
   "src/app/api/doctor/clients/[userId]/tasks/route.ts",
+  "src/app/api/doctor/clients/[userId]/booking-profile/route.ts",
+  "src/app/api/doctor/clients/[userId]/warmup-schedule/route.ts",
+  "src/app/api/doctor/clients/[userId]/symptom-trackings/route.ts",
   "src/app/api/doctor/comments/route.ts",
   "src/app/api/doctor/comments/[id]/route.ts",
   "src/app/api/doctor/online-intake/[id]/reply/route.ts",
@@ -60,6 +63,9 @@ describe("doctor support/task workspace principal cutover", () => {
       "src/app/api/doctor/clients/[userId]/notes/route.ts",
       "src/app/api/doctor/clients/[userId]/support-settings/route.ts",
       "src/app/api/doctor/clients/[userId]/tasks/route.ts",
+      "src/app/api/doctor/clients/[userId]/booking-profile/route.ts",
+      "src/app/api/doctor/clients/[userId]/warmup-schedule/route.ts",
+      "src/app/api/doctor/clients/[userId]/symptom-trackings/route.ts",
       "src/app/api/doctor/messages/conversations/ensure/route.ts",
       "src/app/api/doctor/tasks/route.ts",
     ]) {
@@ -139,5 +145,26 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(repo).toContain("currentWriteOrganizationId");
     expect(repo).toContain("organization_principal_mismatch");
     expect(repo).toContain("organization_id, from_status, to_status");
+  });
+
+  it("doctor client-card schedule and booking writes use selected workspace organization", () => {
+    const bookingProfileRoute = readSource("src/app/api/doctor/clients/[userId]/booking-profile/route.ts");
+    expect(bookingProfileRoute).not.toContain("getDefaultOrganizationId");
+    expect(bookingProfileRoute).toContain("organizationId: gate.ctx.organizationId");
+    expect(bookingProfileRoute).toContain("getBookingProfile(gate.ctx.organizationId, userId)");
+
+    const warmupRoute = readSource("src/app/api/doctor/clients/[userId]/warmup-schedule/route.ts");
+    expect(warmupRoute).toContain("deps.reminders.listRulesByUser(userId)");
+    expect(warmupRoute).toContain("deps.reminders.updateRule(userId, warmupRule.id");
+    expect(warmupRoute).toContain("withDoctorWorkspacePrincipal(gate.ctx");
+
+    const reminderRulesRepo = readSource("src/infra/repos/pgReminderRules.ts");
+    expect(reminderRulesRepo).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(reminderRulesRepo).toContain("ruleOrgScopeSql");
+    expect(reminderRulesRepo).toContain("organization_id = COALESCE(organization_id");
+
+    const symptomDiaryRepo = readSource("src/infra/repos/pgSymptomDiary.ts");
+    expect(symptomDiaryRepo).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(symptomDiaryRepo).toContain("organization_id");
   });
 });

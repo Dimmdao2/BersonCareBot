@@ -6,9 +6,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { runWebappPgTextMock } = vi.hoisted(() => ({
   runWebappPgTextMock: vi.fn(),
 }));
+const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn<() => string | undefined>());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
+}));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
 }));
 
 import { pgSymptomDiaryPort } from "./pgSymptomDiary";
@@ -29,6 +34,51 @@ describe("pgSymptomDiary (runtime constraints)", () => {
 describe("pgSymptomDiaryPort (repo SQL parity)", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
+  });
+
+  it("createTracking stamps current organization principal", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "tr-1",
+          user_id: uid,
+          platform_user_id: uid,
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          symptom_key: null,
+          symptom_title: "Боль",
+          is_active: true,
+          created_at: "2026-06-06T00:00:00.000Z",
+          updated_at: "2026-06-06T00:00:00.000Z",
+          symptom_type_ref_id: null,
+          region_ref_id: null,
+          side: null,
+          diagnosis_text: null,
+          diagnosis_ref_id: null,
+          stage_ref_id: null,
+          deleted_at: null,
+        },
+      ],
+    });
+
+    await pgSymptomDiaryPort.createTracking({ userId: uid, symptomTitle: "Боль" });
+
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("organization_id");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      uid,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      null,
+      "Боль",
+      expect.any(Date),
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
   });
 
   it("listTrackings uses canonical user match", async () => {

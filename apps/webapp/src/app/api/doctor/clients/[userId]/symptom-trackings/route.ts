@@ -4,8 +4,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 const postBodySchema = z.object({
   symptomTitle: z.string().min(1).max(200),
@@ -21,13 +21,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -41,22 +36,27 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
   try {
-    const tracking = await deps.diaries.createSymptomTracking({
-      userId,
-      symptomTitle: parsed.data.symptomTitle.trim(),
-      symptomTypeRefId: parsed.data.symptomTypeRefId ?? null,
-      regionRefId: parsed.data.regionRefId ?? null,
-      side: parsed.data.side ?? null,
-      diagnosisText: parsed.data.diagnosisText?.trim() ? parsed.data.diagnosisText.trim() : null,
-      diagnosisRefId: parsed.data.diagnosisRefId ?? null,
-      stageRefId: parsed.data.stageRefId ?? null,
-    });
+    const tracking = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.diaries.createSymptomTracking({
+        userId,
+        symptomTitle: parsed.data.symptomTitle.trim(),
+        symptomTypeRefId: parsed.data.symptomTypeRefId ?? null,
+        regionRefId: parsed.data.regionRefId ?? null,
+        side: parsed.data.side ?? null,
+        diagnosisText: parsed.data.diagnosisText?.trim() ? parsed.data.diagnosisText.trim() : null,
+        diagnosisRefId: parsed.data.diagnosisRefId ?? null,
+        stageRefId: parsed.data.stageRefId ?? null,
+      }),
+    );
     return NextResponse.json({
       ok: true,
       tracking: {
