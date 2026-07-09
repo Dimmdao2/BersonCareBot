@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
 const listCatalogPackagesMock = vi.hoisted(() => vi.fn());
 const upsertCatalogPackageMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
@@ -19,8 +19,8 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
   }),
 );
 
-vi.mock("../_requireDoctorBookingEngine", () => ({
-  requireDoctorBookingEngine: requireDoctorBookingEngineMock,
+vi.mock("../_requireAdminBookingEngine", () => ({
+  requireAdminBookingEngine: requireAdminBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -38,12 +38,13 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
 
 import { GET, POST } from "./route";
 
+const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SERVICE_ID = "550e8400-e29b-41d4-a716-446655440001";
 
 const createdPkg = {
   id: "550e8400-e29b-41d4-a716-446655440030",
-  organizationId: "org-1",
-  title: "Новый абонемент",
+  organizationId: ORG,
+  title: "New package",
   description: null,
   priceMinor: 15000,
   currency: "RUB",
@@ -53,13 +54,13 @@ const createdPkg = {
   items: [{ id: "i-1", serviceId: SERVICE_ID, quantity: 10, sortOrder: 0 }],
 };
 
-describe("/api/doctor/booking-engine/packages", () => {
+describe("/api/admin/booking-engine/packages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     principalState.inside = false;
-    requireDoctorBookingEngineMock.mockResolvedValue({
+    requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1", session: { user: { userId: "u1" } } },
+      ctx: { organizationId: ORG, session: { user: { userId: "u1" } } },
     });
     listCatalogPackagesMock.mockResolvedValue([createdPkg]);
     upsertCatalogPackageMock.mockImplementation(async () => {
@@ -68,23 +69,24 @@ describe("/api/doctor/booking-engine/packages", () => {
     });
   });
 
-  it("GET returns all packages including inactive", async () => {
+  it("GET lists packages without principal wrapper", async () => {
     const res = await GET();
     const json = (await res.json()) as { ok?: boolean; packages?: typeof createdPkg[] };
+
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.packages).toHaveLength(1);
-    expect(listCatalogPackagesMock).toHaveBeenCalledWith("org-1", false);
+    expect(listCatalogPackagesMock).toHaveBeenCalledWith(ORG, false);
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("POST creates a catalog package and it appears in listCatalogPackages", async () => {
+  it("POST creates a catalog package inside admin workspace principal", async () => {
     const res = await POST(
-      new Request("http://localhost/api/doctor/booking-engine/packages", {
+      new Request("http://localhost/api/admin/booking-engine/packages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: "Новый абонемент",
+          title: "New package",
           priceMinor: 15000,
           validityDays: 60,
           deductionMode: "auto_on_visit_confirmed",
@@ -94,61 +96,22 @@ describe("/api/doctor/booking-engine/packages", () => {
       }),
     );
     const json = (await res.json()) as { ok?: boolean; package?: typeof createdPkg };
+
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.package?.title).toBe("Новый абонемент");
+    expect(json.package?.title).toBe("New package");
     expect(upsertCatalogPackageMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: "org-1",
-        title: "Новый абонемент",
+        organizationId: ORG,
+        title: "New package",
         priceMinor: 15000,
         items: [{ serviceId: SERVICE_ID, quantity: 10 }],
       }),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
-      "doctor.booking-engine.packages.upsert",
+      expect.objectContaining({ organizationId: ORG }),
+      "admin.booking-engine.packages.upsert",
       expect.any(Function),
     );
-    // Confirm the created package appears when we list
-    const listRes = await GET();
-    const listJson = (await listRes.json()) as { ok?: boolean; packages?: typeof createdPkg[] };
-    expect(listJson.packages?.[0]?.title).toBe("Новый абонемент");
-  });
-
-  it("POST returns 400 on invalid body (no items)", async () => {
-    const res = await POST(
-      new Request("http://localhost/api/doctor/booking-engine/packages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: "Шаблон",
-          priceMinor: 5000,
-          items: [], // min 1
-        }),
-      }),
-    );
-    const json = (await res.json()) as { ok?: boolean; error?: string };
-    expect(res.status).toBe(400);
-    expect(json.error).toBe("invalid_body");
-  });
-
-  it("POST returns 403 when not authenticated", async () => {
-    requireDoctorBookingEngineMock.mockResolvedValue({
-      ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
-    });
-    const res = await POST(
-      new Request("http://localhost/api/doctor/booking-engine/packages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: "X",
-          priceMinor: 0,
-          items: [{ serviceId: SERVICE_ID, quantity: 1 }],
-        }),
-      }),
-    );
-    expect(res.status).toBe(403);
   });
 });

@@ -17,6 +17,13 @@ function makeSelectChain(rows: unknown[]) {
   return { select, from, where, orderBy };
 }
 
+function makePackageSelectRows(rows: unknown[]) {
+  const limit = vi.fn(async () => rows);
+  const where = vi.fn(() => ({ limit }));
+  const from = vi.fn(() => ({ where }));
+  return { from, where, limit };
+}
+
 describe("createPgMembershipsPort", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,5 +73,85 @@ describe("createPgMembershipsPort", () => {
     expect(db.execute).not.toHaveBeenCalled();
     expect(txSelect.select).toHaveBeenCalledTimes(1);
     expect(dbSelect.select).not.toHaveBeenCalled();
+  });
+
+  it("upserts catalog packages in a transaction and reads the result on the transaction executor", async () => {
+    const packageId = "pkg-1";
+    const orgId = "org-1";
+    const packageRows = makePackageSelectRows([
+      {
+        id: packageId,
+        organizationId: orgId,
+        title: "Package",
+        description: null,
+        priceMinor: 15000,
+        currency: "RUB",
+        validityDays: 30,
+        deductionMode: "manual",
+        isActive: true,
+      },
+    ]);
+    const itemOrderBy = vi.fn(async () => [
+      {
+        id: "item-1",
+        packageId,
+        serviceId: "service-1",
+        quantity: 3,
+        sortOrder: 0,
+      },
+    ]);
+    const itemWhere = vi.fn(() => ({ orderBy: itemOrderBy }));
+    const itemFrom = vi.fn(() => ({ where: itemWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: packageRows.from })
+      .mockReturnValueOnce({ from: itemFrom });
+    const packageReturning = vi.fn(async () => [{ id: packageId }]);
+    const packageValues = vi.fn(() => ({ returning: packageReturning }));
+    const itemValues = vi.fn(async () => undefined);
+    const insert = vi
+      .fn()
+      .mockReturnValueOnce({ values: packageValues })
+      .mockReturnValueOnce({ values: itemValues });
+    const tx = { insert, select };
+    const db = {
+      insert: vi.fn(() => {
+        throw new Error("db insert should not run outside transaction");
+      }),
+      select: vi.fn(() => {
+        throw new Error("db select should not run outside transaction");
+      }),
+      transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    getDrizzleMock.mockReturnValue(db);
+
+    const port = createPgMembershipsPort();
+    const result = await port.upsertCatalogPackage({
+      organizationId: orgId,
+      title: "Package",
+      description: null,
+      priceMinor: 15000,
+      currency: "RUB",
+      validityDays: 30,
+      deductionMode: "manual",
+      isActive: true,
+      items: [{ serviceId: "service-1", quantity: 3 }],
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: packageId,
+        organizationId: orgId,
+        title: "Package",
+        items: [expect.objectContaining({ serviceId: "service-1", quantity: 3 })],
+      }),
+    );
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
   });
 });

@@ -247,58 +247,64 @@ export function createPgMembershipsPort(): MembershipsPort {
     },
 
     async upsertCatalogPackage(input: UpsertSubscriptionPackageInput) {
-      const db = getMembershipsDb();
-      const now = new Date().toISOString();
-      let packageId = input.id;
-      if (packageId) {
-        await db
-          .update(beSubscriptionPackages)
-          .set({
-            title: input.title,
-            description: input.description ?? null,
-            priceMinor: input.priceMinor,
-            currency: input.currency ?? "RUB",
-            validityDays: input.validityDays ?? null,
-            deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
-            isActive: input.isActive ?? true,
-            updatedAt: now,
-          })
-          .where(
-            and(eq(beSubscriptionPackages.id, packageId), eq(beSubscriptionPackages.organizationId, input.organizationId)),
+      const run = async (db: MembershipsDb) => {
+        const now = new Date().toISOString();
+        let packageId = input.id;
+        if (packageId) {
+          await db
+            .update(beSubscriptionPackages)
+            .set({
+              title: input.title,
+              description: input.description ?? null,
+              priceMinor: input.priceMinor,
+              currency: input.currency ?? "RUB",
+              validityDays: input.validityDays ?? null,
+              deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
+              isActive: input.isActive ?? true,
+              updatedAt: now,
+            })
+            .where(
+              and(eq(beSubscriptionPackages.id, packageId), eq(beSubscriptionPackages.organizationId, input.organizationId)),
+            );
+          await db.delete(bePackageItems).where(eq(bePackageItems.packageId, packageId));
+        } else {
+          const inserted = await db
+            .insert(beSubscriptionPackages)
+            .values({
+              organizationId: input.organizationId,
+              title: input.title,
+              description: input.description ?? null,
+              priceMinor: input.priceMinor,
+              currency: input.currency ?? "RUB",
+              validityDays: input.validityDays ?? null,
+              deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
+              isActive: input.isActive ?? true,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning();
+          packageId = inserted[0]!.id;
+        }
+        if (input.items.length > 0) {
+          await db.insert(bePackageItems).values(
+            input.items.map((it, idx) => ({
+              packageId: packageId!,
+              serviceId: it.serviceId,
+              quantity: it.quantity,
+              sortOrder: it.sortOrder ?? idx,
+              createdAt: now,
+            })),
           );
-        await db.delete(bePackageItems).where(eq(bePackageItems.packageId, packageId));
-      } else {
-        const inserted = await db
-          .insert(beSubscriptionPackages)
-          .values({
-            organizationId: input.organizationId,
-            title: input.title,
-            description: input.description ?? null,
-            priceMinor: input.priceMinor,
-            currency: input.currency ?? "RUB",
-            validityDays: input.validityDays ?? null,
-            deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
-            isActive: input.isActive ?? true,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning();
-        packageId = inserted[0]!.id;
+        }
+        const result = await this.getCatalogPackage(packageId!, input.organizationId);
+        if (!result) throw new Error("package_upsert_failed");
+        return result;
+      };
+      const activeTx = txStorage.getStore();
+      if (activeTx) {
+        return run(activeTx);
       }
-      if (input.items.length > 0) {
-        await db.insert(bePackageItems).values(
-          input.items.map((it, idx) => ({
-            packageId: packageId!,
-            serviceId: it.serviceId,
-            quantity: it.quantity,
-            sortOrder: it.sortOrder ?? idx,
-            createdAt: now,
-          })),
-        );
-      }
-      const result = await this.getCatalogPackage(packageId!, input.organizationId);
-      if (!result) throw new Error("package_upsert_failed");
-      return result;
+      return getDrizzle().transaction((tx) => txStorage.run(tx, () => run(tx)));
     },
 
     async getPatientPackage(id, organizationId) {

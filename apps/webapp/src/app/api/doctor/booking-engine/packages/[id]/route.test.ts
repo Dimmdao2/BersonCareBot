@@ -3,6 +3,21 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const getCatalogPackageMock = vi.hoisted(() => vi.fn());
 const upsertCatalogPackageMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
@@ -15,6 +30,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       upsertCatalogPackage: upsertCatalogPackageMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 import { GET, PATCH } from "./route";
@@ -37,11 +56,15 @@ const basePkg = {
 describe("/api/doctor/booking-engine/packages/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: "org-1", session: { user: { userId: "u1" } } },
     });
-    getCatalogPackageMock.mockResolvedValue(basePkg);
+    getCatalogPackageMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+      return basePkg;
+    });
   });
 
   it("GET returns the package", async () => {
@@ -52,6 +75,7 @@ describe("/api/doctor/booking-engine/packages/[id]", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.package?.id).toBe(PKG_ID);
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("GET returns 404 when not found", async () => {
@@ -67,7 +91,10 @@ describe("/api/doctor/booking-engine/packages/[id]", () => {
 
   it("PATCH deactivates the package", async () => {
     const updated = { ...basePkg, isActive: false };
-    upsertCatalogPackageMock.mockResolvedValue(updated);
+    upsertCatalogPackageMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return updated;
+    });
     const res = await PATCH(
       new Request("http://localhost", {
         method: "PATCH",
@@ -82,6 +109,11 @@ describe("/api/doctor/booking-engine/packages/[id]", () => {
     expect(json.package?.isActive).toBe(false);
     expect(upsertCatalogPackageMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: PKG_ID, isActive: false }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.packages.patch",
+      expect.any(Function),
     );
   });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
 const itemSchema = z.object({
@@ -34,23 +35,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
   }
+  const memberships = deps.memberships;
   // Fetch current package to merge with patch
-  const existing = await deps.memberships.getCatalogPackage(id, gate.ctx.organizationId);
+  const existing = await memberships.getCatalogPackage(id, gate.ctx.organizationId);
   if (!existing) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  const pkg = await deps.memberships.upsertCatalogPackage({
-    id,
-    organizationId: gate.ctx.organizationId,
-    title: parsed.data.title ?? existing.title,
-    description: parsed.data.description !== undefined ? parsed.data.description : existing.description,
-    priceMinor: parsed.data.priceMinor ?? existing.priceMinor,
-    currency: parsed.data.currency ?? existing.currency,
-    validityDays: parsed.data.validityDays !== undefined ? parsed.data.validityDays : existing.validityDays,
-    deductionMode: parsed.data.deductionMode ?? existing.deductionMode,
-    isActive: parsed.data.isActive !== undefined ? parsed.data.isActive : existing.isActive,
-    items: parsed.data.items ?? existing.items,
-  });
+  const pkg = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.packages.patch", () =>
+    memberships.upsertCatalogPackage({
+      id,
+      organizationId: gate.ctx.organizationId,
+      title: parsed.data.title ?? existing.title,
+      description: parsed.data.description !== undefined ? parsed.data.description : existing.description,
+      priceMinor: parsed.data.priceMinor ?? existing.priceMinor,
+      currency: parsed.data.currency ?? existing.currency,
+      validityDays: parsed.data.validityDays !== undefined ? parsed.data.validityDays : existing.validityDays,
+      deductionMode: parsed.data.deductionMode ?? existing.deductionMode,
+      isActive: parsed.data.isActive !== undefined ? parsed.data.isActive : existing.isActive,
+      items: parsed.data.items ?? existing.items,
+    }),
+  );
   return NextResponse.json({ ok: true, package: pkg });
 }
 
