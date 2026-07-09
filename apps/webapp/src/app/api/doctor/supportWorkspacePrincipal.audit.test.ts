@@ -236,6 +236,33 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getClinicalState(patientUserId))");
     expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId))");
     expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId))");
+    expect(src).toContain("withDoctorWorkspacePrincipal(workspace, () => deps.patientComorbidities.listActive(patientUserId))");
+  });
+
+  it("doctor patient comorbidity routes require selected workspace membership and principal context", () => {
+    for (const file of [
+      "src/app/api/doctor/patients/[userId]/comorbidities/route.ts",
+      "src/app/api/doctor/patients/[userId]/comorbidities/[comorbidityId]/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("getClientIdentityForOrganization");
+      expect(src).toContain("withDoctorWorkspacePrincipal");
+      expect(src).toContain("gate.ctx.organizationId");
+      expect(src).toContain("identity.userId");
+    }
+  });
+
+  it("patient comorbidities repo stamps and checks organization principal for comorbidity writes", () => {
+    const src = readSource("src/infra/repos/pgPatientComorbidities.ts");
+    expect(src).toContain("getCurrentDbPrincipalOrganizationId");
+    expect(src).toContain("runDrizzleMutationTransaction");
+    expect(src).toContain("currentPrincipalOrganizationId");
+    expect(src).toContain("currentWriteOrganizationId");
+    expect(src).toContain("organization_principal_mismatch");
+    expect(src).toContain("organization_principal_required");
+    expect(src).toContain("const organizationId = currentWriteOrganizationId");
+    expect(src).toContain("organizationId,");
   });
 
   it("doctor supplementary contact routes require selected workspace membership before contact operations", () => {

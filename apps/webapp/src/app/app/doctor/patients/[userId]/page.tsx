@@ -75,7 +75,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
     deps.patientFiles.listFiles(patientUserId),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId)),
-    deps.patientComorbidities.listActive(patientUserId),
+    withDoctorWorkspacePrincipal(workspace, () => deps.patientComorbidities.listActive(patientUserId)),
     deps.patientPayments.listPaymentsWithSummary(patientUserId),
     deps.platformUserContacts.listForPlatformUser(patientUserId),
   ]);
