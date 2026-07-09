@@ -6,6 +6,8 @@ const mutatingRouteFiles = [
   "src/app/api/doctor/clients/[userId]/notes/route.ts",
   "src/app/api/doctor/clients/[userId]/support-settings/route.ts",
   "src/app/api/doctor/clients/[userId]/tasks/route.ts",
+  "src/app/api/doctor/comments/route.ts",
+  "src/app/api/doctor/comments/[id]/route.ts",
   "src/app/api/doctor/messages/[conversationId]/route.ts",
   "src/app/api/doctor/messages/[conversationId]/read/route.ts",
   "src/app/api/doctor/messages/conversations/ensure/route.ts",
@@ -17,6 +19,7 @@ const mutatingRouteFiles = [
 const principalBackedRepoFiles = [
   "src/infra/repos/pgDoctorNotes.ts",
   "src/infra/repos/pgDoctorPatientSupport.ts",
+  "src/infra/repos/pgComments.ts",
   "src/infra/repos/pgSupportCommunication.ts",
   "src/infra/repos/pgSpecialistTasks.ts",
 ] as const;
@@ -86,5 +89,26 @@ describe("doctor support/task workspace principal cutover", () => {
       expect(src).toContain("claimLegacyConversationForWorkspace");
       expect(src).toContain("claimLegacyConversationForOrganization");
     }
+  });
+
+  it("doctor comments routes scope reads and writes to the selected workspace", () => {
+    for (const file of [
+      "src/app/api/doctor/comments/route.ts",
+      "src/app/api/doctor/comments/[id]/route.ts",
+    ]) {
+      const src = readSource(file);
+      expect(src).toContain("requireDoctorWorkspaceApiContext");
+      expect(src).toContain("withDoctorWorkspacePrincipal");
+    }
+
+    const itemRoute = readSource("src/app/api/doctor/comments/[id]/route.ts");
+    expect(itemRoute).toContain("commentBelongsToWorkspace");
+    expect(itemRoute).toContain("comment.organizationId === organizationId");
+
+    const collectionRoute = readSource("src/app/api/doctor/comments/route.ts");
+    expect(collectionRoute).toContain('targetType === "program_instance"');
+    expect(collectionRoute).toContain("ensureDoctorCommentTargetInWorkspace");
+    expect(collectionRoute).toContain("deps.treatmentProgramInstance.getInstanceById");
+    expect(collectionRoute).toContain("instance.organizationId === organizationId");
   });
 });

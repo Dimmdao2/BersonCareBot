@@ -19,6 +19,7 @@ export type CommentType = (typeof COMMENT_TYPES)[number];
 
 export type EntityComment = {
   id: string;
+  organizationId?: string | null;
   authorId: string;
   targetType: CommentTargetType;
   targetId: string;

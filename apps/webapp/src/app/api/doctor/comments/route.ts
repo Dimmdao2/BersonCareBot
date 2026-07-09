@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { COMMENT_TARGET_TYPES, COMMENT_TYPES } from "@/modules/comments/types";
+import type { CommentTargetType } from "@/modules/comments/types";
 
 const listQuerySchema = z.object({
   targetType: z.enum(COMMENT_TARGET_TYPES),
@@ -17,12 +18,31 @@ const postBodySchema = z.object({
   body: z.string().min(1).max(32000),
 });
 
-export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+type AppDeps = ReturnType<typeof buildAppDeps>;
+
+function isSupportedDoctorCommentTarget(targetType: CommentTargetType): boolean {
+  return targetType === "program_instance";
+}
+
+async function ensureDoctorCommentTargetInWorkspace(
+  deps: AppDeps,
+  targetType: CommentTargetType,
+  targetId: string,
+  organizationId: string,
+): Promise<boolean> {
+  if (!isSupportedDoctorCommentTarget(targetType)) return false;
+
+  try {
+    const instance = await deps.treatmentProgramInstance.getInstanceById(targetId);
+    return instance.organizationId === organizationId;
+  } catch {
+    return false;
   }
+}
+
+export async function GET(request: Request) {
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
@@ -31,8 +51,23 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
+  if (!isSupportedDoctorCommentTarget(parsed.data.targetType)) {
+    return NextResponse.json({ ok: false, error: "unsupported_target_type" }, { status: 400 });
+  }
+  const targetOk = await ensureDoctorCommentTargetInWorkspace(
+    deps,
+    parsed.data.targetType,
+    parsed.data.targetId,
+    gate.ctx.organizationId,
+  );
+  if (!targetOk) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
   try {
-    const items = await deps.comments.listByTarget(parsed.data.targetType, parsed.data.targetId);
+    const items = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.comments.listByTarget(parsed.data.targetType, parsed.data.targetId),
+    );
     return NextResponse.json({ ok: true, items });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
@@ -41,11 +76,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
@@ -54,15 +86,30 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
+  if (!isSupportedDoctorCommentTarget(parsed.data.targetType)) {
+    return NextResponse.json({ ok: false, error: "unsupported_target_type" }, { status: 400 });
+  }
+  const targetOk = await ensureDoctorCommentTargetInWorkspace(
+    deps,
+    parsed.data.targetType,
+    parsed.data.targetId,
+    gate.ctx.organizationId,
+  );
+  if (!targetOk) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
   try {
-    const item = await deps.comments.create(
-      {
-        targetType: parsed.data.targetType,
-        targetId: parsed.data.targetId,
-        commentType: parsed.data.commentType,
-        body: parsed.data.body,
-      },
-      session.user.userId,
+    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.comments.create(
+        {
+          targetType: parsed.data.targetType,
+          targetId: parsed.data.targetId,
+          commentType: parsed.data.commentType,
+          body: parsed.data.body,
+        },
+        gate.ctx.session.user.userId,
+      ),
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
