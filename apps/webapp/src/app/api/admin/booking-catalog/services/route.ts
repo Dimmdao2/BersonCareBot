@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { httpFromDatabaseError } from "../_httpErrors";
-import { requireAdminBookingCatalog } from "../_requireAdminBookingCatalog";
+import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../_requireAdminBookingCatalog";
 
 const PostServiceSchema = z.object({
   title: z.string().min(1).max(200),
@@ -32,15 +32,17 @@ export async function POST(request: Request) {
   const parsed = PostServiceSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
   try {
-    const { id } = await gate.ctx.port.upsertService({
-      title: parsed.data.title.trim(),
-      description: parsed.data.description ?? null,
-      durationMinutes: parsed.data.durationMinutes,
-      breakAfterMinutes: parsed.data.breakAfterMinutes,
-      priceMinor: parsed.data.priceMinor,
-      isActive: parsed.data.isActive,
-      sortOrder: parsed.data.sortOrder,
-    });
+    const { id } = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+      gate.ctx.port.upsertService({
+        title: parsed.data.title.trim(),
+        description: parsed.data.description ?? null,
+        durationMinutes: parsed.data.durationMinutes,
+        breakAfterMinutes: parsed.data.breakAfterMinutes,
+        priceMinor: parsed.data.priceMinor,
+        isActive: parsed.data.isActive,
+        sortOrder: parsed.data.sortOrder,
+      }),
+    );
     const service = await gate.ctx.port.getServiceById(id);
     return NextResponse.json({ ok: true, service });
   } catch (e) {

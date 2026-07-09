@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normalizeAdminBranchTimezoneForPatch } from "../../_branchTimezone";
 import { httpFromDatabaseError, jsonIfInvalidCatalogId } from "../../_httpErrors";
-import { requireAdminBookingCatalog } from "../../_requireAdminBookingCatalog";
+import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../../_requireAdminBookingCatalog";
 
 const PatchBranchSchema = z.object({
   cityId: z.string().uuid().optional(),
@@ -49,7 +49,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
   }
   try {
-    const branch = await gate.ctx.port.updateBranchById(id, patch);
+    const branch = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+      gate.ctx.port.updateBranchById(id, patch),
+    );
     if (!branch) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     return NextResponse.json({ ok: true, branch });
   } catch (e) {
@@ -68,7 +70,9 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   const { id } = await context.params;
   const bad = jsonIfInvalidCatalogId(id);
   if (bad) return bad;
-  const deleted = await gate.ctx.port.deactivateBranch(id);
+  const deleted = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+    gate.ctx.port.deactivateBranch(id),
+  );
   if (!deleted) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

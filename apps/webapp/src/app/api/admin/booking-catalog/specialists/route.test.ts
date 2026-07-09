@@ -4,6 +4,19 @@ const getSessionMock = vi.hoisted(() => vi.fn());
 const listSpecialistsAdminMock = vi.hoisted(() => vi.fn());
 const upsertSpecialistMock = vi.hoisted(() => vi.fn());
 const getSpecialistByIdMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -13,6 +26,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       upsertSpecialist: upsertSpecialistMock,
       getSpecialistById: getSpecialistByIdMock,
     },
+    organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 }));
 
@@ -27,6 +41,7 @@ describe("GET /api/admin/booking-catalog/specialists", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listSpecialistsAdminMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 401 without session", async () => {
@@ -50,6 +65,7 @@ describe("POST /api/admin/booking-catalog/specialists", () => {
     getSessionMock.mockReset();
     upsertSpecialistMock.mockReset();
     getSpecialistByIdMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 400 on branch_not_found", async () => {

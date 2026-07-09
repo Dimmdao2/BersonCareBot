@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runDrizzleMutationTransactionMock = vi.hoisted(() =>
+  vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn({ rollback: vi.fn() })),
+);
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
+}));
+vi.mock("@/infra/db/drizzleMutationTx", () => ({
+  runDrizzleMutationTransaction: runDrizzleMutationTransactionMock,
 }));
 
 import { createPgBookingCatalogPort } from "./pgBookingCatalog";
@@ -42,6 +48,10 @@ function serviceRow(overrides = {}) {
 describe("createPgBookingCatalogPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    runDrizzleMutationTransactionMock.mockClear();
+    runDrizzleMutationTransactionMock.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
+      fn({ rollback: vi.fn() }),
+    );
   });
 
   describe("listCitiesForPatient", () => {
@@ -97,6 +107,7 @@ describe("createPgBookingCatalogPort", () => {
       await port.upsertCity({ code: "moscow", title: "Москва", isActive: true, sortOrder: 1 });
       const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("ON CONFLICT (code) DO UPDATE");
+      expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -3,6 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.hoisted(() => vi.fn());
 const listBranchServicesAdminMock = vi.hoisted(() => vi.fn());
 const upsertBranchServiceAdminMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -11,6 +24,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listBranchServicesAdmin: listBranchServicesAdminMock,
       upsertBranchServiceAdmin: upsertBranchServiceAdminMock,
     },
+    organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 }));
 
@@ -28,6 +42,7 @@ describe("branch-services route", () => {
     getSessionMock.mockReset();
     listBranchServicesAdminMock.mockReset();
     upsertBranchServiceAdminMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("GET filters by branchId query", async () => {

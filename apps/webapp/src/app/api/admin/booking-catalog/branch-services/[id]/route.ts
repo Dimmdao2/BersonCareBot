@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { httpFromDatabaseError, jsonIfInvalidCatalogId } from "../../_httpErrors";
-import { requireAdminBookingCatalog } from "../../_requireAdminBookingCatalog";
+import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../../_requireAdminBookingCatalog";
 
 const PatchBranchServiceSchema = z.object({
   specialistId: z.string().uuid().optional(),
@@ -39,14 +39,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const cur = await gate.ctx.port.getBranchServiceById(id);
   if (!cur) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   try {
-    const branchService = await gate.ctx.port.upsertBranchServiceAdmin({
-      branchId: cur.branchId,
-      serviceId: cur.serviceId,
-      specialistId: parsed.data.specialistId ?? cur.specialistId,
-      rubitimeServiceId: (parsed.data.rubitimeServiceId ?? cur.rubitimeServiceId).trim(),
-      isActive: parsed.data.isActive ?? cur.isActive,
-      sortOrder: parsed.data.sortOrder ?? cur.sortOrder,
-    });
+    const branchService = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+      gate.ctx.port.upsertBranchServiceAdmin({
+        branchId: cur.branchId,
+        serviceId: cur.serviceId,
+        specialistId: parsed.data.specialistId ?? cur.specialistId,
+        rubitimeServiceId: (parsed.data.rubitimeServiceId ?? cur.rubitimeServiceId).trim(),
+        isActive: parsed.data.isActive ?? cur.isActive,
+        sortOrder: parsed.data.sortOrder ?? cur.sortOrder,
+      }),
+    );
     return NextResponse.json({ ok: true, branchService });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "internal_error";
@@ -67,7 +69,9 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   const { id } = await context.params;
   const bad = jsonIfInvalidCatalogId(id);
   if (bad) return bad;
-  const deleted = await gate.ctx.port.deactivateBranchService(id);
+  const deleted = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+    gate.ctx.port.deactivateBranchService(id),
+  );
   if (!deleted) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

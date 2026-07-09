@@ -4,6 +4,19 @@ const getSessionMock = vi.hoisted(() => vi.fn());
 const listServicesAdminMock = vi.hoisted(() => vi.fn());
 const upsertServiceMock = vi.hoisted(() => vi.fn());
 const getServiceByIdMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -13,6 +26,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       upsertService: upsertServiceMock,
       getServiceById: getServiceByIdMock,
     },
+    organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 }));
 
@@ -27,6 +41,7 @@ describe("GET /api/admin/booking-catalog/services", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listServicesAdminMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 401 without session", async () => {
@@ -48,6 +63,7 @@ describe("POST /api/admin/booking-catalog/services", () => {
     getSessionMock.mockReset();
     upsertServiceMock.mockReset();
     getServiceByIdMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 400 on invalid body", async () => {

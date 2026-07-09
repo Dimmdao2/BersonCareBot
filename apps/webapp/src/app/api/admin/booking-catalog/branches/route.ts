@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normalizeAdminBranchTimezoneForCreate } from "../_branchTimezone";
-import { requireAdminBookingCatalog } from "../_requireAdminBookingCatalog";
+import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../_requireAdminBookingCatalog";
 
 const PostBranchSchema = z.object({
   cityCode: z.string().min(1).max(80),
@@ -38,15 +38,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_timezone" }, { status: 400 });
   }
   try {
-    const { id } = await gate.ctx.port.upsertBranch({
-      cityCode: parsed.data.cityCode.trim().toLowerCase(),
-      title: parsed.data.title.trim(),
-      address: parsed.data.address ?? null,
-      rubitimeBranchId: parsed.data.rubitimeBranchId.trim(),
-      timezone,
-      isActive: parsed.data.isActive,
-      sortOrder: parsed.data.sortOrder,
-    });
+    const { id } = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+      gate.ctx.port.upsertBranch({
+        cityCode: parsed.data.cityCode.trim().toLowerCase(),
+        title: parsed.data.title.trim(),
+        address: parsed.data.address ?? null,
+        rubitimeBranchId: parsed.data.rubitimeBranchId.trim(),
+        timezone,
+        isActive: parsed.data.isActive,
+        sortOrder: parsed.data.sortOrder,
+      }),
+    );
     const branch = await gate.ctx.port.getBranchById(id);
     return NextResponse.json({ ok: true, branch });
   } catch (e) {

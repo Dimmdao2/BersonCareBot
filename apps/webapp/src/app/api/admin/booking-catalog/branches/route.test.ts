@@ -4,6 +4,19 @@ const getSessionMock = vi.hoisted(() => vi.fn());
 const listBranchesAdminMock = vi.hoisted(() => vi.fn());
 const upsertBranchMock = vi.hoisted(() => vi.fn());
 const getBranchByIdMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -13,6 +26,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       upsertBranch: upsertBranchMock,
       getBranchById: getBranchByIdMock,
     },
+    organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 }));
 
@@ -27,6 +41,7 @@ describe("GET /api/admin/booking-catalog/branches", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listBranchesAdminMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 403 without adminMode", async () => {
@@ -51,6 +66,7 @@ describe("POST /api/admin/booking-catalog/branches", () => {
     getSessionMock.mockReset();
     upsertBranchMock.mockReset();
     getBranchByIdMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 400 when city missing", async () => {

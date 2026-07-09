@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { httpFromDatabaseError, jsonIfInvalidCatalogId } from "../../_httpErrors";
-import { requireAdminBookingCatalog } from "../../_requireAdminBookingCatalog";
+import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../../_requireAdminBookingCatalog";
 
 const PatchSpecialistSchema = z.object({
   branchId: z.string().uuid().optional(),
@@ -39,7 +39,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const parsed = PatchSpecialistSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
   try {
-    const specialist = await gate.ctx.port.updateSpecialistById(id, parsed.data);
+    const specialist = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+      gate.ctx.port.updateSpecialistById(id, parsed.data),
+    );
     if (!specialist) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     return NextResponse.json({ ok: true, specialist });
   } catch (e) {
@@ -58,7 +60,9 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   const { id } = await context.params;
   const bad = jsonIfInvalidCatalogId(id);
   if (bad) return bad;
-  const deleted = await gate.ctx.port.deactivateSpecialist(id);
+  const deleted = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+    gate.ctx.port.deactivateSpecialist(id),
+  );
   if (!deleted) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

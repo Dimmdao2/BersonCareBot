@@ -5,7 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdminBookingCatalog } from "../_requireAdminBookingCatalog";
+import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../_requireAdminBookingCatalog";
 
 const PostCitySchema = z.object({
   code: z.string().min(1).max(80).regex(/^[a-z0-9_]+$/i),
@@ -28,12 +28,14 @@ export async function POST(request: Request) {
   const parsed = PostCitySchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
   try {
-    const city = await gate.ctx.port.upsertCity({
-      code: parsed.data.code.trim().toLowerCase(),
-      title: parsed.data.title.trim(),
-      isActive: parsed.data.isActive,
-      sortOrder: parsed.data.sortOrder,
-    });
+    const city = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+      gate.ctx.port.upsertCity({
+        code: parsed.data.code.trim().toLowerCase(),
+        title: parsed.data.title.trim(),
+        isActive: parsed.data.isActive,
+        sortOrder: parsed.data.sortOrder,
+      }),
+    );
     return NextResponse.json({ ok: true, city });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "internal_error";
