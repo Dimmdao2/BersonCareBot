@@ -5,7 +5,6 @@ import {
   getNotifTemplate,
   notifTemplateKey,
   renderNotifTemplate,
-  setNotifTemplate,
 } from './notifTemplatePort.js';
 
 function makeDb(queryFn: DbPort['query']): DbPort {
@@ -77,18 +76,6 @@ describe('getNotifTemplate — DB override', () => {
     await getNotifTemplate('rescheduled', 'doctor', db);
     const params = queryFn.mock.calls[0]?.[1] as unknown[] | undefined;
     expect(params).toContain('notif_template:rescheduled:doctor');
-  });
-});
-
-describe('setNotifTemplate', () => {
-  it('calls db.query with INSERT ... ON CONFLICT UPDATE and correct key', async () => {
-    const queryFn = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 } as DbQueryResult);
-    const db = makeDb(queryFn);
-    await setNotifTemplate('cancelled', 'patient', 'My template', db);
-    const sqlText = queryFn.mock.calls[0]?.[0] as string | undefined;
-    const params = queryFn.mock.calls[0]?.[1] as unknown[] | undefined;
-    expect(sqlText).toContain('ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE');
-    expect(params).toContain('notif_template:cancelled:patient');
   });
 });
 

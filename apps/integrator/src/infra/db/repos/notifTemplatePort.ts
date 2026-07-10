@@ -3,9 +3,7 @@
  * Keys: notif_template:<event>:<audience> (scope: admin).
  * Falls back to hardcoded defaults when no DB row exists.
  */
-import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
 import { readPublicSystemSettingString } from '../publicSystemSettings.js';
 import { interpolateTemplate } from '../../../kernel/orchestrator/templateInterpolation.js';
 
@@ -60,25 +58,6 @@ export async function getNotifTemplate(
     // DB unavailable: fall through to default
   }
   return NOTIF_TEMPLATE_DEFAULTS[event][audience];
-}
-
-/** Upserts the template text into public.system_settings. */
-export async function setNotifTemplate(
-  event: NotifTemplateEvent,
-  audience: NotifTemplateAudience,
-  text: string,
-  db: DbPort,
-): Promise<void> {
-  const key = notifTemplateKey(event, audience);
-  const valueJson = JSON.stringify({ value: text });
-  await runIntegratorSql(
-    db,
-    sql`INSERT INTO public.system_settings (key, scope, value_json, updated_at)
-      VALUES (${key}, 'admin', ${valueJson}::jsonb, NOW())
-      ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
-        value_json = EXCLUDED.value_json,
-        updated_at = NOW()`,
-  );
 }
 
 /** Interpolates {{var}} placeholders in a template string. */

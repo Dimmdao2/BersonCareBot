@@ -10,7 +10,7 @@ const files = {
   webappRepo: "apps/webapp/src/infra/repos/pgSystemSettings.ts",
   integratorPublicReader: "apps/integrator/src/infra/db/publicSystemSettings.ts",
   integratorMirrorSync: "apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts",
-  integratorTemplateWriter: "apps/integrator/src/infra/db/repos/notifTemplatePort.ts",
+  integratorTemplatePort: "apps/integrator/src/infra/db/repos/notifTemplatePort.ts",
 };
 
 function read(path) {
@@ -43,7 +43,7 @@ function runChecks(overrides = {}) {
   const webappRepo = overrides.webappRepo ?? read(files.webappRepo);
   const integratorPublicReader = overrides.integratorPublicReader ?? read(files.integratorPublicReader);
   const integratorMirrorSync = overrides.integratorMirrorSync ?? read(files.integratorMirrorSync);
-  const integratorTemplateWriter = overrides.integratorTemplateWriter ?? read(files.integratorTemplateWriter);
+  const integratorTemplatePort = overrides.integratorTemplatePort ?? read(files.integratorTemplatePort);
 
   assertBefore(
     files.migration,
@@ -88,9 +88,18 @@ function runChecks(overrides = {}) {
   for (const [name, text] of [
     [files.webappRepo, webappRepo],
     [files.integratorMirrorSync, integratorMirrorSync],
-    [files.integratorTemplateWriter, integratorTemplateWriter],
   ]) {
     assertContains(name, text, "ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE");
+  }
+
+  for (const forbidden of [
+    "export async function setNotifTemplate",
+    "INSERT INTO public.system_settings",
+    "ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE",
+  ]) {
+    if (integratorTemplatePort.includes(forbidden)) {
+      fail(`${files.integratorTemplatePort} still contains forbidden direct settings writer text: ${forbidden}`);
+    }
   }
 }
 

@@ -1,0 +1,54 @@
+domain	schema	table	tier	current_owner	canonical_status	cleanup_decision	blocker	next_action
+settings	public	system_settings	BOOTSTRAP	webapp	canonical_runtime_config	keep	none	use org-aware public accessor
+settings	integrator	system_settings	BOOTSTRAP	integrator	legacy_compat_mirror	retain_timeboxed	cache invalidation and sync retry still mounted	replace sync/cache invalidation before drop
+settings	public	integrator_push_outbox	INFRA	webapp	technical_retry_state	keep	used for system_settings_sync and reminder_rule_upsert	add terminal retention
+reminders	public	reminder_rules	SCOPED	webapp	canonical_business_data	keep	none	continue public business writes
+reminders	public	reminder_journal	SCOPED	webapp	canonical_business_history	keep	none	continue patient/bot action history
+reminders	public	reminder_occurrence_history	SCOPED	webapp	public_read_model	keep	admin stats/history use it	avoid using as dispatch owner
+reminders	public	reminder_delivery_events	SCOPED	webapp	public_telemetry_projection	retain_until_metrics_migration	admin health/stats references	consider telemetry consolidation later
+reminders	public	webapp_reminder_occurrences	SCOPED	webapp	public_dispatch_state	keep	Web Push-only dispatch uses it	add retention policy if needed
+reminders	integrator	user_reminder_rules	SCOPED	integrator	live_dispatch_mirror	keep	scheduler reads enabled rules	design dispatch-from-public before removal
+reminders	integrator	user_reminder_occurrences	SCOPED	integrator	live_dispatch_state	keep	scheduler/worker plan and update rows	derive org context in T0.4
+reminders	integrator	user_reminder_delivery_logs	SCOPED	integrator	live_delivery_state	keep	worker writes and public projection consumes	retention after metrics migration
+rubitime	public	be_appointments	SCOPED	webapp	canonical_booking_data	keep	none	canonical parity gate
+rubitime	public	patient_bookings	LEGACY	webapp	live_business_compat	keep	patient cabinet/compat paths still use it	separate sunset after canonical cutover
+rubitime	public	appointment_records	LEGACY	webapp	deprecated_live_projection	retain_until_cutover	doctor read source can still be legacy	flip booking_doctor_appointments_read_source first
+rubitime	public	booking_branches	LEGACY	webapp	legacy_adapter_catalog	retain_until_v1_freeze	patient booking branchServiceId compatibility	freeze legacy v1 profile resolve
+rubitime	public	booking_services	LEGACY	webapp	legacy_adapter_catalog	retain_until_v1_freeze	patient booking branchServiceId compatibility	freeze legacy v1 profile resolve
+rubitime	public	booking_branch_services	LEGACY	webapp	legacy_adapter_catalog	retain_until_v1_freeze	patient booking branchServiceId compatibility	freeze legacy v1 profile resolve
+rubitime	integrator	rubitime_events	LEGACY	integrator	raw_provider_audit	retain_with_retention	live webhook writes	set raw payload retention
+rubitime	integrator	rubitime_records	LEGACY	integrator	raw_projection_state	retain_until_rubitime_retired	live webhook/projection writes	archive only after Rubitime bridge retirement
+rubitime	integrator	booking_calendar_map	INFRA	integrator	technical_integration_map	keep	Google Calendar sync map	migrate only with calendar design
+rubitime	integrator	rubitime_api_throttle	LEGACY	integrator	live_provider_throttle	keep	one-row live coordination	no drop
+rubitime	integrator	rubitime_create_retry_jobs	LEGACY	integrator	live_retry_queue	keep	worker job queue still uses it	retention and writer retirement
+rubitime	integrator	rubitime_booking_profiles	LEGACY	integrator	deprecated_v1_profile_catalog	retain_until_v1_freeze	legacy profile resolve/admin routes	freeze v1 resolve then drop
+rubitime	integrator	rubitime_branches	LEGACY	integrator	deprecated_v1_catalog	retain_until_v1_freeze	legacy profile/admin paths	freeze v1 resolve then drop
+rubitime	integrator	rubitime_services	LEGACY	integrator	deprecated_v1_catalog	retain_until_v1_freeze	legacy profile/admin paths	freeze v1 resolve then drop
+rubitime	integrator	rubitime_cooperators	LEGACY	integrator	deprecated_v1_catalog	retain_until_v1_freeze	legacy profile/admin paths	freeze v1 resolve then drop
+contacts	public	platform_users	BOOTSTRAP	webapp	canonical_identity	keep	none	continue canonical identity
+contacts	public	user_channel_bindings	BOOTSTRAP	webapp	canonical_channel_binding	keep	none	continue canonical bindings
+contacts	public	platform_user_contacts	BOOTSTRAP	webapp	supplementary_contacts	keep	doctor-facing contacts only	keep separate from identity auth
+contacts	public	user_phone_history	BOOTSTRAP	webapp	canonical_phone_audit	keep	none	close integrator bind history gap later
+contacts	integrator	users	BOOTSTRAP	integrator	channel_runtime_anchor	keep	active identities and bridge use it	do not use as patient profile canon
+contacts	integrator	identities	BOOTSTRAP	integrator	channel_identity_runtime	keep	incoming webhook mapping uses it	do not drop
+contacts	integrator	telegram_state	BOOTSTRAP	integrator	telegram_runtime_state	keep	active bot state	do not drop
+contacts	integrator	contacts	SCOPED	integrator	transitional_phone_fallback	retain_timeboxed	public_then_contacts default and lookup paths	audit exceptions then switch public_only
+comms	public	support_conversations	SCOPED	webapp	canonical_support_read_model	keep	product support chat uses it	continue as product state
+comms	public	support_conversation_messages	SCOPED	webapp	canonical_support_read_model	keep	product support chat uses it	continue as product state
+comms	public	support_questions	SCOPED	webapp	projected_question_history	needs_decision	product surface unclear	owner/product decision before retirement
+comms	public	support_question_messages	SCOPED	webapp	projected_question_history	needs_decision	product surface unclear	owner/product decision before retirement
+comms	public	support_delivery_events	SCOPED	webapp	support_delivery_audit	keep	stats/audit	possible retention later
+comms	integrator	conversations	SCOPED	integrator	active_transport_state	keep	writePort/messageThreads still use it	move writers to public before drop
+comms	integrator	conversation_messages	SCOPED	integrator	active_transport_state	keep	writePort/messageThreads still use it	move writers to public before drop
+comms	integrator	message_drafts	SCOPED	integrator	active_ephemeral_state	keep	draft read/write/cancel paths still use it	replace with public or drop feature first
+comms	integrator	user_questions	SCOPED	integrator	active_legacy_transport	keep	still projected to public support_questions	move or retire question surface
+comms	integrator	question_messages	SCOPED	integrator	active_legacy_transport	keep	still projected to public support_questions	move or retire question surface
+queues	integrator	projection_outbox	INFRA	integrator	technical_retry_queue	keep	worker projection loop uses it	add terminal retention/archive
+queues	public	outgoing_delivery_queue	INFRA	integrator	technical_delivery_queue	keep	worker delivery loop uses it	add terminal retention/archive
+queues	public	integrator_push_outbox	INFRA	webapp	technical_retry_queue	keep	webapp->integrator retry uses it	add terminal retention/archive
+queues	integrator	idempotency_keys	INFRA	integrator	technical_idempotency	keep	24h TTL semantics	purge expired rows
+queues	public	idempotency_keys	INFRA	webapp	technical_idempotency	keep	24h TTL semantics	purge expired rows
+queues	integrator	delivery_attempt_logs	INFRA	integrator	technical_delivery_log	retain_with_retention	public projections/stats not fully replacement	define 14-30 day retention
+queues	public	notification_delivery_attempts	SCOPED	webapp	technical_ops_telemetry	retain_with_retention	admin stats/health references	define 30-90 day retention
+queues	public	operator_incidents	INFRA	webapp	ops_incident_state	retain_with_retention	ops health uses it	define 180-365 day retention
+queues	public	operator_health_failure_archive	SCOPED	webapp	ops_archive_state	keep	existing 90 day retention	keep archive workflow
