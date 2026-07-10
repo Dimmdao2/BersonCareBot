@@ -6,8 +6,6 @@ const repoRoot = process.cwd();
 const apiRoots = ["src/app/api/doctor", "src/app/api/admin"];
 
 const allowedUncovered: Record<string, string> = {
-  "src/app/api/admin/appointment-records/[integratorRecordId]/soft-delete/route.ts":
-    "legacy appointment projection soft-delete; non-workspace admin ops disposition remains outside T0.3 principal gate",
   "src/app/api/admin/google-calendar/start/route.ts":
     "global OAuth start URL, no scoped DB write",
   "src/app/api/admin/media/exercise-usage/route.ts":
