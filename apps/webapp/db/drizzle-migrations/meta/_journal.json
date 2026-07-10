@@ -1191,6 +1191,13 @@
       "when": 1783561200000,
       "tag": "0169_p0_8_b4_core_patient_wall_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1783564800000,
+      "tag": "0170_p0_8_b4_fanout_chain_patient_wall_rls",
+      "breakpoints": true
     }
   ]
 }
