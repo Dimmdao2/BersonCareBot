@@ -16,6 +16,10 @@ Status: compatibility checklist created during T0.4-pre taskdb `#635`. Current b
 
 Do not start until T0.4-pre validation/audit is complete.
 
+Progress:
+
+- [x] Support transport slice: `integrator.message_drafts`, `integrator.conversations`, `integrator.conversation_messages`, `integrator.user_questions`, and `integrator.question_messages` write paths derive/copy `organization_id`; legacy conversation merge re-stamps moved children to the target thread org.
+
 - [ ] Integrator DB trunk: every SCOPED integrator writer derives or receives organization context.
 - [ ] Integrator entrypoint-to-org map: Telegram/MAX/Rubitime/M2M/worker/scheduler sources documented and tested.
 - [ ] Integrator worker/scheduler: jobs that touch SCOPED rows run with the correct organization principal.

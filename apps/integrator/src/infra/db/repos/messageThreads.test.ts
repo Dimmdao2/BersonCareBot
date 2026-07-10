@@ -8,6 +8,8 @@ import {
   getOpenConversationByIdentity,
   insertConversation,
   insertConversationMessage,
+  insertQuestionMessage,
+  insertUserQuestion,
   listOpenConversations,
   setConversationState,
   upsertDraftByIdentity,
@@ -43,6 +45,9 @@ describe('messageThreads repo', () => {
     const upsertFrag = execute.mock.calls[0]?.[0];
     const upsertSql = drizzleSqlFragmentToApproximateSql(upsertFrag);
     expect(upsertSql).toContain('INSERT INTO message_drafts');
+    expect(upsertSql).toContain('organization_id');
+    expect(upsertSql).toContain('active_user_orgs');
+    expect(upsertSql).toContain('count(DISTINCT active_user_orgs.organization_id) = 1');
     expect(upsertSql).toContain('ON CONFLICT (identity_id, source)');
     expect(upsertSql).toContain('telegram');
     expect(upsertSql).toContain('draft-1');
@@ -202,8 +207,16 @@ describe('messageThreads repo', () => {
     expect(items).toHaveLength(1);
     expect(byId?.id).toBe('conv-1');
 
-    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[0]?.[0])).toContain('INSERT INTO conversations');
-    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0])).toContain('INSERT INTO conversation_messages');
+    const insertConversationSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[0]?.[0]);
+    expect(insertConversationSql).toContain('INSERT INTO conversations');
+    expect(insertConversationSql).toContain('organization_id');
+    expect(insertConversationSql).toContain('active_user_orgs');
+    expect(insertConversationSql).toContain('count(DISTINCT active_user_orgs.organization_id) = 1');
+
+    const insertMessageSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0]);
+    expect(insertMessageSql).toContain('INSERT INTO conversation_messages');
+    expect(insertMessageSql).toContain('organization_id');
+    expect(insertMessageSql).toContain('SELECT organization_id FROM conversations');
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[2]?.[0])).toContain('UPDATE conversations');
     const listOpenSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[3]?.[0]);
     expect(listOpenSql).toContain('LEFT JOIN LATERAL');
@@ -212,5 +225,39 @@ describe('messageThreads repo', () => {
 
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('WHERE c.id = ');
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('conv-1');
+  });
+
+  it('stamps question rows from conversation or identity organization context', async () => {
+    const { db, execute } = createDbMock();
+    execute
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult)
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
+
+    await insertUserQuestion(db, {
+      id: 'question-1',
+      userIdentityId: '77',
+      conversationId: 'conv-1',
+      telegramMessageId: '55',
+      text: 'hello?',
+      createdAt: '2026-03-10T12:00:00.000Z',
+    });
+    await insertQuestionMessage(db, {
+      id: 'question-message-1',
+      questionId: 'question-1',
+      senderType: 'user',
+      messageText: 'hello?',
+      createdAt: '2026-03-10T12:00:00.000Z',
+    });
+
+    const questionSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[0]?.[0]);
+    expect(questionSql).toContain('INSERT INTO user_questions');
+    expect(questionSql).toContain('organization_id');
+    expect(questionSql).toContain('COALESCE(parent.organization_id, ti.organization_id)');
+    expect(questionSql).toContain('active_user_orgs');
+
+    const messageSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0]);
+    expect(messageSql).toContain('INSERT INTO question_messages');
+    expect(messageSql).toContain('organization_id');
+    expect(messageSql).toContain('SELECT organization_id FROM user_questions');
   });
 });
