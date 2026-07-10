@@ -124,6 +124,14 @@ export type TelegramWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
+  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
+  /**
+   * T0.4 channel-binding fallback: resolves the deployment's single organization when the
+   * messenger identity has no per-user org context yet (first-contact, not yet enrolled). The
+   * tenant boundary is the inbound channel/bot, not the user's enrollment state — see
+   * `resolveDeploymentSingleActiveOrganizationId` for the architecture rationale/limits.
+   */
+  resolveDeploymentOrganizationId?: () => Promise<string | null>;
 };
 
 function getSourceTelegramExternalId(body: TelegramWebhookBodyValidated): string | null {
@@ -134,11 +142,32 @@ function getSourceTelegramExternalId(body: TelegramWebhookBodyValidated): string
 async function resolveTelegramOrganizationId(
   body: TelegramWebhookBodyValidated,
   deps: TelegramWebhookDeps,
+  reqLogger: ReturnType<typeof getRequestLogger>,
 ): Promise<string | null> {
   const externalId = getSourceTelegramExternalId(body);
-  if (!externalId || !deps.resolveOrganizationIdForMessengerIdentity) return null;
+  if (externalId && deps.resolveOrganizationIdForMessengerIdentity) {
+    try {
+      const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'telegram');
+      if (perUserOrg) return perUserOrg;
+    } catch {
+      // fall through to channel-binding fallback below
+    }
+  }
+  if (!deps.resolveDeploymentOrganizationId) return null;
   try {
-    return await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'telegram');
+    const deploymentOrg = await deps.resolveDeploymentOrganizationId();
+    if (deploymentOrg) {
+      reqLogger.info(
+        { source: 'telegram' },
+        'telegram webhook: no per-user org context, using deployment channel-binding fallback',
+      );
+      return deploymentOrg;
+    }
+    reqLogger.warn(
+      { source: 'telegram' },
+      'telegram webhook: no organization resolvable for this channel (unbound/misconfigured deployment)',
+    );
+    return null;
   } catch {
     return null;
   }
@@ -276,7 +305,7 @@ export async function processTelegramUpdate(
     ),
     ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
   });
-  const organizationId = await resolveTelegramOrganizationId(body, deps);
+  const organizationId = await resolveTelegramOrganizationId(body, deps, reqLogger);
   const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
     deps.eventGateway.handleIncomingEvent(event);
   const result = organizationId

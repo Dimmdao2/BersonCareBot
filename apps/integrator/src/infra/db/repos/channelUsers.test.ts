@@ -9,6 +9,7 @@ import {
   getUserState,
   resolveActiveOrganizationIdForIntegratorUserId,
   resolveActiveOrganizationIdForMessengerIdentity,
+  resolveDeploymentSingleActiveOrganizationId,
   setUserPhone,
   setUserState,
   tryAdvanceLastUpdateId,
@@ -125,6 +126,74 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(sqlText).toContain('public.org_enrollments');
     expect(sqlText).toContain('public.be_organization_members');
     expect(sqlText).toContain('LIMIT 2');
+  });
+
+  describe('T0.4 deployment channel-binding fallback', () => {
+    it('resolves the deployment single organization when exactly one exists', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({
+        rows: [{ organization_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }],
+        rowCount: 1,
+      } as DbQueryResult<{ organization_id: string }>);
+
+      const orgId = await resolveDeploymentSingleActiveOrganizationId(db);
+
+      expect(orgId).toBe('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+      const sqlText = flatExec(execute, 0);
+      expect(sqlText).toContain('FROM public.be_organizations');
+      expect(sqlText).toContain('is_active = true');
+      expect(sqlText).toContain('LIMIT 2');
+    });
+
+    it('filters by is_active so a deactivated organization never counts toward the single-org resolution', async () => {
+      // Regression for a defect where `ORDER BY id LIMIT 2` ignored `is_active`: 1 active + 1
+      // deactivated org would return 2 rows and resolve to null (silently disabling the fallback)
+      // instead of resolving the one active org. The `WHERE is_active = true` filter means
+      // Postgres itself only ever returns active rows here — simulate that filtered result.
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({
+        rows: [{ organization_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }],
+        rowCount: 1,
+      } as DbQueryResult<{ organization_id: string }>);
+
+      const orgId = await resolveDeploymentSingleActiveOrganizationId(db);
+
+      expect(orgId).toBe('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+      const sqlText = flatExec(execute, 0);
+      expect(sqlText).toContain('is_active = true');
+    });
+
+    it('resolves null (not the deactivated row) when the only organization is deactivated', async () => {
+      // With the is_active filter, a deployment holding a single *deactivated* org returns zero
+      // rows from Postgres — never the deactivated org's id.
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+
+      const orgId = await resolveDeploymentSingleActiveOrganizationId(db);
+
+      expect(orgId).toBeNull();
+    });
+
+    it('returns null when zero or more than one organization exists (no single deployment org inferable)', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+      expect(await resolveDeploymentSingleActiveOrganizationId(db)).toBeNull();
+
+      execute.mockResolvedValueOnce({
+        rows: [
+          { organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+          { organization_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+        ],
+        rowCount: 2,
+      } as DbQueryResult<{ organization_id: string }>);
+      expect(await resolveDeploymentSingleActiveOrganizationId(db)).toBeNull();
+    });
+
+    it('fails open (returns null) when the query throws', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockRejectedValueOnce(new Error('db down'));
+      await expect(resolveDeploymentSingleActiveOrganizationId(db)).resolves.toBeNull();
+    });
   });
 
   it('upsertUser uses canonical identities and telegram_state only', async () => {

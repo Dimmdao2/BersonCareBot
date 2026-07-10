@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { resolveCanonicalIntegratorUserId } from '../../infra/db/repos/canonicalUserId.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import {
   mergeIntegratorUsers,
   MergeIntegratorUsersError,
@@ -41,6 +42,15 @@ function verifySignature(timestamp: string, rawBody: string, signature: string, 
 export type BersoncareUserMergeM2mDeps = {
   db: DbPort;
   sharedSecret: string;
+  /** Per-user org context for the merge winner (same lookup as other M2M/webhook entrypoints). */
+  resolveOrganizationIdForIntegratorUserId?: (integratorUserId: string) => Promise<string | null>;
+  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
+  /**
+   * T0.4 channel-binding fallback: the deployment's single organization, used when the winner has
+   * no per-user org context yet (e.g. 0 or >1 active orgs). Same fallback as webhooks/request-contact
+   * — see `resolveDeploymentSingleActiveOrganizationId` in `infra/db/repos/channelUsers.ts`.
+   */
+  resolveDeploymentOrganizationId?: () => Promise<string | null>;
 };
 
 /**
@@ -50,7 +60,7 @@ export async function registerBersoncareUserMergeM2mRoutes(
   app: FastifyInstance,
   deps: BersoncareUserMergeM2mDeps,
 ): Promise<void> {
-  const { db, sharedSecret } = deps;
+  const { db, sharedSecret, resolveOrganizationIdForIntegratorUserId, resolveDeploymentOrganizationId } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -128,12 +138,37 @@ export async function registerBersoncareUserMergeM2mRoutes(
     const { winnerIntegratorUserId, loserIntegratorUserId, dryRun } = parsed.data;
 
     try {
-      const result = await mergeIntegratorUsers(
-        db,
-        winnerIntegratorUserId,
-        loserIntegratorUserId,
-        dryRun === true ? { dryRun: true } : {},
-      );
+      const runMerge = (): Promise<Awaited<ReturnType<typeof mergeIntegratorUsers>>> =>
+        mergeIntegratorUsers(db, winnerIntegratorUserId, loserIntegratorUserId, dryRun === true ? { dryRun: true } : {});
+
+      // Defect fix (post-audit-71b05b493): without a principal in scope, every SCOPED reparent
+      // UPDATE inside mergeIntegratorUsers falls back to (winner single-active-org) which is NULL
+      // whenever the winner has 0 or >1 active orgs — resolve the winner's org here (same
+      // per-user -> deployment-fallback path as webhooks/request-contact) and run the merge under
+      // that principal so the writer's principal-preferring COALESCE branch actually fires.
+      let organizationId: string | null = null;
+      if (resolveOrganizationIdForIntegratorUserId) {
+        try {
+          organizationId = await resolveOrganizationIdForIntegratorUserId(winnerIntegratorUserId);
+        } catch {
+          organizationId = null;
+        }
+      }
+      if (!organizationId && resolveDeploymentOrganizationId) {
+        try {
+          organizationId = await resolveDeploymentOrganizationId();
+          if (organizationId) {
+            logger.info(
+              {},
+              'bersoncare users/merge: no per-user org context for winner, using deployment channel-binding fallback',
+            );
+          }
+        } catch {
+          organizationId = null;
+        }
+      }
+
+      const result = organizationId ? await runWithOrganizationPrincipal(organizationId, runMerge) : await runMerge();
       return reply.code(200).send({ ok: true, result });
     } catch (err) {
       if (err instanceof MergeIntegratorUsersError) {

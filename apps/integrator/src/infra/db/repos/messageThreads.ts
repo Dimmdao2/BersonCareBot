@@ -1,6 +1,7 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { sql } from 'drizzle-orm';
 import { runIntegratorSql } from '../runIntegratorSql.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 
 export type ActiveDraftRow = {
   id: string;
@@ -100,6 +101,7 @@ export async function upsertDraftByIdentity(
     state?: string;
   },
 ): Promise<void> {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
   await runIntegratorSql(db, sql`
     WITH active_user_orgs AS (
       SELECT platform_user_id, organization_id
@@ -140,7 +142,7 @@ export async function upsertDraftByIdentity(
     SELECT
       ${input.id},
       ti.id,
-      ti.organization_id,
+      COALESCE(${currentOrganizationId}::uuid, ti.organization_id),
       ${input.source},
       ${input.externalChatId ?? null},
       ${input.externalMessageId ?? null},
@@ -187,6 +189,7 @@ export async function insertConversation(
     lastMessageAt: string;
   },
 ): Promise<void> {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
   await runIntegratorSql(db, sql`
     WITH active_user_orgs AS (
       SELECT platform_user_id, organization_id
@@ -226,7 +229,7 @@ export async function insertConversation(
       ${input.id},
       ${input.source},
       ti.id,
-      ti.organization_id,
+      COALESCE(${currentOrganizationId}::uuid, ti.organization_id),
       ${input.adminScope},
       ${input.status},
       ${input.openedAt}::timestamptz,
@@ -562,6 +565,7 @@ export async function insertUserQuestion(
     createdAt: string;
   },
 ): Promise<void> {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
   await runIntegratorSql(db, sql`
     WITH active_user_orgs AS (
       SELECT platform_user_id, organization_id
@@ -591,7 +595,7 @@ export async function insertUserQuestion(
       ${input.id},
       ti.id,
       ${input.conversationId},
-      COALESCE(parent.organization_id, ti.organization_id),
+      COALESCE(${currentOrganizationId}::uuid, parent.organization_id, ti.organization_id),
       ${input.telegramMessageId ?? null},
       ${input.text},
       ${input.createdAt}::timestamptz

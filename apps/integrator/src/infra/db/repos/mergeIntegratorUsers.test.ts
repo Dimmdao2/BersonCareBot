@@ -237,4 +237,121 @@ describe('mergeIntegratorUsers', () => {
   it('exposes MergeIntegratorUsersError for alias rows', () => {
     expect(new MergeIntegratorUsersError('ALREADY_MERGED_ALIAS', 'x').code).toBe('ALREADY_MERGED_ALIAS');
   });
+
+  it('T0.4: re-derives organization_id from the winner on every SCOPED re-parent, never leaving the loser stale org', async () => {
+    const { db, sql, queryImpl } = createRecordingDb();
+    queryImpl.mockImplementation(async (q: string) => {
+      if (q.includes('ORDER BY id ASC FOR UPDATE')) {
+        return { rows: [{ id: '5' }, { id: '20' }], rowCount: 2 };
+      }
+      if (q.includes('merged_into_user_id') && q.includes('FROM users WHERE id IN')) {
+        return {
+          rows: [
+            { id: '20', merged_into_user_id: null },
+            { id: '5', merged_into_user_id: null },
+          ],
+          rowCount: 2,
+        };
+      }
+      if (q.includes('FROM identities li') && q.includes('JOIN identities wi')) {
+        return {
+          rows: [{ loser_identity_id: '77', winner_identity_id: '88' }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await mergeIntegratorUsers(db, '20', '5');
+
+    const winnerOrgExpr = 'public.platform_users platform_user';
+    const reparentStatements = [
+      { prefix: 'UPDATE message_drafts SET identity_id', table: 'message_drafts' },
+      { prefix: 'UPDATE conversations SET user_identity_id', table: 'conversations' },
+      { prefix: 'UPDATE user_questions SET user_identity_id', table: 'user_questions' },
+      { prefix: 'UPDATE contacts SET user_id', table: 'contacts' },
+      { prefix: 'UPDATE user_reminder_rules SET user_id', table: 'user_reminder_rules' },
+      { prefix: 'UPDATE content_access_grants SET user_id', table: 'content_access_grants' },
+      { prefix: 'UPDATE user_subscriptions SET user_id', table: 'user_subscriptions' },
+      { prefix: 'UPDATE mailing_logs SET user_id', table: 'mailing_logs' },
+    ];
+
+    for (const { prefix, table } of reparentStatements) {
+      const statement = sql.find((s) => s.startsWith(prefix));
+      expect(statement, `${table} reparent statement should exist`).toBeDefined();
+      expect(statement, `${table} should stamp organization_id from the winner`).toContain('organization_id');
+      expect(statement, `${table} org derivation should reference the winner's platform user`).toContain(
+        winnerOrgExpr,
+      );
+      expect(statement, `${table} org derivation should key off winner id 20`).toContain(
+        'integrator_user_id = 20',
+      );
+      // Defect fix (post-audit-71b05b493): the COALESCE's final fallback must be the row's OWN
+      // current organization_id (not just principal / winner-single-active-org), so a winner with
+      // 0 or >1 active orgs can never zero out a previously-valid organization_id.
+      expect(
+        statement,
+        `${table} org derivation should fall back to its own existing organization_id, never NULL`,
+      ).toContain(`${table}.organization_id`);
+    }
+  });
+
+  it('defect fix: never NULLs a reparented row\'s organization_id when the winner has 0 active orgs', async () => {
+    // Winner-single-active-org subquery below returns 0 rows (HAVING count = 1 fails when the
+    // winner belongs to 0 orgs) and there is no organization principal in scope (no
+    // runWithOrganizationPrincipal wrapper active in this unit test) — the OLD two-branch
+    // COALESCE(principal, winnerSingleActiveOrg) would resolve to SQL NULL here, and every
+    // reparent UPDATE would overwrite a previously-valid organization_id with NULL. The fix adds
+    // `<table>.organization_id` as a third COALESCE branch so Postgres falls back to the row's own
+    // current value instead. This test only asserts the generated SQL *shape* (COALESCE terminates
+    // in `<table>.organization_id`) — proving the NULL-write is structurally impossible — since a
+    // unit test against a recording DB double cannot execute real Postgres COALESCE evaluation.
+    const { db, sql, queryImpl } = createRecordingDb();
+    queryImpl.mockImplementation(async (q: string) => {
+      if (q.includes('ORDER BY id ASC FOR UPDATE')) {
+        return { rows: [{ id: '5' }, { id: '20' }], rowCount: 2 };
+      }
+      if (q.includes('merged_into_user_id') && q.includes('FROM users WHERE id IN')) {
+        return {
+          rows: [
+            { id: '20', merged_into_user_id: null },
+            { id: '5', merged_into_user_id: null },
+          ],
+          rowCount: 2,
+        };
+      }
+      if (q.includes('FROM identities li') && q.includes('JOIN identities wi')) {
+        // Non-empty so the per-pair reparents (message_drafts/conversations/user_questions) run too.
+        return {
+          rows: [{ loser_identity_id: '77', winner_identity_id: '88' }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await mergeIntegratorUsers(db, '20', '5');
+
+    const reparentPrefixes = [
+      'UPDATE message_drafts SET identity_id',
+      'UPDATE conversations SET user_identity_id',
+      'UPDATE user_questions SET user_identity_id',
+      'UPDATE contacts SET user_id',
+      'UPDATE user_reminder_rules SET user_id',
+      'UPDATE content_access_grants SET user_id',
+      'UPDATE user_subscriptions SET user_id',
+      'UPDATE mailing_logs SET user_id',
+    ];
+    for (const prefix of reparentPrefixes) {
+      const statement = sql.find((s) => s.startsWith(prefix));
+      expect(statement, `${prefix} statement should exist`).toBeDefined();
+      // COALESCE must end in the row's own organization_id column — never bare NULL.
+      expect(statement).toMatch(/COALESCE\([^)]*organization_id[^)]*\)$|organization_id\s*\)\s*WHERE/u);
+      const tableName = prefix.replace('UPDATE ', '').split(' ')[0];
+      expect(
+        statement,
+        `${tableName} must reference its own organization_id as the terminal COALESCE fallback (>1-active-org / 0-active-org winner case)`,
+      ).toContain(`${tableName}.organization_id`);
+    }
+  });
 });
