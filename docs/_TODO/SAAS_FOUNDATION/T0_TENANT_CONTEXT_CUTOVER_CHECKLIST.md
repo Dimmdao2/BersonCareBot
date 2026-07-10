@@ -8,9 +8,9 @@ Status: compatibility checklist created during T0.4-pre taskdb `#635`. Current b
 - [x] Table matrix created in `scope-derivation/t0-4-pre-table-matrix.tsv`.
 - [x] ADR decisions recorded in `T0_4_PRE_SCHEMA_CLEANUP_ADR.md`.
 - [x] Destructive drops blocked where live runtime references exist.
-- [ ] Dry-run scripts validated.
-- [ ] Audit review completed.
-- [ ] Commit and push completed.
+- [x] Dry-run scripts validated.
+- [x] Audit review completed.
+- [x] Commit and push completed: `f262b84c6fa1ddcebfd5e246ee5fc94a4b76019f`.
 
 ## T0.4 planned scope
 
