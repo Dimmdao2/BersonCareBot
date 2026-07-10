@@ -343,8 +343,9 @@ const WEBAPP_DDL_FILES = [
 //     CONSTRAINT ... REFERENCES clinical_visit` statement (patient_files is not part of this
 //     smoke's minimal schema) is likewise not applied.
 //   - 0128_patient_diagnosis_status.sql: self-contained once clinical_diagnosis exists above.
-//   - 0002_sweet_ikaris.sql + 0003_treatment_program_instances.sql: self-contained (only depend on
-//     platform_users).
+//   - 0002_sweet_ikaris.sql + 0003_treatment_program_instances.sql +
+//     0006_treatment_program_events.sql: self-contained (only depend on platform_users + each other
+//     in that order).
 //   - "tests" catalog excerpt: verbatim bare CREATE TABLE "tests" from
 //     apps/webapp/db/drizzle-migrations/0001_charming_champions.sql, WITHOUT that file's later
 //     `ALTER TABLE tests ADD CONSTRAINT tests_created_by_fkey` (not needed — this smoke never
@@ -463,6 +464,7 @@ CREATE TABLE "clinical_diagnosis_update" (
   "apps/webapp/db/drizzle-migrations/0128_patient_diagnosis_status.sql",
   "apps/webapp/db/drizzle-migrations/0002_sweet_ikaris.sql",
   "apps/webapp/db/drizzle-migrations/0003_treatment_program_instances.sql",
+  "apps/webapp/db/drizzle-migrations/0006_treatment_program_events.sql",
   `
 CREATE TABLE "tests" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -779,6 +781,14 @@ END $$;
 // ---------------------------------------------------------------------------
 const b4c3RetrofitSql = `
 ALTER TABLE lfk_complexes ADD COLUMN IF NOT EXISTS platform_user_id uuid;
+
+-- Chain-parent tables that are themselves org-scoped in production (0146 P1 / 0147 P2 / 0150 P5)
+-- but are NOT RLS-flipped in this smoke -- they only need the column so the seed can stamp org.
+ALTER TABLE online_intake_requests ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE clinical_visit ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE clinical_complaint ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE clinical_diagnosis ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE treatment_program_instances ADD COLUMN IF NOT EXISTS organization_id uuid;
 
 ALTER TABLE online_intake_answers ADD COLUMN IF NOT EXISTS organization_id uuid;
 ALTER TABLE online_intake_attachments ADD COLUMN IF NOT EXISTS organization_id uuid;
@@ -1377,7 +1387,27 @@ GRANT SELECT ON
   public.support_questions,
   public.support_conversation_messages,
   public.support_question_messages,
-  public.support_delivery_events
+  public.support_delivery_events,
+  -- B4-core-3 (taskdb #658): the 12 flipped targets + their (non-flipped) chain-parent tables the
+  -- EXISTS subqueries must read.
+  public.online_intake_requests,
+  public.online_intake_answers,
+  public.online_intake_attachments,
+  public.online_intake_status_history,
+  public.clinical_complaint,
+  public.clinical_complaint_update,
+  public.clinical_diagnosis,
+  public.clinical_diagnosis_update,
+  public.clinical_diagnosis_status_history,
+  public.treatment_program_instances,
+  public.treatment_program_instance_stages,
+  public.treatment_program_instance_stage_items,
+  public.treatment_program_events,
+  public.test_attempts,
+  public.test_results,
+  public.lfk_complexes,
+  public.lfk_complex_exercises,
+  public.media_playback_client_events
 TO ${appRoleIdent};
 
 SET ROLE ${appRoleIdent};
@@ -1708,7 +1738,9 @@ RESET app.patient_user_id;
 RESET app.integrator_user_id;
 ${renderChainBothVisibleProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "staff_integrator" })}
 ${renderChainBothVisibleProofSql(SUPPORT_CHAIN_PROOFS, { label: "staff_support" })}
+${renderChainBothVisibleProofSql(B4_CORE_3_CHAIN_PROOFS, { label: "staff_b4c3" })}
 \echo 'B4-fanout (e) CONFIRMED: staff sees both A1 and A2 rows across all chain-only targets (integrator I2/I3 + webapp support family).'
+\echo 'B4-core-3 (e) CONFIRMED: staff sees both A1 and A2 rows across all 12 newly-walled representative targets (PHI clinical/intake/test/treatment/lfk chains + media direct column).'
 
 -- B4-fanout gap closure proof (f): a SINGLE MIXED patient session -- app.patient_user_id (uuid,
 -- webapp identity) AND app.integrator_user_id (bigint, integrator identity) set SIMULTANEOUSLY --
@@ -1720,6 +1752,8 @@ SET app.patient_user_id = '${patientA1}';
 SET app.integrator_user_id = '${integratorUserA1}';
 ${renderChainOwnNotOtherProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "mixed_integrator" })}
 ${renderChainOwnNotOtherProofSql(SUPPORT_CHAIN_PROOFS, { label: "mixed_support" })}
+${renderChainOwnNotOtherProofSql(B4_CORE_3_CHAIN_PROOFS, { label: "mixed_b4c3" })}
+\echo 'B4-core-3 (f) CONFIRMED: the mixed patient A1 session sees ONLY its own row (never A2, same org) across all 12 newly-walled representative targets -- PHI clinical_*_update/diagnosis_status_history/test_results/treatment_program_instance_stages/stage_items/events/online_intake_*/lfk_complex_exercises + media_playback direct column.'
 -- Already-covered families (direct/bridge, not chain-only) also hold under this SAME mixed session:
 SELECT (count(*) > 0)::int AS mixed_own_enrollment FROM public.org_enrollments
   WHERE platform_user_id = '${patientA1}'::uuid \gset
@@ -1757,7 +1791,9 @@ RESET app.patient_user_id;
 RESET app.integrator_user_id;
 ${renderChainEmptyContextDeniesSql(INTEGRATOR_CHAIN_PROOFS, { label: "empty_integrator" })}
 ${renderChainEmptyContextDeniesSql(SUPPORT_CHAIN_PROOFS, { label: "empty_support" })}
+${renderChainEmptyContextDeniesSql(B4_CORE_3_CHAIN_PROOFS, { label: "empty_b4c3" })}
 \echo 'B4-fanout (g) CONFIRMED: empty actor/patient context denies all chain-only targets too, even with app.org set.'
+\echo 'B4-core-3 (g) CONFIRMED: empty actor/patient context denies all 12 newly-walled representative targets too, even with app.org set.'
 
 \echo 'B6 real-policy isolation OK'
 `;
@@ -1771,6 +1807,13 @@ try {
     psql(readRepoFile(relPath));
   }
 
+  console.log("--- phase 1b: B4-core-3 (taskdb #658) target tables + FK ancestors ---");
+  for (const step of B4_CORE_3_DDL_STEPS) {
+    const isFile = /^[a-zA-Z0-9._/-]+\.sql$/.test(step.trim());
+    console.log(isFile ? `applying ${step.trim()}` : "applying inline B4-core-3 DDL excerpt");
+    psql(resolveDdlStep(step));
+  }
+
   console.log("--- phase 2: minimal real integrator core DDL (search_path=integrator,public) ---");
   psql("CREATE SCHEMA IF NOT EXISTS integrator;");
   for (const relPath of INTEGRATOR_DDL_FILES) {
@@ -1781,6 +1824,9 @@ try {
   console.log("--- phase 3: I1/I3/C1 + 0152 excerpts (org-column retrofit) ---");
   psql(orgRetrofitSql);
 
+  console.log("--- phase 3b: B4-core-3 org-column + lfk_complexes.platform_user_id retrofit ---");
+  psql(b4c3RetrofitSql);
+
   console.log("--- phase 4: dormant RLS (extracted real blocks from 0161/0162/0163/0167) ---");
   psql(dormantRlsSql);
 
@@ -1789,6 +1835,9 @@ try {
 
   console.log("--- phase 6: fixture seed ---");
   psql(seedSql);
+
+  console.log("--- phase 6b: B4-core-3 fixture seed ---");
+  psql(b4c3SeedSql);
 
   console.log("--- phase 7: NOBYPASSRLS role + assertions ---");
   psql(assertionSql);
