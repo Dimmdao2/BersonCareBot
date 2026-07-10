@@ -59,14 +59,21 @@
  *    which this smoke performs using the REAL `p0-9-enforce-descriptors.mjs` renderer (mode: "enforce"),
  *    already built in this repo for exactly this purpose but not yet wired into a migration file
  *    (that wiring is plan item B8, owner-gated).
- *  - NO real SCOPED table's RLS predicate today references a per-patient column (there is a
- *    `renderPatientPredicate` building block in rls-sql-renderer.mjs, but it is only invoked by a unit
- *    test and by the OLD hand-written p0-13 smoke — never by rls-descriptor-model.mjs or
- *    p0-9-enforce-descriptors.mjs). Real enforcement today is ORG-LEVEL ONLY. This smoke explicitly
- *    proves that gap on `notification_delivery_attempts` (has both organization_id AND user_id
- *    columns; the real+enforced policy predicate uses organization_id only) instead of silently
- *    assuming patient isolation holds. This matches the plan's own still-open B4-core item
- *    ("resolve the patient-wall GUC semantics — PRODUCT decision").
+ *  - UPDATE (B4-core, taskdb #653, owner decision 2026-07-11): the patient-wall gap above is FIXED.
+ *    `rls-descriptor-model.mjs` now attaches `patientColumn`/`patientColumnCastType` to 60 patient-owned
+ *    SCOPED descriptors (see its `patientOwnedColumns` registry), and `p0-9-enforce-descriptors.mjs` /
+ *    `p0-8-{3,4,5}-policy-targets.mjs` AND that with a fail-closed staff-or-patient branch
+ *    (`renderStaffOrPatientPredicate` in rls-sql-renderer.mjs): staff (`app.actor='staff'`) keeps
+ *    org-wide visibility (owner decision: variant A, no assignment predicate); a patient session
+ *    (`app.actor='patient'` + `app.patient_user_id`) sees ONLY its own rows; unset/empty context denies.
+ *    Of this smoke's 6 targets, `org_enrollments` (platform_user_id), `notification_delivery_attempts`
+ *    (user_id), and `integrator.content_access_grants` (user_id, bigint) are now patient-owned and are
+ *    exercised below under the real enforce-mode patient wall. `be_package_items` (org catalog line
+ *    item, no patient owner) and `system_settings` (BOOTSTRAP hybrid, untouched per instruction) stay
+ *    unaffected. `integrator.user_reminder_delivery_logs` is a DOCUMENTED REMAINING GAP: its patient
+ *    identity is only reachable via a 2-hop chain (occurrence_id -> user_reminder_occurrences.rule_id ->
+ *    user_reminder_rules.user_id), not a direct column, so it is deliberately NOT in the
+ *    `patientOwnedColumns` registry this pass — proven still-open below, not silently assumed fixed.
  *
  * Scratch only. Guards refuse non-scratch/dev/prod/test databases, same as smoke-p0-13-db-isolation.mjs.
  * No push/deploy.
@@ -502,6 +509,11 @@ TO ${appRoleIdent};
 SET ROLE ${appRoleIdent};
 SET row_security = on;
 
+-- B4-core: everything below through the "org A / org B" section runs as a STAFF session
+-- (org-wide visibility, owner decision variant A — no assignment predicate). The dedicated
+-- patient-session assertions (app.actor='patient' + app.patient_user_id) come after.
+SET app.actor = 'staff';
+
 SELECT (rolbypassrls = false)::int AS app_role_nobypass_ok FROM pg_roles WHERE rolname = '${appRole}' \gset
 \if :app_role_nobypass_ok
 \else
@@ -676,25 +688,157 @@ SELECT (count(*) > 0)::int AS org_a_sysset_global_count FROM public.system_setti
 \quit 1
 \endif
 
--- FINDING (documented, not fudged): no real policy enforces per-patient isolation. With app.org=A
--- and NO patient GUC (none exists in the real renderer/descriptor model), BOTH patient A1's and
--- patient A2's notification_delivery_attempts rows are visible. This is the CORRECT, EXPECTED result
--- given today's real code (org-level only) — it is the B4-core "patient-wall GUC semantics" gap.
+-- B4-core proof (a): STAFF (app.actor='staff', set earlier) sees ALL patients in its own org —
+-- org-wide visibility, owner decision variant A, no assignment predicate. Both patient A1's and
+-- A2's notification_delivery_attempts rows are visible to staff under app.org=A.
 SELECT (count(*) > 0)::int AS org_a_patient_rows_visible FROM public.notification_delivery_attempts
   WHERE organization_id = '${orgA}'::uuid \gset
 \if :org_a_patient_rows_visible
 \else
-\echo 'FATAL: expected at least the seeded org A notification_delivery_attempts rows to be visible.'
+\echo 'FATAL: expected at least the seeded org A notification_delivery_attempts rows to be visible to staff.'
 \quit 1
 \endif
 SELECT (count(*) > 0)::int AS org_a_both_patients_visible FROM public.notification_delivery_attempts
   WHERE organization_id = '${orgA}'::uuid AND user_id IN ('${patientA1}'::uuid, '${patientA2}'::uuid) \gset
 \if :org_a_both_patients_visible
-\echo 'FINDING CONFIRMED: no patient-wall in the real enforce-mode policy — both patient A1 and A2 rows visible under app.org=A alone (see B4-core, PRODUCT decision pending).'
+\echo 'B4-core (a) CONFIRMED: staff (app.actor=staff) sees ALL org A patients (A1 and A2) in notification_delivery_attempts — org-wide, variant A.'
 \else
 \echo 'UNEXPECTED: patient rows not visible at all under matching app.org — re-check fixture seed.'
 \quit 1
 \endif
+
+-- B4-core proof (b) + (c) + (d): patient-session isolation on the 3 now-patient-owned targets
+-- (org_enrollments, notification_delivery_attempts, integrator.content_access_grants — the
+-- latter proving the bigint integrator identity cast). Staff stays unaffected (already proven
+-- above); everything from here on is a PATIENT session (app.actor='patient').
+
+SET app.org = '${orgA}';
+SET app.actor = 'patient';
+SET app.patient_user_id = '${patientA1}';
+
+SELECT (count(*) > 0)::int AS patient_a1_sees_own_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientA1}'::uuid \gset
+\if :patient_a1_sees_own_enrollment
+\else
+\echo 'FATAL: patient A1 must see its own org_enrollments row.'
+\quit 1
+\endif
+SELECT (count(*) > 0)::int AS patient_a1_sees_a2_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientA2}'::uuid \gset
+\if :patient_a1_sees_a2_enrollment
+\echo 'FATAL: patient A1 must NOT see patient A2 org_enrollments row (same org).'
+\quit 1
+\endif
+
+SELECT (count(*) > 0)::int AS patient_a1_sees_own_notif FROM public.notification_delivery_attempts
+  WHERE user_id = '${patientA1}'::uuid \gset
+\if :patient_a1_sees_own_notif
+\else
+\echo 'FATAL: patient A1 must see its own notification_delivery_attempts row.'
+\quit 1
+\endif
+SELECT (count(*) > 0)::int AS patient_a1_sees_a2_notif FROM public.notification_delivery_attempts
+  WHERE user_id = '${patientA2}'::uuid \gset
+\if :patient_a1_sees_a2_notif
+\echo 'FATAL: patient A1 must NOT see patient A2 notification_delivery_attempts row (same org).'
+\quit 1
+\endif
+
+SET app.patient_user_id = '${patientA2}';
+SELECT (count(*) > 0)::int AS patient_a2_sees_own_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientA2}'::uuid \gset
+\if :patient_a2_sees_own_enrollment
+\else
+\echo 'FATAL: patient A2 must see its own org_enrollments row.'
+\quit 1
+\endif
+SELECT (count(*) > 0)::int AS patient_a2_sees_a1_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientA1}'::uuid \gset
+\if :patient_a2_sees_a1_enrollment
+\echo 'FATAL: patient A2 must NOT see patient A1 org_enrollments row (same org).'
+\quit 1
+\endif
+
+\echo 'B4-core (b) CONFIRMED: patient A1 <> A2 wall holds for org_enrollments and notification_delivery_attempts (same org, uuid platform_user_id/user_id).'
+
+-- B4-core proof (c): empty context (app.org set correctly, but NEITHER staff NOR a valid patient
+-- identity) must deny — 0 rows, on all three patient-owned targets.
+RESET app.actor;
+RESET app.patient_user_id;
+SELECT (count(*) > 0)::int AS empty_context_enrollments FROM public.org_enrollments \gset
+\if :empty_context_enrollments
+\echo 'FATAL: empty app.actor/app.patient_user_id (app.org still set) must deny org_enrollments — neither staff nor patient identified.'
+\quit 1
+\endif
+SELECT (count(*) > 0)::int AS empty_context_notif FROM public.notification_delivery_attempts \gset
+\if :empty_context_notif
+\echo 'FATAL: empty app.actor/app.patient_user_id must deny notification_delivery_attempts.'
+\quit 1
+\endif
+SELECT (count(*) > 0)::int AS empty_context_cag FROM integrator.content_access_grants \gset
+\if :empty_context_cag
+\echo 'FATAL: empty app.actor/app.patient_user_id must deny integrator.content_access_grants.'
+\quit 1
+\endif
+\echo 'B4-core (c) CONFIRMED: empty actor/patient context denies all 3 patient-owned targets even with app.org set.'
+
+-- B4-core proof (d): the org wall still holds for a patient session — patient B1's own identity
+-- is correct, but querying under the WRONG org (app.org=A, patient B1 actually belongs to org B)
+-- must still deny (org predicate fails regardless of a valid-looking patient match).
+SET app.actor = 'patient';
+SET app.patient_user_id = '${patientB1}';
+SELECT (count(*) > 0)::int AS wrong_org_patient_b1_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientB1}'::uuid \gset
+\if :wrong_org_patient_b1_enrollment
+\echo 'FATAL: patient B1 under app.org=A must NOT see its own (org B) org_enrollments row — org wall must hold.'
+\quit 1
+\endif
+
+SET app.org = '${orgB}';
+SELECT (count(*) > 0)::int AS right_org_patient_b1_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientB1}'::uuid \gset
+\if :right_org_patient_b1_enrollment
+\else
+\echo 'FATAL: patient B1 under app.org=B (its real org) must see its own org_enrollments row.'
+\quit 1
+\endif
+\echo 'B4-core (d) CONFIRMED: org wall holds for patient sessions too — right patient + wrong org still denies.'
+
+-- B4-core: integrator bigint identity cast, same A1/A2 isolation shape, on
+-- integrator.content_access_grants (user_id bigint, castType bigint — proves the "для
+-- интегратора — bigint-ключ" requirement, not just the uuid public-schema path above).
+SET app.org = '${orgA}';
+SET app.patient_user_id = '${integratorUserA1}';
+SELECT (count(*) > 0)::int AS patient_a1_sees_own_cag FROM integrator.content_access_grants
+  WHERE user_id = ${integratorUserA1} \gset
+\if :patient_a1_sees_own_cag
+\else
+\echo 'FATAL: integrator patient A1 must see its own content_access_grants row.'
+\quit 1
+\endif
+SELECT (count(*) > 0)::int AS patient_a1_sees_a2_cag FROM integrator.content_access_grants
+  WHERE user_id = ${integratorUserA2} \gset
+\if :patient_a1_sees_a2_cag
+\echo 'FATAL: integrator patient A1 must NOT see integrator patient A2 content_access_grants row (same org, bigint identity).'
+\quit 1
+\endif
+\echo 'B4-core (bigint) CONFIRMED: integrator.content_access_grants patient wall holds under the bigint app.patient_user_id cast.'
+
+-- DOCUMENTED REMAINING GAP (not silently assumed fixed): integrator.user_reminder_delivery_logs
+-- has NO direct patient-owner column (only reachable via occurrence_id -> user_reminder_occurrences
+-- .rule_id -> user_reminder_rules.user_id, a 2-hop chain) and is deliberately NOT in this pass's
+-- patientOwnedColumns registry. Confirm it still shows both org A patients' delivery logs under a
+-- staff-shaped org-only query (its enforce predicate stays org-only, unaffected by B4-core).
+SET app.actor = 'staff';
+RESET app.patient_user_id;
+SELECT (count(*) > 0)::int AS org_a_rdl_still_org_only FROM integrator.user_reminder_delivery_logs
+  WHERE organization_id = '${orgA}'::uuid \gset
+\if :org_a_rdl_still_org_only
+\else
+\echo 'FATAL: expected org A user_reminder_delivery_logs rows to remain visible (org-only enforce, gap not yet closed).'
+\quit 1
+\endif
+\echo 'B4-core GAP CONFIRMED STILL OPEN (as documented): integrator.user_reminder_delivery_logs has no patient wall yet (chain-only identity, no direct column) — follow-up, not silently fixed.'
 
 \echo 'B6 real-policy isolation OK'
 `;

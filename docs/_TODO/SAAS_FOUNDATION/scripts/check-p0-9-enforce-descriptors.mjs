@@ -70,6 +70,19 @@ assertNotIncludes(
   "P0.9 direct scoped SQL must not use dormant permissive app.org semantics",
 );
 
+// B4-core (taskdb #653): patient_files is patient-owned (patient_user_id) — the enforce model
+// must AND the fail-closed staff-or-patient branch onto the org predicate.
+assertIncludes(
+  directScopedSql,
+  "NULLIF(current_setting('app.actor', true), '') = 'staff'",
+  "P0.9 patient-owned direct scoped SQL must include the fail-closed staff-or-patient branch",
+);
+assertIncludes(
+  directScopedSql,
+  `"patient_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid`,
+  "P0.9 patient-owned direct scoped SQL must match patient_files.patient_user_id",
+);
+
 const fkScoped = getP09EnforceDescriptorByTable("public.be_package_items");
 const fkScopedSql = renderP09EnforcePolicyStatements(fkScoped).join("\n");
 
@@ -79,6 +92,27 @@ assertIncludes(
   "P0.9 FK-path SQL must require non-empty app.org",
 );
 assertIncludes(fkScopedSql, "EXISTS (", "P0.9 FK-path SQL must preserve parent path checks");
+assertNotIncludes(
+  fkScopedSql,
+  "app.actor",
+  "P0.9 be_package_items has no patient owner (org catalog item) — must stay org-only",
+);
+
+// B4-core: the sibling FK-path table be_patient_package_items IS patient-owned via its immediate
+// parent be_patient_packages.platform_user_id — proves the fk_path + patient combination too.
+const fkScopedPatient = getP09EnforceDescriptorByTable("public.be_patient_package_items");
+const fkScopedPatientSql = renderP09EnforcePolicyStatements(fkScopedPatient).join("\n");
+
+assertIncludes(
+  fkScopedPatientSql,
+  "NULLIF(current_setting('app.actor', true), '') = 'staff'",
+  "P0.9 be_patient_package_items must include the fail-closed staff-or-patient branch",
+);
+assertIncludes(
+  fkScopedPatientSql,
+  `"p0_8_4_patient_parent"."platform_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid`,
+  "P0.9 be_patient_package_items patient predicate must EXISTS-join its parent's platform_user_id",
+);
 
 const pendingPolymorphic = getP09EnforceDescriptorByTable("public.comments");
 

@@ -1184,6 +1184,13 @@
       "when": 1783557600000,
       "tag": "0168_p0_8_6_system_settings_audit_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1783561200000,
+      "tag": "0169_p0_8_b4_core_patient_wall_rls",
+      "breakpoints": true
     }
   ]
 }

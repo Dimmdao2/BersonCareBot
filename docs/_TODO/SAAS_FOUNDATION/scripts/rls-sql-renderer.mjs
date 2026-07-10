@@ -37,17 +37,23 @@ function assertMode(mode) {
   }
 }
 
-function renderUuidColumnMatchesGuc({ column, gucName, mode }) {
+const patientCastTypes = new Set(["uuid", "bigint"]);
+
+function renderUuidColumnMatchesGuc({ column, gucName, mode, castType = "uuid" }) {
   assertMode(mode);
+
+  if (!patientCastTypes.has(castType)) {
+    throw new Error(`Unsupported predicate cast type: ${castType}`);
+  }
 
   const columnSql = quoteSqlIdentifier(column);
   const gucSql = renderNullableTextGuc(gucName);
 
   if (mode === "dormant_permissive") {
-    return `(${gucSql} IS NULL OR ${columnSql} = ${gucSql}::uuid)`;
+    return `(${gucSql} IS NULL OR ${columnSql} = ${gucSql}::${castType})`;
   }
 
-  return `(${gucSql} IS NOT NULL AND ${columnSql} = ${gucSql}::uuid)`;
+  return `(${gucSql} IS NOT NULL AND ${columnSql} = ${gucSql}::${castType})`;
 }
 
 export function renderOrgPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
@@ -64,12 +70,72 @@ export function renderOrgPredicate(descriptor, { mode = "dormant_permissive" } =
   });
 }
 
-export function renderPatientPredicate({ patientColumn = "platform_user_id", mode = "enforce" } = {}) {
+// B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md): patient predicates are ALWAYS
+// fail-closed ("enforce" semantics for the patient branch itself), regardless of whether the
+// surrounding org predicate is rendered dormant_permissive or enforce. There is no
+// "dormant_permissive" patient mode — unset/empty app.patient_user_id never widens visibility.
+export function renderPatientPredicate({ patientColumn = "platform_user_id", mode = "enforce", castType = "uuid" } = {}) {
   return renderUuidColumnMatchesGuc({
     column: patientColumn,
     gucName: "app.patient_user_id",
     mode,
+    castType,
   });
+}
+
+export function renderStaffActorCheck() {
+  return `${renderNullableTextGuc("app.actor")} = 'staff'`;
+}
+
+// Owner decision 2026-07-11 (B4-core): doctor/staff visibility is org-wide (variant A, no
+// assignment predicate); the patient wall is absolute — a patient session (app.actor='patient' +
+// app.patient_user_id) sees ONLY its own rows, and an unset/empty context denies (fail-closed).
+// A patient session can never set app.actor='staff' (separate authenticated code path — enforced
+// at the app layer, out of scope here / B4-fanout).
+export function renderStaffOrPatientPredicate({ patientColumn, castType = "uuid" } = {}) {
+  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+    throw new Error("Staff-or-patient predicate requires a patientColumn");
+  }
+
+  const patientPredicate = renderPatientPredicate({ patientColumn, mode: "enforce", castType });
+
+  return `(${renderStaffActorCheck()} OR ${patientPredicate})`;
+}
+
+// For patient-owned columns that are NULLABLE because NULL means "not an individual patient's
+// row" (org-shared/catalog row, e.g. public.media_folders standard/root folders) rather than
+// "unknown/unlinked patient" — those rows must stay visible to everyone in the org (patients
+// included), same as bootstrap-hybrid does for organization_id. Do not use this for ordinary
+// nullable owner columns where NULL just means "not yet linked to a patient" (e.g.
+// be_appointments.platform_user_id): those correctly fall through to deny-for-patients via the
+// plain renderStaffOrPatientPredicate fail-closed semantics.
+export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, castType = "uuid" } = {}) {
+  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+    throw new Error("Nullable shared staff-or-patient predicate requires a patientColumn");
+  }
+
+  const columnSql = quoteSqlIdentifier(patientColumn);
+
+  return `(${columnSql} IS NULL OR ${renderStaffOrPatientPredicate({ patientColumn, castType })})`;
+}
+
+export function renderStaffOrPatientPredicateForDescriptor(descriptor) {
+  const render = descriptor.patientColumnNullableShared
+    ? renderNullableSharedStaffOrPatientPredicate
+    : renderStaffOrPatientPredicate;
+
+  return render({
+    patientColumn: descriptor.patientColumn,
+    castType: descriptor.patientColumnCastType ?? "uuid",
+  });
+}
+
+// Combines an org predicate (dormant or enforce) with the (always fail-closed) patient wall for
+// direct_org_column / denorm_org_column / self_org_id descriptors that declare patientColumn.
+export function renderOrgAndPatientPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
+  const orgPredicate = renderOrgPredicate(descriptor, { mode });
+
+  return `(${orgPredicate} AND ${renderStaffOrPatientPredicateForDescriptor(descriptor)})`;
 }
 
 export function renderBootstrapHybridPredicate({ orgColumn = "organization_id" } = {}) {
@@ -115,7 +181,9 @@ export function renderOrgDormantPolicyStatements(descriptor, { policyName }) {
     throw new Error("Policy name must be a non-empty string");
   }
 
-  const predicate = renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
+  const predicate = descriptor.patientColumn
+    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
+    : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
@@ -140,7 +208,9 @@ export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName,
     throw new Error("Policy name must be a non-empty string");
   }
 
-  const predicate = renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
+  const predicate = descriptor.patientColumn
+    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
+    : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
@@ -225,6 +295,47 @@ export function renderFkPathPredicate(descriptor, { mode = "dormant_permissive" 
   return `(${gucSql} IS NOT NULL AND ${pathPredicate})`;
 }
 
+// fk_path patient wall: the patient-owner column lives on the SAME immediate FK parent already
+// used for the org fk_path predicate (e.g. public.be_patient_package_items -> parent
+// public.be_patient_packages.platform_user_id), so this reuses the same parent-lookup shape as
+// renderFkPathExists above, just checking the patient column instead of the org column.
+export function renderFkPathPatientPredicate(descriptor) {
+  if (descriptor?.scopingKind !== "fk_path") {
+    throw new Error(`FK-path patient predicate requires fk_path descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  }
+
+  const fkPath = descriptor.fkPath;
+  const patientColumn = descriptor.patientColumn;
+  const castType = descriptor.patientColumnCastType ?? "uuid";
+
+  if (!fkPath?.parentTable || !fkPath?.parentPk || !fkPath?.localFk) {
+    throw new Error(`FK-path patient predicate for ${descriptor.table} is missing parent path metadata`);
+  }
+
+  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+    throw new Error(`FK-path patient predicate for ${descriptor.table} requires a patientColumn`);
+  }
+
+  const patientGucSql = renderNullableTextGuc("app.patient_user_id");
+  const parentAlias = quoteSqlIdentifier("p0_8_4_patient_parent");
+  const existsSql = [
+    "EXISTS (",
+    `SELECT 1 FROM ${renderPolicyTarget(fkPath.parentTable)} AS ${parentAlias}`,
+    `WHERE ${parentAlias}.${quoteSqlIdentifier(fkPath.parentPk)} = ${quoteSqlIdentifier(fkPath.localFk)}`,
+    `AND ${parentAlias}.${quoteSqlIdentifier(patientColumn)} = ${patientGucSql}::${castType}`,
+    ")",
+  ].join(" ");
+
+  return `(${patientGucSql} IS NOT NULL AND ${existsSql})`;
+}
+
+export function renderFkPathAndPatientPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
+  const orgPredicate = renderFkPathPredicate(descriptor, { mode });
+  const staffOrPatient = `(${renderStaffActorCheck()} OR ${renderFkPathPatientPredicate(descriptor)})`;
+
+  return `(${orgPredicate} AND ${staffOrPatient})`;
+}
+
 export function renderFkPathDormantPolicyStatements(descriptor, { policyName }) {
   if (descriptor?.scopingKind !== "fk_path") {
     throw new Error(`FK-path policy requires fk_path descriptor for ${descriptor?.table ?? "<unknown>"}`);
@@ -234,7 +345,9 @@ export function renderFkPathDormantPolicyStatements(descriptor, { policyName }) 
     throw new Error("Policy name must be a non-empty string");
   }
 
-  const predicate = renderFkPathPredicate(descriptor, { mode: "dormant_permissive" });
+  const predicate = descriptor.patientColumn
+    ? renderFkPathAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
+    : renderFkPathPredicate(descriptor, { mode: "dormant_permissive" });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
