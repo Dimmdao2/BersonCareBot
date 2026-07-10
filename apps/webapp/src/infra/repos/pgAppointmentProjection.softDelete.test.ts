@@ -105,4 +105,73 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
     expect(updateSql).not.toContain("UPDATE appointment_records");
     expect(String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "")).toContain("DELETE FROM patient_bookings");
   });
+
+  describe("organizationId guard (SAAS Hole#3)", () => {
+    it("refuses the delete when the record resolves to a different canonical organization", async () => {
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ organization_id: "org-other" }] });
+
+      const port = createPgAppointmentProjectionPort();
+      const ok = await port.softDeleteByIntegratorId("be:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {
+        organizationId: "org-mine",
+      });
+
+      expect(ok).toBe(false);
+      expect(clientQueryMock).toHaveBeenCalledWith("ROLLBACK");
+      expect(clientQueryMock).not.toHaveBeenCalledWith("COMMIT");
+      // Only the existence check + org resolution ran — no mutation was issued.
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
+      const orgResolveSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+      expect(orgResolveSql).toContain("be_appointments");
+      expect(orgResolveSql).toContain("be_external_entity_mappings");
+    });
+
+    it("proceeds when the resolved canonical organization matches the caller", async () => {
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ organization_id: "org-mine" }] })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      const port = createPgAppointmentProjectionPort();
+      const ok = await port.softDeleteByIntegratorId("be:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {
+        organizationId: "org-mine",
+      });
+
+      expect(ok).toBe(true);
+      expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(4);
+    });
+
+    it("proceeds (dormant/unscoped-legacy compatible) when the record has no canonical org mapping", async () => {
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      const port = createPgAppointmentProjectionPort();
+      const ok = await port.softDeleteByIntegratorId("rt-legacy-only", {
+        organizationId: "org-mine",
+      });
+
+      expect(ok).toBe(true);
+      expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(4);
+    });
+
+    it("skips the organization resolution query entirely when no organizationId is supplied (unchanged legacy callers)", async () => {
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      const port = createPgAppointmentProjectionPort();
+      const ok = await port.softDeleteByIntegratorId("rt-record-legacy-caller");
+
+      expect(ok).toBe(true);
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
+    });
+  });
 });
