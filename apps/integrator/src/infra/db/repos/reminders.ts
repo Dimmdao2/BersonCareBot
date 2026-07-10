@@ -14,7 +14,33 @@ import {
   userReminderRules,
 } from '../schema/integratorDomainRepos.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
-import { runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
+import {
+  getCurrentOrganizationPrincipalId,
+  runWithOrganizationPrincipal,
+} from '../../principal/organizationPrincipal.js';
+
+function organizationIdForIntegratorUserSql(integratorUserId: string | number) {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
+  return sql`COALESCE(
+    ${currentOrganizationId}::uuid,
+    (
+      SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1]
+      FROM public.platform_users platform_user
+      INNER JOIN (
+        SELECT platform_user_id, organization_id
+        FROM public.org_enrollments
+        WHERE status = 'active'
+        UNION
+        SELECT platform_user_id, organization_id
+        FROM public.be_organization_members
+        WHERE status = 'active'
+      ) active_user_orgs
+        ON active_user_orgs.platform_user_id = platform_user.id
+      WHERE platform_user.integrator_user_id = ${String(integratorUserId)}::bigint
+      HAVING count(DISTINCT active_user_orgs.organization_id) = 1
+    )
+  )`;
+}
 
 function normalizeRuleRow(row: {
   id: string;
@@ -314,6 +340,7 @@ export async function upsertReminderRule(db: DbPort, input: ReminderRuleRecord):
     notificationTopicForSql = prev[0]?.notification_topic_code ?? null;
   }
 
+  const organizationIdExpression = organizationIdForIntegratorUserSql(input.userId);
   const rows = await d
     .insert(userReminderRules)
     .values({
@@ -338,6 +365,7 @@ export async function upsertReminderRule(db: DbPort, input: ReminderRuleRecord):
       quietHoursStartMinute: input.quietHoursStartMinute ?? null,
       quietHoursEndMinute: input.quietHoursEndMinute ?? null,
       notificationTopicCode: notificationTopicForSql,
+      organizationId: organizationIdExpression,
       createdAt: sql`now()`,
       updatedAt: sql`now()`,
     })
@@ -364,6 +392,7 @@ export async function upsertReminderRule(db: DbPort, input: ReminderRuleRecord):
         quietHoursStartMinute: input.quietHoursStartMinute ?? null,
         quietHoursEndMinute: input.quietHoursEndMinute ?? null,
         notificationTopicCode: notificationTopicForSql,
+        organizationId: sql`COALESCE(${organizationIdExpression}, ${userReminderRules.organizationId})`,
         updatedAt: sql`now()`,
       },
     })
@@ -616,6 +645,7 @@ export async function createContentAccessGrant(
   },
 ): Promise<string> {
   const d = getIntegratorDrizzleSession(db);
+  const organizationIdExpression = organizationIdForIntegratorUserSql(input.userId);
   const rows = await d
     .insert(contentAccessGrants)
     .values({
@@ -626,6 +656,7 @@ export async function createContentAccessGrant(
       tokenHash: input.tokenHash ?? null,
       expiresAt: input.expiresAt,
       metaJson: input.metaJson ?? {},
+      organizationId: organizationIdExpression,
       createdAt: sql`now()`,
     })
     .returning({ created_at: contentAccessGrants.createdAt });
