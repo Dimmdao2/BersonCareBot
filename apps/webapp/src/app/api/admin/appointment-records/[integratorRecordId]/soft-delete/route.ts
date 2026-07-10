@@ -1,21 +1,23 @@
 /**
- * POST /api/admin/appointment-records/:integratorRecordId/soft-delete — пометить запись удалённой (admin only).
+ * POST /api/admin/appointment-records/:integratorRecordId/soft-delete — пометить запись удалённой
+ * (admin с резолвленным admin-workspace членством, SAAS Hole#3 taskdb `#645`).
  * Пишет `appointment_records.deleted_at` и при совпадении `patient_bookings.rubitime_id` отменяет активные статусы
- * (чтобы запись ушла из кабинета пациента).
+ * (чтобы запись ушла из кабинета пациента). `appointmentProjection.softDeleteByIntegratorId` получает
+ * `organizationId` вызывающей workspace и отказывает в удалении, если запись резолвится в чужую
+ * каноническую организацию (см. `pgAppointmentProjection.ts`).
  */
 import { NextResponse } from "next/server";
 import { emitBookingDeletedEvent } from "@/app-layer/booking/emitBookingDeletedEvent";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requireAdminWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 export async function POST(
   _request: Request,
   context: { params: Promise<{ integratorRecordId: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session || session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireAdminWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { integratorRecordId } = await context.params;
   const id = integratorRecordId?.trim() ?? "";
@@ -24,7 +26,9 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const ok = await deps.appointmentProjection.softDeleteByIntegratorId(id);
+  const ok = await withDoctorWorkspacePrincipal(gate.ctx, "admin.appointment-records.soft-delete", () =>
+    deps.appointmentProjection.softDeleteByIntegratorId(id, { organizationId: gate.ctx.organizationId }),
+  );
   if (!ok) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }

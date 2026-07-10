@@ -17,7 +17,55 @@ export type SoftDeleteByIntegratorIdOpts = {
   canonicalAppointmentId?: string;
   /** Staff delete: DELETE patient_bookings (not only UPDATE active). */
   purgePatientBookings?: boolean;
+  /**
+   * Caller's resolved admin/doctor workspace organization. `appointment_records` and
+   * `patient_bookings` are LEGACY-tier compatibility projections with no `organization_id`
+   * column (see `docs/_TODO/SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md` — T0.4
+   * intentionally does not stamp organization onto these legacy writes). When provided, and
+   * the target record resolves to a canonical `be_appointments` organization (via a `be:<uuid>`
+   * integrator id or a `be_external_entity_mappings` row), the delete is refused unless that
+   * canonical organization matches. Records with no canonical lineage (pure legacy rows) are
+   * unaffected — single-organization dormant behavior is unchanged.
+   */
+  organizationId?: string;
 };
+
+class AppointmentProjectionOrganizationMismatchError extends Error {
+  constructor() {
+    super("appointment_projection_organization_mismatch");
+    this.name = "AppointmentProjectionOrganizationMismatchError";
+  }
+}
+
+/**
+ * Resolves the canonical `be_appointments.organization_id` for a legacy `integrator_record_id`,
+ * if one can be derived — either directly (`be:<uuid>` ids) or via `be_external_entity_mappings`
+ * (Rubitime-sourced ids). Mirrors the read-side derivation in
+ * `pgDoctorAppointments.legacyAppointmentOrganizationClause`; used here only to guard destructive
+ * writes, never to stamp organization onto the legacy tables themselves.
+ */
+async function resolveLegacyAppointmentOrganizationId(
+  integratorRecordId: string,
+  tx: ReturnType<typeof getWebappSqlFromPgClient>,
+): Promise<string | null> {
+  const result = await runWebappPgText<{ organization_id: string }>(
+    `SELECT bea.organization_id AS organization_id
+       FROM be_appointments bea
+      WHERE $1 ~ '^be:[0-9a-fA-F-]{36}$'
+        AND bea.id = (SUBSTRING($1 FROM 4))::uuid
+     UNION ALL
+     SELECT bea2.organization_id AS organization_id
+       FROM be_external_entity_mappings m
+       JOIN be_appointments bea2 ON bea2.id = m.canonical_id
+      WHERE m.external_id = $1
+        AND m.entity_type = 'appointment'
+        AND m.external_system = 'rubitime'
+     LIMIT 1`,
+    [integratorRecordId],
+    tx,
+  );
+  return result.rows[0]?.organization_id ?? null;
+}
 
 export type AppointmentRecordRow = {
   id: string;
@@ -273,6 +321,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       const pool = getPool();
       const cancelReason = opts?.cancelReason ?? "admin_soft_delete";
       const purgePatientBookings = opts?.purgePatientBookings === true;
+      const organizationId = opts?.organizationId;
       try {
         await withPoolTransaction(pool, async (client) => {
           const tx = getWebappSqlFromPgClient(client);
@@ -284,6 +333,16 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           const row = existing.rows[0];
           if (!row) {
             throw new AppointmentProjectionRecordNotFoundError();
+          }
+
+          if (organizationId) {
+            const resolvedOrganizationId = await resolveLegacyAppointmentOrganizationId(
+              integratorRecordId,
+              tx,
+            );
+            if (resolvedOrganizationId && resolvedOrganizationId !== organizationId) {
+              throw new AppointmentProjectionOrganizationMismatchError();
+            }
           }
 
           if (!row.deleted_at) {
@@ -334,7 +393,10 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         });
         return true;
       } catch (err) {
-        if (err instanceof AppointmentProjectionRecordNotFoundError) {
+        if (
+          err instanceof AppointmentProjectionRecordNotFoundError ||
+          err instanceof AppointmentProjectionOrganizationMismatchError
+        ) {
           return false;
         }
         throw err;
