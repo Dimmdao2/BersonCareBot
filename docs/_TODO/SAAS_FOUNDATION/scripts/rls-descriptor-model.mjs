@@ -398,6 +398,67 @@ const patientChainOwnedTables = new Map([
     terminalColumn: "platform_user_id",
     castType: "uuid",
   }],
+
+  // B4-core-3 (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): 9 more patient-owned denorm_org_column
+  // (P0.8.4) tables the B4-core-2 audit found still org-only. Each is a SINGLE-hop parent_denorm
+  // child whose immediate FK parent already carries a direct patient-owner column registered above
+  // in `patientOwnedColumns` (online_intake_requests.user_id, clinical_complaint.patient_user_id,
+  // clinical_diagnosis.patient_user_id, test_attempts.patient_user_id,
+  // treatment_program_instances.patient_user_id, lfk_complexes.platform_user_id) — verified against
+  // the real CREATE TABLE/ALTER TABLE SQL (apps/webapp/migrations/048_online_intake.sql,
+  // apps/webapp/db/drizzle-migrations/0121_patient_clinical_core.sql,
+  // apps/webapp/db/drizzle-migrations/0128_patient_diagnosis_status.sql,
+  // apps/webapp/db/drizzle-migrations/0005_treatment_program_phase6.sql,
+  // apps/webapp/db/drizzle-migrations/0003_treatment_program_instances.sql,
+  // apps/webapp/migrations/035_lfk_complex_exercises.sql +
+  // apps/webapp/migrations/064_platform_user_owned_refs_enforce.sql for the NOT NULL
+  // lfk_complexes.platform_user_id column). All webapp/uuid -> app.patient_user_id (castType uuid,
+  // the default).
+  ["public.online_intake_answers", {
+    hops: [{ table: "public.online_intake_requests", alias: "b4f_intake_request", parentPk: "id", localFk: "request_id" }],
+    terminalColumn: "user_id",
+    castType: "uuid",
+  }],
+  ["public.online_intake_attachments", {
+    hops: [{ table: "public.online_intake_requests", alias: "b4f_intake_request", parentPk: "id", localFk: "request_id" }],
+    terminalColumn: "user_id",
+    castType: "uuid",
+  }],
+  ["public.online_intake_status_history", {
+    hops: [{ table: "public.online_intake_requests", alias: "b4f_intake_request", parentPk: "id", localFk: "request_id" }],
+    terminalColumn: "user_id",
+    castType: "uuid",
+  }],
+  ["public.clinical_complaint_update", {
+    hops: [{ table: "public.clinical_complaint", alias: "b4f_complaint", parentPk: "id", localFk: "complaint_id" }],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+  ["public.clinical_diagnosis_update", {
+    hops: [{ table: "public.clinical_diagnosis", alias: "b4f_diagnosis", parentPk: "id", localFk: "diagnosis_id" }],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+  ["public.clinical_diagnosis_status_history", {
+    hops: [{ table: "public.clinical_diagnosis", alias: "b4f_diagnosis", parentPk: "id", localFk: "diagnosis_id" }],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+  ["public.test_results", {
+    hops: [{ table: "public.test_attempts", alias: "b4f_attempt", parentPk: "id", localFk: "attempt_id" }],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+  ["public.treatment_program_instance_stages", {
+    hops: [{ table: "public.treatment_program_instances", alias: "b4f_instance", parentPk: "id", localFk: "instance_id" }],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+  ["public.lfk_complex_exercises", {
+    hops: [{ table: "public.lfk_complexes", alias: "b4f_complex", parentPk: "id", localFk: "complex_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
 ]);
 
 export function buildRlsDescriptors() {

@@ -142,8 +142,13 @@ for (const descriptor of patientOwnedDescriptors) {
 }
 
 // B4-fanout gap closure (taskdb #656): chain-owned P0.8.4 targets — no direct patient column on
-// the child row, patient owner reached via an EXISTS chain to support_conversations.platform_user_id.
-const expectedPatientChainOwnedTargets = 3;
+// the child row, patient owner reached via an EXISTS chain to an identity-bearing parent
+// (support_conversations.platform_user_id for the original 3).
+// B4-core-3 (taskdb #658) adds 9 more single-hop parent_denorm chain targets whose parent already
+// carries a direct patient column (online_intake_requests.user_id, clinical_complaint/
+// clinical_diagnosis/test_attempts/treatment_program_instances.patient_user_id,
+// lfk_complexes.platform_user_id).
+const expectedPatientChainOwnedTargets = 12;
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
@@ -154,6 +159,15 @@ const expectedChainTables = [
   "public.support_conversation_messages",
   "public.support_delivery_events",
   "public.support_question_messages",
+  "public.online_intake_answers",
+  "public.online_intake_attachments",
+  "public.online_intake_status_history",
+  "public.clinical_complaint_update",
+  "public.clinical_diagnosis_update",
+  "public.clinical_diagnosis_status_history",
+  "public.test_results",
+  "public.treatment_program_instance_stages",
+  "public.lfk_complex_exercises",
 ].sort();
 
 if (JSON.stringify(patientChainOwnedDescriptors.map((d) => d.table).sort()) !== JSON.stringify(expectedChainTables)) {
@@ -177,8 +191,10 @@ for (const descriptor of patientChainOwnedDescriptors) {
     fail(`${descriptor.table} chain-owned policy must include an EXISTS chain to its identity-bearing parent`);
   }
 
-  if (!createStatement.includes(`"platform_user_id" = NULLIF(current_setting('app.patient_user_id'`)) {
-    fail(`${descriptor.table} chain-owned policy must terminate on support_conversations.platform_user_id`);
+  const terminalColumn = descriptor.patientChain.terminalColumn;
+
+  if (!createStatement.includes(`"${terminalColumn}" = NULLIF(current_setting('app.patient_user_id'`)) {
+    fail(`${descriptor.table} chain-owned policy must terminate on its identity-bearing parent's ${terminalColumn}`);
   }
 }
 
