@@ -100,6 +100,39 @@ for (const table of expectedP084PublicFkPathTargets) {
   }
 }
 
+// B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #653): patient-owned
+// P0.8.4 targets must render the fail-closed staff-or-patient branch. be_patient_package_items
+// (fk_path) resolves its patient owner via an EXISTS against its parent be_patient_packages;
+// the rest (denorm_org_column) have a direct patient column on the child row itself.
+const expectedPatientOwnedTargets = 11;
+const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
+
+if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
+  fail(`Expected ${expectedPatientOwnedTargets} P0.8.4 patient-owned targets, got ${patientOwnedDescriptors.length}`);
+}
+
+for (const descriptor of patientOwnedDescriptors) {
+  const quotedTarget = descriptor.table
+    .split(".")
+    .map((part) => `"${part}"`)
+    .join(".");
+  const createStatement = statements.find(
+    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+  );
+
+  if (!createStatement?.includes("NULLIF(current_setting('app.actor', true), '') = 'staff'")) {
+    fail(`${descriptor.table} patient-owned policy must include the fail-closed staff-or-patient branch`);
+  }
+
+  if (descriptor.scopingKind === "fk_path") {
+    if (!createStatement.includes(`"p0_8_4_patient_parent"."${descriptor.patientColumn}"`)) {
+      fail(`${descriptor.table} fk_path patient predicate must EXISTS-join the parent's patient column`);
+    }
+  } else if (!createStatement.includes(`"${descriptor.patientColumn}" = NULLIF(current_setting('app.patient_user_id'`)) {
+    fail(`${descriptor.table} denorm patient predicate must compare its own ${descriptor.patientColumn} column`);
+  }
+}
+
 console.log(
-  `P0.8.4 policy generator OK: 37 targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm), public.comments blocked for P0.12.1.`,
+  `P0.8.4 policy generator OK: 37 targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm, ${patientOwnedDescriptors.length} patient-owned), public.comments blocked for P0.12.1.`,
 );

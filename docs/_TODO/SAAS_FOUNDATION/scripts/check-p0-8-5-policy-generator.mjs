@@ -136,6 +136,47 @@ if (sql.includes('"public".')) {
   fail("P0.8.5 generated SQL must not target public tables");
 }
 
+// B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #653): the I1
+// direct-user-bridge targets (contacts, content_access_grants, mailing_logs, user_reminder_rules,
+// user_subscriptions) all carry a direct bigint user_id column referencing integrator.users(id) —
+// verified against the real CREATE/ALTER TABLE SQL, including the telegram-schema retarget
+// migration for mailing_logs/user_subscriptions (see rls-descriptor-model.mjs comment). The I2
+// identity-bridge (conversations/message_drafts/user_questions) and I3 parent-denorm targets are
+// deliberately NOT walled here: their patient identity is only reachable via a JOIN through
+// integrator.identities (I2) or multiple hops (I3) — documented gap, not silently skipped.
+const expectedPatientOwnedTargets = 5;
+const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
+
+if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
+  fail(`Expected ${expectedPatientOwnedTargets} P0.8.5 patient-owned targets, got ${patientOwnedDescriptors.length}`);
+}
+
+for (const descriptor of patientOwnedDescriptors) {
+  if (descriptor.sourceStage !== "P0.4.I1") {
+    fail(`${descriptor.table} patient-owned target must be a P0.4.I1 direct-user-bridge table, got ${descriptor.sourceStage}`);
+  }
+
+  if (descriptor.patientColumnCastType !== "bigint") {
+    fail(`${descriptor.table} integrator patient column must cast to bigint, got ${descriptor.patientColumnCastType}`);
+  }
+
+  const quotedTarget = descriptor.table
+    .split(".")
+    .map((part) => `"${part}"`)
+    .join(".");
+  const createStatement = statements.find(
+    (statement) => statement.startsWith(`CREATE POLICY "${p085PolicyName}" ON ${quotedTarget}`),
+  );
+
+  if (!createStatement?.includes("NULLIF(current_setting('app.actor', true), '') = 'staff'")) {
+    fail(`${descriptor.table} patient-owned policy must include the fail-closed staff-or-patient branch`);
+  }
+
+  if (!createStatement.includes(`"${descriptor.patientColumn}" = NULLIF(current_setting('app.patient_user_id', true), '')::bigint`)) {
+    fail(`${descriptor.table} patient predicate must compare its bigint ${descriptor.patientColumn} column`);
+  }
+}
+
 console.log(
-  `P0.8.5 policy generator OK: 13 integrator targets (${expectedP085IntegratorDirectUserBridgeTargets.length} I1, ${expectedP085IntegratorIdentityBridgeTargets.length} I2, ${expectedP085IntegratorParentDenormTargets.length} I3, ${expectedP085IntegratorMailingsRootTargets.length} I4) with P0.4 source artifacts present.`,
+  `P0.8.5 policy generator OK: 13 integrator targets (${expectedP085IntegratorDirectUserBridgeTargets.length} I1, ${expectedP085IntegratorIdentityBridgeTargets.length} I2, ${expectedP085IntegratorParentDenormTargets.length} I3, ${expectedP085IntegratorMailingsRootTargets.length} I4, ${patientOwnedDescriptors.length} patient-owned) with P0.4 source artifacts present.`,
 );

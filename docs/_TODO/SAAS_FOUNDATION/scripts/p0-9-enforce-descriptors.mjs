@@ -6,9 +6,12 @@ import {
   renderCreatePolicy,
   renderDropPolicy,
   renderEnableRowLevelSecurity,
+  renderFkPathPatientPredicate,
   renderFkPathPredicate,
   renderForceRowLevelSecurity,
   renderOrgPredicate,
+  renderStaffActorCheck,
+  renderStaffOrPatientPredicateForDescriptor,
 } from "./rls-sql-renderer.mjs";
 
 export const p09PolicyName = "saas_enforce_default_deny_p0_9_1";
@@ -228,15 +231,34 @@ export function assertP09EnforceDescriptors(descriptors) {
   }
 }
 
+// B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #653): patient-owned
+// SCOPED tables get the fail-closed staff-or-patient branch ANDed onto the enforce-mode org
+// predicate too, so a future flip migration built from this enforce model inherits the patient
+// wall automatically. Staff (org-wide, variant A) is unaffected — the staff-actor check always
+// bypasses the patient branch.
 export function renderP09EnforcePredicate(descriptor) {
   const action = descriptor?.enforceMode?.action ?? "deny";
 
   if (action === "scoped_org") {
-    return renderOrgPredicate(descriptor, { mode: "enforce" });
+    const orgPredicate = renderOrgPredicate(descriptor, { mode: "enforce" });
+
+    if (!descriptor.patientColumn) {
+      return orgPredicate;
+    }
+
+    return `(${orgPredicate} AND ${renderStaffOrPatientPredicateForDescriptor(descriptor)})`;
   }
 
   if (action === "scoped_fk_path") {
-    return renderFkPathPredicate(descriptor, { mode: "enforce" });
+    const orgPredicate = renderFkPathPredicate(descriptor, { mode: "enforce" });
+
+    if (!descriptor.patientColumn) {
+      return orgPredicate;
+    }
+
+    const staffOrPatient = `(${renderStaffActorCheck()} OR ${renderFkPathPatientPredicate(descriptor)})`;
+
+    return `(${orgPredicate} AND ${staffOrPatient})`;
   }
 
   if (action === "bootstrap_hybrid") {
