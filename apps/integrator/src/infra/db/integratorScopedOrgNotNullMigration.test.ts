@@ -70,7 +70,8 @@ describe('R2 integrator SCOPED organization_id NOT NULL migration', () => {
       ...denormChildren.map((table) => sql.indexOf(`ALTER TABLE ${table} ALTER COLUMN organization_id SET NOT NULL;`)),
     );
 
-    for (const parentTable of scopedTables.filter((table) => !denormChildren.includes(table))) {
+    const denormChildrenSet: ReadonlySet<string> = new Set(denormChildren);
+    for (const parentTable of scopedTables.filter((table) => !denormChildrenSet.has(table))) {
       const parentAlterIndex = sql.indexOf(`ALTER TABLE ${parentTable} ALTER COLUMN organization_id SET NOT NULL;`);
       expect(parentAlterIndex).toBeGreaterThanOrEqual(0);
       expect(parentAlterIndex).toBeLessThan(firstChildAlterIndex);
