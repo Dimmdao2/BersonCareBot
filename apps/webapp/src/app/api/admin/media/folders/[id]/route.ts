@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { isSystemManagedMediaFolder, pgValidateManualFolderParent, pgValidatePatientFolderRename } from "@/app-layer/media/clientMediaFolders";
 import { pgGetMediaFolderById } from "@/app-layer/media/mediaFoldersRepo";
@@ -21,11 +23,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
@@ -66,11 +65,12 @@ export async function PATCH(
   }
 
   if (parsed.data.parentId !== undefined) {
-    if (parsed.data.parentId !== null) {
-      if (parsed.data.parentId === id) {
+    const parentId = parsed.data.parentId;
+    if (parentId !== null) {
+      if (parentId === id) {
         return NextResponse.json({ ok: false, error: "invalid_parent" }, { status: 400 });
       }
-      const parentGate = await pgValidateManualFolderParent(parsed.data.parentId);
+      const parentGate = await pgValidateManualFolderParent(parentId);
       if (!parentGate.ok) {
         const status =
           parentGate.error === "folder_not_found" ? 404
@@ -78,13 +78,15 @@ export async function PATCH(
           : 400;
         return NextResponse.json({ ok: false, error: parentGate.error }, { status });
       }
-      const exists = await pgFolderExists(parsed.data.parentId);
+      const exists = await pgFolderExists(parentId);
       if (!exists) {
         return NextResponse.json({ ok: false, error: "parent_not_found" }, { status: 404 });
       }
     }
     try {
-      const ok = await deps.media.moveFolder(id, parsed.data.parentId);
+      const ok = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.media.moveFolder(id, parentId),
+      );
       if (!ok) {
         return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
       }
@@ -94,7 +96,10 @@ export async function PATCH(
   }
 
   if (parsed.data.name !== undefined) {
-    const ok = await deps.media.renameFolder(id, parsed.data.name);
+    const name = parsed.data.name;
+    const ok = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.media.renameFolder(id, name),
+    );
     if (!ok) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
@@ -107,11 +112,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
@@ -127,7 +129,7 @@ export async function DELETE(
   }
 
   const deps = buildAppDeps();
-  const result = await deps.media.deleteFolder(id);
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.deleteFolder(id));
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 409 });
   }

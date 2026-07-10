@@ -2,12 +2,22 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, listFoldersMock, listAllMock, createFolderMock, pgExistsMock } = vi.hoisted(() => ({
+const {
+  getSessionMock,
+  listFoldersMock,
+  listAllMock,
+  createFolderMock,
+  pgExistsMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+} = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   listFoldersMock: vi.fn(),
   listAllMock: vi.fn(),
   createFolderMock: vi.fn(),
   pgExistsMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
+  withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, fn: () => unknown) => fn()),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -22,6 +32,15 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       createFolder: createFolderMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
@@ -78,6 +97,13 @@ describe("POST /api/admin/media/folders", () => {
     getSessionMock.mockReset();
     createFolderMock.mockReset();
     pgExistsMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "org-1", session: { user: { userId: "u1", role: "doctor" } } },
+    });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     validateParentMock.mockReset();
     validateParentMock.mockResolvedValue({ ok: true });
     getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "doctor" } });
@@ -130,5 +156,14 @@ describe("POST /api/admin/media/folders", () => {
     const j = (await res.json()) as { ok: boolean; folder?: { name: string } };
     expect(j.ok).toBe(true);
     expect(j.folder?.name).toBe("Sub");
+    expect(createFolderMock).toHaveBeenCalledWith({
+      name: "Sub",
+      parentId: pid,
+      createdBy: "u1",
+    });
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      expect.any(Function),
+    );
   });
 });

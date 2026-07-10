@@ -2,7 +2,16 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, moveFolderMock, renameFolderMock, deleteFolderMock, pgExistsMock, pgGetByIdMock } =
+const {
+  getSessionMock,
+  moveFolderMock,
+  renameFolderMock,
+  deleteFolderMock,
+  pgExistsMock,
+  pgGetByIdMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+} =
   vi.hoisted(() => ({
     getSessionMock: vi.fn(),
     moveFolderMock: vi.fn(),
@@ -10,6 +19,8 @@ const { getSessionMock, moveFolderMock, renameFolderMock, deleteFolderMock, pgEx
     deleteFolderMock: vi.fn(),
     pgExistsMock: vi.fn(),
     pgGetByIdMock: vi.fn(),
+    requireDoctorWorkspaceApiContextMock: vi.fn(),
+    withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, fn: () => unknown) => fn()),
   }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -24,6 +35,15 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       deleteFolder: deleteFolderMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, fn),
 }));
 
 vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
@@ -58,6 +78,13 @@ const standardFolder = {
 
 describe("PATCH /api/admin/media/folders/[id]", () => {
   beforeEach(() => {
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
+    });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     getSessionMock.mockReset();
     moveFolderMock.mockReset();
     renameFolderMock.mockReset();
@@ -134,6 +161,10 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     );
     expect(res.status).toBe(200);
     expect(renameFolderMock).toHaveBeenCalledWith(FOLDER_ID, "Иван Иванов");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      expect.any(Function),
+    );
   });
 
   it("returns 409 patient_folder_move_out when reparenting client_patient folder (rule 4: forbidden)", async () => {
@@ -173,6 +204,13 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
 
 describe("DELETE /api/admin/media/folders/[id]", () => {
   beforeEach(() => {
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
+    });
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     getSessionMock.mockReset();
     deleteFolderMock.mockReset();
     pgGetByIdMock.mockReset();
@@ -201,5 +239,9 @@ describe("DELETE /api/admin/media/folders/[id]", () => {
     const j = (await res.json()) as { ok: boolean; deleted?: boolean };
     expect(j.ok).toBe(true);
     expect(j.deleted).toBe(true);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      expect.any(Function),
+    );
   });
 });
