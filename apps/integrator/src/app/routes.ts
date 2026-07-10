@@ -169,6 +169,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareUserMergeM2mRoutes(app, {
     db: createDbPort(),
     sharedSecret: integratorWebhookSecret(),
+    resolveOrganizationIdForIntegratorUserId,
+    resolveDeploymentOrganizationId,
   });
 
   await registerOperatorHealthProbeRoute(app, {

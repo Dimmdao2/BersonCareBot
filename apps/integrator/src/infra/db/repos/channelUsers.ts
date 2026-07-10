@@ -119,6 +119,7 @@ export async function resolveDeploymentSingleActiveOrganizationId(db: DbPort): P
     const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
       SELECT id::text AS organization_id
       FROM public.be_organizations
+      WHERE is_active = true
       ORDER BY id
       LIMIT 2
     `);
