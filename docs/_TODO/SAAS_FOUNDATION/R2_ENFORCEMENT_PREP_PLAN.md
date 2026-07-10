@@ -33,6 +33,9 @@ touching test/prod. All work is code + scratch-DB only. No push to main/test, no
 - [ ] **B4-fanout — read-context wrapper + coverage.** The chokepoint read wrapper sets `app.org` +
       `app.actor` (+ `app.patient_user_id` for patient sessions) on every SCOPED read, per session type.
       Apply per process family (webapp readers, integrator DbPort/pool, scheduler, media). Unset → dormant.
+      **MODEL SPLIT:** wrapper contract = Opus design; the uniform mechanical sweep across N reader
+      call-sites is a **Codex candidate** once the wrapper is designed (bulk, repetitive, well-specified —
+      Codex's sweet spot). Security-sensitive spots stay Sonnet-under-audit.
 - [ ] **DEFERRED (not now, owner 2026-07-11):** "my patients" soft default filter (UX relevance, not a
       security wall) — try at port level later if needed, no toggle for now. Hard assignment/handoff RLS
       (variants B/C) — only under a future large-clinic business order.
