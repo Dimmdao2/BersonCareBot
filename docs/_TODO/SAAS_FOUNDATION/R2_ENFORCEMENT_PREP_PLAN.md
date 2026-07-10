@@ -20,16 +20,24 @@ touching test/prod. All work is code + scratch-DB only. No push to main/test, no
       (I1–I4, C1) migrations → seed a 2nd org + 2nd patient → NOBYPASSRLS role → assert cross-tenant deny
       across a representative set of the real SCOPED policies (not just the ~10 hand-picked ones).
       Gate: org wall + patient wall + fail-closed hold under the real generated policies. Scratch only.
-- [ ] **B4-core — patient-wall in real policies (Opus design + Sonnet impl).** OWNER DECISION (2026-07-11):
-      doctor visibility = **org-wide (variant A)** — NO assignment predicate in RLS. Patient wall =
-      **absolute**: a patient sees ONLY their own rows, never any other patient's, in any org context.
-      Wire `renderPatientPredicate` into the real policy generators/descriptors for patient-owned SCOPED
-      tables with a **fail-closed staff-vs-patient** shape:
+- [x] **B4-core — patient-wall in real policies (Opus design + Sonnet impl).** DONE 2026-07-11
+      (taskdb `#653`, LOG.md entry "B4-core patient wall in real RLS policies"). OWNER DECISION
+      (2026-07-11): doctor visibility = **org-wide (variant A)** — NO assignment predicate in RLS.
+      Patient wall = **absolute**: a patient sees ONLY their own rows, never any other patient's, in
+      any org context. Wired `renderStaffOrPatientPredicate` (rls-sql-renderer.mjs) into the real
+      policy generators/descriptors (`rls-descriptor-model.mjs` `patientOwnedColumns` registry — 60
+      tables; `p0-8-3/4/5-policy-targets.mjs`; `p0-9-enforce-descriptors.mjs`) for patient-owned SCOPED
+      tables with the fail-closed staff-vs-patient shape:
       `org match AND ( current_setting('app.actor')='staff' OR (app.patient_user_id IS NOT NULL AND <patient_col> = app.patient_user_id) )`.
       Staff session sets `app.actor='staff'` (patient sees all org); patient session sets
       `app.actor='patient'` + `app.patient_user_id` (own only); unset → DENY. A patient session can NEVER
-      set actor='staff' (separate authenticated code path). Prove via the real-policy smoke: patient A≠B
-      deny, staff sees all org, unset denies.
+      set actor='staff' (separate authenticated code path — that wiring is B4-fanout, not touched here).
+      Proved via the real-policy smoke (`smoke-r2-real-policy-isolation.mjs`, exit 0): patient A≠B
+      deny, staff sees all org, unset denies, org wall holds for patient sessions too, bigint integrator
+      identity path proven on `integrator.content_access_grants`. New migration
+      `0169_p0_8_b4_core_patient_wall_rls.sql` (60 tables). Scope explicitly excludes tables reachable
+      only via multi-hop FK/JOIN chains (documented in LOG.md, not silently dropped) — see LOG.md for
+      the full excluded-table list and rationale.
 - [ ] **B4-fanout — read-context wrapper + coverage.** The chokepoint read wrapper sets `app.org` +
       `app.actor` (+ `app.patient_user_id` for patient sessions) on every SCOPED read, per session type.
       Apply per process family (webapp readers, integrator DbPort/pool, scheduler, media). Unset → dormant.
