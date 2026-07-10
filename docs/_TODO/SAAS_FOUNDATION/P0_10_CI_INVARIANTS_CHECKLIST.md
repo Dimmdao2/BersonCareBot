@@ -6,22 +6,22 @@ Purpose: turn the hardest SAAS table-scope assumptions into CI invariants.
 
 ## P0.10.1 Tier Completeness
 
-Status: implemented.
+Status: checker grounded in the real schema (2026-07-10, W1); currently RED — 4 live base tables have no tier yet (`public.be_organization_members`, `public.org_enrollments`, `public.system_settings_audit`, `public.broadcast_drafts`). Assigning them a tier (and updating `needs-orgid-FINAL.txt`/`p0-4-batches.tsv`/tier counts accordingly) is separate follow-up work (W2), not done in this slice.
 
 Checklist:
 
-- [x] Every base table appears in exactly one tier in `tiers-218.tsv`.
-- [x] `tiers-218.tsv` agrees with the active database/schema snapshot used by the checker.
-- [x] `needs-orgid-FINAL.txt` equals SCOPED tables requiring direct `organization_id`.
+- [ ] Every base table appears in exactly one tier in `tiers-218.tsv`. **Currently false** — see the 4 stray tables above; the checker fails closed on this today.
+- [x] `tiers-218.tsv` is diffed against the actual schema (code + migrations), not a hand-maintained snapshot — see Implementation.
+- [x] `needs-orgid-FINAL.txt` equals SCOPED tables requiring direct `organization_id` (for tables that currently have a tier; the 4 untiered tables above aren't classified as SCOPED/BOOTSTRAP/etc. yet).
 - [x] P0.4 batch artifact exactly covers `needs-orgid-FINAL.txt`.
 - [x] P0.4.BE FK-path tables remain outside `needs-orgid-FINAL.txt`.
 
 Implementation:
 
 - `scripts/check-saas-db-regression.mjs` runs `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-tier-completeness.mjs`.
-- The checker compares `tiers-218.tsv` to the frozen schema snapshot `all-218-signals.tsv`; it does not query live dev/prod/test databases.
+- The checker no longer compares `tiers-218.tsv` to the hand-maintained `all-218-signals.tsv` snapshot (that TSV silently drifted — it never caught `be_organization_members`/`org_enrollments`/`system_settings_audit`/`broadcast_drafts` landing outside the tier universe). It now diffs `tiers-218.tsv` against `actual-schema-tables.mjs`'s `readActualBaseTables()`, which derives the real base-table set from `pgTable(...)` in `apps/webapp/db/schema/*.ts` plus every `CREATE TABLE`/`DROP TABLE`/`ALTER TABLE ... RENAME TO` across `apps/webapp/db/drizzle-migrations/`, the legacy `apps/webapp/migrations/`, and the integrator migration runner's actual discovery globs (`apps/integrator/src/infra/db/migrations/core/` + `apps/integrator/src/integrations/*/db/migrations/`). Still no live dev/prod/test database access — everything is derived statically from repo source. A failure reports the exact `IN CODE, NO TIER` / `IN TSV, NO CODE` table lists.
 - The checker treats `needs-orgid-FINAL.txt` as exactly the SCOPED non-`public.be_*` materialization set (`111` tables). The `44` `public.be_*` SCOPED tables already have direct/self org semantics or the P0.4.BE FK-path declaration.
-- `--self-test` mutates in-memory facts to prove duplicate tier rows, snapshot mismatches, `needs-orgid` mismatches, and accidental P0.4.BE inclusion fail closed.
+- `--self-test` mutates in-memory facts to prove duplicate tier rows, actual-schema mismatches, `needs-orgid` mismatches, and accidental P0.4.BE inclusion fail closed. The duplicate/needs-org/FK-path cases run against a synthetic baseline where the actual-schema set is forced to equal the tier map, so they stay isolated from the real (currently known) drift; a separate self-test case proves the grounding check itself fails closed on the real, unmutated repo state.
 
 ## P0.10.2 User-Reference Tier Guard
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 import { readFileSync } from "node:fs";
+import { readActualBaseTables } from "./actual-schema-tables.mjs";
 import { readBeFkPathRows, readTierRows } from "./rls-descriptor-model.mjs";
 
 const root = "docs/_TODO/SAAS_FOUNDATION/scope-derivation";
 
 const paths = {
-  snapshot: `${root}/all-218-signals.tsv`,
   needsOrg: `${root}/needs-orgid-FINAL.txt`,
   batches: `${root}/p0-4-batches.tsv`,
 };
@@ -57,26 +57,28 @@ function assertUnique(values, label) {
   }
 }
 
-function splitSignalRow(line) {
-  const fields = line.includes("\t") ? line.split("\t") : line.split("\\t");
+// The P0.10.1 grounding check: tiers-218.tsv must be exactly the set of
+// base tables that actually exist per the repo's own schema declarations
+// and migration history (see actual-schema-tables.mjs — no live DB access,
+// no hand-maintained snapshot TSV). Reports both directions precisely so a
+// drift is actionable immediately, without needing to cross-reference
+// other files:
+//   - IN CODE, NO TIER: a real table with no tier assignment yet.
+//   - IN TSV, NO CODE: a tier row for a table that no longer exists
+//     (renamed/dropped) or never did (typo/stale entry).
+function assertGroundedInActualSchema({ tierTableSet, actualTableSet }) {
+  const inCodeNoTier = setDiff(actualTableSet, tierTableSet);
+  const inTsvNoCode = setDiff(tierTableSet, actualTableSet);
 
-  if (fields.length !== 4) {
-    fail(`Unexpected schema snapshot row: ${line}`);
+  if (inCodeNoTier.length > 0 || inTsvNoCode.length > 0) {
+    fail(
+      [
+        "tiers-218.tsv is not grounded in the actual schema (code + migrations).",
+        `IN CODE, NO TIER (${inCodeNoTier.length}): ${inCodeNoTier.join(", ") || "<none>"}.`,
+        `IN TSV, NO CODE (${inTsvNoCode.length}): ${inTsvNoCode.join(", ") || "<none>"}.`,
+      ].join(" "),
+    );
   }
-
-  return fields;
-}
-
-function readSchemaSnapshotTables() {
-  return readLines(paths.snapshot).map((line) => {
-    const [schemaName, tableName] = splitSignalRow(line);
-
-    if (!schemaName || !tableName) {
-      fail(`Schema snapshot row is missing schema/table: ${line}`);
-    }
-
-    return `${schemaName}.${tableName}`;
-  });
 }
 
 function readNeedsOrgTables() {
@@ -106,8 +108,8 @@ function buildP0101Facts() {
   const tierRows = readTierRows();
   const tierTables = tierRows.map(({ table }) => table);
   const tierTableSet = new Set(tierTables);
-  const snapshotTables = readSchemaSnapshotTables();
-  const snapshotTableSet = new Set(snapshotTables);
+  const actualTables = readActualBaseTables();
+  const actualTableSet = new Set(actualTables);
   const needsOrgTables = readNeedsOrgTables();
   const needsOrgSet = new Set(needsOrgTables);
   const batchTables = readBatchTables();
@@ -133,8 +135,8 @@ function buildP0101Facts() {
     tierRows,
     tierTables,
     tierTableSet,
-    snapshotTables,
-    snapshotTableSet,
+    actualTables,
+    actualTableSet,
     needsOrgTables,
     needsOrgSet,
     batchTables,
@@ -150,11 +152,9 @@ function buildP0101Facts() {
 }
 
 function runP0101Invariant({
-  tierRows,
   tierTables,
   tierTableSet,
-  snapshotTables,
-  snapshotTableSet,
+  actualTableSet,
   needsOrgTables,
   needsOrgSet,
   batchTables,
@@ -168,24 +168,15 @@ function runP0101Invariant({
   scopedNeedingOrgMaterialization,
 }) {
   assertUnique(tierTables, "tiers-218.tsv");
-  assertUnique(snapshotTables, "all-218-signals.tsv");
   assertUnique(needsOrgTables, "needs-orgid-FINAL.txt");
   assertUnique(batchTables, "p0-4-batches.tsv");
   assertUnique(beFkPathTables, "p0-4-be-fk-paths.tsv");
 
-  if (tierRows.length !== 219) {
-    fail(`Expected 219 tier rows, got ${tierRows.length}`);
-  }
-
-  if (snapshotTables.length !== 219) {
-    fail(`Expected 219 schema snapshot rows, got ${snapshotTables.length}`);
-  }
-
-  assertSameSet({
-    actual: tierTableSet,
-    expected: snapshotTableSet,
-    label: "tiers-218.tsv vs all-218-signals.tsv",
-  });
+  // Ground truth first: everything below this line assumes tiers-218.tsv
+  // already covers exactly the real schema. As of this writing it does
+  // NOT (see LOG.md) — this is expected to fail until every stray table
+  // gets a tier assignment (tracked separately).
+  assertGroundedInActualSchema({ tierTableSet, actualTableSet });
 
   for (const [tier, expectedCount] of Object.entries(expectedTierCounts)) {
     const actualCount = tierCounts.get(tier) ?? 0;
@@ -251,8 +242,8 @@ function cloneFacts(facts) {
     tierRows: facts.tierRows.map((row) => ({ ...row })),
     tierTables: [...facts.tierTables],
     tierTableSet: cloneSet(facts.tierTableSet),
-    snapshotTables: [...facts.snapshotTables],
-    snapshotTableSet: cloneSet(facts.snapshotTableSet),
+    actualTables: [...facts.actualTables],
+    actualTableSet: cloneSet(facts.actualTableSet),
     needsOrgTables: [...facts.needsOrgTables],
     needsOrgSet: cloneSet(facts.needsOrgSet),
     batchTables: [...facts.batchTables],
@@ -267,8 +258,19 @@ function cloneFacts(facts) {
   };
 }
 
-function expectFailure(label, mutate, pattern) {
+// A synthetic baseline where the "actual schema" is forced to exactly
+// match tiers-218.tsv. Used to isolate self-tests for OTHER invariants
+// (needs-org, P0.4.BE FK-paths, ...) from the real, currently-known
+// grounding drift (see "real schema is not fully tiered yet" below) so
+// each self-test proves exactly one failure mode.
+function groundedFacts() {
   const facts = cloneFacts(buildP0101Facts());
+  facts.actualTables = [...facts.tierTables];
+  facts.actualTableSet = new Set(facts.tierTables);
+  return facts;
+}
+
+function expectFailure(label, facts, mutate, pattern) {
   mutate(facts);
 
   try {
@@ -287,6 +289,7 @@ function expectFailure(label, mutate, pattern) {
 function runSelfTest() {
   expectFailure(
     "duplicate tier row",
+    groundedFacts(),
     (facts) => {
       facts.tierTables.push(facts.tierTables[0]);
     },
@@ -294,16 +297,18 @@ function runSelfTest() {
   );
 
   expectFailure(
-    "snapshot mismatch",
+    "actual-schema mismatch",
+    groundedFacts(),
     (facts) => {
-      facts.snapshotTableSet.delete(facts.snapshotTables[0]);
-      facts.snapshotTableSet.add("public.synthetic_missing_from_tiers");
+      facts.actualTableSet.delete(facts.actualTables[0]);
+      facts.actualTableSet.add("public.synthetic_missing_from_tiers");
     },
-    /tiers-218\.tsv vs all-218-signals\.tsv mismatch/,
+    /not grounded in the actual schema.*IN CODE, NO TIER.*public\.synthetic_missing_from_tiers.*IN TSV, NO CODE/s,
   );
 
   expectFailure(
     "needs-org mismatch",
+    groundedFacts(),
     (facts) => {
       facts.needsOrgSet.delete(facts.scopedNeedingOrgMaterialization[0]);
     },
@@ -312,11 +317,28 @@ function runSelfTest() {
 
   expectFailure(
     "fk path in needs-org",
+    groundedFacts(),
     (facts) => {
       facts.needsOrgSet.add(facts.beFkPathTables[0]);
       facts.needsOrgTables.push(facts.beFkPathTables[0]);
     },
     /needs-orgid-FINAL\.txt vs SCOPED non-be tables mismatch|P0\.4\.BE FK-path tables must stay outside/,
+  );
+
+  // Proves the grounding check itself fails closed on the REAL, unmutated
+  // repo state. As of this writing tiers-218.tsv is missing tier rows for
+  // at least 4 live base tables (public.be_organization_members,
+  // public.org_enrollments, public.system_settings_audit,
+  // public.broadcast_drafts) — see LOG.md. This self-test case is
+  // expected to keep passing (i.e. the underlying drift keeps being
+  // reported) until that follow-up tiers every stray table; at that point
+  // this case will need a different injected fault to keep testing the
+  // mechanism, since the real facts will no longer be able to supply one.
+  expectFailure(
+    "real schema is not fully tiered yet (expected-red proof)",
+    cloneFacts(buildP0101Facts()),
+    () => {},
+    /not grounded in the actual schema.*IN CODE, NO TIER/s,
   );
 
   console.log("P0.10.1 tier completeness self-test OK.");
@@ -331,7 +353,7 @@ if (process.argv.includes("--self-test")) {
   console.log(
     [
       "P0.10.1 tier completeness invariant OK:",
-      "219 tier rows match schema snapshot exactly once;",
+      "tiers-218.tsv tier rows match the actual schema (code + migrations) exactly once;",
       "needs-orgid-FINAL=111 SCOPED non-be tables;",
       "P0.4 batches cover needs-org exactly;",
       "P0.4.BE FK-path tables stay outside needs-org.",
