@@ -96,7 +96,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -155,6 +155,16 @@ function psql(sql, database = dbName, { singleTransaction = true } = {}) {
 
 function readRepoFile(relPath) {
   return readFileSync(path.join(repoRoot, relPath), "utf8");
+}
+
+// B4-core-3 (taskdb #658): a DDL "step" is either a repo-relative file path (applied verbatim) or
+// literal SQL (a hand-filtered excerpt) — see B4_CORE_3_DDL_STEPS above for which is which and why.
+function resolveDdlStep(step) {
+  const looksLikeRepoPath = /^[a-zA-Z0-9._/-]+\.sql$/.test(step.trim());
+  if (looksLikeRepoPath && existsSync(path.join(repoRoot, step.trim()))) {
+    return readRepoFile(step.trim());
+  }
+  return step;
 }
 
 /**
@@ -254,6 +264,52 @@ const supportQuestionMessageA2 = "b6100000-0000-4000-8000-00000000f0a2";
 const supportDeliveryEventA1 = "b6100000-0000-4000-8000-000000000a01";
 const supportDeliveryEventA2 = "b6100000-0000-4000-8000-000000000a02";
 
+// B4-core-3 fixture ids (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): the 9 patient-owned
+// parent_denorm SCOPED tables named in the R2_MVP_MASTER_CHECKLIST.md brief. Each needs its own
+// FK-ancestor chain (parent tables not themselves RLS-flipped in this smoke, same treatment as
+// support_conversations above -- only their PK/patient-column data matters for the EXISTS join).
+const intakeRequestA1 = "b6200000-0000-4000-8000-000000000001";
+const intakeRequestA2 = "b6200000-0000-4000-8000-000000000002";
+const intakeAnswerA1 = "b6200000-0000-4000-8000-000000000011";
+const intakeAnswerA2 = "b6200000-0000-4000-8000-000000000012";
+const intakeAttachmentA1 = "b6200000-0000-4000-8000-000000000021";
+const intakeAttachmentA2 = "b6200000-0000-4000-8000-000000000022";
+const intakeStatusHistoryA1 = "b6200000-0000-4000-8000-000000000031";
+const intakeStatusHistoryA2 = "b6200000-0000-4000-8000-000000000032";
+const clinicalVisitA1 = "b6200000-0000-4000-8000-000000000041";
+const clinicalVisitA2 = "b6200000-0000-4000-8000-000000000042";
+const clinicalComplaintA1 = "b6200000-0000-4000-8000-000000000051";
+const clinicalComplaintA2 = "b6200000-0000-4000-8000-000000000052";
+const clinicalComplaintUpdateA1 = "b6200000-0000-4000-8000-000000000061";
+const clinicalComplaintUpdateA2 = "b6200000-0000-4000-8000-000000000062";
+const clinicalDiagnosisA1 = "b6200000-0000-4000-8000-000000000071";
+const clinicalDiagnosisA2 = "b6200000-0000-4000-8000-000000000072";
+const clinicalDiagnosisUpdateA1 = "b6200000-0000-4000-8000-000000000081";
+const clinicalDiagnosisUpdateA2 = "b6200000-0000-4000-8000-000000000082";
+const clinicalDiagnosisStatusHistoryA1 = "b6200000-0000-4000-8000-000000000091";
+const clinicalDiagnosisStatusHistoryA2 = "b6200000-0000-4000-8000-000000000092";
+const treatmentInstanceA1 = "b6200000-0000-4000-8000-0000000000a1";
+const treatmentInstanceA2 = "b6200000-0000-4000-8000-0000000000a2";
+const treatmentInstanceStageA1 = "b6200000-0000-4000-8000-0000000000b1";
+const treatmentInstanceStageA2 = "b6200000-0000-4000-8000-0000000000b2";
+const treatmentInstanceStageItemA1 = "b6200000-0000-4000-8000-0000000000c1";
+const treatmentInstanceStageItemA2 = "b6200000-0000-4000-8000-0000000000c2";
+const treatmentEventA1 = "b6200000-0000-4000-8000-0000000000c5";
+const treatmentEventA2 = "b6200000-0000-4000-8000-0000000000c6";
+const testCatalogRow = "b6200000-0000-4000-8000-0000000000d0";
+const testAttemptA1 = "b6200000-0000-4000-8000-0000000000e1";
+const testAttemptA2 = "b6200000-0000-4000-8000-0000000000e2";
+const testResultA1 = "b6200000-0000-4000-8000-0000000000f1";
+const testResultA2 = "b6200000-0000-4000-8000-0000000000f2";
+const lfkExerciseCatalogRow = "b6200000-0000-4000-8000-000000000100";
+const lfkComplexA1 = "b6200000-0000-4000-8000-000000000111";
+const lfkComplexA2 = "b6200000-0000-4000-8000-000000000112";
+const lfkComplexExerciseA1 = "b6200000-0000-4000-8000-000000000121";
+const lfkComplexExerciseA2 = "b6200000-0000-4000-8000-000000000122";
+const mediaFileDummy = "b6200000-0000-4000-8000-000000000130";
+const mediaPlaybackEventA1 = "b6200000-0000-4000-8000-000000000141";
+const mediaPlaybackEventA2 = "b6200000-0000-4000-8000-000000000142";
+
 // ---------------------------------------------------------------------------
 // Phase 1: minimal real webapp DDL (see adaptation #1 above)
 // ---------------------------------------------------------------------------
@@ -269,6 +325,199 @@ const WEBAPP_DDL_FILES = [
   "apps/webapp/db/drizzle-migrations/0164_p0_11_3_system_settings_audit_org.sql",
   "apps/webapp/db/drizzle-migrations/0166_p0_4_en_org_enrollments_org_semantics.sql",
   "apps/webapp/migrations/009_support_communication_history.sql",
+];
+
+// B4-core-3 (taskdb #658): DDL steps for the 9 named tables + their FK ancestors, run in phase 1b
+// (after WEBAPP_DDL_FILES, before phase 2). Each entry is either a repo-relative file path (applied
+// verbatim via readRepoFile, same as WEBAPP_DDL_FILES) or literal SQL (a hand-filtered excerpt,
+// same "adaptation" style as orgRetrofitSql below — verified against the real file, documented
+// where trimmed). Order matters: ancestors before dependents.
+//   - 048_online_intake.sql: self-contained (only depends on platform_users, already loaded).
+//   - clinical excerpt: verbatim CREATE TABLE statements from
+//     apps/webapp/db/drizzle-migrations/0121_patient_clinical_core.sql for
+//     clinical_diagnosis_catalog/clinical_visit/clinical_complaint/clinical_complaint_update/
+//     clinical_diagnosis/clinical_diagnosis_update, EXCEPT clinical_visit's
+//     "appointment_record_id" FK constraint (-> appointment_records, a legacy table this minimal
+//     scratch schema does not build) is dropped — the column stays a plain nullable uuid, never
+//     populated by this smoke's fixtures. The file's trailing `ALTER TABLE patient_files ADD
+//     CONSTRAINT ... REFERENCES clinical_visit` statement (patient_files is not part of this
+//     smoke's minimal schema) is likewise not applied.
+//   - 0128_patient_diagnosis_status.sql: self-contained once clinical_diagnosis exists above.
+//   - 0002_sweet_ikaris.sql + 0003_treatment_program_instances.sql: self-contained (only depend on
+//     platform_users).
+//   - "tests" catalog excerpt: verbatim bare CREATE TABLE "tests" from
+//     apps/webapp/db/drizzle-migrations/0001_charming_champions.sql, WITHOUT that file's later
+//     `ALTER TABLE tests ADD CONSTRAINT tests_created_by_fkey` (not needed — this smoke never
+//     populates test.created_by, and the huge 0001 file also creates ~10 unrelated catalog
+//     tables/FKs this scratch schema does not need).
+//   - 0005_treatment_program_phase6.sql (test_attempts/test_results): self-contained once
+//     treatment_program_instance_stage_items (from 0003) and tests (excerpt above) exist.
+//   - 005_lfk_complexes_and_sessions.sql: self-contained (lfk_complexes.user_id is plain TEXT, no
+//     FK at creation — platform_user_id is a LATER retrofit column, added below in orgRetrofitSql).
+//   - lfk_exercises excerpt: verbatim CREATE TABLE lfk_exercises from
+//     apps/webapp/migrations/033_lfk_exercises.sql, EXCEPT "region_ref_id" drops its
+//     "REFERENCES reference_items(id)" (reference_items is not part of this smoke's minimal
+//     schema) — the column stays a plain nullable uuid, never populated by this smoke's fixtures.
+//   - 035_lfk_complex_exercises.sql: self-contained once lfk_complexes (005) and lfk_exercises
+//     (excerpt above) exist.
+const B4_CORE_3_DDL_STEPS = [
+  "apps/webapp/migrations/048_online_intake.sql",
+  `
+CREATE TABLE "clinical_diagnosis_catalog" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "label" text NOT NULL,
+  "note" text,
+  "created_by" uuid NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "clinical_diagnosis_catalog_created_by_fkey" FOREIGN KEY ("created_by")
+    REFERENCES "platform_users"("id") ON DELETE RESTRICT
+);
+CREATE TABLE "clinical_visit" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "patient_user_id" uuid NOT NULL,
+  "visit_type" text NOT NULL,
+  "visited_at" timestamptz NOT NULL,
+  "location" text,
+  "service" text,
+  "duration" text,
+  "appointment_record_id" uuid,
+  "exam" text,
+  "manipulations" text,
+  "trial_results" text,
+  "recommendations" text,
+  "created_by" uuid NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "clinical_visit_visit_type_check" CHECK (
+    visit_type = ANY (ARRAY['first'::text, 'repeat'::text])
+  ),
+  CONSTRAINT "clinical_visit_patient_user_id_fkey" FOREIGN KEY ("patient_user_id")
+    REFERENCES "platform_users"("id") ON DELETE CASCADE,
+  CONSTRAINT "clinical_visit_created_by_fkey" FOREIGN KEY ("created_by")
+    REFERENCES "platform_users"("id") ON DELETE RESTRICT
+);
+CREATE TABLE "clinical_complaint" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "patient_user_id" uuid NOT NULL,
+  "text" text NOT NULL,
+  "priority" boolean DEFAULT false NOT NULL,
+  "status" text DEFAULT 'active' NOT NULL,
+  "source_visit_id" uuid NOT NULL,
+  "resolved_at" timestamptz,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "clinical_complaint_status_check" CHECK (
+    status = ANY (ARRAY['active'::text, 'resolved'::text])
+  ),
+  CONSTRAINT "clinical_complaint_patient_user_id_fkey" FOREIGN KEY ("patient_user_id")
+    REFERENCES "platform_users"("id") ON DELETE CASCADE,
+  CONSTRAINT "clinical_complaint_source_visit_id_fkey" FOREIGN KEY ("source_visit_id")
+    REFERENCES "clinical_visit"("id") ON DELETE CASCADE
+);
+CREATE TABLE "clinical_complaint_update" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "complaint_id" uuid NOT NULL,
+  "visit_id" uuid NOT NULL,
+  "note" text,
+  "severity" integer NOT NULL,
+  "resolved" boolean DEFAULT false NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "clinical_complaint_update_severity_check" CHECK (severity >= 0 AND severity <= 10),
+  CONSTRAINT "clinical_complaint_update_complaint_id_fkey" FOREIGN KEY ("complaint_id")
+    REFERENCES "clinical_complaint"("id") ON DELETE CASCADE,
+  CONSTRAINT "clinical_complaint_update_visit_id_fkey" FOREIGN KEY ("visit_id")
+    REFERENCES "clinical_visit"("id") ON DELETE CASCADE
+);
+CREATE TABLE "clinical_diagnosis" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "patient_user_id" uuid NOT NULL,
+  "catalog_id" uuid,
+  "text" text NOT NULL,
+  "priority" boolean DEFAULT false NOT NULL,
+  "status" text DEFAULT 'active' NOT NULL,
+  "source_visit_id" uuid NOT NULL,
+  "resolved_at" timestamptz,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "clinical_diagnosis_status_check" CHECK (
+    status = ANY (ARRAY['active'::text, 'refined'::text, 'resolved'::text])
+  ),
+  CONSTRAINT "clinical_diagnosis_patient_user_id_fkey" FOREIGN KEY ("patient_user_id")
+    REFERENCES "platform_users"("id") ON DELETE CASCADE,
+  CONSTRAINT "clinical_diagnosis_catalog_id_fkey" FOREIGN KEY ("catalog_id")
+    REFERENCES "clinical_diagnosis_catalog"("id") ON DELETE SET NULL,
+  CONSTRAINT "clinical_diagnosis_source_visit_id_fkey" FOREIGN KEY ("source_visit_id")
+    REFERENCES "clinical_visit"("id") ON DELETE CASCADE
+);
+CREATE TABLE "clinical_diagnosis_update" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "diagnosis_id" uuid NOT NULL,
+  "visit_id" uuid NOT NULL,
+  "refinement" text,
+  "status" text NOT NULL,
+  "removed" boolean DEFAULT false NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "clinical_diagnosis_update_diagnosis_id_fkey" FOREIGN KEY ("diagnosis_id")
+    REFERENCES "clinical_diagnosis"("id") ON DELETE CASCADE,
+  CONSTRAINT "clinical_diagnosis_update_visit_id_fkey" FOREIGN KEY ("visit_id")
+    REFERENCES "clinical_visit"("id") ON DELETE CASCADE
+);
+`,
+  "apps/webapp/db/drizzle-migrations/0128_patient_diagnosis_status.sql",
+  "apps/webapp/db/drizzle-migrations/0002_sweet_ikaris.sql",
+  "apps/webapp/db/drizzle-migrations/0003_treatment_program_instances.sql",
+  `
+CREATE TABLE "tests" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"title" text NOT NULL,
+	"description" text,
+	"test_type" text,
+	"scoring_config" jsonb,
+	"media" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"tags" text[],
+	"is_archived" boolean DEFAULT false NOT NULL,
+	"created_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+`,
+  "apps/webapp/db/drizzle-migrations/0005_treatment_program_phase6.sql",
+  "apps/webapp/migrations/005_lfk_complexes_and_sessions.sql",
+  // media_playback_client_events excerpt: verbatim CREATE TABLE from
+  // apps/webapp/db/drizzle-migrations/0059_media_playback_client_events.sql, EXCEPT the FK to
+  // media_files(id) is dropped (media_files is not part of this smoke's minimal schema) — media_id
+  // stays a plain uuid seeded with a dummy value. The user_id FK to platform_users(id) is kept (it
+  // is the direct patient-owner column this table is walled by). Represents the 0172 "direct
+  // user_id column that had simply been missed" category (same predicate shape as the already-proven
+  // notification_delivery_attempts, on a NEW table).
+  `
+CREATE TABLE "media_playback_client_events" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "media_id" uuid NOT NULL,
+  "user_id" uuid NOT NULL,
+  "event_class" text NOT NULL,
+  "delivery" text,
+  "error_detail" text,
+  "user_agent" text,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "media_playback_client_events_user_id_fkey"
+    FOREIGN KEY ("user_id") REFERENCES "public"."platform_users"("id") ON DELETE cascade
+);
+`,
+  `
+CREATE TABLE lfk_exercises (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  region_ref_id UUID,
+  load_type TEXT CHECK (load_type IN ('strength', 'stretch', 'balance', 'cardio', 'other')),
+  difficulty_1_10 INT CHECK (difficulty_1_10 IS NULL OR (difficulty_1_10 >= 1 AND difficulty_1_10 <= 10)),
+  contraindications TEXT,
+  tags TEXT[],
+  is_archived BOOLEAN NOT NULL DEFAULT false,
+  created_by UUID REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`,
+  "apps/webapp/migrations/035_lfk_complex_exercises.sql",
 ];
 
 // Real system_settings org-column retrofit + RLS lives inside 0163 (bootstrap-hybrid sweep) —
@@ -519,6 +768,33 @@ END $$;
 `;
 
 // ---------------------------------------------------------------------------
+// Phase 3b: B4-core-3 (taskdb #658) org-column + patient-column retrofits for the newly-walled
+// tables this smoke exercises. Same "adaptation" style as orgRetrofitSql above: in the real
+// migrations each column is added by a P0.4 batch file (0146 P1, 0147 P2, 0148 P3, 0150 P5) that
+// also processes a dozen sibling tables + a full backfill+NOT-NULL gate; here we add just the
+// organization_id column (nullable, seeded directly at INSERT time) restricted to the tables this
+// smoke actually creates. lfk_complexes.platform_user_id is the real patient-owner column added by
+// apps/webapp/migrations/062_platform_user_owned_refs_prepare.sql (the base 005 CREATE TABLE only
+// has a legacy TEXT user_id) — added here so lfk_complex_exercises' chain terminal resolves.
+// ---------------------------------------------------------------------------
+const b4c3RetrofitSql = `
+ALTER TABLE lfk_complexes ADD COLUMN IF NOT EXISTS platform_user_id uuid;
+
+ALTER TABLE online_intake_answers ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE online_intake_attachments ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE online_intake_status_history ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE clinical_complaint_update ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE clinical_diagnosis_update ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE clinical_diagnosis_status_history ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE test_results ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE treatment_program_instance_stages ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE lfk_complex_exercises ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE treatment_program_events ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE treatment_program_instance_stage_items ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE media_playback_client_events ADD COLUMN IF NOT EXISTS organization_id uuid;
+`;
+
+// ---------------------------------------------------------------------------
 // Phase 4: dormant RLS — extracted verbatim blocks from the REAL 0161/0162/0163/0167 migrations.
 // ---------------------------------------------------------------------------
 const rls0161 = readRepoFile("apps/webapp/db/drizzle-migrations/0161_p0_8_4_public_path_rls.sql");
@@ -586,6 +862,26 @@ const ENFORCE_TARGETS = [
   "integrator.conversation_messages",
   "integrator.question_messages",
   "integrator.user_reminder_occurrences",
+  // B4-core-3 (taskdb #658): representative sample of the 27 newly-walled patient-owned SCOPED
+  // tables (9 from migration 0171 + 18 from 0172), covering every mechanism: single-hop
+  // parent_denorm chains (all PHI), a 2-hop deep chain, a 1-hop chain to an already-walled parent,
+  // and a direct-user_id column. The remaining 15 of the 27 (be_appointment_* / be_package_* /
+  // be_refunds / be_product_history_events / reminder_journal single-hop chains, and the other 3
+  // media_playback_* direct columns) use byte-for-byte the SAME renderPatientChainPredicate /
+  // direct-column predicate shapes proven here + already proven for the be_* / notification_*
+  // families elsewhere in this smoke, so this sample is representative, not a coverage gap.
+  "public.online_intake_answers",
+  "public.online_intake_attachments",
+  "public.online_intake_status_history",
+  "public.clinical_complaint_update",
+  "public.clinical_diagnosis_update",
+  "public.clinical_diagnosis_status_history",
+  "public.test_results",
+  "public.treatment_program_instance_stages",
+  "public.treatment_program_instance_stage_items",
+  "public.treatment_program_events",
+  "public.lfk_complex_exercises",
+  "public.media_playback_client_events",
 ];
 
 // IMPORTANT mechanical finding: Postgres OR-combines multiple PERMISSIVE policies on the same table
@@ -610,6 +906,22 @@ const DORMANT_POLICY_NAME_BY_TABLE = {
   "integrator.conversation_messages": p085PolicyName,
   "integrator.question_messages": p085PolicyName,
   "integrator.user_reminder_occurrences": p085PolicyName,
+  // B4-core-3 (taskdb #658): 11 denorm targets carry the p0_8_4 dormant name, the 1 direct-column
+  // media_playback_client_events carries p0_8_3. (These dormant policies are not installed in this
+  // smoke — DROP POLICY IF EXISTS no-ops — but the name must be present so renderDropPolicy has a
+  // concrete policy name to emit, same as every other enforce target above.)
+  "public.online_intake_answers": p084PolicyName,
+  "public.online_intake_attachments": p084PolicyName,
+  "public.online_intake_status_history": p084PolicyName,
+  "public.clinical_complaint_update": p084PolicyName,
+  "public.clinical_diagnosis_update": p084PolicyName,
+  "public.clinical_diagnosis_status_history": p084PolicyName,
+  "public.test_results": p084PolicyName,
+  "public.treatment_program_instance_stages": p084PolicyName,
+  "public.treatment_program_instance_stage_items": p084PolicyName,
+  "public.treatment_program_events": p084PolicyName,
+  "public.lfk_complex_exercises": p084PolicyName,
+  "public.media_playback_client_events": p083PolicyName,
 };
 
 const enforceFindings = [];
@@ -795,6 +1107,124 @@ ON CONFLICT (id) DO NOTHING;
 `;
 
 // ---------------------------------------------------------------------------
+// B4-core-3 (taskdb #658): fixtures for the representative sample of newly-walled tables. Two
+// same-org (org A) patients A1/A2 own parallel row chains, so every proof is a real A1<>A2
+// isolation test (not merely A-vs-B). Parents (online_intake_requests, clinical_visit/complaint/
+// diagnosis, treatment_program_instances/instance_stages, test_attempts, lfk_complexes) are NOT
+// RLS-flipped in this smoke -- they exist only so the flipped children's EXISTS-chain terminals
+// resolve; they are GRANTed SELECT to the app role (see assertionSql) so the subqueries can read
+// them, exactly like support_conversations for the support chain above.
+// ---------------------------------------------------------------------------
+const b4c3SeedSql = `
+-- online intake chain: online_intake_requests.user_id is the patient owner
+INSERT INTO online_intake_requests (id, user_id, type, status, organization_id) VALUES
+  ('${intakeRequestA1}'::uuid, '${patientA1}'::uuid, 'lfk', 'new', '${orgA}'::uuid),
+  ('${intakeRequestA2}'::uuid, '${patientA2}'::uuid, 'lfk', 'new', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO online_intake_answers (id, request_id, question_id, ordinal, value, organization_id) VALUES
+  ('${intakeAnswerA1}'::uuid, '${intakeRequestA1}'::uuid, 'q1', 1, 'a1', '${orgA}'::uuid),
+  ('${intakeAnswerA2}'::uuid, '${intakeRequestA2}'::uuid, 'q1', 1, 'a2', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO online_intake_attachments (id, request_id, attachment_type, url, organization_id) VALUES
+  ('${intakeAttachmentA1}'::uuid, '${intakeRequestA1}'::uuid, 'url', 'http://a1', '${orgA}'::uuid),
+  ('${intakeAttachmentA2}'::uuid, '${intakeRequestA2}'::uuid, 'url', 'http://a2', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO online_intake_status_history (id, request_id, to_status, organization_id) VALUES
+  ('${intakeStatusHistoryA1}'::uuid, '${intakeRequestA1}'::uuid, 'new', '${orgA}'::uuid),
+  ('${intakeStatusHistoryA2}'::uuid, '${intakeRequestA2}'::uuid, 'new', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+-- clinical EHR chain: complaint/diagnosis carry patient_user_id; their _update/_status_history
+-- children chain to them.
+INSERT INTO clinical_visit (id, patient_user_id, visit_type, visited_at, created_by, organization_id) VALUES
+  ('${clinicalVisitA1}'::uuid, '${patientA1}'::uuid, 'first', now(), '${doctorA}'::uuid, '${orgA}'::uuid),
+  ('${clinicalVisitA2}'::uuid, '${patientA2}'::uuid, 'first', now(), '${doctorA}'::uuid, '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO clinical_complaint (id, patient_user_id, text, source_visit_id, organization_id) VALUES
+  ('${clinicalComplaintA1}'::uuid, '${patientA1}'::uuid, 'c1', '${clinicalVisitA1}'::uuid, '${orgA}'::uuid),
+  ('${clinicalComplaintA2}'::uuid, '${patientA2}'::uuid, 'c2', '${clinicalVisitA2}'::uuid, '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO clinical_complaint_update (id, complaint_id, visit_id, severity, organization_id) VALUES
+  ('${clinicalComplaintUpdateA1}'::uuid, '${clinicalComplaintA1}'::uuid, '${clinicalVisitA1}'::uuid, 5, '${orgA}'::uuid),
+  ('${clinicalComplaintUpdateA2}'::uuid, '${clinicalComplaintA2}'::uuid, '${clinicalVisitA2}'::uuid, 5, '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO clinical_diagnosis (id, patient_user_id, text, source_visit_id, organization_id) VALUES
+  ('${clinicalDiagnosisA1}'::uuid, '${patientA1}'::uuid, 'd1', '${clinicalVisitA1}'::uuid, '${orgA}'::uuid),
+  ('${clinicalDiagnosisA2}'::uuid, '${patientA2}'::uuid, 'd2', '${clinicalVisitA2}'::uuid, '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO clinical_diagnosis_update (id, diagnosis_id, visit_id, status, organization_id) VALUES
+  ('${clinicalDiagnosisUpdateA1}'::uuid, '${clinicalDiagnosisA1}'::uuid, '${clinicalVisitA1}'::uuid, 'active', '${orgA}'::uuid),
+  ('${clinicalDiagnosisUpdateA2}'::uuid, '${clinicalDiagnosisA2}'::uuid, '${clinicalVisitA2}'::uuid, 'active', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO clinical_diagnosis_status_history (id, diagnosis_id, new_status, organization_id) VALUES
+  ('${clinicalDiagnosisStatusHistoryA1}'::uuid, '${clinicalDiagnosisA1}'::uuid, 'предварительный', '${orgA}'::uuid),
+  ('${clinicalDiagnosisStatusHistoryA2}'::uuid, '${clinicalDiagnosisA2}'::uuid, 'предварительный', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+-- treatment program chain: instances carry patient_user_id; events (1-hop) and stage_items (2-hop
+-- through instance_stages, which has no direct patient column of its own) chain to them.
+INSERT INTO treatment_program_instances (id, patient_user_id, title, status, organization_id) VALUES
+  ('${treatmentInstanceA1}'::uuid, '${patientA1}'::uuid, 'ti-a1', 'active', '${orgA}'::uuid),
+  ('${treatmentInstanceA2}'::uuid, '${patientA2}'::uuid, 'ti-a2', 'active', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO treatment_program_instance_stages (id, instance_id, title, status, organization_id) VALUES
+  ('${treatmentInstanceStageA1}'::uuid, '${treatmentInstanceA1}'::uuid, 's-a1', 'locked', '${orgA}'::uuid),
+  ('${treatmentInstanceStageA2}'::uuid, '${treatmentInstanceA2}'::uuid, 's-a2', 'locked', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO treatment_program_instance_stage_items (id, stage_id, item_type, item_ref_id, snapshot, organization_id) VALUES
+  ('${treatmentInstanceStageItemA1}'::uuid, '${treatmentInstanceStageA1}'::uuid, 'exercise', gen_random_uuid(), '{}'::jsonb, '${orgA}'::uuid),
+  ('${treatmentInstanceStageItemA2}'::uuid, '${treatmentInstanceStageA2}'::uuid, 'exercise', gen_random_uuid(), '{}'::jsonb, '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO treatment_program_events (id, instance_id, event_type, target_type, target_id, organization_id) VALUES
+  ('${treatmentEventA1}'::uuid, '${treatmentInstanceA1}'::uuid, 'status_changed', 'program', '${treatmentInstanceA1}'::uuid, '${orgA}'::uuid),
+  ('${treatmentEventA2}'::uuid, '${treatmentInstanceA2}'::uuid, 'status_changed', 'program', '${treatmentInstanceA2}'::uuid, '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+-- test chain: test_attempts carry patient_user_id; test_results chain to them.
+INSERT INTO tests (id, title) VALUES ('${testCatalogRow}'::uuid, 'B6 Test') ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO test_attempts (id, instance_stage_item_id, patient_user_id) VALUES
+  ('${testAttemptA1}'::uuid, '${treatmentInstanceStageItemA1}'::uuid, '${patientA1}'::uuid),
+  ('${testAttemptA2}'::uuid, '${treatmentInstanceStageItemA2}'::uuid, '${patientA2}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO test_results (id, attempt_id, test_id, raw_value, normalized_decision, organization_id) VALUES
+  ('${testResultA1}'::uuid, '${testAttemptA1}'::uuid, '${testCatalogRow}'::uuid, '{}'::jsonb, 'passed', '${orgA}'::uuid),
+  ('${testResultA2}'::uuid, '${testAttemptA2}'::uuid, '${testCatalogRow}'::uuid, '{}'::jsonb, 'passed', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+-- lfk chain: lfk_complexes carry platform_user_id; lfk_complex_exercises chain to them.
+INSERT INTO lfk_exercises (id, title) VALUES ('${lfkExerciseCatalogRow}'::uuid, 'B6 Exercise') ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO lfk_complexes (id, user_id, platform_user_id, title, origin) VALUES
+  ('${lfkComplexA1}'::uuid, '${patientA1}', '${patientA1}'::uuid, 'lc-a1', 'manual'),
+  ('${lfkComplexA2}'::uuid, '${patientA2}', '${patientA2}'::uuid, 'lc-a2', 'manual')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO lfk_complex_exercises (id, complex_id, exercise_id, organization_id) VALUES
+  ('${lfkComplexExerciseA1}'::uuid, '${lfkComplexA1}'::uuid, '${lfkExerciseCatalogRow}'::uuid, '${orgA}'::uuid),
+  ('${lfkComplexExerciseA2}'::uuid, '${lfkComplexA2}'::uuid, '${lfkExerciseCatalogRow}'::uuid, '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+-- direct-column (0172 "missed" category): media_playback_client_events.user_id is the patient owner.
+INSERT INTO media_playback_client_events (id, media_id, user_id, event_class, organization_id) VALUES
+  ('${mediaPlaybackEventA1}'::uuid, '${mediaFileDummy}'::uuid, '${patientA1}'::uuid, 'hls_fatal', '${orgA}'::uuid),
+  ('${mediaPlaybackEventA2}'::uuid, '${mediaFileDummy}'::uuid, '${patientA2}'::uuid, 'hls_fatal', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+`;
+
+// ---------------------------------------------------------------------------
 // B4-fanout gap closure (taskdb #656): generate the "own row visible, sibling patient's row NOT
 // visible" proof shape across ALL chain-only targets programmatically instead of hand-duplicating
 // near-identical psql blocks per table -- each entry names the table and a plain-SQL WHERE clause
@@ -815,6 +1245,25 @@ const SUPPORT_CHAIN_PROOFS = [
   { table: "public.support_conversation_messages", ownWhere: `id = '${supportConversationMessageA1}'::uuid`, otherWhere: `id = '${supportConversationMessageA2}'::uuid` },
   { table: "public.support_question_messages", ownWhere: `id = '${supportQuestionMessageA1}'::uuid`, otherWhere: `id = '${supportQuestionMessageA2}'::uuid` },
   { table: "public.support_delivery_events", ownWhere: `id = '${supportDeliveryEventA1}'::uuid`, otherWhere: `id = '${supportDeliveryEventA2}'::uuid` },
+];
+
+// B4-core-3 (taskdb #658): the 12 representative newly-walled targets. All are webapp/uuid-keyed
+// (app.patient_user_id), so they ride the SAME staff / mixed-patient / empty proof blocks as the
+// SUPPORT_CHAIN_PROOFS above -- own row (A1) visible, sibling patient's row (A2) NOT, for a patient
+// session; both visible for staff; neither for empty context.
+const B4_CORE_3_CHAIN_PROOFS = [
+  { table: "public.online_intake_answers", ownWhere: `id = '${intakeAnswerA1}'::uuid`, otherWhere: `id = '${intakeAnswerA2}'::uuid` },
+  { table: "public.online_intake_attachments", ownWhere: `id = '${intakeAttachmentA1}'::uuid`, otherWhere: `id = '${intakeAttachmentA2}'::uuid` },
+  { table: "public.online_intake_status_history", ownWhere: `id = '${intakeStatusHistoryA1}'::uuid`, otherWhere: `id = '${intakeStatusHistoryA2}'::uuid` },
+  { table: "public.clinical_complaint_update", ownWhere: `id = '${clinicalComplaintUpdateA1}'::uuid`, otherWhere: `id = '${clinicalComplaintUpdateA2}'::uuid` },
+  { table: "public.clinical_diagnosis_update", ownWhere: `id = '${clinicalDiagnosisUpdateA1}'::uuid`, otherWhere: `id = '${clinicalDiagnosisUpdateA2}'::uuid` },
+  { table: "public.clinical_diagnosis_status_history", ownWhere: `id = '${clinicalDiagnosisStatusHistoryA1}'::uuid`, otherWhere: `id = '${clinicalDiagnosisStatusHistoryA2}'::uuid` },
+  { table: "public.test_results", ownWhere: `id = '${testResultA1}'::uuid`, otherWhere: `id = '${testResultA2}'::uuid` },
+  { table: "public.treatment_program_instance_stages", ownWhere: `id = '${treatmentInstanceStageA1}'::uuid`, otherWhere: `id = '${treatmentInstanceStageA2}'::uuid` },
+  { table: "public.treatment_program_instance_stage_items", ownWhere: `id = '${treatmentInstanceStageItemA1}'::uuid`, otherWhere: `id = '${treatmentInstanceStageItemA2}'::uuid` },
+  { table: "public.treatment_program_events", ownWhere: `id = '${treatmentEventA1}'::uuid`, otherWhere: `id = '${treatmentEventA2}'::uuid` },
+  { table: "public.lfk_complex_exercises", ownWhere: `id = '${lfkComplexExerciseA1}'::uuid`, otherWhere: `id = '${lfkComplexExerciseA2}'::uuid` },
+  { table: "public.media_playback_client_events", ownWhere: `id = '${mediaPlaybackEventA1}'::uuid`, otherWhere: `id = '${mediaPlaybackEventA2}'::uuid` },
 ];
 
 function renderChainOwnNotOtherProofSql(proofs, { label }) {
