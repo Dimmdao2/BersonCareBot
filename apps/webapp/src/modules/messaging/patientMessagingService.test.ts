@@ -5,6 +5,7 @@ import type { SupportCommunicationPort, SupportConversationRow } from "@/infra/r
 function makeConversationRow(overrides: Partial<SupportConversationRow> = {}): SupportConversationRow {
   return {
     id: "conv-1",
+    organizationId: null,
     integratorConversationId: "webapp:platform:user-1",
     platformUserId: "user-1",
     integratorUserId: null,
@@ -39,6 +40,7 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     getConversationByIntegratorId: async () => null,
     listUnansweredQuestionsForAdmin: async () => [],
     getQuestionByIntegratorConversationId: async () => null,
+    claimLegacyConversationForOrganization: async () => true,
     ensureWebappConversationForUser: async () => ({ id: "conv-1" }),
     mergeLegacySupportConversationsForPlatformUser: async () => ({ mergedConversationCount: 0, movedMessageCount: 0 }),
     appendWebappMessage: async () => ({ id: "msg-webapp-1", created: true }),

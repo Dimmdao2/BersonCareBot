@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import type { PoolClient } from 'pg';
 
 /**
- * Dedicated `PoolClient` from `db.connect()` (Rubitime throttle, scheduler slots).
+ * Dedicated `PoolClient` from the integrator checkout helper (Rubitime throttle, scheduler slots).
  * Same mechanism as `getIntegratorDrizzleSession(port).execute(sql)` on a TX port, but
  * without `DbPort` — session locks are not held inside `createDbPort().tx`.
  */

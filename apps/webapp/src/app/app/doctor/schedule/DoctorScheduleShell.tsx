@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import {
   SCHEDULE_BASE,
@@ -77,16 +78,17 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
         );
         return (
-          <button
+          <Button
             key={tab.id}
             type="button"
+            variant="ghost"
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
             className={itemClass}
             data-testid={`tab-btn-${tab.id}`}
           >
             {tab.label}
-          </button>
+          </Button>
         );
       })}
     </div>

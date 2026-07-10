@@ -19,6 +19,10 @@ const insertMock = vi.fn();
 const deleteMock = vi.fn();
 const presignMock = vi.fn();
 const lockMock = vi.fn();
+const withExplicitOrganizationPrincipalMock = vi.fn();
+const principalState = { inside: false };
+
+const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   insertPendingProgramSubmissionMediaFileTx: (...a: unknown[]) => insertMock(...a),
@@ -34,6 +38,10 @@ vi.mock("@/app-layer/db/client", () => ({ getPool: () => ({}) }));
 
 vi.mock("@/app-layer/locks/userLifecycleLock", () => ({
   withUserLifecycleLock: (...args: unknown[]) => lockMock(...args),
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withExplicitOrganizationPrincipal: (...args: unknown[]) => withExplicitOrganizationPrincipalMock(...args),
 }));
 
 const ensurePatientFolderMock = vi.fn();
@@ -65,6 +73,8 @@ describe("POST /api/patient/media/program-submission/presign", () => {
     deleteMock.mockReset();
     presignMock.mockReset();
     lockMock.mockReset();
+    withExplicitOrganizationPrincipalMock.mockReset();
+    principalState.inside = false;
     ensurePatientFolderMock.mockReset();
     ensurePatientFolderMock.mockResolvedValue({
       id: "11111111-1111-4111-8111-111111111111",
@@ -79,6 +89,7 @@ describe("POST /api/patient/media/program-submission/presign", () => {
     gateMock.mockReset();
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      organizationId: ORG_ID,
       onSupport: true,
       commentsAllowed: true,
       mediaAllowed: true,
@@ -88,8 +99,21 @@ describe("POST /api/patient/media/program-submission/presign", () => {
       session: { user: { userId: "00000000-0000-4000-8000-000000000001", role: "patient" } },
     });
     lockMock.mockImplementation(async (_p, _u, _m, fn) => fn({ query: vi.fn() }));
-    presignMock.mockResolvedValue("https://upload.test/put");
-    insertMock.mockResolvedValue(undefined);
+    withExplicitOrganizationPrincipalMock.mockImplementation(async (_ctx, fn) => {
+      principalState.inside = true;
+      try {
+        return await fn();
+      } finally {
+        principalState.inside = false;
+      }
+    });
+    presignMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+      return "https://upload.test/put";
+    });
+    insertMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
   });
 
   it("returns 403 when feature disabled", async () => {
@@ -131,7 +155,40 @@ describe("POST /api/patient/media/program-submission/presign", () => {
     expect(res.status).toBe(415);
   });
 
+  it("returns 403 when patient support policy has no organization context", async () => {
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      organizationId: null,
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
+    const res = await POST(
+      new Request("http://localhost/api/patient/media/program-submission/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: "a.jpg", mimeType: "image/jpeg", size: 1000 }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ ok: false, error: "organization_context_required" });
+    expect(withExplicitOrganizationPrincipalMock).not.toHaveBeenCalled();
+    expect(ensurePatientFolderMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(presignMock).not.toHaveBeenCalled();
+  });
+
   it("returns presign payload for allowed mime", async () => {
+    ensurePatientFolderMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return {
+        id: "11111111-1111-4111-8111-111111111111",
+        parentId: "22222222-2222-4222-8222-222222222222",
+        name: "Клиент · 00000000",
+        kind: "client_patient",
+        patientUserId: "00000000-0000-4000-8000-000000000001",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      };
+    });
     const res = await POST(
       new Request("http://localhost/api/patient/media/program-submission/presign", {
         method: "POST",
@@ -144,5 +201,9 @@ describe("POST /api/patient/media/program-submission/presign", () => {
     expect(data.ok).toBe(true);
     expect(data.mediaId).toBeTruthy();
     expect(data.uploadUrl).toBe("https://upload.test/put");
+    expect(withExplicitOrganizationPrincipalMock).toHaveBeenCalledWith(
+      { organizationId: ORG_ID, source: "patient.program-submission.media.presign" },
+      expect.any(Function),
+    );
   });
 });

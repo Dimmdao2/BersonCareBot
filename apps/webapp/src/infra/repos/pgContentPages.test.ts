@@ -1,8 +1,62 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   inMemoryContentPagesPort,
   resetInMemoryContentPagesStoreForTests,
 } from "@/infra/repos/pgContentPages";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function readPgContentPagesSource(): string {
+  return readFileSync(join(__dirname, "pgContentPages.ts"), "utf8");
+}
+
+function methodSource(source: string, startMarker: string, endMarker: string): string {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return source.slice(start, end);
+}
+
+describe("pgContentPages (runtime constraints)", () => {
+  it("runs lifecycle updates through a Drizzle transaction", () => {
+    const method = methodSource(
+      readPgContentPagesSource(),
+      "    async updateLifecycle(id, patch)",
+      "    async reorderInSection(section, orderedIds)",
+    );
+    expect(method).toContain("runDrizzleMutationTransaction");
+    expect(method).toContain("tx.update(contentPages)");
+  });
+
+  it("runs page upserts through a Drizzle transaction and stamps current principal org", () => {
+    const method = methodSource(
+      readPgContentPagesSource(),
+      "    async upsert(page)",
+      "    async updateFull(id, page)",
+    );
+    expect(method).toContain("currentPrincipalOrganizationId()");
+    expect(method).toContain("runDrizzleMutationTransaction");
+    expect(method).toContain("organizationId");
+    expect(method).toContain("organizationId,");
+  });
+
+  it("runs full page updates through a Drizzle transaction and does not clear org without principal", () => {
+    const method = methodSource(
+      readPgContentPagesSource(),
+      "    async updateFull(id, page)",
+      "    async updateLifecycle(id, patch)",
+    );
+    expect(method).toContain("currentPrincipalOrganizationId()");
+    expect(method).toContain("runDrizzleMutationTransaction");
+    expect(method).toContain(".update(contentPages)");
+    expect(method).toContain("organizationId,");
+    expect(method).not.toMatch(/organizationId:\s*null/);
+  });
+});
 
 describe("inMemoryContentPagesPort (linked_course_id)", () => {
   beforeEach(() => {

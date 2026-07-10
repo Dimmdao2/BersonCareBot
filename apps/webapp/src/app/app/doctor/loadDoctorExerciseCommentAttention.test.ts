@@ -47,6 +47,7 @@ function attentionItem(
  */
 function buildDeps(config: {
   doctorUserId?: string;
+  organizationId?: string;
   byPatient: Record<
     string,
     Array<{ stageItemId: string; title?: string; latest: ProgramItemDiscussionMessage | null; lastReadAt?: string | null }>
@@ -54,7 +55,7 @@ function buildDeps(config: {
   withInstance?: boolean;
   withDiscussion?: boolean;
 }): DoctorExerciseCommentAttentionDeps {
-  const { doctorUserId = "doc", byPatient, withInstance = true, withDiscussion = true } = config;
+  const { doctorUserId = "doc", organizationId, byPatient, withInstance = true, withDiscussion = true } = config;
   const latestByStageItem = new Map<string, ProgramItemDiscussionMessage | null>();
   const lastReadByStageItem = new Map<string, string | null>();
   for (const rows of Object.values(byPatient)) {
@@ -66,11 +67,19 @@ function buildDeps(config: {
 
   return {
     doctorUserId,
+    organizationId,
     treatmentProgramInstance: withInstance
       ? {
           listForPatientClinicalView: async (patientUserId: string) =>
             byPatient[patientUserId]
-              ? ([{ id: `inst-${patientUserId}`, status: "active", updatedAt: "2026-06-01T00:00:00.000Z" }] as never)
+              ? ([
+                  {
+                    id: `inst-${patientUserId}`,
+                    organizationId: "org-a",
+                    status: "active",
+                    updatedAt: "2026-06-01T00:00:00.000Z",
+                  },
+                ] as never)
               : ([] as never),
           getInstanceById: async (instanceId: string) => {
             const patientUserId = instanceId.replace("inst-", "");
@@ -80,7 +89,7 @@ function buildDeps(config: {
               itemType: "exercise",
               snapshot: { title: r.title ?? "Упражнение" },
             }));
-            return { stages: [{ items }] } as never;
+            return { organizationId: "org-a", stages: [{ items }] } as never;
           },
         }
       : undefined,
@@ -201,5 +210,25 @@ describe("loadDoctorExerciseCommentAttention", () => {
     expect(result.total).toBe(DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT + 5);
     expect(result.items).toHaveLength(DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT);
     expect(result.truncated).toBe(true);
+  });
+
+  it("filters instances by selected organization", async () => {
+    const deps = buildDeps({
+      organizationId: "org-a",
+      byPatient: {
+        p1: [{ stageItemId: "s-a", latest: msg({ createdAt: "2026-06-04T08:00:00.000Z" }) }],
+        p2: [{ stageItemId: "s-b", latest: msg({ createdAt: "2026-06-05T08:00:00.000Z" }) }],
+      },
+    });
+    const baseList = deps.treatmentProgramInstance!.listForPatientClinicalView;
+    deps.treatmentProgramInstance!.listForPatientClinicalView = async (patientUserId: string) => {
+      const rows = await baseList(patientUserId);
+      if (patientUserId === "p2") return rows.map((row) => ({ ...row, organizationId: "org-b" }));
+      return rows;
+    };
+
+    const result = await loadDoctorExerciseCommentAttention(deps, [client("p1", "Анна"), client("p2", "Борис")]);
+
+    expect(result.items.map((item) => item.patientUserId)).toEqual(["p1"]);
   });
 });

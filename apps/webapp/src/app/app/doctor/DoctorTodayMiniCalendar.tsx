@@ -12,6 +12,13 @@ import { doctorSectionSubtitleClass, doctorInlineLinkClass } from "@/shared/ui/d
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
 import { isCancelledAppointmentStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+import {
+  DEFAULT_CALENDAR_WINDOW_MAX,
+  DEFAULT_CALENDAR_WINDOW_MIN,
+  deriveCalendarVisibleTimeWindow,
+  type CalendarVisibleWindowEvent,
+} from "@/modules/booking-calendar/visibleTimeWindow";
 
 /** Конвертирует минуты от полуночи в строку "HH:MM:SS" для slotMinTime/slotMaxTime. */
 function minuteToHHMM(minute: number): string {
@@ -19,9 +26,6 @@ function minuteToHHMM(minute: number): string {
   const m = minute % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
 }
-
-const DEFAULT_SLOT_MIN = "09:00:00";
-const DEFAULT_SLOT_MAX = "19:00:00";
 
 /** Maps a canonical CalendarAppointmentEvent to a display class matching the schedule calendar. */
 function canonicalEventClass(appt: CalendarAppointmentEvent): string {
@@ -31,7 +35,51 @@ function canonicalEventClass(appt: CalendarAppointmentEvent): string {
     return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
   if (appt.packageUsageRef || appt.packageTitle)
     return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
+  if (appt.branchColor) return "text-foreground";
   return "!bg-primary/15 text-foreground !border-primary/35";
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return null;
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+function rgba(hex: string, alpha: number): string | null {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function canonicalBranchColors(appt: CalendarAppointmentEvent): {
+  backgroundColor?: string;
+  borderColor?: string;
+} {
+  if (
+    !appt.branchColor ||
+    isCancelledAppointmentStatus(appt.status) ||
+    appt.status === "awaiting_payment" ||
+    appt.prepaymentPending ||
+    appt.packageUsageRef ||
+    appt.packageTitle
+  ) {
+    return {};
+  }
+  const backgroundColor = rgba(appt.branchColor, 0.16);
+  const borderColor = rgba(appt.branchColor, 0.42);
+  if (!backgroundColor || !borderColor) return {};
+  return { backgroundColor, borderColor };
+}
+
+function canonicalEventTitle(appt: CalendarAppointmentEvent): string {
+  const prefix =
+    appt.packageUsageRef || appt.packageTitle
+      ? `${formatPatientPackageShortLabel(appt.packageDisplayNumber)} `
+      : "";
+  return `${prefix}${appt.patientName ?? "Запись"}`;
 }
 
 type Props = {
@@ -84,41 +132,39 @@ export function DoctorTodayMiniCalendar({
     DateTime.now().setZone(displayIana).toISODate() ??
     new Date().toISOString().slice(0, 10);
 
-  // #7: слот мин/макс = рабочие границы ± 1 ч, расширяем до крайних записей за пределами рабочего.
+  // #538/#231: слот мин/макс = дефолт 09:00–19:00, который только расширяется
+  // наружу по рабочим границам и записям. Не сжимаем «Сегодня» до 14–17.
   const { slotMinTime, slotMaxTime, slotLoMinute, slotHiMinute } = (() => {
-    // Collect appointment edge minutes from calendarEvents (canonical) or legacy list.
-    let earliestApptMin: number | null = null;
-    let latestApptMin: number | null = null;
-    if (calendarEvents && calendarEvents.length > 0) {
-      for (const ev of calendarEvents) {
-        const s = DateTime.fromISO(ev.startAt, { zone: displayIana });
-        const e = DateTime.fromISO(ev.endAt, { zone: displayIana });
-        if (s.isValid) {
-          const sm = s.hour * 60 + s.minute;
-          earliestApptMin = earliestApptMin == null ? sm : Math.min(earliestApptMin, sm);
-        }
-        if (e.isValid) {
-          const em = e.hour * 60 + e.minute;
-          latestApptMin = latestApptMin == null ? em : Math.max(latestApptMin, em);
-        }
-      }
-    }
-    if (workingBounds != null) {
-      const workStart = workingBounds.startMinute;
-      const workEnd = workingBounds.endMinute;
-      // #7: visible = [min(workStart-1h, earliestAppt), max(workEnd+1h, latestAppt)]
-      const lo = Math.max(0, Math.min(workStart - 60, earliestApptMin ?? workStart - 60));
-      const hi = Math.min(24 * 60, Math.max(workEnd + 60, latestApptMin ?? workEnd + 60));
-      return {
-        slotMinTime: minuteToHHMM(lo),
-        slotMaxTime: minuteToHHMM(hi),
-        slotLoMinute: lo,
-        slotHiMinute: hi,
-      };
-    }
-    const loMin = 9 * 60; // 09:00 default
-    const hiMin = 19 * 60; // 19:00 default
-    return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX, slotLoMinute: loMin, slotHiMinute: hiMin };
+    const visibleEvents: CalendarVisibleWindowEvent[] =
+      calendarEvents && calendarEvents.length > 0
+        ? calendarEvents
+        : appointments.map((appt) => {
+            const startAt = appt.recordAtIso ?? `${todayIso}T${appt.time.slice(0, 5)}:00`;
+            return {
+              kind: "appointment",
+              startAt,
+              endAt: DateTime.fromISO(startAt, { zone: appt.recordAtIso ? "utc" : displayIana })
+                .plus({ minutes: 60 })
+                .toISO() ?? startAt,
+            };
+          });
+    const bounds =
+      workingBounds == null
+        ? null
+        : {
+            minMinute: Math.max(0, workingBounds.startMinute - 60),
+            maxMinute: Math.min(24 * 60, workingBounds.endMinute + 60),
+          };
+    const result = deriveCalendarVisibleTimeWindow(bounds, visibleEvents, displayIana, {
+      startMinute: DEFAULT_CALENDAR_WINDOW_MIN,
+      endMinute: DEFAULT_CALENDAR_WINDOW_MAX,
+    });
+    return {
+      slotMinTime: result.slotMinTime,
+      slotMaxTime: result.slotMaxTime,
+      slotLoMinute: result.loMinute,
+      slotHiMinute: result.hiMinute,
+    };
   })();
 
   // #6: if today has NO schedule (workingBounds === null, explicitly closed/no data),
@@ -142,10 +188,11 @@ export function DoctorTodayMiniCalendar({
       // Map CalendarAppointmentEvent → FC event (same pattern as ScheduleCalendarTab)
       return calendarEvents.map((appt) => ({
         id: appt.id,
-        title: appt.patientName ?? "Запись",
+        title: canonicalEventTitle(appt),
         start: appt.startAt,
         end: appt.endAt,
         classNames: [canonicalEventClass(appt)],
+        ...canonicalBranchColors(appt),
         extendedProps: { canonicalAppt: appt },
       }));
     }

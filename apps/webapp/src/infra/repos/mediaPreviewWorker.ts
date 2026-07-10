@@ -13,6 +13,7 @@ import { sql } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import { getWebappSqlFromPgClient, runWebappSql } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { logger } from "@/infra/logging/logger";
 import { mediaReadableStatusPredicate } from "@/infra/repos/mediaSqlPredicates";
 import { presignGetUrl, s3GetObjectBody, s3PreviewKey, s3PutObjectBody } from "@/infra/s3/client";
@@ -43,6 +44,8 @@ export type ProcessMediaPreviewBatchResult = {
   processed: number;
   errors: number;
 };
+
+type MediaPreviewIterationOutcome = "empty" | "processed" | "error";
 
 function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
   const exp = Math.min(attemptsAfterIncrement, 20);
@@ -318,10 +321,8 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
   let errors = 0;
 
   for (let i = 0; i < take; i++) {
-    const client = await pool.connect();
-    const db = getWebappSqlFromPgClient(client);
-    try {
-      await client.query("BEGIN");
+    const outcome = await withPoolTransaction<MediaPreviewIterationOutcome>(pool, async (client) => {
+      const db = getWebappSqlFromPgClient(client);
       const claim = await runWebappSql<{
         id: string;
         s3_key: string;
@@ -346,8 +347,7 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
       const rows = claim.rows;
 
       if (rows.length === 0) {
-        await client.query("COMMIT");
-        break;
+        return "empty";
       }
 
       const row = rows[0]!;
@@ -496,9 +496,7 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
             sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
           );
           logger.warn({ err: e, mediaId: row.id }, "[processMediaPreviewBatch] permanent error, skipped");
-          await client.query("COMMIT");
-          errors += 1;
-          continue;
+          return "error";
         }
         const prev = row.preview_attempts ?? 0;
         const nextAttempts = prev + 1;
@@ -521,23 +519,22 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
              WHERE id = ${row.id}::uuid`,
           );
         }
-        await client.query("COMMIT");
-        errors += 1;
         logger.error({ err: e, mediaId: row.id }, "[processMediaPreviewBatch] preview failed");
-        continue;
+        return "error";
       }
 
-      await client.query("COMMIT");
+      return "processed";
+    });
+
+    if (outcome === "empty") {
+      break;
+    }
+    if (outcome === "error") {
+      errors += 1;
+      continue;
+    }
+    if (outcome === "processed") {
       processed += 1;
-    } catch (e) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {
-        /* ignore */
-      }
-      throw e;
-    } finally {
-      client.release();
     }
   }
 

@@ -4,6 +4,19 @@ const getSessionMock = vi.hoisted(() => vi.fn());
 const getBranchByIdMock = vi.hoisted(() => vi.fn());
 const updateBranchByIdMock = vi.hoisted(() => vi.fn());
 const deactivateBranchMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -13,6 +26,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       updateBranchById: updateBranchByIdMock,
       deactivateBranch: deactivateBranchMock,
     },
+    organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 }));
 
@@ -29,6 +43,7 @@ describe("PATCH /api/admin/booking-catalog/branches/[id]", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     updateBranchByIdMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 400 on PostgreSQL foreign_key_violation (23503)", async () => {

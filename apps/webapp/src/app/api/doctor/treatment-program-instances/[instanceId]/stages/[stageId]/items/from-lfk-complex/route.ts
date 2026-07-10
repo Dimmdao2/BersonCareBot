@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isTreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
@@ -14,11 +14,9 @@ export async function POST(
   request: Request,
   ctx: { params: Promise<{ instanceId: string; stageId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, stageId } = await ctx.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
@@ -34,7 +32,7 @@ export async function POST(
   const deps = buildAppDeps();
   try {
     const inst = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!inst) {
+    if (!inst || inst.organizationId !== gate.ctx.organizationId) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst.patientUserId);
@@ -42,13 +40,15 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
-    const result = await deps.treatmentProgramInstance.doctorExpandLfkComplexIntoStage({
-      instanceId,
-      stageId,
-      complexTemplateId: parsed.data.complexTemplateId,
-      groupId: parsed.data.groupId,
-      actorId: session.user.userId,
-    });
+    const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.doctorExpandLfkComplexIntoStage({
+        instanceId,
+        stageId,
+        complexTemplateId: parsed.data.complexTemplateId,
+        groupId: parsed.data.groupId,
+        actorId: session.user.userId,
+      }),
+    );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     if (isTreatmentProgramExpandNotFoundError(e)) {

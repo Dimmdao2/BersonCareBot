@@ -4,6 +4,11 @@ import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import type { PatientBookingRecord } from "./types";
 import { createPatientBookingService } from "./service";
 
+// sendBookingConfirmationEmail — best-effort side-effect, тестируется отдельно (#81).
+vi.mock("./sendBookingConfirmationEmail", () => ({
+  sendBookingConfirmationEmail: vi.fn().mockResolvedValue(false),
+}));
+
 const bookingsPort = vi.hoisted(() => ({
   createPending: vi.fn(),
   markConfirmed: vi.fn(),
@@ -59,6 +64,7 @@ function resolvedFixture(): ResolvedBranchService {
       title: "Сеанс",
       description: null,
       durationMinutes: 60,
+      breakAfterMinutes: 0,
       priceMinor: 0,
       isActive: true,
       sortOrder: 0,

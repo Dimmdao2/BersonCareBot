@@ -2,6 +2,7 @@
  * PostgreSQL implementation of LfkDiaryPort.
  * Tables: lfk_complexes, lfk_sessions (see webapp/migrations/005_lfk_complexes_and_sessions.sql).
  */
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { MediaPreviewStatus } from "@/modules/media/types";
@@ -253,6 +254,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
 
   async listSessionsInRange(params) {
     const lim = Math.min(params.limit ?? 2000, 5000);
+    const orgCondition = params.organizationId ? "AND s.organization_id = $5::uuid" : "";
     if (params.complexId) {
       const result = await runWebappPgText<LfkSessionDbRow>(
         `SELECT ${SESSION_SELECT}
@@ -260,13 +262,15 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
          JOIN lfk_complexes c ON c.id = s.complex_id
          WHERE s.user_id = $1 AND s.complex_id = $2
            AND s.completed_at >= $3::timestamptz AND s.completed_at < $4::timestamptz
+           ${orgCondition}
          ORDER BY s.completed_at DESC
-         LIMIT $5`,
+         LIMIT ${params.organizationId ? "$6" : "$5"}`,
         [
           params.userId,
           params.complexId,
           params.fromCompletedAt,
           params.toCompletedAtExclusive,
+          ...(params.organizationId ? [params.organizationId] : []),
           lim,
         ]
       );
@@ -278,9 +282,16 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
        JOIN lfk_complexes c ON c.id = s.complex_id
        WHERE s.user_id = $1
          AND s.completed_at >= $2::timestamptz AND s.completed_at < $3::timestamptz
+         ${params.organizationId ? "AND s.organization_id = $4::uuid" : ""}
        ORDER BY s.completed_at DESC
-       LIMIT $4`,
-      [params.userId, params.fromCompletedAt, params.toCompletedAtExclusive, lim]
+       LIMIT ${params.organizationId ? "$5" : "$4"}`,
+      [
+        params.userId,
+        params.fromCompletedAt,
+        params.toCompletedAtExclusive,
+        ...(params.organizationId ? [params.organizationId] : []),
+        lim,
+      ]
     );
     return result.rows.map(rowToSession);
   },
@@ -383,14 +394,16 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     rowId: string;
     localComment: string | null;
   }): Promise<void> {
+    const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
     const r = await runWebappPgText(
       `UPDATE lfk_complex_exercises ce
        SET local_comment = $3
        FROM lfk_complexes c
        WHERE ce.id = $1::uuid
          AND ce.complex_id = c.id
-         AND ${userMatchSql("c", 2)}`,
-      [params.rowId, params.userId, params.localComment]
+         AND ${userMatchSql("c", 2)}
+         AND ($4::uuid IS NULL OR c.organization_id = $4::uuid)`,
+      [params.rowId, params.userId, params.localComment, principalOrganizationId]
     );
     if (r.rowCount === 0) {
       throw new Error("Строка упражнения не найдена или нет доступа");

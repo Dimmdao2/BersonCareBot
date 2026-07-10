@@ -39,7 +39,7 @@ vi.mock("@/infra/db/client", () => ({
   getPool: vi.fn(() => ({})),
 }));
 
-vi.mock("@/modules/reminders/loadWarmupsSectionSlugs", () => ({
+vi.mock("@/infra/repos/pgWarmupsSectionSlugs", () => ({
   loadWarmupsSectionSlugs: vi.fn(async () => []),
 }));
 

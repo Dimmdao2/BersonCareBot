@@ -4,7 +4,8 @@
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { loadAdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
 import { loadAdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import {
@@ -25,13 +26,12 @@ import { loadDoctorTodayDashboard } from "./loadDoctorTodayDashboard";
 async function loadTodayWorkingBounds(
   deps: ReturnType<typeof buildAppDeps>,
   displayIana: string,
+  organizationId: string,
 ): Promise<{ startMinute: number; endMinute: number } | null> {
   const scheduling = deps.bookingScheduling;
-  const bookingEngine = deps.bookingEngine;
-  if (!scheduling || !bookingEngine) return null;
+  if (!scheduling) return null;
 
   try {
-    const organizationId = await bookingEngine.organization.getDefaultOrganizationId();
     const todayKey = DateTime.now().setZone(displayIana).toISODate();
     if (!todayKey) return null;
 
@@ -72,38 +72,53 @@ async function loadTodayWorkingBounds(
 }
 
 export default async function DoctorPage() {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const deps = buildAppDeps();
   const intakeService = getOnlineIntakeService();
   const displayIana = await getAppDisplayTimeZone();
   const audience = await loadDoctorAnalyticsAudience();
+  const workspaceAudience = {
+    includeTestAccounts: audience.includeTestAccounts,
+    excludedUserIds: audience.excludedUserIds,
+    organizationId: workspace.organizationId,
+  };
   const [data, kpiStats, dashboardMetrics, todayWorkingBounds] = await Promise.all([
-    loadDoctorTodayDashboard(
-      {
-        doctorAppointments: deps.doctorAppointments,
-        doctorClients: deps.doctorClientsPort,
-        messaging: deps.messaging,
-        specialistTasks: deps.specialistTasks,
-        specialistOwnerUserId: session.user.userId,
-        doctorUserId: session.user.userId,
-        treatmentProgramProgress: deps.treatmentProgramProgress,
-        doctorProactiveInsights: deps.doctorProactiveInsights,
-        treatmentProgramInstance: deps.treatmentProgramInstance,
-        programItemDiscussion: deps.programItemDiscussion,
-        programActionLog: deps.programActionLog,
-        displayIana,
-        loadMonthAppointments: () =>
-          deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "recordsInCalendarMonth" }),
-      },
-      intakeService,
-      audience,
+    withDoctorWorkspacePrincipal(workspace, () =>
+      loadDoctorTodayDashboard(
+        {
+          doctorAppointments: deps.doctorAppointments,
+          doctorClients: deps.doctorClientsPort,
+          messaging: deps.messaging,
+          specialistTasks: deps.specialistTasks,
+          specialistOwnerUserId: session.user.userId,
+          doctorUserId: session.user.userId,
+          organizationId: workspace.organizationId,
+          treatmentProgramProgress: deps.treatmentProgramProgress,
+          doctorProactiveInsights: deps.doctorProactiveInsights,
+          treatmentProgramInstance: deps.treatmentProgramInstance,
+          programItemDiscussion: deps.programItemDiscussion,
+          programActionLog: deps.programActionLog,
+          displayIana,
+          loadMonthAppointments: () =>
+            deps.doctorAppointments.listAppointmentsForSpecialist(
+              { kind: "recordsInCalendarMonth" },
+              workspaceAudience,
+            ),
+        },
+        intakeService,
+        workspaceAudience,
+      ),
     ),
-    deps.doctorStats.getStats(audience),
+    deps.doctorStats.getStats(workspaceAudience),
     deps.doctorAppointments.getDashboardAppointmentMetrics(
-      audience?.excludedUserIds?.length ? { excludedUserIds: audience.excludedUserIds } : undefined,
+      {
+        excludedUserIds: audience.excludedUserIds,
+        organizationId: workspace.organizationId,
+      },
     ),
     // §1.2: рабочие границы сегодняшнего дня для мини-календаря
-    loadTodayWorkingBounds(deps, displayIana),
+    loadTodayWorkingBounds(deps, displayIana, workspace.organizationId),
   ]);
   const [adminHealthBanner, adminRegistrationFailureBanner] =
     session.user.role === "admin"

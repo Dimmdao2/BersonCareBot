@@ -10,6 +10,7 @@ import type { PatientDiaryDaySnapshotRow } from "../../../db/schema/patientDiary
 function snap(partial: Partial<PatientDiaryDaySnapshotRow> & { localDate: string }): PatientDiaryDaySnapshotRow {
   return {
     platformUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    organizationId: null,
     iana: "UTC",
     warmupSlotLimit: 3,
     warmupDoneCount: 0,

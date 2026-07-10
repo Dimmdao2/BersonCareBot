@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BookOpen, ClipboardList, ImageIcon, Layers, MessageSquare, Plus } from "lucide-react";
+import { Activity, BookOpen, Check, ClipboardList, ImageIcon, Layers, MessageSquare, Plus } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
@@ -16,6 +16,7 @@ import { Label } from "@/shared/ui/doctor/primitives/label";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
+import type { TreatmentProgramInstanceStageItemView } from "@/modules/treatment-program/types";
 import { TreatmentProgramLibraryPickerToolbar } from "./TreatmentProgramLibraryPickerToolbar";
 import type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
 import { useTreatmentProgramLibraryPickerList } from "./useTreatmentProgramLibraryPickerList";
@@ -88,6 +89,53 @@ function LibraryMediaThumb({
   );
 }
 
+function sameContainerGroupId(
+  item: Pick<TreatmentProgramInstanceStageItemView, "groupId">,
+  groupId: string | null,
+): boolean {
+  return (item.groupId ?? null) === groupId;
+}
+
+function firstCurrentGroupLibraryItem(
+  items: TreatmentProgramInstanceStageItemView[],
+  input: {
+    itemType: TreatmentProgramLibraryPickType;
+    itemRefId: string;
+    groupId: string | null;
+  },
+): TreatmentProgramInstanceStageItemView | null {
+  return (
+    items.find(
+      (item) =>
+        item.itemType === input.itemType &&
+        item.itemRefId === input.itemRefId &&
+        sameContainerGroupId(item, input.groupId),
+    ) ?? null
+  );
+}
+
+function currentGroupExpandedItemIds(
+  items: TreatmentProgramInstanceStageItemView[],
+  input: {
+    itemType: "exercise" | "clinical_test";
+    itemRefIds: readonly string[];
+    groupId: string | null;
+  },
+): string[] {
+  if (input.itemRefIds.length === 0) return [];
+  const remaining = [...input.itemRefIds];
+  const out: string[] = [];
+  for (const item of items) {
+    if (item.itemType !== input.itemType || !sameContainerGroupId(item, input.groupId)) continue;
+    const idx = remaining.indexOf(item.itemRefId);
+    if (idx === -1) continue;
+    out.push(item.id);
+    remaining.splice(idx, 1);
+    if (remaining.length === 0) break;
+  }
+  return out;
+}
+
 export type InstanceAddLibraryItemContext =
   | "phase_zero_recommendations"
   | "stage_system_recommendations"
@@ -109,7 +157,7 @@ export function InstanceAddLibraryItemDialog(props: {
   editLocked: boolean;
 }) {
   const { open, onOpenChange, spec, library, editLocked } = props;
-  const { addItemCreate } = useInstanceEditorDraft();
+  const { addItemCreate, deleteItem, displayDetail } = useInstanceEditorDraft();
   const [itemSearch, setItemSearch] = useState("");
   const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(null);
   const [selectedLoadType, setSelectedLoadType] = useState<string | null>(null);
@@ -173,6 +221,13 @@ export function InstanceAddLibraryItemDialog(props: {
     }
   }, [library, resolvedItemType, spec?.context, testsAddMode]);
 
+  const currentStageItems = useMemo(() => {
+    if (!spec) return [];
+    return displayDetail.stages.find((stage) => stage.id === spec.stageId)?.items ?? [];
+  }, [displayDetail.stages, spec]);
+
+  const targetGroupId = spec?.context === "custom_group" ? (spec.customGroupId ?? null) : null;
+
   const { filteredRows: pickerList, emptyMessage, applyRegionLoadFilters } = useTreatmentProgramLibraryPickerList({
     rows: pickerBaseList,
     searchQuery: itemSearch,
@@ -181,7 +236,35 @@ export function InstanceAddLibraryItemDialog(props: {
     pickType: resolvedItemType,
   });
 
-  function submitPick(row: TreatmentProgramLibraryRow) {
+  function selectedItemIdsForRow(row: TreatmentProgramLibraryRow): string[] {
+    if (!spec) return [];
+    if (spec.context === "stage_system_tests" && testsAddMode === "expand_set") {
+      const refs = (row.expandLines ?? []).map((line) => line.itemRefId);
+      const ids = currentGroupExpandedItemIds(currentStageItems, {
+        itemType: "clinical_test",
+        itemRefIds: refs,
+        groupId: targetGroupId,
+      });
+      return refs.length > 0 && ids.length === refs.length ? ids : [];
+    }
+    if (resolvedItemType === "lfk_complex") {
+      const refs = (row.expandLines ?? []).map((line) => line.itemRefId);
+      const ids = currentGroupExpandedItemIds(currentStageItems, {
+        itemType: "exercise",
+        itemRefIds: refs,
+        groupId: targetGroupId,
+      });
+      return refs.length > 0 && ids.length === refs.length ? ids : [];
+    }
+    const item = firstCurrentGroupLibraryItem(currentStageItems, {
+      itemType: resolvedItemType,
+      itemRefId: row.id,
+      groupId: targetGroupId,
+    });
+    return item ? [item.id] : [];
+  }
+
+  function togglePick(row: TreatmentProgramLibraryRow) {
     if (!spec || editLocked) return;
     if (spec.context === "custom_group") {
       if (!spec.customGroupId?.trim()) {
@@ -190,6 +273,12 @@ export function InstanceAddLibraryItemDialog(props: {
       }
     }
     setError(null);
+
+    const selectedItemIds = selectedItemIdsForRow(row);
+    if (selectedItemIds.length > 0) {
+      for (const itemId of selectedItemIds) deleteItem(itemId);
+      return;
+    }
 
     if (spec.context === "stage_system_tests" && testsAddMode === "expand_set") {
       const lines = row.expandLines ?? [];
@@ -207,7 +296,6 @@ export function InstanceAddLibraryItemDialog(props: {
           ...(line.loadSettings ? { loadSettings: line.loadSettings } : {}),
         })),
       });
-      handleOpenChange(false);
       return;
     }
 
@@ -232,7 +320,6 @@ export function InstanceAddLibraryItemDialog(props: {
           ...(line.loadSettings ? { loadSettings: line.loadSettings } : {}),
         })),
       });
-      handleOpenChange(false);
       return;
     }
 
@@ -247,7 +334,6 @@ export function InstanceAddLibraryItemDialog(props: {
       groupId,
       snapshot: libraryRowToItemDraftSnapshot(row, resolvedItemType),
     });
-    handleOpenChange(false);
   }
 
   function submitFreeform() {
@@ -295,10 +381,11 @@ export function InstanceAddLibraryItemDialog(props: {
             role="radiogroup"
             aria-label="Способ добавления"
           >
-            <button
+            <Button
               type="button"
               role="radio"
               aria-checked={phaseZeroSource === "catalog"}
+              variant="ghost"
               className={cn(
                 "text-xs font-medium transition-colors",
                 phaseZeroSource === "catalog"
@@ -311,11 +398,12 @@ export function InstanceAddLibraryItemDialog(props: {
               }}
             >
               Каталог
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               role="radio"
               aria-checked={phaseZeroSource === "freeform"}
+              variant="ghost"
               className={cn(
                 "text-xs font-medium transition-colors",
                 phaseZeroSource === "freeform"
@@ -330,7 +418,7 @@ export function InstanceAddLibraryItemDialog(props: {
               }}
             >
               Свой текст
-            </button>
+            </Button>
           </div>
         ) : null}
         {isPhaseZero && phaseZeroSource === "freeform" ? (
@@ -371,10 +459,11 @@ export function InstanceAddLibraryItemDialog(props: {
                 role="radiogroup"
                 aria-label="Тип элемента"
               >
-                <button
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={customKind === "exercise"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     customKind === "exercise"
@@ -389,11 +478,12 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Упражнение ЛФК
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={customKind === "lfk_complex"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     customKind === "lfk_complex"
@@ -408,7 +498,7 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Комплекс ЛФК
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -420,10 +510,11 @@ export function InstanceAddLibraryItemDialog(props: {
                 role="radiogroup"
                 aria-label="Режим добавления тестов"
               >
-                <button
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={testsAddMode === "expand_set"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     testsAddMode === "expand_set"
@@ -436,11 +527,12 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Набор тестов
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   role="radio"
                   aria-checked={testsAddMode === "single_test"}
+                  variant="ghost"
                   className={cn(
                     "text-xs font-medium transition-colors",
                     testsAddMode === "single_test"
@@ -453,7 +545,7 @@ export function InstanceAddLibraryItemDialog(props: {
                   }}
                 >
                   Один тест
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -468,7 +560,7 @@ export function InstanceAddLibraryItemDialog(props: {
             showRegionLoadFilters={applyRegionLoadFilters}
             disabled={false}
           />
-          <ul className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
+          <ul className="max-h-[46vh] space-y-1 overflow-y-auto rounded-md border border-border/50 bg-muted/10 p-1">
             {pickerList.length === 0 ? (
               <li className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
                 {emptyMessage}
@@ -476,11 +568,18 @@ export function InstanceAddLibraryItemDialog(props: {
             ) : (
               pickerList.map((row) => (
                 <li key={row.id}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     disabled={editLocked}
-                    onClick={() => submitPick(row)}
-                    className="flex w-full items-start gap-3 rounded-md border border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50"
+                    aria-pressed={selectedItemIdsForRow(row).length > 0}
+                    onClick={() => togglePick(row)}
+                    className={cn(
+                      "flex w-full items-start gap-3 rounded-md border px-2 py-2 text-left text-sm transition-colors disabled:pointer-events-none disabled:opacity-50",
+                      selectedItemIdsForRow(row).length > 0
+                        ? "border-primary/60 bg-primary/10 text-foreground ring-1 ring-primary/25 hover:bg-primary/15"
+                        : "border-border/50 bg-background hover:border-border hover:bg-muted/50",
+                    )}
                   >
                     <LibraryMediaThumb
                       src={row.thumbUrl}
@@ -498,7 +597,12 @@ export function InstanceAddLibraryItemDialog(props: {
                         </span>
                       ) : null}
                     </span>
-                  </button>
+                    {selectedItemIdsForRow(row).length > 0 ? (
+                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="size-3.5" aria-hidden />
+                      </span>
+                    ) : null}
+                  </Button>
                 </li>
               ))
             )}

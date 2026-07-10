@@ -1,8 +1,10 @@
 import type { PoolClient } from "pg";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { and, eq, sql, type SQL } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
+import { startPoolTransaction, withPoolTransaction } from "@/infra/db/withClient";
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
 import {
   getWebappSqlDb,
@@ -53,6 +55,14 @@ export {
 
 function mediaAppUrl(mediaId: string): string {
   return `/api/media/${mediaId}`;
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
 }
 
 function kindFromMime(mimeType: string): MediaRecord["kind"] {
@@ -355,22 +365,39 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async updateDisplayName(mediaId: string, displayName: string | null) {
+      const organizationId = currentPrincipalOrganizationId();
       const normalized = displayName?.trim() || null;
       const res = await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE media_files m
-            SET display_name = ${normalized}
-          WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
+            SET organization_id = ${organizationId}::uuid,
+                display_name = ${normalized}
+          WHERE m.id = ${mediaId}::uuid
+            AND (m.organization_id = ${organizationId}::uuid OR m.organization_id IS NULL)
+            AND ${mediaReadableStatusPredicateM}`,
       );
       return (res.rowCount ?? 0) > 0;
     },
 
     async updateMediaFolder(mediaId: string, folderId: string | null) {
+      const organizationId = currentPrincipalOrganizationId();
       const res = await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE media_files m
-            SET folder_id = ${folderId}
-          WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
+            SET organization_id = ${organizationId}::uuid,
+                folder_id = ${folderId}
+          WHERE m.id = ${mediaId}::uuid
+            AND (m.organization_id = ${organizationId}::uuid OR m.organization_id IS NULL)
+            AND (
+              ${folderId}::uuid IS NULL
+              OR EXISTS (
+                SELECT 1
+                  FROM media_folders f
+                 WHERE f.id = ${folderId}::uuid
+                   AND (f.organization_id = ${organizationId}::uuid OR f.organization_id IS NULL)
+              )
+            )
+            AND ${mediaReadableStatusPredicateM}`,
       );
       return (res.rowCount ?? 0) > 0;
     },
@@ -451,15 +478,18 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async deleteHard(mediaId: string) {
+      const organizationId = currentPrincipalOrganizationId();
       const pool = getPool();
-      const client = await pool.connect();
-      try {
+      return withPoolTransaction(pool, async (client) => {
         await pgSessionAdvisoryLock(client, mediaId);
         try {
           const db = getWebappSqlFromPgClient(client);
           const sel = await runWebappSql<{ s3_key: string | null; status: string | null }>(
             db,
-            sql`SELECT s3_key, status FROM media_files WHERE id = ${mediaId}::uuid`,
+            sql`SELECT s3_key, status
+                  FROM media_files
+                 WHERE id = ${mediaId}::uuid
+                   AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)`,
           );
           const row = sel.rows[0];
           if (!row) return false;
@@ -471,22 +501,26 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           if (!row.s3_key) {
             const del = await runWebappSql(
               db,
-              sql`DELETE FROM media_files WHERE id = ${mediaId}::uuid`,
+              sql`DELETE FROM media_files
+                   WHERE id = ${mediaId}::uuid
+                     AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)`,
             );
             return (del.rowCount ?? 0) > 0;
           }
 
           await runWebappSql(
             db,
-            sql`UPDATE media_files SET status = 'pending_delete' WHERE id = ${mediaId}::uuid`,
+            sql`UPDATE media_files
+                   SET organization_id = ${organizationId}::uuid,
+                       status = 'pending_delete'
+                 WHERE id = ${mediaId}::uuid
+                   AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)`,
           );
           return true;
         } finally {
           await pgSessionAdvisoryUnlock(client, mediaId);
         }
-      } finally {
-        client.release();
-      }
+      });
     },
   };
 }
@@ -929,10 +963,10 @@ export async function purgePendingMediaDeleteBatch(
   let errors = 0;
 
   for (let i = 0; i < take; i++) {
-    const client = await pool.connect();
+    const tx = await startPoolTransaction(pool);
+    const client = tx.client;
     const db = getWebappSqlFromPgClient(client);
     try {
-      await client.query("BEGIN");
       const claim = await runWebappSql<{
         id: string;
         s3_key: string;
@@ -957,13 +991,13 @@ export async function purgePendingMediaDeleteBatch(
       );
       const rows = claim.rows;
       if (rows.length === 0) {
-        await client.query("COMMIT");
+        await tx.commit();
         break;
       }
 
       const row = rows[0]!;
       if (row.status !== "pending_delete" && row.status !== "deleting") {
-        await client.query("ROLLBACK");
+        await tx.rollback();
         continue;
       }
 
@@ -973,7 +1007,7 @@ export async function purgePendingMediaDeleteBatch(
       } catch (e) {
         logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] failed to list keys");
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await client.query("COMMIT");
+        await tx.commit();
         errors += 1;
         continue;
       }
@@ -984,7 +1018,7 @@ export async function purgePendingMediaDeleteBatch(
         }
       } catch (e) {
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await client.query("COMMIT");
+        await tx.commit();
         errors += 1;
         logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] s3 delete failed");
         continue;
@@ -995,14 +1029,14 @@ export async function purgePendingMediaDeleteBatch(
           db,
           sql`DELETE FROM media_files WHERE id = ${row.id}::uuid AND ${mediaS3PurgeStatusPredicate}`,
         );
-        await client.query("COMMIT");
+        await tx.commit();
         if ((del.rowCount ?? 0) > 0) removed += 1;
       } catch (e) {
         if (!isDeterministicDeleteConstraintFailure(e)) {
           throw e;
         }
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await client.query("COMMIT");
+        await tx.commit();
         errors += 1;
         logger.warn(
           {
@@ -1017,13 +1051,13 @@ export async function purgePendingMediaDeleteBatch(
       }
     } catch (e) {
       try {
-        await client.query("ROLLBACK");
+        await tx.rollback();
       } catch {
         /* ignore */
       }
       throw e;
     } finally {
-      client.release();
+      tx.release();
     }
   }
 

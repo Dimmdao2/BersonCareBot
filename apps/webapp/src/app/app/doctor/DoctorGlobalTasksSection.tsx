@@ -121,18 +121,20 @@ export function DoctorGlobalTasksSection({
         <div className="flex items-center gap-2">
           {/* Метрика сегодня/всего §1.3 — click opens KpiPreviewModal (S2.8) */}
           {totalCount > 0 ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               className={cn(
                 doctorSectionSubtitleClass,
-                "underline-offset-2 hover:underline cursor-pointer",
+                "h-auto px-1 py-0 underline-offset-2 hover:underline cursor-pointer",
               )}
               id="doctor-today-tasks-metric"
               onClick={() => setTaskModalOpen(true)}
               title="Просмотреть все задачи"
             >
               {todayCount > 0 ? `сегодня ${todayCount} / всего ${totalCount}` : `всего ${totalCount}`}
-            </button>
+            </Button>
           ) : null}
           <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
             Новая
@@ -168,23 +170,27 @@ export function DoctorGlobalTasksSection({
           )}
           {/* §1.3: «Все задачи» кнопка */}
           {hasMore ? (
-            <button
+            <Button
               type="button"
-              className="w-fit text-xs text-primary underline-offset-2 hover:underline"
+              variant="link"
+              size="sm"
+              className="h-auto w-fit p-0 text-xs underline-offset-2"
               onClick={() => setShowAll(true)}
               id="doctor-today-tasks-show-all"
             >
               Все задачи ({totalCount})
-            </button>
+            </Button>
           ) : null}
           {showAll && tasks.length > 0 ? (
-            <button
+            <Button
               type="button"
-              className="w-fit text-xs text-muted-foreground underline-offset-2 hover:underline"
+              variant="ghost"
+              size="sm"
+              className="h-auto w-fit p-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
               onClick={() => setShowAll(false)}
             >
               Скрыть
-            </button>
+            </Button>
           ) : null}
         </>
       )}

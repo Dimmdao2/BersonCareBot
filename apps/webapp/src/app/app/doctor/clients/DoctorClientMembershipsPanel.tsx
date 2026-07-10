@@ -1,11 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
+
+import { DateTime } from "luxon";
 
 type AppointmentOption = { id: string; label: string };
 
@@ -23,12 +28,38 @@ const ERROR_LABELS: Record<string, string> = {
   past_unlink_not_allowed: "Отвязка прошедших записей отключена в настройках.",
 };
 
+type RecalcSummary = {
+  debited: Array<{ appointmentId: string; patientPackageItemId: string; serviceId: string; usageId: string }>;
+  skipped: unknown[];
+  outOfBalance: unknown[];
+};
+
+function pluralizeSessions(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return "сеансов";
+  if (mod10 === 1) return "сеанс";
+  if (mod10 >= 2 && mod10 <= 4) return "сеанса";
+  return "сеансов";
+}
+
 type Props = {
   platformUserId: string;
   appointments?: AppointmentOption[];
+  /**
+   * When false, the «Назначить из каталога» and «Индивидуальный абонемент» create-forms
+   * are hidden. The manual consume section and active-package cards remain.
+   * Defaults to true (full panel).
+   */
+  showCreateForm?: boolean;
 };
 
-export function DoctorClientMembershipsPanel({ platformUserId, appointments = [] }: Props) {
+export function DoctorClientMembershipsPanel({
+  platformUserId,
+  appointments = [],
+  showCreateForm = true,
+}: Props) {
+  const router = useRouter();
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
   const [priceRub, setPriceRub] = useState("");
   const [soldDate, setSoldDate] = useState("");
@@ -37,7 +68,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
   const [serviceId, setServiceId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [items, setItems] = useState<Array<{ serviceId: string; quantity: number }>>([]);
-  const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
+  const [services, setServices] = useState<Array<{ id: string; title: string; isActive: boolean; usableInPackages: boolean }>>([]);
   const [catalog, setCatalog] = useState<Array<{ id: string; title: string; priceMinor: number }>>([]);
   const [catalogId, setCatalogId] = useState("");
   const [catalogSoldDate, setCatalogSoldDate] = useState("");
@@ -52,6 +83,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
   const apiBase = "/api/doctor/booking-engine/patient-packages";
   const servicesApi = "/api/doctor/booking-engine/services";
   const catalogApi = "/api/doctor/booking-engine/packages";
+  const today = DateTime.now().toFormat("yyyy-MM-dd");
 
   function showError(code: string | null) {
     if (!code) {
@@ -84,19 +116,21 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
     queueMicrotask(() => {
       void loadPackages();
     });
-    void Promise.all([fetch(servicesApi), fetch(catalogApi)]).then(async ([svcRes, catRes]) => {
-      const svcJson = (await svcRes.json()) as {
-        ok?: boolean;
-        services?: Array<{ id: string; title: string }>;
-      };
-      const catJson = (await catRes.json()) as {
-        ok?: boolean;
-        packages?: Array<{ id: string; title: string; priceMinor: number }>;
-      };
-      if (svcJson.ok && svcJson.services) setServices(svcJson.services);
-      if (catJson.ok && catJson.packages) setCatalog(catJson.packages);
-    });
-  }, [loadPackages]);
+    if (showCreateForm) {
+      void Promise.all([fetch(servicesApi), fetch(catalogApi)]).then(async ([svcRes, catRes]) => {
+        const svcJson = (await svcRes.json()) as {
+          ok?: boolean;
+          services?: Array<{ id: string; title: string; isActive: boolean; usableInPackages: boolean }>;
+        };
+        const catJson = (await catRes.json()) as {
+          ok?: boolean;
+          packages?: Array<{ id: string; title: string; priceMinor: number }>;
+        };
+        if (svcJson.ok && svcJson.services) setServices(svcJson.services);
+        if (catJson.ok && catJson.packages) setCatalog(catJson.packages);
+      });
+    }
+  }, [loadPackages, showCreateForm]);
 
   const compact = packages.filter((p) => p.status === "active" || p.status === "awaiting_payment");
 
@@ -137,12 +171,14 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
         showError(json.error ?? "create_failed");
         return;
       }
+      toast.success("Абонемент создан");
       setPriceRub("");
       setPaidRub("");
       setSoldDate("");
       setManualNotes("");
       setItems([]);
       void loadPackages();
+      router.refresh();
     });
   }
 
@@ -174,11 +210,13 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
         showError(json.error ?? "create_failed");
         return;
       }
+      toast.success("Абонемент создан");
       setCatalogId("");
       setCatalogPaidRub("");
       setCatalogSoldDate("");
       setCatalogNotes("");
       void loadPackages();
+      router.refresh();
     });
   }
 
@@ -200,10 +238,35 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       }
       setError(null);
       void loadPackages();
+      router.refresh();
     });
   }
 
   const selectedPkg = packages.find((p) => p.id === consumePackageId);
+
+  async function recalcPackage(packageId: string) {
+    try {
+      const res = await fetch(`${apiBase}/${packageId}/recalc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = (await res.json()) as { ok?: boolean; summary?: RecalcSummary; error?: string };
+      if (!json.ok) {
+        toast.error("Не удалось пересчитать абонемент");
+        return;
+      }
+      const debitedCount = json.summary?.debited.length ?? 0;
+      const msg =
+        debitedCount > 0
+          ? `Списано ${debitedCount} ${pluralizeSessions(debitedCount)}`
+          : "Нет новых сеансов для списания";
+      toast.success(msg);
+      void loadPackages();
+      router.refresh();
+    } catch {
+      toast.error("Ошибка сети при пересчёте");
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -220,152 +283,222 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
               apiBase={apiBase}
               onError={showError}
               onChanged={() => void loadPackages()}
+              onRecalc={pkg.status === "active" ? () => void recalcPackage(pkg.id) : undefined}
             />
           ))}
         </ul>
       )}
 
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium">Назначить из каталога</summary>
-        <div className="mt-3 flex flex-col gap-2">
-          <Label htmlFor="pkg-catalog">Шаблон</Label>
-          <select
-            id="pkg-catalog"
-            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-            value={catalogId}
-            onChange={(e) => {
-              setCatalogId(e.target.value);
-              const row = catalog.find((c) => c.id === e.target.value);
-              if (row) setCatalogPaidRub(String(row.priceMinor / 100));
-            }}
-          >
-            <option value="">—</option>
-            {catalog.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-          <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
-          <Input
-            id="pkg-catalog-notes"
-            value={catalogNotes}
-            onChange={(e) => setCatalogNotes(e.target.value)}
-          />
-          <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
-          <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} />
-          <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
-          <Input
-            id="pkg-catalog-paid"
-            value={catalogPaidRub}
-            onChange={(e) => setCatalogPaidRub(e.target.value)}
-          />
-          <Button type="button" size="sm" disabled={pending} onClick={offerCatalog}>
-            Назначить
-          </Button>
-        </div>
-      </details>
+      {showCreateForm ? (
+        <>
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium">Назначить из каталога</summary>
+            <div className="mt-3 flex flex-col gap-2">
+              {catalog.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Нет шаблонов — создайте в{" "}
+                  <span className="font-medium">Расписание → Настройки → Абонементы (шаблоны)</span>
+                </p>
+              ) : (
+                <>
+                  <Label htmlFor="pkg-catalog">Шаблон</Label>
+                  <Select
+                    value={catalogId}
+                    onValueChange={(v) => {
+                      const val = v ?? "";
+                      setCatalogId(val);
+                      const row = catalog.find((c) => c.id === val);
+                      if (row) setCatalogPaidRub(String(row.priceMinor / 100));
+                    }}
+                  >
+                    <SelectTrigger
+                      id="pkg-catalog"
+                      displayLabel={catalog.find((c) => c.id === catalogId)?.title ?? "—"}
+                      className="w-full"
+                    />
+                    <SelectContent>
+                      <SelectItem value="">—</SelectItem>
+                      {catalog.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
+                  <Input
+                    id="pkg-catalog-notes"
+                    value={catalogNotes}
+                    onChange={(e) => setCatalogNotes(e.target.value)}
+                  />
+                  <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
+                  <DoctorDatePicker value={catalogSoldDate} onChange={setCatalogSoldDate} max={today} />
+                  <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
+                  <Input
+                    id="pkg-catalog-paid"
+                    value={catalogPaidRub}
+                    onChange={(e) => setCatalogPaidRub(e.target.value)}
+                  />
+                  <Button type="button" size="sm" disabled={pending} onClick={offerCatalog}>
+                    Назначить
+                  </Button>
+                </>
+              )}
+            </div>
+          </details>
 
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium">Индивидуальный абонемент</summary>
-        <div className="mt-3 flex flex-col gap-2">
-          <Label htmlFor="pkg-manual-notes">Комментарий</Label>
-          <Input
-            id="pkg-manual-notes"
-            value={manualNotes}
-            onChange={(e) => setManualNotes(e.target.value)}
-          />
-          <Label htmlFor="pkg-price">Цена, ₽</Label>
-          <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
-          <Label htmlFor="pkg-sold">Дата продажи</Label>
-          <DoctorDatePicker value={soldDate} onChange={setSoldDate} />
-          <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
-          <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[8rem] flex-1">
-              <Label htmlFor="pkg-svc">Услуга</Label>
-              <select
-                id="pkg-svc"
-                className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-                value={serviceId}
-                onChange={(e) => setServiceId(e.target.value)}
-              >
-                <option value="">—</option>
-                {services.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title}
-                  </option>
-                ))}
-              </select>
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium">Индивидуальный абонемент</summary>
+            <div className="mt-3 flex flex-col gap-2">
+              <Label htmlFor="pkg-manual-notes">Комментарий</Label>
+              <Input
+                id="pkg-manual-notes"
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+              />
+              <Label htmlFor="pkg-price">Цена, ₽</Label>
+              <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
+              <Label htmlFor="pkg-sold">Дата продажи</Label>
+              <DoctorDatePicker value={soldDate} onChange={setSoldDate} max={today} />
+              <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
+              <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[8rem] flex-1">
+                  <Label htmlFor="pkg-svc">Услуга</Label>
+                  <Select
+                    value={serviceId}
+                    onValueChange={(v) => setServiceId(v ?? "")}
+                  >
+                    <SelectTrigger
+                      id="pkg-svc"
+                      displayLabel={
+                        services.find((s) => s.id === serviceId)?.title ?? "—"
+                      }
+                      className="w-full"
+                    />
+                    <SelectContent>
+                      <SelectItem value="">—</SelectItem>
+                      {services
+                        .filter((s) => s.isActive && s.usableInPackages)
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.title}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-20">
+                  <Label htmlFor="pkg-qty">Кол-во</Label>
+                  <Input id="pkg-qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={addItem}>
+                  Добавить позицию
+                </Button>
+              </div>
+              {items.length > 0 ? (
+                <ul className="m-0 list-none space-y-1 p-0">
+                  {items.map((it, idx) => {
+                    const svc = services.find((s) => s.id === it.serviceId);
+                    return (
+                      <li key={idx} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-foreground">
+                          {svc?.title ?? it.serviceId} — {it.quantity} шт.
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-destructive hover:text-destructive hover:underline"
+                          onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          ✕
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              <Button type="button" size="sm" disabled={pending} onClick={createManual}>
+                Сохранить
+              </Button>
             </div>
-            <div className="w-20">
-              <Label htmlFor="pkg-qty">Кол-во</Label>
-              <Input id="pkg-qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-            </div>
-            <Button type="button" variant="secondary" size="sm" onClick={addItem}>
-              Добавить позицию
-            </Button>
-          </div>
-          {items.length > 0 ? (
-            <p className="text-muted-foreground text-xs">Позиций: {items.length}</p>
-          ) : null}
-          <Button type="button" size="sm" disabled={pending} onClick={createManual}>
-            Сохранить
-          </Button>
-        </div>
-      </details>
+          </details>
+        </>
+      ) : null}
 
       <details className="group">
         <summary className="cursor-pointer text-sm font-medium">Списать сеанс по абонементу</summary>
         <div className="mt-3 flex flex-col gap-2">
           <Label>Абонемент</Label>
-          <select
-            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+          <Select
             value={consumePackageId}
-            onChange={(e) => {
-              setConsumePackageId(e.target.value);
+            onValueChange={(v) => {
+              setConsumePackageId(v ?? "");
               setConsumeItemId("");
             }}
           >
-            <option value="">—</option>
-            {packages
-              .filter((p) => p.status === "active")
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-          </select>
+            <SelectTrigger
+              displayLabel={packages.find((p) => p.id === consumePackageId)?.title ?? "—"}
+              className="w-full"
+            />
+            <SelectContent>
+              <SelectItem value="">—</SelectItem>
+              {packages
+                .filter((p) => p.status === "active")
+                .map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
           {selectedPkg ? (
             <>
               <Label>Позиция</Label>
-              <select
-                className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+              <Select
                 value={consumeItemId}
-                onChange={(e) => setConsumeItemId(e.target.value)}
+                onValueChange={(v) => setConsumeItemId(v ?? "")}
               >
-                <option value="">—</option>
-                {selectedPkg.balance.items.map((it) => (
-                  <option key={it.patientPackageItemId} value={it.patientPackageItemId}>
-                    {(it.serviceTitle ?? it.serviceId) + ` (остаток ${it.remaining})`}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  displayLabel={
+                    selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)
+                      ? (selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.serviceTitle ??
+                          selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.serviceId) +
+                        ` (остаток ${selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.remaining})`
+                      : "—"
+                  }
+                  className="w-full"
+                />
+                <SelectContent>
+                  <SelectItem value="">—</SelectItem>
+                  {selectedPkg.balance.items.map((it) => (
+                    <SelectItem key={it.patientPackageItemId} value={it.patientPackageItemId}>
+                      {(it.serviceTitle ?? it.serviceId) + ` (остаток ${it.remaining})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </>
           ) : null}
           <Label>Запись</Label>
-          <select
-            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+          <Select
             value={consumeAppointmentId}
-            onChange={(e) => setConsumeAppointmentId(e.target.value)}
+            onValueChange={(v) => setConsumeAppointmentId(v ?? "")}
           >
-            <option value="">Без записи</option>
-            {appointments.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              displayLabel={appointments.find((a) => a.id === consumeAppointmentId)?.label ?? "Без записи"}
+              className="w-full"
+            />
+            <SelectContent>
+              <SelectItem value="">Без записи</SelectItem>
+              {appointments.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button type="button" size="sm" disabled={pending} onClick={manualConsume}>
             Списать
           </Button>

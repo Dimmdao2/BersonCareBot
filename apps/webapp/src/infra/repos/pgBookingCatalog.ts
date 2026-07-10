@@ -2,6 +2,8 @@
  * Wave 3 phase 13A — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
  */
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import type { WebappSqlExecutor } from "@/infra/db/runWebappSql";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { BookingCatalogPort } from "@/modules/booking-catalog/ports";
 import type {
@@ -12,6 +14,8 @@ import type {
   BookingBranchService,
   ResolvedBranchService,
 } from "@/modules/booking-catalog/types";
+
+const DEFAULT_ORGANIZATION_ID = "a0000000-0000-4000-8000-000000000001";
 
 // ---------------------------------------------------------------------------
 // Row mappers
@@ -57,6 +61,7 @@ type ServiceRow = {
   title: string;
   description: string | null;
   duration_minutes: number;
+  break_after_minutes: number;
   price_minor: number;
   is_active: boolean;
   sort_order: number;
@@ -123,6 +128,7 @@ function mapService(row: ServiceRow): BookingService {
     title: row.title,
     description: row.description,
     durationMinutes: row.duration_minutes,
+    breakAfterMinutes: row.break_after_minutes,
     priceMinor: row.price_minor,
     isActive: row.is_active,
     sortOrder: row.sort_order,
@@ -155,14 +161,57 @@ function parseRubitimeBranchIdAsIntegratorId(rubitimeBranchId: string): number |
   return Math.trunc(n);
 }
 
-async function syncBranchesTimezoneFromCatalog(rubitimeBranchId: string, timezone: string): Promise<void> {
+async function syncBranchesTimezoneFromCatalog(
+  rubitimeBranchId: string,
+  timezone: string,
+  db?: WebappSqlExecutor,
+): Promise<void> {
   const integratorId = parseRubitimeBranchIdAsIntegratorId(rubitimeBranchId);
   if (integratorId === null) return;
   const tz = timezone.trim() || "Europe/Moscow";
   await runWebappPgText(
     `UPDATE branches SET timezone = $1, updated_at = now() WHERE integrator_branch_id = $2`,
     [tz, integratorId],
+    db,
   );
+}
+
+async function syncCanonicalServiceFromCatalog(input: {
+  title: string;
+  description: string | null;
+  durationMinutes: number;
+  breakAfterMinutes: number;
+  priceMinor: number;
+  isActive: boolean;
+  sortOrder: number;
+}, db?: WebappSqlExecutor): Promise<void> {
+  await runWebappPgText(
+    `INSERT INTO be_clinic_services
+       (organization_id, title, description, duration_minutes, buffer_after_minutes, price_minor, is_active, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT ON CONSTRAINT uq_be_clinic_services_org_title_duration DO UPDATE
+       SET description = EXCLUDED.description,
+           buffer_after_minutes = EXCLUDED.buffer_after_minutes,
+           price_minor = EXCLUDED.price_minor,
+           is_active = EXCLUDED.is_active,
+           sort_order = EXCLUDED.sort_order,
+           updated_at = now()`,
+    [
+      DEFAULT_ORGANIZATION_ID,
+      input.title,
+      input.description,
+      input.durationMinutes,
+      input.breakAfterMinutes,
+      input.priceMinor,
+      input.isActive,
+      input.sortOrder,
+    ],
+    db,
+  );
+}
+
+async function runCatalogMutation<T>(fn: (db: WebappSqlExecutor) => Promise<T>): Promise<T> {
+  return runDrizzleMutationTransaction((tx) => fn(tx));
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +250,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         svc_title: string;
         svc_description: string | null;
         svc_duration_minutes: number;
+        svc_break_after_minutes: number;
         svc_price_minor: number;
         svc_is_active: boolean;
         svc_sort_order: number;
@@ -228,7 +278,9 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
            br.is_active AS br_is_active, br.sort_order AS br_sort_order,
            br.created_at AS br_created_at, br.updated_at AS br_updated_at,
            svc.id AS svc_id, svc.title AS svc_title, svc.description AS svc_description,
-           svc.duration_minutes AS svc_duration_minutes, svc.price_minor AS svc_price_minor,
+           svc.duration_minutes AS svc_duration_minutes,
+           svc.break_after_minutes AS svc_break_after_minutes,
+           svc.price_minor AS svc_price_minor,
            svc.is_active AS svc_is_active, svc.sort_order AS svc_sort_order,
            svc.created_at AS svc_created_at, svc.updated_at AS svc_updated_at,
            sp.id AS sp_id, sp.branch_id AS sp_branch_id, sp.full_name AS sp_full_name,
@@ -283,6 +335,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
           title: row.svc_title,
           description: row.svc_description,
           duration_minutes: row.svc_duration_minutes,
+          break_after_minutes: row.svc_break_after_minutes,
           price_minor: row.svc_price_minor,
           is_active: row.svc_is_active,
           sort_order: row.svc_sort_order,
@@ -332,6 +385,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
           svc_title: string;
           svc_description: string | null;
           svc_duration_minutes: number;
+          svc_break_after_minutes: number;
           svc_price_minor: number;
           svc_is_active: boolean;
           svc_sort_order: number;
@@ -368,7 +422,9 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
            br.is_active AS br_is_active, br.sort_order AS br_sort_order,
            br.created_at AS br_created_at, br.updated_at AS br_updated_at,
            svc.id AS svc_id, svc.title AS svc_title, svc.description AS svc_description,
-           svc.duration_minutes AS svc_duration_minutes, svc.price_minor AS svc_price_minor,
+           svc.duration_minutes AS svc_duration_minutes,
+           svc.break_after_minutes AS svc_break_after_minutes,
+           svc.price_minor AS svc_price_minor,
            svc.is_active AS svc_is_active, svc.sort_order AS svc_sort_order,
            svc.created_at AS svc_created_at, svc.updated_at AS svc_updated_at,
            sp.id AS sp_id, sp.branch_id AS sp_branch_id, sp.full_name AS sp_full_name,
@@ -424,6 +480,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         title: row.svc_title,
         description: row.svc_description,
         duration_minutes: row.svc_duration_minutes,
+        break_after_minutes: row.svc_break_after_minutes,
         price_minor: row.svc_price_minor,
         is_active: row.svc_is_active,
         sort_order: row.svc_sort_order,
@@ -460,45 +517,52 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     // -----------------------------------------------------------------------
 
     async upsertCity({ code, title, isActive, sortOrder }) {
-      const result = await runWebappPgText<CityRow>(
-        `INSERT INTO booking_cities (id, code, title, is_active, sort_order)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4)
-         ON CONFLICT (code) DO UPDATE
-           SET title = EXCLUDED.title,
-               is_active = EXCLUDED.is_active,
-               sort_order = EXCLUDED.sort_order,
-               updated_at = now()
-         RETURNING id, code, title, is_active, sort_order, created_at, updated_at`,
-        [code, title, isActive, sortOrder],
-      );
-      return mapCity(result.rows[0]!);
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText<CityRow>(
+          `INSERT INTO booking_cities (id, code, title, is_active, sort_order)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4)
+           ON CONFLICT (code) DO UPDATE
+             SET title = EXCLUDED.title,
+                 is_active = EXCLUDED.is_active,
+                 sort_order = EXCLUDED.sort_order,
+                 updated_at = now()
+           RETURNING id, code, title, is_active, sort_order, created_at, updated_at`,
+          [code, title, isActive, sortOrder],
+          tx,
+        );
+        return mapCity(result.rows[0]!);
+      });
     },
 
     async upsertBranch({ cityCode, title, address, rubitimeBranchId, timezone, isActive, sortOrder }) {
-      const cityRes = await runWebappPgText<{ id: string }>(
-        `SELECT id FROM booking_cities WHERE code = $1`,
-        [cityCode],
-      );
-      if (cityRes.rows.length === 0) throw new Error(`city_not_found:${cityCode}`);
-      const cityId = cityRes.rows[0]!.id;
-      const tz = (timezone ?? "Europe/Moscow").trim() || "Europe/Moscow";
+      return runCatalogMutation(async (tx) => {
+        const cityRes = await runWebappPgText<{ id: string }>(
+          `SELECT id FROM booking_cities WHERE code = $1`,
+          [cityCode],
+          tx,
+        );
+        if (cityRes.rows.length === 0) throw new Error(`city_not_found:${cityCode}`);
+        const cityId = cityRes.rows[0]!.id;
+        const tz = (timezone ?? "Europe/Moscow").trim() || "Europe/Moscow";
 
-      const result = await runWebappPgText<{ id: string }>(
-        `INSERT INTO booking_branches (id, city_id, title, address, rubitime_branch_id, is_active, sort_order, timezone)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (rubitime_branch_id) DO UPDATE
-           SET city_id = EXCLUDED.city_id,
-               title = EXCLUDED.title,
-               address = EXCLUDED.address,
-               timezone = EXCLUDED.timezone,
-               is_active = EXCLUDED.is_active,
-               sort_order = EXCLUDED.sort_order,
-               updated_at = now()
-         RETURNING id`,
-        [cityId, title, address, rubitimeBranchId, isActive, sortOrder, tz],
-      );
-      await syncBranchesTimezoneFromCatalog(rubitimeBranchId, tz);
-      return { id: result.rows[0]!.id };
+        const result = await runWebappPgText<{ id: string }>(
+          `INSERT INTO booking_branches (id, city_id, title, address, rubitime_branch_id, is_active, sort_order, timezone)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (rubitime_branch_id) DO UPDATE
+             SET city_id = EXCLUDED.city_id,
+                 title = EXCLUDED.title,
+                 address = EXCLUDED.address,
+                 timezone = EXCLUDED.timezone,
+                 is_active = EXCLUDED.is_active,
+                 sort_order = EXCLUDED.sort_order,
+                 updated_at = now()
+           RETURNING id`,
+          [cityId, title, address, rubitimeBranchId, isActive, sortOrder, tz],
+          tx,
+        );
+        await syncBranchesTimezoneFromCatalog(rubitimeBranchId, tz, tx);
+        return { id: result.rows[0]!.id };
+      });
     },
 
     async upsertSpecialist({
@@ -509,44 +573,69 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       isActive,
       sortOrder,
     }) {
-      const branchRes = await runWebappPgText<{ id: string }>(
-        `SELECT id FROM booking_branches WHERE rubitime_branch_id = $1`,
-        [rubitimeBranchId],
-      );
-      if (branchRes.rows.length === 0) throw new Error(`branch_not_found:${rubitimeBranchId}`);
-      const branchId = branchRes.rows[0]!.id;
+      return runCatalogMutation(async (tx) => {
+        const branchRes = await runWebappPgText<{ id: string }>(
+          `SELECT id FROM booking_branches WHERE rubitime_branch_id = $1`,
+          [rubitimeBranchId],
+          tx,
+        );
+        if (branchRes.rows.length === 0) throw new Error(`branch_not_found:${rubitimeBranchId}`);
+        const branchId = branchRes.rows[0]!.id;
 
-      const result = await runWebappPgText<{ id: string }>(
-        `INSERT INTO booking_specialists
-           (id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
-         ON CONFLICT (rubitime_cooperator_id, branch_id) DO UPDATE
-           SET full_name = EXCLUDED.full_name,
-               description = EXCLUDED.description,
-               is_active = EXCLUDED.is_active,
-               sort_order = EXCLUDED.sort_order,
-               updated_at = now()
-         RETURNING id`,
-        [branchId, fullName, description, rubitimeCooperatorId, isActive, sortOrder],
-      );
-      return { id: result.rows[0]!.id };
+        const result = await runWebappPgText<{ id: string }>(
+          `INSERT INTO booking_specialists
+             (id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+           ON CONFLICT (rubitime_cooperator_id, branch_id) DO UPDATE
+             SET full_name = EXCLUDED.full_name,
+                 description = EXCLUDED.description,
+                 is_active = EXCLUDED.is_active,
+                 sort_order = EXCLUDED.sort_order,
+                 updated_at = now()
+           RETURNING id`,
+          [branchId, fullName, description, rubitimeCooperatorId, isActive, sortOrder],
+          tx,
+        );
+        return { id: result.rows[0]!.id };
+      });
     },
 
-    async upsertService({ title, description, durationMinutes, priceMinor, isActive, sortOrder }) {
-      const result = await runWebappPgText<{ id: string }>(
-        `INSERT INTO booking_services
-           (id, title, description, duration_minutes, price_minor, is_active, sort_order)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
-         ON CONFLICT ON CONSTRAINT uq_booking_services_title_duration DO UPDATE
-           SET description = EXCLUDED.description,
-               price_minor = EXCLUDED.price_minor,
-               is_active = EXCLUDED.is_active,
-               sort_order = EXCLUDED.sort_order,
-               updated_at = now()
-         RETURNING id`,
-        [title, description, durationMinutes, priceMinor, isActive, sortOrder],
-      );
-      return { id: result.rows[0]!.id };
+    async upsertService({
+      title,
+      description,
+      durationMinutes,
+      breakAfterMinutes,
+      priceMinor,
+      isActive,
+      sortOrder,
+    }) {
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText<{ id: string }>(
+          `INSERT INTO booking_services
+             (id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT ON CONSTRAINT uq_booking_services_title_duration DO UPDATE
+             SET description = EXCLUDED.description,
+                 break_after_minutes = EXCLUDED.break_after_minutes,
+                 price_minor = EXCLUDED.price_minor,
+                 is_active = EXCLUDED.is_active,
+                 sort_order = EXCLUDED.sort_order,
+                 updated_at = now()
+           RETURNING id`,
+          [title, description, durationMinutes, breakAfterMinutes, priceMinor, isActive, sortOrder],
+          tx,
+        );
+        await syncCanonicalServiceFromCatalog({
+          title,
+          description,
+          durationMinutes,
+          breakAfterMinutes,
+          priceMinor,
+          isActive,
+          sortOrder,
+        }, tx);
+        return { id: result.rows[0]!.id };
+      });
     },
 
     async upsertBranchService({
@@ -558,45 +647,51 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       isActive,
       sortOrder,
     }) {
-      const branchRes = await runWebappPgText<{ id: string }>(
-        `SELECT id FROM booking_branches WHERE rubitime_branch_id = $1`,
-        [rubitimeBranchId],
-      );
-      if (branchRes.rows.length === 0) throw new Error(`branch_not_found:${rubitimeBranchId}`);
-      const branchId = branchRes.rows[0]!.id;
+      return runCatalogMutation(async (tx) => {
+        const branchRes = await runWebappPgText<{ id: string }>(
+          `SELECT id FROM booking_branches WHERE rubitime_branch_id = $1`,
+          [rubitimeBranchId],
+          tx,
+        );
+        if (branchRes.rows.length === 0) throw new Error(`branch_not_found:${rubitimeBranchId}`);
+        const branchId = branchRes.rows[0]!.id;
 
-      const specialistRes = await runWebappPgText<{ id: string }>(
-        `SELECT id FROM booking_specialists
-         WHERE rubitime_cooperator_id = $1 AND branch_id = $2`,
-        [rubitimeCooperatorId, branchId],
-      );
-      if (specialistRes.rows.length === 0)
-        throw new Error(`specialist_not_found:${rubitimeCooperatorId}`);
-      const specialistId = specialistRes.rows[0]!.id;
+        const specialistRes = await runWebappPgText<{ id: string }>(
+          `SELECT id FROM booking_specialists
+           WHERE rubitime_cooperator_id = $1 AND branch_id = $2`,
+          [rubitimeCooperatorId, branchId],
+          tx,
+        );
+        if (specialistRes.rows.length === 0)
+          throw new Error(`specialist_not_found:${rubitimeCooperatorId}`);
+        const specialistId = specialistRes.rows[0]!.id;
 
-      const serviceRes = await runWebappPgText<{ id: string }>(
-        `SELECT id FROM booking_services
-         WHERE title = $1 AND duration_minutes = $2`,
-        [serviceTitle, serviceDurationMinutes],
-      );
-      if (serviceRes.rows.length === 0)
-        throw new Error(`service_not_found:${serviceTitle}/${serviceDurationMinutes}`);
-      const serviceId = serviceRes.rows[0]!.id;
+        const serviceRes = await runWebappPgText<{ id: string }>(
+          `SELECT id FROM booking_services
+           WHERE title = $1 AND duration_minutes = $2`,
+          [serviceTitle, serviceDurationMinutes],
+          tx,
+        );
+        if (serviceRes.rows.length === 0)
+          throw new Error(`service_not_found:${serviceTitle}/${serviceDurationMinutes}`);
+        const serviceId = serviceRes.rows[0]!.id;
 
-      const result = await runWebappPgText<{ id: string }>(
-        `INSERT INTO booking_branch_services
-           (id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
-         ON CONFLICT ON CONSTRAINT uq_booking_branch_services DO UPDATE
-           SET specialist_id = EXCLUDED.specialist_id,
-               rubitime_service_id = EXCLUDED.rubitime_service_id,
-               is_active = EXCLUDED.is_active,
-               sort_order = EXCLUDED.sort_order,
-               updated_at = now()
-         RETURNING id`,
-        [branchId, serviceId, specialistId, rubitimeServiceId, isActive, sortOrder],
-      );
-      return { id: result.rows[0]!.id };
+        const result = await runWebappPgText<{ id: string }>(
+          `INSERT INTO booking_branch_services
+             (id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+           ON CONFLICT ON CONSTRAINT uq_booking_branch_services DO UPDATE
+             SET specialist_id = EXCLUDED.specialist_id,
+                 rubitime_service_id = EXCLUDED.rubitime_service_id,
+                 is_active = EXCLUDED.is_active,
+                 sort_order = EXCLUDED.sort_order,
+                 updated_at = now()
+           RETURNING id`,
+          [branchId, serviceId, specialistId, rubitimeServiceId, isActive, sortOrder],
+          tx,
+        );
+        return { id: result.rows[0]!.id };
+      });
     },
 
     // -----------------------------------------------------------------------
@@ -628,22 +723,28 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const title = patch.title ?? cur.title;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await runWebappPgText<CityRow>(
-        `UPDATE booking_cities
-         SET title = $2, is_active = $3, sort_order = $4, updated_at = now()
-         WHERE id = $1
-         RETURNING id, code, title, is_active, sort_order, created_at, updated_at`,
-        [id, title, isActive, sortOrder],
-      );
-      return mapCity(result.rows[0]!);
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText<CityRow>(
+          `UPDATE booking_cities
+           SET title = $2, is_active = $3, sort_order = $4, updated_at = now()
+           WHERE id = $1
+           RETURNING id, code, title, is_active, sort_order, created_at, updated_at`,
+          [id, title, isActive, sortOrder],
+          tx,
+        );
+        return mapCity(result.rows[0]!);
+      });
     },
 
     async deactivateCity(id) {
-      const result = await runWebappPgText(
-        `UPDATE booking_cities SET is_active = FALSE, updated_at = now() WHERE id = $1`,
-        [id],
-      );
-      return (result.rowCount ?? 0) > 0;
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText(
+          `UPDATE booking_cities SET is_active = FALSE, updated_at = now() WHERE id = $1`,
+          [id],
+          tx,
+        );
+        return (result.rowCount ?? 0) > 0;
+      });
     },
 
     async listBranchesAdmin() {
@@ -675,30 +776,36 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const timezone = patch.timezone !== undefined ? patch.timezone : cur.timezone;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await runWebappPgText<BranchRow>(
-        `UPDATE booking_branches
-         SET city_id = $2, title = $3, address = $4, rubitime_branch_id = $5, timezone = $6,
-             is_active = $7, sort_order = $8, updated_at = now()
-         WHERE id = $1
-         RETURNING id, city_id, title, address, rubitime_branch_id, timezone, is_active, sort_order, created_at, updated_at`,
-        [id, cityId, title, address, rubitimeBranchId, timezone, isActive, sortOrder],
-      );
-      const row = result.rows[0]!;
-      await syncBranchesTimezoneFromCatalog(row.rubitime_branch_id, row.timezone);
-      return mapBranch(row);
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText<BranchRow>(
+          `UPDATE booking_branches
+           SET city_id = $2, title = $3, address = $4, rubitime_branch_id = $5, timezone = $6,
+               is_active = $7, sort_order = $8, updated_at = now()
+           WHERE id = $1
+           RETURNING id, city_id, title, address, rubitime_branch_id, timezone, is_active, sort_order, created_at, updated_at`,
+          [id, cityId, title, address, rubitimeBranchId, timezone, isActive, sortOrder],
+          tx,
+        );
+        const row = result.rows[0]!;
+        await syncBranchesTimezoneFromCatalog(row.rubitime_branch_id, row.timezone, tx);
+        return mapBranch(row);
+      });
     },
 
     async deactivateBranch(id) {
-      const result = await runWebappPgText(
-        `UPDATE booking_branches SET is_active = FALSE, updated_at = now() WHERE id = $1`,
-        [id],
-      );
-      return (result.rowCount ?? 0) > 0;
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText(
+          `UPDATE booking_branches SET is_active = FALSE, updated_at = now() WHERE id = $1`,
+          [id],
+          tx,
+        );
+        return (result.rowCount ?? 0) > 0;
+      });
     },
 
     async listServicesAdmin() {
       const result = await runWebappPgText<ServiceRow>(
-        `SELECT id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at
+        `SELECT id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order, created_at, updated_at
          FROM booking_services
          ORDER BY sort_order ASC, title ASC`,
       );
@@ -707,7 +814,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
 
     async getServiceById(id) {
       const result = await runWebappPgText<ServiceRow>(
-        `SELECT id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at
+        `SELECT id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order, created_at, updated_at
          FROM booking_services WHERE id = $1`,
         [id],
       );
@@ -721,26 +828,42 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const title = patch.title ?? cur.title;
       const description = patch.description !== undefined ? patch.description : cur.description;
       const durationMinutes = patch.durationMinutes ?? cur.durationMinutes;
+      const breakAfterMinutes = patch.breakAfterMinutes ?? cur.breakAfterMinutes;
       const priceMinor = patch.priceMinor ?? cur.priceMinor;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await runWebappPgText<ServiceRow>(
-        `UPDATE booking_services
-         SET title = $2, description = $3, duration_minutes = $4, price_minor = $5,
-             is_active = $6, sort_order = $7, updated_at = now()
-         WHERE id = $1
-         RETURNING id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at`,
-        [id, title, description, durationMinutes, priceMinor, isActive, sortOrder],
-      );
-      return mapService(result.rows[0]!);
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText<ServiceRow>(
+          `UPDATE booking_services
+           SET title = $2, description = $3, duration_minutes = $4, break_after_minutes = $5, price_minor = $6,
+               is_active = $7, sort_order = $8, updated_at = now()
+           WHERE id = $1
+           RETURNING id, title, description, duration_minutes, break_after_minutes, price_minor, is_active, sort_order, created_at, updated_at`,
+          [id, title, description, durationMinutes, breakAfterMinutes, priceMinor, isActive, sortOrder],
+          tx,
+        );
+        await syncCanonicalServiceFromCatalog({
+          title,
+          description,
+          durationMinutes,
+          breakAfterMinutes,
+          priceMinor,
+          isActive,
+          sortOrder,
+        }, tx);
+        return mapService(result.rows[0]!);
+      });
     },
 
     async deactivateService(id) {
-      const result = await runWebappPgText(
-        `UPDATE booking_services SET is_active = FALSE, updated_at = now() WHERE id = $1`,
-        [id],
-      );
-      return (result.rowCount ?? 0) > 0;
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText(
+          `UPDATE booking_services SET is_active = FALSE, updated_at = now() WHERE id = $1`,
+          [id],
+          tx,
+        );
+        return (result.rowCount ?? 0) > 0;
+      });
     },
 
     async listSpecialistsAdmin(branchId) {
@@ -779,23 +902,29 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const rubitimeCooperatorId = patch.rubitimeCooperatorId ?? cur.rubitimeCooperatorId;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await runWebappPgText<SpecialistRow>(
-        `UPDATE booking_specialists
-         SET branch_id = $2, full_name = $3, description = $4, rubitime_cooperator_id = $5,
-             is_active = $6, sort_order = $7, updated_at = now()
-         WHERE id = $1
-         RETURNING id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order, created_at, updated_at`,
-        [id, branchId, fullName, description, rubitimeCooperatorId, isActive, sortOrder],
-      );
-      return mapSpecialist(result.rows[0]!);
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText<SpecialistRow>(
+          `UPDATE booking_specialists
+           SET branch_id = $2, full_name = $3, description = $4, rubitime_cooperator_id = $5,
+               is_active = $6, sort_order = $7, updated_at = now()
+           WHERE id = $1
+           RETURNING id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order, created_at, updated_at`,
+          [id, branchId, fullName, description, rubitimeCooperatorId, isActive, sortOrder],
+          tx,
+        );
+        return mapSpecialist(result.rows[0]!);
+      });
     },
 
     async deactivateSpecialist(id) {
-      const result = await runWebappPgText(
-        `UPDATE booking_specialists SET is_active = FALSE, updated_at = now() WHERE id = $1`,
-        [id],
-      );
-      return (result.rowCount ?? 0) > 0;
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText(
+          `UPDATE booking_specialists SET is_active = FALSE, updated_at = now() WHERE id = $1`,
+          [id],
+          tx,
+        );
+        return (result.rowCount ?? 0) > 0;
+      });
     },
 
     async listBranchServicesAdmin(branchId) {
@@ -833,35 +962,42 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       isActive,
       sortOrder,
     }) {
-      const spRes = await runWebappPgText<{ branch_id: string }>(
-        `SELECT branch_id FROM booking_specialists WHERE id = $1`,
-        [specialistId],
-      );
-      if (spRes.rows.length === 0) throw new Error("specialist_not_found");
-      if (spRes.rows[0]!.branch_id !== branchId) throw new Error("specialist_branch_mismatch");
+      return runCatalogMutation(async (tx) => {
+        const spRes = await runWebappPgText<{ branch_id: string }>(
+          `SELECT branch_id FROM booking_specialists WHERE id = $1`,
+          [specialistId],
+          tx,
+        );
+        if (spRes.rows.length === 0) throw new Error("specialist_not_found");
+        if (spRes.rows[0]!.branch_id !== branchId) throw new Error("specialist_branch_mismatch");
 
-      const result = await runWebappPgText<BranchServiceRow>(
-        `INSERT INTO booking_branch_services
-           (id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
-         ON CONFLICT ON CONSTRAINT uq_booking_branch_services DO UPDATE
-           SET specialist_id = EXCLUDED.specialist_id,
-               rubitime_service_id = EXCLUDED.rubitime_service_id,
-               is_active = EXCLUDED.is_active,
-               sort_order = EXCLUDED.sort_order,
-               updated_at = now()
-         RETURNING id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order, created_at, updated_at`,
-        [branchId, serviceId, specialistId, rubitimeServiceId, isActive, sortOrder],
-      );
-      return mapBranchService(result.rows[0]!);
+        const result = await runWebappPgText<BranchServiceRow>(
+          `INSERT INTO booking_branch_services
+             (id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+           ON CONFLICT ON CONSTRAINT uq_booking_branch_services DO UPDATE
+             SET specialist_id = EXCLUDED.specialist_id,
+                 rubitime_service_id = EXCLUDED.rubitime_service_id,
+                 is_active = EXCLUDED.is_active,
+                 sort_order = EXCLUDED.sort_order,
+                 updated_at = now()
+           RETURNING id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order, created_at, updated_at`,
+          [branchId, serviceId, specialistId, rubitimeServiceId, isActive, sortOrder],
+          tx,
+        );
+        return mapBranchService(result.rows[0]!);
+      });
     },
 
     async deactivateBranchService(id) {
-      const result = await runWebappPgText(
-        `UPDATE booking_branch_services SET is_active = FALSE, updated_at = now() WHERE id = $1`,
-        [id],
-      );
-      return (result.rowCount ?? 0) > 0;
+      return runCatalogMutation(async (tx) => {
+        const result = await runWebappPgText(
+          `UPDATE booking_branch_services SET is_active = FALSE, updated_at = now() WHERE id = $1`,
+          [id],
+          tx,
+        );
+        return (result.rowCount ?? 0) > 0;
+      });
     },
   };
 }

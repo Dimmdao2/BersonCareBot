@@ -3,8 +3,39 @@ import { sql } from 'drizzle-orm';
 import { logger } from '../../observability/logger.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import { deepReplaceIntegratorUserIdInValue, recomputeProjectionIdempotencyKeyAfterMerge } from './projectionOutboxMergePolicy.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 
 const BIGINT_STRING = /^\d+$/;
+
+/**
+ * T0.4: re-parenting a SCOPED row to `integratorUserId` (the merge winner) must re-derive
+ * `organization_id` from the NEW owner — never leave the loser's stale org on the moved row
+ * (same posture as `mergeIntegratorConversationToPlatform.ts`'s `target.organization_id` copy).
+ * Prefers the current organization principal (operator-initiated merge under a tenant context),
+ * then falls back to the winner's single active organization.
+ */
+function organizationIdForIntegratorUserSql(integratorUserId: string | number) {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
+  return sql`COALESCE(
+    ${currentOrganizationId}::uuid,
+    (
+      SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1]
+      FROM public.platform_users platform_user
+      INNER JOIN (
+        SELECT platform_user_id, organization_id
+        FROM public.org_enrollments
+        WHERE status = 'active'
+        UNION
+        SELECT platform_user_id, organization_id
+        FROM public.be_organization_members
+        WHERE status = 'active'
+      ) active_user_orgs
+        ON active_user_orgs.platform_user_id = platform_user.id
+      WHERE platform_user.integrator_user_id = ${String(integratorUserId)}::bigint
+      HAVING count(DISTINCT active_user_orgs.organization_id) = 1
+    )
+  )`;
+}
 
 export type MergeIntegratorUsersOptions = {
   /** When true, skip merge (validation + lock only). */
@@ -297,7 +328,7 @@ export async function mergeIntegratorUsers(
       );
       await runIntegratorSql(
         tx,
-        sql`UPDATE message_drafts SET identity_id = ${p.winner_identity_id}::bigint WHERE identity_id = ${p.loser_identity_id}::bigint`,
+        sql`UPDATE message_drafts SET identity_id = ${p.winner_identity_id}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE identity_id = ${p.loser_identity_id}::bigint`,
       );
 
       await runIntegratorSql(
@@ -316,11 +347,11 @@ export async function mergeIntegratorUsers(
       );
       await runIntegratorSql(
         tx,
-        sql`UPDATE conversations SET user_identity_id = ${p.winner_identity_id}::bigint WHERE user_identity_id = ${p.loser_identity_id}::bigint`,
+        sql`UPDATE conversations SET user_identity_id = ${p.winner_identity_id}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE user_identity_id = ${p.loser_identity_id}::bigint`,
       );
       await runIntegratorSql(
         tx,
-        sql`UPDATE user_questions SET user_identity_id = ${p.winner_identity_id}::bigint WHERE user_identity_id = ${p.loser_identity_id}::bigint`,
+        sql`UPDATE user_questions SET user_identity_id = ${p.winner_identity_id}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE user_identity_id = ${p.loser_identity_id}::bigint`,
       );
 
       await runIntegratorSql(tx, sql`DELETE FROM identities WHERE id = ${p.loser_identity_id}::bigint`);
@@ -349,7 +380,7 @@ export async function mergeIntegratorUsers(
 
     const cr = await runIntegratorSql(
       tx,
-      sql`UPDATE contacts SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
+      sql`UPDATE contacts SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE user_id = ${loser}::bigint`,
     );
     const contactsReassigned = cr.rowCount ?? 0;
 
@@ -367,13 +398,13 @@ export async function mergeIntegratorUsers(
 
     const rr = await runIntegratorSql(
       tx,
-      sql`UPDATE user_reminder_rules SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
+      sql`UPDATE user_reminder_rules SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE user_id = ${loser}::bigint`,
     );
     const reminderRulesReassigned = rr.rowCount ?? 0;
 
     const cag = await runIntegratorSql(
       tx,
-      sql`UPDATE content_access_grants SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
+      sql`UPDATE content_access_grants SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE user_id = ${loser}::bigint`,
     );
     const contentAccessGrantsReassigned = cag.rowCount ?? 0;
 
@@ -391,7 +422,7 @@ export async function mergeIntegratorUsers(
 
     const usr = await runIntegratorSql(
       tx,
-      sql`UPDATE user_subscriptions SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
+      sql`UPDATE user_subscriptions SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE user_id = ${loser}::bigint`,
     );
     const userSubscriptionsReassigned = usr.rowCount ?? 0;
 
@@ -409,7 +440,7 @@ export async function mergeIntegratorUsers(
 
     const mlr = await runIntegratorSql(
       tx,
-      sql`UPDATE mailing_logs SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
+      sql`UPDATE mailing_logs SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner)} WHERE user_id = ${loser}::bigint`,
     );
     const mailingLogsReassigned = mlr.rowCount ?? 0;
 

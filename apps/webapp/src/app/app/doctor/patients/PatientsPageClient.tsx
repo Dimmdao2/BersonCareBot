@@ -19,12 +19,15 @@ import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { formatFioForDoctor } from "@/lib/parseFullName";
+import { phoneToTelHref } from "@/shared/lib/phoneLinks";
+import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
+import { patientCardHref } from "./patientCardHref";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -123,7 +126,13 @@ const SEGMENTS: SegmentDef[] = [
   { key: "visited_month",        title: "Приём в этом мес.",    urlValue: "visited_month" },
 ];
 
-const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(10,1.75rem)] gap-1";
+const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(4,1.75rem)] gap-1 md:grid-cols-[repeat(10,1.75rem)]";
+
+function segmentKeyFromUrl(value: string | null): SegmentKey[] {
+  if (!value || value === "all") return [];
+  const segment = SEGMENTS.find((item) => item.urlValue === value);
+  return segment && segment.key !== "all" ? [segment.key] : [];
+}
 
 // ---------------------------------------------------------------------------
 // Icon filter helpers (icon-rail on list header)
@@ -280,10 +289,9 @@ function clientSegmentPredicate(item: ClientListItem, key: SegmentKey): boolean 
   }
 }
 
-function applySegmentFilter(list: ClientListItem[], activeSegment: string | null): ClientListItem[] {
-  if (!activeSegment || activeSegment === "all") return list;
-  const key = activeSegment as SegmentKey;
-  return list.filter((item) => clientSegmentPredicate(item, key));
+function applySegmentFilters(list: ClientListItem[], activeSegments: SegmentKey[]): ClientListItem[] {
+  if (activeSegments.length === 0) return list;
+  return list.filter((item) => activeSegments.every((key) => clientSegmentPredicate(item, key)));
 }
 
 // ---------------------------------------------------------------------------
@@ -304,12 +312,6 @@ function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): 
   if (category === "all") return list;
   return list.filter((item) => getClientCategory(item) === category);
 }
-
-const CATEGORY_LABELS: Record<ClientCategory, string> = {
-  all: "Все",
-  client: "Клиенты",
-  subscriber_only: "Подписчики",
-};
 
 // ---------------------------------------------------------------------------
 // Segment count helper (computed from allClients using clientSegmentPredicate)
@@ -354,15 +356,16 @@ type IconSlotProps = {
   label: string;
   title: string;
   badge?: number;
+  className?: string;
   children: ReactNode;
 };
 
-function IconSlot({ visible, label, title, badge, children }: IconSlotProps) {
+function IconSlot({ visible, label, title, badge, className, children }: IconSlotProps) {
   if (!visible) {
-    return <span className="inline-flex size-7 shrink-0" aria-hidden />;
+    return <span className={cn("inline-flex size-7 shrink-0", className)} aria-hidden />;
   }
   return (
-    <span className="inline-flex size-7 shrink-0 items-center justify-center">
+    <span className={cn("inline-flex size-7 shrink-0 items-center justify-center", className)}>
       <span
         className="relative inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-muted-foreground"
         aria-label={label}
@@ -384,26 +387,29 @@ type HeaderIconButtonProps = {
   title: string;
   state: TriFilterState | RichFilterState;
   onClick: () => void;
+  className?: string;
   children: ReactNode;
 };
 
-function HeaderIconButton({ label, title, state, onClick, children }: HeaderIconButtonProps) {
+function HeaderIconButton({ label, title, state, onClick, className, children }: HeaderIconButtonProps) {
   const isPositive = state === "positive" || state === "new";
   const isNegative = state === "negative";
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       aria-label={label}
       title={title}
       onClick={onClick}
-      className={[
+      className={cn(
         "relative inline-flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors",
         isPositive
           ? "border-primary/50 bg-primary/15 text-primary"
           : isNegative
             ? "border-slate-500/60 bg-slate-600/20 text-slate-700 dark:text-slate-300"
             : "border-border/60 bg-muted/40 text-muted-foreground",
-      ].join(" ")}
+        className,
+      )}
     >
       {children}
       {state === "new" ? (
@@ -417,7 +423,7 @@ function HeaderIconButton({ label, title, state, onClick, children }: HeaderIcon
           <Ban className="size-3 text-destructive" aria-hidden />
         </span>
       ) : null}
-    </button>
+    </Button>
   );
 }
 
@@ -476,6 +482,66 @@ async function copyToClipboard(text: string) {
   }
 }
 
+type PreviewProgramSummary = {
+  id: string;
+  title: string;
+  status: string;
+};
+
+type PreviewProgramListResponse = {
+  ok: boolean;
+  items?: PreviewProgramSummary[];
+};
+
+type ChannelActionButtonProps = {
+  label: string;
+  title: string;
+  active: boolean;
+  href?: string | null;
+  onClick?: () => void;
+  children: ReactNode;
+};
+
+function channelActionClass(active: boolean): string {
+  return cn(
+    buttonVariants({ variant: active ? "outline" : "secondary", size: "sm" }),
+    channelActionExtraClass(active),
+  );
+}
+
+function channelActionExtraClass(active: boolean): string {
+  return cn(
+    "h-10 justify-center px-2 text-xs sm:h-8",
+    active
+      ? "border-primary/35 bg-primary/5 text-primary hover:bg-primary/15"
+      : "pointer-events-none border-border/50 bg-muted/30 text-muted-foreground/50",
+  );
+}
+
+function ChannelActionButton({ label, title, active, href, onClick, children }: ChannelActionButtonProps) {
+  if (active && href) {
+    return (
+      <a href={href} className={channelActionClass(true)} title={title} aria-label={label}>
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className={channelActionClass(active)}
+      title={title}
+      aria-label={label}
+      disabled={!active}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}
+
 type PatientPreviewPaneProps = {
   userId: string;
   item: ClientListItem;
@@ -485,26 +551,38 @@ type PatientPreviewPaneProps = {
 
 function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Moscow" }: PatientPreviewPaneProps) {
   const [header, setHeader] = useState<PatientCardHeader | null>(null);
+  const [activeProgram, setActiveProgram] = useState<PreviewProgramSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(false);
     setHeader(null);
-    fetch(`/api/doctor/patients/${encodeURIComponent(userId)}`)
+    setActiveProgram(null);
+    const headerRequest = fetch(`/api/doctor/patients/${encodeURIComponent(userId)}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<{ ok: boolean; header?: PatientCardHeader }>;
-      })
-      .then((data) => {
+      });
+    const programRequest = item.activeTreatmentProgram
+      ? fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`, { credentials: "include" })
+          .then((r) => (r.ok ? (r.json() as Promise<PreviewProgramListResponse>) : null))
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.all([headerRequest, programRequest])
+      .then(([headerData, programData]) => {
         if (!cancelled) {
-          if (data.ok && data.header) {
-            setHeader(data.header);
+          if (headerData.ok && headerData.header) {
+            setHeader(headerData.header);
           } else {
             setError(true);
           }
+          const active = (programData?.items ?? []).find((program) => program.status === "active") ?? null;
+          setActiveProgram(active);
           setLoading(false);
         }
       })
@@ -515,11 +593,24 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
         }
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [item.activeTreatmentProgram, userId]);
 
   const hasTelegram = Boolean(item.bindings.telegramId?.trim()) && !item.bindings.telegramBotBlocked;
   const hasMax = Boolean(item.bindings.maxId?.trim()) && !item.bindings.maxBotBlocked;
   const hasEmail = item.hasEmail === true;
+  const hasChat = item.hasApp === true || item.hasConversation === true || hasTelegram || hasMax;
+  const cardHref = routePaths.doctorPatientCard(userId);
+  const commsHref = patientCardHref(userId, { tab: "comms" });
+  const telHref = phoneToTelHref(item.phone);
+  const email = header?.identity.email?.trim() ?? null;
+  const telegramId = item.bindings.telegramId?.trim() ?? "";
+  const maxId = item.bindings.maxId?.trim() ?? "";
+
+  const copyChannelValue = (label: string, value: string) => {
+    void copyToClipboard(value);
+    setCopiedLabel(label);
+    window.setTimeout(() => setCopiedLabel((current) => (current === label ? null : current)), 1400);
+  };
 
   return (
     <div className={cn(doctorSectionCardClass, "flex flex-col gap-2 p-3")}>
@@ -537,69 +628,91 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
             <span className="block truncate text-sm font-bold text-foreground">{item.displayName}</span>
           )}
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={onClose}
           aria-label="Закрыть"
           className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
         >
           <X className="size-4" />
-        </button>
+        </Button>
       </div>
 
-      {/* Phone + channel icons */}
-      <div className="flex flex-wrap items-center gap-2">
-        {item.phone ? (
-          <button
-            type="button"
-            title="Скопировать телефон"
-            onClick={() => void copyToClipboard(item.phone!)}
-            className="font-mono text-xs text-foreground hover:text-primary transition-colors cursor-pointer"
-          >
-            {item.phone} ⧉
-          </button>
-        ) : (
-          <span className="text-xs text-muted-foreground font-mono">—</span>
-        )}
-        <span className="flex gap-1">
-          <span
-            title="Telegram"
-            className={cn(
-              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
-              hasTelegram
-                ? "border-primary/30 bg-primary/5 text-primary"
-                : "border-transparent bg-muted/30 text-muted-foreground/40",
-            )}
-          >
-            <Send className="h-3.5 w-3.5" />
-          </span>
-          <span
-            title="MAX (приложение)"
-            className={cn(
-              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
-              hasMax
-                ? "border-primary/30 bg-primary/5 text-primary"
-                : "border-transparent bg-muted/30 text-muted-foreground/40",
-            )}
-          >
-            <Smartphone className="h-3.5 w-3.5" />
-          </span>
-          <span
-            title="Email"
-            className={cn(
-              "inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs",
-              hasEmail
-                ? "border-primary/30 bg-primary/5 text-primary"
-                : "border-transparent bg-muted/30 text-muted-foreground/40",
-            )}
-          >
-            <Mail className="h-3.5 w-3.5" />
-          </span>
-        </span>
+      {/* Fast actions */}
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <DoctorOpenChatButton
+          patientUserId={userId}
+          patientName={item.displayName}
+          variant="outline"
+          size="sm"
+          disabled={!hasChat}
+          title={hasChat ? "Открыть чат" : "Нет доступного канала для чата"}
+          className={channelActionExtraClass(hasChat)}
+        >
+          <MessageSquare className="mr-1 size-3.5" aria-hidden />
+          Чат
+        </DoctorOpenChatButton>
+        <ChannelActionButton label="Позвонить" title={item.phone ?? "Телефон не указан"} active={telHref !== null} href={telHref}>
+          <Phone className="mr-1 size-3.5" aria-hidden />
+          Звонок
+        </ChannelActionButton>
+        <ChannelActionButton label="Написать email" title={email ?? "Email не указан"} active={hasEmail && email !== null} href={email ? `mailto:${email}` : null}>
+          <Mail className="mr-1 size-3.5" aria-hidden />
+          Email
+        </ChannelActionButton>
+        <Link href={cardHref} className={cn(buttonVariants({ size: "sm" }), "h-8 justify-center px-2 text-xs")}>
+          <ExternalLink className="mr-1 size-3.5" aria-hidden />
+          Карта
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <ChannelActionButton
+          label="Скопировать Telegram ID"
+          title={hasTelegram ? `Скопировать Telegram ID ${telegramId}` : "Telegram не привязан"}
+          active={hasTelegram}
+          onClick={() => copyChannelValue("Telegram", telegramId)}
+        >
+          <Send className="mr-1 size-3.5" aria-hidden />
+          {copiedLabel === "Telegram" ? "Скопировано" : "Telegram"}
+        </ChannelActionButton>
+        <ChannelActionButton
+          label="Скопировать MAX ID"
+          title={hasMax ? `Скопировать MAX ID ${maxId}` : "MAX не привязан"}
+          active={hasMax}
+          onClick={() => copyChannelValue("MAX", maxId)}
+        >
+          <Smartphone className="mr-1 size-3.5" aria-hidden />
+          {copiedLabel === "MAX" ? "Скопировано" : "MAX"}
+        </ChannelActionButton>
+        <ChannelActionButton
+          label="Скопировать телефон"
+          title={item.phone ? `Скопировать ${item.phone}` : "Телефон не указан"}
+          active={Boolean(item.phone?.trim())}
+          onClick={() => item.phone && copyChannelValue("Телефон", item.phone)}
+        >
+          <Phone className="mr-1 size-3.5" aria-hidden />
+          {copiedLabel === "Телефон" ? "Скопировано" : "Копия тел."}
+        </ChannelActionButton>
+        <Link href={commsHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 justify-center px-2 text-xs sm:h-8")}>
+          <MessageSquare className="mr-1 size-3.5" aria-hidden />
+          Вкладка
+        </Link>
       </div>
 
       {/* Quick chips */}
       <div className="flex flex-wrap gap-1">
+        {item.hasApp ? (
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            Приложение
+          </span>
+        ) : null}
+        {item.hasWebPush ? (
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            Пуши включены
+          </span>
+        ) : null}
         {item.isOnSupport ? (
           <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
             ★ На сопровождении
@@ -607,7 +720,7 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
         ) : null}
         {item.activeTreatmentProgram ? (
           <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            С программой
+            {activeProgram?.title ?? "С программой"}
           </span>
         ) : null}
         {item.hasMemberships ? (
@@ -651,7 +764,7 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
       {/* CTA */}
       <div className="mt-1 border-t border-border/40 pt-2">
         <Link
-          href={routePaths.doctorPatientCard(userId)}
+          href={cardHref}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
           Открыть карту <ExternalLink className="size-3" />
@@ -669,7 +782,7 @@ type PatientsContentProps = {
   listPromise: Promise<ClientListItem[]>;
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   patientPluralLabel: string;
-  activeSegment: string | null;
+  activeSegments: SegmentKey[];
   activeChannel: string | null;
   archivedOnly: boolean;
   searchQuery: string;
@@ -680,22 +793,20 @@ type PatientsContentProps = {
   selectedUserId: string | null;
   activeCategory: ClientCategory;
   displayIana?: string;
-  onSegmentChange: (value: string | null) => void;
+  onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
-  onToggleLegacyFilter: (key: keyof LegacyFiltersState) => void;
   onCycleRichIconFilter: (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
   onCycleTriIconFilter: (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
   onClearSearch: () => void;
   onSearchInput: (value: string) => void;
   onSelectPatient: (userId: string | null) => void;
-  onCategoryChange: (category: ClientCategory) => void;
 };
 
 function PatientsContent({
   listPromise,
   metricsPromise,
   patientPluralLabel,
-  activeSegment,
+  activeSegments,
   activeChannel,
   archivedOnly,
   searchQuery,
@@ -706,22 +817,20 @@ function PatientsContent({
   selectedUserId,
   activeCategory,
   displayIana,
-  onSegmentChange,
+  onSegmentToggle,
   onChannelChange,
-  onToggleLegacyFilter,
   onCycleRichIconFilter,
   onCycleTriIconFilter,
   onClearSearch,
   onSearchInput,
   onSelectPatient,
-  onCategoryChange,
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
 
   // Apply category filter first, then segment, then icon filters, then legacy filters
   let filtered = applyCategoryFilter(allClients, activeCategory);
-  filtered = applySegmentFilter(filtered, activeSegment);
+  filtered = applySegmentFilters(filtered, activeSegments);
   filtered = applyChannelFilter(filtered, activeChannel);
   filtered = applyIconFilters(filtered, iconFilters);
   // Legacy filters (AND-logic)
@@ -745,17 +854,17 @@ function PatientsContent({
     );
   }
 
-  // Context base for segment card counts (PAT-02/06):
-  // When a segment is active, other segment cards show counts within that segment's subset.
+  // Context base for segment card counts (PAT-02/06/#540):
+  // KPI cards are multi-select filters with AND policy. Each card shows the
+  // count for its own segment after all other selected KPI filters are applied,
+  // followed by the full total for that segment in the current category.
   const categoryBase = applyCategoryFilter(allClients, activeCategory);
-  const contextBase = activeSegment && activeSegment !== "all"
-    ? categoryBase.filter((c) => clientSegmentPredicate(c, activeSegment as SegmentKey))
-    : categoryBase;
+  const filteredBySegments = applySegmentFilters(categoryBase, activeSegments);
 
   // Determine if any filter is active (for "найдено N" header)
   const isAnyFilterActive =
     activeCategory !== "all" ||
-    (activeSegment !== null && activeSegment !== "all") ||
+    activeSegments.length > 0 ||
     activeChannel !== null ||
     Object.values(iconFilters).some((v) => v !== "off") ||
     legacyFilters.cancellations ||
@@ -767,11 +876,9 @@ function PatientsContent({
 
   // Segment tone: highlight active segment card
   function segmentTone(key: SegmentKey): "neutral" | "warning" {
-    const seg = SEGMENTS.find((s) => s.key === key);
-    if (!seg) return "neutral";
     const isActive =
-      (key === "all" && (activeSegment === null || activeSegment === "all") && !archivedOnly) ||
-      (seg.urlValue !== null && seg.urlValue === activeSegment);
+      (key === "all" && activeSegments.length === 0 && !archivedOnly) ||
+      activeSegments.includes(key);
     return isActive ? "warning" : "neutral";
   }
 
@@ -783,7 +890,7 @@ function PatientsContent({
       id="doctor-patients-header"
       title={patientPluralLabel}
     />
-    <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+    <div className="grid min-w-0 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:items-start">
       {/* ===== LEFT: patient list ===== */}
       <section
         className={cn(
@@ -807,21 +914,22 @@ function PatientsContent({
               aria-label="Поиск пациентов"
             />
             {searchInput && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={onClearSearch}
                 className="absolute right-2.5 text-muted-foreground hover:text-foreground"
                 aria-label="Сбросить поиск"
               >
                 <X className="size-3.5" />
-              </button>
+              </Button>
             )}
           </div>
         </div>
 
         {/* Sticky header: count + icon filter rail */}
         {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
-        <div className="lg:sticky lg:top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
+        <div className="lg:sticky lg:top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/60 bg-card px-2 py-2 md:gap-3 md:px-5">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
             {isAnyFilterActive
               ? <>найдено {filtered.length} / {categoryBase.length}</>
@@ -840,16 +948,8 @@ function PatientsContent({
               <CalendarDays className="size-3.5" aria-hidden />
             </HeaderIconButton>
             <HeaderIconButton
-              label="Фильтр переписки"
-              title="Переписка: все состояния -> с перепиской -> с непрочитанными -> без переписки"
-              state={iconFilters.messages}
-              onClick={() => onCycleRichIconFilter("messages")}
-            >
-              <MessageSquare className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр комментариев"
-              title="Комментарии по упражнениям: все -> есть -> новые -> нет"
+              label="Фильтр программы упражнений"
+              title="Программа упражнений: все -> с программой -> с новыми комментариями -> без программы"
               state={iconFilters.comments}
               onClick={() => onCycleRichIconFilter("comments")}
             >
@@ -876,6 +976,7 @@ function PatientsContent({
               title="Телефон: все -> есть телефон -> нет телефона"
               state={iconFilters.phone}
               onClick={() => onCycleTriIconFilter("phone")}
+              className="hidden md:inline-flex"
             >
               <Phone className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -884,6 +985,7 @@ function PatientsContent({
               title="Telegram: все -> подключен -> не подключен"
               state={iconFilters.telegram}
               onClick={() => onCycleTriIconFilter("telegram")}
+              className="hidden md:inline-flex"
             >
               <Send className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -892,6 +994,7 @@ function PatientsContent({
               title="MAX: все -> подключен -> не подключен"
               state={iconFilters.max}
               onClick={() => onCycleTriIconFilter("max")}
+              className="hidden md:inline-flex"
             >
               <span className="text-[10px] font-semibold leading-none">М</span>
             </HeaderIconButton>
@@ -900,6 +1003,7 @@ function PatientsContent({
               title="Email: все -> указан -> не указан"
               state={iconFilters.email}
               onClick={() => onCycleTriIconFilter("email")}
+              className="hidden md:inline-flex"
             >
               <Mail className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -908,6 +1012,7 @@ function PatientsContent({
               title="Приложение: все -> есть приложение -> нет приложения"
               state={iconFilters.app}
               onClick={() => onCycleTriIconFilter("app")}
+              className="hidden md:inline-flex"
             >
               <Smartphone className="size-3.5" aria-hidden />
             </HeaderIconButton>
@@ -930,14 +1035,15 @@ function PatientsContent({
               const isSelected = c.userId === selectedUserId;
               return (
                 <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     id={`doctor-patients-card-${c.userId}`}
                     aria-pressed={isSelected}
                     onClick={() => onSelectPatient(isSelected ? null : c.userId)}
                     className={cn(
                       doctorClientListRowLinkClass,
-                      "items-center w-full text-left",
+                      "w-full items-center gap-2 px-2 text-left md:gap-3 md:px-3",
                       isSelected && "bg-primary/15 hover:bg-primary/15",
                     )}
                   >
@@ -967,6 +1073,7 @@ function PatientsContent({
                         label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
                         title="Переписка"
                         badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
+                        className="hidden md:inline-flex"
                       >
                         <MessageSquare className="size-3.5" aria-hidden />
                       </IconSlot>
@@ -992,13 +1099,14 @@ function PatientsContent({
                       >
                         <Ticket className="size-3.5" aria-hidden />
                       </IconSlot>
-                      <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан">
+                      <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан" className="hidden md:inline-flex">
                         <Phone className="size-3.5" aria-hidden />
                       </IconSlot>
                       <IconSlot
                         visible={Boolean(c.bindings.telegramId?.trim())}
                         label="Подключён Telegram"
                         title="Подключён Telegram"
+                        className="hidden md:inline-flex"
                       >
                         <Send className="size-3.5" aria-hidden />
                       </IconSlot>
@@ -1006,17 +1114,28 @@ function PatientsContent({
                         visible={Boolean(c.bindings.maxId?.trim())}
                         label="Подключён MAX"
                         title="Подключён MAX"
+                        className="hidden md:inline-flex"
                       >
                         <span className="text-[10px] font-semibold leading-none">М</span>
                       </IconSlot>
-                      <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email">
+                      <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email" className="hidden md:inline-flex">
                         <Mail className="size-3.5" aria-hidden />
                       </IconSlot>
-                      <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение">
+                      <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение" className="hidden md:inline-flex">
                         <Smartphone className="size-3.5" aria-hidden />
                       </IconSlot>
                     </div>
-                  </button>
+                  </Button>
+                  {isSelected ? (
+                    <div className="mt-1 lg:hidden">
+                      <PatientPreviewPane
+                        userId={c.userId}
+                        item={c}
+                        onClose={() => onSelectPatient(null)}
+                        displayIana={displayIana}
+                      />
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
@@ -1025,45 +1144,27 @@ function PatientsContent({
       </section>
 
       {/* ===== RIGHT: filter panel + preview pane ===== */}
-      <div className="flex flex-col gap-3 lg:min-h-0">
+      <div className="hidden flex-col gap-3 lg:flex lg:min-h-0">
         {/* Filter panel */}
         <section
           className={cn(
             "rounded-lg border border-border bg-card p-3",
           )}
         >
-          {/* Category filter row — Все / Клиенты / Подписчики */}
-          <div className="mb-3 flex gap-1" role="group" aria-label="Категория клиентов">
-            {(["all", "client", "subscriber_only"] as ClientCategory[]).map((cat) => {
-              const count =
-                cat === "all"
-                  ? allClients.length
-                  : allClients.filter((item) => getClientCategory(item) === cat).length;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  aria-pressed={activeCategory === cat}
-                  onClick={() => onCategoryChange(cat)}
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
-                    activeCategory === cat
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {cat === "client" ? patientPluralLabel : CATEGORY_LABELS[cat]}
-                  <span className="tabular-nums opacity-70">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* Segment stat cards — 3 per row on mobile, 5 on lg+ */}
           <DoctorMetricList className="grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-1.5">
             {SEGMENTS.map((seg) => {
+              const segmentContextBase =
+                seg.key === "all"
+                  ? categoryBase
+                  : applySegmentFilters(
+                      categoryBase,
+                      activeSegments.filter((key) => key !== seg.key),
+                    );
               const currentValue =
-                seg.key === "all" ? categoryBase.length : (getSegmentCount(seg.key, metrics, contextBase) ?? "—");
+                seg.key === "all"
+                  ? filteredBySegments.length
+                  : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? "—");
               const totalValue = seg.key === "all" ? categoryBase.length : getSegmentCount(seg.key, metrics, categoryBase);
               return (
                 <DoctorStatCard
@@ -1072,7 +1173,7 @@ function PatientsContent({
                   title={seg.title}
                   value={renderSegmentMetricValue(currentValue, totalValue)}
                   tone={segmentTone(seg.key)}
-                  onClick={() => onSegmentChange(seg.urlValue)}
+                  onClick={() => onSegmentToggle(seg.key)}
                 />
               );
             })}
@@ -1173,8 +1274,8 @@ export function PatientsPageClient({
   const [listPromise, setListPromise] = useState<Promise<ClientListItem[]>>(initialListPromise);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Segment / channel / archive state (sync to URL on change)
-  const [activeSegment, setActiveSegment] = useState<string | null>(initialFilters.segment);
+  // Segment / channel / archive state (segment and channel are client-side only)
+  const [activeSegments, setActiveSegments] = useState<SegmentKey[]>(() => segmentKeyFromUrl(initialFilters.segment));
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
 
@@ -1182,10 +1283,10 @@ export function PatientsPageClient({
   const [iconFilters, setIconFilters] = useState<IconFiltersState>(DEFAULT_ICON_FILTERS);
 
   // Legacy per-button filter state (client-side only)
-  const [legacyFilters, setLegacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
+  const [legacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
 
   // Category filter state (client-side only, S4.2)
-  const [activeCategory, setActiveCategory] = useState<ClientCategory>("all");
+  const [activeCategory] = useState<ClientCategory>("all");
 
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -1197,13 +1298,13 @@ export function PatientsPageClient({
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
-  const handleSegmentChange = useCallback(
-    (value: string | null) => {
-      // Segment is client-side only — no server round-trip
-      setActiveSegment(value);
-    },
-    [],
-  );
+  const handleSegmentToggle = useCallback((key: SegmentKey) => {
+    // Segment filters are client-side only and combine via AND.
+    setActiveSegments((prev) => {
+      if (key === "all") return [];
+      return prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key];
+    });
+  }, []);
 
   const handleChannelChange = useCallback(
     (channel: string | null, archived: boolean) => {
@@ -1233,18 +1334,11 @@ export function PatientsPageClient({
     // PAT-10: no fetchList call — client-side filtering resets automatically
   }, []);
 
-  const handleToggleLegacyFilter = useCallback(
-    (key: keyof LegacyFiltersState) => {
-      setLegacyFilters((prev) => ({ ...prev, [key]: !prev[key] }));
-    },
-    [],
-  );
-
   // Keep state in sync when server-side navigation occurs (Next.js router)
   useEffect(() => {
     setListPromise(initialListPromise);
     setSearchInput(initialFilters.q);
-    setActiveSegment(initialFilters.segment);
+    setActiveSegments(segmentKeyFromUrl(initialFilters.segment));
     setActiveChannel(null);
     setArchivedOnly(initialFilters.archivedOnly);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1268,17 +1362,13 @@ export function PatientsPageClient({
     setSelectedUserId(userId);
   }, []);
 
-  const handleCategoryChange = useCallback((category: ClientCategory) => {
-    setActiveCategory(category);
-  }, []);
-
   return (
     <Suspense fallback={<PatientListSkeleton />}>
       <PatientsContent
         listPromise={listPromise}
         metricsPromise={metricsPromise}
         patientPluralLabel={patientPluralLabel}
-        activeSegment={activeSegment}
+        activeSegments={activeSegments}
         activeChannel={activeChannel}
         archivedOnly={archivedOnly}
         searchQuery={searchQuery}
@@ -1289,15 +1379,13 @@ export function PatientsPageClient({
         selectedUserId={selectedUserId}
         activeCategory={activeCategory}
         displayIana={displayIana}
-        onSegmentChange={handleSegmentChange}
+        onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
-        onToggleLegacyFilter={handleToggleLegacyFilter}
         onCycleRichIconFilter={handleCycleRichIconFilter}
         onCycleTriIconFilter={handleCycleTriIconFilter}
         onClearSearch={clearSearch}
         onSearchInput={handleSearchInput}
         onSelectPatient={handleSelectPatient}
-        onCategoryChange={handleCategoryChange}
       />
     </Suspense>
   );

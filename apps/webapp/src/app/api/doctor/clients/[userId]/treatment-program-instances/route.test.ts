@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const assignMock = vi.fn();
 const createBlankMock = vi.fn();
 const getClientIdentityMock = vi.fn();
+const getClientIdentityForOrganizationMock = vi.fn();
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}));
 
 vi.mock("@/app-layer/cache/revalidatePatientTreatmentProgramUi", () => ({
   revalidatePatientTreatmentProgramUi: vi.fn(),
@@ -16,8 +23,25 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     doctorClientsPort: {
       getClientIdentity: getClientIdentityMock,
+      getClientIdentityForOrganization: getClientIdentityForOrganizationMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -30,13 +54,33 @@ import { POST } from "./route";
 
 const PATIENT_ID = "00000000-0000-4000-8000-000000000001";
 const TEMPLATE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const workspaceCtx = {
+  session: { user: { userId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", role: "doctor", bindings: {} } },
+  organizationId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  membershipId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+  membershipRole: "doctor",
+  specialistId: null,
+  canManageOrganization: false,
+  canManageAllSpecialists: false,
+};
 
 describe("POST /api/doctor/clients/[userId]/treatment-program-instances", () => {
   beforeEach(() => {
     assignMock.mockReset();
     createBlankMock.mockReset();
     getClientIdentityMock.mockReset();
-    getClientIdentityMock.mockResolvedValue({
+    getClientIdentityForOrganizationMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+    const identity = {
       userId: PATIENT_ID,
       displayName: "P",
       phone: "+70000000000",
@@ -45,7 +89,9 @@ describe("POST /api/doctor/clients/[userId]/treatment-program-instances", () => 
       isBlocked: false,
       blockedReason: null,
       isArchived: false,
-    });
+    };
+    getClientIdentityMock.mockResolvedValue(identity);
+    getClientIdentityForOrganizationMock.mockResolvedValue(identity);
   });
 
   it("kind from_template вызывает assignTemplateToPatient", async () => {

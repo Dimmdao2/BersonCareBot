@@ -1,10 +1,9 @@
 "use client";
 
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { DoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/types";
 import type { DoctorClientTabId } from "@/modules/doctor-client-card/types";
-import { cn } from "@/lib/utils";
 import {
   doctorClientActionChipClass,
   doctorClientActionStripChipsClass,
@@ -103,17 +102,16 @@ export function PatientActionStrip({
     <div className={doctorClientActionStripClass}>
       <div className={doctorClientActionStripChipsClass}>
         {chips.map((chip) => (
-          <button
+          <Button
             key={chip.key}
             type="button"
-            className={cn(
-              buttonVariants({ variant: chip.variant, size: "sm" }),
-              doctorClientActionChipClass,
-            )}
+            variant={chip.variant}
+            size="sm"
+            className={doctorClientActionChipClass}
             onClick={chip.onClick}
           >
             {chip.label}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

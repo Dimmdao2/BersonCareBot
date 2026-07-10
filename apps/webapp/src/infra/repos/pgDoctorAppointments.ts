@@ -96,6 +96,9 @@ function mapListRows(
       cancellationCountForClient: 0,
       branchName: row.branch_name ?? null,
       scheduleProvenancePrefix: SCHEDULE_RECORD_PROVENANCE_PREFIX,
+      packageUsageRef: null,
+      packageTitle: null,
+      packageDisplayNumber: null,
     };
   });
 }
@@ -103,11 +106,27 @@ function mapListRows(
 function legacyListUserExclusionClause(
   excludedUserIds: string[] | undefined,
   paramIndex: number,
+  organizationId?: string,
 ): { clause: string; params: unknown[] } {
-  if (!excludedUserIds?.length) return { clause: "", params: [] };
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (excludedUserIds?.length) {
+    clauses.push(`(pu.id IS NULL OR pu.id <> ALL($${paramIndex + params.length}::uuid[]))`);
+    params.push(excludedUserIds);
+  }
+  if (organizationId) {
+    clauses.push(`pu.id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM org_enrollments oe
+      WHERE oe.platform_user_id = pu.id
+        AND oe.organization_id = $${paramIndex + params.length}::uuid
+        AND oe.status = 'active'
+    )`);
+    params.push(organizationId);
+  }
+  if (clauses.length === 0) return { clause: "", params: [] };
   return {
-    clause: ` AND (pu.id IS NULL OR pu.id <> ALL($${paramIndex}::uuid[]))`,
-    params: [excludedUserIds],
+    clause: ` AND ${clauses.map((clause) => `(${clause})`).join(" AND ")}`,
+    params,
   };
 }
 
@@ -116,15 +135,53 @@ function legacyStatsUserExclusionClause(
   paramIndex: number,
   phoneTable = "appointment_records",
 ): { clause: string; params: unknown[] } {
-  if (!excludedUserIds?.length) return { clause: "", params: [] };
-  return {
-    clause: ` AND NOT EXISTS (
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (excludedUserIds?.length) {
+    clauses.push(`NOT EXISTS (
       SELECT 1 FROM platform_users pu
       WHERE pu.merged_into_id IS NULL
         AND pu.phone_normalized = ${phoneTable}.phone_normalized
-        AND pu.id = ANY($${paramIndex}::uuid[])
+        AND pu.id = ANY($${paramIndex + params.length}::uuid[])
+    )`);
+    params.push(excludedUserIds);
+  }
+  if (clauses.length === 0) return { clause: "", params: [] };
+  return {
+    clause: ` AND ${clauses.map((clause) => `(${clause})`).join(" AND ")}`,
+    params,
+  };
+}
+
+function legacyAppointmentOrganizationClause(
+  recordAlias: string,
+  paramIndex: number,
+  organizationId?: string,
+): { clause: string; params: unknown[] } {
+  if (!organizationId) return { clause: "", params: [] };
+  return {
+    clause: ` AND (
+      (
+        ${recordAlias}.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+        AND EXISTS (
+          SELECT 1
+          FROM be_appointments bea_scope
+          WHERE bea_scope.id = (SUBSTRING(${recordAlias}.integrator_record_id FROM 4))::uuid
+            AND bea_scope.organization_id = $${paramIndex}::uuid
+        )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM be_external_entity_mappings m_scope
+        JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+        WHERE m_scope.external_id = ${recordAlias}.integrator_record_id
+          AND m_scope.entity_type = 'appointment'
+          AND m_scope.external_system = 'rubitime'
+          AND m_scope.organization_id = $${paramIndex}::uuid
+          AND bea_scope.organization_id = $${paramIndex}::uuid
+      )
     )`,
-    params: [excludedUserIds],
+    params: [organizationId],
   };
 }
 
@@ -132,7 +189,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
   return {
     async listAppointmentsForSpecialist(
       filter: DoctorAppointmentsListFilter,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<AppointmentRow[]> {
       let result: {
         rows: Parameters<typeof mapListRows>[0];
@@ -142,6 +199,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         const iana = await getAppDisplayTimeZone();
         const { from, to } = localDayRangeBoundsIso(filter.range, iana);
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 3);
+        const org = legacyAppointmentOrganizationClause("ar", 3 + ex.params.length, audience?.organizationId);
         result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
@@ -151,14 +209,15 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
            AND ar.deleted_at IS NULL
            AND ar.record_at IS NOT NULL
            AND ar.record_at >= $1::timestamptz
-           AND ar.record_at <= $2::timestamptz${ex.clause}
+           AND ar.record_at <= $2::timestamptz${ex.clause}${org.clause}
          ORDER BY ar.record_at ASC`,
-          [from, to, ...ex.params],
+          [from, to, ...ex.params, ...org.params],
         );
       } else if (filter.kind === "statsRange") {
         const iana = await getAppDisplayTimeZone();
         const { from, toExclusive } = resolveAppointmentStatsBounds({ kind: "range", range: filter.range }, iana);
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 3);
+        const org = legacyAppointmentOrganizationClause("ar", 3 + ex.params.length, audience?.organizationId);
         result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
@@ -167,23 +226,25 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          WHERE ar.deleted_at IS NULL
            AND ar.record_at IS NOT NULL
            AND ar.record_at >= $1::timestamptz
-           AND ar.record_at < $2::timestamptz${ex.clause}
+           AND ar.record_at < $2::timestamptz${ex.clause}${org.clause}
          ORDER BY ar.record_at DESC`,
-          [from, toExclusive, ...ex.params],
+          [from, toExclusive, ...ex.params, ...org.params],
         );
       } else if (filter.kind === "futureActive") {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
+        const org = legacyAppointmentOrganizationClause("ar", 1 + ex.params.length, audience?.organizationId);
         result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
          LEFT JOIN branches b ON ar.branch_id = b.id
-         WHERE ${AR_ACTIVE_UPCOMING_SQL}${ex.clause}
+         WHERE ${AR_ACTIVE_UPCOMING_SQL}${ex.clause}${org.clause}
          ORDER BY ar.record_at ASC`,
-          ex.params,
+          [...ex.params, ...org.params],
         );
       } else if (filter.kind === "recordsInCalendarMonth") {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
+        const org = legacyAppointmentOrganizationClause("ar", 1 + ex.params.length, audience?.organizationId);
         result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
@@ -192,14 +253,15 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          WHERE ar.deleted_at IS NULL
            AND ar.record_at IS NOT NULL
            AND ar.record_at >= date_trunc('month', NOW())
-           AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'${ex.clause}
+           AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'${ex.clause}${org.clause}
          ORDER BY ar.record_at ASC`,
-          ex.params,
+          [...ex.params, ...org.params],
         );
       } else if (filter.kind === "past") {
         const limit = filter.limit ?? 50;
         const offset = filter.offset ?? 0;
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 3);
+        const org = legacyAppointmentOrganizationClause("ar", 3 + ex.params.length, audience?.organizationId);
         result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
@@ -208,13 +270,14 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          WHERE ar.deleted_at IS NULL
            AND ar.record_at IS NOT NULL
            AND ar.record_at < NOW()
-           AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}${ex.clause}
+           AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}${ex.clause}${org.clause}
          ORDER BY ar.record_at DESC
          LIMIT $1 OFFSET $2`,
-          [limit, offset, ...ex.params],
+          [limit, offset, ...ex.params, ...org.params],
         );
       } else if (filter.kind === "cancellations30d") {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
+        const org = legacyAppointmentOrganizationClause("ar", 1 + ex.params.length, audience?.organizationId);
         result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
@@ -223,12 +286,13 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          WHERE ar.deleted_at IS NULL
            AND ar.status = 'canceled'
            AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
-           AND ar.updated_at >= NOW() - INTERVAL '30 days'${ex.clause}
+           AND ar.updated_at >= NOW() - INTERVAL '30 days'${ex.clause}${org.clause}
          ORDER BY ar.updated_at DESC`,
-          ex.params,
+          [...ex.params, ...org.params],
         );
       } else {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
+        const org = legacyAppointmentOrganizationClause("ar", 1 + ex.params.length, audience?.organizationId);
         result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
@@ -238,9 +302,9 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
            AND ar.status = 'canceled'
            AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
            AND ar.updated_at >= date_trunc('month', NOW())
-           AND ar.updated_at < date_trunc('month', NOW()) + interval '1 month'${ex.clause}
+           AND ar.updated_at < date_trunc('month', NOW()) + interval '1 month'${ex.clause}${org.clause}
          ORDER BY ar.updated_at DESC`,
-          ex.params,
+          [...ex.params, ...org.params],
         );
       }
 
@@ -249,13 +313,40 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
 
     async getAppointmentStats(
       filter: DoctorAppointmentStatsFilter,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<AppointmentStats> {
       const iana = await getAppDisplayTimeZone();
       const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
-      const rangeEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 3);
-      const bookingsEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 3);
-      const cancel30Ex = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1);
+      const rangeEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        3,
+        "appointment_records",
+      );
+      const rangeOrg = legacyAppointmentOrganizationClause(
+        "appointment_records",
+        3 + rangeEx.params.length,
+        audience?.organizationId,
+      );
+      const bookingsEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        3,
+        "appointment_records",
+      );
+      const bookingsOrg = legacyAppointmentOrganizationClause(
+        "appointment_records",
+        3 + bookingsEx.params.length,
+        audience?.organizationId,
+      );
+      const cancel30Ex = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        1,
+        "appointment_records",
+      );
+      const cancel30Org = legacyAppointmentOrganizationClause(
+        "appointment_records",
+        1 + cancel30Ex.params.length,
+        audience?.organizationId,
+      );
       const [rangeResult, bookingsCreatedResult] = await Promise.all([
         runWebappPgText<{
           total: string;
@@ -286,15 +377,15 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
             )::text AS reschedule_actions
            FROM appointment_records
            WHERE deleted_at IS NULL
-             AND record_at >= $1::timestamptz AND record_at < $2::timestamptz${rangeEx.clause}`,
-          [from, toExclusive, ...rangeEx.params],
+             AND record_at >= $1::timestamptz AND record_at < $2::timestamptz${rangeEx.clause}${rangeOrg.clause}`,
+          [from, toExclusive, ...rangeEx.params, ...rangeOrg.params],
         ),
         runWebappPgText<{ count: string }>(
           `SELECT COUNT(*)::text AS count
            FROM appointment_records
            WHERE deleted_at IS NULL
-             AND created_at >= $1::timestamptz AND created_at < $2::timestamptz${bookingsEx.clause}`,
-          [from, toExclusive, ...bookingsEx.params],
+             AND created_at >= $1::timestamptz AND created_at < $2::timestamptz${bookingsEx.clause}${bookingsOrg.clause}`,
+          [from, toExclusive, ...bookingsEx.params, ...bookingsOrg.params],
         ),
       ]);
       const cancellations30dResult = await runWebappPgText<{ count: string }>(
@@ -303,12 +394,21 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          WHERE deleted_at IS NULL
            AND status = 'canceled'
            AND ${CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
-           AND updated_at >= NOW() - INTERVAL '30 days'${cancel30Ex.clause}`,
-        cancel30Ex.params,
+           AND updated_at >= NOW() - INTERVAL '30 days'${cancel30Ex.clause}${cancel30Org.clause}`,
+        [...cancel30Ex.params, ...cancel30Org.params],
       );
       // firstVisitInPeriod: appointments in window where phone_normalized has no earlier non-cancelled record
       // Note: table is aliased "a" so the exclusion clause must reference "a", not "appointment_records"
-      const firstVisitEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 3, "a");
+      const firstVisitEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        3,
+        "a",
+      );
+      const firstVisitOrg = legacyAppointmentOrganizationClause(
+        "a",
+        3 + firstVisitEx.params.length,
+        audience?.organizationId,
+      );
       const firstVisitResult = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c
          FROM appointment_records a
@@ -325,8 +425,8 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
                  earlier.record_at < a.record_at
                  OR (earlier.record_at = a.record_at AND earlier.integrator_record_id < a.integrator_record_id)
                )
-           )${firstVisitEx.clause}`,
-        [from, toExclusive, ...firstVisitEx.params],
+           )${firstVisitEx.clause}${firstVisitOrg.clause}`,
+        [from, toExclusive, ...firstVisitEx.params, ...firstVisitOrg.params],
       );
       const row = rangeResult.rows[0];
       const row30 = cancellations30dResult.rows[0];
@@ -346,24 +446,51 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
     },
 
     async getDashboardAppointmentMetrics(
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<DoctorDashboardAppointmentMetrics> {
-      const futureEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1, "ar");
-      const monthEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1);
-      const cancelEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1, "ar");
+      const futureEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        1,
+        "ar",
+      );
+      const futureOrg = legacyAppointmentOrganizationClause(
+        "ar",
+        1 + futureEx.params.length,
+        audience?.organizationId,
+      );
+      const monthEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        1,
+        "appointment_records",
+      );
+      const monthOrg = legacyAppointmentOrganizationClause(
+        "appointment_records",
+        1 + monthEx.params.length,
+        audience?.organizationId,
+      );
+      const cancelEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        1,
+        "ar",
+      );
+      const cancelOrg = legacyAppointmentOrganizationClause(
+        "ar",
+        1 + cancelEx.params.length,
+        audience?.organizationId,
+      );
       const [futureR, monthR, cancelR] = await Promise.all([
         runWebappPgText<{ c: string }>(
           `SELECT COUNT(*)::text AS c FROM appointment_records ar
-           WHERE ${AR_ACTIVE_UPCOMING_SQL}${futureEx.clause}`,
-          futureEx.params,
+           WHERE ${AR_ACTIVE_UPCOMING_SQL}${futureEx.clause}${futureOrg.clause}`,
+          [...futureEx.params, ...futureOrg.params],
         ),
         runWebappPgText<{ c: string }>(
           `SELECT COUNT(*)::text AS c FROM appointment_records
            WHERE deleted_at IS NULL
              AND record_at IS NOT NULL
              AND record_at >= date_trunc('month', NOW())
-             AND record_at < date_trunc('month', NOW()) + interval '1 month'${monthEx.clause}`,
-          monthEx.params,
+             AND record_at < date_trunc('month', NOW()) + interval '1 month'${monthEx.clause}${monthOrg.clause}`,
+          [...monthEx.params, ...monthOrg.params],
         ),
         runWebappPgText<{ c: string }>(
           `SELECT COUNT(*)::text AS c FROM appointment_records ar
@@ -371,8 +498,8 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
              AND ar.status = 'canceled'
              AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
              AND ar.updated_at >= date_trunc('month', NOW())
-             AND ar.updated_at < date_trunc('month', NOW()) + interval '1 month'${cancelEx.clause}`,
-          cancelEx.params,
+             AND ar.updated_at < date_trunc('month', NOW()) + interval '1 month'${cancelEx.clause}${cancelOrg.clause}`,
+          [...cancelEx.params, ...cancelOrg.params],
         ),
       ]);
       return {
@@ -385,7 +512,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
     // Legacy Rubitime port does not have per-patient analytics; returns zeros for all 9 KPI.
     async getScheduleKpis(
       _query: ScheduleKpisQuery,
-      _audience?: { excludedUserIds?: string[] },
+      _audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<ScheduleKpis> {
       return {
         recordsInPeriod: 0,
@@ -403,14 +530,41 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
 
     async getAppointmentDailySeries(
       filter: DoctorAppointmentStatsFilter,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<{ daySeries: AppointmentDayPoint[]; branchSeries: AppointmentBranchPoint[] }> {
       const iana = await getAppDisplayTimeZone();
       const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
 
-      const dayEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 4);
-      const bookEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 4);
-      const branchEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 4, "ar");
+      const dayEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        4,
+        "appointment_records",
+      );
+      const dayOrg = legacyAppointmentOrganizationClause(
+        "appointment_records",
+        4 + dayEx.params.length,
+        audience?.organizationId,
+      );
+      const bookEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        4,
+        "appointment_records",
+      );
+      const bookOrg = legacyAppointmentOrganizationClause(
+        "appointment_records",
+        4 + bookEx.params.length,
+        audience?.organizationId,
+      );
+      const branchEx = legacyStatsUserExclusionClause(
+        audience?.excludedUserIds,
+        4,
+        "ar",
+      );
+      const branchOrg = legacyAppointmentOrganizationClause(
+        "ar",
+        4 + branchEx.params.length,
+        audience?.organizationId,
+      );
 
       const [dayResult, bookingsResult, branchResult] = await Promise.all([
         runWebappPgText<{ day: string; past_visits: string; cancellation_actions: string }>(
@@ -423,10 +577,10 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
             )::text AS cancellation_actions
           FROM appointment_records
           WHERE deleted_at IS NULL
-            AND record_at >= $1::timestamptz AND record_at < $2::timestamptz${dayEx.clause}
+            AND record_at >= $1::timestamptz AND record_at < $2::timestamptz${dayEx.clause}${dayOrg.clause}
           GROUP BY 1
           ORDER BY 1`,
-          [from, toExclusive, iana, ...dayEx.params],
+          [from, toExclusive, iana, ...dayEx.params, ...dayOrg.params],
         ),
         runWebappPgText<{ day: string; bookings_created: string }>(
           `SELECT
@@ -434,10 +588,10 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
             COUNT(*)::text AS bookings_created
           FROM appointment_records
           WHERE deleted_at IS NULL
-            AND created_at >= $1::timestamptz AND created_at < $2::timestamptz${bookEx.clause}
+            AND created_at >= $1::timestamptz AND created_at < $2::timestamptz${bookEx.clause}${bookOrg.clause}
           GROUP BY 1
           ORDER BY 1`,
-          [from, toExclusive, iana, ...bookEx.params],
+          [from, toExclusive, iana, ...bookEx.params, ...bookOrg.params],
         ),
         runWebappPgText<{ branch_name: string; past_visits: string; cancelled_visits: string }>(
           `SELECT
@@ -447,10 +601,10 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           FROM appointment_records ar
           LEFT JOIN branches b ON ar.branch_id = b.id
           WHERE ar.deleted_at IS NULL
-            AND ar.record_at >= $1::timestamptz AND ar.record_at < $2::timestamptz${branchEx.clause}
+            AND ar.record_at >= $1::timestamptz AND ar.record_at < $2::timestamptz${branchEx.clause}${branchOrg.clause}
           GROUP BY 1
           ORDER BY 1`,
-          [from, toExclusive, iana, ...branchEx.params],
+          [from, toExclusive, iana, ...branchEx.params, ...branchOrg.params],
         ),
       ]);
 

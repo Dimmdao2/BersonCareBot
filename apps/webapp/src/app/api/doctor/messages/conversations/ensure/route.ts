@@ -4,8 +4,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { serializeSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 
 const bodySchema = z.object({
@@ -13,13 +13,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -28,14 +23,19 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(parsed.data.patientUserId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    parsed.data.patientUserId,
+    gate.ctx.organizationId,
+  );
   if (!identity) {
     return NextResponse.json({ ok: false, error: "patient_not_found" }, { status: 404 });
   }
 
   let data: Awaited<ReturnType<typeof deps.messaging.doctorSupport.ensureConversationForPatient>>;
   try {
-    data = await deps.messaging.doctorSupport.ensureConversationForPatient(parsed.data.patientUserId);
+    data = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.messaging.doctorSupport.ensureConversationForPatient(parsed.data.patientUserId),
+    );
   } catch {
     return NextResponse.json({ ok: false, error: "conversation_ensure_failed" }, { status: 500 });
   }

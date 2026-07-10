@@ -1,10 +1,11 @@
-import { Pool } from 'pg';
-import type { QueryResultRow } from 'pg';
+import type { Pool, QueryResultRow } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
+import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
 import { integratorDrizzleSchema } from './integratorDrizzleSchema.js';
+import { checkoutIntegratorPoolClient, prepareIntegratorTransactionClient } from './withClient.js';
 
 function databaseUrlDiagnostics(): {
   databaseUrlConfigured: boolean;
@@ -29,9 +30,7 @@ function databaseUrlDiagnostics(): {
 }
 
 /** Общий пул подключений к PostgreSQL. */
-export const db = new Pool({
-	connectionString: env.DATABASE_URL,
-});
+export const db = createIntegratorPoolProvider({ connectionString: env.DATABASE_URL });
 
 db.on('error', (err) => {
 	const dbDiag = databaseUrlDiagnostics();
@@ -89,7 +88,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 		async tx<T>(fn: (txDb: DbPort) => Promise<T>): Promise<T> {
 			let client;
 			try {
-				client = await pool.connect();
+				client = await checkoutIntegratorPoolClient(pool);
 			} catch (err) {
 				const dbDiag = databaseUrlDiagnostics();
 				logger.error({
@@ -108,6 +107,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 			}
 			try {
 				await client.query('BEGIN');
+				await prepareIntegratorTransactionClient(client);
 				const integratorDrizzle = drizzle(client, { schema: integratorDrizzleSchema });
 				const txPort: DbPort = {
 					integratorDrizzle,

@@ -10,7 +10,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { loadDoctorPatientExercisesWithComments } from "@/app/app/doctor/comments/loadDoctorPatientExercisesWithComments";
 
 const uuidSchema = z.string().uuid();
@@ -19,8 +20,8 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ patientUserId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { patientUserId } = await context.params;
   if (!uuidSchema.safeParse(patientUserId).success) {
@@ -31,16 +32,27 @@ export async function GET(
   const includePastPrograms = searchParams.get("includePastPrograms") === "true";
 
   const deps = buildAppDeps();
-  const result = await loadDoctorPatientExercisesWithComments(
-    {
-      treatmentProgramInstance: deps.treatmentProgramInstance,
-      programItemDiscussion: deps.programItemDiscussion,
-    },
-    {
-      patientUserId,
-      viewerUserId: auth.session.user.userId,
-    },
-    { includePastPrograms },
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    patientUserId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    loadDoctorPatientExercisesWithComments(
+      {
+        treatmentProgramInstance: deps.treatmentProgramInstance,
+        programItemDiscussion: deps.programItemDiscussion,
+      },
+      {
+        patientUserId: identity.userId,
+        viewerUserId: gate.ctx.session.user.userId,
+        organizationId: gate.ctx.organizationId,
+      },
+      { includePastPrograms },
+    ),
   );
 
   if (!result) {

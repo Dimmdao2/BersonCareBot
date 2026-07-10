@@ -88,7 +88,11 @@ export function createPatientPaymentsService({
         return { ok: true, alreadyProcessed: true };
       }
 
-      await patientPaymentsPort.updatePatientPaymentStatus(payment.id, newStatus);
+      if (!payment.organizationId) {
+        return { ok: false, reason: "payment_org_missing" };
+      }
+
+      await patientPaymentsPort.updatePatientPaymentStatus(payment.id, newStatus, payment.organizationId);
       return { ok: true };
     },
 

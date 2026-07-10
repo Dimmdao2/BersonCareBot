@@ -36,6 +36,15 @@ export const APPOINTMENT_STATUS_VALUES = [
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUS_VALUES)[number];
 
+export const BE_ORGANIZATION_MEMBER_ROLE_VALUES = ["owner", "admin", "doctor", "assistant"] as const;
+export type BeOrganizationMemberRole = (typeof BE_ORGANIZATION_MEMBER_ROLE_VALUES)[number];
+
+export const BE_ORGANIZATION_MEMBER_STATUS_VALUES = ["active", "invited", "disabled"] as const;
+export type BeOrganizationMemberStatus = (typeof BE_ORGANIZATION_MEMBER_STATUS_VALUES)[number];
+
+export const ORG_ENROLLMENT_STATUS_VALUES = ["active", "invited", "discharged", "archived"] as const;
+export type OrgEnrollmentStatus = (typeof ORG_ENROLLMENT_STATUS_VALUES)[number];
+
 const appointmentStatusCheckSql = sql`status = ANY (ARRAY[
   'created'::text,
   'awaiting_payment'::text,
@@ -73,6 +82,8 @@ export const beBranches = pgTable(
     title: text().notNull(),
     /** Short display name (e.g. «СПб», «Мск»). Migration 0117. Nullable; UI falls back to title. */
     shortTitle: text("short_title"),
+    /** Hex color used by doctor calendar and work schedule surfaces. */
+    color: text(),
     cityCode: text("city_code").notNull(),
     address: text(),
     timezone: text().default("Europe/Moscow").notNull(),
@@ -90,6 +101,7 @@ export const beBranches = pgTable(
       name: "be_branches_organization_id_fkey",
     }).onDelete("cascade"),
     unique("uq_be_branches_org_city_title").on(table.organizationId, table.cityCode, table.title),
+    check("be_branches_color_hex_check", sql`${table.color} IS NULL OR ${table.color} ~ '^#[0-9A-Fa-f]{6}$'`),
   ],
 );
 
@@ -140,6 +152,79 @@ export const beSpecialists = pgTable(
       foreignColumns: [beOrganizations.id],
       name: "be_specialists_organization_id_fkey",
     }).onDelete("cascade"),
+  ],
+);
+
+export const beOrganizationMembers = pgTable(
+  "be_organization_members",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    platformUserId: uuid("platform_user_id").notNull(),
+    role: text().notNull(),
+    specialistId: uuid("specialist_id"),
+    status: text().default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_be_organization_members_org").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
+    index("idx_be_organization_members_user").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
+    index("idx_be_organization_members_specialist").using("btree", table.specialistId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "be_organization_members_organization_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.platformUserId],
+      foreignColumns: [platformUsers.id],
+      name: "be_organization_members_platform_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.specialistId],
+      foreignColumns: [beSpecialists.id],
+      name: "be_organization_members_specialist_id_fkey",
+    }).onDelete("set null"),
+    unique("uq_be_organization_members_org_user").on(table.organizationId, table.platformUserId),
+    check(
+      "be_organization_members_role_check",
+      sql`${table.role} = ANY (ARRAY['owner'::text, 'admin'::text, 'doctor'::text, 'assistant'::text])`,
+    ),
+    check(
+      "be_organization_members_status_check",
+      sql`${table.status} = ANY (ARRAY['active'::text, 'invited'::text, 'disabled'::text])`,
+    ),
+  ],
+);
+
+export const orgEnrollments = pgTable(
+  "org_enrollments",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    platformUserId: uuid("platform_user_id").notNull(),
+    status: text().default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_org_enrollments_org").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
+    index("idx_org_enrollments_user").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "org_enrollments_organization_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.platformUserId],
+      foreignColumns: [platformUsers.id],
+      name: "org_enrollments_platform_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("uq_org_enrollments_org_user").on(table.organizationId, table.platformUserId),
+    check(
+      "org_enrollments_status_check",
+      sql`${table.status} = ANY (ARRAY['active'::text, 'invited'::text, 'discharged'::text, 'archived'::text])`,
+    ),
   ],
 );
 
@@ -211,6 +296,7 @@ export const beClinicServices = pgTable(
     title: text().notNull(),
     description: text(),
     durationMinutes: integer("duration_minutes").notNull(),
+    bufferAfterMinutes: integer("buffer_after_minutes").default(0).notNull(),
     priceMinor: integer("price_minor").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     prepaymentApplicable: boolean("prepayment_applicable").default(false).notNull(),
@@ -235,6 +321,7 @@ export const beClinicServices = pgTable(
       table.durationMinutes,
     ),
     check("be_clinic_services_duration_check", sql`duration_minutes > 0`),
+    check("be_clinic_services_buffer_after_check", sql`buffer_after_minutes >= 0 AND buffer_after_minutes % 5 = 0`),
     check("be_clinic_services_price_check", sql`price_minor >= 0`),
   ],
 );

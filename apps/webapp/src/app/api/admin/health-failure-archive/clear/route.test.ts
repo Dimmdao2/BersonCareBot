@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireAdminModeSessionMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
   buildAppDepsMock,
   clearDeadForProbeMock,
   writeAuditLogMock,
   getPoolMock,
 } = vi.hoisted(() => {
   const requireAdminModeSessionMock = vi.fn();
+  const requireDoctorWorkspaceApiContextMock = vi.fn();
+  const withDoctorWorkspacePrincipalMock = vi.fn((_ctx: unknown, fn: () => unknown) => fn());
   const clearDeadForProbeMock = vi.fn();
   const writeAuditLogMock = vi.fn();
   const getPoolMock = vi.fn(() => ({ tag: "pool" }));
@@ -18,6 +22,8 @@ const {
   }));
   return {
     requireAdminModeSessionMock,
+    requireDoctorWorkspaceApiContextMock,
+    withDoctorWorkspacePrincipalMock,
     buildAppDepsMock,
     clearDeadForProbeMock,
     writeAuditLogMock,
@@ -27,6 +33,22 @@ const {
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -67,11 +89,17 @@ function makeArchivePort(overrides: Partial<HealthFailureArchivePort> = {}): Hea
 describe("POST /api/admin/health-failure-archive/clear", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
     clearDeadForProbeMock.mockReset();
     buildAppDepsMock.mockClear();
     writeAuditLogMock.mockReset();
     getPoolMock.mockClear();
     writeAuditLogMock.mockResolvedValue(undefined);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    });
   });
 
   it("returns 403 when gate fails", async () => {
@@ -104,6 +132,29 @@ describe("POST /api/admin/health-failure-archive/clear", () => {
       }),
     );
     expect(res.status).toBe(400);
+    expect(writeAuditLogMock).not.toHaveBeenCalled();
+  });
+
+  it("returns workspace gate response before cleanup work", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "organization_selection_required" }), {
+        status: 409,
+      }),
+    });
+    const res = await POST(
+      new Request("http://localhost/api/admin/health-failure-archive/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ probe: "outgoing_delivery" }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(clearDeadForProbeMock).not.toHaveBeenCalled();
     expect(writeAuditLogMock).not.toHaveBeenCalled();
   });
 
@@ -157,6 +208,10 @@ describe("POST /api/admin/health-failure-archive/clear", () => {
       expect.objectContaining({
         details: { probe: "outgoing_delivery", inserted: 0, deleted: 0 },
       }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      expect.any(Function),
     );
   });
 

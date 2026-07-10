@@ -7,6 +7,7 @@ import {
 } from "@/app-layer/booking/staffRubitimeMirrorOutbound";
 import { isStaffRubitimeOutboundEnabled } from "@/app-layer/booking/staffRubitimeBridgePolicy";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireAdminBookingEngine } from "../../../_requireAdminBookingEngine";
 
@@ -48,7 +49,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   const deps = buildAppDeps();
-  if (!deps.bookingAppointmentLifecycle) {
+  const lifecycle = deps.bookingAppointmentLifecycle;
+  if (!lifecycle) {
     return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
   }
   const beforeAppointment = await gate.ctx.service.getAppointment(appointmentId);
@@ -112,24 +114,29 @@ export async function POST(request: Request, context: RouteContext) {
     }
   }
   let result:
-    | Awaited<ReturnType<typeof deps.bookingAppointmentLifecycle.staffReschedule>>
+    | Awaited<ReturnType<typeof lifecycle.staffReschedule>>
     | null = null;
   try {
-    result = await deps.bookingAppointmentLifecycle.staffReschedule({
-      appointmentId,
-      organizationId: gate.ctx.organizationId,
-      actorType: "admin",
-      actorId: gate.ctx.session.user.userId,
-      newStartAt: parsed.data.newStartAt,
-      newEndAt: parsed.data.newEndAt,
-      durationMinutes: parsed.data.durationMinutes,
-      reason: parsed.data.reason,
-      staffComment: parsed.data.staffComment,
-      branchId: parsed.data.branchId,
-      specialistId: parsed.data.specialistId,
-      serviceId: parsed.data.serviceId,
-      manualOverride: true,
-    });
+    result = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "admin.booking-engine.appointments.manual-reschedule",
+      () =>
+        lifecycle.staffReschedule({
+          appointmentId,
+          organizationId: gate.ctx.organizationId,
+          actorType: "admin",
+          actorId: gate.ctx.session.user.userId,
+          newStartAt: parsed.data.newStartAt,
+          newEndAt: parsed.data.newEndAt,
+          durationMinutes: parsed.data.durationMinutes,
+          reason: parsed.data.reason,
+          staffComment: parsed.data.staffComment,
+          branchId: parsed.data.branchId,
+          specialistId: parsed.data.specialistId,
+          serviceId: parsed.data.serviceId,
+          manualOverride: true,
+        }),
+    );
   } catch (err) {
     await rollbackExternalReschedule();
     if (isSlotOverlapError(err)) {
@@ -153,7 +160,7 @@ export async function POST(request: Request, context: RouteContext) {
   );
   await applyStaffRescheduleSideEffects({
     projection: deps.appointmentProjection,
-    lifecycle: deps.bookingAppointmentLifecycle,
+    lifecycle,
     organizationId: gate.ctx.organizationId,
     appointment: result.appointment,
     reschedulePolicy: result.reschedulePolicy,

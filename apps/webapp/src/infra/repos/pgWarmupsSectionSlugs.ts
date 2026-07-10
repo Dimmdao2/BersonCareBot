@@ -1,8 +1,9 @@
 import type { Pool } from "pg";
+import { getPool } from "@/infra/db/client";
 import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 
 /** Slugs CMS-разделов кластера warmups (`system_parent_code = warmups`). */
-export async function loadWarmupsSectionSlugs(pool: Pool): Promise<Set<string>> {
+export async function loadWarmupsSectionSlugs(pool: Pool = getPool()): Promise<Set<string>> {
   const r = await runPgPoolPgText<{ slug: string }>(
     pool,
     `SELECT slug FROM content_sections

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.fn();
 const upsertMock = vi.fn();
+const findCandidatesMock = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -11,8 +12,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/app-layer/db/client", () => ({
-  getPool: () => ({ query: queryMock }),
+vi.mock("@/infra/repos/pgPublicBookingMergeCandidates", () => ({
+  findPublicBookingNameCollisionCandidates: (...args: unknown[]) => findCandidatesMock(...args),
 }));
 
 import { recordPublicBookingMergeCandidates } from "./recordPublicBookingMergeCandidates";
@@ -20,13 +21,12 @@ import { recordPublicBookingMergeCandidates } from "./recordPublicBookingMergeCa
 describe("recordPublicBookingMergeCandidates", () => {
   beforeEach(() => {
     queryMock.mockReset();
+    findCandidatesMock.mockReset();
     upsertMock.mockReset();
   });
 
   it("creates pending candidates for name collision without phone", async () => {
-    queryMock.mockResolvedValue({
-      rows: [{ id: "candidate-1" }],
-    });
+    findCandidatesMock.mockResolvedValue(["candidate-1"]);
     upsertMock.mockResolvedValue({ id: "mc-1" });
 
     await recordPublicBookingMergeCandidates({
@@ -45,6 +45,11 @@ describe("recordPublicBookingMergeCandidates", () => {
         triggerAppointmentId: "appt-1",
       }),
     );
+    expect(findCandidatesMock).toHaveBeenCalledWith({
+      pool: { query: queryMock },
+      anchorUserId: "anchor-1",
+      contactName: "Иван Иванов",
+    });
   });
 
   it("skips when contact name too short", async () => {

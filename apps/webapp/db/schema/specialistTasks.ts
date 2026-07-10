@@ -1,4 +1,5 @@
-import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { beOrganizations } from "./bookingEngine";
 import { platformUsers } from "./schema";
 
 /** Specialist-owned tasks (global or tied to a patient). Not part of treatment program. */
@@ -6,6 +7,7 @@ export const specialistTasks = pgTable(
   "specialist_tasks",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     ownerUserId: uuid("owner_user_id")
       .notNull()
       .references(() => platformUsers.id, { onDelete: "cascade" }),
@@ -22,8 +24,14 @@ export const specialistTasks = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_specialist_tasks_organization_id").on(table.organizationId),
     index("idx_specialist_tasks_owner").on(table.ownerUserId),
     index("idx_specialist_tasks_patient").on(table.patientUserId),
     index("idx_specialist_tasks_remind_open").on(table.remindAt),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "specialist_tasks_organization_id_fkey",
+    }).onDelete("cascade"),
   ],
 );

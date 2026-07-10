@@ -84,8 +84,9 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
       {showOtherToggle ? (
         <>
           <div className="my-1 border-t border-[var(--patient-border)]" />
-          <button
+          <Button
             type="button"
+            variant="link"
             className={cn(
               patientInlineLinkClass,
               "w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50",
@@ -96,7 +97,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
             onClick={() => setExpanded((v) => !v)}
           >
             Другие способы
-          </button>
+          </Button>
           {expanded ? (
             <div className="flex flex-col gap-2 pl-1">
               {others.map((ch) => {

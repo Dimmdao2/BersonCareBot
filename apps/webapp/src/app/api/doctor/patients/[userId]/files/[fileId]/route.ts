@@ -5,19 +5,29 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { presignGetUrl } from "@/app-layer/media/s3Client";
 
 const FILE_PRESIGN_GET_TTL = 3600;
 
+function isPatientFileScopeError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message === "organization_principal_mismatch" ||
+      error.message === "organization_principal_required" ||
+      error.message === "patient_file_visit_patient_mismatch")
+  );
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ userId: string; fileId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, fileId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -28,9 +38,17 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const file = await deps.patientFiles.getFile(fileId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+  const file = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.patientFiles.getFile(fileId));
 
-  if (!file || file.patientUserId !== userId) {
+  if (!file || file.patientUserId !== patientUserId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
@@ -59,8 +77,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; fileId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, fileId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -83,25 +101,49 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
 
   // Ownership check.
-  const existing = await deps.patientFiles.getFile(fileId);
-  if (!existing || existing.patientUserId !== userId) {
+  const existing = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.patientFiles.getFile(fileId));
+  if (!existing || existing.patientUserId !== patientUserId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
   let updated: Awaited<ReturnType<typeof deps.patientFiles.getFile>> = existing;
 
-  if (parsed.data.visitId !== undefined) {
-    updated = await deps.patientFiles.linkFileToVisit(fileId, parsed.data.visitId);
-  }
+  try {
+    const visitId = parsed.data.visitId;
+    if (visitId !== undefined) {
+      updated = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.files.link", () =>
+        deps.patientFiles.linkFileToVisit(fileId, visitId),
+      );
+      if (!updated) {
+        return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      }
+    }
 
-  if (parsed.data.fileName !== undefined) {
-    updated = await deps.patientFiles.renameFile(fileId, parsed.data.fileName);
+    const fileName = parsed.data.fileName;
+    if (fileName !== undefined) {
+      updated = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.files.rename", () =>
+        deps.patientFiles.renameFile(fileId, fileName),
+      );
+    }
+  } catch (error) {
+    if (isPatientFileScopeError(error)) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    throw error;
   }
 
   if (!updated) {
-    return NextResponse.json({ ok: false, error: "update_failed" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
   return NextResponse.json({ ok: true, file: updated });

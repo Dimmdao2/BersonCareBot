@@ -4,7 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { resolvePatientCanViewContent } from "@/modules/platform-access";
+import { resolvePatientCanViewContent } from "@/app-layer/platform-access";
 import { isHelpSectionSlug } from "@/modules/content-sections/types";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";

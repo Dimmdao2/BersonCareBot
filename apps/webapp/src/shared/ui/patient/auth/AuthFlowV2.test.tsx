@@ -233,7 +233,7 @@ describe("AuthFlowV2 — browser", () => {
     }
   });
 
-  it("shows email/password directly when OAuth is disabled in prefetch", async () => {
+  it("shows email OTP form directly when OAuth is disabled in prefetch", async () => {
     vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
 
     render(
@@ -248,8 +248,11 @@ describe("AuthFlowV2 — browser", () => {
       />,
     );
 
+    // With all OAuth disabled, app goes straight to email_password step (OTP form).
     await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
-    expect(screen.getByRole("tab", { name: "Вход" })).toBeInTheDocument();
+    // New passwordless UI: email input + "Получить код" button (no tabs, no password).
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Получить код" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
   });
@@ -286,7 +289,7 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.getByLabelText("Код подтверждения")).toBeInTheDocument();
   });
 
-  it("email flow shows login vs registration choice after opening email from oauth-first", async () => {
+  it("email flow shows OTP email form after opening email from oauth-first", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
 
@@ -294,10 +297,11 @@ describe("AuthFlowV2 — browser", () => {
 
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     await user.click(screen.getByRole("button", { name: "Войти по email" }));
-    expect(await screen.findByRole("tab", { name: "Вход" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Регистрация" })).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByRole("textbox", { name: "Email" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Забыли пароль?" })).toBeInTheDocument();
+    // New passwordless UI: email input + "Получить код" — no tabs, no password.
+    expect(await screen.findByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Получить код" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Вход" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Регистрация" })).not.toBeInTheDocument();
   });
 
   it("oauth-first shows email login button alongside OAuth", async () => {
@@ -326,41 +330,42 @@ describe("AuthFlowV2 — browser", () => {
   it("phone login path: check-phone, messenger bind, confirm", async () => {
     const user = userEvent.setup();
     let statusCalls = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/config")) {
+        return jsonRes({
+          oauthProviders: { yandex: true, google: false, apple: false },
+          telegramBotUsername: "testbot",
+          maxBotOpenUrl: null,
+        });
+      }
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/start")) {
+        return jsonRes({
+          ok: true,
+          setupToken: "auth_flow",
+          url: "https://t.me/testbot?start=auth_flow",
+        });
+      }
+      if (url.includes("/api/auth/phone/messenger-bind/status")) {
+        statusCalls += 1;
+        return jsonRes({
+          ok: true,
+          status: "otp_ready",
+          challengeId: "ch-auth",
+          retryAfterSeconds: 60,
+        });
+      }
+      if (url.includes("/api/auth/phone/confirm")) {
+        return jsonRes({ ok: true, redirectTo: "/app/patient", role: "client" });
+      }
+      return jsonRes({});
+    });
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("/api/auth/config")) {
-          return jsonRes({
-            oauthProviders: { yandex: true, google: false, apple: false },
-            telegramBotUsername: "testbot",
-            maxBotOpenUrl: null,
-          });
-        }
-        if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/start")) {
-          return jsonRes({
-            ok: true,
-            setupToken: "auth_flow",
-            url: "https://t.me/testbot?start=auth_flow",
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/status")) {
-          statusCalls += 1;
-          return jsonRes({
-            ok: true,
-            status: "otp_ready",
-            challengeId: "ch-auth",
-            retryAfterSeconds: 60,
-          });
-        }
-        if (url.includes("/api/auth/phone/messenger-bind/finish")) {
-          return jsonRes({ ok: true, redirectTo: "/app/patient", role: "client" });
-        }
-        return jsonRes({});
-      }),
+      fetchMock,
     );
 
     render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
@@ -369,9 +374,12 @@ describe("AuthFlowV2 — browser", () => {
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
     await user.click(await screen.findByRole("button", { name: "Telegram" }));
+    await user.type(await screen.findByLabelText("Код подтверждения"), "123456");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
     await waitFor(() => expect(locationAssign).toHaveBeenCalled());
     expect(statusCalls).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/confirm"))).toBe(true);
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/messenger-bind/finish"))).toBe(false);
   });
 
   it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {
@@ -446,20 +454,15 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
 
-  it("opens setup code entry when register returns existing_account_needs_email_setup", async () => {
+  it("email OTP form submits to /api/auth/email-otp/start and shows code entry on success", async () => {
+    // The register tab is removed in the passwordless flow. This test verifies the new OTP start path.
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/email-password/register")) {
-          return jsonRes({
-            ok: true,
-            error: "existing_account_needs_email_setup",
-            setupCodeSent: true,
-            challengeId: "11111111-1111-4111-8111-111111111111",
-            retryAfterSeconds: 60,
-          });
+        if (url.includes("/api/auth/email-otp/start")) {
+          return jsonRes({ ok: true, challengeId: "ch-otp-123", retryAfterSeconds: 60 });
         }
         return jsonRes({});
       }),
@@ -478,19 +481,30 @@ describe("AuthFlowV2 — browser", () => {
     );
 
     await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
-    await user.click(screen.getByRole("tab", { name: "Регистрация" }));
-    await user.type(screen.getByLabelText("Имя"), "Иван");
-    await user.type(screen.getByLabelText("Email"), "bot@example.com");
-    await user.type(screen.getByLabelText("Пароль"), "password12");
-    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.type(screen.getByLabelText("Email"), "test@example.com");
+    await user.click(screen.getByRole("button", { name: "Получить код" }));
 
-    expect(await screen.findByText(/Код отправлен на bot@example.com/i)).toBeInTheDocument();
-    expect(screen.getByLabelText("Пароль")).toBeInTheDocument();
+    // Should show OTP code entry form
+    expect(await screen.findByLabelText("Код подтверждения")).toBeInTheDocument();
   });
 
-  it("opens forgot-password subflow from login form", async () => {
+  it("email OTP form shows error toast when code send fails", async () => {
+    // The "Забыли пароль?" button is removed from the new passwordless email form.
+    // This test verifies that email_send_failed error shows a toast.
     const user = userEvent.setup();
-    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/email-otp/start")) {
+          return jsonRes(
+            { ok: false, error: "email_send_failed", message: "Не удалось отправить код" },
+            { ok: false, status: 503 },
+          );
+        }
+        return jsonRes({});
+      }),
+    );
 
     render(
       <AuthFlowV2
@@ -505,8 +519,11 @@ describe("AuthFlowV2 — browser", () => {
     );
 
     await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
-    await user.click(screen.getByRole("button", { name: "Забыли пароль?" }));
-    expect(screen.getByRole("button", { name: "Отправить код" })).toBeInTheDocument();
-    expect(screen.getByText(/одинаковым независимо/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Email"), "fail@example.com");
+    await user.click(screen.getByRole("button", { name: "Получить код" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // Code entry should NOT appear
+    expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
   });
 });

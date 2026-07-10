@@ -13,6 +13,7 @@ export type EnqueueTranscodeResult =
 
 type MediaRowForEnqueue = {
   id: string;
+  organization_id: string | null;
   mime_type: string;
   s3_key: string | null;
   hls_master_playlist_s3_key: string | null;
@@ -23,7 +24,7 @@ type MediaRowForEnqueue = {
 async function loadMediaForEnqueue(mediaId: string): Promise<MediaRowForEnqueue | null | "not_found"> {
   const res = await runWebappSql<MediaRowForEnqueue>(
     getWebappSqlDb(),
-    sql`SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, usage_purpose
+    sql`SELECT id, organization_id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, usage_purpose
      FROM media_files
      WHERE id = ${mediaId}::uuid AND ${mediaReadableStatusPredicate}`,
   );
@@ -47,7 +48,8 @@ async function findActiveTranscodeJobId(mediaId: string): Promise<string | null>
   return dup.rows[0]?.id ?? null;
 }
 
-async function insertTranscodeJobAndMarkPending(mediaId: string): Promise<EnqueueTranscodeResult> {
+async function insertTranscodeJobAndMarkPending(media: MediaRowForEnqueue): Promise<EnqueueTranscodeResult> {
+  const mediaId = media.id;
   const existingId = await findActiveTranscodeJobId(mediaId);
   if (existingId) {
     return { ok: true, kind: "queued", jobId: existingId, alreadyQueued: true };
@@ -59,6 +61,7 @@ async function insertTranscodeJobAndMarkPending(mediaId: string): Promise<Enqueu
         .insert(mediaTranscodeJobs)
         .values({
           mediaId,
+          organizationId: media.organization_id,
           status: "pending",
           attempts: 0,
           createdAt: sql`now()`,
@@ -111,7 +114,7 @@ export async function enqueueMediaTranscodeJob(mediaId: string): Promise<Enqueue
     return { ok: true, kind: "already_ready" };
   }
 
-  return insertTranscodeJobAndMarkPending(mediaId);
+  return insertTranscodeJobAndMarkPending(loaded);
 }
 
 /**
@@ -136,5 +139,5 @@ export async function enqueueProgramSubmissionTranscodeJob(mediaId: string): Pro
     return { ok: true, kind: "already_ready" };
   }
 
-  return insertTranscodeJobAndMarkPending(mediaId);
+  return insertTranscodeJobAndMarkPending(loaded);
 }

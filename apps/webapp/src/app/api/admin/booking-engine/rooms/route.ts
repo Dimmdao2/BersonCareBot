@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const PostSchema = z.object({
@@ -23,12 +24,14 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
-  const room = await gate.ctx.service.catalog.upsertRoom({
-    organizationId: gate.ctx.organizationId,
-    branchId: parsed.data.branchId,
-    title: parsed.data.title.trim(),
-    isActive: parsed.data.isActive,
-    sortOrder: parsed.data.sortOrder,
-  });
+  const room = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.rooms.upsert", () =>
+    gate.ctx.service.catalog.upsertRoom({
+      organizationId: gate.ctx.organizationId,
+      branchId: parsed.data.branchId,
+      title: parsed.data.title.trim(),
+      isActive: parsed.data.isActive,
+      sortOrder: parsed.data.sortOrder,
+    }),
+  );
   return NextResponse.json({ ok: true, room });
 }

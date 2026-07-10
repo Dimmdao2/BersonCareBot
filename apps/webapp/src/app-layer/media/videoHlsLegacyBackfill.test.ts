@@ -18,9 +18,14 @@ import {
   clampBackfillSleepMs,
   fetchLegacyBackfillBatch,
   legacyHlsBackfillCandidateWhereClause,
-  MEDIA_READABLE_SQL_M,
   runVideoHlsLegacyBackfill,
 } from "./videoHlsLegacyBackfill";
+import type {
+  VideoHlsLegacyBackfillCandidateRow,
+  VideoHlsLegacyBackfillReadRepo,
+  VideoHlsLegacyFailedReasonRow,
+  VideoHlsLegacyStatusHistogramRow,
+} from "@/infra/repos/pgVideoHlsLegacyBackfill";
 
 describe("clampBackfillBatchSize", () => {
   it("clamps to 1..500", () => {
@@ -45,33 +50,38 @@ describe("legacyHlsBackfillCandidateWhereClause", () => {
 });
 
 describe("fetchLegacyBackfillBatch", () => {
-  it("passes expected params", async () => {
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ id: "a", size_bytes: "100" }],
+  it("delegates to read repo with expected params", async () => {
+    const readRepo = createFakeReadRepo({
+      batches: [[{ id: "a", size_bytes: "100" }]],
     });
-    const pool = { query } as unknown as import("pg").Pool;
-    const rows = await fetchLegacyBackfillBatch(pool, {
+    const rows = await fetchLegacyBackfillBatch(readRepo, {
       batchSize: 5,
       cursorAfterMediaId: "00000000-0000-4000-8000-000000000001",
       cutoffCreatedBefore: new Date("2020-01-01T00:00:00.000Z"),
       includeFailed: true,
     });
     expect(rows).toHaveLength(1);
-    expect(query).toHaveBeenCalledTimes(1);
-    const [, params] = query.mock.calls[0] as [string, unknown[]];
-    const sql = query.mock.calls[0][0] as string;
-    expect(params).toEqual(
-      expect.arrayContaining([
-        "00000000-0000-4000-8000-000000000001",
-        "2020-01-01T00:00:00.000Z",
-        5,
-      ]),
-    );
-    expect(sql).toContain(MEDIA_READABLE_SQL_M);
-    expect(sql).toContain("media_transcode_jobs");
-    expect(sql).toContain("video_processing_status = 'failed'");
+    expect(readRepo.fetchBatch).toHaveBeenCalledWith({
+      batchSize: 5,
+      cursorAfterMediaId: "00000000-0000-4000-8000-000000000001",
+      cutoffCreatedBefore: new Date("2020-01-01T00:00:00.000Z"),
+      includeFailed: true,
+    });
   });
 });
+
+function createFakeReadRepo(params?: {
+  batches?: VideoHlsLegacyBackfillCandidateRow[][];
+  histogram?: VideoHlsLegacyStatusHistogramRow[];
+  failedReasons?: VideoHlsLegacyFailedReasonRow[];
+}): VideoHlsLegacyBackfillReadRepo {
+  const batches = [...(params?.batches ?? [[]])];
+  return {
+    fetchBatch: vi.fn(async () => batches.shift() ?? []),
+    loadHistogram: vi.fn(async () => params?.histogram ?? []),
+    loadFailedReasons: vi.fn(async () => params?.failedReasons ?? []),
+  };
+}
 
 describe("runVideoHlsLegacyBackfill", () => {
   beforeEach(() => {
@@ -81,21 +91,10 @@ describe("runVideoHlsLegacyBackfill", () => {
   });
 
   it("dry-run does not call enqueue", async () => {
-    const query = vi.fn().mockImplementation((sql: string) => {
-      if (sql.includes("FROM media_files m") && sql.includes("LIMIT")) {
-        return Promise.resolve({
-          rows: [{ id: "00000000-0000-4000-8000-0000000000aa", size_bytes: "100" }],
-        });
-      }
-      if (sql.includes("GROUP BY") && sql.includes("video_processing_status")) {
-        return Promise.resolve({ rows: [{ status: "none", count: "1" }] });
-      }
-      if (sql.includes("video_processing_status = 'failed'")) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
+    const readRepo = createFakeReadRepo({
+      batches: [[{ id: "00000000-0000-4000-8000-0000000000aa", size_bytes: "100" }], []],
+      histogram: [{ status: "none", count: "1" }],
     });
-    const pool = { query } as unknown as import("pg").Pool;
 
     await runVideoHlsLegacyBackfill(
       {
@@ -110,7 +109,7 @@ describe("runVideoHlsLegacyBackfill", () => {
         requirePipelineEnabled: true,
         defaultRunCap: 100,
       },
-      { pool, sleepFn: async () => {} },
+      { readRepo, sleepFn: async () => {} },
     );
 
     expect(enqueueMock).not.toHaveBeenCalled();
@@ -124,21 +123,10 @@ describe("runVideoHlsLegacyBackfill", () => {
       alreadyQueued: false,
     });
 
-    const query = vi.fn().mockImplementation((sql: string) => {
-      if (sql.includes("FROM media_files m") && sql.includes("ORDER BY m.id")) {
-        return Promise.resolve({
-          rows: [{ id: "00000000-0000-4000-8000-0000000000bb", size_bytes: "100" }],
-        });
-      }
-      if (sql.includes("GROUP BY") && sql.includes("video_processing_status")) {
-        return Promise.resolve({ rows: [{ status: "pending", count: "1" }] });
-      }
-      if (sql.includes("video_processing_status = 'failed'")) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
+    const readRepo = createFakeReadRepo({
+      batches: [[{ id: "00000000-0000-4000-8000-0000000000bb", size_bytes: "100" }], []],
+      histogram: [{ status: "pending", count: "1" }],
     });
-    const pool = { query } as unknown as import("pg").Pool;
 
     const report = await runVideoHlsLegacyBackfill(
       {
@@ -153,7 +141,7 @@ describe("runVideoHlsLegacyBackfill", () => {
         requirePipelineEnabled: true,
         defaultRunCap: 100,
       },
-      { pool, sleepFn: async () => {} },
+      { readRepo, sleepFn: async () => {} },
     );
 
     expect(enqueueMock).toHaveBeenCalledTimes(1);
@@ -170,26 +158,17 @@ describe("runVideoHlsLegacyBackfill", () => {
       alreadyQueued: false,
     });
 
-    const query = vi.fn().mockImplementation((sql: string) => {
-      if (sql.includes("FROM media_files m") && sql.includes("ORDER BY m.id")) {
-        return Promise.resolve({
-          rows: [
-            {
-              id: "00000000-0000-4000-8000-0000000000cc",
-              size_bytes: String(4 * 1024 * 1024 * 1024),
-            },
-          ],
-        });
-      }
-      if (sql.includes("GROUP BY") && sql.includes("video_processing_status")) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (sql.includes("video_processing_status = 'failed'")) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
+    const readRepo = createFakeReadRepo({
+      batches: [
+        [
+          {
+            id: "00000000-0000-4000-8000-0000000000cc",
+            size_bytes: String(4 * 1024 * 1024 * 1024),
+          },
+        ],
+        [],
+      ],
     });
-    const pool = { query } as unknown as import("pg").Pool;
 
     const report = await runVideoHlsLegacyBackfill(
       {
@@ -204,7 +183,7 @@ describe("runVideoHlsLegacyBackfill", () => {
         requirePipelineEnabled: true,
         defaultRunCap: 100,
       },
-      { pool, sleepFn: async () => {} },
+      { readRepo, sleepFn: async () => {} },
     );
 
     expect(enqueueMock).not.toHaveBeenCalled();
@@ -214,8 +193,7 @@ describe("runVideoHlsLegacyBackfill", () => {
   it("aborts commit when pipeline disabled and requirePipelineEnabled", async () => {
     getConfigBoolMock.mockResolvedValue(false);
 
-    const query = vi.fn().mockResolvedValue({ rows: [] });
-    const pool = { query } as unknown as import("pg").Pool;
+    const readRepo = createFakeReadRepo();
 
     const report = await runVideoHlsLegacyBackfill(
       {
@@ -231,7 +209,7 @@ describe("runVideoHlsLegacyBackfill", () => {
         defaultRunCap: 100,
       },
       {
-        pool,
+        readRepo,
         sleepFn: async () => {},
       },
     );
@@ -243,21 +221,9 @@ describe("runVideoHlsLegacyBackfill", () => {
   it("counts enqueue throw without aborting run", async () => {
     enqueueMock.mockRejectedValue(new Error("db_down"));
 
-    const query = vi.fn().mockImplementation((sql: string) => {
-      if (sql.includes("FROM media_files m") && sql.includes("ORDER BY m.id")) {
-        return Promise.resolve({
-          rows: [{ id: "00000000-0000-4000-8000-0000000000dd", size_bytes: "100" }],
-        });
-      }
-      if (sql.includes("GROUP BY") && sql.includes("video_processing_status")) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (sql.includes("video_processing_status = 'failed'")) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
+    const readRepo = createFakeReadRepo({
+      batches: [[{ id: "00000000-0000-4000-8000-0000000000dd", size_bytes: "100" }], []],
     });
-    const pool = { query } as unknown as import("pg").Pool;
 
     const report = await runVideoHlsLegacyBackfill(
       {
@@ -272,7 +238,7 @@ describe("runVideoHlsLegacyBackfill", () => {
         requirePipelineEnabled: true,
         defaultRunCap: 100,
       },
-      { pool, sleepFn: async () => {} },
+      { readRepo, sleepFn: async () => {} },
     );
 
     expect(report.enqueue.errors).toBe(1);

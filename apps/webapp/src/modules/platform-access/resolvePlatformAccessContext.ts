@@ -1,19 +1,9 @@
-import type { Pool, PoolClient } from "pg";
 import { LEGACY_NON_UUID_SESSION_RESOLUTION } from "@/modules/auth/sessionCanonicalUserIdPolicy";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import type { UserRole } from "@/shared/types/session";
 import type { ClientAccessTier, PlatformAccessContext } from "./types";
 import { isTrustedPatientPhoneActivation } from "./trustedPhonePolicy";
-
-type CanonRow = {
-  role: string;
-  phone_normalized: string | null;
-  patient_phone_trust_at: Date | null;
-  email_verified_at: Date | null;
-  has_password_credentials: boolean;
-  has_web_oauth_binding: boolean;
-};
+import { getPlatformAccessPort, type PlatformAccessCanonRow } from "./ports";
 
 /** DoD §8 / MASTER_PLAN §3.8: tier + trust signals (no raw phone). Skips noisy happy path (patient + trusted + resolved_canon). */
 function logClientPlatformAccess(payload: {
@@ -39,7 +29,7 @@ function logClientPlatformAccess(payload: {
   );
 }
 
-function computeClientTier(row: CanonRow): {
+function computeClientTier(row: PlatformAccessCanonRow): {
   tier: ClientAccessTier;
   hasPhoneInDb: boolean;
   phoneTrustedForPatient: boolean;
@@ -65,7 +55,6 @@ export type ResolvePlatformAccessContextInput = {
  * Резолв канона из БД и вычисление access context (единая точка для политики tier).
  */
 export async function resolvePlatformAccessContext(
-  db: Pool | PoolClient,
   input: ResolvePlatformAccessContextInput,
 ): Promise<PlatformAccessContext> {
   const sessionUserId = input.sessionUserId?.trim() || null;
@@ -102,24 +91,9 @@ export async function resolvePlatformAccessContext(
     };
   }
 
-  const canonicalUserId = (await resolveCanonicalUserId(db, sessionUserId)) ?? sessionUserId;
-  const r = await db.query<CanonRow>(
-    `SELECT pu.role,
-            pu.phone_normalized,
-            pu.patient_phone_trust_at,
-            pu.email_verified_at,
-            EXISTS (SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id)
-              AS has_password_credentials,
-            EXISTS (
-              SELECT 1 FROM user_oauth_bindings uob
-              WHERE uob.user_id = pu.id
-                AND uob.provider IN ('google', 'yandex', 'apple')
-            ) AS has_web_oauth_binding
-     FROM platform_users pu
-     WHERE pu.id = $1::uuid`,
-    [canonicalUserId],
-  );
-  const row = r.rows[0];
+  const port = getPlatformAccessPort();
+  const canonicalUserId = (await port.resolveCanonicalUserId(sessionUserId)) ?? sessionUserId;
+  const row = await port.loadCanonRow(canonicalUserId);
   if (!row) {
     return {
       canonicalUserId: null,

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointments,
@@ -13,12 +13,13 @@ import { bePaymentIntents } from "../../../db/schema/bookingPayments";
 import {
   bePackageUsages,
   bePatientPackages,
-  beSubscriptionPackages,
 } from "../../../db/schema/bookingMemberships";
 import { patientBookings, platformUsers } from "../../../db/schema/schema";
 import type { BookingCalendarPort } from "@/modules/booking-calendar/ports";
 import type { CalendarAppointmentEvent, CalendarFilterMeta, CalendarFilters } from "@/modules/booking-calendar/types";
 import { filterCanonicalRowsNotPurged } from "@/infra/repos/doctorAppointmentPurgeFilter";
+
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 function patientDisplayName(row: {
   displayName: string;
@@ -62,7 +63,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           .where(and(eq(beSpecialists.organizationId, organizationId), eq(beSpecialists.isActive, true)))
           .orderBy(asc(beSpecialists.sortOrder), asc(beSpecialists.fullName)),
         db
-          .select({ id: beBranches.id, label: beBranches.title, shortTitle: beBranches.shortTitle })
+          .select({ id: beBranches.id, label: beBranches.title, shortTitle: beBranches.shortTitle, color: beBranches.color })
           .from(beBranches)
           .where(and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true)))
           .orderBy(asc(beBranches.sortOrder), asc(beBranches.title)),
@@ -83,7 +84,12 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       ]);
       return {
         specialists: specialists.map((r) => ({ id: r.id, label: r.label })),
-        branches: branches.map((r) => ({ id: r.id, label: r.label, shortLabel: r.shortTitle ?? null })),
+        branches: branches.map((r) => ({
+          id: r.id,
+          label: r.label,
+          shortLabel: r.shortTitle ?? null,
+          color: r.color ?? null,
+        })),
         rooms: rooms.map((r) => ({ id: r.id, label: r.label })),
         services: services.map((r) => ({
           id: r.id,
@@ -187,6 +193,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           originalStartAt: beAppointments.originalStartAt,
           specialistName: beSpecialists.fullName,
           branchTitle: beBranches.title,
+          branchColor: beBranches.color,
           roomTitle: beRooms.title,
           serviceTitle: beClinicServices.title,
           patientDisplayName: platformUsers.displayName,
@@ -208,8 +215,11 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       const rubitimeIdByAppt = new Map<string, string | null>();
       const rubitimeManageUrlByAppt = new Map<string, string | null>();
       const paymentByAppt = new Map<string, string>();
-      const packageTitleByAppt = new Map<string, string>();
+      const packageByUsageRef = new Map<string, { title: string; displayNumber: number }>();
       const formCommentsByAppt = new Map<string, { label: string; value: string }[]>();
+      const packageUsageRefs = rows
+        .map((row) => row.packageUsageRef)
+        .filter((usageRef): usageRef is string => usageRef != null && UUID_RE.test(usageRef));
 
       if (appointmentIds.length > 0) {
         const [bookingRows, paymentRows, packageRows, submissionRows] = await Promise.all([
@@ -232,16 +242,17 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
             .orderBy(desc(bePaymentIntents.createdAt)),
           db
             .select({
-              appointmentId: bePackageUsages.appointmentId,
-              title: beSubscriptionPackages.title,
+              usageId: bePackageUsages.id,
+              title: bePatientPackages.title,
+              displayNumber: bePatientPackages.displayNumber,
             })
             .from(bePackageUsages)
             .innerJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
-            .innerJoin(
-              beSubscriptionPackages,
-              eq(beSubscriptionPackages.id, bePatientPackages.subscriptionPackageId),
-            )
-            .where(inArray(bePackageUsages.appointmentId, appointmentIds)),
+            .where(
+              packageUsageRefs.length > 0
+                ? inArray(bePackageUsages.id, packageUsageRefs)
+                : sql`false`,
+            ),
           db
             .select({
               appointmentId: beBookingFormSubmissions.appointmentId,
@@ -272,8 +283,11 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           }
         }
         for (const pkg of packageRows) {
-          if (pkg.appointmentId && !packageTitleByAppt.has(pkg.appointmentId)) {
-            packageTitleByAppt.set(pkg.appointmentId, pkg.title);
+          if (!packageByUsageRef.has(pkg.usageId)) {
+            packageByUsageRef.set(pkg.usageId, {
+              title: pkg.title,
+              displayNumber: pkg.displayNumber,
+            });
           }
         }
         for (const sub of submissionRows) {
@@ -300,6 +314,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
             : null;
         const paymentStatus = paymentByAppt.get(row.id) ?? null;
         const status = row.status as CalendarAppointmentEvent["status"];
+        const packageData = row.packageUsageRef ? (packageByUsageRef.get(row.packageUsageRef) ?? null) : null;
         return {
           kind: "appointment" as const,
           id: row.id,
@@ -311,6 +326,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           specialistName: row.specialistName ?? null,
           branchId: row.branchId,
           branchTitle: row.branchTitle ?? null,
+          branchColor: row.branchColor ?? null,
           roomId: row.roomId,
           roomTitle: row.roomTitle ?? null,
           serviceId: row.serviceId,
@@ -324,7 +340,8 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           paymentStatus,
           prepaymentPending: isPrepaymentPending(status, paymentStatus),
           packageUsageRef: row.packageUsageRef ?? null,
-          packageTitle: packageTitleByAppt.get(row.id) ?? null,
+          packageTitle: packageData?.title ?? null,
+          packageDisplayNumber: packageData?.displayNumber ?? null,
           rescheduleCount: row.rescheduleCount,
           originalStartAt: row.originalStartAt ?? null,
           formComments: formCommentsByAppt.get(row.id) ?? [],

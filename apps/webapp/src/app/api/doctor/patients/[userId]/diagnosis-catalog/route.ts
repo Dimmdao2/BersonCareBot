@@ -2,13 +2,14 @@
  * GET  /api/doctor/patients/[userId]/diagnosis-catalog?q=  → { ok, suggestions }
  * POST /api/doctor/patients/[userId]/diagnosis-catalog      → create entry
  *
- * Собственный (общеклиничный) справочник диагнозов: autocomplete + создание новых.
- * Привязки к userId справочник не имеет — userId в пути для единообразия маршрутов.
+ * Собственный справочник диагнозов выбранной организации: autocomplete + создание новых.
+ * userId в пути используется для проверки membership в выбранном workspace.
  */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const createBodySchema = z.object({
@@ -20,8 +21,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -32,7 +33,16 @@ export async function GET(
   const q = url.searchParams.get("q") ?? "";
 
   const deps = buildAppDeps();
-  const suggestions = await deps.patientClinical.searchDiagnosisCatalog(q);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const suggestions = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientClinical.searchDiagnosisCatalog(q),
+  );
 
   return NextResponse.json({ ok: true, suggestions });
 }
@@ -41,8 +51,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -65,11 +75,23 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const entry = await deps.patientClinical.createDiagnosisCatalogEntry({
-    label: parsed.data.label,
-    note: parsed.data.note ?? null,
-    createdBy: auth.session.user.userId,
-  });
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const entry = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.patients.clinical.diagnosis-catalog.create",
+    () =>
+    deps.patientClinical.createDiagnosisCatalogEntry({
+      label: parsed.data.label,
+      note: parsed.data.note ?? null,
+      createdBy: gate.ctx.session.user.userId,
+    }),
+  );
 
   return NextResponse.json({ ok: true, entry }, { status: 201 });
 }

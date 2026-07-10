@@ -2,15 +2,18 @@ import { randomUUID } from "node:crypto";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { PoolClient } from "pg";
 /**
- * Wave 3 phase 12A — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
- * with shared advisory lock per user id. Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * Wave 3 phase 12A + R0/S3P — multipart tx with shared advisory lock per user id.
+ * Checkout/tx control goes through `withPoolTransaction`.
+ * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
  * Wave 3 phase 15G — getDoctorStats migrated from pool.query to Drizzle db.execute(sql).
  */
 import { sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { resolveMediaFileForLfkAttachment } from "@/infra/repos/pgMediaFileIntakeResolve";
 import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
 import type {
@@ -32,6 +35,7 @@ import type {
 type RequestRow = {
   id: string;
   user_id: string;
+  organization_id: string | null;
   type: string;
   status: string;
   summary: string | null;
@@ -42,6 +46,7 @@ type RequestRow = {
 type AnswerRow = {
   id: string;
   request_id: string;
+  organization_id: string | null;
   question_id: string;
   ordinal: number;
   value: string;
@@ -51,6 +56,7 @@ type AnswerRow = {
 type AttachmentRow = {
   id: string;
   request_id: string;
+  organization_id: string | null;
   attachment_type: string;
   s3_key: string | null;
   url: string | null;
@@ -63,6 +69,7 @@ type AttachmentRow = {
 type HistoryRow = {
   id: string;
   request_id: string;
+  organization_id: string | null;
   from_status: string | null;
   to_status: string;
   changed_by: string | null;
@@ -91,6 +98,7 @@ function mapRequest(row: RequestRow): IntakeRequest {
   return {
     id: row.id,
     userId: row.user_id,
+    organizationId: row.organization_id ?? null,
     type: row.type as IntakeType,
     status: row.status as IntakeStatus,
     summary: row.summary,
@@ -103,6 +111,7 @@ function mapAnswer(row: AnswerRow): IntakeAnswer {
   return {
     id: row.id,
     requestId: row.request_id,
+    organizationId: row.organization_id ?? null,
     questionId: row.question_id,
     ordinal: row.ordinal,
     value: row.value,
@@ -114,6 +123,7 @@ function mapAttachment(row: AttachmentRow): IntakeAttachment {
   return {
     id: row.id,
     requestId: row.request_id,
+    organizationId: row.organization_id ?? null,
     attachmentType: row.attachment_type as "file" | "url",
     s3Key: row.s3_key,
     url: row.url,
@@ -128,6 +138,7 @@ function mapHistory(row: HistoryRow): IntakeStatusHistoryEntry {
   return {
     id: row.id,
     requestId: row.request_id,
+    organizationId: row.organization_id ?? null,
     fromStatus: (row.from_status as IntakeStatus | null) ?? null,
     toStatus: row.to_status as IntakeStatus,
     changedBy: row.changed_by,
@@ -144,39 +155,76 @@ async function runIntakePgText<T>(
   return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
 }
 
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
+}
+
+async function resolveWriteOrganizationIdForUser(client: PoolClient, userId: string): Promise<string | null> {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (principalOrganizationId) return principalOrganizationId;
+
+  const { rows } = await runIntakePgText<{ organization_id: string }>(
+    client,
+    `SELECT organization_id
+     FROM org_enrollments
+     WHERE platform_user_id = $1::uuid
+       AND status = 'active'
+     ORDER BY created_at ASC, organization_id ASC
+     LIMIT 1`,
+    [userId],
+  );
+  return rows[0]?.organization_id ?? null;
+}
+
+function principalWhereClause(columnSql: string, params: unknown[], idx: number): { clause: string; nextIdx: number } {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) return { clause: "", nextIdx: idx };
+  params.push(principalOrganizationId);
+  return { clause: `${columnSql} = $${idx++}::uuid`, nextIdx: idx };
+}
+
 export function createPgOnlineIntakePort(): OnlineIntakePort {
   return {
     async createLfkRequest(input: CreateLfkIntakeInput): Promise<IntakeRequest> {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
+      return withPoolTransaction(pool, async (client) => {
         await pgAdvisoryXactLockShared(client, input.userId);
         const id = randomUUID();
+        const organizationId = await resolveWriteOrganizationIdForUser(client, input.userId);
         const summary = input.description.slice(0, 200);
 
         const { rows } = await runIntakePgText<RequestRow>(
           client,
-          `INSERT INTO online_intake_requests (id, user_id, type, summary)
-           VALUES ($1, $2, 'lfk', $3)
+          `INSERT INTO online_intake_requests (id, user_id, organization_id, type, summary)
+           VALUES ($1, $2, $3, 'lfk', $4)
            RETURNING *`,
-          [id, input.userId, summary],
+          [id, input.userId, organizationId, summary],
         );
         const request = mapRequest(rows[0]);
 
         await runIntakePgText(
           client,
-          `INSERT INTO online_intake_answers (id, request_id, question_id, ordinal, value)
-           VALUES ($1, $2, 'lfk_description', 1, $3)`,
-          [randomUUID(), id, input.description],
+          `INSERT INTO online_intake_answers (id, request_id, organization_id, question_id, ordinal, value)
+           VALUES ($1, $2, $3, 'lfk_description', 1, $4)`,
+          [randomUUID(), id, organizationId, input.description],
         );
 
         for (const url of input.attachmentUrls ?? []) {
           await runIntakePgText(
             client,
-            `INSERT INTO online_intake_attachments (id, request_id, attachment_type, url)
-             VALUES ($1, $2, 'url', $3)`,
-            [randomUUID(), id, url],
+            `INSERT INTO online_intake_attachments (id, request_id, organization_id, attachment_type, url)
+             VALUES ($1, $2, $3, 'url', $4)`,
+            [randomUUID(), id, organizationId, url],
           );
         }
 
@@ -185,11 +233,12 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           await runIntakePgText(
             client,
             `INSERT INTO online_intake_attachments
-               (id, request_id, attachment_type, s3_key, mime_type, size_bytes, original_name)
-             VALUES ($1, $2, 'file', $3, $4, $5, $6)`,
+               (id, request_id, organization_id, attachment_type, s3_key, mime_type, size_bytes, original_name)
+             VALUES ($1, $2, $3, 'file', $4, $5, $6, $7)`,
             [
               randomUUID(),
               id,
+              organizationId,
               resolved.s3Key,
               resolved.mimeType,
               resolved.sizeBytes,
@@ -200,82 +249,75 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
         await runIntakePgText(
           client,
-          `INSERT INTO online_intake_status_history (id, request_id, from_status, to_status)
-           VALUES ($1, $2, NULL, 'new')`,
-          [randomUUID(), id],
+          `INSERT INTO online_intake_status_history (id, request_id, organization_id, from_status, to_status)
+           VALUES ($1, $2, $3, NULL, 'new')`,
+          [randomUUID(), id, organizationId],
         );
 
-        await client.query("COMMIT");
         return request;
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async createNutritionRequest(input: CreateNutritionIntakeInput): Promise<IntakeRequest> {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
+      return withPoolTransaction(pool, async (client) => {
         await pgAdvisoryXactLockShared(client, input.userId);
         const id = randomUUID();
+        const organizationId = await resolveWriteOrganizationIdForUser(client, input.userId);
         const summary = input.description.slice(0, 200);
 
         const { rows } = await runIntakePgText<RequestRow>(
           client,
-          `INSERT INTO online_intake_requests (id, user_id, type, summary)
-           VALUES ($1, $2, 'nutrition', $3)
+          `INSERT INTO online_intake_requests (id, user_id, organization_id, type, summary)
+           VALUES ($1, $2, $3, 'nutrition', $4)
            RETURNING *`,
-          [id, input.userId, summary],
+          [id, input.userId, organizationId, summary],
         );
         const request = mapRequest(rows[0]);
 
         await runIntakePgText(
           client,
-          `INSERT INTO online_intake_answers (id, request_id, question_id, ordinal, value)
-           VALUES ($1, $2, 'nutrition_description', 1, $3)`,
-          [randomUUID(), id, input.description],
+          `INSERT INTO online_intake_answers (id, request_id, organization_id, question_id, ordinal, value)
+           VALUES ($1, $2, $3, 'nutrition_description', 1, $4)`,
+          [randomUUID(), id, organizationId, input.description],
         );
 
         await runIntakePgText(
           client,
-          `INSERT INTO online_intake_status_history (id, request_id, from_status, to_status)
-           VALUES ($1, $2, NULL, 'new')`,
-          [randomUUID(), id],
+          `INSERT INTO online_intake_status_history (id, request_id, organization_id, from_status, to_status)
+           VALUES ($1, $2, $3, NULL, 'new')`,
+          [randomUUID(), id, organizationId],
         );
 
-        await client.query("COMMIT");
         return request;
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async getById(id: string): Promise<IntakeRequestFull | null> {
+      const reqParams: unknown[] = [id];
+      const reqPrincipal = principalWhereClause("organization_id", reqParams, 2);
+      const reqOrgWhere = reqPrincipal.clause ? ` AND ${reqPrincipal.clause}` : "";
       const { rows: reqRows } = await runWebappPgText<RequestRow>(
-        `SELECT * FROM online_intake_requests WHERE id = $1`,
-        [id],
+        `SELECT * FROM online_intake_requests WHERE id = $1${reqOrgWhere}`,
+        reqParams,
       );
       if (!reqRows[0]) return null;
       const request = mapRequest(reqRows[0]);
+      const childParams: unknown[] = [id];
+      const childPrincipal = principalWhereClause("organization_id", childParams, 2);
+      const childOrgWhere = childPrincipal.clause ? ` AND ${childPrincipal.clause}` : "";
 
       const { rows: ansRows } = await runWebappPgText<AnswerRow>(
-        `SELECT * FROM online_intake_answers WHERE request_id = $1 ORDER BY ordinal`,
-        [id],
+        `SELECT * FROM online_intake_answers WHERE request_id = $1${childOrgWhere} ORDER BY ordinal`,
+        childParams,
       );
       const { rows: attRows } = await runWebappPgText<AttachmentRow>(
-        `SELECT * FROM online_intake_attachments WHERE request_id = $1 ORDER BY created_at`,
-        [id],
+        `SELECT * FROM online_intake_attachments WHERE request_id = $1${childOrgWhere} ORDER BY created_at`,
+        childParams,
       );
       const { rows: histRows } = await runWebappPgText<HistoryRow>(
-        `SELECT * FROM online_intake_status_history WHERE request_id = $1 ORDER BY changed_at`,
-        [id],
+        `SELECT * FROM online_intake_status_history WHERE request_id = $1${childOrgWhere} ORDER BY changed_at`,
+        childParams,
       );
 
       return {
@@ -287,13 +329,16 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
     },
 
     async getByIdForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null> {
+      const reqParams: unknown[] = [id];
+      const reqPrincipal = principalWhereClause("r.organization_id", reqParams, 2);
+      const reqOrgWhere = reqPrincipal.clause ? ` AND ${reqPrincipal.clause}` : "";
       const { rows: reqRows } = await runWebappPgText<RequestRowWithIdentity>(
         `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone,
                 COALESCE(pu.last_name, '') AS last_name, COALESCE(pu.first_name, '') AS first_name
          FROM online_intake_requests r
          LEFT JOIN platform_users pu ON pu.id = r.user_id
-         WHERE r.id = $1`,
-        [id],
+         WHERE r.id = $1${reqOrgWhere}`,
+        reqParams,
       );
       if (!reqRows[0]) return null;
       const reqRow = reqRows[0];
@@ -302,18 +347,21 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const patientPhone = reqRow.patient_phone;
       const lastName = reqRow.last_name;
       const firstName = reqRow.first_name;
+      const childParams: unknown[] = [id];
+      const childPrincipal = principalWhereClause("organization_id", childParams, 2);
+      const childOrgWhere = childPrincipal.clause ? ` AND ${childPrincipal.clause}` : "";
 
       const { rows: ansRows } = await runWebappPgText<AnswerRow>(
-        `SELECT * FROM online_intake_answers WHERE request_id = $1 ORDER BY ordinal`,
-        [id],
+        `SELECT * FROM online_intake_answers WHERE request_id = $1${childOrgWhere} ORDER BY ordinal`,
+        childParams,
       );
       const { rows: attRows } = await runWebappPgText<AttachmentRow>(
-        `SELECT * FROM online_intake_attachments WHERE request_id = $1 ORDER BY created_at`,
-        [id],
+        `SELECT * FROM online_intake_attachments WHERE request_id = $1${childOrgWhere} ORDER BY created_at`,
+        childParams,
       );
       const { rows: histRows } = await runWebappPgText<HistoryRow>(
-        `SELECT * FROM online_intake_status_history WHERE request_id = $1 ORDER BY changed_at`,
-        [id],
+        `SELECT * FROM online_intake_status_history WHERE request_id = $1${childOrgWhere} ORDER BY changed_at`,
+        childParams,
       );
 
       return {
@@ -344,6 +392,11 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       if (query.status) {
         conditions.push(`status = $${idx++}`);
         params.push(query.status);
+      }
+      const principal = principalWhereClause("organization_id", params, idx);
+      if (principal.clause) {
+        conditions.push(principal.clause);
+        idx = principal.nextIdx;
       }
 
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -385,6 +438,11 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         conditions.push(`r.status = $${idx++}`);
         params.push(query.status);
       }
+      const principal = principalWhereClause("r.organization_id", params, idx);
+      if (principal.clause) {
+        conditions.push(principal.clause);
+        idx = principal.nextIdx;
+      }
 
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const limit = query.limit ?? 20;
@@ -420,10 +478,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
     async changeStatus(input: ChangeIntakeStatusInput): Promise<IntakeRequest> {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-
+      return withPoolTransaction(pool, async (client) => {
         const { rows: cur } = await runIntakePgText<RequestRow>(
           client,
           `SELECT * FROM online_intake_requests WHERE id = $1 FOR UPDATE`,
@@ -431,25 +486,27 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         );
         if (!cur[0]) throw Object.assign(new Error("not_found"), { code: "NOT_FOUND" });
 
+        const organizationId = currentWriteOrganizationId(cur[0].organization_id);
         const fromStatus = cur[0].status;
 
         const { rows } = await runIntakePgText<RequestRow>(
           client,
           `UPDATE online_intake_requests
-           SET status = $1, updated_at = now()
-           WHERE id = $2
+           SET organization_id = $1, status = $2, updated_at = now()
+           WHERE id = $3
            RETURNING *`,
-          [input.toStatus, input.requestId],
+          [organizationId, input.toStatus, input.requestId],
         );
 
         await runIntakePgText(
           client,
           `INSERT INTO online_intake_status_history
-             (id, request_id, from_status, to_status, changed_by, note)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+             (id, request_id, organization_id, from_status, to_status, changed_by, note)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             randomUUID(),
             input.requestId,
+            organizationId,
             fromStatus,
             input.toStatus,
             input.changedBy ?? null,
@@ -457,22 +514,18 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           ],
         );
 
-        await client.query("COMMIT");
         return mapRequest(rows[0]);
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async getDoctorStats(days: number): Promise<IntakeDoctorStats> {
       const db = getDrizzle();
+      const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
       const result = await db.execute<{ status: string; cnt: string }>(sql`
         SELECT status, COUNT(*) AS cnt
         FROM online_intake_requests
         WHERE created_at >= NOW() - (${String(days)} || ' days')::interval
+          AND (${principalOrganizationId ?? null}::uuid IS NULL OR organization_id = ${principalOrganizationId}::uuid)
         GROUP BY status
       `);
       const rows = result.rows as { status: string; cnt: string }[];

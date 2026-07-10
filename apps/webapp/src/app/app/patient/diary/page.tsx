@@ -17,7 +17,7 @@ import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
 import { buildDiaryPlanReminderStrip } from "@/modules/patient-diary/buildDiaryPlanReminderStrip";
-import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
 import { PatientDiaryAuthenticatedMain } from "./PatientDiaryAuthenticatedMain";
 
 type PageProps = {

@@ -1,11 +1,13 @@
 import { sql } from "drizzle-orm";
-import { check, index, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, foreignKey, index, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { contentPages } from "./schema";
+import { beOrganizations } from "./bookingEngine";
 
 export const patientPracticeCompletions = pgTable(
   "patient_practice_completions",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     userId: uuid("user_id").notNull(),
     contentPageId: uuid("content_page_id")
       .notNull()
@@ -16,6 +18,10 @@ export const patientPracticeCompletions = pgTable(
     notes: text("notes").default("").notNull(),
   },
   (table) => [
+    index("idx_patient_practice_completions_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_ppc_user_completed_desc").using(
       "btree",
       table.userId.asc().nullsLast().op("uuid_ops"),
@@ -26,6 +32,11 @@ export const patientPracticeCompletions = pgTable(
       table.userId.asc().nullsLast().op("uuid_ops"),
       table.contentPageId.asc().nullsLast().op("uuid_ops"),
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "patient_practice_completions_organization_id_fkey",
+    }).onDelete("cascade"),
     check("ppc_source_check", sql`source = ANY (ARRAY['home'::text, 'reminder'::text, 'section_page'::text, 'daily_warmup'::text])`),
     check("ppc_feeling_check", sql`(feeling IS NULL) OR ((feeling >= 1) AND (feeling <= 5))`),
   ],

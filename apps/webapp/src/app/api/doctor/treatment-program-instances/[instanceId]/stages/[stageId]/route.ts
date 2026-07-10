@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 const patchBodySchema = z
@@ -47,11 +47,9 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ instanceId: string; stageId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, stageId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
@@ -67,7 +65,7 @@ export async function PATCH(
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!inst0) {
+    if (!inst0 || inst0.organizationId !== gate.ctx.organizationId) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
@@ -79,13 +77,16 @@ export async function PATCH(
     let detail = inst0;
 
     if (d.status !== undefined) {
-      detail = await deps.treatmentProgramProgress.doctorSetStageStatus({
-        instanceId,
-        stageId,
-        status: d.status,
-        reason: d.reason,
-        doctorUserId: session.user.userId,
-      });
+      const status = d.status;
+      detail = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.treatmentProgramProgress.doctorSetStageStatus({
+          instanceId,
+          stageId,
+          status,
+          reason: d.reason,
+          doctorUserId: session.user.userId,
+        }),
+      );
     }
 
     const hasMeta =
@@ -97,19 +98,21 @@ export async function PATCH(
       d.expectedDurationText !== undefined;
 
     if (hasMeta) {
-      detail = await deps.treatmentProgramInstance.doctorUpdateInstanceStageMetadata({
-        instanceId,
-        stageId,
-        actorId: session.user.userId,
-        patch: {
-          ...(d.title !== undefined ? { title: d.title } : {}),
-          ...(d.description !== undefined ? { description: d.description } : {}),
-          ...(d.goals !== undefined ? { goals: d.goals } : {}),
-          ...(d.objectives !== undefined ? { objectives: d.objectives } : {}),
-          ...(d.expectedDurationDays !== undefined ? { expectedDurationDays: d.expectedDurationDays } : {}),
-          ...(d.expectedDurationText !== undefined ? { expectedDurationText: d.expectedDurationText } : {}),
-        },
-      });
+      detail = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.treatmentProgramInstance.doctorUpdateInstanceStageMetadata({
+          instanceId,
+          stageId,
+          actorId: session.user.userId,
+          patch: {
+            ...(d.title !== undefined ? { title: d.title } : {}),
+            ...(d.description !== undefined ? { description: d.description } : {}),
+            ...(d.goals !== undefined ? { goals: d.goals } : {}),
+            ...(d.objectives !== undefined ? { objectives: d.objectives } : {}),
+            ...(d.expectedDurationDays !== undefined ? { expectedDurationDays: d.expectedDurationDays } : {}),
+            ...(d.expectedDurationText !== undefined ? { expectedDurationText: d.expectedDurationText } : {}),
+          },
+        }),
+      );
     }
 
     return NextResponse.json({ ok: true, item: detail });
@@ -124,11 +127,9 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ instanceId: string; stageId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, stageId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
@@ -138,18 +139,20 @@ export async function DELETE(
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!inst0) {
+    if (!inst0 || inst0.organizationId !== gate.ctx.organizationId) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
     if (!identity) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
-    await deps.treatmentProgramInstance.doctorRemoveStage({
-      instanceId,
-      stageId,
-      actorId: session.user.userId,
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.doctorRemoveStage({
+        instanceId,
+        stageId,
+        actorId: session.user.userId,
+      }),
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

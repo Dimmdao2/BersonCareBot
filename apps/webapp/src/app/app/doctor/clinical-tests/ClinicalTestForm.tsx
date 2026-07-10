@@ -470,20 +470,23 @@ export function ClinicalTestForm({
 
             <div className="flex flex-col gap-3">
               <Label htmlFor="ct-asm">Вид оценки</Label>
-              <select
-                id="ct-asm"
-                name="assessmentKind"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              <Select
                 value={values.assessmentKind}
-                onChange={(e) => setValues((v) => ({ ...v, assessmentKind: e.target.value }))}
+                onValueChange={(v) => setValues((prev) => ({ ...prev, assessmentKind: v ?? "" }))}
+                name="assessmentKind"
               >
-                <option value="">Не выбран</option>
-                {assessmentKindSelectOptions.map((o) => (
-                  <option key={o.code} value={o.code}>
-                    {o.title}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="ct-asm" className="w-full">
+                  <SelectValue placeholder="Не выбран" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Не выбран</SelectItem>
+                  {assessmentKindSelectOptions.map((o) => (
+                    <SelectItem key={o.code} value={o.code}>
+                      {o.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {assessmentKindSelectOptions.some((o) => o.title.includes("(не в справочнике)")) ? (
                 <p className="text-xs text-muted-foreground">
                   Код вида оценки не найден в справочнике. Можно сохранить остальные поля без смены этого значения; чтобы записать другой вид — выберите код из списка.

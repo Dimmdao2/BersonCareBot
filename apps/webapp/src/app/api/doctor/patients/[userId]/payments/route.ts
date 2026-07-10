@@ -12,7 +12,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const postBodySchema = z.object({
@@ -27,8 +28,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -36,7 +37,16 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const { payments, totalPaidMinor } = await deps.patientPayments.listPaymentsWithSummary(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const { payments, totalPaidMinor } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientPayments.listPaymentsWithSummary(identity.userId),
+  );
 
   return NextResponse.json({ ok: true, payments, totalPaidMinor });
 }
@@ -45,8 +55,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -70,15 +80,25 @@ export async function POST(
   const b = parsed.data;
 
   const deps = buildAppDeps();
-  const payment = await deps.patientPayments.addCashPayment({
-    patientUserId: userId,
-    amountMinor: b.amountMinor,
-    currency: b.currency,
-    comment: b.comment ?? null,
-    service: b.service ?? null,
-    visitId: b.visitId ?? null,
-    createdBy: auth.session.user.userId,
-  });
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const payment = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.payments.cash.create", () =>
+    deps.patientPayments.addCashPayment({
+      organizationId: gate.ctx.organizationId,
+      patientUserId: identity.userId,
+      amountMinor: b.amountMinor,
+      currency: b.currency,
+      comment: b.comment ?? null,
+      service: b.service ?? null,
+      visitId: b.visitId ?? null,
+      createdBy: gate.ctx.session.user.userId,
+    }),
+  );
 
   return NextResponse.json({ ok: true, payment }, { status: 201 });
 }

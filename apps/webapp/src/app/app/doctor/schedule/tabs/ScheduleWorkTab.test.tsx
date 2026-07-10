@@ -35,6 +35,7 @@ type MockBranch = {
   id: string;
   title: string;
   shortTitle: string | null;
+  color: string | null;
   isActive: boolean;
   cityCode: string;
   address: null;
@@ -43,8 +44,8 @@ type MockBranch = {
 };
 
 const BRANCHES: MockBranch[] = [
-  { id: "branch-spb", title: "Санкт-Петербург", shortTitle: "СПб", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
-  { id: "branch-msk", title: "Москва", shortTitle: "Мск", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
+  { id: "branch-spb", title: "Санкт-Петербург", shortTitle: "СПб", color: "#2563eb", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
+  { id: "branch-msk", title: "Москва", shortTitle: "Мск", color: "#dc2626", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
 ];
 
 const WORKING_DAY_ROWS = [
@@ -64,6 +65,17 @@ const WORKING_DAY_ROWS = [
     endMinute: 1080,
     breaks: [],
     isClosed: false,
+    branchId: "branch-msk",
+  },
+];
+
+const WORKING_HOUR_ROWS = [
+  {
+    id: "wh-1",
+    weekday: 4,
+    startMinute: 480,
+    endMinute: 720,
+    isActive: true,
     branchId: "branch-msk",
   },
 ];
@@ -103,6 +115,7 @@ async function renderWorkTab(deepLinkParams: Record<string, string> = {}) {
 
   const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
   (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+    if (url.includes("working-hours")) return { ok: true, rows: WORKING_HOUR_ROWS };
     if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
     if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
     return { ok: true };
@@ -179,7 +192,33 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
-  it("keeps selected days when clicking a branch filter button", async () => {
+  it("clears selected days when clicking the empty work-tab background", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("schedule-work-tab"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not clear selected days when clicking hours-panel controls", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId("panel-start"));
+
+    expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+  });
+
+  it("clears selected days when clicking a branch filter button", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
@@ -190,8 +229,63 @@ describe("ScheduleWorkTab", () => {
     fireEvent.click(screen.getByTestId("branch-btn-branch-msk"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
-      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+      expect(screen.getByTestId("branch-btn-branch-msk")).toHaveStyle("--branch-fg: #dc2626");
+    });
+  });
+
+  it("prefills the hours panel from a selected manual day schedule", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("11:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("19:00");
+      expect(screen.getByTestId("panel-branch")).toHaveTextContent("Санкт-Петербург");
+    });
+  });
+
+  it("prefills the hours panel from the first selected day when selecting several days", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-03"));
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"), { ctrlKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("10:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("18:00");
+      expect(screen.getByTestId("panel-branch")).toHaveTextContent("Москва");
+    });
+  });
+
+  it("prefills the hours panel from an effective weekday template when the selected day has no manual row", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-04"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("08:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("12:00");
+      expect(screen.getByTestId("panel-branch")).toHaveTextContent("Москва");
+    });
+  });
+
+  it("does not keep stale panel values when the selected day has no schedule", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-02"));
+    await waitFor(() => expect(screen.getByTestId("panel-start")).toHaveValue("11:00"));
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-05"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveValue("09:00");
+      expect(screen.getByTestId("panel-end")).toHaveValue("18:00");
     });
   });
 
@@ -213,14 +307,14 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => expect(screen.getByTestId("branch-btn-branch-msk")).toBeInTheDocument());
 
     const mskButton = screen.getByTestId("branch-btn-branch-msk");
-    expect(mskButton.className).toContain("text-green-700");
-    expect(mskButton.className).toContain("border-green-600/30");
+    expect(mskButton).toHaveStyle("--branch-fg: #dc2626");
+    expect(mskButton.className).toContain("text-[color:var(--branch-fg)]");
 
     fireEvent.click(mskButton);
 
     await waitFor(() => {
-      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-green-500/10");
-      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("border-green-600/35");
+      expect(screen.getByTestId("branch-btn-branch-msk").className).toContain("bg-[color:var(--branch-bg)]");
+      expect(screen.getByTestId("branch-btn-branch-msk")).toHaveStyle("--branch-fg: #dc2626");
     });
   });
 
@@ -237,8 +331,8 @@ describe("ScheduleWorkTab", () => {
   it("colors scheduled day cells by branch palette", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => {
-      expect(screen.getByTestId("day-cell-2026-06-02").className).toContain("bg-blue-500/10");
-      expect(screen.getByTestId("day-cell-2026-06-03").className).toContain("bg-green-500/10");
+      expect(screen.getByTestId("day-cell-2026-06-02")).toHaveStyle("--branch-fg: #2563eb");
+      expect(screen.getByTestId("day-cell-2026-06-03")).toHaveStyle("--branch-fg: #dc2626");
     });
   });
 

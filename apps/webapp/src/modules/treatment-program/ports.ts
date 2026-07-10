@@ -439,6 +439,7 @@ export type ProgramActionLogPort = {
     windowEndUtcExclusiveIso: string;
     /** IANA, уже проверенная вызывающим кодом (Luxon `isValid`). */
     displayIana: string;
+    organizationId?: string;
   }): Promise<string[]>;
   /**
    * Пары (локальная дата в {@link params.displayIana}, id элемента этапа) с хотя бы одной отметкой `done`
@@ -460,6 +461,7 @@ export type ProgramActionLogPort = {
     windowStartUtcIso: string;
     windowEndUtcExclusiveIso: string;
     displayIana: string;
+    organizationId?: string;
   }): Promise<Array<{ localDate: string; itemId: string; instanceId: string }>>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;

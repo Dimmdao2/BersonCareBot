@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() => vi.fn());
@@ -70,5 +71,12 @@ describe("createPgClinicalTestsPort usage summary", () => {
     expect(sql).toContain("item_type = 'clinical_test'");
     expect(sql).toContain("test_results");
     expect(sql).toContain("t.status = 'archived'");
+  });
+
+  it("catalog writes use the Drizzle mutation transaction chokepoint", () => {
+    const src = readFileSync(new URL("./pgClinicalTests.ts", import.meta.url), "utf8");
+    expect(src).toContain("runDrizzleMutationTransaction");
+    expect(src.match(/runDrizzleMutationTransaction/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(src).not.toContain("db.transaction");
   });
 });

@@ -237,4 +237,55 @@ describe('mergeIntegratorUsers', () => {
   it('exposes MergeIntegratorUsersError for alias rows', () => {
     expect(new MergeIntegratorUsersError('ALREADY_MERGED_ALIAS', 'x').code).toBe('ALREADY_MERGED_ALIAS');
   });
+
+  it('T0.4: re-derives organization_id from the winner on every SCOPED re-parent, never leaving the loser stale org', async () => {
+    const { db, sql, queryImpl } = createRecordingDb();
+    queryImpl.mockImplementation(async (q: string) => {
+      if (q.includes('ORDER BY id ASC FOR UPDATE')) {
+        return { rows: [{ id: '5' }, { id: '20' }], rowCount: 2 };
+      }
+      if (q.includes('merged_into_user_id') && q.includes('FROM users WHERE id IN')) {
+        return {
+          rows: [
+            { id: '20', merged_into_user_id: null },
+            { id: '5', merged_into_user_id: null },
+          ],
+          rowCount: 2,
+        };
+      }
+      if (q.includes('FROM identities li') && q.includes('JOIN identities wi')) {
+        return {
+          rows: [{ loser_identity_id: '77', winner_identity_id: '88' }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await mergeIntegratorUsers(db, '20', '5');
+
+    const winnerOrgExpr = 'public.platform_users platform_user';
+    const reparentStatements = [
+      { prefix: 'UPDATE message_drafts SET identity_id', table: 'message_drafts' },
+      { prefix: 'UPDATE conversations SET user_identity_id', table: 'conversations' },
+      { prefix: 'UPDATE user_questions SET user_identity_id', table: 'user_questions' },
+      { prefix: 'UPDATE contacts SET user_id', table: 'contacts' },
+      { prefix: 'UPDATE user_reminder_rules SET user_id', table: 'user_reminder_rules' },
+      { prefix: 'UPDATE content_access_grants SET user_id', table: 'content_access_grants' },
+      { prefix: 'UPDATE user_subscriptions SET user_id', table: 'user_subscriptions' },
+      { prefix: 'UPDATE mailing_logs SET user_id', table: 'mailing_logs' },
+    ];
+
+    for (const { prefix, table } of reparentStatements) {
+      const statement = sql.find((s) => s.startsWith(prefix));
+      expect(statement, `${table} reparent statement should exist`).toBeDefined();
+      expect(statement, `${table} should stamp organization_id from the winner`).toContain('organization_id');
+      expect(statement, `${table} org derivation should reference the winner's platform user`).toContain(
+        winnerOrgExpr,
+      );
+      expect(statement, `${table} org derivation should key off winner id 20`).toContain(
+        'integrator_user_id = 20',
+      );
+    }
+  });
 });

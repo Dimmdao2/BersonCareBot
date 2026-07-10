@@ -3,6 +3,11 @@ import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
 import type { PatientBookingRecord } from "./types";
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from "./canonicalCreate";
 
+// sendBookingConfirmationEmail — best-effort side-effect, тестируется отдельно (#81).
+vi.mock("./sendBookingConfirmationEmail", () => ({
+  sendBookingConfirmationEmail: vi.fn().mockResolvedValue(false),
+}));
+
 const bookingsPort = {
   createPending: vi.fn(),
   markConfirmed: vi.fn(),
@@ -259,6 +264,7 @@ describe("createBookingOnCanonicalEngine", () => {
         title: "Приём",
         description: null,
         durationMinutes: 30,
+        breakAfterMinutes: 0,
         priceMinor: 0,
         isActive: true,
         sortOrder: 0,
@@ -564,6 +570,7 @@ describe("createBookingOnCanonicalEngine", () => {
         title: "Приём",
         description: null,
         durationMinutes: 60,
+        breakAfterMinutes: 0,
         priceMinor: 0,
         isActive: true,
         sortOrder: 0,
@@ -659,6 +666,7 @@ describe("createBookingOnCanonicalEngine", () => {
         title: "Приём",
         description: null,
         durationMinutes: 60,
+        breakAfterMinutes: 0,
         priceMinor: 0,
         isActive: true,
         sortOrder: 0,
@@ -754,6 +762,7 @@ describe("createBookingOnCanonicalEngine", () => {
         title: "Приём",
         description: null,
         durationMinutes: 60,
+        breakAfterMinutes: 0,
         priceMinor: 0,
         isActive: true,
         sortOrder: 0,
@@ -893,6 +902,7 @@ describe("createBookingOnCanonicalEngine", () => {
         title: "Приём",
         description: null,
         durationMinutes: 60,
+        breakAfterMinutes: 0,
         priceMinor: 0,
         isActive: true,
         sortOrder: 0,

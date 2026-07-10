@@ -1,11 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   appendSqlExcludeUserIds,
   drizzleExcludeUserIdColumn,
+  loadAnalyticsAudienceContext,
   readAnalyticsIncludeTestAccounts,
   resetAnalyticsIncludeTestAccountsCacheForTests,
-  resolveAnalyticsExcludedUserIds,
 } from "./analyticsAudience";
 import { platformUsers } from "../../../db/schema/schema";
 
@@ -57,106 +56,49 @@ describe("analyticsAudience", () => {
     });
   });
 
-  describe("resolveAnalyticsExcludedUserIds", () => {
-    function createMockDb(
-      handlers: Array<
-        | (() => Promise<Array<{ id: string }>>)
-        | (() => { limit: () => Promise<Array<{ valueJson?: unknown }>> })
-      >,
-    ): ReturnType<typeof getDrizzle> {
-      let call = 0;
+  it("loads excluded users through an injected app-layer dependency", async () => {
+    const getSetting = vi.fn(async (key: "dev_mode" | "test_account_identifiers") => {
+      if (key === "dev_mode") {
+        return {
+          key,
+          scope: "admin" as const,
+          valueJson: { value: false },
+          updatedAt: "",
+          updatedBy: null,
+        };
+      }
       return {
-        select: vi.fn(() => ({
-          from: vi.fn(() => ({
-            where: vi.fn(() => {
-              const handler = handlers[call++];
-              if (!handler) {
-                return Promise.resolve([]);
-              }
-              const result = handler();
-              if (result instanceof Promise) {
-                return result;
-              }
-              return result;
-            }),
-          })),
-        })),
-      } as unknown as ReturnType<typeof getDrizzle>;
-    }
-
-    it("returns staff ids only when includeTestAccounts is true (product path)", async () => {
-      const db = createMockDb([
-        async () => [{ id: "staff-admin" }, { id: "staff-doctor" }],
-        async () => [],
-      ]);
-      await expect(
-        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: true, excludeStaffRoles: true }),
-      ).resolves.toEqual(expect.arrayContaining(["staff-admin", "staff-doctor"]));
+        key,
+        scope: "admin" as const,
+        valueJson: {
+          value: {
+            phones: ["+79001234567"],
+            telegramIds: ["tg-1"],
+            maxIds: ["max-1"],
+          },
+        },
+        updatedAt: "",
+        updatedBy: null,
+      };
     });
+    const loadExcludedUserIds = vi.fn(async () => ["excluded-user"]);
 
-    it("returns empty list when includeTestAccounts is true and staff roles are not excluded", async () => {
-      const db = createMockDb([]);
-      await expect(
-        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: true, excludeStaffRoles: false }),
-      ).resolves.toEqual([]);
-    });
+    await expect(
+      loadAnalyticsAudienceContext({
+        systemSettings: { getSetting },
+        loadExcludedUserIds,
+        excludeStaffRoles: false,
+      }),
+    ).resolves.toEqual({ includeTestAccounts: false, excludedUserIds: ["excluded-user"] });
 
-    it("always excludes the analytics placeholder phone", async () => {
-      const db = createMockDb([async () => [{ id: "placeholder-phone-user" }]]);
-      await expect(
-        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: true, excludeStaffRoles: false }),
-      ).resolves.toEqual(["placeholder-phone-user"]);
-    });
-
-    it("merges staff and test account ids when flags off and identifiers configured", async () => {
-      const db = createMockDb([
-        async () => [{ id: "staff-1" }],
-        async () => [{ id: "placeholder-phone-user" }],
-        () => ({
-          limit: async () => [
-            {
-              valueJson: {
-                value: {
-                  phones: ["+79001234567"],
-                  telegramIds: ["tg-1"],
-                  maxIds: ["max-1"],
-                },
-              },
-            },
-          ],
-        }),
-        async () => [{ id: "phone-user" }],
-        async () => [{ id: "tg-user" }],
-        async () => [{ id: "max-user" }],
-      ]);
-
-      await expect(
-        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: false, excludeStaffRoles: true }),
-      ).resolves.toEqual(
-        expect.arrayContaining(["staff-1", "placeholder-phone-user", "phone-user", "tg-user", "max-user"]),
-      );
-    });
-
-    it("skips staff lookup when excludeStaffRoles is false", async () => {
-      const db = createMockDb([
-        async () => [],
-        () => ({
-          limit: async () => [
-            {
-              valueJson: {
-                value: { phones: ["+79009998877"], telegramIds: [], maxIds: [] },
-              },
-            },
-          ],
-        }),
-        async () => [{ id: "phone-only-user" }],
-        async () => [],
-        async () => [],
-      ]);
-
-      await expect(
-        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: false, excludeStaffRoles: false }),
-      ).resolves.toEqual(["phone-only-user"]);
+    expect(loadExcludedUserIds).toHaveBeenCalledWith({
+      includeTestAccounts: false,
+      excludeStaffRoles: false,
+      testAccountIdentifiers: {
+        phones: ["+79001234567"],
+        telegramIds: ["tg-1"],
+        maxIds: ["max-1"],
+      },
     });
   });
 

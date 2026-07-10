@@ -8,21 +8,17 @@
  * 1 otherwise. `cancelled` is reported explicitly and does not mark degraded.
  */
 import 'dotenv/config';
-import pg from 'pg';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   isProjectionHealthDegraded,
   readProjectionHealthSnapshot,
-  type ProjectionHealthQueryable,
 } from '../db/repos/projectionHealthCore.js';
-
-const { Pool } = pg;
-
-type ProjectionHealthPool = ProjectionHealthQueryable & {
-  end(): Promise<void>;
-};
+import {
+  createProjectionHealthPoolProvider,
+  type ProjectionHealthPool,
+} from './projectionHealthPoolProvider.js';
 
 type ProjectionHealthCliEnv = {
   INTEGRATOR_DATABASE_URL?: string;
@@ -116,7 +112,7 @@ export async function runProjectionHealthCli(deps: ProjectionHealthCliDeps = {})
 
   const createPool =
     deps.createPool ??
-    ((connectionString: string): ProjectionHealthPool => new Pool({ connectionString }));
+    ((connectionString: string): ProjectionHealthPool => createProjectionHealthPoolProvider(connectionString));
   const pool = createPool(url);
   try {
     const snapshot = await readProjectionHealthSnapshot(pool);

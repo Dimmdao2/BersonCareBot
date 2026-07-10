@@ -543,11 +543,14 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     },
 
     async create(input: CreateTemplateInput, createdBy: string | null): Promise<Template> {
-      const r = await runWebappPgText<TemplateHeaderDbRow>(
-        `INSERT INTO lfk_complex_templates (title, description, created_by, updated_at)
-         VALUES ($1, $2, $3, now())
-         RETURNING id, title, description, status, created_by, created_at, updated_at`,
-        [input.title, input.description ?? null, createdBy]
+      const r = await runWebappTransaction((tx) =>
+        txPgText<TemplateHeaderDbRow>(
+          tx,
+          `INSERT INTO lfk_complex_templates (title, description, created_by, updated_at)
+           VALUES ($1, $2, $3, now())
+           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+          [input.title, input.description ?? null, createdBy],
+        ),
       );
       return mapTemplateRow(r.rows[0], []);
     },
@@ -565,10 +568,13 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         vals.push(input.description);
       }
       vals.push(id);
-      const r = await runWebappPgText<TemplateHeaderDbRow>(
-        `UPDATE lfk_complex_templates SET ${sets.join(", ")} WHERE id = $${n}
-         RETURNING id, title, description, status, created_by, created_at, updated_at`,
-        vals
+      const r = await runWebappTransaction((tx) =>
+        txPgText<TemplateHeaderDbRow>(
+          tx,
+          `UPDATE lfk_complex_templates SET ${sets.join(", ")} WHERE id = $${n}
+           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+          vals,
+        ),
       );
       if (!r.rows[0]) return null;
       return this.getById(id);
@@ -602,10 +608,13 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     },
 
     async setStatus(id: string, status: TemplateStatus): Promise<Template | null> {
-      const r = await runWebappPgText<TemplateHeaderDbRow>(
-        `UPDATE lfk_complex_templates SET status = $2, updated_at = now() WHERE id = $1
-         RETURNING id, title, description, status, created_by, created_at, updated_at`,
-        [id, status]
+      const r = await runWebappTransaction((tx) =>
+        txPgText<TemplateHeaderDbRow>(
+          tx,
+          `UPDATE lfk_complex_templates SET status = $2, updated_at = now() WHERE id = $1
+           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+          [id, status],
+        ),
       );
       if (!r.rows[0]) return null;
       return this.getById(id);

@@ -5,6 +5,8 @@ import type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./su
 /** Фильтры для списка клиентов специалиста. */
 export type DoctorClientsFilters = {
   search?: string;
+  /** Selected doctor workspace organization; when present, patient list and org-backed badges are scoped to it. */
+  organizationId?: string;
   /** Viewer user id for per-doctor read cursors (discussion unread badges). */
   viewerUserId?: string;
   /**
@@ -223,6 +225,14 @@ export type PatientAppointmentItem = {
   location: string | null;
   /** Продолжительность (мин) из payload_json.duration_minutes или null. */
   durationMin: number | null;
+  /**
+   * Запись списана с абонемента: be_appointments.package_usage_ref IS NOT NULL.
+   * `patientPackageId` is resolved through the same native / Rubitime mapping path when available.
+   */
+  isPackage?: boolean | null;
+  patientPackageId?: string | null;
+  packageTitle?: string | null;
+  packageDisplayNumber?: number | null;
 };
 
 export type DoctorClientsPort = {
@@ -231,18 +241,22 @@ export type DoctorClientsPort = {
     audience?: { excludedUserIds?: string[] },
   ): Promise<ClientListItem[]>;
   /** История записей пациента по userId (прошедшие + предстоящие), новые сверху. */
-  listPatientAppointments(userId: string): Promise<PatientAppointmentItem[]>;
+  listPatientAppointments(userId: string, organizationId?: string): Promise<PatientAppointmentItem[]>;
   /**
    * Агрегат шапки карточки пациента (для нового раздела «Пациенты»).
    * Возвращает null, если пользователь не найден или не является клиентом.
    */
   getPatientCardHeader(userId: string): Promise<PatientCardHeader | null>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
-  getClientContactBreakdown(audience?: { excludedUserIds?: string[] }): Promise<ClientContactBreakdown>;
+  getClientContactBreakdown(audience?: { excludedUserIds?: string[]; organizationId?: string }): Promise<ClientContactBreakdown>;
+  /** Lightweight role lookup for routes that must distinguish missing users from non-clients. */
+  getPlatformUserRole(userId: string): Promise<string | null>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
+  /** Patient identity visible inside a concrete organization workspace. */
+  getClientIdentityForOrganization(userId: string, organizationId: string): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
-  getDashboardPatientMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardPatientMetrics>;
+  getDashboardPatientMetrics(audience?: { excludedUserIds?: string[]; organizationId?: string }): Promise<DoctorDashboardPatientMetrics>;
   /** Блокировка исходящих сообщений пациента (проверка в patient messaging). */
   isClientMessagingBlocked(userId: string): Promise<boolean>;
   /** Врач/админ: установить блокировку подписчика. */

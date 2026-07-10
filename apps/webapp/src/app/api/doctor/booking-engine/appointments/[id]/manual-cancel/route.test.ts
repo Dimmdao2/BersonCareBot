@@ -1,8 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const staffCancelMock = vi.hoisted(() => vi.fn());
 const runStaffManualCancelAfterCanonicalMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../../../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
@@ -10,6 +25,10 @@ vi.mock("../../../_requireDoctorBookingEngine", () => ({
 
 vi.mock("@/app-layer/booking/staffManualCancelAfterCanonical", () => ({
   runStaffManualCancelAfterCanonical: runStaffManualCancelAfterCanonicalMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/modules/integrator/bookingM2mApi", () => ({
@@ -32,6 +51,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { POST } from "./route";
 
 describe("POST manual-cancel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    principalState.inside = false;
+  });
+
   it("returns ok with partial failure flags from after-canonical step", async () => {
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
@@ -41,14 +65,20 @@ describe("POST manual-cancel", () => {
         service: { getRubitimeAppointmentId: vi.fn() },
       },
     });
-    staffCancelMock.mockResolvedValue({
-      ok: true,
-      appointment: { id: "appt-1" },
-      cancelPolicy: { notifyPatient: true, notifyStaff: true },
+    staffCancelMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return {
+        ok: true,
+        appointment: { id: "appt-1" },
+        cancelPolicy: { notifyPatient: true, notifyStaff: true },
+      };
     });
-    runStaffManualCancelAfterCanonicalMock.mockResolvedValue({
-      rubitimeMirrorFailed: true,
-      paymentOutcomeFailed: true,
+    runStaffManualCancelAfterCanonicalMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+      return {
+        rubitimeMirrorFailed: true,
+        paymentOutcomeFailed: true,
+      };
     });
 
     const res = await POST(
@@ -68,6 +98,11 @@ describe("POST manual-cancel", () => {
     expect(json.ok).toBe(true);
     expect(json.rubitimeMirrorFailed).toBe(true);
     expect(json.paymentOutcomeFailed).toBe(true);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.appointments.manual-cancel",
+      expect.any(Function),
+    );
   });
 
   it("returns ok when lifecycle accepts cancel", async () => {
@@ -79,10 +114,13 @@ describe("POST manual-cancel", () => {
         session: { user: { userId: "u1", role: "doctor" } },
       },
     });
-    staffCancelMock.mockResolvedValue({
-      ok: true,
-      appointment: { id: "appt-1" },
-      cancelPolicy: { notifyPatient: true, notifyStaff: true },
+    staffCancelMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return {
+        ok: true,
+        appointment: { id: "appt-1" },
+        cancelPolicy: { notifyPatient: true, notifyStaff: true },
+      };
     });
 
     const res = await POST(

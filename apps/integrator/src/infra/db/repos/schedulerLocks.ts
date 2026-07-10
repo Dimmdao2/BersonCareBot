@@ -1,5 +1,6 @@
 import { db } from '../client.js';
 import { pgSessionAdvisoryUnlock, pgTrySessionAdvisoryLock } from '../pgAdvisoryLock.js';
+import { checkoutIntegratorPoolClient } from '../withClient.js';
 import { logger } from '../../observability/logger.js';
 
 export type DbLockHandle = {
@@ -7,7 +8,7 @@ export type DbLockHandle = {
 };
 
 export async function tryAcquireSchedulerLock(key: number): Promise<DbLockHandle | null> {
-  const client = await db.connect();
+  const client = await checkoutIntegratorPoolClient(db);
   try {
     const locked = await pgTrySessionAdvisoryLock(client, key);
     if (!locked) {

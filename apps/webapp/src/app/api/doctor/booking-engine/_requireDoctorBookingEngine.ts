@@ -1,30 +1,26 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext, type DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
 
 type BookingEngineService = NonNullable<ReturnType<typeof buildAppDeps>["bookingEngine"]>;
 
 export type DoctorBookingEngineContext = {
-  session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
+  session: DoctorWorkspaceAccessContext["session"];
   service: BookingEngineService;
   organizationId: string;
+  membershipId: string;
+  membershipRole: DoctorWorkspaceAccessContext["membershipRole"];
+  specialistId: string | null;
+  canManageOrganization: boolean;
+  canManageAllSpecialists: boolean;
 };
 
 export async function requireDoctorBookingEngine(): Promise<
   | { ok: true; ctx: DoctorBookingEngineContext }
   | { ok: false; response: NextResponse }
 > {
-  const session = await getCurrentSession();
-  if (!session) {
-    return {
-      ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
-    };
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate;
   const service = buildAppDeps().bookingEngine;
   if (!service) {
     return {
@@ -32,6 +28,17 @@ export async function requireDoctorBookingEngine(): Promise<
       response: NextResponse.json({ ok: false, error: "booking_engine_unavailable" }, { status: 503 }),
     };
   }
-  const organizationId = await service.organization.getDefaultOrganizationId();
-  return { ok: true, ctx: { session, service, organizationId } };
+  return {
+    ok: true,
+    ctx: {
+      session: gate.ctx.session,
+      service,
+      organizationId: gate.ctx.organizationId,
+      membershipId: gate.ctx.membershipId,
+      membershipRole: gate.ctx.membershipRole,
+      specialistId: gate.ctx.specialistId,
+      canManageOrganization: gate.ctx.canManageOrganization,
+      canManageAllSpecialists: gate.ctx.canManageAllSpecialists,
+    },
+  };
 }

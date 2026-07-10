@@ -6,23 +6,18 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 const bodySchema = z.object({
   text: z.string().min(1).max(4000),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(raw);
@@ -32,20 +27,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   const intakeService = getOnlineIntakeService();
-  const intake = await intakeService.getRequestForDoctor(id);
-  if (!intake) {
+  const intake = await withDoctorWorkspacePrincipal(gate.ctx, () => intakeService.getRequestForDoctor(id));
+  if (!intake || intake.organizationId !== gate.ctx.organizationId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
   const deps = buildAppDeps();
-
-  const { conversationId } = await deps.messaging.doctorSupport.ensureConversationForPatient(
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     intake.userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const { conversationId } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.messaging.doctorSupport.ensureConversationForPatient(intake.userId),
   );
 
-  const result = await deps.messaging.doctorSupport.sendAdminReply(
-    conversationId,
-    parsed.data.text,
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.messaging.doctorSupport.sendAdminReply(conversationId, parsed.data.text),
   );
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
@@ -56,12 +57,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // логируем ошибку и возвращаем ok:true. Врач может поменять статус вручную.
   if (intake.status === "new") {
     try {
-      await intakeService.changeStatus({
-        requestId: id,
-        changedBy: session.user.userId,
-        toStatus: "in_review",
-        note: "Автоматически при первом ответе",
-      });
+      await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        intakeService.changeStatus({
+          requestId: id,
+          changedBy: gate.ctx.session.user.userId,
+          toStatus: "in_review",
+          note: "Автоматически при первом ответе",
+        }),
+      );
     } catch (err) {
       console.error("[reply-route] auto-transition new→in_review failed:", err);
     }

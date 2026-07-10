@@ -36,21 +36,10 @@ import type {
   TreatmentProgramInstanceStageStatus,
 } from "@/modules/treatment-program/types";
 import type { StageItemViewerUnreadCount } from "@/modules/program-item-discussion/types";
-import type { MediaPreviewStatus } from "@/modules/media/types";
-
-/**
- * Превью-миниатюра упражнения — первый медиа-элемент из снимка (`snapshot.media[]`).
- * Поля совпадают со снимком элемента программы (`url`/`type`/`previewSmUrl`/…); UI маппит
- * их в канон-миниатюру `ExerciseListCatalogThumb`. `null` — у упражнения нет медиа в снимке.
- */
-export type ExerciseCommentThumbMedia = {
-  url: string;
-  mediaType: "image" | "video" | "gif";
-  previewSmUrl: string | null;
-  previewMdUrl: string | null;
-  previewStatus: MediaPreviewStatus | null;
-  sortOrder: number;
-};
+import {
+  firstSnapshotMedia,
+  type ExerciseCommentThumbMedia,
+} from "./exerciseCommentThumb";
 
 /** Строка упражнения в drill-down правом пейне. */
 export type ExerciseCommentItem = {
@@ -102,36 +91,6 @@ function stageItemTitle(snapshot: Record<string, unknown>): string {
   return "Упражнение";
 }
 
-/**
- * Достаёт первый медиа-элемент из `snapshot.media[]` (по наименьшему sortOrder).
- * Снимок упражнения хранит медиа массивом `{ url, type, previewSmUrl, previewMdUrl, previewStatus, sortOrder }`
- * (см. `pgTreatmentProgramItemSnapshot`). Возвращает null, если медиа нет.
- */
-function firstSnapshotMedia(snapshot: Record<string, unknown>): ExerciseCommentThumbMedia | null {
-  const raw = snapshot.media;
-  if (!Array.isArray(raw)) return null;
-  const entries = raw.filter(
-    (m): m is Record<string, unknown> => !!m && typeof m === "object",
-  );
-  if (entries.length === 0) return null;
-  const sorted = [...entries].sort(
-    (a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0),
-  );
-  const m = sorted[0]!;
-  const url = typeof m.url === "string" ? m.url : null;
-  if (!url) return null;
-  const mediaType = m.type === "video" || m.type === "gif" ? m.type : "image";
-  return {
-    url,
-    mediaType,
-    previewSmUrl: typeof m.previewSmUrl === "string" ? m.previewSmUrl : null,
-    previewMdUrl: typeof m.previewMdUrl === "string" ? m.previewMdUrl : null,
-    previewStatus:
-      typeof m.previewStatus === "string" ? (m.previewStatus as MediaPreviewStatus) : null,
-    sortOrder: typeof m.sortOrder === "number" ? m.sortOrder : 0,
-  };
-}
-
 export type LoadDoctorPatientExercisesWithCommentsDeps = {
   treatmentProgramInstance: {
     listForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
@@ -154,13 +113,16 @@ export type LoadDoctorPatientExercisesWithCommentsDeps = {
  */
 export async function loadDoctorPatientExercisesWithComments(
   deps: LoadDoctorPatientExercisesWithCommentsDeps,
-  context: { patientUserId: string; viewerUserId: string },
+  context: { patientUserId: string; viewerUserId: string; organizationId?: string },
   options?: { includePastPrograms?: boolean },
 ): Promise<PatientExercisesWithCommentsResult | null> {
   const { patientUserId, viewerUserId } = context;
   const includePast = options?.includePastPrograms ?? false;
 
-  const instances = await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
+  const allInstances = await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
+  const instances = context.organizationId
+    ? allInstances.filter((instance) => instance.organizationId === context.organizationId)
+    : allInstances;
   if (instances.length === 0) return null;
 
   // Select which instance(s) to aggregate
@@ -173,6 +135,7 @@ export async function loadDoctorPatientExercisesWithComments(
   if (!targetInstance) return null;
 
   const detail = await deps.treatmentProgramInstance.getInstanceById(targetInstance.id);
+  if (context.organizationId && detail.organizationId !== context.organizationId) return null;
 
   // Collect all exercise stageItems (all stages, all statuses)
   const allExerciseItems = detail.stages.flatMap((stage) =>

@@ -178,14 +178,16 @@ export function PatientCalendarTimezoneSection() {
           <Button type="button" size="sm" disabled={!loaded || saving} onClick={() => void save()}>
             {saving ? "Сохранение…" : "Сохранить пояс"}
           </Button>
-          <button
+          <Button
             type="button"
-            className={cn(patientInlineLinkClass, "text-xs shrink-0 disabled:pointer-events-none disabled:opacity-50")}
+            variant="link"
+            size="sm"
+            className={cn(patientInlineLinkClass, "h-auto min-h-0 p-0 text-xs shrink-0 disabled:pointer-events-none disabled:opacity-50")}
             disabled={!loaded || saving}
             onClick={() => void applyFromBrowser()}
           >
             Определить автоматически
-          </button>
+          </Button>
         </div>
         {msg ? <span className="text-xs text-destructive">{msg}</span> : null}
       </div>

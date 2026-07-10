@@ -12,7 +12,8 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DIAGNOSIS_CLINICAL_STATUS_VALUES } from "@/modules/patient-clinical/ports";
 
@@ -29,8 +30,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; diagnosisId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, diagnosisId } = await params;
   if (!uuidSchema.safeParse(userId).success || !uuidSchema.safeParse(diagnosisId).success) {
@@ -53,13 +54,35 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
-  const ok = await deps.patientClinical.setDiagnosisClinicalStatus({
-    patientUserId: userId,
-    diagnosisId,
-    newStatus: parsed.data.status as (typeof DIAGNOSIS_CLINICAL_STATUS_VALUES)[number],
-    changedBy: auth.session.user.userId,
-    note: parsed.data.note ?? null,
-  });
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
+  let ok: boolean;
+  try {
+    ok = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.clinical.diagnosis-status.update",
+      () =>
+      deps.patientClinical.setDiagnosisClinicalStatus({
+        patientUserId,
+        diagnosisId,
+        newStatus: parsed.data.status as (typeof DIAGNOSIS_CLINICAL_STATUS_VALUES)[number],
+        changedBy: gate.ctx.session.user.userId,
+        note: parsed.data.note ?? null,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "organization_principal_mismatch") {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    throw error;
+  }
 
   if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
@@ -70,16 +93,27 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ userId: string; diagnosisId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
-  const { diagnosisId } = await params;
-  if (!uuidSchema.safeParse(diagnosisId).success) {
+  const { userId, diagnosisId } = await params;
+  if (!uuidSchema.safeParse(userId).success || !uuidSchema.safeParse(diagnosisId).success) {
     return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
   }
 
   const deps = buildAppDeps();
-  const history = await deps.patientClinical.getDiagnosisStatusHistory(diagnosisId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
+  const history = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientClinical.getDiagnosisStatusHistory(patientUserId, diagnosisId),
+  );
 
   return NextResponse.json({ ok: true, history });
 }

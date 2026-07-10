@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
 import { listDiscussionPageMerged } from "@/modules/program-item-discussion/listDiscussionPage";
+import { resolveDoctorInstanceInWorkspace } from "../../../../_doctorInstanceWorkspace";
 
 const directionSchema = z.enum(["backward", "forward"]);
 
@@ -34,11 +35,8 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ instanceId: string; stageItemId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { instanceId, stageItemId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageItemId).success) {
@@ -65,37 +63,35 @@ export async function GET(
 
   const deps = buildAppDeps();
   try {
-    const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!instance) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-
-    const identity = await deps.doctorClientsPort.getClientIdentity(instance.patientUserId);
-    if (!identity) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-    }
-
-    if (instance.assignmentSource !== "doctor") {
-      return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
-    }
+    const resolved = await resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId, {
+      requireDoctorAssigned: true,
+    });
+    if (!resolved.ok) return resolved.response;
+    const { instance } = resolved;
 
     const item = instance.stages.flatMap((s) => s.items).find((x) => x.id === stageItemId) ?? null;
     if (!item) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
-    const pageResult = await listDiscussionPageMerged({
-      discussion: deps.programItemDiscussion,
-      stageItemId,
-      patientUserId: instance.patientUserId,
-      exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
-      limit,
-      direction,
-      cursor,
-    });
+    const pageResult = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      listDiscussionPageMerged({
+        discussion: deps.programItemDiscussion,
+        stageItemId,
+        patientUserId: instance.patientUserId,
+        exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
+        limit,
+        direction,
+        cursor,
+      }),
+    );
 
     const { page, nextCursor, hasMore, totalCount } = pageResult;
 
-    const peerLastReadAt = await deps.programItemDiscussion.getLastReadAtForViewer({
-      viewerUserId: instance.patientUserId,
-      stageItemId,
-    });
+    const peerLastReadAt = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.programItemDiscussion.getLastReadAtForViewer({
+        viewerUserId: instance.patientUserId,
+        stageItemId,
+      }),
+    );
 
     return NextResponse.json({
       ok: true,

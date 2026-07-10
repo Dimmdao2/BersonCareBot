@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { jsonIfInvalidUuid } from "../../_uuid";
 import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
 
@@ -21,15 +22,16 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const body = await request.json().catch(() => null);
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
-  const specialist = await gate.ctx.service.catalog.upsertSpecialist({
-    organizationId: existing.organizationId,
-    id,
-    fullName: parsed.data.fullName ?? existing.fullName,
-    description:
-      parsed.data.description !== undefined ? parsed.data.description : existing.description,
-    isActive: parsed.data.isActive ?? existing.isActive,
-    sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
-  });
+  const specialist = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.specialists.update", () =>
+    gate.ctx.service.catalog.upsertSpecialist({
+      organizationId: existing.organizationId,
+      id,
+      fullName: parsed.data.fullName ?? existing.fullName,
+      description: parsed.data.description !== undefined ? parsed.data.description : existing.description,
+      isActive: parsed.data.isActive ?? existing.isActive,
+      sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
+    }),
+  );
   return NextResponse.json({ ok: true, specialist });
 }
 
@@ -39,6 +41,8 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
   const { id } = await ctx.params;
   const bad = jsonIfInvalidUuid(id);
   if (bad) return bad;
-  const ok = await gate.ctx.service.catalog.deactivateSpecialist(id);
+  const ok = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.specialists.deactivate", () =>
+    gate.ctx.service.catalog.deactivateSpecialist(id),
+  );
   return NextResponse.json({ ok });
 }

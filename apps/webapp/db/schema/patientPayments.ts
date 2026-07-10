@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
 import { clinicalVisit } from "./patientClinical";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * Ledger записей об оплате к карточке пациента (раздел «Учётка» кабинета врача).
@@ -34,6 +35,7 @@ export const patientPayment = pgTable(
   "patient_payment",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     /** Сумма в **копейках**; всегда > 0. */
     amountMinor: integer("amount_minor").notNull(),
@@ -54,8 +56,14 @@ export const patientPayment = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_patient_payment_organization_id").on(table.organizationId),
     index("idx_patient_payment_patient_user_id").on(table.patientUserId),
     index("idx_patient_payment_created_at").on(table.createdAt),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "patient_payment_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],

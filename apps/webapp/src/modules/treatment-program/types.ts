@@ -360,6 +360,8 @@ export type TreatmentProgramInstanceStageItemStatus = "active" | "disabled";
 
 export type TreatmentProgramInstanceSummary = {
   id: string;
+  /** Authorization metadata populated by PG persistence; legacy/client fixtures may omit it. */
+  organizationId?: string | null;
   patientUserId: string;
   templateId: string | null;
   assignedBy: string | null;

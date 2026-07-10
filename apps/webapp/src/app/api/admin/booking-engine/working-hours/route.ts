@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const upsertBody = z.object({
@@ -66,11 +67,14 @@ export async function POST(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
+  const bookingScheduling = deps.bookingScheduling;
   try {
-    const row = await deps.bookingScheduling.createWorkingHours({
-      organizationId: gate.ctx.organizationId,
-      ...parsed.data,
-    });
+    const row = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-hours.create", () =>
+      bookingScheduling.createWorkingHours({
+        organizationId: gate.ctx.organizationId,
+        ...parsed.data,
+      }),
+    );
     return NextResponse.json({ ok: true, row });
   } catch {
     return NextResponse.json({ ok: false, error: "create_failed" }, { status: 400 });
@@ -88,11 +92,14 @@ export async function PATCH(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
+  const bookingScheduling = deps.bookingScheduling;
   try {
-    const row = await deps.bookingScheduling.updateWorkingHours({
-      organizationId: gate.ctx.organizationId,
-      ...parsed.data,
-    });
+    const row = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-hours.update", () =>
+      bookingScheduling.updateWorkingHours({
+        organizationId: gate.ctx.organizationId,
+        ...parsed.data,
+      }),
+    );
     return NextResponse.json({ ok: true, row });
   } catch {
     return NextResponse.json({ ok: false, error: "update_failed" }, { status: 400 });
@@ -108,6 +115,9 @@ export async function DELETE(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
-  await deps.bookingScheduling.deactivateWorkingHours(id, gate.ctx.organizationId);
+  const bookingScheduling = deps.bookingScheduling;
+  await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-hours.deactivate", () =>
+    bookingScheduling.deactivateWorkingHours(gate.ctx.organizationId, id),
+  );
   return NextResponse.json({ ok: true });
 }

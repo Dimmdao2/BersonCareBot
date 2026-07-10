@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { emitPackageLinkedCalendarSync } from "@/app-layer/booking/emitPackageCalendarSync";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
 
@@ -31,6 +32,9 @@ export async function POST(request: Request, context: RouteContext) {
       patientPackageItemId: parsed.data.patientPackageItemId,
       appointmentId: parsed.data.appointmentId ?? null,
       createdByPlatformUserId: gate.ctx.session.user.userId,
+    }, {
+      runMembershipWrite: (fn) =>
+        withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.patient-packages.consume", fn),
     });
     if (parsed.data.appointmentId) {
       const appointment = await gate.ctx.service.getAppointment(parsed.data.appointmentId);

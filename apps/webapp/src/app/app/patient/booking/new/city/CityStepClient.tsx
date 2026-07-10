@@ -34,9 +34,10 @@ export function CityStepClient({ cities, catalogError }: CityStepClientProps) {
       {!catalogError ? (
         <div className="flex flex-col gap-2">
           {sorted.map((c) => (
-            <button
+            <Button
               key={c.id}
               type="button"
+              variant="ghost"
               className={patientInfoLinkTileClass}
               onClick={() =>
                 router.push(
@@ -45,7 +46,7 @@ export function CityStepClient({ cities, catalogError }: CityStepClientProps) {
               }
             >
               {c.title}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}

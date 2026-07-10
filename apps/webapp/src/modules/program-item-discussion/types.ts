@@ -81,6 +81,8 @@ export type ListDoctorExerciseCommentsInput = {
   assignedByUserId?: string;
   /** User id врача-viewer'а для чтения lastReadAt из _reads. */
   viewerUserId: string;
+  /** Optional selected doctor workspace organization scope. */
+  organizationId?: string;
   limit: number;
   cursor?: DoctorExerciseCommentCursor | null;
 };

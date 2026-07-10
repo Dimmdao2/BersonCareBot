@@ -1,7 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn((_: unknown, _source: string, fn: () => unknown) => fn()),
+);
+
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: vi.fn(),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, source: string, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, source, fn),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", async () => {
@@ -14,18 +28,28 @@ vi.mock("@/app-layer/di/buildAppDeps", async () => {
   };
 });
 
-import { getCurrentSession } from "@/modules/auth/service";
 import { resetInMemoryClinicalTestsStore } from "@/app-layer/testing/clinicalLibraryInMemory";
 import { POST } from "./route";
 
 describe("POST /api/doctor/clinical-tests", () => {
   beforeEach(() => {
     resetInMemoryClinicalTestsStore();
-    vi.mocked(getCurrentSession).mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        session: { user: { userId: "d1", role: "doctor", bindings: {} } },
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      },
+    });
   });
 
   it("returns 401 without session", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",
@@ -37,9 +61,10 @@ describe("POST /api/doctor/clinical-tests", () => {
   });
 
   it("returns 403 for client role", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    } as never);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",
@@ -51,9 +76,6 @@ describe("POST /api/doctor/clinical-tests", () => {
   });
 
   it("creates test with assessmentKind from catalog", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",
@@ -65,12 +87,14 @@ describe("POST /api/doctor/clinical-tests", () => {
     const data = (await res.json()) as { ok: boolean; item: { assessmentKind: string | null } };
     expect(data.ok).toBe(true);
     expect(data.item.assessmentKind).toBe("mobility");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      "doctor.clinical-tests.create",
+      expect.any(Function),
+    );
   });
 
   it("returns 400 when assessmentKind not in catalog", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     const res = await POST(
       new Request("http://localhost/api", {
         method: "POST",

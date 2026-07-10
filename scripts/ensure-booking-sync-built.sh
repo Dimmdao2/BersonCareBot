@@ -7,6 +7,10 @@ ODS="$ROOT/packages/operator-db-schema"
 if [[ ! -f "$ODS/dist/index.js" ]]; then
   pnpm --dir "$ODS" run build
 fi
+DBP="$ROOT/packages/db-principal"
+if [[ -d "$DBP" ]] && [[ ! -f "$DBP/dist/index.js" ]]; then
+  pnpm --dir "$DBP" run build
+fi
 PKG="$ROOT/packages/booking-rubitime-sync"
 if [[ ! -f "$PKG/dist/index.js" ]]; then
   pnpm --dir "$PKG" run build

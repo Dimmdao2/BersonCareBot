@@ -1,5 +1,7 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import type {
   ContentSectionRow,
   ContentSectionsListFilter,
@@ -32,6 +34,25 @@ export type {
 
 function normalizeKind(value: string | null | undefined): ContentSectionRow["kind"] {
   return isContentSectionKind(value) ? value : "article";
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId;
 }
 
 function mapRow(row: typeof contentSections.$inferSelect): ContentSectionRow {
@@ -116,13 +137,14 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       return row ? mapRow(row) : null;
     },
     async upsert(section: ContentSectionUpsertInput) {
+      const organizationId = currentPrincipalOrganizationId();
       const kind = section.kind ?? "article";
       const systemParentCode = kind === "article" ? null : (section.systemParentCode ?? null);
       if (!isValidSectionTaxonomy(kind, systemParentCode)) {
         throw new Error("invalid_content_section_taxonomy");
       }
-      const db = getDrizzle();
       const values = {
+        organizationId,
         slug: section.slug,
         title: section.title,
         description: section.description,
@@ -135,32 +157,42 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         systemParentCode,
         updatedAt: sql`now()` as unknown as string,
       };
-      const rows = await db
-        .insert(contentSections)
-        .values(values)
-        .onConflictDoUpdate({
-          target: contentSections.slug,
-          set: {
-            title: section.title,
-            description: section.description,
-            sortOrder: section.sortOrder,
-            isVisible: section.isVisible,
-            requiresAuth: section.requiresAuth ?? false,
-            coverImageUrl: section.coverImageUrl ?? null,
-            iconImageUrl: section.iconImageUrl ?? null,
-            kind,
-            systemParentCode,
-            updatedAt: sql`now()` as unknown as string,
-          },
-        })
-        .returning({ id: contentSections.id });
+      const rows = await runDrizzleMutationTransaction(async (tx) => {
+        const [existing] = await tx
+          .select({ organizationId: contentSections.organizationId })
+          .from(contentSections)
+          .where(eq(contentSections.slug, section.slug))
+          .limit(1);
+        currentWriteOrganizationId(existing?.organizationId);
+        return tx
+          .insert(contentSections)
+          .values(values)
+          .onConflictDoUpdate({
+            target: contentSections.slug,
+            set: {
+              organizationId,
+              title: section.title,
+              description: section.description,
+              sortOrder: section.sortOrder,
+              isVisible: section.isVisible,
+              requiresAuth: section.requiresAuth ?? false,
+              coverImageUrl: section.coverImageUrl ?? null,
+              iconImageUrl: section.iconImageUrl ?? null,
+              kind,
+              systemParentCode,
+              updatedAt: sql`now()` as unknown as string,
+            },
+          })
+          .returning({ id: contentSections.id });
+      });
       const id = rows[0]?.id;
       if (!id) throw new Error("content_sections upsert returned no id");
       return id;
     },
     async update(slug, patch) {
-      const db = getDrizzle();
+      const organizationId = currentPrincipalOrganizationId();
       const setPayload: Partial<typeof contentSections.$inferInsert> = {
+        organizationId,
         updatedAt: sql`now()` as unknown as string,
       };
       if (patch.title !== undefined) setPayload.title = patch.title;
@@ -170,40 +202,54 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
       if (patch.coverImageUrl !== undefined) setPayload.coverImageUrl = patch.coverImageUrl;
       if (patch.iconImageUrl !== undefined) setPayload.iconImageUrl = patch.iconImageUrl;
-      if (patch.kind !== undefined || patch.systemParentCode !== undefined) {
-        const curRows = await db.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
+      const needsTaxonomyUpdate = patch.kind !== undefined || patch.systemParentCode !== undefined;
+      if (!needsTaxonomyUpdate && Object.keys(setPayload).length <= 2) return;
+      await runDrizzleMutationTransaction(async (tx) => {
+        const curRows = await tx.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
         const cur = curRows[0];
         if (!cur) return;
-        const nextKind = patch.kind !== undefined ? patch.kind : normalizeKind(cur.kind);
-        const curParent =
-          cur.systemParentCode != null && isSystemParentCode(cur.systemParentCode)
-            ? cur.systemParentCode
-            : null;
-        const nextParent =
-          patch.systemParentCode !== undefined
-            ? patch.systemParentCode
-            : nextKind === "system"
-              ? curParent
+        currentWriteOrganizationId(cur.organizationId);
+        const txSetPayload: Partial<typeof contentSections.$inferInsert> = { ...setPayload };
+        if (needsTaxonomyUpdate) {
+          const nextKind = patch.kind !== undefined ? patch.kind : normalizeKind(cur.kind);
+          const curParent =
+            cur.systemParentCode != null && isSystemParentCode(cur.systemParentCode)
+              ? cur.systemParentCode
               : null;
-        const resolvedParent = nextKind === "article" ? null : nextParent;
-        if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
-          throw new Error("invalid_content_section_taxonomy");
+          const nextParent =
+            patch.systemParentCode !== undefined
+              ? patch.systemParentCode
+              : nextKind === "system"
+                ? curParent
+                : null;
+          const resolvedParent = nextKind === "article" ? null : nextParent;
+          if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
+            throw new Error("invalid_content_section_taxonomy");
+          }
+          txSetPayload.kind = nextKind;
+          txSetPayload.systemParentCode = resolvedParent;
         }
-        setPayload.kind = nextKind;
-        setPayload.systemParentCode = resolvedParent;
-      }
-      if (Object.keys(setPayload).length <= 1) return;
-      await db.update(contentSections).set(setPayload).where(eq(contentSections.slug, slug));
+        if (Object.keys(txSetPayload).length <= 2) return;
+        await tx.update(contentSections).set(txSetPayload).where(eq(contentSections.slug, slug));
+      });
     },
     async reorderSlugs(orderedSlugs) {
       const slugs = orderedSlugs.map((s) => String(s).trim()).filter(Boolean);
       if (slugs.length === 0) return;
-      const db = getDrizzle();
-      await db.transaction(async (tx) => {
+      const organizationId = currentPrincipalOrganizationId();
+      await runDrizzleMutationTransaction(async (tx) => {
+        const rows = await tx
+          .select({ slug: contentSections.slug, organizationId: contentSections.organizationId })
+          .from(contentSections)
+          .where(inArray(contentSections.slug, slugs));
+        for (const row of rows) {
+          currentWriteOrganizationId(row.organizationId);
+        }
         for (let i = 0; i < slugs.length; i += 1) {
           await tx
             .update(contentSections)
             .set({
+              organizationId,
               sortOrder: i,
               updatedAt: sql`now()` as unknown as string,
             })
@@ -232,39 +278,41 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       if (o === n) return { ok: false, error: "Новый slug совпадает с текущим" };
 
       try {
-        const db = getDrizzle();
-        return await db.transaction(async (tx): Promise<RenameSectionSlugResult> => {
+        const organizationId = currentPrincipalOrganizationId();
+        return await runDrizzleMutationTransaction(async (tx): Promise<RenameSectionSlugResult> => {
           const existingRows = await tx.select().from(contentSections).where(eq(contentSections.slug, o)).limit(1);
           const existingRow = existingRows[0];
           if (!existingRow) {
             return { ok: false, error: "Раздел с исходным slug не найден" };
           }
+          currentWriteOrganizationId(existingRow.organizationId);
           if (isImmutableSystemSectionSlug(o)) {
             return { ok: false, error: "Slug встроенного раздела нельзя переименовать" };
           }
 
           const taken = await tx
-            .select({ id: contentSections.id })
+            .select({ id: contentSections.id, organizationId: contentSections.organizationId })
             .from(contentSections)
             .where(eq(contentSections.slug, n))
             .limit(1);
           if (taken.length > 0) {
+            currentWriteOrganizationId(taken[0]!.organizationId);
             return { ok: false, error: "Раздел с таким slug уже существует" };
           }
 
           await tx
             .update(contentPages)
-            .set({ section: n, updatedAt: sql`now()` as unknown as string })
+            .set({ organizationId, section: n, updatedAt: sql`now()` as unknown as string })
             .where(eq(contentPages.section, o));
 
           await tx
             .update(patientHomeBlockItems)
-            .set({ targetRef: n, updatedAt: sql`now()` as unknown as string })
+            .set({ organizationId, targetRef: n, updatedAt: sql`now()` as unknown as string })
             .where(and(eq(patientHomeBlockItems.targetType, "content_section"), eq(patientHomeBlockItems.targetRef, o)));
 
           const updated = await tx
             .update(contentSections)
-            .set({ slug: n, updatedAt: sql`now()` as unknown as string })
+            .set({ organizationId, slug: n, updatedAt: sql`now()` as unknown as string })
             .where(eq(contentSections.slug, o))
             .returning({ id: contentSections.id });
           if (updated.length === 0) {
@@ -272,6 +320,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           }
 
           await tx.insert(contentSectionSlugHistory).values({
+            organizationId,
             oldSlug: o,
             newSlug: n,
             changedByUserId: opts?.changedByUserId?.trim() || null,
@@ -299,9 +348,9 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         return { ok: false, error: "Нельзя удалить служебный раздел «Без раздела»" };
       }
 
-      const db = getDrizzle();
       try {
-        return await db.transaction(async (tx): Promise<DeleteSectionWithPageReassignResult> => {
+        const organizationId = currentPrincipalOrganizationId();
+        return await runDrizzleMutationTransaction(async (tx): Promise<DeleteSectionWithPageReassignResult> => {
           const bucketRows = await tx.select().from(contentSections).where(eq(contentSections.slug, bucketSlug)).limit(1);
           if (bucketRows.length === 0) {
             return {
@@ -309,13 +358,18 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
               error: "Служебный раздел CMS не найден. Выполните миграции базы данных.",
             };
           }
+          currentWriteOrganizationId(bucketRows[0]!.organizationId);
 
           const sectionRows = await tx.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
           if (sectionRows.length === 0) {
             return { ok: false, error: "Раздел не найден" };
           }
+          currentWriteOrganizationId(sectionRows[0]!.organizationId);
 
           const pages = await tx.select().from(contentPages).where(eq(contentPages.section, slug));
+          for (const page of pages) {
+            currentWriteOrganizationId(page.organizationId);
+          }
 
           async function allocatePageSlugInSection(
             section: string,
@@ -342,6 +396,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
             await tx
               .update(contentPages)
               .set({
+                organizationId,
                 section: bucketSlug,
                 slug: nextSlug,
                 updatedAt: sql`now()` as unknown as string,
@@ -351,7 +406,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
 
           await tx
             .update(patientHomeBlockItems)
-            .set({ targetRef: bucketSlug, updatedAt: sql`now()` as unknown as string })
+            .set({ organizationId, targetRef: bucketSlug, updatedAt: sql`now()` as unknown as string })
             .where(
               and(
                 eq(patientHomeBlockItems.targetType, "content_section"),

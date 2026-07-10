@@ -29,12 +29,18 @@ import {
   type DoctorBroadcastMenuWorkerDeps,
 } from './doctorBroadcastIntentMenu.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../db/repos/notificationDeliveryAttempts.js';
+import { resolveReminderOccurrenceOrganizationId } from '../../db/repos/reminders.js';
+import { resolveBroadcastAuditOrganizationId } from '../../db/repos/broadcastAudit.js';
 import {
   clearUserChannelBotBlocked,
   markUserChannelBotBlocked,
   resolvePlatformUserIdForBotBlockedMarker,
 } from '../../db/repos/userChannelBotBlocked.js';
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
+import {
+  runWithOptionalOrganizationPrincipal,
+  runWithOrganizationPrincipal,
+} from '../../principal/organizationPrincipal.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
@@ -120,7 +126,14 @@ async function incrementBroadcastAuditErrorIfDoctorBroadcast(
   if (row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) return;
   const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
   if (!auditId) return;
-  await runIntegratorSql(db, sql`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = ${auditId}::uuid`);
+  await runWithBroadcastAuditOrganization(
+    db,
+    auditId,
+    (targetDb) => runIntegratorSql(
+      targetDb,
+      sql`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = ${auditId}::uuid`,
+    ),
+  );
 }
 
 async function incrementBroadcastAuditBlockedIfDoctorBroadcast(
@@ -130,9 +143,13 @@ async function incrementBroadcastAuditBlockedIfDoctorBroadcast(
   if (row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) return;
   const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
   if (!auditId) return;
-  await runIntegratorSql(
+  await runWithBroadcastAuditOrganization(
     db,
-    sql`UPDATE public.broadcast_audit SET blocked_recipient_count = blocked_recipient_count + 1 WHERE id = ${auditId}::uuid`,
+    auditId,
+    (targetDb) => runIntegratorSql(
+      targetDb,
+      sql`UPDATE public.broadcast_audit SET blocked_recipient_count = blocked_recipient_count + 1 WHERE id = ${auditId}::uuid`,
+    ),
   );
 }
 
@@ -179,6 +196,27 @@ async function readReminderOccurrenceStatus(db: DbPort, occurrenceId: string): P
   return typeof res.rows[0]?.status === 'string' ? res.rows[0]!.status : null;
 }
 
+async function runWithReminderOccurrenceOrganization<T>(
+  db: DbPort,
+  occurrenceId: string,
+  fn: () => T,
+): Promise<T> {
+  const organizationId = await resolveReminderOccurrenceOrganizationId(db, occurrenceId);
+  return await runWithOptionalOrganizationPrincipal(organizationId, fn);
+}
+
+async function runWithBroadcastAuditOrganization<T>(
+  db: DbPort,
+  broadcastAuditId: string,
+  fn: (targetDb: DbPort) => Promise<T>,
+): Promise<T> {
+  const organizationId = await resolveBroadcastAuditOrganizationId(db, broadcastAuditId);
+  if (organizationId && db.integratorDrizzle === undefined) {
+    return await runWithOrganizationPrincipal(organizationId, () => db.tx((txDb) => fn(txDb)));
+  }
+  return await runWithOptionalOrganizationPrincipal(organizationId, () => fn(db));
+}
+
 async function finalizeOutgoingDeliveryDead(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
@@ -217,20 +255,22 @@ async function finalizeOutgoingDeliveryDead(
         return;
       }
       try {
-        await writePort.writeDb({
-          type: 'reminders.delivery.log',
-          params: {
-            id: deliveryLogId,
-            occurrenceId,
-            channel,
-            status: 'failed',
-            errorCode: 'DELIVERY_DEAD',
-            payloadJson: { chatId: externalId, text },
-          },
-        });
-        await writePort.writeDb({
-          type: 'reminders.occurrence.markFailed',
-          params: { occurrenceId, channel, errorCode: 'DELIVERY_DEAD' },
+        await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
+          await writePort.writeDb({
+            type: 'reminders.delivery.log',
+            params: {
+              id: deliveryLogId,
+              occurrenceId,
+              channel,
+              status: 'failed',
+              errorCode: 'DELIVERY_DEAD',
+              payloadJson: { chatId: externalId, text },
+            },
+          });
+          await writePort.writeDb({
+            type: 'reminders.occurrence.markFailed',
+            params: { occurrenceId, channel, errorCode: 'DELIVERY_DEAD' },
+          });
         });
       } catch (err) {
         if (isMissingReminderOccurrenceFk(err)) {
@@ -264,6 +304,16 @@ async function recordMessengerQueueDeliveryAttempt(
   const externalId = typeof p.externalId === 'string' ? p.externalId : undefined;
   const integratorUserId = typeof intent.meta.userId === 'string' ? intent.meta.userId : undefined;
   const topicCode = typeof p.topicCode === 'string' ? p.topicCode : undefined;
+  const broadcastAuditId =
+    typeof row.payloadJson.broadcastAuditId === 'string' && row.payloadJson.broadcastAuditId.trim().length > 0
+      ? row.payloadJson.broadcastAuditId.trim()
+      : null;
+  const organizationId =
+    row.kind === 'reminder_dispatch' && occurrenceId
+      ? await resolveReminderOccurrenceOrganizationId(db, occurrenceId)
+      : row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND
+        ? broadcastAuditId ? await resolveBroadcastAuditOrganizationId(db, broadcastAuditId) : null
+        : null;
   await recordNotificationDeliveryAttemptBestEffort(db, {
     ...(integratorUserId !== undefined ? { integratorUserId } : {}),
     ...(topicCode !== undefined ? { topicCode } : {}),
@@ -276,6 +326,7 @@ async function recordMessengerQueueDeliveryAttempt(
     ...(occurrenceId !== undefined ? { occurrenceId } : {}),
     ...(externalId ? { recipientRef: `${row.channel}:${externalId.slice(-4)}` } : {}),
     ...(params.errorMessage !== undefined ? { errorMessage: params.errorMessage } : {}),
+    organizationId,
   });
 }
 
@@ -334,20 +385,22 @@ async function finalizeRecipientBlockedBotDelivery(
         return;
       }
       try {
-        await writePort.writeDb({
-          type: 'reminders.delivery.log',
-          params: {
-            id: deliveryLogId,
-            occurrenceId,
-            channel,
-            status: 'failed',
-            errorCode: RECIPIENT_BLOCKED_BOT,
-            payloadJson: { chatId: externalId, text },
-          },
-        });
-        await writePort.writeDb({
-          type: 'reminders.occurrence.markSkippedLocal',
-          params: { occurrenceId },
+        await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
+          await writePort.writeDb({
+            type: 'reminders.delivery.log',
+            params: {
+              id: deliveryLogId,
+              occurrenceId,
+              channel,
+              status: 'failed',
+              errorCode: RECIPIENT_BLOCKED_BOT,
+              payloadJson: { chatId: externalId, text },
+            },
+          });
+          await writePort.writeDb({
+            type: 'reminders.occurrence.markSkippedLocal',
+            params: { occurrenceId },
+          });
         });
       } catch (err) {
         if (isMissingReminderOccurrenceFk(err)) {
@@ -519,26 +572,28 @@ export async function processOutgoingDeliveryRow(
         channel === 'max' && typeof sendResult?.maxMessageId === 'string' && sendResult.maxMessageId.trim().length > 0
           ? sendResult.maxMessageId.trim()
           : undefined;
-      await writePort.writeDb({
-        type: 'reminders.delivery.log',
-        params: {
-          id: deliveryLogId,
-          occurrenceId,
-          channel,
-          status: 'success',
-          payloadJson: {
-            chatId: externalId,
-            text,
-            ...(telegramMessageId !== undefined
-              ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
-              : {}),
-            ...(maxMessageId !== undefined ? { maxMessageId } : {}),
+      await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
+        await writePort.writeDb({
+          type: 'reminders.delivery.log',
+          params: {
+            id: deliveryLogId,
+            occurrenceId,
+            channel,
+            status: 'success',
+            payloadJson: {
+              chatId: externalId,
+              text,
+              ...(telegramMessageId !== undefined
+                ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
+                : {}),
+              ...(maxMessageId !== undefined ? { maxMessageId } : {}),
+            },
           },
-        },
-      });
-      await writePort.writeDb({
-        type: 'reminders.occurrence.markSent',
-        params: { occurrenceId, channel },
+        });
+        await writePort.writeDb({
+          type: 'reminders.occurrence.markSent',
+          params: { occurrenceId, channel },
+        });
       });
       await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
@@ -572,7 +627,14 @@ export async function processOutgoingDeliveryRow(
       await recordMessengerQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, toSend);
       await markOutgoingDeliverySent(db, row.id);
-      await runIntegratorSql(db, sql`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = ${broadcastAuditId}::uuid`);
+      await runWithBroadcastAuditOrganization(
+        db,
+        broadcastAuditId,
+        (targetDb) => runIntegratorSql(
+          targetDb,
+          sql`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = ${broadcastAuditId}::uuid`,
+        ),
+      );
       logger.info(
         {
           broadcastAuditId,

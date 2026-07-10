@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { findPublicBookingNameCollisionCandidates } from "@/infra/repos/pgPublicBookingMergeCandidates";
 
 const REASON = "public_booking_phone_collision";
 
@@ -18,29 +18,22 @@ export async function recordPublicBookingMergeCandidates(input: {
   const name = input.contactName.trim();
   if (name.length < 2) return;
 
-  const candidates = await runPgPoolPgText<{ id: string }>(
-    input.pool,
-    `SELECT id
-       FROM platform_users
-      WHERE merged_into_id IS NULL
-        AND role = 'client'
-        AND id <> $1::uuid
-        AND (phone_normalized IS NULL OR trim(phone_normalized) = '')
-        AND lower(trim(display_name)) = lower(trim($2))
-      LIMIT 5`,
-    [input.anchorUserId, name],
-  );
+  const candidateUserIds = await findPublicBookingNameCollisionCandidates({
+    pool: input.pool,
+    anchorUserId: input.anchorUserId,
+    contactName: name,
+  });
 
-  if (candidates.rows.length === 0) return;
+  if (candidateUserIds.length === 0) return;
 
   const mergeSvc = buildAppDeps().patientMergeCandidate;
   if (!mergeSvc) return;
 
-  for (const row of candidates.rows) {
+  for (const candidateUserId of candidateUserIds) {
     await mergeSvc.upsertPending({
       organizationId: input.organizationId,
       anchorUserId: input.anchorUserId,
-      candidateUserId: row.id,
+      candidateUserId,
       reason: REASON,
       triggerAppointmentId: input.triggerAppointmentId,
       payload: { contactName: name },

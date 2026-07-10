@@ -4,11 +4,12 @@ const getInstanceByIdMock = vi.fn();
 const doctorApplyInstanceEditorBatchMock = vi.fn();
 const getClientIdentityMock = vi.fn();
 
-const getCurrentSessionMock = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({
-    user: { userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", role: "doctor", bindings: {} },
-  }),
-);
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}));
 
 vi.mock("@/app-layer/cache/revalidatePatientTreatmentProgramUi", () => ({
   revalidatePatientTreatmentProgramUi: vi.fn(),
@@ -26,18 +27,36 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
-vi.mock("@/modules/roles/service", () => ({
-  canAccessDoctor: (role: string) => role === "doctor",
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 import { POST } from "./route";
 
 const instanceId = "11111111-1111-4111-8111-111111111111";
 const patientUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const doctorUserId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const workspaceCtx = {
+  session: { user: { userId: doctorUserId, role: "doctor", bindings: {} } },
+  organizationId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  membershipRole: "doctor",
+  specialistId: null,
+  canManageOrganization: false,
+  canManageAllSpecialists: false,
+};
 
 const emptyDraft = {
   stageMetadata: {},
@@ -59,16 +78,26 @@ describe("POST .../editor-batch", () => {
     getInstanceByIdMock.mockReset();
     doctorApplyInstanceEditorBatchMock.mockReset();
     getClientIdentityMock.mockReset();
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", role: "doctor", bindings: {} },
-    });
-    getInstanceByIdMock.mockResolvedValue({ id: instanceId, patientUserId });
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
+    getInstanceByIdMock.mockResolvedValue({ id: instanceId, organizationId: workspaceCtx.organizationId, patientUserId });
     getClientIdentityMock.mockResolvedValue({ userId: patientUserId, displayName: "Пациент" });
     doctorApplyInstanceEditorBatchMock.mockResolvedValue({ id: instanceId, patientUserId, stages: [] });
   });
 
   it("401 without session", async () => {
-    getCurrentSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await POST(
       new Request("http://localhost", {
         method: "POST",
@@ -102,16 +131,18 @@ describe("POST .../editor-batch", () => {
       { params: Promise.resolve({ instanceId }) },
     );
     expect(res.status).toBe(200);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(workspaceCtx, expect.any(Function));
     expect(doctorApplyInstanceEditorBatchMock).toHaveBeenCalledWith({
       instanceId,
-      actorId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      actorId: doctorUserId,
       draft: emptyDraft,
     });
   });
 
   it("403 for non-doctor role", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", role: "client", bindings: {} },
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({ ok: false, error: "forbidden" }, { status: 403 }),
     });
     const res = await POST(
       new Request("http://localhost", {

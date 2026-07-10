@@ -21,7 +21,10 @@ import { randomUUID } from "node:crypto";
 
 const {
   getCurrentSessionMock,
-  requireDoctorApiSessionMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+  buildAppDepsMock,
+  getClientIdentityForOrganizationMock,
   startEmailChallengeMock,
   normalizeEmailMock,
   getPendingEmailChallengeMock,
@@ -29,7 +32,14 @@ const {
   ensureAuthModulePortsBoundMock,
 } = vi.hoisted(() => ({
   getCurrentSessionMock: vi.fn(),
-  requireDoctorApiSessionMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
+  withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}),
+  getClientIdentityForOrganizationMock: vi.fn(),
+  buildAppDepsMock: vi.fn(),
   startEmailChallengeMock: vi.fn(),
   normalizeEmailMock: vi.fn((email: string) => email.trim().toLowerCase()),
   getPendingEmailChallengeMock: vi.fn(),
@@ -42,7 +52,23 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorApiSession: (...args: unknown[]) => requireDoctorApiSessionMock(...args),
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
+}));
+
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: buildAppDepsMock,
 }));
 
 vi.mock("@/modules/auth/emailAuth", () => ({
@@ -68,6 +94,8 @@ const ADMIN_SESSION = { user: { userId: randomUUID(), role: "admin" as const } }
 const DOCTOR_SESSION = { user: { userId: randomUUID(), role: "doctor" as const } };
 const PATIENT_SESSION = { user: { userId: randomUUID(), role: "client" as const } };
 const VALID_UUID = randomUUID();
+const ORG_ID = randomUUID();
+const CANONICAL_UUID = randomUUID();
 
 function makeAdminRequest(body: unknown) {
   return new Request(`http://localhost/api/doctor/patients/${VALID_UUID}/email-change`, {
@@ -99,15 +127,36 @@ const FAKE_PARAMS = { params: Promise.resolve({ userId: VALID_UUID }) };
 
 describe("POST /api/doctor/patients/[userId]/email-change", () => {
   beforeEach(() => {
-    requireDoctorApiSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockReset();
+    buildAppDepsMock.mockReset();
+    getClientIdentityForOrganizationMock.mockReset();
     startEmailChallengeMock.mockReset();
     normalizeEmailMock.mockReset();
     normalizeEmailMock.mockImplementation((email: string) => email.trim().toLowerCase());
     ensureAuthModulePortsBoundMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORG_ID,
+        session: ADMIN_SESSION,
+      },
+    });
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
+    getClientIdentityForOrganizationMock.mockResolvedValue({ userId: CANONICAL_UUID });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: getClientIdentityForOrganizationMock },
+    });
   });
 
   it("returns 401 when not authenticated", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
       response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
     });
@@ -117,7 +166,10 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
   });
 
   it("returns 403 when role is doctor (not admin)", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: DOCTOR_SESSION });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: true,
+      ctx: { organizationId: ORG_ID, session: DOCTOR_SESSION },
+    });
 
     const res = await adminPost(makeAdminRequest({ email: "new@example.com" }), FAKE_PARAMS);
     expect(res.status).toBe(403);
@@ -127,8 +179,6 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
   });
 
   it("returns 400 for invalid email", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: ADMIN_SESSION });
-
     const res = await adminPost(makeAdminRequest({ email: "not-an-email" }), FAKE_PARAMS);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok: boolean; error: string };
@@ -136,8 +186,18 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     expect(body.error).toBe("validation_error");
   });
 
+  it("returns 404 and does not start challenge outside selected workspace", async () => {
+    getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
+
+    const res = await adminPost(makeAdminRequest({ email: "patient-new@example.com" }), FAKE_PARAMS);
+
+    expect(res.status).toBe(404);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(VALID_UUID, ORG_ID);
+    expect(startEmailChallengeMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+  });
+
   it("admin can initiate email change — returns pending email and expiresAt", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: ADMIN_SESSION });
     startEmailChallengeMock.mockResolvedValueOnce({
       ok: true,
       challengeId: randomUUID(),
@@ -150,11 +210,15 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     expect(body.ok).toBe(true);
     expect(body.pending.email).toBe("patient-new@example.com");
     expect(typeof body.pending.expiresAt).toBe("string");
-    expect(startEmailChallengeMock).toHaveBeenCalledWith(VALID_UUID, "patient-new@example.com");
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(VALID_UUID, ORG_ID);
+    expect(startEmailChallengeMock).toHaveBeenCalledWith(CANONICAL_UUID, "patient-new@example.com");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      expect.any(Function),
+    );
   });
 
   it("returns 429 on rate_limited", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: ADMIN_SESSION });
     startEmailChallengeMock.mockResolvedValueOnce({
       ok: false,
       code: "rate_limited",
@@ -167,7 +231,6 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
   });
 
   it("returns 503 on email_send_failed", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: ADMIN_SESSION });
     startEmailChallengeMock.mockResolvedValueOnce({ ok: false, code: "email_send_failed" });
 
     const res = await adminPost(makeAdminRequest({ email: "p@example.com" }), FAKE_PARAMS);
@@ -181,20 +244,54 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
 
 describe("GET /api/doctor/patients/[userId]/email-change", () => {
   beforeEach(() => {
-    requireDoctorApiSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockReset();
+    buildAppDepsMock.mockReset();
+    getClientIdentityForOrganizationMock.mockReset();
     getPendingEmailChallengeMock.mockReset();
     ensureAuthModulePortsBoundMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORG_ID,
+        session: ADMIN_SESSION,
+      },
+    });
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
+    getClientIdentityForOrganizationMock.mockResolvedValue({ userId: CANONICAL_UUID });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: getClientIdentityForOrganizationMock },
+    });
   });
 
   it("returns 403 when role is doctor (not admin)", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: DOCTOR_SESSION });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: true,
+      ctx: { organizationId: ORG_ID, session: DOCTOR_SESSION },
+    });
 
     const res = await adminGet(makeGetRequest(), FAKE_PARAMS);
     expect(res.status).toBe(403);
   });
 
+  it("returns 404 and does not read pending challenge outside selected workspace", async () => {
+    getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
+
+    const res = await adminGet(makeGetRequest(), FAKE_PARAMS);
+
+    expect(res.status).toBe(404);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(VALID_UUID, ORG_ID);
+    expect(getPendingEmailChallengeMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+  });
+
   it("returns pending challenge when one exists", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: ADMIN_SESSION });
     getPendingEmailChallengeMock.mockResolvedValueOnce({
       email: "pending@example.com",
       expiresAt: "2026-06-15T12:00:00.000Z",
@@ -205,10 +302,14 @@ describe("GET /api/doctor/patients/[userId]/email-change", () => {
     const body = (await res.json()) as { ok: boolean; pending: { email: string; expiresAt: string } | null };
     expect(body.ok).toBe(true);
     expect(body.pending).toEqual({ email: "pending@example.com", expiresAt: "2026-06-15T12:00:00.000Z" });
+    expect(getPendingEmailChallengeMock).toHaveBeenCalledWith(CANONICAL_UUID);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      expect.any(Function),
+    );
   });
 
   it("returns null when no pending challenge", async () => {
-    requireDoctorApiSessionMock.mockResolvedValueOnce({ ok: true, session: ADMIN_SESSION });
     getPendingEmailChallengeMock.mockResolvedValueOnce(null);
 
     const res = await adminGet(makeGetRequest(), FAKE_PARAMS);

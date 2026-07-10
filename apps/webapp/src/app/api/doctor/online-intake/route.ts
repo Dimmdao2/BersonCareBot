@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import type { IntakeRequestWithPatientIdentity } from "@/modules/online-intake/types";
 
 /** HTTP list body: `patientUserId` for links to client profile / chat. */
@@ -24,20 +24,15 @@ function toDoctorListItem(r: IntakeRequestWithPatientIdentity) {
 
 const querySchema = z.object({
   type: z.enum(["lfk", "nutrition"]).optional(),
-  status: z.enum(["new", "in_review", "contacted", "closed"]).optional(),
+  status: z.enum(["new", "in_review", "contacted", "booked", "rejected", "closed"]).optional(),
   open: z.enum(["1"]).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
@@ -50,13 +45,15 @@ export async function GET(request: Request) {
   const openOnly = open === "1";
 
   const service = getOnlineIntakeService();
-  const result = await service.listForDoctor({
-    type,
-    open: openOnly,
-    status: openOnly ? undefined : status,
-    limit,
-    offset,
-  });
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    service.listForDoctor({
+      type,
+      open: openOnly,
+      status: openOnly ? undefined : status,
+      limit,
+      offset,
+    }),
+  );
 
   return NextResponse.json({
     items: result.items.map(toDoctorListItem),

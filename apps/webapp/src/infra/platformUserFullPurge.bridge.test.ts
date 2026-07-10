@@ -116,7 +116,7 @@ describe("platformUserFullPurge SQL bridge", () => {
     expect(sqlOrder.some((s) => s.includes("support_conversations") && s.includes("integrator_user_id"))).toBe(true);
   });
 
-  it("deleteIntegratorPhoneData keeps Class C BEGIN/COMMIT on integrator client", async () => {
+  it("deleteIntegratorPhoneData starts and commits through the transaction helper", async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [], rowCount: 0 });
     const integratorPool = { connect: () => poolConnectMock() } as never;
 

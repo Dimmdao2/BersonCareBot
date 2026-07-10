@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { TREATMENT_PROGRAM_ITEM_TYPES } from "@/modules/treatment-program/types";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
@@ -46,11 +46,9 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ instanceId: string; itemId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, itemId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(itemId).success) {
@@ -66,7 +64,7 @@ export async function PATCH(
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!inst0) {
+    if (!inst0 || inst0.organizationId !== gate.ctx.organizationId) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
@@ -75,13 +73,16 @@ export async function PATCH(
     }
 
     if (parsed.data.replace) {
-      const row = await deps.treatmentProgramInstance.doctorReplaceStageItem({
-        instanceId,
-        itemId,
-        actorId: session.user.userId,
-        itemType: parsed.data.replace.itemType,
-        itemRefId: parsed.data.replace.itemRefId,
-      });
+      const replacement = parsed.data.replace;
+      const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.treatmentProgramInstance.doctorReplaceStageItem({
+          instanceId,
+          itemId,
+          actorId: session.user.userId,
+          itemType: replacement.itemType,
+          itemRefId: replacement.itemRefId,
+        }),
+      );
       revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
@@ -89,61 +90,76 @@ export async function PATCH(
     if (parsed.data.status !== undefined) {
       const row =
         parsed.data.status === "disabled"
-          ? await deps.treatmentProgramInstance.doctorDisableInstanceStageItem({
-              instanceId,
-              itemId,
-              actorId: session.user.userId,
-            })
-          : await deps.treatmentProgramInstance.doctorEnableInstanceStageItem({
-              instanceId,
-              itemId,
-              actorId: session.user.userId,
-            });
+          ? await withDoctorWorkspacePrincipal(gate.ctx, () =>
+              deps.treatmentProgramInstance.doctorDisableInstanceStageItem({
+                instanceId,
+                itemId,
+                actorId: session.user.userId,
+              }),
+            )
+          : await withDoctorWorkspacePrincipal(gate.ctx, () =>
+              deps.treatmentProgramInstance.doctorEnableInstanceStageItem({
+                instanceId,
+                itemId,
+                actorId: session.user.userId,
+              }),
+            );
       revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
 
     if (parsed.data.isActionable !== undefined) {
-      const row = await deps.treatmentProgramInstance.doctorSetInstanceStageItemIsActionable({
-        instanceId,
-        itemId,
-        actorId: session.user.userId,
-        isActionable: parsed.data.isActionable,
-      });
+      const isActionable = parsed.data.isActionable;
+      const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.treatmentProgramInstance.doctorSetInstanceStageItemIsActionable({
+          instanceId,
+          itemId,
+          actorId: session.user.userId,
+          isActionable,
+        }),
+      );
       revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
 
     if (parsed.data.groupId !== undefined) {
-      const row = await deps.treatmentProgramInstance.doctorSetInstanceStageItemGroup({
-        instanceId,
-        itemId,
-        actorId: session.user.userId,
-        groupId: parsed.data.groupId,
-      });
+      const groupId = parsed.data.groupId;
+      const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.treatmentProgramInstance.doctorSetInstanceStageItemGroup({
+          instanceId,
+          itemId,
+          actorId: session.user.userId,
+          groupId,
+        }),
+      );
       revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
 
     if (parsed.data.loadSettings !== undefined) {
-      const row = await deps.treatmentProgramInstance.doctorMergeInstanceStageItemLoadSettings({
-        instanceId,
-        itemId,
-        actorId: session.user.userId,
-        reps: parsed.data.loadSettings.reps,
-        sets: parsed.data.loadSettings.sets,
-        maxPain: parsed.data.loadSettings.maxPain,
-      });
+      const loadSettings = parsed.data.loadSettings;
+      const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.treatmentProgramInstance.doctorMergeInstanceStageItemLoadSettings({
+          instanceId,
+          itemId,
+          actorId: session.user.userId,
+          reps: loadSettings.reps,
+          sets: loadSettings.sets,
+          maxPain: loadSettings.maxPain,
+        }),
+      );
       revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
 
-    const row = await deps.treatmentProgramInstance.updateStageItemLocalComment({
-      instanceId,
-      stageItemId: itemId,
-      localComment: parsed.data.localComment!,
-      actorId: session.user.userId,
-    });
+    const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.updateStageItemLocalComment({
+        instanceId,
+        stageItemId: itemId,
+        localComment: parsed.data.localComment!,
+        actorId: session.user.userId,
+      }),
+    );
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
@@ -157,11 +173,9 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ instanceId: string; itemId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, itemId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(itemId).success) {
@@ -178,7 +192,7 @@ export async function DELETE(
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!inst0) {
+    if (!inst0 || inst0.organizationId !== gate.ctx.organizationId) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
@@ -186,12 +200,14 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
-    await deps.treatmentProgramInstance.doctorDeleteInstanceStageItem({
-      instanceId,
-      itemId,
-      actorId: session.user.userId,
-      reason: reason ?? null,
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramInstance.doctorDeleteInstanceStageItem({
+        instanceId,
+        itemId,
+        actorId: session.user.userId,
+        reason: reason ?? null,
+      }),
+    );
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true });
   } catch (e) {

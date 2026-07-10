@@ -4,6 +4,7 @@ import type { DoctorExerciseCommentRow } from "@/modules/program-item-discussion
 
 const PATIENT = "11111111-1111-1111-1111-111111111111";
 const DOCTOR = "22222222-2222-2222-2222-222222222222";
+const ORG = "33333333-3333-4333-8333-333333333333";
 
 function row(over: Partial<DoctorExerciseCommentRow> & { createdAt: string }): DoctorExerciseCommentRow {
   return {
@@ -32,13 +33,13 @@ describe("loadDoctorPatientProgramActivity", () => {
     const listExerciseCommentsForDoctor = vi.fn().mockResolvedValue([]);
     await loadDoctorPatientProgramActivity(
       { programItemDiscussion: { listUnreadExerciseCommentsForDoctor, listExerciseCommentsForDoctor } },
-      { patientUserId: PATIENT, viewerUserId: DOCTOR },
+      { patientUserId: PATIENT, viewerUserId: DOCTOR, organizationId: ORG },
     );
     expect(listUnreadExerciseCommentsForDoctor).toHaveBeenCalledWith(
-      expect.objectContaining({ patientUserIds: [PATIENT], viewerUserId: DOCTOR }),
+      expect.objectContaining({ patientUserIds: [PATIENT], viewerUserId: DOCTOR, organizationId: ORG }),
     );
     expect(listExerciseCommentsForDoctor).toHaveBeenCalledWith(
-      expect.objectContaining({ patientUserIds: [PATIENT], viewerUserId: DOCTOR, limit: 1 }),
+      expect.objectContaining({ patientUserIds: [PATIENT], viewerUserId: DOCTOR, organizationId: ORG, limit: 1 }),
     );
   });
 

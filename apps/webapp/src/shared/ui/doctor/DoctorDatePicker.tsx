@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 /**
  * Shared canonical date-only picker (react-day-picker, no time input).
  * value/onChange — строка "yyyy-MM-dd".
+ * max — максимально допустимая дата (строка "yyyy-MM-dd"), например сегодня.
  */
 type Props = {
   value: string;
@@ -24,6 +25,8 @@ type Props = {
   disabled?: boolean;
   placeholder?: string;
   testId?: string;
+  /** Максимальная допустимая дата (включительно), формат "yyyy-MM-dd". */
+  max?: string;
 };
 
 export function DoctorDatePicker({
@@ -32,11 +35,13 @@ export function DoctorDatePicker({
   disabled,
   placeholder = "Выберите дату",
   testId,
+  max,
 }: Props) {
   const [open, setOpen] = useState(false);
   const dt = value ? DateTime.fromISO(value) : null;
   const selectedDate = dt?.isValid ? dt.toJSDate() : undefined;
   const label = dt?.isValid ? dt.setLocale("ru").toFormat("d MMMM yyyy") : placeholder;
+  const maxDate = max ? DateTime.fromISO(max).toJSDate() : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -64,6 +69,7 @@ export function DoctorDatePicker({
           weekStartsOn={1}
           selected={selectedDate}
           defaultMonth={selectedDate}
+          disabled={maxDate ? { after: maxDate } : undefined}
           onSelect={(d) => {
             if (!d) return;
             onChange(DateTime.fromJSDate(d).toFormat("yyyy-MM-dd"));

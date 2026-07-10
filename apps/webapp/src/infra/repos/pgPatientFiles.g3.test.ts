@@ -15,6 +15,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // ── Drizzle mock ──────────────────────────────────────────────────────────────
+const MOCK_ORG_ID = vi.hoisted(() => "00000000-0000-4000-8000-0000000000aa");
 
 type MockInsertReturn = {
   id: string;
@@ -38,6 +39,14 @@ const mockDrizzle = {
 
 vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: () => mockDrizzle,
+}));
+
+vi.mock("@/infra/db/drizzleMutationTx", () => ({
+  runDrizzleMutationTransaction: (fn: (tx: typeof mockDrizzle) => unknown) => fn(mockDrizzle),
+}));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => MOCK_ORG_ID,
 }));
 
 // ── Import subject after mock is hoisted ──────────────────────────────────────
@@ -125,6 +134,7 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
       expect(mediaInsertBuilder.values).toHaveBeenCalledWith(
         expect.objectContaining({
           folderId: MOCK_FOLDER_ID,
+          organizationId: MOCK_ORG_ID,
           mimeType: BASE_PARAMS.mimeType,
           sizeBytes: BASE_PARAMS.sizeBytes,
           s3Key: BASE_PARAMS.s3Key,
@@ -135,6 +145,7 @@ describe("pgPatientFiles — G3 consistency (PFI-ST-04)", () => {
       // patient_files insert: second call, receives mediaFileId
       expect(patientInsertBuilder.values).toHaveBeenCalledWith(
         expect.objectContaining({
+          organizationId: MOCK_ORG_ID,
           mediaFileId: MOCK_MEDIA_FILE_ID,
         }),
       );

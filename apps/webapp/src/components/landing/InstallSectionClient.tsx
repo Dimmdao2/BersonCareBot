@@ -12,6 +12,7 @@ import {
   stepsForPlatform,
 } from "@/components/landing/installSteps";
 import { landingH2, landingBodySecondary } from "@/components/landing/landingTypography";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const tabs: ReadonlyArray<{ value: LandingInstallPlatform; label: string }> = [
@@ -68,21 +69,22 @@ export function InstallSectionClient() {
           {tabs.map((tab) => {
             const selected = installState.active === tab.value;
             return (
-              <button
+              <Button
                 key={tab.value}
                 role="tab"
                 type="button"
                 aria-selected={selected}
                 onClick={() => selectPlatform(tab.value)}
+                variant={selected ? "default" : "ghost"}
                 className={cn(
                   "flex-1 rounded-xl px-5 py-2.5 text-base font-semibold transition sm:px-7",
                   selected
-                    ? "bg-[#2F55B7] text-white"
+                    ? "bg-[#2F55B7] text-white hover:bg-[#2F55B7]/90"
                     : "text-[#475467] hover:bg-[#F4F7FF] hover:text-[#17264A]",
                 )}
               >
                 {tab.label}
-              </button>
+              </Button>
             );
           })}
         </div>

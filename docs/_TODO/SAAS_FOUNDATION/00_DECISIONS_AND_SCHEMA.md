@@ -9,7 +9,7 @@ generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only)
 - **D3 — Membership is net-new.** No login-user↔specialist↔org link exists; `be_specialists` = name only. Build `be_organization_members`. Seed: 1 doctor + 5 admins → the single org; doctor → active specialist `518e…` (ignore inactive duplicate `c951…`).
 - **D4 — Scoping = one chokepoint + RLS.** A context-aware **org resolver** (port+service) sets `organizationId` into request context; Postgres **RLS** (`ENABLE`+`FORCE`, GUC-gated permissive `current_setting('app.enforce_tenancy',true) IS DISTINCT FROM 'on' OR <predicate>`) enforces. Dormant: GUC unset → permit → zero behavior change. Single resolver, no per-endpoint duplicated checks ([[owner-prefers-single-chokepoint-no-dup]]).
 - **D5 — DB roles.** Split **migration/owner role** vs **non-owner app role** (app role today is `rolsuper=f, rolbypassrls=f` and owns tables → owner is RLS-exempt unless FORCE). Required for RLS to actually apply.
-- **D6 — Org resolution by channel** (web/PWA/browser-first; bot = delivery + phone-verify, not primary). Authenticated → org from session/membership (dominant). Anonymous public booking → custom domain (Host) / embeddable widget publishable-key / QR-short-link→token→cookie. Bot = shared + deep-link default, per-org bot = paid/tariff. Discovery marketplace later. **Channel-resolved org = scope hint, ZERO authority**; authz = RLS + membership/enrollment, independent of channel; public/no-session reaches only public data.
+- **D6 — Org resolution by channel** (web/PWA/browser-first; bot = delivery + phone-verify, not primary). Authenticated → org from session/membership (dominant). Anonymous public booking → custom domain (Host) / embeddable widget publishable-key / QR-short-link→token→cookie. Bot = shared + deep-link default, per-org bot = paid/tariff. Discovery marketplace later. **Channel-resolved org = scope hint, ZERO authority**; authz = RLS + membership/enrollment, independent of channel; public/no-session reaches only public data. Custom domains are a paid product capability, not a separate tenancy layer: require verified domain ownership, permanent redirect mapping to the org canonical surface, HTTPS/certificate lifecycle, and loop/fallback handling.
 - **D7 — ⛔ BROKEN (fresh review C2, see REVIEW_2026-06-17_FRESH.md).** Intended: per-org integration config via `system_settings`. INFEASIBLE — `SystemSettingScope` is role-based (`global|doctor|admin`), no org dimension (`types.ts:174`); collides with rule 000. **Needs redesign:** nullable `organization_id` on `system_settings` OR a dedicated `be_organization_integrations` table + resolver port, with rule 000 amended. Do not start F0.15 until redesigned.
 - **D8 — i18n** scaffold ru-only, locale via **proxy** (repo has no middleware), default ru.
 - **D9 — Drizzle ORM for all new tables/columns** (`apps/webapp/db/schema/*.ts` + `drizzle-migrations`), types inferred, no raw `pool.query` for new features. RLS DDL (not expressible in Drizzle) → a raw-SQL **custom Drizzle migration**.
@@ -18,6 +18,18 @@ generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only)
 ## Open product decisions (do NOT block Phase 0)
 - Intra-clinic card visibility `card_visibility_policy` on `be_organizations`: default `all` (every org specialist sees every org patient) vs `assigned`. Deferred — a column + optional 2nd RLS predicate, switchable later. Default `all`.
 - Cross-region enrollment policy (region phase).
+- Doctor client block/archive semantics: current implementation uses global account flags
+  `platform_users.is_blocked` / `platform_users.is_archived`. T0.3.36 only hardens doctor
+  routes with workspace membership authorization before writing those global flags. A true
+  org-scoped model needs a separate product/schema decision: keep global account lifecycle
+  semantics, or move archive to enrollment state and support-chat blocking to an org-scoped
+  support/messaging policy table.
+- Doctor patient profile semantics: current FIO, birth date, gender, height, and weight
+  fields live on global `platform_users`. T0.3.36H only hardens doctor routes with selected
+  workspace membership authorization before global profile reads/writes. A true org-scoped
+  per-clinic profile override model needs a separate product/schema decision and migration.
+- White-label scope and custom-domain packaging by tariff: exact fields, redirect semantics, certificate
+  operations, and suspension behavior are R5 commercial SaaS work, not Phase 0.
 
 ## Target schema (sketch — to be generated via Drizzle)
 ```

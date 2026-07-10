@@ -18,7 +18,10 @@ import {
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
 } from "./hlsStorageLayout.js";
-import { runMediaWorkerPgText } from "./runMediaWorkerSql.js";
+import {
+  runMediaWorkerPgText,
+  runWithOptionalMediaWorkerOrganizationPrincipal,
+} from "./runMediaWorkerSql.js";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import {
   contentTypeForKey,
@@ -225,6 +228,12 @@ async function uploadDirRecursive(
  * HLS transcode (best-effort; failure to delete is logged but does not fail the job). Never throws.
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
+  return runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId, () =>
+    processTranscodeJobInner(ctx, job),
+  );
+}
+
+async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
   const media = await loadMedia(ctx.pool, job.mediaId);
   if (!media || !media.s3_key?.trim()) {
     await permanentFail(ctx, job.id, job.mediaId, "missing_media_or_s3_key");

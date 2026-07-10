@@ -31,6 +31,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     const id = existing?.id ?? nextId("conv", ++conversationIdSeq);
     const row: SupportConversationRow = {
       id,
+      organizationId: null,
       integratorConversationId: params.integratorConversationId,
       platformUserId: null,
       integratorUserId: params.integratorUserId,
@@ -63,6 +64,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     if (!conv) {
       conversations.set(conversationId, {
         id: conversationId,
+        organizationId: null,
         integratorConversationId: params.integratorConversationId,
         platformUserId: null,
         integratorUserId: null,
@@ -82,6 +84,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     const id = nextId("msg", ++messageIdSeq);
     const row: SupportConversationMessageRow = {
       id,
+      organizationId: conv?.organizationId ?? null,
       integratorMessageId: params.integratorMessageId,
       conversationId,
       senderRole: params.senderRole,
@@ -115,6 +118,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       const id = nextId("conv", ++conversationIdSeq);
       conversations.set(id, {
         id,
+        organizationId: null,
         integratorConversationId: params.integratorConversationId,
         platformUserId: null,
         integratorUserId: null,
@@ -377,6 +381,20 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return { mergedConversationCount: 0, movedMessageCount: 0 };
   },
 
+  async claimLegacyConversationForOrganization(input) {
+    const conv = conversations.get(input.conversationId);
+    if (!conv) return false;
+    if (conv.organizationId && conv.organizationId !== input.organizationId) return false;
+    conv.organizationId = input.organizationId;
+    conv.updatedAt = new Date().toISOString();
+    for (const message of messages.values()) {
+      if (message.conversationId === input.conversationId && !message.organizationId) {
+        message.organizationId = input.organizationId;
+      }
+    }
+    return true;
+  },
+
   async ensureWebappConversationForUser(platformUserId) {
     const key = `webapp:platform:${platformUserId}`;
     let c = Array.from(conversations.values()).find((x) => x.integratorConversationId === key);
@@ -384,6 +402,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       const id = nextId("conv", ++conversationIdSeq);
       c = {
         id,
+        organizationId: null,
         integratorConversationId: key,
         platformUserId,
         integratorUserId: null,
@@ -412,6 +431,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     const id = nextId("msg", ++messageIdSeq);
     const row: SupportConversationMessageRow = {
       id,
+      organizationId: conversations.get(params.conversationId)?.organizationId ?? null,
       integratorMessageId: params.integratorMessageId,
       conversationId: params.conversationId,
       senderRole: params.senderRole,

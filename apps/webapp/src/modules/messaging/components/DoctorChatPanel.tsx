@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,8 @@ export function DoctorChatPanel({
   const [loading, setLoading] = useState(!initialMessages);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<SerializedSupportMessage | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const markRead = useCallback(async () => {
     try {
@@ -68,6 +70,7 @@ export function DoctorChatPanel({
     setLoading(true);
     (async () => {
       try {
+        setReplyTarget(null);
         if (initialMessages) {
           if (!cancelled) setMessages(initialMessages);
           await markRead();
@@ -118,6 +121,7 @@ export function DoctorChatPanel({
         return;
       }
       setDraft("");
+      setReplyTarget(null);
       await loadMessages();
       await onSent?.();
     } catch {
@@ -127,9 +131,32 @@ export function DoctorChatPanel({
     }
   };
 
+  const replyToMessage = useCallback((message: SerializedSupportMessage) => {
+    setReplyTarget(message);
+    textareaRef.current?.focus();
+  }, []);
+
   const composer = (
     <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3">
+      {replyTarget ? (
+        <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <span className="min-w-0 flex-1 truncate">
+              Ответ на: {replyTarget.text || "сообщение с вложением"}
+            </span>
+            <button
+              type="button"
+              className="shrink-0 font-medium text-foreground/70 hover:text-foreground"
+              onClick={() => setReplyTarget(null)}
+              aria-label="Убрать выбранное сообщение"
+            >
+              x
+            </button>
+          </div>
+        </div>
+      ) : null}
       <Textarea
+        ref={textareaRef}
         className="min-h-[88px] resize-y"
         placeholder="Ответ..."
         value={draft}
@@ -151,7 +178,14 @@ export function DoctorChatPanel({
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-col", className)}>
       {error ? <p className="mb-2 shrink-0 text-sm text-destructive">{error}</p> : null}
-      <ChatView variant="doctor" messages={messages} emptyText={emptyText} composer={composer} className="min-h-0 flex-1" />
+      <ChatView
+        variant="doctor"
+        messages={messages}
+        emptyText={emptyText}
+        composer={composer}
+        className="min-h-0 flex-1"
+        onReplyToMessage={replyToMessage}
+      />
     </div>
   );
 }

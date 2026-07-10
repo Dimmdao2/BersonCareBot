@@ -4,7 +4,6 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/infra/db/client";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
 
 const doctorClientsPort = createPgDoctorClientsPort();
@@ -21,14 +20,11 @@ export async function applyClientArchiveChange(
   archived: boolean,
 ): Promise<NextResponse> {
   // Дешёвый SELECT роли до getClientIdentity (JOIN привязок) — быстрый 404 для не-клиентов.
-  const roleRow = await getPool().query<{ role: string }>(
-    `SELECT role FROM platform_users WHERE id = $1::uuid`,
-    [userId],
-  );
-  if (!roleRow.rows[0]) {
+  const role = await doctorClientsPort.getPlatformUserRole(userId);
+  if (role === null) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  if (roleRow.rows[0].role !== "client") {
+  if (role !== "client") {
     return NextResponse.json({ ok: false, error: "not_client" }, { status: 404 });
   }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import {
   getUserSubscriptions,
@@ -37,7 +38,7 @@ describe('subscriptions repo (canonical user_id)', () => {
     expect(mockWhere).toHaveBeenCalledTimes(1);
   });
 
-  it('upserts subscription by canonical user_id', async () => {
+  it('upserts subscription by canonical user_id with organization context', async () => {
     const { db } = createDbMock();
     const mockOnConflict = vi.fn().mockResolvedValue(undefined);
     const mockValues = vi.fn().mockReturnValue({ onConflictDoUpdate: mockOnConflict });
@@ -47,8 +48,24 @@ describe('subscriptions repo (canonical user_id)', () => {
     await upsertUserSubscription(db, 7, 3, true);
 
     expect(mockInsert).toHaveBeenCalledTimes(1);
-    expect(mockValues).toHaveBeenCalledWith({ userId: 7, topicId: 3, isActive: true });
+    expect(mockValues).toHaveBeenCalledWith({
+      userId: 7,
+      topicId: 3,
+      isActive: true,
+      organizationId: expect.anything(),
+    });
+    const valuesArg = mockValues.mock.calls[0]?.[0] as { organizationId?: unknown } | undefined;
+    const insertOrg = drizzleSqlFragmentToApproximateSql(valuesArg?.organizationId);
+    expect(insertOrg).toContain('public.platform_users');
+    expect(insertOrg).toContain('public.org_enrollments');
+    expect(insertOrg).toContain('public.be_organization_members');
+    expect(insertOrg).toContain('count(DISTINCT active_user_orgs.organization_id) = 1');
+    expect(insertOrg).toContain('7::bigint');
     expect(mockOnConflict).toHaveBeenCalledTimes(1);
+    const conflictArg = mockOnConflict.mock.calls[0]?.[0] as {
+      set?: { organizationId?: unknown };
+    } | undefined;
+    expect(drizzleSqlFragmentToApproximateSql(conflictArg?.set?.organizationId)).toContain('COALESCE');
   });
 
   it('toggles subscription by canonical user_id', async () => {
@@ -72,6 +89,11 @@ describe('subscriptions repo (canonical user_id)', () => {
     expect(next).toBe(true);
     expect(mockSelect).toHaveBeenCalledTimes(1);
     expect(mockUpsertInsert).toHaveBeenCalledTimes(1);
-    expect(mockUpsertValues).toHaveBeenCalledWith({ userId: 7, topicId: 9, isActive: true });
+    expect(mockUpsertValues).toHaveBeenCalledWith({
+      userId: 7,
+      topicId: 9,
+      isActive: true,
+      organizationId: expect.anything(),
+    });
   });
 });

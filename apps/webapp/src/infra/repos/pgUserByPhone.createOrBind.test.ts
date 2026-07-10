@@ -19,7 +19,12 @@ vi.mock("@/infra/db/client", () => ({
 }));
 
 vi.mock("@/infra/db/runWebappSql", () => ({
-  runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
+  runWebappPgText: (...args: unknown[]) => {
+    if (String(args[0]).startsWith("SET CONSTRAINTS")) {
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    }
+    return runWebappPgTextMock(...args);
+  },
   runPgPoolPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
   getWebappSqlFromPgClient: (client: unknown) => client,
 }));

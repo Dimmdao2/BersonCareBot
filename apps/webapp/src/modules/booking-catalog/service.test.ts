@@ -44,6 +44,7 @@ const mockResolved: ResolvedBranchService = {
     title: "Сеанс 60 мин",
     description: null,
     durationMinutes: 60,
+    breakAfterMinutes: 0,
     priceMinor: 600000,
     isActive: true,
     sortOrder: 2,

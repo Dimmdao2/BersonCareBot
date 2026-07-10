@@ -2,10 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn<() => string | undefined>());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlFromPgClient: (client: unknown) => client,
   runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
+}));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
+  applyCurrentDbPrincipalToTransaction: vi.fn(async () => false),
 }));
 
 import {
@@ -56,15 +62,32 @@ describe("computeConflictKeyFromCandidateIds", () => {
 describe("writeAuditLog", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
   });
 
   it("inserts via runWebappPgText", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
     await writeAuditLog(poolStub, { actorId: null, action: "test_action", details: { a: 1 } });
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
     const args = runWebappPgTextMock.mock.calls[0];
     expect(args?.[0]).toContain("INSERT INTO admin_audit_log");
-    expect(args?.[1]).toEqual([null, "test_action", null, null, '{"a":1}', "ok"]);
+    expect(args?.[1]).toEqual([
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      null,
+      "test_action",
+      null,
+      null,
+      '{"a":1}',
+      "ok",
+    ]);
+  });
+
+  it("uses default organization when no db principal is active", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(undefined);
+    runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    await writeAuditLog(poolStub, { actorId: null, action: "system_action" });
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]?.[0]).toBe("a0000000-0000-4000-8000-000000000001");
   });
 
   it("logs and swallows DB errors", async () => {
@@ -79,9 +102,11 @@ describe("writeAuditLog", () => {
 describe("upsertOpenConflictLog", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
   });
 
   it("writes anomaly log when candidateIds is empty", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
     const res = await upsertOpenConflictLog(poolStub, {
       actorId: null,
@@ -94,12 +119,13 @@ describe("upsertOpenConflictLog", () => {
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
     const args = runWebappPgTextMock.mock.calls[0];
     expect(args?.[0]).toContain("INSERT INTO admin_audit_log");
-    expect(args?.[1]?.[1]).toBe("auto_merge_conflict_anomaly");
-    expect(args?.[1]?.[2]).toBe("u1");
-    expect(args?.[1]?.[3]).toBeNull();
+    expect(args?.[1]?.[2]).toBe("auto_merge_conflict_anomaly");
+    expect(args?.[1]?.[3]).toBe("u1");
+    expect(args?.[1]?.[4]).toBeNull();
   });
 
   it("merges seenEventTypes from details and eventType", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     runWebappPgTextMock.mockImplementation(async (sql: string) => {
       if (sql.includes("SELECT id, details, repeat_count")) {
         return {
@@ -136,6 +162,7 @@ describe("upsertOpenConflictLog", () => {
   });
 
   it("handles unique race by updating existing open conflict row", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     let insertAttempts = 0;
     runWebappPgTextMock.mockImplementation(async (sql: string) => {
       if (sql.includes("SELECT id, details, repeat_count")) {
@@ -163,6 +190,7 @@ describe("upsertOpenConflictLog", () => {
   });
 
   it("returns insertedFirst on new open conflict row", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     runWebappPgTextMock.mockImplementation(async (sql: string) => {
       if (sql.includes("SELECT id, details, repeat_count")) {
         return { rowCount: 0, rows: [] };
@@ -181,6 +209,7 @@ describe("upsertOpenConflictLog", () => {
   });
 
   it("insert uses custom action and conflictKey when provided", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     runWebappPgTextMock.mockImplementation(async (sql: string) => {
       if (sql.includes("SELECT id, details, repeat_count")) {
         return { rowCount: 0, rows: [] };
@@ -201,11 +230,12 @@ describe("upsertOpenConflictLog", () => {
     const insertCall = runWebappPgTextMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO admin_audit_log"));
     expect(insertCall).toBeDefined();
     const params = insertCall?.[1] as unknown[];
-    expect(params?.[1]).toBe("channel_link_ownership_conflict");
-    expect(params?.[3]).toBe("custom-ownership-key");
+    expect(params?.[2]).toBe("channel_link_ownership_conflict");
+    expect(params?.[4]).toBe("custom-ownership-key");
   });
 
   it("rolls back TX and returns skipped when domain SQL fails", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     const errorSpy = vi.spyOn((await import("./logging/logger")).logger, "error").mockImplementation(() => {});
     runWebappPgTextMock.mockRejectedValueOnce(new Error("select failed"));
     const { pool, transportQueries } = installTxClient();
@@ -222,6 +252,7 @@ describe("upsertOpenConflictLog", () => {
   });
 
   it("swallows connect failure and logs error", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     const errorSpy = vi.spyOn((await import("./logging/logger")).logger, "error").mockImplementation(() => {});
     const pool = {
       connect: vi.fn().mockRejectedValue(new Error("connect failed")),
@@ -241,6 +272,7 @@ describe("upsertOpenConflictLog", () => {
 describe("listAdminAuditLog", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
   });
 
   it("excludeActionPrefix adds NOT LIKE filter", async () => {
@@ -305,6 +337,22 @@ describe("listAdminAuditLog", () => {
     expect(countSql).toContain(`l.target_id = $1`);
   });
 
+  it("filters by active db principal organization when present", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    runWebappPgTextMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("count(*)")) {
+        return { rows: [{ n: "0" }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await listAdminAuditLog(poolStub, { page: 1, limit: 10, action: "user_merge" });
+
+    const countCall = runWebappPgTextMock.mock.calls.find((c) => String(c[0]).includes("count(*)"));
+    expect(String(countCall?.[0])).toContain("l.organization_id = $1::uuid");
+    expect(countCall?.[1]).toEqual(["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "user_merge"]);
+  });
+
   it("list query joins platform_users for actor_display_name", async () => {
     runWebappPgTextMock.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes("count(*)")) {
@@ -347,6 +395,7 @@ describe("listAdminAuditLog", () => {
 describe("resolveAdminAuditConflictById", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
   });
 
   const id = "6ef47437-fbed-4d47-a3d4-de6a4ea609cb";
@@ -378,12 +427,16 @@ describe("resolveAdminAuditConflictById", () => {
   });
 
   it("updates when open auto_merge_conflict", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
     runWebappPgTextMock.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (String(sql).includes("SELECT action")) {
+        expect(String(sql)).toContain("organization_id = $2::uuid");
+        expect(params?.[1]).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
         return { rows: [{ action: "auto_merge_conflict", resolved_at: null }], rowCount: 1 };
       }
       if (String(sql).includes("UPDATE admin_audit_log")) {
         expect(params?.[0]).toBe(id);
+        expect(params?.[2]).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
         return { rows: [{ id }], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };

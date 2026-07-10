@@ -22,11 +22,13 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { GET, POST } from "./route";
 
+const ORG_ID = "99999999-9999-4999-8999-999999999999";
+
 describe("booking-engine policies route", () => {
   it("GET returns policies list", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1" },
+      ctx: { organizationId: ORG_ID },
     });
     listCancellationPoliciesMock.mockResolvedValue([]);
     listReschedulePoliciesMock.mockResolvedValue([]);
@@ -40,7 +42,7 @@ describe("booking-engine policies route", () => {
   it("POST saves cancellation policy payload", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1" },
+      ctx: { organizationId: ORG_ID },
     });
     upsertCancellationPolicyMock.mockResolvedValue({ id: "p1" });
 

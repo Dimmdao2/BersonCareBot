@@ -9,6 +9,7 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * Сопутствующие заболевания пациента («Карта» → «Сопутствующие заболевания»).
@@ -25,6 +26,7 @@ export const patientComorbidity = pgTable(
   "patient_comorbidity",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     text: text("text").notNull(),
     since: text("since"),
@@ -34,8 +36,14 @@ export const patientComorbidity = pgTable(
     removedAt: timestamp("removed_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
+    index("idx_patient_comorbidity_organization_id").on(table.organizationId),
     index("idx_patient_comorbidity_patient_user_id").on(table.patientUserId),
     index("idx_patient_comorbidity_status").on(table.patientUserId, table.status),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "patient_comorbidity_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],

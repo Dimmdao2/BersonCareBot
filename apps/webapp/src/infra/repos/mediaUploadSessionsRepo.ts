@@ -6,6 +6,7 @@ import {
   getWebappSqlFromPgClient,
   runWebappSql,
 } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { mediaFiles, mediaUploadSessions } from "../../../db/schema/schema";
 
 export type UploadSessionRow = {
@@ -92,22 +93,10 @@ export async function claimUploadSessionForCompleting(
   ownerUserId: string,
 ): Promise<UploadSessionRow | null> {
   const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  return withPoolTransaction(pool, async (client) => {
     const row = await claimUploadSessionForCompletingTx(client, sessionId, ownerUserId);
-    await client.query("COMMIT");
     return row;
-  } catch (e) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* ignore */
-    }
-    throw e;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /** Retry path: session already in completing (e.g. prior request died after S3 Complete). */
@@ -293,23 +282,12 @@ export async function deletePendingMediaFileTx(client: PoolClient, mediaId: stri
 
 export async function finalizeMultipartSuccess(sessionId: string, mediaId: string): Promise<void> {
   const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  const r = await withPoolTransaction(pool, async (client) => {
     const r = await finalizeMultipartSuccessTx(client, sessionId, mediaId, await ownerForSession(client, sessionId));
-    await client.query("COMMIT");
-    if (r.sessionRows === 0 || r.mediaRows === 0) {
-      throw new Error("finalize_multipart_no_rows_updated");
-    }
-  } catch (e) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* ignore */
-    }
-    throw e;
-  } finally {
-    client.release();
+    return r;
+  });
+  if (r.sessionRows === 0 || r.mediaRows === 0) {
+    throw new Error("finalize_multipart_no_rows_updated");
   }
 }
 

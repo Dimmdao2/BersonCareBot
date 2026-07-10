@@ -3,8 +3,16 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/doctor/primitives/select";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { MarkdownEditorToastUi } from "@/shared/ui/doctor/markdown/MarkdownEditorToastUi";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
@@ -39,10 +47,6 @@ type ContentPage = {
 };
 
 export type PublishedCourseOption = { id: string; title: string };
-
-// ─── native-select style reused for both Раздел and Связан с курсом selects ────
-const selectClass =
-  "h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // ─── shared field-label style (mirrors existing span labels) ─────────────────
 const fieldLabelClass = "text-xs font-medium uppercase tracking-wide text-muted-foreground";
@@ -262,13 +266,11 @@ export function ContentForm({
       action={formAction}
       className="flex flex-col gap-0"
       onInput={(e) => {
-        const target = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
+        const target = e.target as HTMLInputElement | HTMLTextAreaElement | null;
         if (!target) return;
         if (target.name === "title") setTitleValue(target.value);
         if (target.name === "summary") setSummaryValue(target.value);
         if (target.name === "body_md") setBodyMdValue(target.value);
-        if (target.name === "section") setSectionValue(target.value);
-        if (target.name === "linked_course_id") setLinkedCourseIdValue(target.value);
       }}
     >
       {/* Two-column grid: left = main content, right = sidebar */}
@@ -357,20 +359,25 @@ export function ContentForm({
                   <p className="text-xs text-muted-foreground">Раздел задан контекстом страницы создания.</p>
                 </>
               ) : (
-                <select
+                <Select
                   id="content-section"
                   name="section"
                   required
-                  className={selectClass}
                   defaultValue={defaultSectionSlugForSelect}
                   key={page ? `section-${page.id}` : `section-new-${defaultSectionSlugForSelect}`}
+                  onValueChange={(v) => setSectionValue(v ?? "")}
                 >
-                  {sections.map((s) => (
-                    <option key={s.slug} value={s.slug}>
-                      {s.title}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sections.map((s) => (
+                      <SelectItem key={s.slug} value={s.slug}>
+                        {s.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
               {isHelpSectionContext ? (
                 <p className="text-xs text-muted-foreground">
@@ -470,16 +477,14 @@ export function ContentForm({
             defaultValue={isPublishedValue ? "on" : ""}
           />
 
-          {/* Requires-auth checkbox stays as-is */}
+          {/* Requires-auth checkbox */}
           <div className="flex flex-col gap-3">
             <label className="flex cursor-pointer items-center gap-2.5">
-              <input
-                type="checkbox"
+              <Checkbox
                 name="requires_auth"
                 defaultChecked={page?.requiresAuth ?? false}
                 key={`req-${page?.id ?? "new"}`}
-                onChange={(e) => setRequiresAuthValue(e.target.checked)}
-                className="h-4 w-4 rounded border-input accent-primary"
+                onCheckedChange={(checked) => setRequiresAuthValue(checked)}
               />
               <span className={fieldLabelClass}>Только для залогиненных (щит)</span>
             </label>
@@ -584,21 +589,25 @@ export function ContentForm({
               <Label htmlFor="content-linked-course" className={fieldLabelClass}>
                 Связан с курсом (если это промо-материал)
               </Label>
-              <select
+              <Select
                 id="content-linked-course"
                 name="linked_course_id"
-                className={selectClass}
                 defaultValue={page?.linkedCourseId ?? ""}
                 key={`linked-course-${page?.id ?? "new"}`}
-                onChange={(e) => setLinkedCourseIdValue(e.target.value)}
+                onValueChange={(v) => setLinkedCourseIdValue(v ?? "")}
               >
-                <option value="">— не выбрано —</option>
-                {publishedCourses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— не выбрано —</SelectItem>
+                  {publishedCourses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

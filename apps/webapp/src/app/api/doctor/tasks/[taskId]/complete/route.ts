@@ -4,25 +4,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 export async function POST(
   _request: Request,
   context: { params: Promise<{ taskId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { taskId } = await context.params;
   if (!z.string().uuid().safeParse(taskId).success) {
     return NextResponse.json({ ok: false, error: "invalid_task" }, { status: 400 });
   }
 
-  const task = await buildAppDeps().specialistTasks.complete(taskId, session.user.userId);
+  const deps = buildAppDeps();
+  const existing = await deps.specialistTasks.getByIdForOwner(taskId, session.user.userId);
+  if (!existing || existing.organizationId !== gate.ctx.organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const task = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.specialistTasks.complete(taskId, session.user.userId),
+  );
   if (!task) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true, task });
 }

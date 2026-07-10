@@ -5,6 +5,11 @@ import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugTe
 
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const insertValuesMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const getPoolMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: getPoolMock,
+}));
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlDb: vi.fn(() => ({})),
@@ -18,7 +23,9 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 
 import {
   abortMultipartPendingTx,
+  claimUploadSessionForCompleting,
   deletePendingMediaFileTx,
+  finalizeMultipartSuccess,
   insertUploadSessionTx,
   lockExpiredSessionForCleanupTx,
 } from "./mediaUploadSessionsRepo";
@@ -129,5 +136,61 @@ describe("insertUploadSessionTx", () => {
         expiresAt: expiresAt.toISOString(),
       }),
     );
+  });
+});
+
+describe("mediaUploadSessionsRepo pool wrappers", () => {
+  beforeEach(() => {
+    runWebappSqlMock.mockReset();
+    getPoolMock.mockReset();
+  });
+
+  function mockPool() {
+    const client = {
+      query: vi.fn(async () => ({ rows: [], rowCount: 0 })),
+      release: vi.fn(),
+    };
+    getPoolMock.mockReturnValue({
+      connect: vi.fn(async () => client),
+    });
+    return client;
+  }
+
+  it("claimUploadSessionForCompleting runs claim in a shared transaction helper", async () => {
+    const client = mockPool();
+    runWebappSqlMock.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "sess-1",
+          media_id: "media-1",
+          s3_key: "media/x/f.png",
+          upload_id: "up-1",
+          owner_user_id: "owner-1",
+          status: "completing",
+          expected_size_bytes: "10",
+          mime_type: "image/png",
+          part_size_bytes: 5_242_880,
+          expires_at: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    await expect(claimUploadSessionForCompleting("sess-1", "owner-1")).resolves.toMatchObject({
+      id: "sess-1",
+    });
+
+    expect(client.query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
+  });
+
+  it("finalizeMultipartSuccess commits before validating updated row counts", async () => {
+    const client = mockPool();
+    runWebappSqlMock
+      .mockResolvedValueOnce({ rows: [{ owner_user_id: "owner-1" }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await expect(finalizeMultipartSuccess("sess-1", "media-1")).resolves.toBeUndefined();
+
+    expect(client.query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
   });
 });

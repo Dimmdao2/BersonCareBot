@@ -6,6 +6,7 @@ import {
 
 const PATIENT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const DOCTOR = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+const ORGANIZATION = "11111111-1111-4111-8111-111111111111";
 
 describe("inMemoryPatientPayments", () => {
   beforeEach(() => {
@@ -14,6 +15,7 @@ describe("inMemoryPatientPayments", () => {
 
   it("addCashPayment then listPayments returns the payment", async () => {
     const payment = await inMemoryPatientPaymentsPort.addCashPayment({
+      organizationId: ORGANIZATION,
       patientUserId: PATIENT,
       amountMinor: 150000, // 1500 рублей в копейках
       currency: "RUB",
@@ -24,6 +26,7 @@ describe("inMemoryPatientPayments", () => {
     });
 
     expect(payment.id).toBeTruthy();
+    expect(payment.organizationId).toBe(ORGANIZATION);
     expect(payment.patientUserId).toBe(PATIENT);
     expect(payment.amountMinor).toBe(150000);
     expect(payment.currency).toBe("RUB");
@@ -41,6 +44,7 @@ describe("inMemoryPatientPayments", () => {
 
   it("listPayments returns newest first", async () => {
     const p1 = await inMemoryPatientPaymentsPort.addCashPayment({
+      organizationId: ORGANIZATION,
       patientUserId: PATIENT,
       amountMinor: 50000,
       createdBy: DOCTOR,
@@ -48,6 +52,7 @@ describe("inMemoryPatientPayments", () => {
     // Short delay to ensure distinct createdAt
     await new Promise((r) => setTimeout(r, 2));
     const p2 = await inMemoryPatientPaymentsPort.addCashPayment({
+      organizationId: ORGANIZATION,
       patientUserId: PATIENT,
       amountMinor: 80000,
       createdBy: DOCTOR,
@@ -63,6 +68,7 @@ describe("inMemoryPatientPayments", () => {
   it("rejects amount <= 0", async () => {
     await expect(
       inMemoryPatientPaymentsPort.addCashPayment({
+        organizationId: ORGANIZATION,
         patientUserId: PATIENT,
         amountMinor: 0,
         createdBy: DOCTOR,
@@ -71,6 +77,7 @@ describe("inMemoryPatientPayments", () => {
 
     await expect(
       inMemoryPatientPaymentsPort.addCashPayment({
+        organizationId: ORGANIZATION,
         patientUserId: PATIENT,
         amountMinor: -100,
         createdBy: DOCTOR,
@@ -81,11 +88,13 @@ describe("inMemoryPatientPayments", () => {
   it("listPayments isolates by patientUserId", async () => {
     const OTHER_PATIENT = "cccccccc-cccc-cccc-cccc-cccccccccccc";
     await inMemoryPatientPaymentsPort.addCashPayment({
+      organizationId: ORGANIZATION,
       patientUserId: PATIENT,
       amountMinor: 10000,
       createdBy: DOCTOR,
     });
     await inMemoryPatientPaymentsPort.addCashPayment({
+      organizationId: ORGANIZATION,
       patientUserId: OTHER_PATIENT,
       amountMinor: 20000,
       createdBy: DOCTOR,

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Star } from "lucide-react";
 import { Rating, Star as RatingStarShape } from "@smastrom/react-rating";
 import "@smastrom/react-rating/style.css";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { ruRatingCountLabel } from "@/shared/lib/ruRatingCountLabel";
 import type { MaterialRatingTargetKind } from "@/modules/material-rating/types";
@@ -283,8 +284,9 @@ export function MaterialRatingBlock({
             })}
           </span>
           {showChangeLink ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               className={cn(
                 "text-sm text-muted-foreground",
                 "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-normal underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90",
@@ -296,7 +298,7 @@ export function MaterialRatingBlock({
               }}
             >
               Изменить оценку
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}

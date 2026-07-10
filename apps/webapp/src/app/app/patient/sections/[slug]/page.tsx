@@ -13,7 +13,7 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import {
   canViewPatientAuthOnlySection,
   filterPatientSectionPages,
-} from "@/modules/platform-access";
+} from "@/app-layer/platform-access";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PatientSectionPageBody } from "./PatientSectionPageBody";
 

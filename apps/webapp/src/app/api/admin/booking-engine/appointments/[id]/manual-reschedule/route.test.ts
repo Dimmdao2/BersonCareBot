@@ -1,7 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
 const staffRescheduleMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../../../_requireAdminBookingEngine", () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
@@ -9,6 +24,10 @@ vi.mock("../../../_requireAdminBookingEngine", () => ({
 
 vi.mock("@/app-layer/booking/staffAppointmentLifecycleEffects", () => ({
   applyStaffRescheduleSideEffects: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/modules/integrator/bookingM2mApi", () => ({
@@ -32,6 +51,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { POST } from "./route";
 
 describe("POST admin manual-reschedule", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    principalState.inside = false;
+  });
+
   it("returns ok when lifecycle accepts reschedule", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
@@ -53,10 +77,13 @@ describe("POST admin manual-reschedule", () => {
         },
       },
     });
-    staffRescheduleMock.mockResolvedValue({
-      ok: true,
-      appointment: { id: "appt-1", platformUserId: "u1" },
-      reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+    staffRescheduleMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return {
+        ok: true,
+        appointment: { id: "appt-1", platformUserId: "u1" },
+        reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+      };
     });
 
     const res = await POST(
@@ -74,6 +101,11 @@ describe("POST admin manual-reschedule", () => {
     const json = (await res.json()) as { ok?: boolean };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "admin.booking-engine.appointments.manual-reschedule",
+      expect.any(Function),
+    );
   });
 
   it("returns slot_overlap when lifecycle throws overlap error", async () => {
@@ -97,7 +129,10 @@ describe("POST admin manual-reschedule", () => {
         },
       },
     });
-    staffRescheduleMock.mockRejectedValue(new Error("slot_overlap"));
+    staffRescheduleMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      throw new Error("slot_overlap");
+    });
 
     const res = await POST(
       new Request("http://localhost/manual-reschedule", {

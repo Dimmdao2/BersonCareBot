@@ -1,10 +1,28 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
-const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}));
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getCurrentSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -12,11 +30,52 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 describe("doctor client booking-profile route", () => {
+  const organizationId = "b0000000-0000-4000-8000-000000000001";
+  const patientId = "a0000000-0000-4000-8000-000000000001";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId,
+        session: { user: { userId: "doc-1", role: "doctor" } },
+      },
+    });
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
+  });
+
+  it("returns workspace gate response when doctor workspace is unavailable", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "organization_selection_required" }, { status: 409 }),
+    });
+
+    const { PATCH } = await import("./route");
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isProblematic: true }),
+      }),
+      { params: Promise.resolve({ userId: patientId }) },
+    );
+
+    expect(res.status).toBe(409);
+    expect(buildAppDepsMock).not.toHaveBeenCalled();
+  });
+
   it("PATCH updates profile", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+    const getClientIdentityForOrganization = vi.fn().mockResolvedValue({ userId: patientId });
     const upsertBookingProfile = vi.fn().mockResolvedValue({
-      platformUserId: "user-1",
-      organizationId: "org-1",
+      platformUserId: patientId,
+      organizationId,
       isProblematic: true,
       bookingBlocked: false,
       problematicNote: null,
@@ -25,11 +84,9 @@ describe("doctor client booking-profile route", () => {
     });
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: {
-        getClientIdentity: vi.fn().mockResolvedValue({ userId: "user-1" }),
+        getClientIdentityForOrganization,
       },
-      bookingEngine: {
-        organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
-      },
+      bookingEngine: {},
       clientHistory: { upsertBookingProfile },
     });
 
@@ -40,12 +97,23 @@ describe("doctor client booking-profile route", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isProblematic: true }),
       }),
-      { params: Promise.resolve({ userId: "a0000000-0000-4000-8000-000000000001" }) },
+      { params: Promise.resolve({ userId: patientId }) },
     );
     const json = (await res.json()) as { ok?: boolean; profile?: { isProblematic?: boolean } };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.profile?.isProblematic).toBe(true);
-    expect(upsertBookingProfile).toHaveBeenCalled();
+    expect(getClientIdentityForOrganization).toHaveBeenCalledWith(patientId, organizationId);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+      expect.any(Function),
+    );
+    expect(upsertBookingProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId,
+        platformUserId: patientId,
+        updatedBy: "doc-1",
+      }),
+    );
   });
 });

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   isRecommendationArchiveAlreadyArchivedError,
   isRecommendationArchiveNotFoundError,
@@ -43,11 +45,9 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -68,21 +68,28 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       domainPatch = String(rawDomain).trim();
     }
 
-    const item = await deps.recommendations.updateRecommendation(id, {
-      ...parsed.data,
-      domain: domainPatch,
-      bodyRegionId: parsed.data.bodyRegionId,
-      quantityText: parsed.data.quantityText,
-      frequencyText: parsed.data.frequencyText,
-      durationText: parsed.data.durationText,
-      media:
-        parsed.data.media === undefined
-          ? undefined
-          : parsed.data.media?.map((m, i) => ({
-              ...m,
-              sortOrder: m.sortOrder ?? i,
-            })),
-    });
+    const item = await deps.recommendations.updateRecommendation(
+      id,
+      {
+        ...parsed.data,
+        domain: domainPatch,
+        bodyRegionId: parsed.data.bodyRegionId,
+        quantityText: parsed.data.quantityText,
+        frequencyText: parsed.data.frequencyText,
+        durationText: parsed.data.durationText,
+        media:
+          parsed.data.media === undefined
+            ? undefined
+            : parsed.data.media?.map((m, i) => ({
+                ...m,
+                sortOrder: m.sortOrder ?? i,
+              })),
+      },
+      {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.update", fn),
+      },
+    );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     if (isRecommendationInvalidDomainError(e)) {
@@ -94,11 +101,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
 /** Архивация (DELETE): при необходимости подтверждения usage — 409; повтор с `?acknowledgeUsageWarning=1`. */
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const url = new URL(request.url);
@@ -107,7 +112,14 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
 
   const deps = buildAppDeps();
   try {
-    await deps.recommendations.archiveRecommendation(id, { acknowledgeUsageWarning });
+    await deps.recommendations.archiveRecommendation(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.archive", fn),
+      },
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (isRecommendationUsageConfirmationRequiredError(e)) {

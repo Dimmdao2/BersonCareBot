@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getCurrentDbPrincipalOrganizationId, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { describe, expect, it } from "vitest";
 import { buildAppDeps } from "./buildAppDeps";
 
@@ -17,6 +18,8 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("purchases");
     expect(deps).toHaveProperty("products");
     expect(deps).toHaveProperty("entitlements");
+    expect(deps).toHaveProperty("organizationMembership");
+    expect(deps).toHaveProperty("doctorWorkspace");
     expect(deps).toHaveProperty("diaries");
     expect(deps).toHaveProperty("health");
     expect(deps).toHaveProperty("media");
@@ -26,6 +29,26 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("patientHomeLegacy");
     expect(deps).toHaveProperty("warmupFeelingCompletion");
     expect(typeof deps.warmupFeelingCompletion.applyDailyWarmupFeeling).toBe("function");
+  });
+
+  it("does not capture the current organization principal in the cached dependency graph", async () => {
+    const source = readFileSync(fileURLToPath(import.meta.url).replace(/\.test\.ts$/, ".ts"), "utf8");
+    expect(source).not.toContain("@bersoncare/db-principal");
+
+    await runWithDbOrganizationPrincipal(
+      "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      async () => {
+        expect(getCurrentDbPrincipalOrganizationId()).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+        expect(buildAppDeps()).toHaveProperty("organizationMembership");
+      },
+    );
+
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+
+    await runWithDbOrganizationPrincipal("dddddddd-dddd-4ddd-8ddd-dddddddddddd", async () => {
+      expect(getCurrentDbPrincipalOrganizationId()).toBe("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+      expect(buildAppDeps()).toHaveProperty("doctorWorkspace");
+    });
   });
 
   it("contentCatalog.getBySlug resolves known slug", async () => {

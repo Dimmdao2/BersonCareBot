@@ -23,6 +23,7 @@ async function requireM2m(): Promise<{ baseUrl: string; secret: string }> {
 export type SystemSettingsSyncWireInput = {
   key: string;
   scope: "global" | "doctor" | "admin";
+  organizationId?: string | null;
   valueJson: { value: unknown };
   updatedBy?: string | null;
 };
@@ -33,6 +34,7 @@ export async function postSystemSettingsSyncToIntegrator(input: SystemSettingsSy
   const body = JSON.stringify({
     key: input.key,
     scope: input.scope,
+    organizationId: input.organizationId ?? null,
     valueJson: input.valueJson,
     ...(input.updatedBy != null && input.updatedBy !== "" ? { updatedBy: String(input.updatedBy) } : {}),
   });

@@ -82,7 +82,16 @@ export function createPatientClinicalService({
           throw new Error("complaint_update_severity_out_of_range");
         }
       }
-      return patientClinicalPort.createVisit(input);
+      return patientClinicalPort.createVisit({
+        ...input,
+        location: normalizeVisitSection(input.location),
+        duration: normalizeVisitSection(input.duration),
+        anamnesisText: normalizeVisitSection(input.anamnesisText),
+        exam: normalizeVisitSection(input.exam),
+        manipulations: normalizeVisitSection(input.manipulations),
+        trialResults: normalizeVisitSection(input.trialResults),
+        recommendations: normalizeVisitSection(input.recommendations),
+      });
     },
 
     // -- Инлайн-правка полей -------------------------------------------------
@@ -115,7 +124,8 @@ export function createPatientClinicalService({
         patch.text = text;
       }
       if (input.priority !== undefined) patch.priority = input.priority;
-      if (patch.text === undefined && patch.priority === undefined) {
+      if (input.comment !== undefined) patch.comment = normalizeVisitSection(input.comment) ?? null;
+      if (patch.text === undefined && patch.priority === undefined && patch.comment === undefined) {
         throw new Error("nothing_to_update");
       }
       return patientClinicalPort.updateDiagnosisFields(patch);
@@ -127,13 +137,14 @@ export function createPatientClinicalService({
         visitId: input.visitId,
         location: normalizeVisitSection(input.location),
         duration: normalizeVisitSection(input.duration),
+        anamnesisText: normalizeVisitSection(input.anamnesisText),
         exam: normalizeVisitSection(input.exam),
         manipulations: normalizeVisitSection(input.manipulations),
         trialResults: normalizeVisitSection(input.trialResults),
         recommendations: normalizeVisitSection(input.recommendations),
       };
       const hasChange = (
-        ["location", "duration", "exam", "manipulations", "trialResults", "recommendations"] as const
+        ["location", "duration", "anamnesisText", "exam", "manipulations", "trialResults", "recommendations"] as const
       ).some((k) => patch[k] !== undefined);
       if (!hasChange) throw new Error("nothing_to_update");
       return patientClinicalPort.updateVisitFields(patch);
@@ -150,8 +161,11 @@ export function createPatientClinicalService({
       return patientClinicalPort.setDiagnosisClinicalStatus(input);
     },
 
-    async getDiagnosisStatusHistory(diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]> {
-      return patientClinicalPort.getDiagnosisStatusHistory(diagnosisId);
+    async getDiagnosisStatusHistory(
+      patientUserId: string,
+      diagnosisId: string,
+    ): Promise<DiagnosisStatusHistoryEntry[]> {
+      return patientClinicalPort.getDiagnosisStatusHistory(patientUserId, diagnosisId);
     },
 
     // -- Анамнез -------------------------------------------------------------

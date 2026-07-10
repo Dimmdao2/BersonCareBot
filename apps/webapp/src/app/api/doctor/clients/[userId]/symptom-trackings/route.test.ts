@@ -1,21 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
-const mockGetCurrentSession = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: mockGetCurrentSession,
+const mockRequireDoctorWorkspaceApiContext = vi.hoisted(() => vi.fn());
+const mockWithDoctorWorkspacePrincipal = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
 }));
-
-const mockCanAccessDoctor = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/roles/service", () => ({
-  canAccessDoctor: mockCanAccessDoctor,
-}));
-
-const mockGetClientIdentity = vi.hoisted(() => vi.fn());
+const mockGetClientIdentityForOrganization = vi.hoisted(() => vi.fn());
 const mockCreateSymptomTracking = vi.hoisted(() => vi.fn());
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => mockRequireDoctorWorkspaceApiContext(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
+    mockWithDoctorWorkspacePrincipal(ctx, fn),
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    doctorClientsPort: { getClientIdentity: mockGetClientIdentity },
+    doctorClientsPort: { getClientIdentityForOrganization: mockGetClientIdentityForOrganization },
     diaries: { createSymptomTracking: mockCreateSymptomTracking },
   }),
 }));
@@ -24,6 +30,7 @@ import { POST } from "./route";
 
 const DOCTOR_SESSION = { user: { userId: "doc-1", role: "doctor" as const } };
 const PATIENT_ID = "123e4567-e89b-12d3-a456-426614174000";
+const ORGANIZATION_ID = "223e4567-e89b-42d3-a456-426614174000";
 
 function post(body: unknown) {
   return new Request(`http://localhost/api/doctor/clients/${PATIENT_ID}/symptom-trackings`, {
@@ -36,9 +43,21 @@ function post(body: unknown) {
 describe("POST /api/doctor/clients/[userId]/symptom-trackings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetCurrentSession.mockResolvedValue(DOCTOR_SESSION);
-    mockCanAccessDoctor.mockReturnValue(true);
-    mockGetClientIdentity.mockResolvedValue({ userId: PATIENT_ID, displayName: "P" });
+    mockRequireDoctorWorkspaceApiContext.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORGANIZATION_ID,
+        session: DOCTOR_SESSION,
+      },
+    });
+    mockWithDoctorWorkspacePrincipal.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
+    mockGetClientIdentityForOrganization.mockResolvedValue({ userId: PATIENT_ID, displayName: "P" });
     mockCreateSymptomTracking.mockResolvedValue({
       id: "tr-1",
       userId: PATIENT_ID,
@@ -50,24 +69,20 @@ describe("POST /api/doctor/clients/[userId]/symptom-trackings", () => {
     });
   });
 
-  it("returns 401 without session", async () => {
-    mockGetCurrentSession.mockResolvedValue(null);
-    const res = await POST(post({ symptomTitle: "Боль" }), {
-      params: Promise.resolve({ userId: PATIENT_ID }),
+  it("returns workspace gate response when doctor workspace is unavailable", async () => {
+    mockRequireDoctorWorkspaceApiContext.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "organization_selection_required" }, { status: 409 }),
     });
-    expect(res.status).toBe(401);
-  });
 
-  it("returns 403 when role cannot access doctor", async () => {
-    mockCanAccessDoctor.mockReturnValue(false);
     const res = await POST(post({ symptomTitle: "Боль" }), {
       params: Promise.resolve({ userId: PATIENT_ID }),
     });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(409);
   });
 
   it("returns 404 when client identity missing", async () => {
-    mockGetClientIdentity.mockResolvedValue(null);
+    mockGetClientIdentityForOrganization.mockResolvedValue(null);
     const res = await POST(post({ symptomTitle: "Боль" }), {
       params: Promise.resolve({ userId: PATIENT_ID }),
     });
@@ -82,6 +97,11 @@ describe("POST /api/doctor/clients/[userId]/symptom-trackings", () => {
     const body = (await res.json()) as { ok: boolean; tracking: { id: string; symptomTitle: string } };
     expect(body.ok).toBe(true);
     expect(body.tracking.id).toBe("tr-1");
+    expect(mockGetClientIdentityForOrganization).toHaveBeenCalledWith(PATIENT_ID, ORGANIZATION_ID);
+    expect(mockWithDoctorWorkspacePrincipal).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+      expect.any(Function),
+    );
     expect(mockCreateSymptomTracking).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: PATIENT_ID,

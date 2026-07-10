@@ -1,0 +1,57 @@
+import type { Pool, PoolClient } from 'pg';
+import { applyCurrentDbPrincipalToTransaction } from '@bersoncare/db-principal';
+
+async function prepareIntegratorClient(_client: PoolClient): Promise<void> {
+  // Dormant SAAS hook: future tenant/app principal setup belongs here.
+}
+
+export async function prepareIntegratorTransactionClient(client: PoolClient): Promise<void> {
+  await applyCurrentDbPrincipalToTransaction(client);
+}
+
+export async function checkoutIntegratorPoolClient(pool: Pool): Promise<PoolClient> {
+  const client = await pool.connect();
+  try {
+    await prepareIntegratorClient(client);
+    return client;
+  } catch (err) {
+    client.release();
+    throw err;
+  }
+}
+
+export async function withIntegratorPoolClient<T>(
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await checkoutIntegratorPoolClient(pool);
+  try {
+    return await fn(client);
+  } finally {
+    client.release();
+  }
+}
+
+export async function withIntegratorPoolTransaction<T>(
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await prepareIntegratorClient(client);
+    await client.query('BEGIN');
+    await prepareIntegratorTransactionClient(client);
+    const out = await fn(client);
+    await client.query('COMMIT');
+    return out;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* preserve original error */
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}

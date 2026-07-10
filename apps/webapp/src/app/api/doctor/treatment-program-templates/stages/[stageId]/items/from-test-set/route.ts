@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   isTreatmentProgramExpandNotFoundError,
   isTreatmentProgramTemplateAlreadyArchivedError,
@@ -14,11 +14,9 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { stageId } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -33,6 +31,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
       parsed.data.templateId,
       stageId,
       parsed.data.testSetId,
+      {
+        runTemplateWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.expand-test-set", fn),
+      },
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

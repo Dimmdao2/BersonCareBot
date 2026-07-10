@@ -34,6 +34,7 @@ describe("enqueueMediaTranscodeJob", () => {
       rows: [
         {
           id: "00000000-0000-4000-8000-0000000000aa",
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           mime_type: "video/mp4",
           s3_key: "media/x/f.mp4",
           hls_master_playlist_s3_key: "media/x/hls/master.m3u8",
@@ -52,6 +53,7 @@ describe("enqueueMediaTranscodeJob", () => {
       rows: [
         {
           id: "00000000-0000-4000-8000-0000000000bb",
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           mime_type: "image/jpeg",
           s3_key: "media/x/a.jpg",
           hls_master_playlist_s3_key: null,
@@ -70,6 +72,7 @@ describe("enqueueMediaTranscodeJob", () => {
         rows: [
           {
             id: "00000000-0000-4000-8000-0000000000cc",
+            organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
             mime_type: "video/mp4",
             s3_key: "media/x/v.mp4",
             hls_master_playlist_s3_key: null,
@@ -89,12 +92,16 @@ describe("enqueueMediaTranscodeJob", () => {
     expect(runWebappTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("inserts job in transaction", async () => {
+  it("inserts job in transaction with media organization context", async () => {
+    const values = vi.fn().mockReturnValue({
+      returning: async () => [{ id: "job-new" }],
+    });
     runWebappSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
             id: "00000000-0000-4000-8000-0000000000dd",
+            organization_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
             mime_type: "video/mp4",
             s3_key: "media/x/v.mp4",
             hls_master_playlist_s3_key: null,
@@ -108,9 +115,7 @@ describe("enqueueMediaTranscodeJob", () => {
     runWebappTransactionMock.mockImplementation(async (fn) =>
       fn({
         insert: () => ({
-          values: () => ({
-            returning: async () => [{ id: "job-new" }],
-          }),
+          values,
         }),
         update: () => ({
           set: () => ({
@@ -128,6 +133,11 @@ describe("enqueueMediaTranscodeJob", () => {
       alreadyQueued: false,
     });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      mediaId: "00000000-0000-4000-8000-0000000000dd",
+      organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      status: "pending",
+    }));
   });
 
   it("on unique violation (23505), returns alreadyQueued when concurrent insert won the race", async () => {
@@ -136,6 +146,7 @@ describe("enqueueMediaTranscodeJob", () => {
         rows: [
           {
             id: "00000000-0000-4000-8000-0000000000ee",
+            organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
             mime_type: "video/mp4",
             s3_key: "media/x/v.mp4",
             hls_master_playlist_s3_key: null,
@@ -172,6 +183,7 @@ describe("enqueueProgramSubmissionTranscodeJob", () => {
       rows: [
         {
           id: "00000000-0000-4000-8000-0000000000ff",
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           mime_type: "video/mp4",
           s3_key: "media/x/v.mp4",
           hls_master_playlist_s3_key: null,
@@ -190,6 +202,7 @@ describe("enqueueProgramSubmissionTranscodeJob", () => {
       rows: [
         {
           id: "00000000-0000-4000-8000-000000000011",
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           mime_type: "video/mp4",
           s3_key: "media/x/v.mp4",
           hls_master_playlist_s3_key: null,
@@ -203,12 +216,16 @@ describe("enqueueProgramSubmissionTranscodeJob", () => {
     expect(runWebappTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("enqueues job for program submission video", async () => {
+  it("enqueues job for program submission video with media organization context", async () => {
+    const values = vi.fn().mockReturnValue({
+      returning: async () => [{ id: "job-program" }],
+    });
     runWebappSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
             id: "00000000-0000-4000-8000-000000000022",
+            organization_id: "22222222-2222-4222-8222-222222222222",
             mime_type: "video/mp4",
             s3_key: "media/x/v.mp4",
             hls_master_playlist_s3_key: null,
@@ -222,9 +239,7 @@ describe("enqueueProgramSubmissionTranscodeJob", () => {
     runWebappTransactionMock.mockImplementation(async (fn) =>
       fn({
         insert: () => ({
-          values: () => ({
-            returning: async () => [{ id: "job-program" }],
-          }),
+          values,
         }),
         update: () => ({
           set: () => ({
@@ -242,5 +257,10 @@ describe("enqueueProgramSubmissionTranscodeJob", () => {
       alreadyQueued: false,
     });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      mediaId: "00000000-0000-4000-8000-000000000022",
+      organizationId: "22222222-2222-4222-8222-222222222222",
+      status: "pending",
+    }));
   });
 });

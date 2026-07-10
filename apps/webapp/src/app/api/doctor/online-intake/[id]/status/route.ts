@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 const bodySchema = z.object({
   status: z.enum(["in_review", "contacted", "booked", "rejected", "closed"]),
@@ -10,13 +10,8 @@ const bodySchema = z.object({
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(raw);
@@ -27,12 +22,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const service = getOnlineIntakeService();
   try {
-    const result = await service.changeStatus({
-      requestId: id,
-      changedBy: session.user.userId,
-      toStatus: parsed.data.status,
-      note: parsed.data.note,
-    });
+    const intake = await withDoctorWorkspacePrincipal(gate.ctx, () => service.getRequestForDoctor(id));
+    if (!intake || intake.organizationId !== gate.ctx.organizationId) {
+      return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+    }
+    const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      service.changeStatus({
+        requestId: id,
+        changedBy: gate.ctx.session.user.userId,
+        toStatus: parsed.data.status,
+        note: parsed.data.note,
+      }),
+    );
     return NextResponse.json({ id: result.id, status: result.status, updatedAt: result.updatedAt });
   } catch (err: unknown) {
     if (err instanceof Error && "code" in err) {

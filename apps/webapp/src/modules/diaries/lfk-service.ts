@@ -78,6 +78,7 @@ export function createLfkDiaryService(port: LfkDiaryPort) {
       userId: string;
       fromCompletedAt: string;
       toCompletedAtExclusive: string;
+      organizationId?: string;
       complexId?: string | null;
       limit?: number;
     }): Promise<LfkSession[]> {

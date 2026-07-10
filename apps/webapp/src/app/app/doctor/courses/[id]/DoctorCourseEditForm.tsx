@@ -14,6 +14,13 @@ import {
 } from "@/shared/ui/doctor/primitives/dialog";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/doctor/primitives/select";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/courses/errors";
 import type { CourseRecord, CourseStatus, CourseUsageRef, CourseUsageSnapshot } from "@/modules/courses/types";
@@ -333,50 +340,59 @@ export function DoctorCourseEditForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-course-template">Шаблон программы лечения</Label>
-          <select
-            id="edit-course-template"
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <Select
             value={programTemplateId}
-            onChange={(e) => setProgramTemplateId(e.target.value)}
+            onValueChange={(v) => setProgramTemplateId(v ?? "")}
             required
           >
-            {templates.map((tm) => (
-              <option key={tm.id} value={tm.id}>
-                {tm.title} ({tm.status})
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="edit-course-template" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((tm) => (
+                <SelectItem key={tm.id} value={tm.id}>
+                  {tm.title} ({tm.status})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-course-status">Статус</Label>
-          <select
-            id="edit-course-status"
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <Select
             value={status}
-            onChange={(e) => setStatus(e.target.value as CourseStatus)}
+            onValueChange={(v) => setStatus((v ?? "draft") as CourseStatus)}
           >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="edit-course-status" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-course-intro">Вступительный урок (страница CMS)</Label>
-          <select
-            id="edit-course-intro"
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <Select
             value={introLessonPageId}
-            onChange={(e) => setIntroLessonPageId(e.target.value)}
+            onValueChange={(v) => setIntroLessonPageId(v ?? "")}
           >
-            <option value="">Не выбран</option>
-            {introPageOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="edit-course-intro" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Не выбран</SelectItem>
+              {introPageOptions.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <p className="text-xs text-muted-foreground">Только страницы в секциях lessons / course_lessons.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">

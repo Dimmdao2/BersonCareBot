@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { mediaFiles, platformUsers } from "./schema";
 import { clinicalVisit } from "./patientClinical";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * Файлы пациента — единый источник (standalone + из визита).
@@ -21,6 +22,7 @@ export const patientFiles = pgTable(
   "patient_files",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     category: text("category").notNull(),
     fileName: text("file_name").notNull(),
@@ -37,6 +39,7 @@ export const patientFiles = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_patient_files_organization_id").on(table.organizationId),
     index("idx_patient_files_patient_user_id").on(table.patientUserId),
     index("idx_patient_files_category").on(table.category),
     index("idx_patient_files_visit_id")
@@ -45,6 +48,11 @@ export const patientFiles = pgTable(
     index("idx_patient_files_media_file_id")
       .on(table.mediaFileId)
       .where(sql`media_file_id IS NOT NULL`),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "patient_files_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],

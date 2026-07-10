@@ -23,7 +23,7 @@
 - [ ] Каждое списание = `consume` в ledger + `setAppointmentPackageUsageRef(appointmentId, usageId)` (чтобы запись получила пометку для календаря/визита) + `be_package_history_events`.
 - [ ] best-effort `refreshPackageCalendarForAppointment` для каждой списанной записи (как в `consumeForAppointment`).
 - [ ] Unit-тесты: пустое окно; запись до `soldAt` (не списывать); уже списанная (idempotent); услуга вне абонемента; исчерпание баланса; повторный вызов = no-op.
-**DoD:** код + тесты зелёные (scoped, через `run-tests.sh`); трассировка показывает корректные ledger-записи; идемпотентность доказана.
+**DoD:** код + scoped-тесты зелёные; прямой запуск проверок разрешён, `run-tests.sh`/flock — только опциональный throttling; трассировка показывает корректные ledger-записи; идемпотентность доказана.
 **Зависит от:** —
 
 ## ST-02 — API «Пересчитать» (доктор) `backend` `complex`

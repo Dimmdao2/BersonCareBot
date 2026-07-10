@@ -1,11 +1,30 @@
 import { NextResponse } from "next/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 const staffPurgeCancelledAppointmentMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../_requireAdminBookingEngine", () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/app-layer/booking/staffPurgeCancelledAppointment", () => ({
@@ -30,6 +49,11 @@ function gateCtx() {
 }
 
 describe("POST admin delete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    principalState.inside = false;
+  });
+
   it("returns 403 when guard fails", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: false,
@@ -54,6 +78,7 @@ describe("POST admin delete", () => {
     const json = (await res.json()) as { error?: string };
     expect(res.status).toBe(503);
     expect(json.error).toBe("lifecycle_unavailable");
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("returns 409 when appointment not cancelled", async () => {
@@ -83,7 +108,14 @@ describe("POST admin delete", () => {
   it("returns 200 on successful purge", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: gateCtx() });
     vi.mocked(buildAppDeps).mockReturnValue({ appointmentProjection: {} } as never);
-    staffPurgeCancelledAppointmentMock.mockResolvedValue({ ok: true });
+    staffPurgeCancelledAppointmentMock.mockImplementation(async (input: {
+      runLocalPurge: <T>(fn: () => Promise<T>) => Promise<T>;
+    }) =>
+      input.runLocalPurge(async () => {
+        expect(principalState.inside).toBe(true);
+        return { ok: true };
+      }),
+    );
 
     const res = await POST(
       new Request("http://localhost/delete", { method: "POST" }),
@@ -92,6 +124,12 @@ describe("POST admin delete", () => {
     const json = (await res.json()) as { ok?: boolean };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "admin.booking-engine.appointments.cancelled-purge",
+      expect.any(Function),
+    );
+    expect(principalState.inside).toBe(false);
   });
 
   it("returns 200 with rubitimeMirrorFailed flag", async () => {

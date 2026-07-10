@@ -4,7 +4,7 @@ import { Fragment, type ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Activity, BookOpen, ChevronDown, ClipboardList, MessageSquare } from "lucide-react";
+import { Activity, BookOpen, ChevronDown, ChevronUp, ClipboardList, MessageSquare } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
@@ -1591,6 +1591,26 @@ function InstanceStageGroupsPanel(props: {
                     />
                     {!isSys ? (
                       <>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="outline"
+                          aria-label={`Поднять группу ${g.title}`}
+                          disabled={editLocked || userIdx <= 0}
+                          onClick={() => reorder(g.id, -1)}
+                        >
+                          <ChevronUp aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="outline"
+                          aria-label={`Опустить группу ${g.title}`}
+                          disabled={editLocked || userIdx < 0 || userIdx >= userGroupsOrdered.length - 1}
+                          onClick={() => reorder(g.id, 1)}
+                        >
+                          <ChevronDown aria-hidden />
+                        </Button>
                         <Button
                           type="button"
                           size="sm"

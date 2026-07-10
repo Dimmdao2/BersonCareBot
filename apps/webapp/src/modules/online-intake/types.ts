@@ -7,6 +7,7 @@ export type IntakeAttachmentType = "file" | "url";
 export type IntakeRequest = {
   id: string;
   userId: string;
+  organizationId?: string | null;
   type: IntakeType;
   status: IntakeStatus;
   summary: string | null;
@@ -17,6 +18,7 @@ export type IntakeRequest = {
 export type IntakeAnswer = {
   id: string;
   requestId: string;
+  organizationId?: string | null;
   questionId: string;
   ordinal: number;
   value: string;
@@ -26,6 +28,7 @@ export type IntakeAnswer = {
 export type IntakeAttachment = {
   id: string;
   requestId: string;
+  organizationId?: string | null;
   attachmentType: IntakeAttachmentType;
   s3Key: string | null;
   url: string | null;
@@ -38,6 +41,7 @@ export type IntakeAttachment = {
 export type IntakeStatusHistoryEntry = {
   id: string;
   requestId: string;
+  organizationId?: string | null;
   fromStatus: IntakeStatus | null;
   toStatus: IntakeStatus;
   changedBy: string | null;

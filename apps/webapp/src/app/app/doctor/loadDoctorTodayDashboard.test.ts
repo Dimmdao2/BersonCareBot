@@ -25,6 +25,9 @@ function appt(partial: Partial<AppointmentRow> & Pick<AppointmentRow, "id">): Ap
     link: null,
     cancellationCountForClient: 0,
     branchName: null,
+    packageUsageRef: null,
+    packageTitle: null,
+    packageDisplayNumber: null,
     ...partial,
   };
 }
@@ -212,7 +215,72 @@ describe("loadDoctorTodayDashboard audience", () => {
       listForDoctor: async () => ({ items: [], total: 0 }),
     } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService, audience);
     expect(listCalls).toHaveLength(2);
-    expect(listCalls.every((c) => c.audience === audience)).toBe(true);
+    expect(listCalls.every((c) => (c.audience as typeof audience).excludedUserIds === audience.excludedUserIds)).toBe(true);
+  });
+
+  it("passes selected organization to on-support client list", async () => {
+    const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
+    const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    let capturedFilters: unknown;
+    const appointmentAudiences: unknown[] = [];
+    let capturedMetricsAudience: unknown;
+    let capturedConversationsParams: unknown;
+    let capturedUnreadParams: unknown;
+    const deps = {
+      organizationId,
+      doctorAppointments: {
+        listAppointmentsForSpecialist: async (_filter: unknown, audienceArg?: unknown) => {
+          appointmentAudiences.push(audienceArg);
+          return [];
+        },
+      },
+      doctorClients: {
+        getDashboardPatientMetrics: async (audienceArg?: unknown) => {
+          capturedMetricsAudience = audienceArg;
+          return {
+          onSupportCount: 0,
+          totalClients: 0,
+          visitedThisCalendarMonthCount: 0,
+          withProgramCount: 0,
+          membershipsCount: 0,
+          subscriberCount: 0,
+          newCount: 0,
+          formerCount: 0,
+          cancellationsCount: 0,
+          };
+        },
+        listClients: async (filters: unknown) => {
+          capturedFilters = filters;
+          return [];
+        },
+      },
+      displayIana: "Europe/Moscow",
+      messaging: {
+        doctorSupport: {
+          listOpenConversations: async (params: unknown) => {
+            capturedConversationsParams = params;
+            return [];
+          },
+          unreadFromUsers: async (params?: unknown) => {
+            capturedUnreadParams = params;
+            return 0;
+          },
+        },
+      },
+    };
+
+    await loadDoctorTodayDashboard(deps, {
+      listForDoctor: async () => ({ items: [], total: 0 }),
+    } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService);
+
+    expect(capturedFilters).toEqual({ supportStatus: "on", organizationId });
+    expect(appointmentAudiences).toEqual([
+      expect.objectContaining({ organizationId }),
+      expect.objectContaining({ organizationId }),
+    ]);
+    expect(capturedMetricsAudience).toEqual(expect.objectContaining({ organizationId }));
+    expect(capturedConversationsParams).toEqual(expect.objectContaining({ organizationId }));
+    expect(capturedUnreadParams).toEqual({ organizationId });
   });
 });
 

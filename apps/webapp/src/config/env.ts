@@ -69,6 +69,16 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((value) => value === "true"),
+  /**
+   * Opt-in dev aid: log the email-OTP code to the server console and tolerate
+   * email send failure (no integrator running). Honored ONLY when
+   * NODE_ENV === "development" (see emailAuth.ts). Default off — must never be
+   * enabled on test/prod hosts (codes would land in journald).
+   */
+  DEV_EMAIL_OTP_DEBUG: z
+    .string()
+    .optional()
+    .transform((value) => value === "true"),
   /** Список через запятую: числовые Telegram user id людей (whitelist входа). Это не @username и не id бота. */
   ALLOWED_TELEGRAM_IDS: z.string().optional().default(""),
   /** Comma-separated MAX user ids allowed for webapp entry (when entry token has maxId). */
@@ -168,6 +178,7 @@ const parsed = envSchema.parse({
   INTEGRATOR_WEBAPP_ENTRY_SECRET: process.env.INTEGRATOR_WEBAPP_ENTRY_SECRET,
   INTEGRATOR_WEBHOOK_SECRET: process.env.INTEGRATOR_WEBHOOK_SECRET,
   ALLOW_DEV_AUTH_BYPASS: process.env.ALLOW_DEV_AUTH_BYPASS,
+  DEV_EMAIL_OTP_DEBUG: process.env.DEV_EMAIL_OTP_DEBUG,
   ALLOWED_TELEGRAM_IDS: process.env.ALLOWED_TELEGRAM_IDS,
   ALLOWED_MAX_IDS: process.env.ALLOWED_MAX_IDS,
   ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID,

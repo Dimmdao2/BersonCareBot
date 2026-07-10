@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
 import { logger } from "@/app-layer/logging/logger";
 import { env } from "@/config/env";
 import { getCurrentSession } from "@/modules/auth/service";
-import { patientClientBusinessGate } from "@/modules/platform-access";
+import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { canAccessPatient } from "@/modules/roles/service";
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 

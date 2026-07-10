@@ -7,6 +7,7 @@ import {
   doctorStatCardShellClass,
   doctorStatCardShellWarningClass,
 } from "@/shared/ui/doctor/doctorVisual";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -51,9 +52,9 @@ export function DoctorStatCard({
 
   if (onClick) {
     return (
-      <button id={id} type="button" className={cn(shellClass, "w-full text-left")} onClick={onClick}>
+      <Button id={id} type="button" variant="ghost" className={cn(shellClass, "h-auto w-full justify-start text-left")} onClick={onClick}>
         {inner}
-      </button>
+      </Button>
     );
   }
 

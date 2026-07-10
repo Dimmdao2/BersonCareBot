@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { pgIsFolderInClientSubtree, pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -57,11 +59,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
@@ -88,7 +87,7 @@ export async function DELETE(
     return NextResponse.json({ ok: false, error: "media_in_use", usage }, { status: 409 });
   }
 
-  const deleted = await deps.media.deleteHard(id);
+  const deleted = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.deleteHard(id));
   if (!deleted) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -104,11 +103,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
@@ -124,13 +120,14 @@ export async function PATCH(
   const deps = buildAppDeps();
 
   if (parsedBody.data.folderId !== undefined) {
-    const folderGate = await pgValidateUserAssignableMediaFolder(parsedBody.data.folderId);
+    const folderId = parsedBody.data.folderId;
+    const folderGate = await pgValidateUserAssignableMediaFolder(folderId);
     if (!folderGate.ok) {
       const status = folderGate.error === "folder_not_found" ? 404 : 400;
       return NextResponse.json({ ok: false, error: folderGate.error }, { status });
     }
-    if (parsedBody.data.folderId !== null) {
-      const exists = await pgFolderExists(parsedBody.data.folderId);
+    if (folderId !== null) {
+      const exists = await pgFolderExists(folderId);
       if (!exists) {
         return NextResponse.json({ ok: false, error: "folder_not_found" }, { status: 404 });
       }
@@ -144,9 +141,8 @@ export async function PATCH(
       const sourceInSubtree = await pgIsFolderInClientSubtree(existingForMove.folderId);
       if (sourceInSubtree) {
         const targetInSubtree =
-          parsedBody.data.folderId !== null &&
-          parsedBody.data.folderId !== undefined &&
-          (await pgIsFolderInClientSubtree(parsedBody.data.folderId));
+          folderId !== null &&
+          (await pgIsFolderInClientSubtree(folderId));
         if (!targetInSubtree) {
           return NextResponse.json(
             { ok: false, error: "patient_folder_move_out" },
@@ -155,7 +151,9 @@ export async function PATCH(
         }
       }
     }
-    const moved = await deps.media.updateMediaFolder(id, parsedBody.data.folderId);
+    const moved = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.media.updateMediaFolder(id, folderId),
+    );
     if (!moved) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
@@ -167,7 +165,9 @@ export async function PATCH(
       typeof parsedBody.data.displayName === "string"
         ? parsedBody.data.displayName.trim() || null
         : null;
-    const updated = await deps.media.updateDisplayName(id, normalized);
+    const updated = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.media.updateDisplayName(id, normalized),
+    );
     if (!updated) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }

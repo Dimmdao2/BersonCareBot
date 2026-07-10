@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from "@/modules/treatment-program/instance-service";
 
@@ -29,11 +29,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -41,13 +38,16 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const [identity, items] = await Promise.all([
-    deps.doctorClientsPort.getClientIdentity(userId),
-    deps.treatmentProgramInstance.listForPatientClinicalView(userId),
-  ]);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
+  const items = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.treatmentProgramInstance.listForPatientClinicalView(identity.userId),
+  );
 
   return NextResponse.json({ ok: true, items });
 }
@@ -56,11 +56,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -74,25 +72,29 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
   try {
-    const item =
+    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       parsed.data.kind === "from_template"
-        ? await deps.treatmentProgramInstance.assignTemplateToPatient({
+        ? deps.treatmentProgramInstance.assignTemplateToPatient({
             templateId: parsed.data.templateId,
-            patientUserId: userId,
+            patientUserId: identity.userId,
             assignedBy: session.user.userId,
             assignmentSource: "doctor",
           })
-        : await deps.treatmentProgramInstance.createBlankIndividualPlan({
-            patientUserId: userId,
+        : deps.treatmentProgramInstance.createBlankIndividualPlan({
+            patientUserId: identity.userId,
             assignedBy: session.user.userId,
             title: parsed.data.title,
-          });
+          }),
+    );
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {

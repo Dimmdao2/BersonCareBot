@@ -3,6 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.hoisted(() => vi.fn());
 const getServiceByIdMock = vi.hoisted(() => vi.fn());
 const updateServiceByIdMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -11,6 +24,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getServiceById: getServiceByIdMock,
       updateServiceById: updateServiceByIdMock,
     },
+    organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 }));
 
@@ -28,6 +42,7 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
     getSessionMock.mockReset();
     getServiceByIdMock.mockReset();
     updateServiceByIdMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 401 without session", async () => {
@@ -77,6 +92,7 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       title: "Приём",
       description: null,
       durationMinutes: 90,
+      breakAfterMinutes: 20,
       priceMinor: 500000,
       isActive: true,
       sortOrder: 0,
@@ -88,7 +104,7 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       new Request("http://localhost/", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ durationMinutes: 90, priceMinor: 500000 }),
+        body: JSON.stringify({ durationMinutes: 90, breakAfterMinutes: 20, priceMinor: 500000 }),
       }),
       { params: Promise.resolve({ id: uuid }) },
     );
@@ -96,10 +112,25 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
     const body = (await res.json()) as { ok: boolean; service: typeof updated };
     expect(body.ok).toBe(true);
     expect(body.service.durationMinutes).toBe(90);
+    expect(body.service.breakAfterMinutes).toBe(20);
     expect(updateServiceByIdMock).toHaveBeenCalledWith(uuid, {
       durationMinutes: 90,
+      breakAfterMinutes: 20,
       priceMinor: 500000,
     });
+  });
+
+  it("returns 400 when breakAfterMinutes is not a 5-minute step", async () => {
+    getSessionMock.mockResolvedValue(adminSession);
+    const res = await PATCH(
+      new Request("http://localhost/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ breakAfterMinutes: 7 }),
+      }),
+      { params: Promise.resolve({ id: uuid }) },
+    );
+    expect(res.status).toBe(400);
   });
 
   it("returns 409 on unique_violation when title+duration conflicts", async () => {

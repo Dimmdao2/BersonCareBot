@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import {
   clinicalTestRegions,
@@ -34,6 +36,25 @@ function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, "items">
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId;
 }
 
 function pickFirstClinicalMedia(media: unknown): ClinicalTestMediaItem | null {
@@ -330,16 +351,19 @@ export function createPgTestSetsPort(): TestSetsPort {
     },
 
     async create(input: CreateTestSetInput, createdBy: string | null): Promise<TestSet> {
-      const db = getDrizzle();
-      const rows = await db
+      const organizationId = currentWriteOrganizationId();
+      const rows = await runDrizzleMutationTransaction((tx) =>
+        tx
         .insert(testSetsTable)
         .values({
+          organizationId,
           title: input.title,
           description: input.description ?? null,
           publicationStatus: input.publicationStatus ?? "draft",
           createdBy,
         })
-        .returning();
+        .returning(),
+      );
       return { ...mapMeta(rows[0]), items: [] };
     },
 
@@ -352,43 +376,90 @@ export function createPgTestSetsPort(): TestSetsPort {
       if (input.description !== undefined) patch.description = input.description;
       if (input.publicationStatus !== undefined) patch.publicationStatus = input.publicationStatus;
 
-      const rows = await db
-        .update(testSetsTable)
-        .set(patch)
-        .where(eq(testSetsTable.id, id))
-        .returning();
+      currentPrincipalOrganizationId();
+      const rows = await runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: testSetsTable.organizationId })
+          .from(testSetsTable)
+          .where(eq(testSetsTable.id, id))
+          .limit(1);
+        if (!existing[0]) return [];
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        return tx
+          .update(testSetsTable)
+          .set({ ...patch, organizationId })
+          .where(eq(testSetsTable.id, id))
+          .returning();
+      });
       if (!rows[0]) return null;
       const items = await loadItemsForSet(id);
       return { ...mapMeta(rows[0]), items };
     },
 
     async archive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(testSetsTable)
-        .set({ isArchived: true, updatedAt: new Date().toISOString() })
-        .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, false)))
-        .returning({ id: testSetsTable.id });
-      return rows.length > 0;
+      currentPrincipalOrganizationId();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: testSetsTable.organizationId })
+          .from(testSetsTable)
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, false)))
+          .limit(1);
+        if (!existing[0]) return false;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        const rows = await tx
+          .update(testSetsTable)
+          .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, false)))
+          .returning({ id: testSetsTable.id });
+        return rows.length > 0;
+      });
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(testSetsTable)
-        .set({ isArchived: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
-        .returning({ id: testSetsTable.id });
-      return rows.length > 0;
+      currentPrincipalOrganizationId();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: testSetsTable.organizationId })
+          .from(testSetsTable)
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
+          .limit(1);
+        if (!existing[0]) return false;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        const rows = await tx
+          .update(testSetsTable)
+          .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
+          .returning({ id: testSetsTable.id });
+        return rows.length > 0;
+      });
     },
 
     async replaceItems(testSetId: string, items: TestSetItemInput[]): Promise<void> {
-      const db = getDrizzle();
-      await db.transaction(async (tx) => {
+      currentPrincipalOrganizationId();
+      await runDrizzleMutationTransaction(async (tx) => {
+        const existingSet = await tx
+          .select({ organizationId: testSetsTable.organizationId })
+          .from(testSetsTable)
+          .where(eq(testSetsTable.id, testSetId))
+          .limit(1);
+        if (!existingSet[0]) return;
+        const testIds = [...new Set(items.map((it) => it.testId))];
+        const existingTests =
+          testIds.length > 0
+            ? await tx
+                .select({ organizationId: clinicalTestsTable.organizationId })
+                .from(clinicalTestsTable)
+                .where(inArray(clinicalTestsTable.id, testIds))
+            : [];
+        const organizationId = currentWriteOrganizationId(
+          existingSet[0].organizationId,
+          ...existingTests.map((x) => x.organizationId),
+        );
         await tx.delete(testSetItemsTable).where(eq(testSetItemsTable.testSetId, testSetId));
         if (items.length > 0) {
           await tx.insert(testSetItemsTable).values(
             items.map((it, idx) => ({
+              organizationId,
               testSetId,
               testId: it.testId,
               sortOrder: it.sortOrder ?? idx,
@@ -398,7 +469,7 @@ export function createPgTestSetsPort(): TestSetsPort {
         }
         await tx
           .update(testSetsTable)
-          .set({ updatedAt: new Date().toISOString() })
+          .set({ organizationId, updatedAt: new Date().toISOString() })
           .where(eq(testSetsTable.id, testSetId));
       });
     },

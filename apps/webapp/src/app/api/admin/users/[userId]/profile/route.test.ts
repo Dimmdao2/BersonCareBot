@@ -8,9 +8,16 @@ const findPhoneConflictMock = vi.fn();
 const requestContactEmailSetupMock = vi.fn();
 const writeAuditLogMock = vi.fn();
 
-const { getSessionMock, resolveCanonicalMock } = vi.hoisted(() => ({
+const {
+  getSessionMock,
+  resolveCanonicalMock,
+  requireDoctorWorkspaceApiContextMock,
+  withDoctorWorkspacePrincipalMock,
+} = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   resolveCanonicalMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
+  withDoctorWorkspacePrincipalMock: vi.fn((_ctx: unknown, fn: () => unknown) => fn()),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
@@ -38,6 +45,20 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 vi.mock("@/app-layer/admin/auditLog", () => ({
   writeAuditLog: (...args: unknown[]) => writeAuditLogMock(...args),
 }));
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
+}));
 
 import { PATCH } from "./route";
 
@@ -63,8 +84,14 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
     findPhoneConflictMock.mockReset();
     requestContactEmailSetupMock.mockReset();
     writeAuditLogMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockClear();
     resolveCanonicalMock.mockReset();
     getSessionMock.mockResolvedValue(adminModeOk);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    });
     resolveCanonicalMock.mockResolvedValue(uid);
     poolQueryMock.mockResolvedValue({ rows: [] });
     patchMock.mockResolvedValue({ ok: true as const });
@@ -101,6 +128,26 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
     );
     expect(res.status).toBe(409);
     expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns workspace gate response before profile patch", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "organization_selection_required" }), {
+        status: 409,
+      }),
+    });
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/users/${uid}/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: "Новое ФИО" }),
+      }),
+      { params: Promise.resolve({ userId: uid }) },
+    );
+    expect(res.status).toBe(409);
+    expect(patchMock).not.toHaveBeenCalled();
+    expect(writeAuditLogMock).not.toHaveBeenCalled();
   });
 
   it("enqueues contact email setup when doctor changes email", async () => {
@@ -164,6 +211,10 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
         targetId: uid,
         details: expect.objectContaining({ fields: ["displayName"] }),
       }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      expect.any(Function),
     );
   });
 });

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildWebappProgramNoteReplyIntegratorMessageId } from "@/modules/messaging/programNoteReplyIdempotency";
 import { webappPlatformConversationId } from "@/modules/messaging/supportConversationIds";
 
@@ -19,11 +19,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ instanceId: string; stageItemId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, stageItemId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageItemId).success) {
@@ -51,23 +49,25 @@ export async function POST(
   }
 
   const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-  if (!instance) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!instance || instance.organizationId !== gate.ctx.organizationId) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   const hasItem = instance.stages.some((stage) => stage.items.some((item) => item.id === stageItemId));
   if (!hasItem) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
-  const result = await deps.sendProgramNoteReply({
-    integratorConversationId: webappPlatformConversationId(instance.patientUserId),
-    integratorMessageId: buildWebappProgramNoteReplyIntegratorMessageId({
-      doctorUserId: session.user.userId,
-      instanceId,
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.sendProgramNoteReply({
+      integratorConversationId: webappPlatformConversationId(instance.patientUserId),
+      integratorMessageId: buildWebappProgramNoteReplyIntegratorMessageId({
+        doctorUserId: session.user.userId,
+        instanceId,
+        stageItemId,
+        text: parsed.data.text,
+      }),
       stageItemId,
       text: parsed.data.text,
+      source: "webapp",
     }),
-    stageItemId,
-    text: parsed.data.text,
-    source: "webapp",
-  });
+  );
   if (!result.ok) {
     const status = result.error === "stage_item_not_found" ? 404 : 400;
     return NextResponse.json({ ok: false, error: result.error }, { status });

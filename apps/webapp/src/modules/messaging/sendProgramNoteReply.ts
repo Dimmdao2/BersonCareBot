@@ -1,7 +1,7 @@
 import type { NotifyPatientDoctorReplyParams } from "@/modules/messaging/notifyPatientDoctorReply";
 import {
   formatPatientExerciseCommentReplyText,
-  resolveProgramNoteReplyContext,
+  type ProgramNoteReplyContext,
 } from "@/modules/messaging/programNoteReplyContext";
 import type { PatientInboundChatPort } from "@/modules/messaging/ports";
 import { parsePlatformUserIdFromWebappConversationId } from "@/modules/messaging/supportConversationIds";
@@ -35,6 +35,7 @@ export type SendProgramNoteReplyResult =
 export function createSendProgramNoteReply(deps: {
   supportCommunication: PatientInboundChatPort;
   discussion: ProgramItemDiscussionService;
+  resolveProgramNoteReplyContext: (stageItemId: string) => Promise<ProgramNoteReplyContext | null>;
   notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
 }) {
   return async function sendProgramNoteReply(input: SendProgramNoteReplyInput): Promise<SendProgramNoteReplyResult> {
@@ -46,7 +47,7 @@ export function createSendProgramNoteReply(deps: {
     if (!text) return { ok: false, error: "empty" };
     if (text.length > MAX_LEN) return { ok: false, error: "too_long" };
 
-    const ctx = await resolveProgramNoteReplyContext(stageItemId);
+    const ctx = await deps.resolveProgramNoteReplyContext(stageItemId);
     if (!ctx) return { ok: false, error: "stage_item_not_found" };
     if (ctx.platformUserId !== platformUserId) return { ok: false, error: "stage_item_mismatch" };
     if (ctx.assignmentSource !== "doctor") return { ok: false, error: "program_not_doctor_assigned" };

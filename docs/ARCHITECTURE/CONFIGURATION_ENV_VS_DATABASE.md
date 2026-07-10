@@ -10,7 +10,7 @@
 4. **Опционально в клиентском бандле webapp:** `NEXT_PUBLIC_APP_BASE_URL` — тот же канонический базовый URL приложения, что и **`APP_BASE_URL`** у процесса Next.js (публичная строка, **не секрет**). Нужен только если в **`body_md`** страниц контента встречаются **абсолютные** ссылки на медиабиблиотеку вида `https://<ваш-хост>/api/media/{uuid}` и при открытии страницы origin браузера может не совпасть с этим хостом; иначе достаточно относительных путей `/api/media/…`. Логика: [`MarkdownEmbeddedLink.tsx`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx), [`parseApiMediaIdFromMarkdownHref`](../../apps/webapp/src/shared/lib/parseApiMediaIdFromPlayableUrl.ts).
 5. **Bootstrap интегратора** — env integrator (`apps/integrator`) по своему `config`/`env.ts`; webhook/SMS к интегратору на стороне webapp: `INTEGRATOR_API_URL` + shared secret для вызовов отправки SMS/email OTP.
 
-**Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **операционной** конфигурации, которую разумно менять без передеплоя, включая **часть интеграционных параметров авторизации**, согласно правилам репозитория:
+**Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **операционной** конфигурации, которую разумно менять без передеплоя, включая **часть интеграционных параметров авторизации**, согласно правилам репозитория. Таблица поддерживает глобальные строки (`organization_id IS NULL`) и org-specific overrides (`organization_id` задан); текущие admin Settings формы пишут глобальные строки, если конкретный flow явно не передаёт organization context.
 
 - Публичные ссылки: `support_contact_url`.
 - Telegram Login Widget: `telegram_login_bot_username`.
@@ -64,7 +64,7 @@
 ## Интегратор (отдельное приложение)
 
 - Integrator читает свои секреты и URL из **своего** env (`apps/integrator`); это не смешивается с `system_settings` webapp, кроме случая **одной PostgreSQL** (см. ниже).
-- **Исключение: Google Calendar** — integrator `runtimeConfig.ts` читает `system_settings` из зеркалированной таблицы в схеме integrator (push от webapp через `syncSettingToIntegrator` или прямой SQL после рефакторинга), с **пофайловым** слиянием с env: для каждого поля (`clientId`, `secret`, `redirectUri`, `calendarId`, `refreshToken`, `enabled`) используется значение из БД, если строка/флаг заданы; иначе — env. Так частично синхронизированная БД не затирает рабочий env пустыми полями. Кэш сбрасывается при приёме `google_*` ключей через `/api/integrator/settings/sync`.
+- **Исключение: Google Calendar** — integrator `runtimeConfig.ts` читает `system_settings` из канонической таблицы `public.system_settings` через общий public-accessor helper, с **пофайловым** слиянием с env: для каждого поля (`clientId`, `secret`, `redirectUri`, `calendarId`, `refreshToken`, `enabled`) используется значение из БД, если строка/флаг заданы; иначе — env. Так частично синхронизированная БД не затирает рабочий env пустыми полями. Legacy `/api/integrator/settings/sync` по-прежнему сбрасывает cache для `google_*`, но `integrator.system_settings` больше не является runtime source of truth.
 
 ### Одна БД, схемы `public` и `integrator` (актуально)
 
@@ -72,15 +72,15 @@
 
 ### Зеркало `system_settings` (webapp → integrator)
 
-Таблица `system_settings` в **`public`** создаётся **webapp-миграциями**; в схеме integrator — **отдельная миграция** с тем же контрактом колонок (`key`, `scope`, `value_json`, …), без FK на `platform_users`. При **одной БД** это две таблицы в **разных схемах** одного кластера; код integrator по-прежнему может получать настройки из `integrator.system_settings`.
+Таблица `system_settings` в **`public`** создаётся **webapp-миграциями**; в схеме integrator — **отдельная legacy-mirror миграция** с тем же контрактом колонок (`key`, `scope`, `organization_id`, `value_json`, …), без FK на `platform_users`. При **одной БД** это две таблицы в **разных схемах** одного кластера; runtime-код integrator должен читать настройки из `public.system_settings` через `publicSystemSettings` helper. `integrator.system_settings` остаётся compatibility/cache-invalidation mirror до отдельного cleanup. Логическая идентичность строки — `(key, scope, organization_id)`: `organization_id IS NULL` означает глобальный default, non-null row — override конкретной организации. Чтения с org context должны сначала искать org row и затем fallback на global NULL row.
 
-**Канонический путь записи из webapp:** `createSystemSettingsService` → **`updateSetting`** (одиночный ключ) **или** **`persistAdminModesBatch`** (только форма «Режимы», преднормализованные строки) → upsert в **`public.system_settings`**. После успешного upsert вызывается **`syncSettingToIntegrator`** (подписанный HTTP `POST` на integrator `POST /api/integrator/settings/sync`) — пока контракт не переведён на запись в `integrator.system_settings` тем же процессом/SQL без round-trip.
+**Канонический путь записи из webapp:** `createSystemSettingsService` → **`updateSetting`** (одиночный ключ) **или** **`persistAdminModesBatch`** (только форма «Режимы», преднормализованные строки) → upsert в **`public.system_settings`**. Без явного `organizationId` запись остаётся глобальной (`organization_id IS NULL`); org-specific запись должна пройти тем же сервисным путём с organization context. После успешного upsert вызывается **`syncSettingToIntegrator`** (подписанный HTTP `POST` на integrator `POST /api/integrator/settings/sync`) с тем же `organizationId` — пока контракт не переведён на запись в `integrator.system_settings` тем же процессом/SQL без round-trip.
 
 **Правила для агентов и разработчиков:**
 
-1. **Новый ключ** — добавить в `ALLOWED_KEYS` (`apps/webapp/src/modules/system-settings/types.ts`), UI/API при необходимости, затем **тот же** `(key, scope)` должен оказаться в integrator после следующего сохранения в админке (push) или после прямой синхронизации схем.
+1. **Новый ключ** — добавить в `ALLOWED_KEYS` (`apps/webapp/src/modules/system-settings/types.ts`), UI/API при необходимости, затем **тот же** `(key, scope, organization_id)` должен оказаться в integrator после следующего сохранения в админке (push) или после прямой синхронизации схем.
 2. **Не дублировать** вызовы sync в route handlers — только через **`updateSetting`** или **`persistAdminModesBatch`** в `service.ts` (оба вызывают `syncSettingToIntegrator` внутри сервиса, не в `route.ts`).
-3. **Скрипты и миграции**, которые меняют `system_settings` в `public` напрямую, должны либо повторить строку в `integrator.system_settings`, либо документировать одноразовый backfill и при необходимости вызвать тот же HTTP sync из ops.
+3. **Скрипты и миграции**, которые меняют `system_settings` в `public` напрямую, должны либо повторить ту же `(key, scope, organization_id)` строку в `integrator.system_settings`, либо документировать одноразовый backfill и при необходимости вызвать тот же HTTP sync из ops.
 
 **Файлы:** `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`; integrator: `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts`, миграция `apps/integrator/src/infra/db/migrations/core/20260406_0002_create_system_settings.sql`.
 

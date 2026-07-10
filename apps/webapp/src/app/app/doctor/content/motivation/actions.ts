@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { env } from "@/config/env";
 
 export type MotivationActionState = { ok: boolean; error?: string };
@@ -16,7 +17,7 @@ export async function upsertMotivationQuote(
   _p: MotivationActionState | null,
   formData: FormData,
 ): Promise<MotivationActionState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
 
   const id = (formData.get("id") as string)?.trim();
@@ -30,13 +31,15 @@ export async function upsertMotivationQuote(
 
   try {
     const deps = buildAppDeps();
-    await deps.doctorMotivationQuotesEditor.upsertQuote({
-      id: id || undefined,
-      bodyText,
-      author,
-      isActive,
-      sortOrder,
-    });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.upsert", () =>
+      deps.doctorMotivationQuotesEditor.upsertQuote({
+        id: id || undefined,
+        bodyText,
+        author,
+        isActive,
+        sortOrder,
+      }),
+    );
   } catch (e) {
     console.error(e);
     return { ok: false, error: "Не удалось сохранить" };
@@ -53,20 +56,24 @@ export async function toggleQuoteArchive(formData: FormData): Promise<void> {
 }
 
 export async function setQuoteArchived(id: string, archived: boolean): Promise<MotivationActionState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
   const deps = buildAppDeps();
-  await deps.doctorMotivationQuotesEditor.setQuoteArchived(id, archived);
+  await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.archive", () =>
+    deps.doctorMotivationQuotesEditor.setQuoteArchived(id, archived),
+  );
   revalidateMotivationAndPatientHome();
   return { ok: true };
 }
 
 export async function setQuoteActive(id: string, nextActive: boolean): Promise<MotivationActionState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
   try {
     const deps = buildAppDeps();
-    await deps.doctorMotivationQuotesEditor.setQuoteActive(id, nextActive);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.active", () =>
+      deps.doctorMotivationQuotesEditor.setQuoteActive(id, nextActive),
+    );
   } catch (e) {
     console.error(e);
     return { ok: false, error: "Не удалось обновить активность" };
@@ -78,7 +85,7 @@ export async function setQuoteActive(id: string, nextActive: boolean): Promise<M
 export type ReorderState = { ok: boolean; error?: string };
 
 export async function reorderMotivationQuotes(orderedIds: string[]): Promise<ReorderState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
   if (!orderedIds.length) return { ok: false, error: "Пустой порядок" };
   const ids = orderedIds.map((x) => String(x).trim()).filter(Boolean);
@@ -86,7 +93,9 @@ export async function reorderMotivationQuotes(orderedIds: string[]): Promise<Reo
 
   try {
     const deps = buildAppDeps();
-    await deps.doctorMotivationQuotesEditor.reorderQuotes(ids);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.reorder", () =>
+      deps.doctorMotivationQuotesEditor.reorderQuotes(ids),
+    );
   } catch (e) {
     console.error(e);
     return { ok: false, error: "Не удалось сохранить порядок" };

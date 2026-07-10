@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircl
 import type { ElementType } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
 import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
@@ -170,7 +170,7 @@ function SidebarGroupFlyout({
 
   return (
     <div className="relative">
-      <button
+      <Button
         ref={triggerRef}
         type="button"
         id={`doctor-sidebar-group-${item.id}`}
@@ -207,7 +207,7 @@ function SidebarGroupFlyout({
           strokeWidth={NAV_STRIP_ICON_STROKE}
           aria-hidden
         />
-      </button>
+      </Button>
 
       {/* Flyout panel: rendered via React portal into document.body to escape the sidebar's
           stacking context. Without a portal the sidebar stacking context sits below the
@@ -340,7 +340,7 @@ function SheetTwoLevelMenu({
   if (activeGroup) {
     return (
       <div className="flex flex-col gap-1">
-        <button
+        <Button
           type="button"
           onClick={() => setActiveGroup(null)}
           className={cn(
@@ -350,7 +350,7 @@ function SheetTwoLevelMenu({
         >
           <ArrowLeft size={16} strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden className="shrink-0" />
           <span className="text-sm font-semibold text-foreground">{activeGroup.label}</span>
-        </button>
+        </Button>
         <div className="flex flex-col gap-0.5">
           {activeGroup.items?.map((sub) => renderLink(sub))}
         </div>
@@ -371,7 +371,7 @@ function SheetTwoLevelMenu({
         const anySubActive = item.items.some((sub) => sub.href && isDoctorNavItemActive(sub.href, pathname));
 
         return (
-          <button
+          <Button
             key={item.id}
             type="button"
             id={`doctor-menu-group-${item.id}`}
@@ -399,7 +399,7 @@ function SheetTwoLevelMenu({
               strokeWidth={NAV_STRIP_ICON_STROKE}
               aria-hidden
             />
-          </button>
+          </Button>
         );
       })}
     </div>

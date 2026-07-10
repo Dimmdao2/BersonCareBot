@@ -5,10 +5,11 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import "../../styles/doctor.css";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
@@ -20,7 +21,18 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
-  const session = await requireDoctorAccess();
+  const workspaceAccess = await requireDoctorWorkspaceContext();
+  const session = workspaceAccess.session;
+  const workspaceContext: DoctorWorkspaceContext = {
+    organizationId: workspaceAccess.organizationId,
+    organizationName: null,
+    membershipId: workspaceAccess.membershipId,
+    membershipRole: workspaceAccess.membershipRole,
+    specialistId: workspaceAccess.specialistId,
+    canManageOrganization: workspaceAccess.canManageOrganization,
+    canManageAllSpecialists: workspaceAccess.canManageAllSpecialists,
+    selectedSpecialistId: workspaceAccess.canManageAllSpecialists ? null : workspaceAccess.specialistId,
+  };
   const deps = buildAppDeps();
   const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
   const patientLabel = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
@@ -30,6 +42,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       userRole={session.user.role}
       userDisplayName={session.user.displayName}
       patientLabel={String(patientLabel)}
+      workspaceContext={workspaceContext}
     >
       {children}
     </DoctorWorkspaceShell>

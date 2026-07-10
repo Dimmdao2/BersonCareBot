@@ -7,6 +7,7 @@ import {
   pgSessionAdvisoryUnlock,
   RUBITIME_API_ADVISORY_LOCK_KEY,
 } from '../../infra/db/pgAdvisoryLock.js';
+import { withIntegratorPoolClient } from '../../infra/db/withClient.js';
 import { logger } from '../../infra/observability/logger.js';
 
 /** Rubitime FAQ: min 5s between requests; use 5.5s margin. */
@@ -38,9 +39,8 @@ export async function withRubitimeApiThrottle<T>(fn: () => Promise<T>): Promise<
     return fn();
   }
 
-  const client = await db.connect();
-  const session = drizzle(client, { schema: integratorDrizzleSchema });
-  try {
+  return withIntegratorPoolClient(db, async (client) => {
+    const session = drizzle(client, { schema: integratorDrizzleSchema });
     await pgSessionAdvisoryLock(client, RUBITIME_API_ADVISORY_LOCK_KEY);
     try {
       const raw = await session.execute(
@@ -69,7 +69,5 @@ export async function withRubitimeApiThrottle<T>(fn: () => Promise<T>): Promise<
     } finally {
       await pgSessionAdvisoryUnlock(client, RUBITIME_API_ADVISORY_LOCK_KEY);
     }
-  } finally {
-    client.release();
-  }
+  });
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/ui/patient/primitives/button";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import {
   Dialog,
   DialogContent,
@@ -102,26 +103,27 @@ export function PatientWarmupRatingFeedbackDialog({
           {MATERIAL_RATING_FEEDBACK_REASON_CODES.map((code) => {
             const active = selected.includes(code);
             return (
-              <button
+              <Button
                 key={code}
                 type="button"
+                variant="outline"
                 aria-pressed={active}
                 disabled={submitting}
                 onClick={() => toggleReason(code)}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  "rounded-full px-3 py-1.5 text-sm",
                   active
-                    ? "border-[var(--patient-accent)] bg-[var(--patient-accent)]/10 text-foreground"
+                    ? "border-[var(--patient-accent)] bg-[var(--patient-accent)]/10 text-foreground hover:bg-[var(--patient-accent)]/20"
                     : "border-[var(--patient-border)] bg-background text-foreground hover:bg-muted/40",
                 )}
               >
                 {MATERIAL_RATING_FEEDBACK_REASON_LABELS[code]}
-              </button>
+              </Button>
             );
           })}
         </div>
 
-        <textarea
+        <Textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           disabled={submitting}

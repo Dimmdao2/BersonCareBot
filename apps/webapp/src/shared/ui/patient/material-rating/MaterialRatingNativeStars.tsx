@@ -1,6 +1,7 @@
 "use client";
 
 import { Star } from "lucide-react";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 
 const LEVELS = [1, 2, 3, 4, 5] as const;
@@ -38,7 +39,7 @@ export function MaterialRatingNativeStars({
       {LEVELS.map((n) => {
         const filled = value >= 1 && n <= value;
         return (
-          <button
+          <Button
             key={n}
             type="button"
             role="radio"
@@ -62,7 +63,7 @@ export function MaterialRatingNativeStars({
               stroke={filled ? "#bb5e26" : "#eda76a"}
               strokeWidth={starSize <= 18 ? 1.5 : 2}
             />
-          </button>
+          </Button>
         );
       })}
     </div>

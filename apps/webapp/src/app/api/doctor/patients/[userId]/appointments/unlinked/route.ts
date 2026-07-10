@@ -12,15 +12,16 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -28,7 +29,17 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const all = await deps.doctorClientsPort.listPatientAppointments(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const all = await deps.doctorClientsPort.listPatientAppointments(
+    identity.userId,
+    gate.ctx.organizationId,
+  );
 
   // Filter: keep only appointments not yet linked to a clinical visit.
   // listPatientAppointments now returns internalId (appointment_records.id uuid).
@@ -36,7 +47,9 @@ export async function GET(
   // and the NOT EXISTS join would complicate the shared repo method.
   // To avoid stale "unlinked" data we cross-reference via the visits port:
   // fetch linked appointment IDs from clinical visits.
-  const linkedIds = await deps.patientClinical.listLinkedAppointmentRecordIds(userId);
+  const linkedIds = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientClinical.listLinkedAppointmentRecordIds(identity.userId),
+  );
   const linkedSet = new Set(linkedIds);
 
   const unlinked = all.filter(

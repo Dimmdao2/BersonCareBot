@@ -5,9 +5,9 @@ import {
   seedInMemoryCourseUsageSnapshot,
 } from "@/infra/repos/inMemoryCourses";
 import { CourseUsageConfirmationRequiredError } from "./errors";
-import type { CourseIntroPagesPort } from "./ports";
+import type { CourseIntroPagesPort, CoursesPort } from "./ports";
 import { assertValidIntroLessonPage, createCoursesService } from "./service";
-import { EMPTY_COURSE_USAGE_SNAPSHOT } from "./types";
+import { EMPTY_COURSE_USAGE_SNAPSHOT, type CourseRecord, type CourseUsageSnapshot } from "./types";
 
 const TPL = "11111111-1111-4111-8111-111111111111";
 const PAT = "22222222-2222-4222-8222-222222222222";
@@ -188,6 +188,76 @@ describe("createCoursesService", () => {
         introLessonPageId: pageId,
       }),
     ).rejects.toThrow("lessons");
+  });
+
+  it("updateCourse runs only the course update write through write options", async () => {
+    const calls: string[] = [];
+    const courses: CoursesPort = {
+      listPublished: vi.fn(),
+      listForDoctor: vi.fn(),
+      getById: vi.fn(async () => {
+        calls.push("getById");
+        return {
+          id: "course-1",
+          title: "Course",
+          description: null,
+          programTemplateId: TPL,
+          introLessonPageId: null,
+          accessSettings: {},
+          status: "published",
+          priceMinor: 0,
+          currency: "RUB",
+          createdAt: "",
+          updatedAt: "",
+        } satisfies CourseRecord;
+      }),
+      create: vi.fn(),
+      update: vi.fn(async () => {
+        calls.push("update");
+        return {
+          id: "course-1",
+          title: "Course",
+          description: null,
+          programTemplateId: TPL,
+          introLessonPageId: null,
+          accessSettings: {},
+          status: "archived",
+          priceMinor: 0,
+          currency: "RUB",
+          createdAt: "",
+          updatedAt: "",
+        } satisfies CourseRecord;
+      }),
+      getCourseUsageSummary: vi.fn(async () => {
+        calls.push("usage");
+        return {
+          ...EMPTY_COURSE_USAGE_SNAPSHOT,
+          programTemplateId: TPL,
+          programTemplateRef: { kind: "treatment_program_template", id: TPL, title: "Tpl" },
+        } satisfies CourseUsageSnapshot;
+      }),
+    };
+    const svc = createCoursesService({
+      courses,
+      introPages: { getById: async () => null },
+      assignTemplateToPatient: vi.fn(),
+    });
+
+    await svc.updateCourse(
+      "11111111-1111-4111-8111-111111111111",
+      { status: "archived" },
+      undefined,
+      {
+        runCourseWrite: async (fn) => {
+          calls.push("runner:start");
+          const result = await fn();
+          calls.push("runner:end");
+          return result;
+        },
+      },
+    );
+
+    expect(calls).toEqual(["getById", "usage", "runner:start", "update", "runner:end"]);
   });
 });
 

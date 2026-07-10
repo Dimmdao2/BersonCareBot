@@ -10,7 +10,12 @@ import { registerBersoncareUserMergeM2mRoutes } from '../integrations/bersoncare
 import { registerOperatorHealthProbeRoute } from '../integrations/bersoncare/operatorHealthProbeRoute.js';
 import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
-import { getLinkDataByIdentity } from '../infra/db/repos/channelUsers.js';
+import {
+  getLinkDataByIdentity,
+  resolveActiveOrganizationIdForIntegratorUserId,
+  resolveActiveOrganizationIdForMessengerIdentity,
+  resolveDeploymentSingleActiveOrganizationId,
+} from '../infra/db/repos/channelUsers.js';
 import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
 import { registerRubitimeAdminM2mRoutes } from '../integrations/rubitime/adminM2mRoute.js';
 import { getAppBaseUrl } from '../config/appBaseUrl.js';
@@ -43,12 +48,59 @@ function createResolveIntegratorUserIdForMessenger(): (
   };
 }
 
+function createResolveOrganizationIdForMessengerIdentity(): (
+  externalId: string,
+  resource: 'telegram' | 'max',
+) => Promise<string | null> {
+  return async (externalId, resource) => {
+    try {
+      const db = createDbPort();
+      return await resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId });
+    } catch {
+      return null;
+    }
+  };
+}
+
+function createResolveOrganizationIdForIntegratorUserId(): (
+  integratorUserId: string,
+) => Promise<string | null> {
+  return async (integratorUserId) => {
+    try {
+      const db = createDbPort();
+      return await resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId);
+    } catch {
+      return null;
+    }
+  };
+}
+
+// eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
+/**
+ * T0.4 channel-binding fallback: the deployment's single organization, used when a messenger
+ * identity has no per-user org context yet (first contact, not yet enrolled). See
+ * {@link resolveDeploymentSingleActiveOrganizationId} for the architecture rationale/limits.
+ */
+function createResolveDeploymentOrganizationId(): () => Promise<string | null> {
+  return async () => {
+    try {
+      const db = createDbPort();
+      return await resolveDeploymentSingleActiveOrganizationId(db);
+    } catch {
+      return null;
+    }
+  };
+}
+
 /**
  * Registers all HTTP routes for the app layer.
  * Business routing is delegated to integration registrars + eventGateway.
  */
 export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promise<void> {
   const resolveIntegratorUserIdForMessenger = createResolveIntegratorUserIdForMessenger();
+  const resolveOrganizationIdForMessengerIdentity = createResolveOrganizationIdForMessengerIdentity();
+  const resolveOrganizationIdForIntegratorUserId = createResolveOrganizationIdForIntegratorUserId();
+  const resolveDeploymentOrganizationId = createResolveDeploymentOrganizationId();
 
   app.get<{ Reply: HealthResponse }>('/health', async (_request, _reply) => {
     const dbOk = await deps.healthCheckDb();
@@ -94,6 +146,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     db: createDbPort(),
+    resolveOrganizationIdForMessengerIdentity,
+    resolveDeploymentOrganizationId,
   });
 
   await registerBersoncareSendOtpRoute(app, {
@@ -104,6 +158,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareReminderRulesRoute(app, {
     writePort: deps.dbWritePort,
     sharedSecret: integratorWebhookSecret(),
+    resolveOrganizationIdForIntegratorUserId,
   });
 
   await registerBersoncareSettingsSyncRoute(app, {
@@ -139,6 +194,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const telegramWebhookDeps = {
     eventGateway: deps.eventGateway,
     resolveIntegratorUserIdForMessenger,
+    resolveOrganizationIdForMessengerIdentity,
+    resolveDeploymentOrganizationId,
     getAppBaseUrl: getAppBaseUrlForWebhooks,
     resolveMessengerStaffAdmin,
   };
@@ -169,10 +226,11 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
       await deps.registerMaxWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
+        resolveOrganizationIdForMessengerIdentity,
+        resolveDeploymentOrganizationId,
         getAppBaseUrl: getAppBaseUrlForWebhooks,
         resolveMessengerStaffAdmin,
       });
     });
   }
 }
-

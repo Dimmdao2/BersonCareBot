@@ -28,7 +28,7 @@
 
 1. Врач: «Статьи справки» → `/app/doctor/content?section=help`.
 2. Создать страницу с **точным** slug из таблицы выше, опубликовать.
-3. Плитки «Как подготовиться» / «Стоимость» / «О специалисте» (`CabinetInfoLinks` на `/app/patient/booking/new` и при reuse) — только если опубликованы соответствующие slug (`preparation`, `services-pricing` или legacy `cost`, `about`).
+3. Плитки «Как подготовиться» / «Стоимость» / «О специалисте» (`CabinetInfoLinks` на `/app/patient/booking` и при reuse) — только если опубликованы соответствующие slug (`preparation`, `services-pricing` или legacy `cost`, `about`).
 4. Адреса по городам: отдельные статьи `address-spb` / `address-msk`; общий маршрут `/app/patient/address` остаётся fallback.
 5. Статья `booking` — редакторский чеклист в `modules/help-content/CMS_EDITOR_CHECKLIST.md`; статическая страница `/app/patient/about` (ссылка на сайт).
 

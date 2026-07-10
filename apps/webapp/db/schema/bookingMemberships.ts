@@ -8,6 +8,7 @@ import {
   jsonb,
   timestamp,
   index,
+  uniqueIndex,
   foreignKey,
   check,
 } from "drizzle-orm/pg-core";
@@ -100,6 +101,9 @@ export const bePatientPackages = pgTable(
     platformUserId: uuid("platform_user_id").notNull(),
     subscriptionPackageId: uuid("subscription_package_id"),
     status: text().notNull().default("offered"),
+    displayNumber: integer("display_number")
+      .notNull()
+      .default(sql`nextval('be_patient_packages_display_number_seq')`),
     title: text().notNull(),
     priceMinor: integer("price_minor").notNull(),
     currency: text().notNull().default("RUB"),
@@ -120,6 +124,7 @@ export const bePatientPackages = pgTable(
   (table) => [
     index("idx_be_patient_packages_org_user").on(table.organizationId, table.platformUserId),
     index("idx_be_patient_packages_status").on(table.status),
+    uniqueIndex("idx_be_patient_packages_display_number_unique").on(table.displayNumber),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
@@ -153,6 +158,7 @@ export const bePatientPackages = pgTable(
       "be_patient_packages_paid_amount_check",
       sql`paid_amount_minor IS NULL OR paid_amount_minor >= 0`,
     ),
+    check("be_patient_packages_display_number_check", sql`display_number > 0`),
   ],
 );
 
@@ -200,6 +206,11 @@ export const bePackageUsages = pgTable(
   (table) => [
     index("idx_be_package_usages_pkg").on(table.patientPackageId),
     index("idx_be_package_usages_appointment").on(table.appointmentId),
+    uniqueIndex("idx_be_package_usages_appointment_debit_unique")
+      .on(table.appointmentId)
+      .where(
+        sql`appointment_id IS NOT NULL AND usage_kind = ANY (ARRAY['consume'::text, 'penalty'::text, 'manual_adjust'::text])`,
+      ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],

@@ -39,8 +39,12 @@ vi.mock("@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi", () =>
     children: (handle: ReactNode) => ReactNode;
     id: string;
   }) => <section data-stage-id={id}>{children(<span aria-hidden />)}</section>,
-  TreatmentProgramStageItemsDnd: ({ children }: { children: ReactNode }) => (
-    <div data-testid="items-dnd">{children}</div>
+  TreatmentProgramStageItemsDnd: ({
+    children,
+  }: {
+    children: (dropPreview: null) => ReactNode;
+  }) => (
+    <div data-testid="items-dnd">{children(null)}</div>
   ),
   TreatmentProgramSortableItemShell: ({
     children,
@@ -68,6 +72,8 @@ const STAGE_ZERO = "00000000-0000-4000-8000-000000000001";
 const STAGE_ONE = "00000000-0000-4000-8000-000000000002";
 const STAGE_TWO = "00000000-0000-4000-8000-000000000003";
 const EVENT_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const GROUP_A = "10000000-0000-4000-8000-000000000001";
+const GROUP_B = "10000000-0000-4000-8000-000000000002";
 
 const emptyLibrary: TreatmentProgramLibraryPickers = {
   exercises: [],
@@ -142,6 +148,36 @@ function instanceWithPipeline(): TreatmentProgramInstanceDetail {
       pipelineStage(STAGE_ONE, 1, "Этап 1", "available"),
       pipelineStage(STAGE_TWO, 2, "Этап 2", "in_progress"),
     ],
+  };
+}
+
+function instanceWithGroups(): TreatmentProgramInstanceDetail {
+  const stageOne = pipelineStage(STAGE_ONE, 1, "Этап 1", "available");
+  stageOne.groups = [
+    {
+      id: GROUP_A,
+      stageId: STAGE_ONE,
+      sourceGroupId: null,
+      title: "Группа A",
+      description: null,
+      scheduleText: null,
+      sortOrder: 0,
+      systemKind: null,
+    },
+    {
+      id: GROUP_B,
+      stageId: STAGE_ONE,
+      sourceGroupId: null,
+      title: "Группа B",
+      description: null,
+      scheduleText: null,
+      sortOrder: 1,
+      systemKind: null,
+    },
+  ];
+  return {
+    ...instanceWithPipeline(),
+    stages: [stageZeroRow(), stageOne],
   };
 }
 
@@ -301,5 +337,24 @@ describe("TreatmentProgramInstanceDetailClient phase 7 history and unsaved gate"
 
     await user.click(eventButton);
     expect(within(dialog).queryByText("Обновлено этапов: 1")).not.toBeInTheDocument();
+  });
+
+  it("reorders custom groups in draft with header arrows", async () => {
+    const user = userEvent.setup();
+    renderClient({ initial: instanceWithGroups() });
+
+    const stageSection = screen.getByTestId(`instance-editor-pipeline-stage-${STAGE_ONE}`);
+    const beforeA = within(stageSection).getByText("Группа A");
+    const beforeB = within(stageSection).getByText("Группа B");
+    expect(beforeA.compareDocumentPosition(beforeB) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(within(stageSection).getByRole("button", { name: /опустить группу группа a/i }));
+
+    await waitFor(() => {
+      const afterA = within(stageSection).getByText("Группа A");
+      const afterB = within(stageSection).getByText("Группа B");
+      expect(afterB.compareDocumentPosition(afterA) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(/несохранённые изменения/i);
   });
 });

@@ -6,11 +6,15 @@
  */
 
 import { getPool } from "@/infra/db/client";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { mergeLegacySupportConversationsForPlatformUser as runMergeLegacySupportConversations } from "@/infra/repos/mergeLegacySupportConversations";
 
 export type SupportConversationRow = {
   id: string;
+  organizationId?: string | null;
   integratorConversationId: string;
   platformUserId: string | null;
   integratorUserId: string | null;
@@ -34,6 +38,7 @@ export type SupportConversationRelayInfo = Pick<
 
 export type SupportConversationMessageRow = {
   id: string;
+  organizationId?: string | null;
   integratorMessageId: string;
   conversationId: string;
   senderRole: string;
@@ -183,12 +188,25 @@ export type SupportCommunicationPort = {
   } | null>;
   listQuestionsByUser(platformUserId: string): Promise<SupportQuestionRow[]>;
   listRecentDeliveryTrailForConversation(conversationId: string, limit?: number): Promise<SupportDeliveryEventRow[]>;
-  listOpenConversationsForAdmin(params: { source?: string; limit?: number; unreadOnly?: boolean }): Promise<AdminConversationListRow[]>;
+  listOpenConversationsForAdmin(params: {
+    source?: string;
+    limit?: number;
+    unreadOnly?: boolean;
+    organizationId?: string;
+  }): Promise<AdminConversationListRow[]>;
   getConversationByIntegratorId(integratorConversationId: string): Promise<AdminConversationDetailRow | null>;
   listUnansweredQuestionsForAdmin(params: { limit?: number }): Promise<AdminQuestionListRow[]>;
   getQuestionByIntegratorConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
   /** Один диалог webapp на пользователя: `integrator_conversation_id = webapp:platform:{uuid}`. */
   ensureWebappConversationForUser(platformUserId: string): Promise<{ id: string }>;
+  /**
+   * Claims legacy pre-SaaS conversation rows before entering principal-scoped writes.
+   * Caller must already verify workspace access to the conversation/patient.
+   */
+  claimLegacyConversationForOrganization(input: {
+    conversationId: string;
+    organizationId: string;
+  }): Promise<boolean>;
   /** Слияние legacy UUID-диалогов projection в канонический webapp-thread. */
   mergeLegacySupportConversationsForPlatformUser?(platformUserId: string): Promise<{
     mergedConversationCount: number;
@@ -222,7 +240,7 @@ export type SupportCommunicationPort = {
   ): Promise<Array<{ id: string; text: string }>>;
   listNotificationMessagesForUser(platformUserId: string, limit: number): Promise<SupportConversationMessageRow[]>;
   /** Непрочитанные от пациентов (роль `user`) в **открытых** диалогах — согласовано с `listOpenConversationsForAdmin`. */
-  countUnreadUserMessagesForAdmin(): Promise<number>;
+  countUnreadUserMessagesForAdmin(params?: { organizationId?: string }): Promise<number>;
   countUnreadUserMessagesForAdminByConversation(conversationId: string): Promise<number>;
   countUnreadUserMessagesForAdminByPatient(platformUserId: string): Promise<number>;
 };
@@ -230,6 +248,7 @@ export type SupportCommunicationPort = {
 function mapMessageRow(m: Record<string, unknown>): SupportConversationMessageRow {
   return {
     id: String(m.id),
+    organizationId: m.organization_id != null ? String(m.organization_id) : null,
     integratorMessageId: String(m.integrator_message_id),
     conversationId: String(m.conversation_id),
     senderRole: String(m.sender_role),
@@ -257,6 +276,7 @@ const SUPPORT_NOTIFICATION_SQL = `(
 
 type SupportConversationDbRow = {
   id: string;
+  organization_id: string | null;
   integrator_conversation_id: string;
   platform_user_id: string | null;
   integrator_user_id: string | null;
@@ -276,6 +296,7 @@ type SupportConversationDbRow = {
 function mapConversationRow(row: SupportConversationDbRow): SupportConversationRow {
   return {
     id: row.id,
+    organizationId: row.organization_id,
     integratorConversationId: row.integrator_conversation_id,
     platformUserId: row.platform_user_id,
     integratorUserId: row.integrator_user_id,
@@ -291,6 +312,20 @@ function mapConversationRow(row: SupportConversationDbRow): SupportConversationR
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (
+    hasFallbackMismatch ||
+    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId ?? fallbackOrganizationId;
 }
 
 type SupportQuestionDbRow = {
@@ -702,7 +737,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async listConversationsByUser(platformUserId) {
       const r = await runWebappPgText<SupportConversationDbRow>(
-        `SELECT id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
+        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
          FROM support_conversations WHERE platform_user_id = $1 ORDER BY last_message_at DESC`,
@@ -713,7 +748,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async getConversationWithMessages(conversationId) {
       const conv = await runWebappPgText<SupportConversationDbRow>(
-        `SELECT id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
+        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
          FROM support_conversations WHERE id = $1`,
@@ -722,7 +757,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       if (conv.rows.length === 0) return null;
       const conversation = mapConversationRow(conv.rows[0]!);
       const msg = await runWebappPgText<Record<string, unknown>>(
-        `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+        `SELECT id, organization_id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
                 external_chat_id, external_message_id, delivery_status, created_at::text,
                 read_at::text, delivered_at::text, media_url, media_type
          FROM support_conversation_messages WHERE conversation_id = $1 ORDER BY created_at ASC`,
@@ -777,6 +812,10 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     async listOpenConversationsForAdmin(params) {
       const limit = typeof params.limit === "number" && params.limit > 0 ? Math.min(params.limit, 100) : 20;
       const source = typeof params.source === "string" && params.source.trim() ? params.source.trim() : null;
+      const organizationId =
+        typeof params.organizationId === "string" && params.organizationId.trim()
+          ? params.organizationId.trim()
+          : null;
       const r = await runWebappPgText<AdminConversationListDbRow>(
         `SELECT
           sc.id AS conversation_id,
@@ -817,10 +856,11 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            AND last_personal.personal_msg_at IS NOT NULL
            AND ($1::text IS NULL OR sc.source = $1)
            AND ($3::boolean = false OR COALESCE(unread.unread_from_user_count, 0) > 0)
+           AND ($4::uuid IS NULL OR sc.organization_id = $4::uuid)
          ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC,
                   COALESCE(last_personal.personal_msg_at, sc.created_at) DESC
          LIMIT $2`,
-        [source, limit, params.unreadOnly === true]
+        [source, limit, params.unreadOnly === true, organizationId]
       );
       return r.rows.map(mapAdminConversationListRow);
     },
@@ -939,75 +979,130 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async ensureWebappConversationForUser(platformUserId) {
       const integratorConversationId = `webapp:platform:${platformUserId}`;
-      const r = await runWebappPgText<{ id: string }>(
-        `INSERT INTO support_conversations (
-          integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
-          opened_at, last_message_at
-        ) VALUES ($1, $2::uuid, NULL, 'webapp', 'support', 'open', now(), now())
-        ON CONFLICT (integrator_conversation_id) DO UPDATE SET
-          platform_user_id = COALESCE(EXCLUDED.platform_user_id, support_conversations.platform_user_id),
-          updated_at = now()
-        RETURNING id`,
-        [integratorConversationId, platformUserId]
-      );
-      return { id: r.rows[0]!.id };
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await runWebappPgText<{ id: string; organization_id: string | null }>(
+          `SELECT id, organization_id
+           FROM support_conversations
+           WHERE integrator_conversation_id = $1
+           LIMIT 1`,
+          [integratorConversationId],
+          tx,
+        );
+        const organizationId = currentWriteOrganizationId(existing.rows[0]?.organization_id);
+        const r = await runWebappPgText<{ id: string }>(
+          `INSERT INTO support_conversations (
+            organization_id, integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
+            opened_at, last_message_at
+          ) VALUES ($1::uuid, $2, $3::uuid, NULL, 'webapp', 'support', 'open', now(), now())
+          ON CONFLICT (integrator_conversation_id) DO UPDATE SET
+            organization_id = COALESCE(support_conversations.organization_id, EXCLUDED.organization_id),
+            platform_user_id = COALESCE(EXCLUDED.platform_user_id, support_conversations.platform_user_id),
+            updated_at = now()
+          RETURNING id`,
+          [organizationId, integratorConversationId, platformUserId],
+          tx,
+        );
+        return { id: r.rows[0]!.id };
+      });
     },
 
     async mergeLegacySupportConversationsForPlatformUser(platformUserId) {
       const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const result = await runMergeLegacySupportConversations(client, platformUserId);
-        await client.query("COMMIT");
-        return result;
-      } catch (err) {
-        await client.query("ROLLBACK");
-        throw err;
-      } finally {
-        client.release();
+      return withPoolTransaction(pool, (client) =>
+        runMergeLegacySupportConversations(client, platformUserId),
+      );
+    },
+
+    async claimLegacyConversationForOrganization(input) {
+      const claimed = await runWebappPgText<{ id: string }>(
+        `UPDATE support_conversations
+         SET organization_id = $2::uuid, updated_at = now()
+         WHERE id = $1::uuid AND organization_id IS NULL
+         RETURNING id`,
+        [input.conversationId, input.organizationId],
+      );
+      const claimedOrAlreadyScoped = claimed.rows[0]?.id
+        ? true
+        : (
+            await runWebappPgText<{ id: string }>(
+              `SELECT id
+               FROM support_conversations
+               WHERE id = $1::uuid AND organization_id = $2::uuid
+               LIMIT 1`,
+              [input.conversationId, input.organizationId],
+            )
+          ).rows.length > 0;
+      if (!claimedOrAlreadyScoped) {
+        return false;
       }
+      await runWebappPgText(
+        `UPDATE support_conversation_messages
+         SET organization_id = $2::uuid
+         WHERE conversation_id = $1::uuid AND organization_id IS NULL`,
+        [input.conversationId, input.organizationId],
+      );
+      return true;
     },
 
     async appendWebappMessage(params) {
-      const r = await runWebappPgText<{ id: string }>(
-        `INSERT INTO support_conversation_messages (
-          integrator_message_id, conversation_id, sender_role, message_type, text, source,
-          external_chat_id, external_message_id, delivery_status, created_at, delivered_at,
-          media_url, media_type
-        ) VALUES ($1, $2::uuid, $3, 'text', $4, $5, NULL, NULL, NULL, $6::timestamptz, $6::timestamptz, $7, $8)
-        ON CONFLICT (integrator_message_id) DO NOTHING
-        RETURNING id`,
-        [
-          params.integratorMessageId,
-          params.conversationId,
-          params.senderRole,
-          params.text,
-          params.source,
-          params.createdAt,
-          params.mediaUrl ?? null,
-          params.mediaType ?? null,
-        ]
-      );
-      if (r.rows[0]?.id) {
-        await runWebappPgText(
-          `UPDATE support_conversations SET last_message_at = GREATEST(last_message_at, $2::timestamptz), updated_at = now() WHERE id = $1::uuid`,
-          [params.conversationId, params.createdAt]
+      return runDrizzleMutationTransaction(async (tx) => {
+        const conversation = await runWebappPgText<{ organization_id: string | null }>(
+          `SELECT organization_id
+           FROM support_conversations
+           WHERE id = $1::uuid
+           LIMIT 1`,
+          [params.conversationId],
+          tx,
         );
-        return { id: r.rows[0]!.id, created: true };
-      }
-      const ex = await runWebappPgText<{ id: string }>(
-        "SELECT id FROM support_conversation_messages WHERE integrator_message_id = $1",
-        [params.integratorMessageId]
-      );
-      return { id: ex.rows[0]?.id ?? "", created: false };
+        const organizationId = currentWriteOrganizationId(conversation.rows[0]?.organization_id);
+        const r = await runWebappPgText<{ id: string }>(
+          `INSERT INTO support_conversation_messages (
+            organization_id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+            external_chat_id, external_message_id, delivery_status, created_at, delivered_at,
+            media_url, media_type
+          ) VALUES ($1::uuid, $2, $3::uuid, $4, 'text', $5, $6, NULL, NULL, NULL, $7::timestamptz, $7::timestamptz, $8, $9)
+          ON CONFLICT (integrator_message_id) DO NOTHING
+          RETURNING id`,
+          [
+            organizationId,
+            params.integratorMessageId,
+            params.conversationId,
+            params.senderRole,
+            params.text,
+            params.source,
+            params.createdAt,
+            params.mediaUrl ?? null,
+            params.mediaType ?? null,
+          ],
+          tx,
+        );
+        if (r.rows[0]?.id) {
+          await runWebappPgText(
+            `UPDATE support_conversations
+             SET organization_id = COALESCE(organization_id, $3::uuid),
+                 last_message_at = GREATEST(last_message_at, $2::timestamptz),
+                 updated_at = now()
+             WHERE id = $1::uuid`,
+            [params.conversationId, params.createdAt, organizationId],
+            tx,
+          );
+          return { id: r.rows[0]!.id, created: true };
+        }
+        const ex = await runWebappPgText<{ id: string; organization_id: string | null }>(
+          "SELECT id, organization_id FROM support_conversation_messages WHERE integrator_message_id = $1",
+          [params.integratorMessageId],
+          tx,
+        );
+        currentWriteOrganizationId(organizationId, ex.rows[0]?.organization_id);
+        return { id: ex.rows[0]?.id ?? "", created: false };
+      });
     },
 
     async listMessagesSince(conversationId, params) {
       const lim = Math.min(Math.max(params.limit, 1), 200);
       if (params.sinceCreatedAt) {
         const r = await runWebappPgText<Record<string, unknown>>(
-          `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+        `SELECT id, organization_id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
                   external_chat_id, external_message_id, delivery_status, created_at::text,
                   read_at::text, delivered_at::text, media_url, media_type
            FROM support_conversation_messages
@@ -1019,7 +1114,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         return r.rows.map((m) => mapMessageRow(m));
       }
       const r = await runWebappPgText<Record<string, unknown>>(
-        `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+        `SELECT id, organization_id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
                 external_chat_id, external_message_id, delivery_status, created_at::text,
                 read_at::text, delivered_at::text, media_url, media_type
          FROM (
@@ -1049,7 +1144,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         channel_code: string | null;
         channel_external_id: string | null;
       }>(
-        `SELECT id, platform_user_id, channel_code, channel_external_id
+        `SELECT id, organization_id, platform_user_id, channel_code, channel_external_id
          FROM support_conversations
          WHERE id = $1::uuid
          LIMIT 1`,
@@ -1067,7 +1162,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async getConversationIfOwnedByUser(conversationId, platformUserId) {
       const r = await runWebappPgText<SupportConversationDbRow>(
-        `SELECT id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
+        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
          FROM support_conversations WHERE id = $1::uuid AND platform_user_id = $2::uuid`,
@@ -1128,11 +1223,32 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async markUserMessagesReadByAdmin(conversationId) {
-      await runWebappPgText(
-        `UPDATE support_conversation_messages SET read_at = COALESCE(read_at, now())
-         WHERE conversation_id = $1::uuid AND sender_role = 'user' AND read_at IS NULL`,
-        [conversationId]
-      );
+      await runDrizzleMutationTransaction(async (tx) => {
+        const conversation = await runWebappPgText<{ organization_id: string | null }>(
+          `SELECT organization_id
+           FROM support_conversations
+           WHERE id = $1::uuid
+           LIMIT 1`,
+          [conversationId],
+          tx,
+        );
+        const organizationId = currentWriteOrganizationId(conversation.rows[0]?.organization_id);
+        await runWebappPgText(
+          `UPDATE support_conversations
+           SET organization_id = COALESCE(organization_id, $2::uuid), updated_at = now()
+           WHERE id = $1::uuid`,
+          [conversationId, organizationId],
+          tx,
+        );
+        await runWebappPgText(
+          `UPDATE support_conversation_messages
+           SET organization_id = COALESCE(organization_id, $2::uuid),
+               read_at = COALESCE(read_at, now())
+           WHERE conversation_id = $1::uuid AND sender_role = 'user' AND read_at IS NULL`,
+          [conversationId, organizationId],
+          tx,
+        );
+      });
     },
 
     async countUnreadForUser(platformUserId) {
@@ -1180,7 +1296,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     async listNotificationMessagesForUser(platformUserId, limit) {
       const lim = Math.min(Math.max(limit, 1), 200);
       const r = await runWebappPgText<Record<string, unknown>>(
-        `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+        `SELECT id, organization_id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
                 external_chat_id, external_message_id, delivery_status, created_at::text,
                 read_at::text, delivered_at::text, media_url, media_type
          FROM (
@@ -1199,7 +1315,11 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       return r.rows.map((m) => mapMessageRow(m));
     },
 
-    async countUnreadUserMessagesForAdmin() {
+    async countUnreadUserMessagesForAdmin(params) {
+      const organizationId =
+        typeof params?.organizationId === "string" && params.organizationId.trim()
+          ? params.organizationId.trim()
+          : null;
       const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c
          FROM support_conversation_messages m
@@ -1207,7 +1327,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          WHERE m.sender_role = 'user'
            AND m.read_at IS NULL
            AND c.status <> 'closed'
-           AND c.closed_at IS NULL`
+           AND c.closed_at IS NULL
+           AND ($1::uuid IS NULL OR c.organization_id = $1::uuid)`,
+        [organizationId],
       );
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },

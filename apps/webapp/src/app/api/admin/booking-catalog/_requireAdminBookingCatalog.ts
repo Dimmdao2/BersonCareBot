@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { getCurrentSession } from "@/modules/auth/service";
 import type { BookingCatalogPort } from "@/modules/booking-catalog/ports";
 
 export type AdminBookingCatalogContext = {
   session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
   port: BookingCatalogPort;
+  organizationId: string;
 };
 
 export async function requireAdminBookingCatalog(): Promise<
@@ -22,6 +25,8 @@ export async function requireAdminBookingCatalog(): Promise<
   if (session.user.role !== "admin" || !session.adminMode) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
+  const workspaceGate = await requireDoctorWorkspaceApiContext();
+  if (!workspaceGate.ok) return workspaceGate;
   const port = buildAppDeps().bookingCatalogPort;
   if (!port) {
     return {
@@ -29,5 +34,19 @@ export async function requireAdminBookingCatalog(): Promise<
       response: NextResponse.json({ ok: false, error: "catalog_unavailable" }, { status: 503 }),
     };
   }
-  return { ok: true, ctx: { session, port } };
+  return {
+    ok: true,
+    ctx: {
+      session,
+      port,
+      organizationId: workspaceGate.ctx.organizationId,
+    },
+  };
+}
+
+export function withAdminBookingCatalogPrincipal<T>(
+  ctx: Pick<AdminBookingCatalogContext, "organizationId">,
+  fn: () => T,
+): T {
+  return withDoctorWorkspacePrincipal(ctx, fn);
 }

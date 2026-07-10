@@ -1,6 +1,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { communicationsTabFromQuery } from "./doctorCommunicationsTabs";
 import { loadDoctorCommunicationsBadges } from "./loadDoctorCommunicationsBadges";
@@ -14,7 +15,8 @@ type Props = {
 };
 
 export default async function DoctorCommunicationsPage({ searchParams }: Props) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const params = await searchParams;
   const initialTab = communicationsTabFromQuery(params.tab ?? null);
 
@@ -29,17 +31,22 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   const excludedUserIds = audience?.excludedUserIds ?? [];
 
   const [commentsData, patients] = await Promise.all([
-    loadDoctorExerciseCommentsForTab(deps, {
-      viewerUserId: session.user.userId,
-      excludedUserIds,
-    }),
-    loadDoctorCommentPatients(
-      {
-        doctorClientsPort: deps.doctorClientsPort,
-        programItemDiscussion: deps.programItemDiscussion,
-      },
-      { viewerUserId: session.user.userId },
-      { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
+    withDoctorWorkspacePrincipal(workspace, () =>
+      loadDoctorExerciseCommentsForTab(deps, {
+        viewerUserId: session.user.userId,
+        organizationId: workspace.organizationId,
+        excludedUserIds,
+      }),
+    ),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      loadDoctorCommentPatients(
+        {
+          doctorClientsPort: deps.doctorClientsPort,
+          programItemDiscussion: deps.programItemDiscussion,
+        },
+        { viewerUserId: session.user.userId, organizationId: workspace.organizationId },
+        { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
+      ),
     ),
   ]);
 

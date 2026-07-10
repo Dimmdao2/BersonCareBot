@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import {
   ExerciseArchiveAlreadyArchivedError,
   ExerciseArchiveNotFoundError,
@@ -96,6 +96,22 @@ describe("lfk-exercises service", () => {
     await svc.archiveExercise(ex.id, { acknowledgeUsageWarning: true });
     const all = await svc.listExercises({ includeArchived: true });
     expect(all.find((e) => e.id === ex.id)?.isArchived).toBe(true);
+  });
+
+  it("archiveExercise runs only the archive write through write options", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "Scoped" }, null);
+    const svc = createLfkExercisesService(port);
+    const runExerciseWriteSpy = vi.fn();
+    const runExerciseWrite = async <T,>(fn: () => Promise<T>): Promise<T> => {
+      runExerciseWriteSpy();
+      return fn();
+    };
+
+    await svc.archiveExercise(ex.id, undefined, { runExerciseWrite });
+
+    expect(runExerciseWriteSpy).toHaveBeenCalledTimes(1);
+    expect((await svc.getExercise(ex.id))?.isArchived).toBe(true);
   });
 
   it("archiveExercise throws ExerciseArchiveNotFoundError for unknown id", async () => {

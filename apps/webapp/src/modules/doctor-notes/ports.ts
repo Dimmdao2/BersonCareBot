@@ -1,5 +1,6 @@
 export type DoctorNoteRow = {
   id: string;
+  organizationId?: string | null;
   userId: string;
   authorId: string;
   text: string;

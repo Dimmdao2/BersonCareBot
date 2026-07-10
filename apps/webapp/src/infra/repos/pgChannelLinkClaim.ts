@@ -1,6 +1,11 @@
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 
+import {
+  classifyMergeFailure,
+  mergePlatformUsersInTransaction,
+} from "@bersoncare/platform-merge";
 import { getWebappSqlFromPgClient, runWebappPgText, type WebappSqlExecutor } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 
 export class ChannelLinkClaimRejectedError extends Error {
@@ -112,6 +117,63 @@ export type ClaimMessengerChannelBindingInput = {
   externalId: string;
   secretRowId: string;
 };
+
+export type ClaimMessengerChannelBindingResult =
+  | { ok: true }
+  | { ok: false; code: "rejected"; reason: string }
+  | { ok: false; code: "failed"; err: unknown };
+
+export type ChannelLinkOwnersMergeResult =
+  | { ok: true }
+  | { ok: false; reason: string; candidateIds: string[] };
+
+export async function tryMergeChannelLinkOwners(
+  pool: Pool,
+  params: {
+    tokenUserId: string;
+    existingUserId: string;
+    secretRowId: string;
+  },
+): Promise<ChannelLinkOwnersMergeResult> {
+  try {
+    await withPoolTransaction(pool, async (client) => {
+      await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
+      await runWebappPgText(
+        `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
+        [params.secretRowId],
+        getWebappSqlFromPgClient(client),
+      );
+    });
+    return { ok: true };
+  } catch (err) {
+    const classified = classifyMergeFailure(err, [params.tokenUserId, params.existingUserId]);
+    return {
+      ok: false,
+      reason: classified.code,
+      candidateIds:
+        classified.candidateIds.length > 0
+          ? classified.candidateIds
+          : [params.tokenUserId, params.existingUserId],
+    };
+  }
+}
+
+export async function claimMessengerChannelBinding(
+  pool: Pool,
+  input: ClaimMessengerChannelBindingInput,
+): Promise<ClaimMessengerChannelBindingResult> {
+  try {
+    await withPoolTransaction(pool, async (client) => {
+      await claimMessengerChannelBindingInTransaction(client, input);
+    });
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ChannelLinkClaimRejectedError) {
+      return { ok: false, code: "rejected", reason: err.reason };
+    }
+    return { ok: false, code: "failed", err };
+  }
+}
 
 /**
  * Reassign `(channel_code, external_id)` to `tokenUserId`, soft-delete system wellbeing rows on the stub,

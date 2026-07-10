@@ -14,7 +14,12 @@ vi.mock("@/infra/db/client", () => ({
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlFromPgClient: (client: unknown) => client,
-  runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
+  runWebappPgText: (...args: unknown[]) => {
+    if (String(args[0]).startsWith("SET CONSTRAINTS")) {
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    }
+    return runWebappPgTextMock(...args);
+  },
 }));
 
 vi.mock("@/infra/repos/pgPlatformUserMerge", () => ({
@@ -110,12 +115,29 @@ describe("pgUserProjectionPort (repo SQL parity)", () => {
 
     expect(result).toEqual({ platformUserId: "pu-new" });
     expect(transportQueries[0]).toBe("BEGIN");
-    expect(transportQueries.some((q) => q.includes("SET CONSTRAINTS"))).toBe(true);
     expect(transportQueries).toContain("COMMIT");
     expect(client.release).toHaveBeenCalled();
     const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(insertSql).toContain("INSERT INTO platform_users");
     expect(runWebappPgTextMock.mock.calls[1]?.[2]).toBe(client);
+  });
+
+  it("upsertFromProjection update path does not blindly overwrite display_name with weak displayName", async () => {
+    installPoolClient();
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ id: "pu-existing" }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    const result = await pgUserProjectionPort.upsertFromProjection({
+      integratorUserId: "99",
+      displayName: "Telegram Name",
+    });
+
+    expect(result).toEqual({ platformUserId: "pu-existing" });
+    const updateSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(updateSql).toContain("WHEN (display_name IS NULL OR trim(display_name) = '')");
+    expect(updateSql).toContain("AND $3::text IS NOT NULL");
+    expect(updateSql).toContain("AND $4::text IS NOT NULL");
   });
 
   it("updatePhone runs UPDATE in TX and applies phone history transition", async () => {

@@ -3,7 +3,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { resolveFirstPendingProgramTabItemId } from "@/app/app/patient/home/resolveFirstPendingProgramTabItemId";
 import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
 import { buildPatientHomeWarmupPickContext } from "@/modules/patient-home/buildPatientHomeWarmupPickContext";
-import { resolvePatientCanViewContent } from "@/modules/platform-access";
+import { resolvePatientCanViewContent } from "@/app-layer/platform-access";
 import {
   getPatientHomeTodayConfig,
   listDailyWarmupPagesForHome,

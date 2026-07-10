@@ -26,6 +26,10 @@ describe("computeAppointmentPackageLinkage", () => {
     ).toBe("consumed");
   });
 
+  it("detects manual_adjust as consumed", () => {
+    expect(computeAppointmentPackageLinkage([usage("manual_adjust")])).toBe("consumed");
+  });
+
   it("detects refunded", () => {
     expect(
       computeAppointmentPackageLinkage([usage("consume"), usage("refund")]),

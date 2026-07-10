@@ -37,6 +37,7 @@ import {
   rollbackFailedRubitimeCreate,
   waitForRubitimeProjectionMapping,
 } from "./rubitimeCreateRollback";
+import { sendBookingConfirmationEmail } from "./sendBookingConfirmationEmail";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
@@ -226,7 +227,9 @@ export async function createBookingOnCanonicalEngine(
   const profilePrefill: Record<string, string> = {
     contact_name: createInput.contactName,
     contact_phone: createInput.contactPhone,
-    first_name: createInput.contactName,
+    first_name: createInput.contactFio?.firstName ?? createInput.contactName,
+    ...(createInput.contactFio?.lastName ? { last_name: createInput.contactFio.lastName } : {}),
+    ...(createInput.contactFio?.patronymic ? { patronymic: createInput.contactFio.patronymic } : {}),
     phone: createInput.contactPhone,
     ...(createInput.contactEmail ? { contact_email: createInput.contactEmail, email: createInput.contactEmail } : {}),
   };
@@ -408,6 +411,7 @@ export async function createBookingOnCanonicalEngine(
             actorId: createInput.userId,
             attributionJson: {
               ...(createInput.attribution ?? {}),
+              ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
               ...(productPurchaseId ? { productPurchaseId } : {}),
             },
           });
@@ -641,6 +645,7 @@ export async function createBookingOnCanonicalEngine(
           slotStart: pendingRow.slotStart,
           slotEnd: pendingRow.slotEnd,
           contactName: pendingRow.contactName,
+          ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
           contactPhone: pendingRow.contactPhone,
           contactEmail: pendingRow.contactEmail ?? undefined,
           branchServiceId: pendingRow.branchServiceId,
@@ -653,6 +658,19 @@ export async function createBookingOnCanonicalEngine(
   } catch {
     // Notifications are best-effort.
   }
+
+  // #81: отправить пациенту письмо с .ics-вложением (best-effort, не роняет booking).
+  await sendBookingConfirmationEmail(
+    {
+      bookingId: (confirmed ?? pending).id,
+      contactEmail: createInput.contactEmail,
+      slotStart: pendingRow.slotStart,
+      slotEnd: pendingRow.slotEnd,
+      serviceTitle: pendingRow.serviceTitleSnapshot ?? pendingRow.category,
+      locationLabel: pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === "online" ? "Онлайн" : null),
+      contactName: createInput.contactName,
+    },
+  );
 
   await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;

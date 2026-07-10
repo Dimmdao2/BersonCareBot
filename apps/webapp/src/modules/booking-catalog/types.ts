@@ -41,6 +41,7 @@ export type BookingService = {
   title: string;
   description: string | null;
   durationMinutes: number;
+  breakAfterMinutes: number;
   priceMinor: number;
   isActive: boolean;
   sortOrder: number;

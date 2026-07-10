@@ -84,6 +84,15 @@ describe("DoctorChatPanel", () => {
     expect(screen.getByLabelText("Текст ответа")).toHaveValue("");
   });
 
+  it("focuses the composer and shows context from per-message Reply action", async () => {
+    render(<DoctorChatPanel conversationId={conversationId} initialMessages={[message]} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ответить" }));
+
+    expect(screen.getByText("Ответ на: Здравствуйте")).toBeInTheDocument();
+    expect(screen.getByLabelText("Текст ответа")).toHaveFocus();
+  });
+
   it("shows an error when initial load fails", async () => {
     const fetchMock = vi.fn(async () => {
       throw new Error("network down");

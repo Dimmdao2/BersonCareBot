@@ -5,20 +5,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -26,7 +20,10 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -35,11 +32,10 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "booking_unavailable" }, { status: 503 });
   }
 
-  const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
   const [timeline, payments, visits] = await Promise.all([
-    deps.clientHistory.listTimeline(orgId, userId),
-    deps.clientHistory.listPaymentHistory(orgId, userId),
-    deps.clientHistory.listVisitHistory(orgId, userId),
+    deps.clientHistory.listTimeline(gate.ctx.organizationId, identity.userId),
+    deps.clientHistory.listPaymentHistory(gate.ctx.organizationId, identity.userId),
+    deps.clientHistory.listVisitHistory(gate.ctx.organizationId, identity.userId),
   ]);
 
   return NextResponse.json({ ok: true, timeline, payments, visits });

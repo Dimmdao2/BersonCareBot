@@ -29,6 +29,8 @@ export type BeBranch = {
   title: string;
   /** Short display name (e.g. «СПб», «Мск»). Nullable; UI falls back to title. Migration 0117. */
   shortTitle: string | null;
+  /** Hex color for calendar/work schedule surfaces. */
+  color: string | null;
   cityCode: string;
   address: string | null;
   timezone: string;
@@ -60,6 +62,7 @@ export type BeClinicService = {
   title: string;
   description: string | null;
   durationMinutes: number;
+  bufferAfterMinutes: number;
   priceMinor: number;
   isActive: boolean;
   prepaymentApplicable: boolean;

@@ -12,7 +12,7 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
 }));
 
-vi.mock("@/modules/platform-access", () => ({
+vi.mock("@/app-layer/platform-access", () => ({
   patientClientBusinessGate: patientGateMock,
 }));
 

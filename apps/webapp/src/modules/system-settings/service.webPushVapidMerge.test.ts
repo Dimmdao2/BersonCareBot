@@ -65,6 +65,7 @@ describe("createSystemSettingsService web_push_vapid merge", () => {
         value: expect.objectContaining({ publicKey: "newpub", privateKey: "kept-from-db" }),
       }),
       "admin",
+      { organizationId: null },
     );
   });
 });

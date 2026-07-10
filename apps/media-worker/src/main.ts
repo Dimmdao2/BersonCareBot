@@ -1,6 +1,6 @@
-import { Pool } from "pg";
 import { createLogger } from "./logger.js";
 import { loadMediaWorkerEnv } from "./env.js";
+import { createMediaWorkerPoolProvider } from "./poolProvider.js";
 import { readPipelineEnabled } from "./pipelineEnabled.js";
 import { claimNextJob, reclaimStaleProcessing } from "./jobs/claim.js";
 import { processTranscodeJob } from "./processTranscodeJob.js";
@@ -13,7 +13,7 @@ function sleep(ms: number): Promise<void> {
 async function main() {
   const env = loadMediaWorkerEnv();
   const log = createLogger(env);
-  const pool = new Pool({ connectionString: env.DATABASE_URL, max: 4 });
+  const pool = createMediaWorkerPoolProvider({ connectionString: env.DATABASE_URL });
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,
     region: env.S3_REGION,

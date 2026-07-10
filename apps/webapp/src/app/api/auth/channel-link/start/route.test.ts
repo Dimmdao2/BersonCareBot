@@ -6,6 +6,10 @@ const startChannelLinkMock = vi.hoisted(() => vi.fn());
 const getTelegramLoginBotUsernameMock = vi.hoisted(() => vi.fn());
 const getMaxLoginBotNicknameMock = vi.hoisted(() => vi.fn());
 
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: vi.fn(),
+}));
+
 vi.mock("@/modules/system-settings/telegramLoginBotUsername", () => ({
   getTelegramLoginBotUsername: () => getTelegramLoginBotUsernameMock(),
 }));

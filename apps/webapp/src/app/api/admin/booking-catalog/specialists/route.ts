@@ -5,7 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdminBookingCatalog } from "../_requireAdminBookingCatalog";
+import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../_requireAdminBookingCatalog";
 
 const PostSpecialistSchema = z.object({
   rubitimeBranchId: z.string().min(1).max(120),
@@ -32,14 +32,16 @@ export async function POST(request: Request) {
   const parsed = PostSpecialistSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
   try {
-    const { id } = await gate.ctx.port.upsertSpecialist({
-      rubitimeBranchId: parsed.data.rubitimeBranchId.trim(),
-      fullName: parsed.data.fullName.trim(),
-      description: parsed.data.description ?? null,
-      rubitimeCooperatorId: parsed.data.rubitimeCooperatorId.trim(),
-      isActive: parsed.data.isActive,
-      sortOrder: parsed.data.sortOrder,
-    });
+    const { id } = await withAdminBookingCatalogPrincipal(gate.ctx, () =>
+      gate.ctx.port.upsertSpecialist({
+        rubitimeBranchId: parsed.data.rubitimeBranchId.trim(),
+        fullName: parsed.data.fullName.trim(),
+        description: parsed.data.description ?? null,
+        rubitimeCooperatorId: parsed.data.rubitimeCooperatorId.trim(),
+        isActive: parsed.data.isActive,
+        sortOrder: parsed.data.sortOrder,
+      }),
+    );
     const specialist = await gate.ctx.port.getSpecialistById(id);
     return NextResponse.json({ ok: true, specialist });
   } catch (e) {

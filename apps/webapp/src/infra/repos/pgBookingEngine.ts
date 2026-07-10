@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
+import { readAdminSystemSettingString } from "@/infra/repos/pgSystemSettings";
 import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
 import {
   beAppointmentEvents,
@@ -51,6 +53,7 @@ function mapBranch(row: typeof beBranches.$inferSelect): BeBranch {
     organizationId: row.organizationId,
     title: row.title,
     shortTitle: row.shortTitle ?? null,
+    color: row.color ?? null,
     cityCode: row.cityCode,
     address: row.address ?? null,
     timezone: row.timezone,
@@ -88,6 +91,7 @@ function mapService(row: typeof beClinicServices.$inferSelect): BeClinicService 
     title: row.title,
     description: row.description ?? null,
     durationMinutes: row.durationMinutes,
+    bufferAfterMinutes: row.bufferAfterMinutes,
     priceMinor: row.priceMinor,
     isActive: row.isActive,
     prepaymentApplicable: row.prepaymentApplicable,
@@ -122,21 +126,10 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
   };
 }
 
-async function readSettingString(key: string): Promise<string | null> {
-  const db = getDrizzle();
-  const rows = await db.execute<{ value_json: unknown }>(
-    sql`SELECT value_json FROM system_settings WHERE key = ${key} AND scope = 'admin' LIMIT 1`,
-  );
-  const row = rows.rows[0];
-  if (!row?.value_json || typeof row.value_json !== "object") return null;
-  const envelope = row.value_json as { value?: unknown };
-  return typeof envelope.value === "string" ? envelope.value.trim() : null;
-}
-
 export function createPgBookingEnginePort(): BookingEngineCorePort {
   return {
     async getDefaultOrganizationId() {
-      const fromSettings = await readSettingString("booking_default_organization_id");
+      const fromSettings = await readAdminSystemSettingString("booking_default_organization_id");
       return fromSettings && fromSettings.length > 0 ? fromSettings : BE_DEFAULT_ORGANIZATION_ID;
     },
 
@@ -197,51 +190,61 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async upsertBranch(input) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
       if (input.id) {
-        const patch: Partial<typeof beBranches.$inferInsert> = {
-          title: input.title,
-          cityCode: input.cityCode,
-          address: input.address ?? null,
-          timezone: input.timezone ?? "Europe/Moscow",
-          isActive: input.isActive,
-          sortOrder: input.sortOrder,
-          updatedAt: now,
-        };
-        // Only write shortTitle when explicitly provided (preserve existing value otherwise)
-        if ("shortTitle" in input) {
-          patch.shortTitle = (input as { shortTitle?: string | null }).shortTitle ?? null;
-        }
-        await db.update(beBranches).set(patch).where(eq(beBranches.id, input.id));
-        const row = await this.getBranch(input.id);
+        const id = input.id;
+        const row = await runWebappTransaction(async (tx) => {
+          const patch: Partial<typeof beBranches.$inferInsert> = {
+            title: input.title,
+            cityCode: input.cityCode,
+            address: input.address ?? null,
+            timezone: input.timezone ?? "Europe/Moscow",
+            isActive: input.isActive,
+            sortOrder: input.sortOrder,
+            updatedAt: now,
+          };
+          // Only write shortTitle when explicitly provided (preserve existing value otherwise)
+          if ("shortTitle" in input) {
+            patch.shortTitle = (input as { shortTitle?: string | null }).shortTitle ?? null;
+          }
+          if ("color" in input) {
+            patch.color = (input as { color?: string | null }).color ?? null;
+          }
+          await tx.update(beBranches).set(patch).where(eq(beBranches.id, id));
+          const rows = await tx.select().from(beBranches).where(eq(beBranches.id, id)).limit(1);
+          return rows[0] ? mapBranch(rows[0]) : null;
+        });
         if (!row) throw new Error("branch_not_found");
         return row;
       }
-      const inserted = await db
-        .insert(beBranches)
-        .values({
-          organizationId: input.organizationId,
-          title: input.title,
-          shortTitle: (input as { shortTitle?: string | null }).shortTitle ?? null,
-          cityCode: input.cityCode,
-          address: input.address ?? null,
-          timezone: input.timezone ?? "Europe/Moscow",
-          isActive: input.isActive,
-          sortOrder: input.sortOrder,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+      const inserted = await runWebappTransaction((tx) =>
+        tx
+          .insert(beBranches)
+          .values({
+            organizationId: input.organizationId,
+            title: input.title,
+            shortTitle: (input as { shortTitle?: string | null }).shortTitle ?? null,
+            color: (input as { color?: string | null }).color ?? null,
+            cityCode: input.cityCode,
+            address: input.address ?? null,
+            timezone: input.timezone ?? "Europe/Moscow",
+            isActive: input.isActive,
+            sortOrder: input.sortOrder,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning(),
+      );
       return mapBranch(inserted[0]!);
     },
 
     async deactivateBranch(id) {
-      const db = getDrizzle();
-      const res = await db
-        .update(beBranches)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(eq(beBranches.id, id));
+      const res = await runWebappTransaction((tx) =>
+        tx
+          .update(beBranches)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(eq(beBranches.id, id)),
+      );
       return (res.rowCount ?? 0) > 0;
     },
 
@@ -261,43 +264,49 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async upsertRoom(input) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
       if (input.id) {
-        await db
-          .update(beRooms)
-          .set({
-            title: input.title,
-            isActive: input.isActive,
-            sortOrder: input.sortOrder,
-            updatedAt: now,
-          })
-          .where(eq(beRooms.id, input.id));
-        const row = await this.getRoom(input.id);
+        const id = input.id;
+        const row = await runWebappTransaction(async (tx) => {
+          await tx
+            .update(beRooms)
+            .set({
+              title: input.title,
+              isActive: input.isActive,
+              sortOrder: input.sortOrder,
+              updatedAt: now,
+            })
+            .where(eq(beRooms.id, id));
+          const rows = await tx.select().from(beRooms).where(eq(beRooms.id, id)).limit(1);
+          return rows[0] ? mapRoom(rows[0]) : null;
+        });
         if (!row) throw new Error("room_not_found");
         return row;
       }
-      const inserted = await db
-        .insert(beRooms)
-        .values({
-          organizationId: input.organizationId,
-          branchId: input.branchId,
-          title: input.title,
-          isActive: input.isActive,
-          sortOrder: input.sortOrder,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+      const inserted = await runWebappTransaction((tx) =>
+        tx
+          .insert(beRooms)
+          .values({
+            organizationId: input.organizationId,
+            branchId: input.branchId,
+            title: input.title,
+            isActive: input.isActive,
+            sortOrder: input.sortOrder,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning(),
+      );
       return mapRoom(inserted[0]!);
     },
 
     async deactivateRoom(id) {
-      const db = getDrizzle();
-      const res = await db
-        .update(beRooms)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(eq(beRooms.id, id));
+      const res = await runWebappTransaction((tx) =>
+        tx
+          .update(beRooms)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(eq(beRooms.id, id)),
+      );
       return (res.rowCount ?? 0) > 0;
     },
 
@@ -318,77 +327,85 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async upsertSpecialist(input) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
       if (input.id) {
-        await db
-          .update(beSpecialists)
-          .set({
+        const id = input.id;
+        const row = await runWebappTransaction(async (tx) => {
+          await tx
+            .update(beSpecialists)
+            .set({
+              fullName: input.fullName,
+              description: input.description ?? null,
+              isActive: input.isActive,
+              sortOrder: input.sortOrder,
+              updatedAt: now,
+            })
+            .where(eq(beSpecialists.id, id));
+          const rows = await tx.select().from(beSpecialists).where(eq(beSpecialists.id, id)).limit(1);
+          return rows[0] ? mapSpecialist(rows[0]) : null;
+        });
+        if (!row) throw new Error("specialist_not_found");
+        return row;
+      }
+      const inserted = await runWebappTransaction((tx) =>
+        tx
+          .insert(beSpecialists)
+          .values({
+            organizationId: input.organizationId,
             fullName: input.fullName,
             description: input.description ?? null,
             isActive: input.isActive,
             sortOrder: input.sortOrder,
+            createdAt: now,
             updatedAt: now,
           })
-          .where(eq(beSpecialists.id, input.id));
-        const row = await this.getSpecialist(input.id);
-        if (!row) throw new Error("specialist_not_found");
-        return row;
-      }
-      const inserted = await db
-        .insert(beSpecialists)
-        .values({
-          organizationId: input.organizationId,
-          fullName: input.fullName,
-          description: input.description ?? null,
-          isActive: input.isActive,
-          sortOrder: input.sortOrder,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+          .returning(),
+      );
       return mapSpecialist(inserted[0]!);
     },
 
     async deactivateSpecialist(id) {
-      const db = getDrizzle();
-      const res = await db
-        .update(beSpecialists)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(eq(beSpecialists.id, id));
+      const res = await runWebappTransaction((tx) =>
+        tx
+          .update(beSpecialists)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(eq(beSpecialists.id, id)),
+      );
       return (res.rowCount ?? 0) > 0;
     },
 
     async setSpecialistLocation(input) {
-      const db = getDrizzle();
-      await db
-        .insert(beSpecialistLocations)
-        .values({
-          organizationId: input.organizationId,
-          specialistId: input.specialistId,
-          branchId: input.branchId,
-          isActive: input.isActive,
-        })
-        .onConflictDoUpdate({
-          target: [beSpecialistLocations.specialistId, beSpecialistLocations.branchId],
-          set: { isActive: input.isActive },
-        });
+      await runWebappTransaction((tx) =>
+        tx
+          .insert(beSpecialistLocations)
+          .values({
+            organizationId: input.organizationId,
+            specialistId: input.specialistId,
+            branchId: input.branchId,
+            isActive: input.isActive,
+          })
+          .onConflictDoUpdate({
+            target: [beSpecialistLocations.specialistId, beSpecialistLocations.branchId],
+            set: { isActive: input.isActive },
+          }),
+      );
     },
 
     async setSpecialistRoom(input) {
-      const db = getDrizzle();
-      await db
-        .insert(beSpecialistRooms)
-        .values({
-          organizationId: input.organizationId,
-          specialistId: input.specialistId,
-          roomId: input.roomId,
-          isActive: input.isActive,
-        })
-        .onConflictDoUpdate({
-          target: [beSpecialistRooms.specialistId, beSpecialistRooms.roomId],
-          set: { isActive: input.isActive },
-        });
+      await runWebappTransaction((tx) =>
+        tx
+          .insert(beSpecialistRooms)
+          .values({
+            organizationId: input.organizationId,
+            specialistId: input.specialistId,
+            roomId: input.roomId,
+            isActive: input.isActive,
+          })
+          .onConflictDoUpdate({
+            target: [beSpecialistRooms.specialistId, beSpecialistRooms.roomId],
+            set: { isActive: input.isActive },
+          }),
+      );
     },
 
     async listServices(organizationId) {
@@ -408,13 +425,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async upsertService(input) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
       const values = {
         organizationId: input.organizationId,
         title: input.title,
         description: input.description ?? null,
         durationMinutes: input.durationMinutes,
+        bufferAfterMinutes: input.bufferAfterMinutes,
         priceMinor: input.priceMinor,
         isActive: input.isActive,
         prepaymentApplicable: input.prepaymentApplicable,
@@ -426,141 +443,133 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         updatedAt: now,
       };
       if (input.id) {
-        await db.update(beClinicServices).set(values).where(eq(beClinicServices.id, input.id));
-        const row = await this.getService(input.id);
+        const id = input.id;
+        const row = await runWebappTransaction(async (tx) => {
+          await tx.update(beClinicServices).set(values).where(eq(beClinicServices.id, id));
+          const rows = await tx.select().from(beClinicServices).where(eq(beClinicServices.id, id)).limit(1);
+          return rows[0] ? mapService(rows[0]) : null;
+        });
         if (!row) throw new Error("service_not_found");
         return row;
       }
-      const inserted = await db
-        .insert(beClinicServices)
-        .values({ ...values, createdAt: now })
-        .returning();
+      const inserted = await runWebappTransaction((tx) =>
+        tx.insert(beClinicServices).values({ ...values, createdAt: now }).returning(),
+      );
       return mapService(inserted[0]!);
     },
 
     async deactivateService(id) {
-      const db = getDrizzle();
-      const res = await db
-        .update(beClinicServices)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(eq(beClinicServices.id, id));
+      const res = await runWebappTransaction((tx) =>
+        tx
+          .update(beClinicServices)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(eq(beClinicServices.id, id)),
+      );
       return (res.rowCount ?? 0) > 0;
     },
 
     async upsertSpecialistServiceAvailability(input) {
-      const db = getDrizzle();
       const now = new Date().toISOString();
 
-      const scopeConds = [
-        eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
-        eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
-        eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
-      ];
-      if (input.branchId) {
-        scopeConds.push(eq(beSpecialistServiceAvailability.branchId, input.branchId));
-      } else {
-        scopeConds.push(isNull(beSpecialistServiceAvailability.branchId));
-      }
+      const row = await runWebappTransaction(async (tx) => {
+        const scopeConds = [
+          eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
+          eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
+          eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
+        ];
+        if (input.branchId) {
+          scopeConds.push(eq(beSpecialistServiceAvailability.branchId, input.branchId));
+        } else {
+          scopeConds.push(isNull(beSpecialistServiceAvailability.branchId));
+        }
 
-      const existingRows = await db
-        .select()
-        .from(beSpecialistServiceAvailability)
-        .where(and(...scopeConds, eq(beSpecialistServiceAvailability.isActive, true)));
+        const existingRows = await tx
+          .select()
+          .from(beSpecialistServiceAvailability)
+          .where(and(...scopeConds, eq(beSpecialistServiceAvailability.isActive, true)));
 
-      let targetId: string | null = null;
-      if (existingRows.length > 0) {
-        const mapRows = await db
-          .select({
-            canonicalId: beExternalEntityMappings.canonicalId,
-            metadata: beExternalEntityMappings.metadata,
-          })
-          .from(beExternalEntityMappings)
-          .where(
-            and(
-              eq(beExternalEntityMappings.organizationId, input.organizationId),
-              eq(beExternalEntityMappings.entityType, "availability"),
-              eq(beExternalEntityMappings.externalSystem, "rubitime"),
-              inArray(
-                beExternalEntityMappings.canonicalId,
-                existingRows.map((r) => r.id),
+        let targetId: string | null = null;
+        if (existingRows.length > 0) {
+          const mapRows = await tx
+            .select({
+              canonicalId: beExternalEntityMappings.canonicalId,
+              metadata: beExternalEntityMappings.metadata,
+            })
+            .from(beExternalEntityMappings)
+            .where(
+              and(
+                eq(beExternalEntityMappings.organizationId, input.organizationId),
+                eq(beExternalEntityMappings.entityType, "availability"),
+                eq(beExternalEntityMappings.externalSystem, "rubitime"),
+                inArray(
+                  beExternalEntityMappings.canonicalId,
+                  existingRows.map((r) => r.id),
+                ),
               ),
-            ),
+            );
+          const legacyBySsa = legacyBranchServiceIdBySsaFromMappings(mapRows);
+          targetId = pickPreferredSsaId(
+            existingRows.map((r) => ({
+              id: r.id,
+              createdAt: r.createdAt,
+              isActive: r.isActive,
+            })),
+            legacyBySsa,
           );
-        const legacyBySsa = legacyBranchServiceIdBySsaFromMappings(mapRows);
-        targetId = pickPreferredSsaId(
-          existingRows.map((r) => ({
-            id: r.id,
-            createdAt: r.createdAt,
-            isActive: r.isActive,
-          })),
-          legacyBySsa,
-        );
-      }
+        }
 
-      if (targetId) {
-        const updated = await db
-          .update(beSpecialistServiceAvailability)
-          .set({
+        if (targetId) {
+          const updated = await tx
+            .update(beSpecialistServiceAvailability)
+            .set({
+              roomId: input.roomId ?? null,
+              cityCode: input.cityCode ?? null,
+              durationMinutesOverride: input.durationMinutesOverride ?? null,
+              priceMinorOverride: input.priceMinorOverride ?? null,
+              isActive: input.isActive,
+              sortOrder: input.sortOrder,
+              updatedAt: now,
+            })
+            .where(eq(beSpecialistServiceAvailability.id, targetId))
+            .returning();
+          return updated[0]!;
+        }
+
+        const inserted = await tx
+          .insert(beSpecialistServiceAvailability)
+          .values({
+            organizationId: input.organizationId,
+            specialistId: input.specialistId,
+            serviceId: input.serviceId,
+            branchId: input.branchId ?? null,
             roomId: input.roomId ?? null,
             cityCode: input.cityCode ?? null,
             durationMinutesOverride: input.durationMinutesOverride ?? null,
             priceMinorOverride: input.priceMinorOverride ?? null,
             isActive: input.isActive,
             sortOrder: input.sortOrder,
+            createdAt: now,
             updatedAt: now,
           })
-          .where(eq(beSpecialistServiceAvailability.id, targetId))
+          .onConflictDoUpdate({
+            target: [
+              beSpecialistServiceAvailability.specialistId,
+              beSpecialistServiceAvailability.serviceId,
+              beSpecialistServiceAvailability.branchId,
+              beSpecialistServiceAvailability.roomId,
+              beSpecialistServiceAvailability.cityCode,
+            ],
+            set: {
+              durationMinutesOverride: input.durationMinutesOverride ?? null,
+              priceMinorOverride: input.priceMinorOverride ?? null,
+              isActive: input.isActive,
+              sortOrder: input.sortOrder,
+              updatedAt: now,
+            },
+          })
           .returning();
-        const row = updated[0]!;
-        return {
-          id: row.id,
-          organizationId: row.organizationId,
-          specialistId: row.specialistId,
-          serviceId: row.serviceId,
-          branchId: row.branchId ?? null,
-          roomId: row.roomId ?? null,
-          cityCode: row.cityCode ?? null,
-          durationMinutesOverride: row.durationMinutesOverride ?? null,
-          priceMinorOverride: row.priceMinorOverride ?? null,
-          isActive: row.isActive,
-          sortOrder: row.sortOrder,
-        };
-      }
-
-      const inserted = await db
-        .insert(beSpecialistServiceAvailability)
-        .values({
-          organizationId: input.organizationId,
-          specialistId: input.specialistId,
-          serviceId: input.serviceId,
-          branchId: input.branchId ?? null,
-          roomId: input.roomId ?? null,
-          cityCode: input.cityCode ?? null,
-          durationMinutesOverride: input.durationMinutesOverride ?? null,
-          priceMinorOverride: input.priceMinorOverride ?? null,
-          isActive: input.isActive,
-          sortOrder: input.sortOrder,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [
-            beSpecialistServiceAvailability.specialistId,
-            beSpecialistServiceAvailability.serviceId,
-            beSpecialistServiceAvailability.branchId,
-            beSpecialistServiceAvailability.roomId,
-            beSpecialistServiceAvailability.cityCode,
-          ],
-          set: {
-            durationMinutesOverride: input.durationMinutesOverride ?? null,
-            priceMinorOverride: input.priceMinorOverride ?? null,
-            isActive: input.isActive,
-            sortOrder: input.sortOrder,
-            updatedAt: now,
-          },
-        })
-        .returning();
-      const row = inserted[0]!;
+        return inserted[0]!;
+      });
       return {
         id: row.id,
         organizationId: row.organizationId,
@@ -598,29 +607,31 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async deactivateSpecialistServiceAvailability(id) {
-      const db = getDrizzle();
-      const res = await db
-        .update(beSpecialistServiceAvailability)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(eq(beSpecialistServiceAvailability.id, id));
+      const res = await runWebappTransaction((tx) =>
+        tx
+          .update(beSpecialistServiceAvailability)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(eq(beSpecialistServiceAvailability.id, id)),
+      );
       return (res.rowCount ?? 0) > 0;
     },
 
     async upsertServiceLocationAvailability(input) {
-      const db = getDrizzle();
-      const inserted = await db
-        .insert(beServiceLocationAvailability)
-        .values({
-          organizationId: input.organizationId,
-          serviceId: input.serviceId,
-          branchId: input.branchId,
-          isActive: input.isActive,
-        })
-        .onConflictDoUpdate({
-          target: [beServiceLocationAvailability.serviceId, beServiceLocationAvailability.branchId],
-          set: { isActive: input.isActive },
-        })
-        .returning();
+      const inserted = await runWebappTransaction((tx) =>
+        tx
+          .insert(beServiceLocationAvailability)
+          .values({
+            organizationId: input.organizationId,
+            serviceId: input.serviceId,
+            branchId: input.branchId,
+            isActive: input.isActive,
+          })
+          .onConflictDoUpdate({
+            target: [beServiceLocationAvailability.serviceId, beServiceLocationAvailability.branchId],
+            set: { isActive: input.isActive },
+          })
+          .returning(),
+      );
       const row = inserted[0]!;
       return {
         id: row.id,

@@ -56,7 +56,7 @@ describe("pgDoctorProactiveInsights repo", () => {
     });
 
     expect(Array.isArray(items)).toBe(true);
-    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["p1"]);
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["p1", null]);
     expect(String(runWebappPgTextMock.mock.calls[1]?.[0])).toContain("symptom_entries");
     expect(String(runWebappPgTextMock.mock.calls[2]?.[0])).toContain("treatment_program_instances");
   });

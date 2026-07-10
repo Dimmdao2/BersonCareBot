@@ -253,6 +253,28 @@ describe("doctorApplyInstanceEditorBatch", () => {
     expect(next.stages.some((s) => s.title === "Новый этап")).toBe(true);
   });
 
+  it("adds first user stage via batch as available", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "12121212-1212-4212-8212-121212121212",
+      assignedBy: doctor,
+    });
+
+    const clientStageId = "draft:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const next = await instSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        stageCreates: [{ clientId: clientStageId, title: "Первый пользовательский этап" }],
+      },
+    });
+
+    const created = next.stages.find((s) => s.title === "Первый пользовательский этап");
+    expect(created?.status).toBe("available");
+  });
+
   it("adds group via batch draft", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });

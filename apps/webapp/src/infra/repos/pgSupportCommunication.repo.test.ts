@@ -1,13 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runDrizzleMutationTransactionMock = vi.hoisted(() =>
+  vi.fn((fn: (tx: unknown) => unknown) => fn({ __tx: true })),
+);
+const runMergeLegacySupportConversationsMock = vi.hoisted(() => vi.fn());
+const getPoolMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
 }));
 
+vi.mock("@/infra/db/drizzleMutationTx", () => ({
+  runDrizzleMutationTransaction: runDrizzleMutationTransactionMock,
+}));
+
 vi.mock("@/infra/db/client", () => ({
-  getPool: vi.fn(),
+  getPool: getPoolMock,
+}));
+
+vi.mock("@/infra/repos/mergeLegacySupportConversations", () => ({
+  mergeLegacySupportConversationsForPlatformUser: runMergeLegacySupportConversationsMock,
 }));
 
 import { createPgSupportCommunicationPort } from "./pgSupportCommunication";
@@ -17,6 +31,9 @@ const TS = "2025-06-01T10:00:00.000Z";
 describe("createPgSupportCommunicationPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    runDrizzleMutationTransactionMock.mockClear();
+    runMergeLegacySupportConversationsMock.mockReset();
+    getPoolMock.mockReset();
   });
 
   describe("upsertConversationFromProjection", () => {
@@ -90,14 +107,14 @@ describe("createPgSupportCommunicationPort", () => {
       expect(sql).toContain("last_personal.personal_msg_at IS NOT NULL");
       expect(sql).toContain("$1::text IS NULL OR sc.source = $1");
       expect(sql).toContain("$3::boolean = false OR");
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true]);
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true, null]);
     });
 
     it("uses null source when filter omitted", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgSupportCommunicationPort();
       await port.listOpenConversationsForAdmin({ limit: 10 });
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false]);
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false, null]);
     });
   });
 
@@ -120,6 +137,183 @@ describe("createPgSupportCommunicationPort", () => {
       await expect(
         port.conversationExists("00000000-0000-4000-8000-000000000099"),
       ).resolves.toBe(false);
+    });
+  });
+
+  describe("webapp support chat principal stamping", () => {
+    it("claims legacy conversations and backfills legacy message organization", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [{ id: "conv-legacy-1" }] })
+        .mockResolvedValueOnce({ rows: [], rowCount: 2 });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        port.claimLegacyConversationForOrganization({
+          conversationId: "00000000-0000-4000-8000-000000000222",
+          organizationId: orgId,
+        }),
+      ).resolves.toBe(true);
+
+      const claimSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      expect(claimSql).toContain("WHERE id = $1::uuid AND organization_id IS NULL");
+      const messageSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+      expect(messageSql).toContain("WHERE conversation_id = $1::uuid AND organization_id IS NULL");
+    });
+
+    it("does not claim conversations scoped to another organization", async () => {
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        port.claimLegacyConversationForOrganization({
+          conversationId: "00000000-0000-4000-8000-000000000222",
+          organizationId: "10000000-0000-4000-8000-000000000001",
+        }),
+      ).resolves.toBe(false);
+
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("stamps ensured webapp conversations from current organization principal", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: "conv-webapp-1" }] });
+
+      const port = createPgSupportCommunicationPort();
+      const result = await runWithDbOrganizationPrincipal(orgId, () =>
+        port.ensureWebappConversationForUser("00000000-0000-4000-8000-000000000111"),
+      );
+
+      expect(result).toEqual({ id: "conv-webapp-1" });
+      expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
+      const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+      expect(insertSql).toContain("organization_id");
+      expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[0]).toBe(orgId);
+    });
+
+    it("rejects ensured webapp conversation when existing organization differs from principal", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({
+        rows: [{ id: "conv-webapp-1", organization_id: "20000000-0000-4000-8000-000000000002" }],
+      });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        runWithDbOrganizationPrincipal("10000000-0000-4000-8000-000000000001", () =>
+          port.ensureWebappConversationForUser("00000000-0000-4000-8000-000000000111"),
+        ),
+      ).rejects.toThrow("organization_principal_mismatch");
+    });
+
+    it("stamps appended webapp messages from parent conversation organization", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
+        .mockResolvedValueOnce({ rows: [{ id: "msg-1" }] })
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+      const port = createPgSupportCommunicationPort();
+      const result = await runWithDbOrganizationPrincipal(orgId, () =>
+        port.appendWebappMessage({
+          conversationId: "00000000-0000-4000-8000-000000000222",
+          integratorMessageId: "webapp-msg:test-1",
+          senderRole: "admin",
+          text: "hello",
+          source: "webapp",
+          createdAt: TS,
+        }),
+      );
+
+      expect(result).toEqual({ id: "msg-1", created: true });
+      const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+      expect(insertSql).toContain("organization_id");
+      expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[0]).toBe(orgId);
+      expect(runWebappPgTextMock.mock.calls[2]?.[1]?.[2]).toBe(orgId);
+    });
+
+    it("marks user messages read while backfilling message organization from conversation", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 2 });
+
+      const port = createPgSupportCommunicationPort();
+      await runWithDbOrganizationPrincipal(orgId, () =>
+        port.markUserMessagesReadByAdmin("00000000-0000-4000-8000-000000000222"),
+      );
+
+      const markSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+      expect(markSql).toContain("organization_id = COALESCE(organization_id, $2::uuid)");
+      expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual([
+        "00000000-0000-4000-8000-000000000222",
+        orgId,
+      ]);
+    });
+  });
+
+  describe("mergeLegacySupportConversationsForPlatformUser", () => {
+    it("runs legacy merge in a shared transaction helper", async () => {
+      const client = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        release: vi.fn(),
+      };
+      const pool = {
+        connect: vi.fn().mockResolvedValue(client),
+      };
+      getPoolMock.mockReturnValue(pool);
+      runMergeLegacySupportConversationsMock.mockResolvedValue({
+        mergedConversationCount: 1,
+        movedMessageCount: 2,
+      });
+
+      const port = createPgSupportCommunicationPort();
+      expect(port.mergeLegacySupportConversationsForPlatformUser).toBeDefined();
+      const result = await port.mergeLegacySupportConversationsForPlatformUser!(
+        "00000000-0000-4000-8000-000000000001",
+      );
+
+      expect(result).toEqual({
+        mergedConversationCount: 1,
+        movedMessageCount: 2,
+      });
+      expect(pool.connect).toHaveBeenCalledTimes(1);
+      expect(client.query).toHaveBeenCalledWith("BEGIN");
+      expect(client.query).toHaveBeenCalledWith("COMMIT");
+      expect(client.query).not.toHaveBeenCalledWith("ROLLBACK");
+      expect(client.release).toHaveBeenCalledTimes(1);
+      expect(runMergeLegacySupportConversationsMock).toHaveBeenCalledWith(
+        client,
+        "00000000-0000-4000-8000-000000000001",
+      );
+    });
+
+    it("rolls back when legacy merge fails", async () => {
+      const client = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        release: vi.fn(),
+      };
+      const pool = {
+        connect: vi.fn().mockResolvedValue(client),
+      };
+      getPoolMock.mockReturnValue(pool);
+      runMergeLegacySupportConversationsMock.mockRejectedValue(new Error("merge failed"));
+
+      const port = createPgSupportCommunicationPort();
+      expect(port.mergeLegacySupportConversationsForPlatformUser).toBeDefined();
+      await expect(
+        port.mergeLegacySupportConversationsForPlatformUser!(
+          "00000000-0000-4000-8000-000000000001",
+        ),
+      ).rejects.toThrow("merge failed");
+
+      expect(client.query).toHaveBeenCalledWith("BEGIN");
+      expect(client.query).toHaveBeenCalledWith("ROLLBACK");
+      expect(client.query).not.toHaveBeenCalledWith("COMMIT");
+      expect(client.release).toHaveBeenCalledTimes(1);
     });
   });
 });

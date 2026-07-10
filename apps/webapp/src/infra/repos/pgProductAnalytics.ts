@@ -4,8 +4,13 @@ import {
   productAnalyticsWindowStartHour,
 } from "@/modules/product-analytics/buildAdminDashboard";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { resolveAnalyticsExcludedUserIds } from "@/modules/analytics/analyticsAudience";
+import { resolveAnalyticsExcludedUserIds } from "@/infra/repos/pgAnalyticsAudience";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
+import {
+  normalizeTestAccountIdentifiersValue,
+  type TestAccountIdentifiers,
+} from "@/modules/system-settings/testAccounts";
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
@@ -30,6 +35,12 @@ import {
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
 import { platformUsers } from "../../../db/schema/schema";
+
+async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
+  return normalizeTestAccountIdentifiersValue(
+    await readAdminSystemSettingInnerValue("test_account_identifiers"),
+  );
+}
 
 function pgErrCode(e: unknown): string | undefined {
   if (typeof e === "object" && e !== null && "code" in e) {
@@ -232,6 +243,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
         includeTestAccounts,
         excludeStaffRoles: true,
+        testAccountIdentifiers: includeTestAccounts ? null : await loadProductAnalyticsTestAccountIdentifiers(),
       });
 
       const recentEventConditions = [gte(productAnalyticsEventsRecent.occurredAt, startHour)];
@@ -466,6 +478,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
         includeTestAccounts: false,
         excludeStaffRoles: true,
+        testAccountIdentifiers: await loadProductAnalyticsTestAccountIdentifiers(),
       });
       const conditions = [
         gte(productAnalyticsEventsRecent.occurredAt, params.startIso),

@@ -14,7 +14,7 @@ vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
   findCanonicalUserIdByIntegratorId: findCanonicalMock,
 }));
 
-vi.mock("@/modules/reminders/loadWarmupsSectionSlugs", () => ({
+vi.mock("@/infra/repos/pgWarmupsSectionSlugs", () => ({
   loadWarmupsSectionSlugs: loadWarmupsMock,
 }));
 

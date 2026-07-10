@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getOptionalPatientSession, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientClientBusinessGate, resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { patientClientBusinessGate, resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
 import { MaterialRatingAccessError } from "@/modules/material-rating/types";
 
 const targetKindSchema = z.enum(["content_page", "lfk_exercise", "lfk_complex"]);

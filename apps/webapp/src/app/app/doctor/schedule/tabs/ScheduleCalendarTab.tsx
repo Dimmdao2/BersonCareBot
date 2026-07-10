@@ -47,6 +47,12 @@ import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import { AppointmentKpiItem } from "@/shared/ui/doctor/AppointmentKpiItem";
 import { routePaths } from "@/app-layer/routes/paths";
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from "../scheduleCalendarEvents";
+import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+import {
+  DEFAULT_CALENDAR_WINDOW_MAX,
+  DEFAULT_CALENDAR_WINDOW_MIN,
+  deriveCalendarVisibleTimeWindow,
+} from "@/modules/booking-calendar/visibleTimeWindow";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -56,14 +62,11 @@ const API_BASE = "/api/doctor/booking-engine";
 const KPIS_API = "/api/doctor/schedule-kpis";
 const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 
-// #231: стандартное окно сетки 9:00–19:00.
-// Если записи/рабочие часы не укладываются — окно только РАСШИРЯЕТСЯ наружу.
-// TODO(owner-decision): «настройка доктором» (хранение personalized window bounds)
-// не реализована — нет существующего хранилища настроек доктора для этого параметра.
-// Рекомендация: добавить поле default_slot_start_minute/default_slot_end_minute в
-// be_specialists или отдельную таблицу doctor_preferences. До реализации — дефолт 9–19.
-const DEFAULT_WINDOW_MIN = 9 * 60; // 540 мин = 9:00
-const DEFAULT_WINDOW_MAX = 19 * 60; // 1140 мин = 19:00
+// #231/#237: окно сетки по умолчанию 9:00–19:00. Хранится в system_settings (scope=doctor,
+// key=booking_calendar_default_window). Настраивается в «Настройки → Календарь».
+// Если записи/рабочие часы выходят за дефолтное окно — сетка только расширяется наружу.
+const DEFAULT_WINDOW_MIN = DEFAULT_CALENDAR_WINDOW_MIN; // 540 мин = 9:00
+const DEFAULT_WINDOW_MAX = DEFAULT_CALENDAR_WINDOW_MAX; // 1140 мин = 19:00
 
 // R34: понятные подписи ошибок переноса для диалога подтверждения.
 function rescheduleErrorLabel(error: string | undefined): string {
@@ -276,12 +279,6 @@ function buildQuery(params: Record<string, string | null | undefined>): string {
 // Helper: slot min/max from workingBounds
 // ---------------------------------------------------------------------------
 
-function minuteToHHMM(minute: number): string {
-  const h = Math.floor(minute / 60);
-  const m = minute % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
-}
-
 function getSettingValue(rows: Array<{ key: string; valueJson: unknown }>, key: string): unknown {
   const valueJson = rows.find((row) => row.key === key)?.valueJson;
   if (valueJson && typeof valueJson === "object" && "value" in valueJson) {
@@ -334,45 +331,7 @@ export function deriveSlotTimes(
     endMinute: DEFAULT_WINDOW_MAX,
   },
 ): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
-  const defaultLo = Math.max(0, Math.min(1439, defaultWindow.startMinute));
-  const defaultHi = Math.max(defaultLo + 30, Math.min(24 * 60, defaultWindow.endMinute));
-  let lo = defaultLo;
-  let hi = defaultHi;
-  let hasAnyData = Boolean(workingBounds);
-  if (workingBounds) {
-    lo = Math.min(lo, workingBounds.minMinute);
-    hi = Math.max(hi, workingBounds.maxMinute);
-  }
-  for (const e of events ?? []) {
-    if (e.kind !== "appointment" && e.kind !== "block") continue;
-    const s = parseFeedInstant(e.startAt, timeZone);
-    const en = parseFeedInstant(e.endAt, timeZone);
-    if (s.isValid) {
-      const sm = Math.max(0, s.hour * 60 + s.minute - 60);
-      lo = Math.min(lo, sm);
-      hasAnyData = true;
-    }
-    if (en.isValid) {
-      let em = en.hour * 60 + en.minute + 60;
-      if (em === 0) em = 24 * 60; // полночь конца = конец суток
-      hi = Math.max(hi, Math.min(24 * 60, em));
-      hasAnyData = true;
-    }
-  }
-
-  if (!hasAnyData) {
-    return {
-      slotMinTime: minuteToHHMM(defaultLo),
-      slotMaxTime: minuteToHHMM(defaultHi),
-      loMinute: defaultLo,
-      hiMinute: defaultHi,
-    };
-  }
-
-  lo = Math.max(0, lo);
-  hi = Math.min(24 * 60, hi);
-
-  return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi), loMinute: lo, hiMinute: hi };
+  return deriveCalendarVisibleTimeWindow(workingBounds, events, timeZone, defaultWindow);
 }
 
 // ---------------------------------------------------------------------------
@@ -487,9 +446,46 @@ function eventClassName(event: CalendarEvent): string {
     return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
   if (event.packageUsageRef || event.packageTitle)
     return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
+  if (event.branchColor)
+    return "text-foreground";
   // дефолтная запись чуть насыщеннее (R10 «чуть темнее для всего»); прошлые
   // дополнительно приглушаются через .fc-event-past opacity в <style>.
   return "!bg-primary/15 text-foreground !border-primary/35";
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return null;
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+function rgba(hex: string, alpha: number): string | null {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function appointmentBranchColors(event: CalendarAppointmentEvent): {
+  backgroundColor?: string;
+  borderColor?: string;
+} {
+  if (
+    !event.branchColor ||
+    isCancelledAppointmentStatus(event.status) ||
+    event.status === "awaiting_payment" ||
+    event.prepaymentPending ||
+    event.packageUsageRef ||
+    event.packageTitle
+  ) {
+    return {};
+  }
+  const backgroundColor = rgba(event.branchColor, 0.16);
+  const borderColor = rgba(event.branchColor, 0.42);
+  if (!backgroundColor || !borderColor) return {};
+  return { backgroundColor, borderColor };
 }
 
 function eventTitle(event: CalendarEvent): string {
@@ -497,7 +493,10 @@ function eventTitle(event: CalendarEvent): string {
   if (event.kind === "working") return "Рабочее время";
   if (event.kind === "break") return "Перерыв";
   if (event.kind === "block") return event.title ?? "Блокировка";
-  const packagePrefix = event.packageUsageRef || event.packageTitle ? "✅ " : "";
+  const packagePrefix =
+    event.packageUsageRef || event.packageTitle
+      ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
+      : "";
   const parts = [event.patientName ?? "Запись", event.serviceTitle].filter(Boolean);
   return `${packagePrefix}${parts.join(" · ")}`;
 }
@@ -505,8 +504,12 @@ function eventTitle(event: CalendarEvent): string {
 /** Для месячного вида: только фамилия (первое слово) */
 function eventLastName(event: CalendarEvent): string {
   if (event.kind !== "appointment") return eventTitle(event);
+  const packagePrefix =
+    event.packageUsageRef || event.packageTitle
+      ? `${formatPatientPackageShortLabel(event.packageDisplayNumber)} `
+      : "";
   const name = event.patientName ?? "Запись";
-  return name.split(" ")[0] ?? name;
+  return `${packagePrefix}${name.split(" ")[0] ?? name}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -603,9 +606,10 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
           return (
-            <button
+            <Button
               key={appt.id}
               type="button"
+              variant="ghost"
               onClick={() => onSelect(appt)}
               className={cn(
                 "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm",
@@ -620,20 +624,32 @@ function ListDayCard({ dateKey, label, appointments, timeZone, onSelect, nextApp
               <span className={cn("min-w-0 truncate", cancelled && "line-through")}>
                 {appt.patientName ?? "Запись"}
               </span>
+              {appt.packageUsageRef || appt.packageTitle ? (
+                <span
+                  className="shrink-0 rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
+                  title={appt.packageTitle ?? undefined}
+                >
+                  {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
+                </span>
+              ) : null}
               {isNext && (
                 <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                   Следующая
                 </span>
               )}
               {cancelled ? (
-                <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-destructive">
-                  Отмена
+                <span className="shrink-0 text-xs font-medium text-destructive">
+                  {appointmentStatusLabel(appt.status)}
                 </span>
-              ) : null}
+              ) : (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {appointmentStatusLabel(appt.status)}
+                </span>
+              )}
               {appt.branchTitle ? (
                 <span className="ml-auto shrink-0 text-xs opacity-70">{appt.branchTitle}</span>
               ) : null}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -703,7 +719,7 @@ function ListView({
   }
 
   return (
-    <div className="flex flex-col gap-3" data-testid="list-view">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1 pb-4" data-testid="list-view">
       {dayGroups.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" data-testid="list-empty">
           Записей в этом периоде нет
@@ -1290,6 +1306,7 @@ export function ScheduleCalendarTab({
         durationEditable: !isCancelledAppointmentStatus(event.status),
         startEditable: !isCancelledAppointmentStatus(event.status),
         classNames: [eventClassName(event)],
+        ...appointmentBranchColors(event),
         extendedProps: {
           kind: event.kind,
           appointment: event,
@@ -1516,9 +1533,7 @@ export function ScheduleCalendarTab({
     : "";
 
   return (
-    <div className={cn(
-      "flex flex-col gap-4 pb-4",
-    )}>
+    <div className="flex flex-col gap-4 pb-8">
       {/* KPI row (D2) — full width, hidden in day */}
       {showKpi ? (
         <KpiRowTab
@@ -1728,11 +1743,14 @@ export function ScheduleCalendarTab({
       ) : null}
 
       {/* Main content row: calendar/list + aside panel */}
-      <div className={cn(
-        "flex flex-col gap-4 lg:flex-row lg:items-start",
-      )}>
+      <div
+        className={cn(
+          "flex flex-col gap-4 lg:flex-row lg:items-start",
+          renderMode === "list" ? "min-h-0 lg:h-[calc(100dvh-15rem)]" : "pb-4",
+        )}
+      >
         {/* Content area */}
-        <div className="min-w-0 flex-1">
+        <div className={cn("min-w-0 flex-1", renderMode === "list" && "h-full min-h-0")}>
           {renderMode === "list" ? (
             // List view — period-bound, grouped by day
             <ListView
@@ -1918,8 +1936,9 @@ export function ScheduleCalendarTab({
                           DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
                           DateTime.now().setZone(currentTimeZone).toISODate();
                         return (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={cn(
                               "fc-daygrid-day-number hover:underline cursor-pointer",
                               isToday && "fc-today-circle",
@@ -1933,7 +1952,7 @@ export function ScheduleCalendarTab({
                             }}
                           >
                             {arg.date.getDate()}
-                          </button>
+                          </Button>
                         );
                       },
                     }
@@ -1942,8 +1961,9 @@ export function ScheduleCalendarTab({
                         const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
                         const isToday = dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
                         return (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={cn("fc-timegrid-header-link", isToday && "fc-today-circle")}
                             onClick={() => {
                               const dateKey = dt.toISODate() ?? anchorDate;
@@ -1956,7 +1976,7 @@ export function ScheduleCalendarTab({
                             <span className="fc-timegrid-header-day">
                               {dt.day}
                             </span>
-                          </button>
+                          </Button>
                         );
                       },
                     })}
@@ -2021,7 +2041,7 @@ export function ScheduleCalendarTab({
         </div>
 
         {/* Right panel (D5) */}
-        <aside className="w-full shrink-0 self-start lg:w-80">
+        <aside className="w-full shrink-0 self-start lg:sticky lg:top-28 lg:max-h-[calc(100dvh-8rem)] lg:w-80 lg:overflow-y-auto lg:pb-4">
           {selected || showCreatePanel ? (
             <DoctorCalendarEventPanel
               apiBase={API_BASE}

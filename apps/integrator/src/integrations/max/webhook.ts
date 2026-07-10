@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { buildWebappEntryUrlForMax } from '../webappEntryToken.js';
 import { maxConfig } from './config.js';
@@ -22,7 +23,58 @@ export type MaxWebhookDeps = {
   ) => Promise<string | undefined>;
   getAppBaseUrl?: () => Promise<string>;
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
+  resolveOrganizationIdForMessengerIdentity?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | null>;
+  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
+  /**
+   * T0.4 channel-binding fallback: resolves the deployment's single organization when the
+   * messenger identity has no per-user org context yet (first-contact, not yet enrolled). The
+   * tenant boundary is the inbound channel/bot, not the user's enrollment state — see
+   * `resolveDeploymentSingleActiveOrganizationId` for the architecture rationale/limits.
+   */
+  resolveDeploymentOrganizationId?: () => Promise<string | null>;
 };
+
+function getSourceMaxExternalId(data: MaxUpdateValidated): string | null {
+  const maxId = data.message?.sender?.user_id ?? data.callback?.user?.user_id ?? data.user?.user_id;
+  return typeof maxId === 'number' ? String(maxId) : null;
+}
+
+async function resolveMaxOrganizationId(
+  data: MaxUpdateValidated,
+  deps: MaxWebhookDeps,
+  reqLogger: ReturnType<typeof getRequestLogger>,
+): Promise<string | null> {
+  const externalId = getSourceMaxExternalId(data);
+  if (externalId && deps.resolveOrganizationIdForMessengerIdentity) {
+    try {
+      const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max');
+      if (perUserOrg) return perUserOrg;
+    } catch {
+      // fall through to channel-binding fallback below
+    }
+  }
+  if (!deps.resolveDeploymentOrganizationId) return null;
+  try {
+    const deploymentOrg = await deps.resolveDeploymentOrganizationId();
+    if (deploymentOrg) {
+      reqLogger.info(
+        { source: 'max' },
+        'max webhook: no per-user org context, using deployment channel-binding fallback',
+      );
+      return deploymentOrg;
+    }
+    reqLogger.warn(
+      { source: 'max' },
+      'max webhook: no organization resolvable for this channel (unbound/misconfigured deployment)',
+    );
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /** Экспорт для тестов контракта URL miniapp (`/app/max`, `next=`). */
 export async function buildMaxLinks(
@@ -177,7 +229,7 @@ export async function registerMaxWebhookRoutes(
         );
       }
 
-      const incoming = fromMax(data);
+      const incoming = fromMax(data, maxConfig.apiKey);
       if (!incoming) {
         if (verbose) {
           reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
@@ -218,7 +270,12 @@ export async function registerMaxWebhookRoutes(
           resolveMessengerStaffAdmin,
         ),
       });
-      const result = await deps.eventGateway.handleIncomingEvent(event);
+      const organizationId = await resolveMaxOrganizationId(data, deps, reqLogger);
+      const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
+        deps.eventGateway.handleIncomingEvent(event);
+      const result = organizationId
+        ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+        : await handleEvent();
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'max webhook pipeline rejected');
         void recordIntegrationWebhookOutcome({

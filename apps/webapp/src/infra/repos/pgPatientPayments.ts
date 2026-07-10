@@ -3,8 +3,11 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { desc, eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { and, desc, eq } from "drizzle-orm";
+import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import { getCurrentDbPrincipalOrganizationId, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { getWebappSqlFromPgClient } from "@/infra/db/runWebappSql";
+import { withTransaction } from "@/infra/db/withClient";
 import type {
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
@@ -17,6 +20,7 @@ import { patientPayment } from "../../../db/schema/patientPayments";
 function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
   return {
     id: row.id,
+    organizationId: row.organizationId,
     patientUserId: row.patientUserId,
     amountMinor: row.amountMinor,
     currency: row.currency ?? "RUB",
@@ -32,23 +36,47 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
   };
 }
 
+function runPatientPaymentMutation<T>(
+  organizationId: string,
+  fn: (db: DrizzleDb) => Promise<T>,
+): Promise<T> {
+  return runWithDbOrganizationPrincipal(organizationId, () =>
+    withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb)),
+  );
+}
+
+function requiredPrincipalOrganizationId(): string {
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  if (!organizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return organizationId;
+}
+
 export function createPgPatientPaymentsPort(): PatientPaymentsPort {
   return {
     async listPayments(patientUserId: string): Promise<PatientPayment[]> {
+      const organizationId = requiredPrincipalOrganizationId();
       const db = getDrizzle();
       const rows = await db
         .select()
         .from(patientPayment)
-        .where(eq(patientPayment.patientUserId, patientUserId))
+        .where(
+          and(
+            eq(patientPayment.patientUserId, patientUserId),
+            eq(patientPayment.organizationId, organizationId),
+          ),
+        )
         .orderBy(desc(patientPayment.createdAt));
       return rows.map(rowToPayment);
     },
 
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
-      const db = getDrizzle();
-      const [row] = await db
+      const [row] = await runPatientPaymentMutation(input.organizationId, (tx) =>
+        tx
         .insert(patientPayment)
         .values({
+          organizationId: input.organizationId,
           patientUserId: input.patientUserId,
           amountMinor: input.amountMinor,
           currency: input.currency ?? "RUB",
@@ -61,7 +89,8 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
           providerPaymentId: null,
           createdBy: input.createdBy,
         })
-        .returning();
+          .returning(),
+      );
       return rowToPayment(row);
     },
 
@@ -78,23 +107,31 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
     async updatePatientPaymentStatus(
       id: string,
       status: PatientPaymentStatus,
+      organizationId: string,
       providerPaymentId?: string,
     ): Promise<void> {
-      const db = getDrizzle();
-      await db
+      await runPatientPaymentMutation(organizationId, (tx) =>
+        tx
         .update(patientPayment)
         .set({
           status,
           ...(providerPaymentId !== undefined ? { providerPaymentId } : {}),
         })
-        .where(eq(patientPayment.id, id));
+          .where(
+            and(
+              eq(patientPayment.id, id),
+              eq(patientPayment.organizationId, organizationId),
+            ),
+          ),
+      );
     },
 
     async insertAcquiringPending(input: InsertAcquiringPendingInput): Promise<PatientPayment> {
-      const db = getDrizzle();
-      const [row] = await db
+      const [row] = await runPatientPaymentMutation(input.organizationId, (tx) =>
+        tx
         .insert(patientPayment)
         .values({
+          organizationId: input.organizationId,
           patientUserId: input.patientUserId,
           amountMinor: input.amountMinor,
           currency: input.currency,
@@ -107,7 +144,8 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
           providerPaymentId: input.providerPaymentId,
           createdBy: input.createdBy,
         })
-        .returning();
+          .returning(),
+      );
       return rowToPayment(row);
     },
   };

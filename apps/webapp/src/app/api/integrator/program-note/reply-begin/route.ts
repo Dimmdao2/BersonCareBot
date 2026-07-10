@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
-import { resolveProgramNoteReplyContext } from "@/modules/messaging/programNoteReplyContext";
+import { resolveProgramNoteReplyContext } from "@/app-layer/messaging/programNoteReplyContext";
 
 const bodySchema = z.object({
   stageItemId: z.string().uuid(),

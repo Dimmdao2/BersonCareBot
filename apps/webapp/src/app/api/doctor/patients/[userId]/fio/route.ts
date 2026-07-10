@@ -9,7 +9,8 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const bodySchema = z.object({
@@ -25,8 +26,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -69,18 +70,28 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
-
-  if (Object.keys(nameFields).length > 0) {
-    await deps.doctorClients.setPatientNames(userId, nameFields);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
+  const patientUserId = identity.userId;
 
-  if (hasBirthDate) {
-    await deps.doctorClients.setPatientBirthDate(userId, data.birthDate ?? null);
-  }
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.fio.update", async () => {
+    if (Object.keys(nameFields).length > 0) {
+      await deps.doctorClients.setPatientNames(patientUserId, nameFields);
+    }
 
-  if (hasGender) {
-    await deps.doctorClients.setPatientGender(userId, data.gender ?? null);
-  }
+    if (hasBirthDate) {
+      await deps.doctorClients.setPatientBirthDate(patientUserId, data.birthDate ?? null);
+    }
+
+    if (hasGender) {
+      await deps.doctorClients.setPatientGender(patientUserId, data.gender ?? null);
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

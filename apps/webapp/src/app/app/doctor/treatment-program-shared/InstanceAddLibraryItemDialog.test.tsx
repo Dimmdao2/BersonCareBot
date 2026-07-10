@@ -3,14 +3,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "./treatmentProgramLibraryTypes";
 import { InstanceAddLibraryItemDialog } from "./InstanceAddLibraryItemDialog";
 import { TreatmentProgramLibraryPickerToolbar } from "./TreatmentProgramLibraryPickerToolbar";
 
 const addItemCreate = vi.fn(() => ["draft:item-1"]);
+const deleteItem = vi.fn();
+let displayDetail: TreatmentProgramInstanceDetail;
 
 vi.mock("./InstanceEditorDraftContext", () => ({
-  useInstanceEditorDraft: () => ({ addItemCreate }),
+  useInstanceEditorDraft: () => ({ addItemCreate, deleteItem, displayDetail }),
 }));
 
 vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
@@ -49,13 +52,72 @@ const emptyLibrary: TreatmentProgramLibraryPickers = {
 
 const STAGE_ID = "22222222-2222-4222-8222-222222222222";
 const GROUP_ID = "33333333-3333-4333-8333-333333333333";
+const OTHER_GROUP_ID = "44444444-4444-4444-8444-444444444444";
 const COMPLEX_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const EXERCISE_A = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const EXERCISE_B = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
+function makeDisplayDetail(items: TreatmentProgramInstanceDetail["stages"][number]["items"] = []) {
+  return {
+    id: "instance-1",
+    title: "Program",
+    status: "active",
+    patientUserId: "patient-1",
+    assignedBy: null,
+    templateId: null,
+    createdAt: "2026-07-08T00:00:00.000Z",
+    updatedAt: "2026-07-08T00:00:00.000Z",
+    assignmentSource: "doctor",
+    patientPlanLastOpenedAt: null,
+    stages: [
+      {
+        id: STAGE_ID,
+        instanceId: "instance-1",
+        sourceStageId: null,
+        title: "Stage",
+        description: null,
+        sortOrder: 1,
+        localComment: null,
+        skipReason: null,
+        status: "available",
+        startedAt: null,
+        goals: null,
+        objectives: null,
+        expectedDurationDays: null,
+        expectedDurationText: null,
+        groups: [
+          {
+            id: GROUP_ID,
+            stageId: STAGE_ID,
+            sourceGroupId: null,
+            title: "Group",
+            description: null,
+            scheduleText: null,
+            sortOrder: 0,
+            systemKind: null,
+          },
+          {
+            id: OTHER_GROUP_ID,
+            stageId: STAGE_ID,
+            sourceGroupId: null,
+            title: "Other group",
+            description: null,
+            scheduleText: null,
+            sortOrder: 1,
+            systemKind: null,
+          },
+        ],
+        items,
+      },
+    ],
+  } as TreatmentProgramInstanceDetail;
+}
+
 describe("InstanceAddLibraryItemDialog", () => {
   beforeEach(() => {
     addItemCreate.mockClear();
+    deleteItem.mockClear();
+    displayDetail = makeDisplayDetail();
     vi.restoreAllMocks();
   });
 
@@ -96,7 +158,7 @@ describe("InstanceAddLibraryItemDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("комплекс ЛФК: addItemCreate lfk_complex_expand", async () => {
+  it("комплекс ЛФК: addItemCreate lfk_complex_expand без закрытия модалки", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     const library: TreatmentProgramLibraryPickers = {
@@ -148,7 +210,7 @@ describe("InstanceAddLibraryItemDialog", () => {
         ],
       }),
     );
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it("упражнения: фильтры регион и тип нагрузки сужают список", async () => {
@@ -198,7 +260,8 @@ describe("InstanceAddLibraryItemDialog", () => {
     expect(screen.getByRole("button", { name: /knee stretch/i })).toBeInTheDocument();
   });
 
-  it("рекомендации: фильтры регион/нагрузка не показываются", () => {
+  it("рекомендации: региональный фильтр сужает список", async () => {
+    const user = userEvent.setup();
     render(
       <InstanceAddLibraryItemDialog
         open
@@ -210,14 +273,22 @@ describe("InstanceAddLibraryItemDialog", () => {
         }}
         library={{
           ...emptyLibrary,
-          recommendations: [{ id: "rec-1", title: "Rec A" }],
+          recommendations: [
+            { id: "rec-1", title: "Spine Rec", regionCodes: ["spine"] },
+            { id: "rec-2", title: "Knee Rec", regionCodes: ["knee"] },
+          ],
         }}
         editLocked={false}
       />,
     );
 
-    expect(screen.queryByLabelText("Регион")).toBeNull();
-    expect(screen.queryByLabelText("Тип нагрузки")).toBeNull();
+    expect(screen.getByRole("button", { name: /spine rec/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /knee rec/i })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Регион"), "spine");
+
+    expect(screen.getByRole("button", { name: /spine rec/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /knee rec/i })).toBeNull();
   });
 
   it("toolbar: нет пунктов «Без региона» / «Без типа»", () => {
@@ -285,6 +356,133 @@ describe("InstanceAddLibraryItemDialog", () => {
     expect(screen.getByText("Ничего не найдено по фильтрам.")).toBeInTheDocument();
   });
 
+  it("мультивыбор: фильтр не сбрасывает выбранность, повторный клик удаляет только текущую группу", async () => {
+    const user = userEvent.setup();
+    displayDetail = makeDisplayDetail([
+      {
+        id: "item-current-group",
+        stageId: STAGE_ID,
+        itemType: "exercise",
+        itemRefId: "ex-spine-strength",
+        sortOrder: 0,
+        comment: null,
+        settings: null,
+        groupId: GROUP_ID,
+        snapshot: { title: "Spine strength" },
+        localComment: null,
+        completedAt: null,
+        isActionable: null,
+        status: "active",
+        createdAt: "2026-07-08T00:00:00.000Z",
+        lastViewedAt: null,
+        effectiveComment: null,
+      },
+      {
+        id: "item-other-group",
+        stageId: STAGE_ID,
+        itemType: "exercise",
+        itemRefId: "ex-spine-strength",
+        sortOrder: 0,
+        comment: null,
+        settings: null,
+        groupId: OTHER_GROUP_ID,
+        snapshot: { title: "Spine strength" },
+        localComment: null,
+        completedAt: null,
+        isActionable: null,
+        status: "active",
+        createdAt: "2026-07-08T00:00:00.000Z",
+        lastViewedAt: null,
+        effectiveComment: null,
+      },
+    ]);
+    const library: TreatmentProgramLibraryPickers = {
+      ...emptyLibrary,
+      exercises: [
+        {
+          id: "ex-spine-strength",
+          title: "Spine strength",
+          regionCodes: ["spine"],
+          loadType: "strength",
+        },
+        {
+          id: "ex-knee-stretch",
+          title: "Knee stretch",
+          regionCodes: ["knee"],
+          loadType: "stretch",
+        },
+      ],
+    };
+
+    render(
+      <InstanceAddLibraryItemDialog
+        open
+        onOpenChange={() => {}}
+        spec={{
+          stageId: STAGE_ID,
+          context: "custom_group",
+          customGroupId: GROUP_ID,
+        }}
+        library={library}
+        editLocked={false}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /spine strength/i })).toHaveAttribute("aria-pressed", "true");
+
+    await user.selectOptions(screen.getByLabelText("Регион"), "knee");
+    expect(screen.queryByRole("button", { name: /spine strength/i })).toBeNull();
+    await user.selectOptions(screen.getByLabelText("Регион"), "spine");
+    expect(screen.getByRole("button", { name: /spine strength/i })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: /spine strength/i }));
+
+    expect(deleteItem).toHaveBeenCalledTimes(1);
+    expect(deleteItem).toHaveBeenCalledWith("item-current-group");
+    expect(deleteItem).not.toHaveBeenCalledWith("item-other-group");
+    expect(addItemCreate).not.toHaveBeenCalled();
+  });
+
+  it("мультивыбор: несколько кликов добавляют несколько элементов без server reload/закрытия", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const library: TreatmentProgramLibraryPickers = {
+      ...emptyLibrary,
+      exercises: [
+        { id: "ex-1", title: "Exercise 1" },
+        { id: "ex-2", title: "Exercise 2" },
+      ],
+    };
+
+    render(
+      <InstanceAddLibraryItemDialog
+        open
+        onOpenChange={onOpenChange}
+        spec={{
+          stageId: STAGE_ID,
+          context: "custom_group",
+          customGroupId: GROUP_ID,
+        }}
+        library={library}
+        editLocked={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /exercise 1/i }));
+    await user.click(screen.getByRole("button", { name: /exercise 2/i }));
+
+    expect(addItemCreate).toHaveBeenCalledTimes(2);
+    expect(addItemCreate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ kind: "library_item", itemType: "exercise", itemRefId: "ex-1", groupId: GROUP_ID }),
+    );
+    expect(addItemCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ kind: "library_item", itemType: "exercise", itemRefId: "ex-2", groupId: GROUP_ID }),
+    );
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it("набор тестов: addItemCreate test_set_expand", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
@@ -325,6 +523,6 @@ describe("InstanceAddLibraryItemDialog", () => {
         }),
       );
     });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

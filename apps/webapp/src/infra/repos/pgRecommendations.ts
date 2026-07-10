@@ -1,6 +1,8 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import {
   recommendationRegions,
@@ -62,6 +64,25 @@ function mapRow(row: typeof recommendationsTable.$inferSelect, m2mBodyRegionIds:
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId;
 }
 
 function parseRecommendationUsageRefs(raw: unknown): RecommendationUsageRef[] {
@@ -311,12 +332,13 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     },
 
     async create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation> {
-      const db = getDrizzle();
       const merged = mergeCatalogBodyRegionIds(input.bodyRegionId, input.bodyRegionIds ?? null);
-      return await db.transaction(async (tx) => {
+      const organizationId = currentWriteOrganizationId();
+      return await runDrizzleMutationTransaction(async (tx) => {
         const rows = await tx
           .insert(recommendationsTable)
           .values({
+            organizationId,
             title: input.title,
             bodyMd: input.bodyMd,
             media: normalizeMedia(input.media ?? []),
@@ -332,7 +354,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const id = rows[0].id;
         if (merged.length > 0) {
           await tx.insert(recommendationRegions).values(
-            merged.map((bodyRegionId) => ({ recommendationId: id, bodyRegionId })),
+            merged.map((bodyRegionId) => ({ organizationId, recommendationId: id, bodyRegionId })),
           );
         }
         return mapRow(rows[0], merged);
@@ -363,10 +385,18 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         patch.bodyRegionId = regionMerged[0] ?? null;
       }
 
-      return await db.transaction(async (tx) => {
+      currentPrincipalOrganizationId();
+      return await runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: recommendationsTable.organizationId })
+          .from(recommendationsTable)
+          .where(eq(recommendationsTable.id, id))
+          .limit(1);
+        if (!existing[0]) return null;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(recommendationsTable)
-          .set(patch)
+          .set({ ...patch, organizationId })
           .where(eq(recommendationsTable.id, id))
           .returning();
         if (!rows[0]) return null;
@@ -374,7 +404,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
           await tx.delete(recommendationRegions).where(eq(recommendationRegions.recommendationId, id));
           if (regionMerged.length > 0) {
             await tx.insert(recommendationRegions).values(
-              regionMerged.map((bodyRegionId) => ({ recommendationId: id, bodyRegionId })),
+              regionMerged.map((bodyRegionId) => ({ organizationId, recommendationId: id, bodyRegionId })),
             );
           }
         }
@@ -390,23 +420,41 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     },
 
     async archive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(recommendationsTable)
-        .set({ isArchived: true, updatedAt: new Date().toISOString() })
-        .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
-        .returning({ id: recommendationsTable.id });
-      return rows.length > 0;
+      currentPrincipalOrganizationId();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: recommendationsTable.organizationId })
+          .from(recommendationsTable)
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
+          .limit(1);
+        if (!existing[0]) return false;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        const rows = await tx
+          .update(recommendationsTable)
+          .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
+          .returning({ id: recommendationsTable.id });
+        return rows.length > 0;
+      });
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const db = getDrizzle();
-      const rows = await db
-        .update(recommendationsTable)
-        .set({ isArchived: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
-        .returning({ id: recommendationsTable.id });
-      return rows.length > 0;
+      currentPrincipalOrganizationId();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx
+          .select({ organizationId: recommendationsTable.organizationId })
+          .from(recommendationsTable)
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
+          .limit(1);
+        if (!existing[0]) return false;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        const rows = await tx
+          .update(recommendationsTable)
+          .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
+          .returning({ id: recommendationsTable.id });
+        return rows.length > 0;
+      });
     },
 
     async getRecommendationUsageSummary(id: string): Promise<RecommendationUsageSnapshot> {

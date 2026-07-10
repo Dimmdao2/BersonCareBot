@@ -29,6 +29,9 @@ export function computeAppointmentPackageLinkage(usages: PackageUsageRecord[]): 
       case "penalty":
         penalty += q;
         break;
+      case "manual_adjust":
+        consumed += q;
+        break;
       case "refund":
         refunded += q;
         break;

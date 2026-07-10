@@ -5,8 +5,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS } from "@/modules/reminders/scheduleSlots";
@@ -25,13 +25,8 @@ export async function GET(
   _req: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -39,7 +34,15 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const rules = await deps.reminders.listRulesByUser(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+
+  const rules = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.reminders.listRulesByUser(userId),
+  );
   const warmupRule = rules.find((r) =>
     isWarmupsContentSectionReminderRule(r, DEFAULT_WARMUPS_SECTION_SLUG),
   );
@@ -76,13 +79,8 @@ export async function PATCH(
   req: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -96,7 +94,15 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
-  const rules = await deps.reminders.listRulesByUser(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+
+  const rules = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.reminders.listRulesByUser(userId),
+  );
   const warmupRule = rules.find((r) =>
     isWarmupsContentSectionReminderRule(r, DEFAULT_WARMUPS_SECTION_SLUG),
   );
@@ -115,18 +121,20 @@ export async function PATCH(
     dayFilter: parsed.data.dayFilter ?? existingBase.dayFilter,
   };
 
-  const result = await deps.reminders.updateRule(userId, warmupRule.id, {
-    schedule: {
-      scheduleType: "slots_v1",
-      intervalMinutes: warmupRule.intervalMinutes ?? 60,
-      windowStartMinute: warmupRule.windowStartMinute,
-      windowEndMinute: warmupRule.windowEndMinute,
-      daysMask: warmupRule.daysMask,
-      scheduleData,
-      quietHoursStartMinute: warmupRule.quietHoursStartMinute,
-      quietHoursEndMinute: warmupRule.quietHoursEndMinute,
-    },
-  });
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.reminders.updateRule(userId, warmupRule.id, {
+      schedule: {
+        scheduleType: "slots_v1",
+        intervalMinutes: warmupRule.intervalMinutes ?? 60,
+        windowStartMinute: warmupRule.windowStartMinute,
+        windowEndMinute: warmupRule.windowEndMinute,
+        daysMask: warmupRule.daysMask,
+        scheduleData,
+        quietHoursStartMinute: warmupRule.quietHoursStartMinute,
+        quietHoursEndMinute: warmupRule.quietHoursEndMinute,
+      },
+    }),
+  );
 
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });

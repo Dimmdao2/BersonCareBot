@@ -28,7 +28,6 @@ import {
 import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
 import { classifyWebPushOnlyReminderTickSystemHealthStatus } from "@/modules/operator-health/adminHealthThresholds";
 import { getPool } from "@/app-layer/db/client";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type {
@@ -59,6 +58,10 @@ import {
   type NotificationDeliveryHealthPayload,
 } from "@/app-layer/health/adminNotificationDeliveryHealthMetrics";
 import { getOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
+import {
+  loadAdminMediaPreviewGroupedCounts,
+  loadAdminMediaPreviewStalePendingCount,
+} from "@/infra/repos/pgAdminMediaPreviewHealth";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -466,36 +469,22 @@ async function probeMediaPreview(): Promise<
   const startedAt = Date.now();
   try {
     const [grouped, stale] = await Promise.all([
-      runWebappPgText<{ mime_type: string; preview_status: string; cnt: string }>(
-        `SELECT mime_type, preview_status, count(*)::text AS cnt
-         FROM media_files
-         WHERE mime_type = ANY($1::text[])
-         GROUP BY mime_type, preview_status`,
-        [PREVIEW_MIMES],
-      ),
-      runWebappPgText<{ stale_pending_count: string }>(
-        `SELECT count(*)::text AS stale_pending_count
-         FROM media_files
-         WHERE mime_type = ANY($1::text[])
-           AND preview_status = 'pending'
-           AND created_at < now() - ($2::numeric * interval '1 minute')`,
-        [PREVIEW_MIMES, STALE_PENDING_MINUTES],
-      ),
+      loadAdminMediaPreviewGroupedCounts(PREVIEW_MIMES),
+      loadAdminMediaPreviewStalePendingCount(PREVIEW_MIMES, STALE_PENDING_MINUTES),
     ]);
 
     const counters = initMediaPreviewCounters();
-    for (const row of grouped.rows) {
+    for (const row of grouped) {
       const mime = PREVIEW_MIMES.find((m) => m === row.mime_type);
       const status = PREVIEW_STATUSES.find((s) => s === row.preview_status);
       if (!mime || !status) continue;
       counters[mime][status] = Number.parseInt(row.cnt, 10) || 0;
     }
-    const stalePendingCount = Number.parseInt(stale.rows[0]?.stale_pending_count ?? "0", 10) || 0;
     return {
       ok: true,
       value: {
-        status: computeMediaPreviewStatus(counters, stalePendingCount),
-        stalePendingCount,
+        status: computeMediaPreviewStatus(counters, stale),
+        stalePendingCount: stale,
         byMimeAndStatus: counters,
       },
       durationMs: elapsedMs(startedAt),

@@ -1,23 +1,45 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import type {
   BroadcastAuditEntry,
+  BroadcastCommand,
   BroadcastPreviewResult,
 } from "@/modules/doctor-broadcasts/ports";
+import type { DoctorBroadcastExecutionOptions } from "@/modules/doctor-broadcasts/service";
 
-const previewMock = vi.fn();
-const executeMock = vi.fn();
-const listAuditMock = vi.fn();
-const revalidatePathMock = vi.fn();
-const loadDraftMock = vi.fn();
-const saveDraftMock = vi.fn();
-const getChannelCountsMock = vi.fn();
+const {
+  previewMock,
+  executeMock,
+  listAuditMock,
+  revalidatePathMock,
+  loadDraftMock,
+  saveDraftMock,
+  getChannelCountsMock,
+  requireDoctorAccessMock,
+  requireDoctorWorkspaceContextMock,
+} = vi.hoisted(() => ({
+  previewMock: vi.fn(),
+  executeMock: vi.fn(),
+  listAuditMock: vi.fn(),
+  revalidatePathMock: vi.fn(),
+  loadDraftMock: vi.fn(),
+  saveDraftMock: vi.fn(),
+  getChannelCountsMock: vi.fn(),
+  requireDoctorAccessMock: vi.fn(),
+  requireDoctorWorkspaceContextMock: vi.fn(),
+}));
+
+const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
+const DOCTOR_USER_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("next/cache", () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorAccess: vi.fn().mockResolvedValue({ user: { userId: "doctor-1" } }),
+  requireDoctorAccess: (...args: unknown[]) => requireDoctorAccessMock(...args),
+  requireDoctorWorkspaceContext: (...args: unknown[]) =>
+    requireDoctorWorkspaceContextMock(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -46,11 +68,41 @@ import {
 import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
 import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
 
+function workspaceContext() {
+  return {
+    session: { user: { userId: DOCTOR_USER_ID } },
+    organizationId: ORGANIZATION_ID,
+    membershipId: "33333333-3333-4333-8333-333333333333",
+    membershipRole: "doctor",
+    specialistId: "44444444-4444-4444-8444-444444444444",
+    canManageOrganization: false,
+    canManageAllSpecialists: false,
+  };
+}
+
 const baseCommand = {
   category: "reminder" as const,
   audienceFilter: "with_telegram" as const,
   message: { title: "Test", body: "Body text" },
 };
+
+beforeEach(() => {
+  previewMock.mockReset();
+  executeMock.mockReset();
+  listAuditMock.mockReset();
+  revalidatePathMock.mockReset();
+  loadDraftMock.mockReset();
+  saveDraftMock.mockReset();
+  getChannelCountsMock.mockReset();
+  requireDoctorAccessMock.mockReset();
+  requireDoctorWorkspaceContextMock.mockReset();
+
+  requireDoctorAccessMock.mockResolvedValue({ user: { userId: DOCTOR_USER_ID } });
+  requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
+  revalidatePathMock.mockImplementation(() => {
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+});
 
 describe("previewBroadcastAction", () => {
   beforeEach(() => previewMock.mockClear());
@@ -69,7 +121,9 @@ describe("previewBroadcastAction", () => {
 
     const result = await previewBroadcastAction(baseCommand);
 
-    expect(previewMock).toHaveBeenCalledWith({ ...baseCommand, actorId: "doctor-1" });
+    expect(previewMock).toHaveBeenCalledWith({ ...baseCommand, actorId: DOCTOR_USER_ID });
+    expect(requireDoctorAccessMock).toHaveBeenCalledTimes(1);
+    expect(requireDoctorWorkspaceContextMock).not.toHaveBeenCalled();
     expect(result).toEqual(expected);
   });
 });
@@ -80,10 +134,10 @@ describe("executeBroadcastAction", () => {
     revalidatePathMock.mockClear();
   });
 
-  it("calls execute with actorId injected and returns auditEntry", async () => {
+  it("passes a principal wrapper only for the delivery commit, injects actorId, and returns auditEntry", async () => {
     const auditEntry: BroadcastAuditEntry = {
       id: "audit-1",
-      actorId: "doctor-1",
+      actorId: DOCTOR_USER_ID,
       category: "reminder",
       audienceFilter: "with_telegram",
       messageTitle: "Test",
@@ -98,13 +152,32 @@ describe("executeBroadcastAction", () => {
       blockedRecipientCount: 0,
       attachMenuAfterSend: false,
     };
-    executeMock.mockResolvedValue({ auditEntry });
+    const observedCommitPrincipals: Array<string | undefined> = [];
+    executeMock.mockImplementation(async (
+      _command: BroadcastCommand,
+      options: DoctorBroadcastExecutionOptions,
+    ) => {
+      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+      expect(options.runDeliveryCommit).toBeDefined();
+      await options.runDeliveryCommit!(async () => {
+        observedCommitPrincipals.push(getCurrentDbPrincipalOrganizationId());
+      });
+      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+      return { auditEntry };
+    });
 
     const result = await executeBroadcastAction(baseCommand);
 
-    expect(executeMock).toHaveBeenCalledWith({ ...baseCommand, actorId: "doctor-1" });
+    expect(executeMock).toHaveBeenCalledWith(
+      { ...baseCommand, actorId: DOCTOR_USER_ID },
+      { runDeliveryCommit: expect.any(Function) },
+    );
+    expect(observedCommitPrincipals).toEqual([ORGANIZATION_ID]);
     expect(result.auditEntry).toEqual(auditEntry);
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/broadcasts");
+    expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
+    expect(requireDoctorAccessMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });
 
@@ -118,6 +191,8 @@ describe("listBroadcastAuditAction", () => {
     const result = await listBroadcastAuditAction(25);
 
     expect(listAuditMock).toHaveBeenCalledWith(25);
+    expect(requireDoctorAccessMock).toHaveBeenCalledTimes(1);
+    expect(requireDoctorWorkspaceContextMock).not.toHaveBeenCalled();
     expect(result).toBe(entries);
   });
 
@@ -127,6 +202,8 @@ describe("listBroadcastAuditAction", () => {
     await listBroadcastAuditAction();
 
     expect(listAuditMock).toHaveBeenCalledWith(undefined);
+    expect(requireDoctorAccessMock).toHaveBeenCalledTimes(1);
+    expect(requireDoctorWorkspaceContextMock).not.toHaveBeenCalled();
   });
 });
 
@@ -145,7 +222,9 @@ describe("loadDraftAction", () => {
 
     const result = await loadDraftAction();
 
-    expect(loadDraftMock).toHaveBeenCalledWith("doctor-1");
+    expect(loadDraftMock).toHaveBeenCalledWith(DOCTOR_USER_ID);
+    expect(requireDoctorAccessMock).toHaveBeenCalledTimes(1);
+    expect(requireDoctorWorkspaceContextMock).not.toHaveBeenCalled();
     expect(result).toEqual(draft);
   });
 });
@@ -153,7 +232,7 @@ describe("loadDraftAction", () => {
 describe("saveDraftAction", () => {
   beforeEach(() => saveDraftMock.mockClear());
 
-  it("saves the draft for the session doctor", async () => {
+  it("saves the draft under workspace organization principal for the workspace doctor", async () => {
     const draft: BroadcastDraft = {
       category: null,
       audience: null,
@@ -161,11 +240,18 @@ describe("saveDraftAction", () => {
       title: "T",
       body: "B",
     };
-    saveDraftMock.mockResolvedValue(undefined);
+    const observedPrincipals: Array<string | undefined> = [];
+    saveDraftMock.mockImplementation(async () => {
+      observedPrincipals.push(getCurrentDbPrincipalOrganizationId());
+    });
 
     await saveDraftAction(draft);
 
-    expect(saveDraftMock).toHaveBeenCalledWith("doctor-1", draft);
+    expect(saveDraftMock).toHaveBeenCalledWith(DOCTOR_USER_ID, draft);
+    expect(observedPrincipals).toEqual([ORGANIZATION_ID]);
+    expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
+    expect(requireDoctorAccessMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
   it("сохраняет черновик с валидными non-null полями", async () => {
@@ -180,7 +266,8 @@ describe("saveDraftAction", () => {
 
     await saveDraftAction(draft);
 
-    expect(saveDraftMock).toHaveBeenCalledWith("doctor-1", draft);
+    expect(saveDraftMock).toHaveBeenCalledWith(DOCTOR_USER_ID, draft);
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
   it("бросает draft_validation_error при невалидной категории", async () => {
@@ -194,6 +281,7 @@ describe("saveDraftAction", () => {
 
     await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow("draft_validation_error");
     expect(saveDraftMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
   it("бросает draft_validation_error при слишком длинном body (>4000)", async () => {
@@ -207,6 +295,7 @@ describe("saveDraftAction", () => {
 
     await expect(saveDraftAction(bad)).rejects.toThrow("draft_validation_error");
     expect(saveDraftMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
   it("бросает draft_validation_error при слишком длинном title (>200)", async () => {
@@ -220,6 +309,7 @@ describe("saveDraftAction", () => {
 
     await expect(saveDraftAction(bad)).rejects.toThrow("draft_validation_error");
     expect(saveDraftMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
   it("бросает draft_validation_error при невалидном канале", async () => {
@@ -233,6 +323,7 @@ describe("saveDraftAction", () => {
 
     await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow("draft_validation_error");
     expect(saveDraftMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });
 
@@ -246,6 +337,8 @@ describe("getChannelCountsAction", () => {
     const result = await getChannelCountsAction();
 
     expect(getChannelCountsMock).toHaveBeenCalled();
+    expect(requireDoctorAccessMock).toHaveBeenCalledTimes(1);
+    expect(requireDoctorWorkspaceContextMock).not.toHaveBeenCalled();
     expect(result).toEqual(counts);
   });
 });

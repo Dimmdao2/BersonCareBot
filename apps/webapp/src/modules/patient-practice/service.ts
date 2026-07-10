@@ -65,8 +65,13 @@ export function createPatientPracticeService(deps: {
       return deps.completions.listRecent(userId, limit);
     },
 
-    async listByUserInUtcRange(userId: string, fromUtcIso: string, toUtcExclusiveIso: string) {
-      return deps.completions.listByUserInUtcRange(userId, fromUtcIso, toUtcExclusiveIso);
+    async listByUserInUtcRange(
+      userId: string,
+      fromUtcIso: string,
+      toUtcExclusiveIso: string,
+      organizationId?: string,
+    ) {
+      return deps.completions.listByUserInUtcRange(userId, fromUtcIso, toUtcExclusiveIso, organizationId);
     },
 
     async getCompletionByIdForUser(completionId: string, userId: string): Promise<PatientPracticeCompletionRow | null> {

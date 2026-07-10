@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 export async function POST(
   _request: Request,
   context: { params: Promise<{ instanceId: string; stageItemId: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const { instanceId, stageItemId } = await context.params;
   if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageItemId).success) {
@@ -22,16 +20,18 @@ export async function POST(
   const deps = buildAppDeps();
   try {
     const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    if (!instance) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (!instance || instance.organizationId !== gate.ctx.organizationId) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
     const hasItem = instance.stages.some((stage) => stage.items.some((item) => item.id === stageItemId));
     if (!hasItem) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
-    await deps.programItemDiscussion.markReadForViewer({
-      viewerUserId: session.user.userId,
-      stageItemId,
-      lastReadAt: new Date().toISOString(),
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.programItemDiscussion.markReadForViewer({
+        viewerUserId: session.user.userId,
+        stageItemId,
+        lastReadAt: new Date().toISOString(),
+      }),
+    );
 
     return NextResponse.json({ ok: true });
   } catch {

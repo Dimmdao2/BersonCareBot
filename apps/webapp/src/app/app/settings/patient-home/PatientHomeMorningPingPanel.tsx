@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Switch } from "@/shared/ui/doctor/primitives/switch";
 import { patchAdminSetting } from "@/app/app/settings/patchAdminSetting";
 import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
@@ -53,11 +54,9 @@ export function PatientHomeMorningPingPanel(props: Props) {
       </p>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="size-4 rounded border"
+          <Switch
             checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
+            onCheckedChange={setEnabled}
             aria-label="Включить ежедневное напоминание от бота"
           />
           <span>Включить</span>

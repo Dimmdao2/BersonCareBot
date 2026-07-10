@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { createOnlineIntakeService } from "./service";
 import { createInMemoryOnlineIntake } from "@/infra/repos/inMemoryOnlineIntake";
 import type { IntakeNotificationPort, OnlineIntakeService } from "./ports";
@@ -44,6 +45,28 @@ describe("onlineIntakeService", () => {
       await expect(service.submitLfk({ ...base, description: desc })).rejects.toMatchObject({
         code: "RATE_LIMIT",
       });
+    });
+
+    it("stamps and filters by organization in the in-memory port", async () => {
+      const orgA = "10000000-0000-4000-8000-000000000001";
+      const orgB = "20000000-0000-4000-8000-000000000002";
+      const svc = createOnlineIntakeService({
+        intakePort: createInMemoryOnlineIntake({
+          userOrganizationIds: new Map([["user-1", orgA]]),
+        }),
+        notificationPort: null,
+      });
+
+      const result = await svc.submitLfk({
+        ...base,
+        description: "Болит колено после тренировки, ограниченная подвижность",
+      });
+      expect(result.organizationId).toBe(orgA);
+
+      await expect(runWithDbOrganizationPrincipal(orgA, () => svc.getRequestForDoctor(result.id))).resolves.toMatchObject({
+        id: result.id,
+      });
+      await expect(runWithDbOrganizationPrincipal(orgB, () => svc.getRequestForDoctor(result.id))).resolves.toBeNull();
     });
   });
 

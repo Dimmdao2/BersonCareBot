@@ -13,6 +13,7 @@ vi.mock("./relayOutbound", () => ({
 function makeConversationRow(overrides: Partial<SupportConversationRow> = {}): SupportConversationRow {
   return {
     id: "conv-1",
+    organizationId: null,
     integratorConversationId: "integrator-conv-1",
     platformUserId: "user-1",
     integratorUserId: null,
@@ -47,6 +48,7 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     getConversationByIntegratorId: async () => null,
     listUnansweredQuestionsForAdmin: async () => [],
     getQuestionByIntegratorConversationId: async () => null,
+    claimLegacyConversationForOrganization: async () => true,
     ensureWebappConversationForUser: async () => ({ id: "conv-webapp-1" }),
     appendWebappMessage: async () => ({ id: "msg-webapp-1", created: true }),
     listMessagesSince: async () => [],
@@ -177,15 +179,38 @@ describe("doctorSupportMessagingService", () => {
     expect(res?.messages.map((message) => message.text)).toEqual(["hello"]);
   });
 
-  it("passes unreadOnly to listOpenConversationsForAdmin", async () => {
+  it("passes unreadOnly and organizationId to listOpenConversationsForAdmin", async () => {
     const listOpenConversationsForAdmin = vi.fn(async () => []);
     const service = createDoctorSupportMessagingService(
       createPort({ listOpenConversationsForAdmin }),
     );
 
-    await service.listOpenConversations({ limit: 25, unreadOnly: true });
+    await service.listOpenConversations({
+      limit: 25,
+      unreadOnly: true,
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
 
-    expect(listOpenConversationsForAdmin).toHaveBeenCalledWith({ limit: 25, unreadOnly: true });
+    expect(listOpenConversationsForAdmin).toHaveBeenCalledWith({
+      limit: 25,
+      unreadOnly: true,
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
+  });
+
+  it("passes organizationId to unreadFromUsers", async () => {
+    const countUnreadUserMessagesForAdmin = vi.fn(async () => 2);
+    const service = createDoctorSupportMessagingService(
+      createPort({ countUnreadUserMessagesForAdmin }),
+    );
+
+    await expect(
+      service.unreadFromUsers({ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+    ).resolves.toBe(2);
+
+    expect(countUnreadUserMessagesForAdmin).toHaveBeenCalledWith({
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
   });
 
   it("ensures a patient conversation and returns messages with unread count", async () => {

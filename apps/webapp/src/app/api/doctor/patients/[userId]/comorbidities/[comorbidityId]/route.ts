@@ -12,7 +12,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const patchSchema = z
@@ -37,8 +38,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ userId: string; comorbidityId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, comorbidityId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -64,22 +65,41 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
 
   if ("action" in parsed.data && parsed.data.action === "restore") {
-    const ok = await deps.patientComorbidities.restore(userId, comorbidityId);
-    if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-    return NextResponse.json({ ok: true });
+    try {
+      const ok = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.restore", () =>
+        deps.patientComorbidities.restore(patientUserId, comorbidityId),
+      );
+      if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      if (err instanceof Error && err.message === "organization_principal_mismatch") {
+        return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      }
+      throw err;
+    }
   }
 
   // editText branch
   const editData = parsed.data as { text?: string; since?: string | null };
   try {
-    const ok = await deps.patientComorbidities.editText({
-      patientUserId: userId,
-      comorbidityId,
-      ...(editData.text !== undefined ? { text: editData.text } : {}),
-      ...(editData.since !== undefined ? { since: editData.since } : {}),
-    });
+    const ok = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.update", () =>
+      deps.patientComorbidities.editText({
+        patientUserId,
+        comorbidityId,
+        ...(editData.text !== undefined ? { text: editData.text } : {}),
+        ...(editData.since !== undefined ? { since: editData.since } : {}),
+      }),
+    );
     if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   } catch (err) {
     if (err instanceof Error && err.message === "comorbidity_text_required") {
@@ -87,6 +107,9 @@ export async function PATCH(
     }
     if (err instanceof Error && err.message === "nothing_to_update") {
       return NextResponse.json({ ok: false, error: "nothing_to_update" }, { status: 422 });
+    }
+    if (err instanceof Error && err.message === "organization_principal_mismatch") {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     throw err;
   }
@@ -98,8 +121,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ userId: string; comorbidityId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId, comorbidityId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -110,7 +133,24 @@ export async function DELETE(
   }
 
   const deps = buildAppDeps();
-  const ok = await deps.patientComorbidities.markRemoved(userId, comorbidityId);
-  if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-  return NextResponse.json({ ok: true });
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+  try {
+    const ok = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.delete", () =>
+      deps.patientComorbidities.markRemoved(patientUserId, comorbidityId),
+    );
+    if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof Error && err.message === "organization_principal_mismatch") {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    throw err;
+  }
 }

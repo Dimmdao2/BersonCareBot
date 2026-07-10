@@ -3,7 +3,7 @@
  */
 import { getPool } from "@/infra/db/client";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type { ChannelBindings } from "@/shared/types/session";
 import type {
@@ -53,6 +53,68 @@ function rowToBindings(
   return bindings;
 }
 
+function appendSqlOrganizationEnrollment(
+  input: { sql: string; params: unknown[] },
+  userColumn: string,
+  organizationId?: string,
+): { sql: string; params: unknown[] } {
+  if (!organizationId) return input;
+  const params = [...input.params, organizationId];
+  return {
+    sql: `${input.sql}
+      AND EXISTS (
+        SELECT 1
+        FROM org_enrollments oe_scope
+        WHERE oe_scope.platform_user_id = ${userColumn}
+          AND oe_scope.organization_id = $${params.length}::uuid
+          AND oe_scope.status = 'active'
+      )`,
+    params,
+  };
+}
+
+function appendSqlOrganizationColumn(
+  input: { sql: string; params: unknown[] },
+  columnSql: string,
+  organizationId?: string,
+): { sql: string; params: unknown[] } {
+  if (!organizationId) return input;
+  const params = [...input.params, organizationId];
+  return {
+    sql: `${input.sql} AND ${columnSql} = $${params.length}::uuid`,
+    params,
+  };
+}
+
+function legacyAppointmentOrgPredicate(recordAlias: string, organizationId?: string): string {
+  if (!organizationId) return "TRUE";
+  return `(
+    (
+      ${recordAlias}.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+      AND EXISTS (
+        SELECT 1
+        FROM be_appointments bea_scope
+        WHERE bea_scope.id = (SUBSTRING(${recordAlias}.integrator_record_id FROM 4))::uuid
+          AND bea_scope.organization_id = ${sqlLiteralUuid(organizationId)}
+      )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM be_external_entity_mappings m_scope
+      JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+      WHERE m_scope.external_id = ${recordAlias}.integrator_record_id
+        AND m_scope.entity_type = 'appointment'
+        AND m_scope.external_system = 'rubitime'
+        AND m_scope.organization_id = ${sqlLiteralUuid(organizationId)}
+        AND bea_scope.organization_id = ${sqlLiteralUuid(organizationId)}
+    )
+  )`;
+}
+
+function sqlLiteralUuid(value: string): string {
+  return `'${value.replaceAll("'", "''")}'::uuid`;
+}
+
 /** Exported for join semantics tests; keep in sync with `appointment_records` ↔ `platform_users` attribution rules. */
 export function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
   const arAt = `COALESCE(${arAlias}.record_at, ${arAlias}.created_at)`;
@@ -95,21 +157,32 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (filters.userIds !== undefined && filters.userIds.length === 0) return [];
 
       const excluded = audience?.excludedUserIds ?? [];
+      const organizationId = filters.organizationId ?? null;
       const archivedClause =
         filters.archivedOnly === true
           ? `COALESCE(is_archived, false) = true`
           : `COALESCE(is_archived, false) = false`;
-      const listBase = `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, created_at, email, email_verified_at
+      const listBaseParams: unknown[] = [];
+      let listBase = `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, created_at, email, email_verified_at
          FROM platform_users pu
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
+      if (organizationId) {
+        listBaseParams.push(organizationId);
+        listBase += ` AND EXISTS (
+          SELECT 1
+          FROM org_enrollments oe
+          WHERE oe.platform_user_id = pu.id
+            AND oe.organization_id = $${listBaseParams.length}::uuid
+            AND oe.status = 'active'
+        )`;
+      }
       // Apply userIds restriction when caller provides a specific set (e.g. conversations route).
-      const userIdsParams: unknown[] = [];
       let listBaseWithUserIds = listBase;
       if (filters.userIds !== undefined && filters.userIds.length > 0) {
-        userIdsParams.push(filters.userIds);
-        listBaseWithUserIds = `${listBase} AND pu.id = ANY($1::uuid[])`;
+        listBaseParams.push(filters.userIds);
+        listBaseWithUserIds = `${listBase} AND pu.id = ANY($${listBaseParams.length}::uuid[])`;
       }
-      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, "pu.id", excluded, userIdsParams);
+      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, "pu.id", excluded, listBaseParams);
       const clientRows = await runWebappPgText<{
         id: string;
         display_name: string | null;
@@ -160,26 +233,114 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           }>(
             `SELECT
                pu.id::text AS user_id,
-               COUNT(ar.id) FILTER (
+              COUNT(ar.id) FILTER (
                  WHERE ar.deleted_at IS NULL
                    AND ar.status IN ('created', 'updated')
+                   AND (
+                     $2::uuid IS NULL
+                     OR (
+                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+                       AND EXISTS (
+                         SELECT 1
+                         FROM be_appointments bea_scope
+                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                           AND bea_scope.organization_id = $2::uuid
+                       )
+                     )
+                     OR EXISTS (
+                       SELECT 1
+                       FROM be_external_entity_mappings m_scope
+                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+                       WHERE m_scope.external_id = ar.integrator_record_id
+                         AND m_scope.entity_type = 'appointment'
+                         AND m_scope.external_system = 'rubitime'
+                         AND m_scope.organization_id = $2::uuid
+                         AND bea_scope.organization_id = $2::uuid
+                     )
+                   )
                )::int AS history_count,
                COUNT(*) FILTER (
                  WHERE ar.deleted_at IS NULL
                    AND ar.status IN ('created', 'updated')
                    AND ar.record_at IS NOT NULL
                    AND ar.record_at >= NOW()
+                   AND (
+                     $2::uuid IS NULL
+                     OR (
+                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+                       AND EXISTS (
+                         SELECT 1
+                         FROM be_appointments bea_scope
+                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                           AND bea_scope.organization_id = $2::uuid
+                       )
+                     )
+                     OR EXISTS (
+                       SELECT 1
+                       FROM be_external_entity_mappings m_scope
+                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+                       WHERE m_scope.external_id = ar.integrator_record_id
+                         AND m_scope.entity_type = 'appointment'
+                         AND m_scope.external_system = 'rubitime'
+                         AND m_scope.organization_id = $2::uuid
+                         AND bea_scope.organization_id = $2::uuid
+                     )
+                   )
                )::int AS active_count,
                COUNT(*) FILTER (
                  WHERE ar.deleted_at IS NULL
                    AND ar.status = 'canceled'
                    AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
                    AND ar.updated_at >= NOW() - INTERVAL '30 days'
+                   AND (
+                     $2::uuid IS NULL
+                     OR (
+                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+                       AND EXISTS (
+                         SELECT 1
+                         FROM be_appointments bea_scope
+                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                           AND bea_scope.organization_id = $2::uuid
+                       )
+                     )
+                     OR EXISTS (
+                       SELECT 1
+                       FROM be_external_entity_mappings m_scope
+                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+                       WHERE m_scope.external_id = ar.integrator_record_id
+                         AND m_scope.entity_type = 'appointment'
+                         AND m_scope.external_system = 'rubitime'
+                         AND m_scope.organization_id = $2::uuid
+                         AND bea_scope.organization_id = $2::uuid
+                     )
+                   )
                )::int AS cancellation_count_30d,
                COUNT(*) FILTER (
                  WHERE ar.deleted_at IS NULL
                    AND ar.status = 'updated'
                    AND ar.updated_at >= NOW() - INTERVAL '30 days'
+                   AND (
+                     $2::uuid IS NULL
+                     OR (
+                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+                       AND EXISTS (
+                         SELECT 1
+                         FROM be_appointments bea_scope
+                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                           AND bea_scope.organization_id = $2::uuid
+                       )
+                     )
+                     OR EXISTS (
+                       SELECT 1
+                       FROM be_external_entity_mappings m_scope
+                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+                       WHERE m_scope.external_id = ar.integrator_record_id
+                         AND m_scope.entity_type = 'appointment'
+                         AND m_scope.external_system = 'rubitime'
+                         AND m_scope.organization_id = $2::uuid
+                         AND bea_scope.organization_id = $2::uuid
+                     )
+                   )
                )::int AS reschedule_count_30d,
                COUNT(*) FILTER (
                  WHERE ar.deleted_at IS NULL
@@ -188,12 +349,34 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                    AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
                    AND ar.record_at < NOW()
                    AND ar.status IN ('created', 'updated')
+                   AND (
+                     $2::uuid IS NULL
+                     OR (
+                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+                       AND EXISTS (
+                         SELECT 1
+                         FROM be_appointments bea_scope
+                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                           AND bea_scope.organization_id = $2::uuid
+                       )
+                     )
+                     OR EXISTS (
+                       SELECT 1
+                       FROM be_external_entity_mappings m_scope
+                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+                       WHERE m_scope.external_id = ar.integrator_record_id
+                         AND m_scope.entity_type = 'appointment'
+                         AND m_scope.external_system = 'rubitime'
+                         AND m_scope.organization_id = $2::uuid
+                         AND bea_scope.organization_id = $2::uuid
+                     )
+                   )
                )::int AS visited_month_count
              FROM platform_users pu
              LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
              WHERE pu.id = ANY($1::uuid[])
              GROUP BY pu.id`,
-            [userIds],
+            [userIds, organizationId],
           ),
           runWebappPgText<{
             user_id: string;
@@ -210,18 +393,23 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              FROM support_conversations sc
              LEFT JOIN support_conversation_messages m ON m.conversation_id = sc.id
              WHERE sc.platform_user_id = ANY($1::uuid[])
+               AND ($2::uuid IS NULL OR sc.organization_id = $2::uuid)
              GROUP BY sc.platform_user_id`,
-            [userIds],
+            [userIds, organizationId],
           ),
           runWebappPgText<{ patient_user_id: string; instance_id: string }>(
             `SELECT DISTINCT ON (patient_user_id)
                patient_user_id,
                id AS instance_id
              FROM treatment_program_instances
-             WHERE status = 'active' AND assignment_source = 'doctor'
+             WHERE patient_user_id = ANY($1::uuid[])
+               AND status = 'active'
+               AND assignment_source = 'doctor'
+               AND ($2::uuid IS NULL OR organization_id = $2::uuid)
              ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
+            [userIds, organizationId],
           ),
-          listOnSupportPatientUserIds(),
+          listOnSupportPatientUserIds(organizationId ?? undefined),
           filters.viewerUserId
             ? runWebappPgText<{ patient_user_id: string; unread_comments_count: number }>(
                 `WITH active_items AS (
@@ -234,6 +422,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                    WHERE tpi.status = 'active'
                      AND tpi.assignment_source = 'doctor'
                      AND tpi.patient_user_id = ANY($1::uuid[])
+                     AND ($3::uuid IS NULL OR tpi.organization_id = $3::uuid)
                      AND tpsi.status = 'active'
                      AND tpsi.item_type = 'exercise'
                  ),
@@ -260,7 +449,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                    ON r.instance_stage_item_id = ai.stage_item_id
                   AND r.patient_user_id = $2::uuid
                  GROUP BY ai.patient_user_id`,
-                [userIds, filters.viewerUserId],
+                [userIds, filters.viewerUserId, organizationId],
               )
             : Promise.resolve({ rows: [] as { patient_user_id: string; unread_comments_count: number }[] }),
           runWebappPgText<{ user_id: string; memberships_count: number }>(
@@ -271,8 +460,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                )::int AS memberships_count
              FROM be_patient_packages pp
              WHERE pp.platform_user_id = ANY($1::uuid[])
+               AND ($2::uuid IS NULL OR pp.organization_id = $2::uuid)
              GROUP BY pp.platform_user_id`,
-            [userIds],
+            [userIds, organizationId],
           ),
           // no_show_count from booking profile
           runWebappPgText<{ user_id: string; no_show_count: number }>(
@@ -280,8 +470,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                platform_user_id::text AS user_id,
                COALESCE(no_show_count, 0)::int AS no_show_count
              FROM be_patient_booking_profiles
-             WHERE platform_user_id = ANY($1::uuid[])`,
-            [userIds],
+             WHERE platform_user_id = ANY($1::uuid[])
+               AND ($2::uuid IS NULL OR organization_id = $2::uuid)`,
+            [userIds, organizationId],
           ),
           runWebappPgText<{ user_id: string }>(
             `SELECT DISTINCT pah.user_id::text AS user_id
@@ -445,11 +636,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return list;
     },
 
-    async listPatientAppointments(userId: string): Promise<PatientAppointmentItem[]> {
+    async listPatientAppointments(userId: string, organizationId?: string): Promise<PatientAppointmentItem[]> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
 
-      // Fetch appointment_records attributed to this user via the canonical join
+      // Fetch appointment_records attributed to this user via the canonical join.
+      // LEFT JOIN be_appointments (two paths) to surface package_usage_ref:
+      //   1. native: integrator_record_id = 'be:' || be_appointments.id
+      //   2. rubitime: via be_external_entity_mappings (external_id = integrator_record_id)
       const rows = await runWebappPgText<{
         internal_id: string;
         id: string;
@@ -458,6 +652,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         last_event: string | null;
         payload_json: { service_title?: string; duration_minutes?: number } | null;
         branch_name: string | null;
+        is_package: boolean | null;
+        patient_package_id: string | null;
+        package_title: string | null;
+        package_display_number: number | null;
       }>(
         `SELECT
            ar.id AS internal_id,
@@ -466,7 +664,99 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            ar.status,
            ar.last_event,
            ar.payload_json,
-           b.name AS branch_name
+           b.name AS branch_name,
+           COALESCE(
+             -- native be: path
+             CASE
+               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+               THEN (
+                 SELECT bea_n.package_usage_ref IS NOT NULL
+                 FROM be_appointments bea_n
+                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                 LIMIT 1
+               )
+             END,
+             -- rubitime path via be_external_entity_mappings
+             (
+               SELECT bea_r.package_usage_ref IS NOT NULL
+               FROM be_external_entity_mappings m
+               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
+               WHERE m.external_id = ar.integrator_record_id
+                 AND m.entity_type = 'appointment'
+                 AND m.external_system = 'rubitime'
+               LIMIT 1
+             )
+           ) AS is_package,
+           COALESCE(
+             CASE
+               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+               THEN (
+                 SELECT u_n.patient_package_id::text
+                 FROM be_appointments bea_n
+                 JOIN be_package_usages u_n ON u_n.id::text = bea_n.package_usage_ref
+                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                 LIMIT 1
+               )
+             END,
+             (
+               SELECT u_r.patient_package_id::text
+               FROM be_external_entity_mappings m
+               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
+               JOIN be_package_usages u_r ON u_r.id::text = bea_r.package_usage_ref
+               WHERE m.external_id = ar.integrator_record_id
+                 AND m.entity_type = 'appointment'
+                 AND m.external_system = 'rubitime'
+               LIMIT 1
+             )
+           ) AS patient_package_id,
+           COALESCE(
+             CASE
+               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+               THEN (
+                 SELECT pp_n.title
+                 FROM be_appointments bea_n
+                 JOIN be_package_usages u_n ON u_n.id::text = bea_n.package_usage_ref
+                 JOIN be_patient_packages pp_n ON pp_n.id = u_n.patient_package_id
+                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                 LIMIT 1
+               )
+             END,
+             (
+               SELECT pp_r.title
+               FROM be_external_entity_mappings m
+               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
+               JOIN be_package_usages u_r ON u_r.id::text = bea_r.package_usage_ref
+               JOIN be_patient_packages pp_r ON pp_r.id = u_r.patient_package_id
+               WHERE m.external_id = ar.integrator_record_id
+                 AND m.entity_type = 'appointment'
+                 AND m.external_system = 'rubitime'
+               LIMIT 1
+             )
+           ) AS package_title,
+           COALESCE(
+             CASE
+               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+               THEN (
+                 SELECT pp_n.display_number
+                 FROM be_appointments bea_n
+                 JOIN be_package_usages u_n ON u_n.id::text = bea_n.package_usage_ref
+                 JOIN be_patient_packages pp_n ON pp_n.id = u_n.patient_package_id
+                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                 LIMIT 1
+               )
+             END,
+             (
+               SELECT pp_r.display_number
+               FROM be_external_entity_mappings m
+               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
+               JOIN be_package_usages u_r ON u_r.id::text = bea_r.package_usage_ref
+               JOIN be_patient_packages pp_r ON pp_r.id = u_r.patient_package_id
+               WHERE m.external_id = ar.integrator_record_id
+                 AND m.entity_type = 'appointment'
+                 AND m.external_system = 'rubitime'
+               LIMIT 1
+             )
+           ) AS package_display_number
          FROM platform_users pu
          LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
          LEFT JOIN branches b ON ar.branch_id = b.id
@@ -474,8 +764,30 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            AND ar.id IS NOT NULL
            AND ar.deleted_at IS NULL
            AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+           AND (
+             $2::uuid IS NULL
+             OR (
+               ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+               AND EXISTS (
+                 SELECT 1
+                 FROM be_appointments bea_scope
+                 WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
+                   AND bea_scope.organization_id = $2::uuid
+               )
+             )
+             OR EXISTS (
+               SELECT 1
+               FROM be_external_entity_mappings m_scope
+               JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
+               WHERE m_scope.external_id = ar.integrator_record_id
+                 AND m_scope.entity_type = 'appointment'
+                 AND m_scope.external_system = 'rubitime'
+                 AND m_scope.organization_id = $2::uuid
+                 AND bea_scope.organization_id = $2::uuid
+             )
+           )
          ORDER BY ar.record_at DESC NULLS LAST`,
-        [canonicalId],
+        [canonicalId, organizationId ?? null],
       );
 
       const now = Date.now();
@@ -510,6 +822,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           serviceName: (payload.service_title && payload.service_title.trim()) || null,
           location: row.branch_name ?? null,
           durationMin,
+          isPackage: row.is_package ?? null,
+          patientPackageId: row.patient_package_id ?? null,
+          packageTitle: row.package_title ?? null,
+          packageDisplayNumber: row.package_display_number ?? null,
         };
       });
     },
@@ -742,11 +1058,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
     async getDashboardPatientMetrics(audience?: {
       excludedUserIds?: string[];
+      organizationId?: string;
     }): Promise<DoctorDashboardPatientMetrics> {
       const excluded = audience?.excludedUserIds ?? [];
+      const organizationId = audience?.organizationId;
 
       const totalBase = `SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND COALESCE(pu.is_archived, false) = false`;
-      const totalQ = appendSqlExcludeUserIds(totalBase, "pu.id", excluded, []);
+      const totalQ = appendSqlOrganizationEnrollment(
+        appendSqlExcludeUserIds(totalBase, "pu.id", excluded, []),
+        "pu.id",
+        organizationId,
+      );
 
       const supportBase = `SELECT COUNT(*)::text AS c
            FROM doctor_patient_support dps
@@ -755,7 +1077,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false`;
-      const supportQ = appendSqlExcludeUserIds(supportBase, "pu.id", excluded, []);
+      const supportQ = appendSqlOrganizationColumn(
+        appendSqlOrganizationEnrollment(
+          appendSqlExcludeUserIds(supportBase, "pu.id", excluded, []),
+          "pu.id",
+          organizationId,
+        ),
+        "dps.organization_id",
+        organizationId,
+      );
 
       const visitedBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
@@ -768,8 +1098,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
              AND ar.record_at < NOW()
              AND ar.status IN ('created', 'updated')
-             AND ar.deleted_at IS NULL`;
-      const visitedQ = appendSqlExcludeUserIds(visitedBase, "pu.id", excluded, []);
+             AND ar.deleted_at IS NULL
+             AND ${legacyAppointmentOrgPredicate("ar", organizationId)}`;
+      const visitedQ = appendSqlOrganizationEnrollment(
+        appendSqlExcludeUserIds(visitedBase, "pu.id", excluded, []),
+        "pu.id",
+        organizationId,
+      );
 
       // «С программой»: хотя бы одна активная treatment_program_instances (doctor-assigned)
       const withProgramBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
@@ -780,7 +1115,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND COALESCE(pu.is_archived, false) = false
              AND tpi.status = 'active'
              AND tpi.assignment_source = 'doctor'`;
-      const withProgramQ = appendSqlExcludeUserIds(withProgramBase, "pu.id", excluded, []);
+      const withProgramQ = appendSqlOrganizationColumn(
+        appendSqlOrganizationEnrollment(
+          appendSqlExcludeUserIds(withProgramBase, "pu.id", excluded, []),
+          "pu.id",
+          organizationId,
+        ),
+        "tpi.organization_id",
+        organizationId,
+      );
 
       // «С абонементами»: активный или ожидающий оплаты пакет
       const membershipsBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
@@ -790,7 +1133,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
              AND pp.status IN ('active', 'awaiting_payment')`;
-      const membershipsQ = appendSqlExcludeUserIds(membershipsBase, "pu.id", excluded, []);
+      const membershipsQ = appendSqlOrganizationColumn(
+        appendSqlOrganizationEnrollment(
+          appendSqlExcludeUserIds(membershipsBase, "pu.id", excluded, []),
+          "pu.id",
+          organizationId,
+        ),
+        "pp.organization_id",
+        organizationId,
+      );
 
       // Подсчёт агрегатов истории записей одним запросом для «Новые» / «Бывшие» / «Подписчики» / «С отменами»
       // Один агрегирующий запрос на платформных клиентов
@@ -801,25 +1152,32 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                AND ar.status IN ('created', 'updated')
                AND ar.record_at IS NOT NULL
                AND ar.record_at < NOW()
+               AND ${legacyAppointmentOrgPredicate("ar", organizationId)}
            )::int AS past_count,
            COUNT(ar.id) FILTER (
              WHERE ar.deleted_at IS NULL
                AND ar.status IN ('created', 'updated')
                AND ar.record_at IS NOT NULL
                AND ar.record_at >= NOW()
+               AND ${legacyAppointmentOrgPredicate("ar", organizationId)}
            )::int AS future_count,
            COUNT(ar.id) FILTER (
              WHERE ar.deleted_at IS NULL
                AND ar.status = 'canceled'
                AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
                AND ar.updated_at >= NOW() - INTERVAL '30 days'
+               AND ${legacyAppointmentOrgPredicate("ar", organizationId)}
            )::int AS cancellations_30d
          FROM platform_users pu
          LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;
-      const aggQ = appendSqlExcludeUserIds(aggBase, "pu.id", excluded, []);
+      const aggQ = appendSqlOrganizationEnrollment(
+        appendSqlExcludeUserIds(aggBase, "pu.id", excluded, []),
+        "pu.id",
+        organizationId,
+      );
 
       const [totalR, supportR, visitedR, withProgramR, membershipsR, aggR] = await Promise.all([
         runWebappPgText<{ c: string }>(totalQ.sql, totalQ.params),
@@ -872,6 +1230,35 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
       if (!roleRow.rows[0] || roleRow.rows[0].role !== "client") return null;
       return this.getClientIdentity(userId);
+    },
+
+    async getClientIdentityForOrganization(userId: string, organizationId: string): Promise<ClientIdentity | null> {
+      const pool = getPool();
+      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const membershipRow = await runWebappPgText<{ id: string }>(
+        `SELECT pu.id
+         FROM platform_users pu
+         WHERE pu.id = $1::uuid
+           AND pu.role = 'client'
+           AND EXISTS (
+             SELECT 1
+             FROM org_enrollments oe
+             WHERE oe.platform_user_id = pu.id
+               AND oe.organization_id = $2::uuid
+               AND oe.status = 'active'
+           )`,
+        [canonicalId, organizationId],
+      );
+      if (!membershipRow.rows[0]) return null;
+      return this.getClientIdentity(canonicalId);
+    },
+
+    async getPlatformUserRole(userId: string): Promise<string | null> {
+      const roleRow = await runWebappPgText<{ role: string }>(
+        `SELECT role FROM platform_users WHERE id = $1::uuid`,
+        [userId],
+      );
+      return roleRow.rows[0]?.role ?? null;
     },
 
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
@@ -993,18 +1380,24 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
-      await runWebappPgText(
-        `UPDATE platform_users SET birth_date = $2::date, updated_at = now()
-         WHERE id = $1::uuid AND role = 'client'`,
-        [userId, birthDate],
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET birth_date = $2::date, updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          [userId, birthDate],
+          tx,
+        ),
       );
     },
 
     async setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void> {
-      await runWebappPgText(
-        `UPDATE platform_users SET gender = $2, updated_at = now()
-         WHERE id = $1::uuid AND role = 'client'`,
-        [userId, gender],
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET gender = $2, updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          [userId, gender],
+          tx,
+        ),
       );
     },
 
@@ -1031,10 +1424,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         sets.push(`patronymic = $${params.length}`);
       }
       if (sets.length === 0) return;
-      await runWebappPgText(
-        `UPDATE platform_users SET ${sets.join(", ")}, updated_at = now()
-         WHERE id = $1::uuid AND role = 'client'`,
-        params,
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET ${sets.join(", ")}, updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          params,
+          tx,
+        ),
       );
     },
 
@@ -1063,14 +1459,18 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         sets.push(`weight_kg = $${values.length}::integer`);
       }
       if (sets.length <= 1) return; // only updated_at, nothing to do
-      await runWebappPgText(
-        `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1::uuid AND role = 'client'`,
-        values,
+      await runWebappTransaction((tx) =>
+        runWebappPgText(
+          `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1::uuid AND role = 'client'`,
+          values,
+          tx,
+        ),
       );
     },
 
-    async getClientContactBreakdown(audience?: { excludedUserIds?: string[] }) {
+    async getClientContactBreakdown(audience?: { excludedUserIds?: string[]; organizationId?: string }) {
       const excluded = audience?.excludedUserIds ?? [];
+      const organizationId = audience?.organizationId;
       const base = `SELECT
            ${sqlActiveTelegramBinding("pu.id")} AS has_telegram,
            ${sqlActiveMaxBinding("pu.id")} AS has_max,
@@ -1083,7 +1483,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;
-      const q = appendSqlExcludeUserIds(base, "pu.id", excluded, []);
+      const q = appendSqlOrganizationEnrollment(
+        appendSqlExcludeUserIds(base, "pu.id", excluded, []),
+        "pu.id",
+        organizationId,
+      );
       const rows = await runWebappPgText<{
         has_telegram: boolean;
         has_max: boolean;

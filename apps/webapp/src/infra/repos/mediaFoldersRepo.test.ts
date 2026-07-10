@@ -7,7 +7,47 @@ import { mediaFolders } from "../../../db/schema/schema";
 const selectResults = vi.hoisted(() => [] as unknown[][]);
 const deleteReturning = vi.hoisted(() => [] as { id: string }[]);
 const insertReturning = vi.hoisted(() => [] as unknown[]);
+const updateReturning = vi.hoisted(() => [] as { id: string }[]);
 const orderBySpy = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
+}));
+
+vi.mock("@/infra/db/drizzleMutationTx", () => ({
+  runDrizzleMutationTransaction: (fn: (tx: unknown) => unknown) =>
+    fn({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            orderBy: (...args: unknown[]) => {
+              orderBySpy(...args);
+              return Promise.resolve(selectResults.shift() ?? []);
+            },
+            limit: async () => selectResults.shift() ?? [],
+          }),
+        }),
+      }),
+      delete: () => ({
+        where: () => ({
+          returning: async () => deleteReturning,
+        }),
+      }),
+      insert: () => ({
+        values: () => ({
+          returning: async () => insertReturning.shift() ?? [],
+        }),
+      }),
+      update: () => ({
+        set: () => ({
+          where: () => ({
+            returning: async () => updateReturning.shift() ?? [],
+          }),
+        }),
+      }),
+    }),
+}));
 
 vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: () => ({
@@ -32,17 +72,27 @@ vi.mock("@/app-layer/db/drizzle", () => ({
         returning: async () => insertReturning.shift() ?? [],
       }),
     }),
+    update: () => ({
+      set: () => ({
+        where: () => ({
+          returning: async () => updateReturning.shift() ?? [],
+        }),
+      }),
+    }),
   }),
 }));
 
-import { pgCreateFolder, pgDeleteFolderIfEmpty, pgListFolders } from "./mediaFoldersRepo";
+import { pgCreateFolder, pgDeleteFolderIfEmpty, pgListFolders, pgRenameFolder } from "./mediaFoldersRepo";
 
 describe("mediaFoldersRepo", () => {
   beforeEach(() => {
     selectResults.length = 0;
     deleteReturning.length = 0;
     insertReturning.length = 0;
+    updateReturning.length = 0;
     orderBySpy.mockClear();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("99999999-9999-4999-8999-999999999999");
   });
 
   it("pgListFolders returns rows ordered by nameNormalized asc", async () => {
@@ -90,13 +140,29 @@ describe("mediaFoldersRepo", () => {
     expect(row.id).toBe("44444444-4444-4444-8444-444444444444");
   });
 
+  it("pgRenameFolder requires DB principal", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(undefined);
+    await expect(
+      pgRenameFolder("33333333-3333-4333-8333-333333333333", "Renamed"),
+    ).rejects.toThrow("organization_principal_required");
+  });
+
+  it("pgRenameFolder rejects organization mismatch", async () => {
+    selectResults.push([{ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }]);
+    await expect(
+      pgRenameFolder("33333333-3333-4333-8333-333333333333", "Renamed"),
+    ).rejects.toThrow("organization_principal_mismatch");
+  });
+
   it("pgDeleteFolderIfEmpty returns not_empty when child folder exists", async () => {
+    selectResults.push([{ organizationId: "99999999-9999-4999-8999-999999999999" }]);
     selectResults.push([{ one: 1 }]);
     const out = await pgDeleteFolderIfEmpty("33333333-3333-4333-8333-333333333333");
     expect(out).toEqual({ ok: false, error: "not_empty" });
   });
 
   it("pgDeleteFolderIfEmpty returns not_empty when media files exist in folder", async () => {
+    selectResults.push([{ organizationId: "99999999-9999-4999-8999-999999999999" }]);
     selectResults.push([]);
     selectResults.push([{ one: 1 }]);
     const out = await pgDeleteFolderIfEmpty("33333333-3333-4333-8333-333333333333");
@@ -104,6 +170,7 @@ describe("mediaFoldersRepo", () => {
   });
 
   it("pgDeleteFolderIfEmpty deletes empty folder", async () => {
+    selectResults.push([{ organizationId: "99999999-9999-4999-8999-999999999999" }]);
     selectResults.push([]);
     selectResults.push([]);
     deleteReturning.push({ id: "33333333-3333-4333-8333-333333333333" });

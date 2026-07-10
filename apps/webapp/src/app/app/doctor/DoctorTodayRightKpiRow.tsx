@@ -11,6 +11,7 @@ import {
   doctorMetricValueClass,
   doctorStatCardShellClass,
 } from "@/shared/ui/doctor/doctorVisual";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 import { cn } from "@/lib/utils";
@@ -90,9 +91,11 @@ function SplitAppointmentStatCard({
     <article id={id} className={doctorStatCardShellClass}>
       <p className={doctorMetricLabelClass}>{title}</p>
       <div className="mt-1 grid grid-cols-2 divide-x divide-border/70">
-        <button
+        <Button
           type="button"
-          className={cn(segmentClass, "pr-3")}
+          variant="ghost"
+          size="sm"
+          className={cn(segmentClass, "h-auto pr-3")}
           onClick={onTotalClick}
           disabled={total <= 0}
           aria-label={`${title}: всего ${total}`}
@@ -101,10 +104,12 @@ function SplitAppointmentStatCard({
             <span className={doctorMetricValueClass}>{total}</span>
             <span className="text-[10px] leading-none text-muted-foreground">Всего</span>
           </div>
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className={cn(segmentClass, "pl-3")}
+          variant="ghost"
+          size="sm"
+          className={cn(segmentClass, "h-auto pl-3")}
           onClick={onFutureClick}
           disabled={future <= 0}
           aria-label={`${title}: будущие ${future}`}
@@ -113,7 +118,7 @@ function SplitAppointmentStatCard({
             <span className={doctorMetricValueClass}>{future}</span>
             <span className="text-[10px] leading-none text-muted-foreground">Будущие</span>
           </div>
-        </button>
+        </Button>
       </div>
     </article>
   );

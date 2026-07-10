@@ -13,12 +13,14 @@ import {
 import { platformUsers } from "./schema";
 import { clinicalTests } from "./clinicalTests";
 import { treatmentProgramInstanceStageItems } from "./treatmentProgramInstances";
+import { beOrganizations } from "./bookingEngine";
 
 /** Попытка прохождения набора тестов в элементе экземпляра программы (таблица БД `test_attempts`). */
 export const treatmentProgramTestAttempts = pgTable(
   "test_attempts",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     instanceStageItemId: uuid("instance_stage_item_id").notNull(),
     patientUserId: uuid("patient_user_id").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -29,11 +31,20 @@ export const treatmentProgramTestAttempts = pgTable(
     acceptedBy: uuid("accepted_by"),
   },
   (table) => [
+    index("idx_test_attempts_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_test_attempts_stage_item").using(
       "btree",
       table.instanceStageItemId.asc().nullsLast().op("uuid_ops"),
     ),
     index("idx_test_attempts_patient").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "test_attempts_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.instanceStageItemId],
       foreignColumns: [treatmentProgramInstanceStageItems.id],
@@ -60,6 +71,7 @@ export const treatmentProgramTestResults = pgTable(
   "test_results",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     attemptId: uuid("attempt_id").notNull(),
     testId: uuid("test_id").notNull(),
     rawValue: jsonb("raw_value").$type<Record<string, unknown>>().notNull(),
@@ -69,7 +81,13 @@ export const treatmentProgramTestResults = pgTable(
   },
   (table) => [
     index("idx_test_results_attempt").using("btree", table.attemptId.asc().nullsLast().op("uuid_ops")),
+    index("idx_test_results_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
     index("idx_test_results_test").using("btree", table.testId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "test_results_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.attemptId],
       foreignColumns: [treatmentProgramTestAttempts.id],

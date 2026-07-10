@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runDrizzleMutationTransactionMock = vi.hoisted(() =>
+  vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn({ rollback: vi.fn() })),
+);
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
+}));
+vi.mock("@/infra/db/drizzleMutationTx", () => ({
+  runDrizzleMutationTransaction: runDrizzleMutationTransactionMock,
 }));
 
 import { createPgBookingCatalogPort } from "./pgBookingCatalog";
@@ -23,9 +29,29 @@ function cityRow(overrides = {}) {
   };
 }
 
+function serviceRow(overrides = {}) {
+  return {
+    id: "svc-uuid-1",
+    title: "Приём",
+    description: null,
+    duration_minutes: 60,
+    break_after_minutes: 15,
+    price_minor: 100,
+    is_active: true,
+    sort_order: 0,
+    created_at: NOW,
+    updated_at: NOW,
+    ...overrides,
+  };
+}
+
 describe("createPgBookingCatalogPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    runDrizzleMutationTransactionMock.mockClear();
+    runDrizzleMutationTransactionMock.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
+      fn({ rollback: vi.fn() }),
+    );
   });
 
   describe("listCitiesForPatient", () => {
@@ -81,6 +107,48 @@ describe("createPgBookingCatalogPort", () => {
       await port.upsertCity({ code: "moscow", title: "Москва", isActive: true, sortOrder: 1 });
       const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("ON CONFLICT (code) DO UPDATE");
+      expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("upsertService", () => {
+    it("stores break_after_minutes with the service and syncs canonical buffer", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: "svc-uuid-1" }] }).mockResolvedValueOnce({ rows: [] });
+      const port = createPgBookingCatalogPort();
+      await port.upsertService({
+        title: "Приём",
+        description: null,
+        durationMinutes: 60,
+        breakAfterMinutes: 15,
+        priceMinor: 100,
+        isActive: true,
+        sortOrder: 0,
+      });
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      expect(sql).toContain("break_after_minutes");
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+        "Приём",
+        null,
+        60,
+        15,
+        100,
+        true,
+        0,
+      ]);
+      const canonicalSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+      expect(canonicalSql).toContain("be_clinic_services");
+      expect(canonicalSql).toContain("buffer_after_minutes");
+      expect(canonicalSql).toContain("uq_be_clinic_services_org_title_duration");
+      expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([
+        "a0000000-0000-4000-8000-000000000001",
+        "Приём",
+        null,
+        60,
+        15,
+        100,
+        true,
+        0,
+      ]);
     });
   });
 
@@ -164,6 +232,17 @@ describe("createPgBookingCatalogPort", () => {
       await port.listCitiesAdmin();
       const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).not.toContain("WHERE is_active");
+    });
+  });
+
+  describe("listServicesAdmin", () => {
+    it("maps break_after_minutes to breakAfterMinutes", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [serviceRow()] });
+      const port = createPgBookingCatalogPort();
+      const services = await port.listServicesAdmin();
+      expect(services[0]?.breakAfterMinutes).toBe(15);
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      expect(sql).toContain("break_after_minutes");
     });
   });
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
 import type {
   ChangeIntakeStatusInput,
@@ -23,11 +24,32 @@ export function createInMemoryOnlineIntake(deps?: {
   >;
   /** Maps `platform_users.id` → profile fields for doctor list/details (tests). */
   userProfiles?: Map<string, { displayName: string; phone: string }>;
+  /** Maps `platform_users.id` → active organization id for org-aware tests. */
+  userOrganizationIds?: Map<string, string>;
 }): OnlineIntakePort {
   const requests = new Map<string, IntakeRequest>();
   const answers = new Map<string, IntakeAnswer[]>();
   const attachments = new Map<string, IntakeAttachment[]>();
   const statusHistory = new Map<string, IntakeStatusHistoryEntry[]>();
+
+  function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+    const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+    const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+    const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+    const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+    if (
+      hasFallbackMismatch ||
+      (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    ) {
+      throw new Error("organization_principal_mismatch");
+    }
+    return principalOrganizationId ?? fallbackOrganizationId;
+  }
+
+  function matchesCurrentPrincipal(req: IntakeRequest): boolean {
+    const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+    return !principalOrganizationId || req.organizationId === principalOrganizationId;
+  }
 
   function now(): string {
     return new Date().toISOString();
@@ -47,10 +69,12 @@ export function createInMemoryOnlineIntake(deps?: {
     async createLfkRequest(input: CreateLfkIntakeInput): Promise<IntakeRequest> {
       const id = randomUUID();
       const ts = now();
+      const organizationId = currentWriteOrganizationId(deps?.userOrganizationIds?.get(input.userId));
       const summary = input.description.slice(0, 200);
       const req: IntakeRequest = {
         id,
         userId: input.userId,
+        organizationId,
         type: "lfk",
         status: "new",
         summary,
@@ -63,6 +87,7 @@ export function createInMemoryOnlineIntake(deps?: {
         {
           id: randomUUID(),
           requestId: id,
+          organizationId,
           questionId: "lfk_description",
           ordinal: 1,
           value: input.description,
@@ -76,6 +101,7 @@ export function createInMemoryOnlineIntake(deps?: {
         atts.push({
           id: randomUUID(),
           requestId: id,
+          organizationId,
           attachmentType: "url",
           s3Key: null,
           url,
@@ -96,6 +122,7 @@ export function createInMemoryOnlineIntake(deps?: {
         atts.push({
           id: randomUUID(),
           requestId: id,
+          organizationId,
           attachmentType: "file",
           s3Key: meta.s3Key,
           url: null,
@@ -111,6 +138,7 @@ export function createInMemoryOnlineIntake(deps?: {
         {
           id: randomUUID(),
           requestId: id,
+          organizationId,
           fromStatus: null,
           toStatus: "new",
           changedBy: null,
@@ -126,10 +154,12 @@ export function createInMemoryOnlineIntake(deps?: {
     async createNutritionRequest(input: CreateNutritionIntakeInput): Promise<IntakeRequest> {
       const id = randomUUID();
       const ts = now();
+      const organizationId = currentWriteOrganizationId(deps?.userOrganizationIds?.get(input.userId));
       const summary = input.description.slice(0, 200);
       const req: IntakeRequest = {
         id,
         userId: input.userId,
+        organizationId,
         type: "nutrition",
         status: "new",
         summary,
@@ -142,6 +172,7 @@ export function createInMemoryOnlineIntake(deps?: {
         {
           id: randomUUID(),
           requestId: id,
+          organizationId,
           questionId: "nutrition_description",
           ordinal: 1,
           value: input.description,
@@ -155,6 +186,7 @@ export function createInMemoryOnlineIntake(deps?: {
         {
           id: randomUUID(),
           requestId: id,
+          organizationId,
           fromStatus: null,
           toStatus: "new",
           changedBy: null,
@@ -169,7 +201,7 @@ export function createInMemoryOnlineIntake(deps?: {
 
     async getById(id: string): Promise<IntakeRequestFull | null> {
       const req = requests.get(id);
-      if (!req) return null;
+      if (!req || !matchesCurrentPrincipal(req)) return null;
       return {
         ...req,
         answers: answers.get(id) ?? [],
@@ -180,7 +212,7 @@ export function createInMemoryOnlineIntake(deps?: {
 
     async getByIdForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null> {
       const req = requests.get(id);
-      if (!req) return null;
+      if (!req || !matchesCurrentPrincipal(req)) return null;
       const idn = patientIdentityForUser(req.userId);
       return {
         ...req,
@@ -192,7 +224,7 @@ export function createInMemoryOnlineIntake(deps?: {
     },
 
     async listRequests(query: ListIntakeQuery): Promise<{ items: IntakeRequest[]; total: number }> {
-      let items = [...requests.values()];
+      let items = [...requests.values()].filter(matchesCurrentPrincipal);
       if (query.userId) items = items.filter((r) => r.userId === query.userId);
       if (query.type) items = items.filter((r) => r.type === query.type);
       if (query.status) items = items.filter((r) => r.status === query.status);
@@ -206,7 +238,7 @@ export function createInMemoryOnlineIntake(deps?: {
     async listRequestsForDoctor(
       query: ListIntakeQuery,
     ): Promise<{ items: IntakeRequestWithPatientIdentity[]; total: number }> {
-      let items = [...requests.values()];
+      let items = [...requests.values()].filter(matchesCurrentPrincipal);
       if (query.userId) items = items.filter((r) => r.userId === query.userId);
       if (query.type) items = items.filter((r) => r.type === query.type);
       if (query.open) {
@@ -237,12 +269,14 @@ export function createInMemoryOnlineIntake(deps?: {
 
     async changeStatus(input: ChangeIntakeStatusInput): Promise<IntakeRequest> {
       const req = requests.get(input.requestId);
-      if (!req) throw new Error("not_found");
+      if (!req || !matchesCurrentPrincipal(req)) throw new Error("not_found");
+      const organizationId = currentWriteOrganizationId(req.organizationId);
       const ts = now();
       const hist = statusHistory.get(input.requestId) ?? [];
       hist.push({
         id: randomUUID(),
         requestId: input.requestId,
+        organizationId,
         fromStatus: req.status,
         toStatus: input.toStatus,
         changedBy: input.changedBy,
@@ -250,14 +284,14 @@ export function createInMemoryOnlineIntake(deps?: {
         changedAt: ts,
       });
       statusHistory.set(input.requestId, hist);
-      const updated: IntakeRequest = { ...req, status: input.toStatus, updatedAt: ts };
+      const updated: IntakeRequest = { ...req, organizationId, status: input.toStatus, updatedAt: ts };
       requests.set(input.requestId, updated);
       return updated;
     },
 
     async getDoctorStats(days: number): Promise<IntakeDoctorStats> {
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-      const all = [...requests.values()].filter((r) => r.createdAt >= since);
+      const all = [...requests.values()].filter((r) => r.createdAt >= since && matchesCurrentPrincipal(r));
       const byStatus: Record<string, number> = {};
       for (const r of all) {
         byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;

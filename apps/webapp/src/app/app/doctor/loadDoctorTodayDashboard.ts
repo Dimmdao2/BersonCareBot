@@ -75,6 +75,7 @@ export type DoctorTodayDashboardDeps = {
   specialistTasks?: SpecialistTasksService;
   specialistOwnerUserId?: string;
   doctorUserId?: string;
+  organizationId?: string;
   treatmentProgramProgress?: TreatmentProgramProgressService;
   doctorProactiveInsights?: DoctorProactiveInsightsPort;
   treatmentProgramInstance?: {
@@ -104,11 +105,12 @@ export type DoctorTodayDashboardDeps = {
   displayIana: string;
   messaging: {
     doctorSupport: {
-      listOpenConversations(params: {
-        limit?: number;
-        unreadOnly?: boolean;
-      }): Promise<TodayConversationSourceRow[]>;
-      unreadFromUsers(): Promise<number>;
+    listOpenConversations(params: {
+      limit?: number;
+      unreadOnly?: boolean;
+      organizationId?: string;
+    }): Promise<TodayConversationSourceRow[]>;
+      unreadFromUsers(params?: { organizationId?: string }): Promise<number>;
       unreadFromPatient?: (platformUserId: string) => Promise<number>;
     };
   };
@@ -314,10 +316,14 @@ async function loadOnSupportRealtimeStats(
 
       if (deps.treatmentProgramInstance && deps.programActionLog) {
         try {
-          const instances = await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
+          const allInstances = await deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId);
+          const instances = deps.organizationId
+            ? allInstances.filter((instance) => instance.organizationId === deps.organizationId)
+            : allInstances;
           const active = pickActivePlanInstance(instances);
           if (active) {
             const detail = await deps.treatmentProgramInstance.getInstanceById(active.id);
+            if (deps.organizationId && detail.organizationId !== deps.organizationId) return;
             const activeExerciseItemIds = detail.stages.flatMap((stage) =>
               stage.items
                 .filter((item) => item.status === "active" && item.itemType === "exercise")
@@ -377,9 +383,14 @@ export async function loadDoctorTodayDashboard(
   intakeService: OnlineIntakeService,
   audience?: DoctorAppointmentsAudience,
 ): Promise<TodayDashboardData> {
-  const clientAudience = audience?.excludedUserIds?.length
-    ? { excludedUserIds: audience.excludedUserIds }
-    : undefined;
+  const scopedAudience: DoctorAppointmentsAudience | undefined =
+    audience?.excludedUserIds?.length || deps.organizationId
+      ? {
+          excludedUserIds: audience?.excludedUserIds ?? [],
+          organizationId: deps.organizationId,
+        }
+      : undefined;
+  const clientAudience = scopedAudience;
   const [
     todayRaw,
     weekRaw,
@@ -392,16 +403,23 @@ export async function loadDoctorTodayDashboard(
   ] = await Promise.all([
     // #9: use statsRange so cancelled appointments are included in today/week lists
     // (statsRange = same date window as range, but no status filter → includes cancelled)
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "today" }, audience),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "week" }, audience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "today" }, scopedAudience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "statsRange", range: "week" }, scopedAudience),
     deps.loadMonthAppointments
       ? deps.loadMonthAppointments()
       : Promise.resolve([] as AppointmentRow[]),
     intakeService.listForDoctor({ status: "new", limit: 3, offset: 0 }),
-    deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
-    deps.messaging.doctorSupport.unreadFromUsers(),
+    deps.messaging.doctorSupport.listOpenConversations({
+      unreadOnly: true,
+      limit: 3,
+      organizationId: deps.organizationId,
+    }),
+    deps.messaging.doctorSupport.unreadFromUsers({ organizationId: deps.organizationId }),
     deps.doctorClients.getDashboardPatientMetrics(clientAudience),
-    deps.doctorClients.listClients({ supportStatus: "on" }, clientAudience),
+    deps.doctorClients.listClients(
+      { supportStatus: "on", organizationId: deps.organizationId },
+      clientAudience,
+    ),
   ]);
 
   const onSupportSorted = [...onSupportListRaw].sort((a, b) =>

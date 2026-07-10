@@ -60,6 +60,8 @@ const {
   loadAdminPlaybackClientHealthMetricsMock,
   loadAdminHlsProxyHealthMetricsMock,
   loadAdminTranscodeHealthMetricsMock,
+  loadAdminMediaPreviewGroupedCountsMock,
+  loadAdminMediaPreviewStalePendingCountMock,
   listOpenIncidentsMock,
   listBackupJobStatusMock,
   getOutgoingDeliveryQueueHealthMock,
@@ -84,6 +86,8 @@ const {
   loadAdminPlaybackClientHealthMetricsMock: vi.fn(),
   loadAdminHlsProxyHealthMetricsMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
+  loadAdminMediaPreviewGroupedCountsMock: vi.fn(),
+  loadAdminMediaPreviewStalePendingCountMock: vi.fn(),
   listOpenIncidentsMock: vi.fn(),
   listBackupJobStatusMock: vi.fn(),
   getOutgoingDeliveryQueueHealthMock: vi.fn(),
@@ -170,6 +174,11 @@ vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
   loadAdminTranscodeHealthMetrics: loadAdminTranscodeHealthMetricsMock,
 }));
 
+vi.mock("@/infra/repos/pgAdminMediaPreviewHealth", () => ({
+  loadAdminMediaPreviewGroupedCounts: loadAdminMediaPreviewGroupedCountsMock,
+  loadAdminMediaPreviewStalePendingCount: loadAdminMediaPreviewStalePendingCountMock,
+}));
+
 vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
   loadAdminReminderPipelineMetrics: loadAdminReminderPipelineMetricsMock,
   emptyRemindersPipelineHealthPayload: () => ({
@@ -243,6 +252,10 @@ describe("GET /api/admin/system-health", () => {
     });
     loadAdminTranscodeHealthMetricsMock.mockReset();
     loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
+    loadAdminMediaPreviewGroupedCountsMock.mockReset();
+    loadAdminMediaPreviewGroupedCountsMock.mockResolvedValue([]);
+    loadAdminMediaPreviewStalePendingCountMock.mockReset();
+    loadAdminMediaPreviewStalePendingCountMock.mockResolvedValue(0);
     listOpenIncidentsMock.mockReset();
     listBackupJobStatusMock.mockReset();
     getOutgoingDeliveryQueueHealthMock.mockReset();
@@ -384,6 +397,7 @@ describe("GET /api/admin/system-health", () => {
     expect(body.meta?.probes?.remindersPipeline?.status).toBe("ok");
     expect(loadAdminReminderPipelineMetricsMock).toHaveBeenCalled();
     expect(body.cronJobs.jobs.length).toBeGreaterThan(0);
+    expect(body.cronJobs.jobs.some((j) => j.id === "outbound_integration_probes")).toBe(true);
     expect(body.cronJobs.jobs.some((j) => j.id === "playback_retention")).toBe(true);
     expect(body.meta?.probes?.cronJobs?.status).toBeDefined();
   });

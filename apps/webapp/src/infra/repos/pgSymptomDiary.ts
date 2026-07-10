@@ -2,6 +2,7 @@
  * PostgreSQL implementation of SymptomDiaryPort.
  * Tables: symptom_trackings, symptom_entries (see webapp/migrations/004_symptom_trackings_and_entries.sql).
  */
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import {
@@ -27,6 +28,7 @@ type SymptomTrackingRow = {
   diagnosis_ref_id?: string | null;
   stage_ref_id?: string | null;
   deleted_at?: Date | string | null;
+  organization_id?: string | null;
 };
 
 function rowToTracking(row: SymptomTrackingRow): SymptomTracking {
@@ -86,7 +88,7 @@ function rowToEntry(row: SymptomEntryRow): SymptomEntry {
 }
 
 const TRACKING_SELECT = `id, user_id, platform_user_id, symptom_key, symptom_title, is_active, created_at, updated_at,
-    symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id, deleted_at`;
+    symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id, deleted_at, organization_id`;
 
 /** Match legacy text user_id or canonical platform_user_id (post-merge / backfill). */
 function userMatchSql(tableAlias: string | null, userParamIndex: number): string {
@@ -97,15 +99,17 @@ function userMatchSql(tableAlias: string | null, userParamIndex: number): string
 export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async createTracking(params) {
     const now = new Date();
+    const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
     const result = await runWebappPgText<SymptomTrackingRow>(
       `INSERT INTO symptom_trackings (
-         user_id, platform_user_id, symptom_key, symptom_title, is_active, updated_at,
+         user_id, platform_user_id, organization_id, symptom_key, symptom_title, is_active, updated_at,
          symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
        )
-       VALUES ($1::text, $1::uuid, $2, $3, true, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1::text, $1::uuid, $2::uuid, $3, $4, true, $5, $6, $7, $8, $9, $10, $11)
        RETURNING ${TRACKING_SELECT}`,
       [
         params.userId,
+        organizationId,
         params.symptomKey ?? null,
         params.symptomTitle,
         now,

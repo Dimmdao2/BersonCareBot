@@ -17,6 +17,7 @@ const WINDOW_SECONDS = 300;
 const bodySchema = z.object({
   key: z.string().min(1).max(256),
   scope: z.enum(['global', 'doctor', 'admin']),
+  organizationId: z.string().uuid().nullable().optional(),
   valueJson: z.unknown(),
   updatedBy: z.string().min(1).optional(),
 });
@@ -89,17 +90,30 @@ export async function registerBersoncareSettingsSyncRoute(
     }
 
     const { key, scope, valueJson, updatedBy } = parsed.data;
+    const organizationId = parsed.data.organizationId ?? null;
 
     try {
-      await runIntegratorSql(
-        db,
-        sql`INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, updated_by)
-         VALUES (${key}, ${scope}, ${JSON.stringify(valueJson)}::jsonb, NOW(), ${updatedBy ?? null})
-         ON CONFLICT (key, scope) DO UPDATE SET
-           value_json = EXCLUDED.value_json,
-           updated_at = NOW(),
-           updated_by = EXCLUDED.updated_by`,
-      );
+      if (organizationId) {
+        await runIntegratorSql(
+          db,
+          sql`INSERT INTO integrator.system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
+           VALUES (${key}, ${scope}, ${organizationId}::uuid, ${JSON.stringify(valueJson)}::jsonb, NOW(), ${updatedBy ?? null})
+           ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE SET
+             value_json = EXCLUDED.value_json,
+             updated_at = NOW(),
+             updated_by = EXCLUDED.updated_by`,
+        );
+      } else {
+        await runIntegratorSql(
+          db,
+          sql`INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, updated_by)
+           VALUES (${key}, ${scope}, ${JSON.stringify(valueJson)}::jsonb, NOW(), ${updatedBy ?? null})
+           ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
+             value_json = EXCLUDED.value_json,
+             updated_at = NOW(),
+             updated_by = EXCLUDED.updated_by`,
+        );
+      }
     } catch (err) {
       logger.error({ err }, 'bersoncare settings/sync: upsert failed');
       return reply.code(502).send({ ok: false, error: 'write_failed' });

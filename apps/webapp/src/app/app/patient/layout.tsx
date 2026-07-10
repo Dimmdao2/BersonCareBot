@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { patientPathRequiresBoundPhone, patientClientBusinessGate, resolvePatientLayoutPathname } from "@/modules/platform-access";
+import { patientClientBusinessGate } from "@/app-layer/platform-access";
+import { patientPathRequiresBoundPhone, resolvePatientLayoutPathname } from "@/modules/platform-access";
 import { logger } from "@/infra/logging/logger";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";

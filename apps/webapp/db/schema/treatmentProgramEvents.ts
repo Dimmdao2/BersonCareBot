@@ -11,11 +11,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
 import { treatmentProgramInstances } from "./treatmentProgramInstances";
+import { beOrganizations } from "./bookingEngine";
 
 export const treatmentProgramEvents = pgTable(
   "treatment_program_events",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     instanceId: uuid("instance_id").notNull(),
     /** Пациент / врач; NULL — автоматические переходы (напр. завершение этапа по всем элементам). */
     actorId: uuid("actor_id"),
@@ -28,11 +30,20 @@ export const treatmentProgramEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_treatment_program_events_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_treatment_program_events_instance_created").using(
       "btree",
       table.instanceId.asc().nullsLast().op("uuid_ops"),
       table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "treatment_program_events_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.instanceId],
       foreignColumns: [treatmentProgramInstances.id],

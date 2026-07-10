@@ -1,10 +1,21 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => fn()),
+);
 const runPackageDetachMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/app/api/booking-engine/packageDetachShared", () => ({
@@ -37,13 +48,24 @@ describe("POST appointments/[id]/package/detach", () => {
       { params: Promise.resolve({ id: APPT_ID }) },
     );
     expect(res.status).toBe(200);
-    expect(runPackageDetachMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      appointmentId: APPT_ID,
-      createdByPlatformUserId: "u1",
-      outcome: "release_reserve",
-      confirmPastTwice: true,
-    });
+    expect(runPackageDetachMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        appointmentId: APPT_ID,
+        createdByPlatformUserId: "u1",
+        outcome: "release_reserve",
+        confirmPastTwice: true,
+      }),
+    );
+    const [{ runDetachMutation }] = runPackageDetachMock.mock.calls[0] as [
+      { runDetachMutation: <T>(fn: () => Promise<T>) => Promise<T> },
+    ];
+    await runDetachMutation(async () => "ok");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.package.detach",
+      expect.any(Function),
+    );
   });
 
   it("returns 409 when detach reports late_detach_choice_required", async () => {

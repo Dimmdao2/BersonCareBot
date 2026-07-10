@@ -7,7 +7,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const severitySchema = z.number().int().min(0).max(10);
@@ -18,6 +19,7 @@ const createVisitBodySchema = z.object({
   location: z.string().max(500).optional(),
   service: z.string().max(500).optional(),
   duration: z.string().max(100).optional(),
+  anamnesisText: z.string().max(20000).optional(),
   appointmentRecordId: z.string().uuid().optional(),
   exam: z.string().max(20000).optional(),
   manipulations: z.string().max(20000).optional(),
@@ -27,6 +29,7 @@ const createVisitBodySchema = z.object({
     .array(
       z.object({
         text: z.string().min(1).max(2000),
+        description: z.string().max(20000).optional(),
         priority: z.boolean(),
         severity: severitySchema,
       }),
@@ -38,6 +41,7 @@ const createVisitBodySchema = z.object({
         text: z.string().min(1).max(2000),
         priority: z.boolean(),
         catalogId: z.string().uuid().optional(),
+        comment: z.string().max(20000).optional(),
       }),
     )
     .optional(),
@@ -66,8 +70,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -91,24 +95,48 @@ export async function POST(
   const b = parsed.data;
 
   const deps = buildAppDeps();
-  const visitId = await deps.patientClinical.createVisit({
-    patientUserId: userId,
-    visitType: b.visitType,
-    visitedAt: b.date,
-    location: b.location ?? null,
-    service: b.service ?? null,
-    duration: b.duration ?? null,
-    appointmentRecordId: b.appointmentRecordId ?? null,
-    exam: b.exam ?? null,
-    manipulations: b.manipulations ?? null,
-    trialResults: b.trialResults ?? null,
-    recommendations: b.recommendations ?? null,
-    createdBy: auth.session.user.userId,
-    complaints: b.complaints,
-    diagnoses: b.diagnoses,
-    complaintUpdates: b.complaintUpdates,
-    diagnosisUpdates: b.diagnosisUpdates,
-  });
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
+  let visitId: string;
+  try {
+    visitId = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.patientClinical.createVisit({
+        patientUserId,
+        visitType: b.visitType,
+        visitedAt: b.date,
+        location: b.location ?? null,
+        service: b.service ?? null,
+        duration: b.duration ?? null,
+        anamnesisText: b.anamnesisText ?? null,
+        appointmentRecordId: b.appointmentRecordId ?? null,
+        exam: b.exam ?? null,
+        manipulations: b.manipulations ?? null,
+        trialResults: b.trialResults ?? null,
+        recommendations: b.recommendations ?? null,
+        createdBy: gate.ctx.session.user.userId,
+        complaints: b.complaints,
+        diagnoses: b.diagnoses,
+        complaintUpdates: b.complaintUpdates,
+        diagnosisUpdates: b.diagnosisUpdates,
+      }),
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "clinical_target_not_found" ||
+        error.message === "organization_principal_mismatch")
+    ) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    throw error;
+  }
 
   return NextResponse.json({ ok: true, visitId }, { status: 201 });
 }

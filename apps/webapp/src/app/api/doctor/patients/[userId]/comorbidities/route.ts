@@ -9,7 +9,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const statusSchema = z
@@ -26,8 +27,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -41,22 +42,26 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
   const status = statusParsed.data;
   let comorbidities;
-  if (status === "active") {
-    comorbidities = await deps.patientComorbidities.listActive(userId);
-  } else if (status === "removed") {
-    comorbidities = await deps.patientComorbidities.listRemoved(userId);
-  } else {
-    // "all"
+  comorbidities = await withDoctorWorkspacePrincipal(gate.ctx, async () => {
+    if (status === "active") return deps.patientComorbidities.listActive(patientUserId);
+    if (status === "removed") return deps.patientComorbidities.listRemoved(patientUserId);
     const [active, removed] = await Promise.all([
-      deps.patientComorbidities.listActive(userId),
-      deps.patientComorbidities.listRemoved(userId),
+      deps.patientComorbidities.listActive(patientUserId),
+      deps.patientComorbidities.listRemoved(patientUserId),
     ]);
-    comorbidities = [...active, ...removed].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
-  }
+    return [...active, ...removed].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  });
 
   return NextResponse.json({ ok: true, comorbidities });
 }
@@ -65,8 +70,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -89,13 +94,24 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
   try {
-    const comorbidity = await deps.patientComorbidities.add({
-      patientUserId: userId,
-      text: parsed.data.text,
-      since: parsed.data.since ?? null,
-      createdBy: auth.session.user.userId,
-    });
+    const comorbidity = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.create", () =>
+      deps.patientComorbidities.add({
+        patientUserId,
+        text: parsed.data.text,
+        since: parsed.data.since ?? null,
+        createdBy: gate.ctx.session.user.userId,
+      }),
+    );
     return NextResponse.json({ ok: true, comorbidity }, { status: 201 });
   } catch (err) {
     if (err instanceof Error && err.message === "comorbidity_text_required") {

@@ -9,6 +9,12 @@ const connectQueryMock = vi.hoisted(() => vi.fn());
 const s3PutObjectBodyMock = vi.hoisted(() => vi.fn());
 const s3DeleteObjectMock = vi.hoisted(() => vi.fn());
 const s3ListObjectKeysUnderPrefixMock = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
+  applyCurrentDbPrincipalToTransaction: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlDb: vi.fn(() => ({
@@ -16,6 +22,7 @@ vi.mock("@/infra/db/runWebappSql", () => ({
   })),
   getWebappSqlFromPgClient: vi.fn(() => ({})),
   runWebappSql: runWebappSqlMock,
+  runWebappTransaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
 }));
 
 vi.mock("@/infra/db/pgAdvisoryLock", () => ({
@@ -71,6 +78,8 @@ describe("createS3MediaStoragePort", () => {
     s3PutObjectBodyMock.mockReset();
     s3DeleteObjectMock.mockReset();
     s3ListObjectKeysUnderPrefixMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("99999999-9999-4999-8999-999999999999");
     s3PutObjectBodyMock.mockResolvedValue(undefined);
     s3DeleteObjectMock.mockResolvedValue(undefined);
     s3ListObjectKeysUnderPrefixMock.mockResolvedValue([]);
@@ -124,6 +133,39 @@ describe("createS3MediaStoragePort", () => {
     expect(listSql).toMatch(/client_files_root/i);
   });
 
+  it("updateDisplayName requires DB principal", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(undefined);
+    const port = createS3MediaStoragePort();
+    await expect(
+      port.updateDisplayName("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "Name"),
+    ).rejects.toThrow("organization_principal_required");
+    expect(runWebappSqlMock).not.toHaveBeenCalled();
+  });
+
+  it("updateDisplayName stamps and filters by organization principal", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const port = createS3MediaStoragePort();
+    const ok = await port.updateDisplayName("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "Name");
+    expect(ok).toBe(true);
+    const updateSql = approxSqlAt(0);
+    expect(updateSql).toMatch(/organization_id/i);
+    expect(updateSql).toContain("99999999-9999-4999-8999-999999999999");
+  });
+
+  it("updateMediaFolder validates target folder organization in SQL", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const port = createS3MediaStoragePort();
+    const ok = await port.updateMediaFolder(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    );
+    expect(ok).toBe(true);
+    const updateSql = approxSqlAt(0);
+    expect(updateSql).toMatch(/media_folders/i);
+    expect(updateSql).toMatch(/organization_id/i);
+    expect(updateSql).toContain("99999999-9999-4999-8999-999999999999");
+  });
+
   it("deleteHard queues pending_delete for S3-backed file (no immediate s3 delete)", async () => {
     runWebappSqlMock
       .mockResolvedValueOnce({ rows: [{ s3_key: "media/x/f.mp4", status: "ready" }] })
@@ -137,6 +179,7 @@ describe("createS3MediaStoragePort", () => {
     expect(deleted).toBe(true);
     expect(s3DeleteObjectMock).not.toHaveBeenCalled();
     expect(approxSqlAt(1)).toContain("pending_delete");
+    expect(approxSqlAt(1)).toContain("99999999-9999-4999-8999-999999999999");
   });
 
   it("deleteHard removes DB row when row has no s3_key", async () => {

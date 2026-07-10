@@ -14,6 +14,7 @@ export type SoloOverview = {
     title: string;
     /** Short display name (e.g. «СПб», «Мск»). Migration 0117. */
     shortTitle: string | null;
+    color: string | null;
     cityCode: string;
     address: string | null;
     timezone: string;
@@ -26,6 +27,7 @@ export type SoloOverview = {
     title: string;
     description: string | null;
     durationMinutes: number;
+    bufferAfterMinutes: number;
     priceMinor: number;
     publicWidgetVisible: boolean;
     adminManualOnly: boolean;

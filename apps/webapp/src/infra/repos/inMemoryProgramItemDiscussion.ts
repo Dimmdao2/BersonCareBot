@@ -303,12 +303,23 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
     },
 
     async listAllExerciseCommentsForDoctor(
-      input: { viewerUserId: string; limit: number; cursor?: DoctorExerciseCommentCursor | null },
+      input: {
+        viewerUserId: string;
+        organizationId?: string;
+        limit: number;
+        cursor?: DoctorExerciseCommentCursor | null;
+      },
     ): Promise<DoctorExerciseCommentRow[]> {
       // inMemory stub: collect all unique patientUserIds from in-memory messages.
       const allPatientIds = [...new Set([...rows.values()].map((m) => m.patientUserId))];
       return inMemoryDoctorExerciseComments(
-        { patientUserIds: allPatientIds, viewerUserId: input.viewerUserId, limit: input.limit, cursor: input.cursor },
+        {
+          patientUserIds: allPatientIds,
+          viewerUserId: input.viewerUserId,
+          organizationId: input.organizationId,
+          limit: input.limit,
+          cursor: input.cursor,
+        },
         reads,
         rows,
         { unreadOnly: false },

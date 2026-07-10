@@ -467,6 +467,14 @@ describe("DoctorTodayDashboard", () => {
           instanceId: "inst-1",
           stageItemId: "item-1",
           stageItemTitle: "Приседания",
+          thumb: {
+            url: "/api/media/exercise-thumb",
+            mediaType: "video",
+            previewSmUrl: "/api/media/exercise-thumb/preview/sm",
+            previewMdUrl: null,
+            previewStatus: "ready",
+            sortOrder: 0,
+          },
           latestMessage: {
             id: "m1",
             instanceStageItemId: "item-1",
@@ -488,8 +496,9 @@ describe("DoctorTodayDashboard", () => {
     // SEG-02: KpiPreviewModal shown for exercise comments
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Иванов Иван")).toBeInTheDocument();
+    expect(screen.getByText("Болит колено")).toBeInTheDocument();
     expect(screen.getByText("Приседания")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть комментарии" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Иванов Иван/ })).toHaveAttribute(
       "href",
       "/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1",
     );

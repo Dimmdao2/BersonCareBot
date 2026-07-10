@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { createCommentsService } from "./service";
 import { createInMemoryCommentsPort } from "@/app-layer/testing/commentsInMemory";
 
@@ -85,5 +86,45 @@ describe("comments service", () => {
     const listB = await svc.listByTarget("program_instance", targetB);
     expect(listB).toHaveLength(1);
     expect(listB[0]!.body).toBe("B");
+  });
+
+  it("in-memory port mirrors principal organization filtering and mutation checks", async () => {
+    const author = "11111111-1111-4111-8111-111111111111";
+    const target = "22222222-2222-4222-8222-222222222222";
+    const orgA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const orgB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+    const commentA = await runWithDbOrganizationPrincipal(orgA, () =>
+      svc.create(
+        {
+          targetType: "program_instance",
+          targetId: target,
+          commentType: "clinical_note",
+          body: "A",
+        },
+        author,
+      ),
+    );
+    await runWithDbOrganizationPrincipal(orgB, () =>
+      svc.create(
+        {
+          targetType: "program_instance",
+          targetId: target,
+          commentType: "clinical_note",
+          body: "B",
+        },
+        author,
+      ),
+    );
+
+    const listA = await runWithDbOrganizationPrincipal(orgA, () => svc.listByTarget("program_instance", target));
+    expect(listA.map((c) => c.body)).toEqual(["A"]);
+
+    await expect(runWithDbOrganizationPrincipal(orgB, () => svc.update(commentA.id, { body: "wrong org" }))).rejects.toThrow(
+      "organization_principal_mismatch",
+    );
+    await expect(runWithDbOrganizationPrincipal(orgB, () => svc.delete(commentA.id))).rejects.toThrow(
+      "organization_principal_mismatch",
+    );
   });
 });

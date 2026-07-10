@@ -17,6 +17,10 @@ import type {
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatDateTimeRu } from "./doctorTodayFormat";
 import { patientProgramInstanceHref } from "./patients/patientProgramInstanceHref";
+import {
+  firstSnapshotMedia,
+  type ExerciseCommentThumbMedia,
+} from "./comments/exerciseCommentThumb";
 
 export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
 
@@ -26,6 +30,8 @@ export type TodayExerciseCommentAttentionItem = {
   instanceId: string;
   stageItemId: string;
   stageItemTitle: string;
+  /** First exercise media from item snapshot for compact list preview. */
+  thumb?: ExerciseCommentThumbMedia | null;
   latestMessage: ProgramItemDiscussionMessage;
   latestMessageAtLabel: string;
   href: string;
@@ -34,6 +40,7 @@ export type TodayExerciseCommentAttentionItem = {
 /** Минимальный срез зависимостей, нужных загрузчику (подмножество `DoctorTodayDashboardDeps`). */
 export type DoctorExerciseCommentAttentionDeps = {
   doctorUserId?: string;
+  organizationId?: string;
   treatmentProgramInstance?: {
     listForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
@@ -116,10 +123,16 @@ export async function loadDoctorExerciseCommentAttention(
   const perPatientRows = await Promise.all(
     [...patientDisplayNameById.keys()].map(async (patientUserId) => {
       try {
-        const instances = await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
+        const allInstances = await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
+        const instances = deps.organizationId
+          ? allInstances.filter((instance) => instance.organizationId === deps.organizationId)
+          : allInstances;
         const active = pickActivePlanInstance(instances);
         if (!active) return [] as TodayExerciseCommentAttentionItem[];
         const detail = await deps.treatmentProgramInstance!.getInstanceById(active.id);
+        if (deps.organizationId && detail.organizationId !== deps.organizationId) {
+          return [] as TodayExerciseCommentAttentionItem[];
+        }
         const activeExerciseItems = detail.stages.flatMap((stage) =>
           stage.items.filter((item) => item.status === "active" && item.itemType === "exercise"),
         );
@@ -132,7 +145,7 @@ export async function loadDoctorExerciseCommentAttention(
         if (attentionStageItemIds.length === 0) return [] as TodayExerciseCommentAttentionItem[];
 
         const itemById = new Map(activeExerciseItems.map((item) => [item.id, item]));
-        const rows = await Promise.all(
+        const rows: Array<TodayExerciseCommentAttentionItem | null> = await Promise.all(
           attentionStageItemIds.map(async (stageItemId) => {
             const [latestList, lastReadAt] = await Promise.all([
               deps.programItemDiscussion!.listMessagesPage({
@@ -157,6 +170,7 @@ export async function loadDoctorExerciseCommentAttention(
               instanceId: active.id,
               stageItemId,
               stageItemTitle: stageItemSnapshotTitle(item.snapshot),
+              thumb: firstSnapshotMedia(item.snapshot),
               latestMessage: latest,
               latestMessageAtLabel: formatDateTimeRu(latest.createdAt),
               href: patientProgramInstanceHref(patientUserId, active.id, {

@@ -1,5 +1,6 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { webappReposAreInMemory } from "@/config/env";
 import { pgListExerciseUsageForMediaIds } from "@/infra/repos/pgLfkExercises";
 import { logger } from "@/infra/logging/logger";
@@ -116,8 +117,8 @@ export type BulkCreateExercisesFromMediaResult =
 export async function bulkCreateExercisesFromMediaCore(
   items: BulkCreateExercisesFromMediaItem[],
 ): Promise<BulkCreateExercisesFromMediaResult> {
-  const session = await requireDoctorAccess();
-  const userId = session.user.userId;
+  const workspace = await requireDoctorWorkspaceContext();
+  const userId = workspace.session.user.userId;
 
   const deduped: BulkCreateExercisesFromMediaItem[] = [];
   const seenUrl = new Set<string>();
@@ -201,6 +202,10 @@ export async function bulkCreateExercisesFromMediaCore(
           media: [{ mediaUrl: row.mediaUrl, mediaType: row.mediaType, sortOrder: 0 }],
         },
         userId,
+        {
+          runExerciseWrite: (fn) =>
+            withDoctorWorkspacePrincipal(workspace, "doctor.lfk-exercises.bulk-create", fn),
+        },
       );
       created += 1;
       createdIds.push(ex.id);
@@ -234,7 +239,7 @@ export async function bulkCreateExercisesFromMediaCore(
 }
 
 export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveExerciseResult> {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
   const loadRefItems = await deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE);
   const loadAllow = exerciseLoadTypeWriteAllowSet(loadRefItems);
@@ -281,16 +286,23 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
     if (current.isArchived) {
       return { ok: false, error: "Упражнение в архиве. Верните из архива, чтобы редактировать." };
     }
-    await deps.lfkExercises.updateExercise(id, {
-      title,
-      description,
-      regionRefIds,
-      loadType,
-      difficulty1_10,
-      contraindications,
-      tags,
-      media: mediaUrl && mediaType ? [{ mediaUrl, mediaType, sortOrder: 0 }] : [],
-    });
+    await deps.lfkExercises.updateExercise(
+      id,
+      {
+        title,
+        description,
+        regionRefIds,
+        loadType,
+        difficulty1_10,
+        contraindications,
+        tags,
+        media: mediaUrl && mediaType ? [{ mediaUrl, mediaType, sortOrder: 0 }] : [],
+      },
+      {
+        runExerciseWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-exercises.update", fn),
+      },
+    );
     return { ok: true, exerciseId: id, wasUpdate: true };
   }
 
@@ -305,13 +317,17 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
       tags,
       media: mediaUrl && mediaType ? [{ mediaUrl, mediaType, sortOrder: 0 }] : undefined,
     },
-    session.user.userId,
+    workspace.session.user.userId,
+    {
+      runExerciseWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-exercises.create", fn),
+    },
   );
   return { ok: true, exerciseId: created.id, wasUpdate: false };
 }
 
 export async function archiveDoctorExerciseCore(formData: FormData): Promise<ArchiveDoctorExerciseCoreResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указано упражнение" };
@@ -319,7 +335,14 @@ export async function archiveDoctorExerciseCore(formData: FormData): Promise<Arc
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await deps.lfkExercises.archiveExercise(id, { acknowledgeUsageWarning });
+    await deps.lfkExercises.archiveExercise(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runExerciseWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.lfk-exercises.archive", fn),
+      },
+    );
     return { kind: "archived", id };
   } catch (e) {
     if (isUsageConfirmationRequiredError(e)) {
@@ -337,14 +360,17 @@ export async function archiveDoctorExerciseCore(formData: FormData): Promise<Arc
 }
 
 export async function unarchiveDoctorExerciseCore(formData: FormData): Promise<UnarchiveDoctorExerciseCoreResult> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" ? idRaw.trim() : "";
   if (!id) return { kind: "invalid", error: "Не указано упражнение" };
 
   const deps = buildAppDeps();
   try {
-    await deps.lfkExercises.unarchiveExercise(id);
+    await deps.lfkExercises.unarchiveExercise(id, {
+      runExerciseWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.lfk-exercises.unarchive", fn),
+    });
     return { kind: "unarchived", id };
   } catch (e) {
     if (isExerciseArchiveNotFoundError(e)) {

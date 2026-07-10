@@ -44,15 +44,23 @@ export async function mergeIntegratorConversationToPlatformThread(
     }
 
     await runIntegratorSql(txDb, sql`
-      UPDATE conversation_messages
-      SET conversation_id = ${input.platformConversationId}
-      WHERE conversation_id = ${input.legacyConversationId}
+      UPDATE conversation_messages AS child
+      SET
+        conversation_id = target.id,
+        organization_id = target.organization_id
+      FROM conversations AS target
+      WHERE child.conversation_id = ${input.legacyConversationId}
+        AND target.id = ${input.platformConversationId}
     `);
 
     await runIntegratorSql(txDb, sql`
-      UPDATE user_questions
-      SET conversation_id = ${input.platformConversationId}
-      WHERE conversation_id = ${input.legacyConversationId}
+      UPDATE user_questions AS child
+      SET
+        conversation_id = target.id,
+        organization_id = target.organization_id
+      FROM conversations AS target
+      WHERE child.conversation_id = ${input.legacyConversationId}
+        AND target.id = ${input.platformConversationId}
     `);
 
     await setConversationState(txDb, {

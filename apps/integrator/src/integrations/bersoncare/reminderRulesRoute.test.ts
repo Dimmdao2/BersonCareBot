@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 import { registerBersoncareReminderRulesRoute } from './reminderRulesRoute.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';
@@ -84,6 +85,50 @@ describe('POST /api/integrator/reminders/rules', () => {
         scheduleData: undefined,
       },
     });
+  });
+
+  it('runs rule upsert under resolved organization context and clears it after', async () => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const writeDb = vi.fn().mockImplementation(async () => {
+      expect(getCurrentOrganizationPrincipalId()).toBe(organizationId);
+    });
+    const resolveOrganizationIdForIntegratorUserId = vi.fn(async () => organizationId);
+    const app = Fastify();
+    await registerBersoncareReminderRulesRoute(app, {
+      writePort: { writeDb },
+      sharedSecret: TEST_SECRET,
+      resolveOrganizationIdForIntegratorUserId,
+    });
+
+    const body = JSON.stringify({
+      eventType: 'reminder.rule.upserted',
+      idempotencyKey: 'rule_rule-abc_123',
+      payload: {
+        integratorRuleId: 'rule-abc',
+        integratorUserId: '42',
+        category: 'lfk',
+        isEnabled: true,
+        scheduleType: 'interval_window',
+        timezone: 'Europe/Moscow',
+        intervalMinutes: 60,
+        windowStartMinute: 480,
+        windowEndMinute: 1200,
+        daysMask: '1111100',
+        contentMode: 'none',
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/integrator/reminders/rules',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(resolveOrganizationIdForIntegratorUserId).toHaveBeenCalledWith('42');
+    expect(writeDb).toHaveBeenCalledTimes(1);
+    expect(getCurrentOrganizationPrincipalId()).toBeUndefined();
   });
 
   it('returns 401 for invalid signature', async () => {

@@ -100,6 +100,7 @@ describe("staffPurgeCancelledAppointment", () => {
   });
 
   it("purges cancelled appointment and emits booking.deleted only", async () => {
+    const principalState = { inside: false };
     getAppointmentMock.mockResolvedValue({
       id: APPT_ID,
       organizationId: "org-1",
@@ -115,15 +116,30 @@ describe("staffPurgeCancelledAppointment", () => {
       lastEvent: "native.cancelled",
       updatedAt: new Date().toISOString(),
     });
+    deleteRecordMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+    });
+    emitBookingDeletedEventMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+    });
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
       organizationId: "org-1",
       appointmentId: APPT_ID,
       actorId: "u1",
+      runLocalPurge: async (fn) => {
+        principalState.inside = true;
+        try {
+          return await fn();
+        } finally {
+          principalState.inside = false;
+        }
+      },
     });
 
     expect(result).toEqual({ ok: true });
+    expect(principalState.inside).toBe(false);
     expect(deleteRecordMock).toHaveBeenCalledWith("rt-1");
     expect(emitBookingDeletedEventMock).toHaveBeenCalledTimes(1);
     const purged = await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged("rt-1");

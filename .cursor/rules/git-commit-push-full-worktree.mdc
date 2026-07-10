@@ -37,4 +37,4 @@ alwaysApply: true
 
 ## Связь с «пуш»
 
-Для сценария **`пуш`** (CI + commit + push) шаг commit выполняется с тем же принципом: **полное дерево как есть**, без правок файлов «в процессе коммита», пока пользователь явно не ограничил файлы. Детали CI и барьера перед push — в `.cursor/rules/push-means-ci-commit-push.mdc` и `.cursor/rules/pre-push-ci.mdc`.
+Для сценария **`пуш`** (validation + commit + push) шаг commit выполняется с тем же принципом: **полное дерево как есть**, без правок файлов «в процессе коммита», пока пользователь явно не ограничил файлы. Детали validation/full-CI gate — в `.cursor/rules/push-means-ci-commit-push.mdc`, `.cursor/rules/test-execution-policy.md` и `.cursor/rules/pre-push-ci.mdc`.

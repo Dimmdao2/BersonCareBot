@@ -19,10 +19,15 @@ export function createDoctorSupportMessagingService(
   opts?: DoctorSupportMessagingServiceOpts,
 ) {
   return {
-    listOpenConversations(params: { limit?: number; unreadOnly?: boolean }): Promise<AdminConversationListRow[]> {
+    listOpenConversations(params: {
+      limit?: number;
+      unreadOnly?: boolean;
+      organizationId?: string;
+    }): Promise<AdminConversationListRow[]> {
       return port.listOpenConversationsForAdmin({
         limit: params.limit ?? 50,
         unreadOnly: params.unreadOnly === true,
+        organizationId: params.organizationId,
       });
     },
 
@@ -106,8 +111,8 @@ export function createDoctorSupportMessagingService(
       return port.markUserMessagesReadByAdmin(conversationId);
     },
 
-    unreadFromUsers(): Promise<number> {
-      return port.countUnreadUserMessagesForAdmin();
+    unreadFromUsers(params?: { organizationId?: string }): Promise<number> {
+      return port.countUnreadUserMessagesForAdmin(params);
     },
 
     unreadFromPatient(platformUserId: string): Promise<number> {

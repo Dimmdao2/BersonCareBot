@@ -3,6 +3,7 @@
  */
 import { getPool } from "@/infra/db/client";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import type { WebPushSubscriptionPayloadV1, WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import type { PoolClient } from "pg";
 
@@ -32,10 +33,8 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
   return {
     async saveSubscription(userId, subscription, options?: { userAgent?: string | null }) {
       const pool = getPool();
-      const client = await pool.connect();
       const ua = options?.userAgent?.trim() || null;
-      try {
-        await client.query("BEGIN");
+      await withPoolTransaction(pool, async (client) => {
         await txPgText(
           client,
           `INSERT INTO user_web_push_subscriptions (user_id, endpoint, p256dh, auth, user_agent, updated_at)
@@ -60,13 +59,7 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
              )`,
           [userId, MAX_SUBSCRIPTIONS_PER_USER],
         );
-        await client.query("COMMIT");
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async removeSubscriptionByEndpoint(userId, endpoint) {

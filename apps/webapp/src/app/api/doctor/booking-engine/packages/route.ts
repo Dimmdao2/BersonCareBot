@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
 
 const itemSchema = z.object({
@@ -43,9 +44,12 @@ export async function POST(request: Request) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
   }
-  const pkg = await deps.memberships.upsertCatalogPackage({
-    organizationId: gate.ctx.organizationId,
-    ...parsed.data,
-  });
+  const memberships = deps.memberships;
+  const pkg = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.packages.upsert", () =>
+    memberships.upsertCatalogPackage({
+      organizationId: gate.ctx.organizationId,
+      ...parsed.data,
+    }),
+  );
   return NextResponse.json({ ok: true, package: pkg });
 }

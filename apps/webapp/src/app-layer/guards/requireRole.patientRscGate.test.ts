@@ -4,7 +4,7 @@ import type { AppSession } from "@/shared/types/session";
 const patientClientBusinessGateMock = vi.hoisted(() => vi.fn());
 const redirectMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/platform-access", () => ({
+vi.mock("@/app-layer/platform-access", () => ({
   patientClientBusinessGate: patientClientBusinessGateMock,
 }));
 

@@ -23,6 +23,7 @@ export async function GET() {
       id: b.id,
       title: b.title,
       shortTitle: b.shortTitle,
+      color: b.color,
       cityCode: b.cityCode,
       address: b.address,
       timezone: b.timezone,

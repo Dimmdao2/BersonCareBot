@@ -3,6 +3,7 @@
 - **Инструкции для AI-агентов (онбординг, правила):** [`../AGENTS.md`](../AGENTS.md) — сводка `.cursor/rules/`; канон scoped-правил — `.cursor/rules/*.mdc`.
 - **Продукт (суть и возможности для пациента и специалиста):** [`PRODUCT_OVERVIEW.md`](PRODUCT_OVERVIEW.md) — канонический обзор без детализации экранов.
 - **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md) — сводка **активных Cursor-планов** и ссылка на архив в начале файла.
+- **SaaS Foundation / T0 tenant-context cutover:** [`_TODO/SAAS_FOUNDATION/README.md`](_TODO/SAAS_FOUNDATION/README.md) — Phase 0/R1 закрыта; текущий next = [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md).
 - **Очередь workqueue (врач / пациент / CMS, фазы 0–7):** [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md) — **закрыта** 2026-06-02; план [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md). Активные хвосты — [`TODO.md`](TODO.md) (diary, D5, proactive этап 8).
 - **Отложенные работы (не сейчас):** [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md) — черновики и ТЗ без активного исполнения (карточка + ссылка на `.cursor/plans`).
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)
@@ -19,6 +20,7 @@
 - [`ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) — **локальный dev, dev-bypass, режимы `pnpm dev` / turbo / visual, живое UI-тестирование для агентов**.
 - [`ARCHITECTURE/SERVER CONVENTIONS.md`](ARCHITECTURE/SERVER%20CONVENTIONS.md) — среда выполнения, пути, сервисы (источник фактов для деплоя).
 - [`RULES/README.md`](RULES/README.md) — **правила исполнения и операционные каноны** (программы лечения, напоминания/Drizzle, журналы выката).
+- [`RULES/SAAS_FOUNDATION_AWARE_DEVELOPMENT.md`](RULES/SAAS_FOUNDATION_AWARE_DEVELOPMENT.md) — **обязательное правило для новых разработок и изменений БД/кода**: учитывать `SAAS_FOUNDATION`, не добавлять unscoped данные по умолчанию, явно выбирать ownership path (`organization_id` / `specialist_id` / scoped parent / global catalog).
 - [`RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`](RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md) — журнал выката **`bersoncarebot-scheduler-prod`** (`schedule.tick` / напоминания) и связанных правок репозитория.
 - [`ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) — единая PostgreSQL (`public` / `integrator`), прямой SQL vs очередь.
 - **Integrator Drizzle (закрыта 2026-06-06):** [`INTEGRATOR_DRIZZLE_MIGRATION/README.md`](INTEGRATOR_DRIZZLE_MIGRATION/README.md) · [инвентаризация сырого SQL](INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) · [журнал](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) · [архив phase-планов](archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md); мастер-план — [`.cursor/plans/archive/integrator_drizzle_migration_master.plan.md`](../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md).
@@ -70,6 +72,7 @@
 - **Reminders / settings — процесс Drizzle:** [`RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md`](RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md).
 - **Онлайн-консультации (реабилитация/нутрициология):** [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) — черновик ТЗ, в scope own-booking.
 - **Операционный backlog:** [`TODO.md`](TODO.md) · хвосты продукта [`BACKLOG_TAILS.md`](BACKLOG_TAILS.md) · отложенное [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md).
+- **ФИО / identity cleanup:** [`FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`](FIO_IDENTITY_CLEANUP_INITIATIVE/README.md) — структурирование фамилии/имени/отчества, Rubitime-first backfill, уход от `display_name` как источника истины, шаблоны lifecycle-уведомлений.
 
 ### Закрытые инициативы (справочник, код в main)
 

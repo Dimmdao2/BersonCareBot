@@ -58,6 +58,7 @@ export type BookingCatalogWritePort = {
     title: string;
     description: string | null;
     durationMinutes: number;
+    breakAfterMinutes: number;
     priceMinor: number;
     isActive: boolean;
     sortOrder: number;
@@ -108,6 +109,7 @@ export type BookingCatalogAdminPort = {
       title?: string;
       description?: string | null;
       durationMinutes?: number;
+      breakAfterMinutes?: number;
       priceMinor?: number;
       isActive?: boolean;
       sortOrder?: number;

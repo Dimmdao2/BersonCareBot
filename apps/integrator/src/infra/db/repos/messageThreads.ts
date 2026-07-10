@@ -1,6 +1,7 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { sql } from 'drizzle-orm';
 import { runIntegratorSql } from '../runIntegratorSql.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 
 export type ActiveDraftRow = {
   id: string;
@@ -100,10 +101,28 @@ export async function upsertDraftByIdentity(
     state?: string;
   },
 ): Promise<void> {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
   await runIntegratorSql(db, sql`
-    WITH target_identity AS (
-      SELECT i.id
+    WITH active_user_orgs AS (
+      SELECT platform_user_id, organization_id
+      FROM public.org_enrollments
+      WHERE status = 'active'
+      UNION
+      SELECT platform_user_id, organization_id
+      FROM public.be_organization_members
+      WHERE status = 'active'
+    ),
+    target_identity AS (
+      SELECT i.id, org.organization_id
       FROM identities i
+      LEFT JOIN public.platform_users pu
+        ON pu.integrator_user_id = i.user_id
+      LEFT JOIN LATERAL (
+        SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1] AS organization_id
+        FROM active_user_orgs
+        WHERE active_user_orgs.platform_user_id = pu.id
+        HAVING count(DISTINCT active_user_orgs.organization_id) = 1
+      ) org ON true
       WHERE i.resource = ${input.resource}
         AND i.external_id = ${input.externalId}
       LIMIT 1
@@ -111,6 +130,7 @@ export async function upsertDraftByIdentity(
     INSERT INTO message_drafts (
       id,
       identity_id,
+      organization_id,
       source,
       external_chat_id,
       external_message_id,
@@ -122,6 +142,7 @@ export async function upsertDraftByIdentity(
     SELECT
       ${input.id},
       ti.id,
+      COALESCE(${currentOrganizationId}::uuid, ti.organization_id),
       ${input.source},
       ${input.externalChatId ?? null},
       ${input.externalMessageId ?? null},
@@ -136,6 +157,7 @@ export async function upsertDraftByIdentity(
       external_message_id = EXCLUDED.external_message_id,
       draft_text_current = EXCLUDED.draft_text_current,
       state = EXCLUDED.state,
+      organization_id = COALESCE(EXCLUDED.organization_id, message_drafts.organization_id),
       updated_at = now()
   `);
 }
@@ -167,10 +189,28 @@ export async function insertConversation(
     lastMessageAt: string;
   },
 ): Promise<void> {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
   await runIntegratorSql(db, sql`
-    WITH target_identity AS (
-      SELECT i.id
+    WITH active_user_orgs AS (
+      SELECT platform_user_id, organization_id
+      FROM public.org_enrollments
+      WHERE status = 'active'
+      UNION
+      SELECT platform_user_id, organization_id
+      FROM public.be_organization_members
+      WHERE status = 'active'
+    ),
+    target_identity AS (
+      SELECT i.id, org.organization_id
       FROM identities i
+      LEFT JOIN public.platform_users pu
+        ON pu.integrator_user_id = i.user_id
+      LEFT JOIN LATERAL (
+        SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1] AS organization_id
+        FROM active_user_orgs
+        WHERE active_user_orgs.platform_user_id = pu.id
+        HAVING count(DISTINCT active_user_orgs.organization_id) = 1
+      ) org ON true
       WHERE i.resource = ${input.resource}
         AND i.external_id = ${input.externalId}
       LIMIT 1
@@ -179,6 +219,7 @@ export async function insertConversation(
       id,
       source,
       user_identity_id,
+      organization_id,
       admin_scope,
       status,
       opened_at,
@@ -188,6 +229,7 @@ export async function insertConversation(
       ${input.id},
       ${input.source},
       ti.id,
+      COALESCE(${currentOrganizationId}::uuid, ti.organization_id),
       ${input.adminScope},
       ${input.status},
       ${input.openedAt}::timestamptz,
@@ -213,6 +255,7 @@ export async function insertConversationMessage(
     INSERT INTO conversation_messages (
       id,
       conversation_id,
+      organization_id,
       sender_role,
       text,
       source,
@@ -223,6 +266,7 @@ export async function insertConversationMessage(
     VALUES (
       ${input.id},
       ${input.conversationId},
+      (SELECT organization_id FROM conversations WHERE id = ${input.conversationId} LIMIT 1),
       ${input.senderRole},
       ${input.text},
       ${input.source},
@@ -521,16 +565,43 @@ export async function insertUserQuestion(
     createdAt: string;
   },
 ): Promise<void> {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
   await runIntegratorSql(db, sql`
-    INSERT INTO user_questions (id, user_identity_id, conversation_id, telegram_message_id, text, created_at)
-    VALUES (
+    WITH active_user_orgs AS (
+      SELECT platform_user_id, organization_id
+      FROM public.org_enrollments
+      WHERE status = 'active'
+      UNION
+      SELECT platform_user_id, organization_id
+      FROM public.be_organization_members
+      WHERE status = 'active'
+    ),
+    target_identity AS (
+      SELECT i.id, org.organization_id
+      FROM identities i
+      LEFT JOIN public.platform_users pu
+        ON pu.integrator_user_id = i.user_id
+      LEFT JOIN LATERAL (
+        SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1] AS organization_id
+        FROM active_user_orgs
+        WHERE active_user_orgs.platform_user_id = pu.id
+        HAVING count(DISTINCT active_user_orgs.organization_id) = 1
+      ) org ON true
+      WHERE i.id = ${input.userIdentityId}::bigint
+      LIMIT 1
+    )
+    INSERT INTO user_questions (id, user_identity_id, conversation_id, organization_id, telegram_message_id, text, created_at)
+    SELECT
       ${input.id},
-      ${input.userIdentityId}::bigint,
+      ti.id,
       ${input.conversationId},
+      COALESCE(${currentOrganizationId}::uuid, parent.organization_id, ti.organization_id),
       ${input.telegramMessageId ?? null},
       ${input.text},
       ${input.createdAt}::timestamptz
-    )
+    FROM target_identity ti
+    LEFT JOIN conversations parent
+      ON parent.id = ${input.conversationId}
   `);
 }
 
@@ -545,8 +616,15 @@ export async function insertQuestionMessage(
   },
 ): Promise<void> {
   await runIntegratorSql(db, sql`
-    INSERT INTO question_messages (id, question_id, sender_type, message_text, created_at)
-    VALUES (${input.id}, ${input.questionId}, ${input.senderType}, ${input.messageText}, ${input.createdAt}::timestamptz)
+    INSERT INTO question_messages (id, question_id, organization_id, sender_type, message_text, created_at)
+    VALUES (
+      ${input.id},
+      ${input.questionId},
+      (SELECT organization_id FROM user_questions WHERE id = ${input.questionId} LIMIT 1),
+      ${input.senderType},
+      ${input.messageText},
+      ${input.createdAt}::timestamptz
+    )
   `);
 }
 

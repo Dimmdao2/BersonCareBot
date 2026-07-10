@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const PutSchema = z.object({
@@ -57,12 +58,16 @@ export async function PUT(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
+  const bookingScheduling = deps.bookingScheduling;
   if (parsed.data.bufferMinutes != null) {
-    await deps.bookingScheduling.upsertBufferMinutes({
-      organizationId: gate.ctx.organizationId,
-      specialistId: parsed.data.specialistId ?? null,
-      minutes: parsed.data.bufferMinutes,
-    });
+    const bufferMinutes = parsed.data.bufferMinutes;
+    await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.scheduling-settings.buffer-minutes", () =>
+      bookingScheduling.upsertBufferMinutes({
+        organizationId: gate.ctx.organizationId,
+        specialistId: parsed.data.specialistId ?? null,
+        minutes: bufferMinutes,
+      }),
+    );
   }
   if (parsed.data.minNoticeHours != null) {
     await deps.systemSettings.updateSetting(
@@ -72,7 +77,7 @@ export async function PUT(request: Request) {
       gate.ctx.session.user.userId,
     );
   }
-  const bufferMinutes = await deps.bookingScheduling.getBufferMinutes(
+  const bufferMinutes = await bookingScheduling.getBufferMinutes(
     gate.ctx.organizationId,
     parsed.data.specialistId ?? null,
   );

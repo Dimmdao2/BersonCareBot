@@ -120,6 +120,20 @@ describe("inMemoryPatientClinical", () => {
     expect(visits[1].sections).toEqual([{ title: "Осмотр", body: "Наклон вперёд болезненный" }]);
   });
 
+  it("listVisits — visit without appointmentRecordId has package: null", async () => {
+    await inMemoryPatientClinicalPort.createVisit({
+      patientUserId: PATIENT,
+      visitType: "first",
+      visitedAt: "2026-01-05T09:00:00.000Z",
+      createdBy: DOCTOR,
+      // appointmentRecordId intentionally omitted
+    });
+
+    const visits = await inMemoryPatientClinicalPort.listVisits(PATIENT);
+    expect(visits).toHaveLength(1);
+    expect(visits[0].package).toBeNull();
+  });
+
   it("searchDiagnosisCatalog finds created entries case-insensitively", async () => {
     await inMemoryPatientClinicalPort.createDiagnosisCatalogEntry({
       label: "Тендинопатия большой ягодичной мышцы",

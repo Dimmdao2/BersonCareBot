@@ -4,6 +4,7 @@ const getSessionMock = vi.hoisted(() => vi.fn());
 const loadDoctorAnalyticsAudienceMock = vi.hoisted(() => vi.fn());
 const listMetricAccountsMock = vi.hoisted(() => vi.fn());
 const listAppointmentsForSpecialistMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
@@ -16,6 +17,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     doctorAnalyticsMetricAccounts: {
       listMetricAccounts: listMetricAccountsMock,
+    },
+    organizationMembership: {
+      resolveOrganizationForUser: resolveOrganizationForUserMock,
     },
   }),
 }));
@@ -31,6 +35,14 @@ describe("GET /api/doctor/analytics-metric-accounts", () => {
     loadDoctorAnalyticsAudienceMock.mockReset();
     listMetricAccountsMock.mockReset();
     listAppointmentsForSpecialistMock.mockReset();
+    resolveOrganizationForUserMock.mockReset();
+    resolveOrganizationForUserMock.mockResolvedValue({
+      ok: true,
+      context: {
+        organizationId: "10000000-0000-4000-8000-000000000001",
+        role: "doctor",
+      },
+    });
     loadDoctorAnalyticsAudienceMock.mockResolvedValue({
       includeTestAccounts: false,
       excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
@@ -71,6 +83,7 @@ describe("GET /api/doctor/analytics-metric-accounts", () => {
       { kind: "range", range: "today" },
       {
         excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+        organizationId: "10000000-0000-4000-8000-000000000001",
       },
     );
     expect(listMetricAccountsMock).not.toHaveBeenCalled();
@@ -86,6 +99,7 @@ describe("GET /api/doctor/analytics-metric-accounts", () => {
       { kind: "cancellations30d" },
       expect.objectContaining({
         excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+        organizationId: "10000000-0000-4000-8000-000000000001",
       }),
     );
     expect(listMetricAccountsMock).not.toHaveBeenCalled();

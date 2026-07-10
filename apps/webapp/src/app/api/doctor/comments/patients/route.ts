@@ -11,14 +11,15 @@
  */
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { loadDoctorCommentPatients } from "@/app/app/doctor/comments/loadDoctorCommentPatients";
 import { loadDoctorAllCommentPatients } from "@/app/app/doctor/comments/loadDoctorAllCommentPatients";
 
 export async function GET(request: Request) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get("mode") === "all" ? "all" : "unread";
@@ -30,24 +31,31 @@ export async function GET(request: Request) {
     : undefined;
 
   try {
-    const patients =
+    const patients = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       mode === "all"
-        ? await loadDoctorAllCommentPatients(
+        ? loadDoctorAllCommentPatients(
             {
               doctorClientsPort: deps.doctorClientsPort,
               programItemDiscussion: deps.programItemDiscussion,
             },
-            { viewerUserId: auth.session.user.userId },
+            {
+              viewerUserId: gate.ctx.session.user.userId,
+              organizationId: gate.ctx.organizationId,
+            },
             { excludedUserIds },
           )
-        : await loadDoctorCommentPatients(
+        : loadDoctorCommentPatients(
             {
               doctorClientsPort: deps.doctorClientsPort,
               programItemDiscussion: deps.programItemDiscussion,
             },
-            { viewerUserId: auth.session.user.userId },
+            {
+              viewerUserId: gate.ctx.session.user.userId,
+              organizationId: gate.ctx.organizationId,
+            },
             { excludedUserIds },
-          );
+          ),
+    );
 
     return NextResponse.json({ ok: true, patients });
   } catch (e) {

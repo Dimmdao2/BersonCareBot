@@ -161,6 +161,10 @@ import {
   createPgEmailPasswordLookupPort,
   inMemoryEmailPasswordLookupPort,
 } from "@/infra/repos/pgEmailPasswordLookup";
+import {
+  createPgEmailOtpPublicPort,
+  inMemoryEmailOtpPublicPort,
+} from "@/infra/repos/pgEmailOtpPublic";
 import { createEmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
 import { createNoopEmailSetupAccessPort } from "@/modules/auth/emailSetupAccess/noopPort";
 import { createPgEmailSetupAccessPort } from "@/infra/repos/pgEmailSetupAccessPort";
@@ -191,6 +195,7 @@ import { pgOperatorHealthAlertSentPort } from "@/infra/repos/pgOperatorHealthAle
 import { inMemoryOperatorHealthAlertSentPort } from "@/infra/repos/inMemoryOperatorHealthAlertSent";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
 import { createSendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
+import { resolveProgramNoteReplyContext } from "@/app-layer/messaging/programNoteReplyContext";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
@@ -225,6 +230,7 @@ import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemor
 import { createPgSystemSettingsPort } from "@/infra/repos/pgSystemSettings";
 import { inMemorySystemSettingsPort } from "@/infra/repos/inMemorySystemSettings";
 import { createSystemSettingsService } from "@/modules/system-settings/service";
+import { createNotifTemplatesService } from "@/modules/notif-templates/notifTemplatesService";
 import { createLfkExercisesService } from "@/modules/lfk-exercises/service";
 import { pgLfkExercisesPort } from "@/infra/repos/pgLfkExercises";
 import { inMemoryLfkExercisesPort } from "@/infra/repos/inMemoryLfkExercises";
@@ -300,6 +306,10 @@ import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
 import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
+import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
+import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemoryOrganizationMembership";
+import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
+import { createDoctorWorkspaceDirectoryService } from "@/modules/doctor-workspace/service";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import {
   createPgBookingRubitimeBridgePort,
@@ -412,6 +422,9 @@ const userPasswordCredentialsPort = !inMemoryRepos
 const emailPasswordLookupPort = !inMemoryRepos
   ? createPgEmailPasswordLookupPort()
   : inMemoryEmailPasswordLookupPort;
+const emailOtpPublicDbPort = !inMemoryRepos
+  ? createPgEmailOtpPublicPort()
+  : inMemoryEmailOtpPublicPort;
 const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
 const loginTokensPort = !inMemoryRepos ? pgLoginTokensPort : inMemoryLoginTokensPort;
 const identityResolutionPort = !inMemoryRepos ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
@@ -463,6 +476,15 @@ const appointmentProjectionPort = !inMemoryRepos
 const patientBookingsPort = !inMemoryRepos
   ? pgPatientBookingsPort
   : inMemoryPatientBookingsPort;
+const organizationMembershipPort = !inMemoryRepos
+  ? createPgOrganizationMembershipPort()
+  : createInMemoryOrganizationMembershipPort();
+const organizationMembershipService = createOrganizationMembershipService({
+  membershipPort: organizationMembershipPort,
+});
+const doctorWorkspaceDirectoryService = createDoctorWorkspaceDirectoryService({
+  membershipPort: organizationMembershipPort,
+});
 const bookingCatalogPort = !inMemoryRepos ? createPgBookingCatalogPort() : null;
 const bookingCatalogService = bookingCatalogPort
   ? createBookingCatalogService(bookingCatalogPort)
@@ -598,6 +620,7 @@ const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPor
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const notifTemplatesService = createNotifTemplatesService(systemSettingsService);
 const resolveDoctorAppointmentsReadSource = async () => {
   if (inMemoryRepos) return "rubitime_legacy" as const;
   const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
@@ -715,6 +738,7 @@ const paymentsService =
             title: svc.title,
             description: svc.description,
             durationMinutes: svc.durationMinutes,
+            bufferAfterMinutes: svc.bufferAfterMinutes,
             priceMinor: svc.priceMinor,
             isActive: svc.isActive,
             prepaymentApplicable: applicable,
@@ -1038,6 +1062,7 @@ const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
 const sendProgramNoteReply = createSendProgramNoteReply({
   supportCommunication: supportCommunicationPort,
   discussion: programItemDiscussionService,
+  resolveProgramNoteReplyContext,
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
 
@@ -1555,11 +1580,13 @@ function _buildAppDeps() {
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,
     emailPasswordLookup: emailPasswordLookupPort,
+    emailOtpPublicDb: emailOtpPublicDbPort,
     emailSetupAccess: emailSetupAccessService,
     emailSetupFlow: emailSetupFlowService,
     oauthBindings: oauthBindingsPort,
     loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,
+    notifTemplates: notifTemplatesService,
     lfkExercises: lfkExercisesService,
     clinicalTests: clinicalTestsService,
     measureKinds: clinicalTestMeasureKindsService,
@@ -1576,6 +1603,8 @@ function _buildAppDeps() {
     patientPractice: patientPracticeService,
     patientDailyWarmupPresentation: patientDailyWarmupPresentationPort,
     patientDailyWarmupVideoViews: patientDailyWarmupVideoViewsPort,
+    organizationMembership: organizationMembershipService,
+    doctorWorkspace: doctorWorkspaceDirectoryService,
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,
     warmupFeelingCompletion: warmupFeelingCompletionPort,

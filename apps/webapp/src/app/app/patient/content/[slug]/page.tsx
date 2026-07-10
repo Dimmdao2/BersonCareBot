@@ -9,7 +9,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { listDailyWarmupPagesForHome, type DailyWarmupListEntry } from "@/modules/patient-home/todayConfig";
 import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { resolvePatientCanViewContent } from "@/modules/platform-access";
+import { resolvePatientCanViewContent } from "@/app-layer/platform-access";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PatientBackToSectionShellRow } from "@/shared/ui/patient/PatientBackToSectionShellRow";
 import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";

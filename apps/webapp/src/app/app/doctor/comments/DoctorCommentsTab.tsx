@@ -13,9 +13,7 @@ import type {
   PatientExercisesWithCommentsResult,
   ExerciseCommentStageGroup,
   ExerciseCommentItem,
-  ExerciseCommentThumbMedia,
 } from "./loadDoctorPatientExercisesWithComments";
-import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -32,6 +30,8 @@ import {
   ExerciseExecutionGraph,
   type DayBar,
 } from "@/shared/ui/doctor/ExerciseExecutionGraph";
+import { ExerciseCommentPreviewItemContent } from "./ExerciseCommentPreviewItem";
+import { thumbToExerciseMedia } from "./exerciseCommentThumb";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -127,22 +127,6 @@ function formatRelativeTime(isoDate: string | null): string {
   return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" }) + " · " + time;
 }
 
-/** Маппинг первого медиа снимка упражнения в `ExerciseMedia` для канон-миниатюры. */
-function thumbToExerciseMedia(thumb: ExerciseCommentThumbMedia | null): ExerciseMedia | null {
-  if (!thumb) return null;
-  return {
-    id: thumb.url,
-    exerciseId: "",
-    mediaUrl: thumb.url,
-    mediaType: thumb.mediaType,
-    sortOrder: thumb.sortOrder,
-    createdAt: "",
-    previewSmUrl: thumb.previewSmUrl,
-    previewMdUrl: thumb.previewMdUrl,
-    previewStatus: thumb.previewStatus ?? undefined,
-  };
-}
-
 // ── Left pane: patient row ───────────────────────────────────────────────────
 
 function PatientRow({
@@ -156,8 +140,9 @@ function PatientRow({
 }) {
   const hasUnread = patient.unreadCount > 0;
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={onClick}
       className={cn(
         "flex w-full cursor-pointer items-center gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
@@ -182,7 +167,7 @@ function PatientRow({
           )}
         </div>
       </div>
-    </button>
+    </Button>
   );
 }
 
@@ -198,8 +183,9 @@ function ExerciseRow({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={onClick}
       className={cn(
         "flex w-full cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2 text-left transition-colors",
@@ -228,7 +214,7 @@ function ExerciseRow({
           <span className="text-xs text-muted-foreground">{item.totalComments}</span>
         )}
       </div>
-    </button>
+    </Button>
   );
 }
 
@@ -264,8 +250,9 @@ function StageGroup({
 
   return (
     <div className="border-b border-border last:border-b-0">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setCollapsed((c) => !c)}
         className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-muted/30 transition-colors"
       >
@@ -280,7 +267,7 @@ function StageGroup({
         {group.isActive && (
           <span className="text-[10px] text-primary font-medium">активный</span>
         )}
-      </button>
+      </Button>
       {!collapsed && (
         <div>
           {orderedExercises.map((ex) => (
@@ -424,13 +411,15 @@ function ThreadMessage({
               </div>
             </div>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="sm"
               onClick={() => setReplyOpen(true)}
-              className={cn(doctorInlineLinkClass, "text-xs")}
+              className={cn(doctorInlineLinkClass, "text-xs h-auto p-0")}
             >
               Ответить
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -948,11 +937,13 @@ export function DoctorCommentsTab({
         />
         <div className="flex flex-wrap gap-1.5">
           {/* ── View mode toggle: Непрочитанные / Все ── */}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => handleSwitchViewMode("unread")}
             className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
               viewMode === "unread"
                 ? "bg-primary/15 text-primary"
                 : "border border-border text-muted-foreground hover:bg-muted/40",
@@ -960,12 +951,14 @@ export function DoctorCommentsTab({
             aria-pressed={viewMode === "unread"}
           >
             Непрочитанные
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => handleSwitchViewMode("all")}
             className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
               viewMode === "all"
                 ? "bg-primary/15 text-primary"
                 : "border border-border text-muted-foreground hover:bg-muted/40",
@@ -973,7 +966,7 @@ export function DoctorCommentsTab({
             aria-pressed={viewMode === "all"}
           >
             Все
-          </button>
+          </Button>
           {/* ★ На сопровождении — пассивный бейдж (маркер, не фильтр) */}
           <span className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground">
             ★ На сопровождении · {activePatients.filter((p) => p.isOnSupport).length}
@@ -1048,9 +1041,10 @@ export function DoctorCommentsTab({
         ) : (
           <div className="flex flex-1 flex-col overflow-y-auto">
             {filteredFeed.map((item) => (
-              <button
+              <Button
                 key={item.stageItemId}
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   const patient = activePatients.find((p) => p.patientUserId === item.patientUserId);
                   if (patient) {
@@ -1058,27 +1052,13 @@ export function DoctorCommentsTab({
                     handleSelectPatient(patient);
                   }
                 }}
-                className="flex w-full cursor-pointer flex-col gap-0.5 border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
+                className="w-full cursor-pointer border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
               >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-semibold truncate">
-                    {item.patientDisplayName}
-                    {/* ★ маркер: пациент на сопровождении (ищем в activePatients) */}
-                    {activePatients.find((p) => p.patientUserId === item.patientUserId)?.isOnSupport && (
-                      <span className="ml-1.5 text-[10px] font-semibold text-primary" title="На сопровождении">★</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.latestMessageAtLabel}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {item.stageItemTitle}
-                </div>
-                <div className="truncate text-xs text-foreground/80">
-                  «{(item.latestMessage.body ?? "").slice(0, 120)}»
-                </div>
-              </button>
+                <ExerciseCommentPreviewItemContent
+                  item={item}
+                  isOnSupport={activePatients.find((p) => p.patientUserId === item.patientUserId)?.isOnSupport}
+                />
+              </Button>
             ))}
 
             {serverLoading && (
@@ -1137,14 +1117,16 @@ export function DoctorCommentsTab({
                 </p>
               )}
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={handleDeselectPatient}
-              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors text-sm leading-none"
+              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors text-sm leading-none h-auto"
               aria-label="Сбросить выбор пациента"
             >
               ×
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1248,13 +1230,15 @@ export function DoctorCommentsTab({
                 </div>
               )}
             </div>
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="sm"
               onClick={handleCloseThread}
-              className={cn(doctorInlineLinkClass, "shrink-0 text-xs")}
+              className={cn(doctorInlineLinkClass, "shrink-0 text-xs h-auto p-0")}
             >
               Закрыть
-            </button>
+            </Button>
           </div>
         </div>
 

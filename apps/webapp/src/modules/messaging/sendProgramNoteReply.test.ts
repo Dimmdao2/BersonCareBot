@@ -4,19 +4,16 @@ import type { ProgramItemDiscussionService } from "@/modules/program-item-discus
 import type { PatientInboundChatPort } from "@/modules/messaging/ports";
 
 vi.mock("@/modules/messaging/programNoteReplyContext", () => ({
-  resolveProgramNoteReplyContext: vi.fn(),
   formatPatientExerciseCommentReplyText: vi.fn(({ exerciseTitle, doctorText }: { exerciseTitle: string; doctorText: string }) =>
     `Ответ на ваш комментарий к упражнению «${exerciseTitle}»:\n\n${doctorText}`,
   ),
 }));
 
-import { resolveProgramNoteReplyContext } from "@/modules/messaging/programNoteReplyContext";
-
 describe("createSendProgramNoteReply", () => {
   it("writes support message and discussion row", async () => {
     const platformUserId = "00000000-0000-4000-8000-000000000001";
     const stageItemId = "00000000-0000-4000-8000-000000000002";
-    vi.mocked(resolveProgramNoteReplyContext).mockResolvedValue({
+    const resolveProgramNoteReplyContext = vi.fn().mockResolvedValue({
       platformUserId,
       stageItemId,
       exerciseTitle: "Присед",
@@ -38,6 +35,7 @@ describe("createSendProgramNoteReply", () => {
       discussion: {
         appendDoctorReplyForProgramNote,
       } as unknown as ProgramItemDiscussionService,
+      resolveProgramNoteReplyContext,
       notifyPatientOfDoctorReply,
     });
 
@@ -75,7 +73,7 @@ describe("createSendProgramNoteReply", () => {
   it("passes integratorMessageId to support append for idempotent dedup (P19)", async () => {
     const platformUserId = "00000000-0000-4000-8000-000000000001";
     const stageItemId = "00000000-0000-4000-8000-000000000002";
-    vi.mocked(resolveProgramNoteReplyContext).mockResolvedValue({
+    const resolveProgramNoteReplyContext = vi.fn().mockResolvedValue({
       platformUserId,
       stageItemId,
       exerciseTitle: "Присед",
@@ -94,6 +92,7 @@ describe("createSendProgramNoteReply", () => {
       discussion: {
         appendDoctorReplyForProgramNote: vi.fn().mockResolvedValue({ id: "discussion-dup" }),
       } as unknown as ProgramItemDiscussionService,
+      resolveProgramNoteReplyContext,
       notifyPatientOfDoctorReply,
     });
 
@@ -112,7 +111,7 @@ describe("createSendProgramNoteReply", () => {
 
   it("returns mismatch when stage item belongs another patient", async () => {
     const stageItemId = "00000000-0000-4000-8000-000000000002";
-    vi.mocked(resolveProgramNoteReplyContext).mockResolvedValue({
+    const resolveProgramNoteReplyContext = vi.fn().mockResolvedValue({
       platformUserId: "00000000-0000-4000-8000-000000000009",
       stageItemId,
       exerciseTitle: "Присед",
@@ -125,6 +124,7 @@ describe("createSendProgramNoteReply", () => {
     const sendProgramNoteReply = createSendProgramNoteReply({
       supportCommunication: {} as PatientInboundChatPort,
       discussion: {} as ProgramItemDiscussionService,
+      resolveProgramNoteReplyContext,
     });
 
     const result = await sendProgramNoteReply({

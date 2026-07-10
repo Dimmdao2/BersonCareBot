@@ -10,6 +10,7 @@ import {
   PATIENT_HOME_MOOD_SCORE_ICONS,
 } from "./patientHomeMoodScaleVisual";
 import { cn } from "@/lib/utils";
+import { Button } from "@/shared/ui/patient/primitives/button";
 
 type Props = {
   moodOptions: readonly PatientHomeMoodIconOption[];
@@ -50,8 +51,9 @@ export function PatientHomeMoodScoreRow({
         const MoodIcon = PATIENT_HOME_MOOD_SCORE_ICONS[option.score];
         return (
           <div key={option.score} className="flex min-w-0 flex-col items-center">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               aria-label={`Самочувствие ${option.score} из 5: ${option.label}`}
               aria-pressed={active}
               disabled={buttonDisabled}
@@ -77,7 +79,7 @@ export function PatientHomeMoodScoreRow({
                   />
                 }
               />
-            </button>
+            </Button>
           </div>
         );
       })}

@@ -1,111 +1,36 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Pool } from "pg";
-/**
- * Wave 3 phase 11 — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
- * (platform-merge + channel claim). Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
- */
-import {
-  classifyMergeFailure,
-  mergePlatformUsersInTransaction,
-} from "@bersoncare/platform-merge";
-import { getPool } from "@/infra/db/client";
-import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import {
-  upsertOpenConflictLog,
-  computeChannelLinkOwnershipConflictKey,
-} from "@/infra/adminAuditLog";
 import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
 import { notifyChannelLinkOwnershipConflictRelay } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
-import {
-  classifyChannelBindingOwnerForLink,
-  claimMessengerChannelBindingInTransaction,
-  ChannelLinkClaimRejectedError,
-} from "@/infra/repos/pgChannelLinkClaim";
-import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
+import type { ChannelLinkConflictContext, ChannelLinkDbPort } from "@/modules/auth/channelLinkPort";
 
 const SECRET_TTL_MIN = 10;
 
-/** Structured context for channel-link takeover attempts (never overwrite existing binding). */
-export type ChannelLinkConflictContext = {
-  channelCode: string;
-  externalId: string;
-  tokenUserId: string;
-  existingUserId: string;
-};
+let channelLinkDbPort: ChannelLinkDbPort | undefined;
+
+export function bindChannelLinkDbPort(port: ChannelLinkDbPort): void {
+  channelLinkDbPort = port;
+}
+
+function requireChannelLinkDbPort(): ChannelLinkDbPort {
+  if (!channelLinkDbPort) {
+    throw new Error("ChannelLinkDbPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.");
+  }
+  return channelLinkDbPort;
+}
 
 async function recordChannelLinkOwnershipConflict(
-  pool: Pool,
   ctx: ChannelLinkConflictContext,
   options: { classifiedReason: string; stubClassificationReason?: string },
 ): Promise<void> {
   reportChannelLinkBindingConflict(ctx);
-  const sorted = [ctx.tokenUserId, ctx.existingUserId].map((x) => x.trim()).filter(Boolean).sort();
-  const conflictKey = computeChannelLinkOwnershipConflictKey(
-    ctx.channelCode,
-    ctx.externalId,
-    ctx.tokenUserId,
-    ctx.existingUserId,
-  );
-  const up = await upsertOpenConflictLog(pool, {
-    actorId: null,
-    action: "channel_link_ownership_conflict",
-    conflictKey,
-    candidateIds: sorted,
-    targetId: ctx.tokenUserId,
-    details: {
-      source: "channel_link",
-      classifiedReason: options.classifiedReason,
-      ...(options.stubClassificationReason
-        ? { stubClassificationReason: options.stubClassificationReason }
-        : {}),
-      channelCode: ctx.channelCode,
-      externalId: ctx.externalId,
-    },
-    status: "error",
-  });
+  const up = await requireChannelLinkDbPort().recordOwnershipConflict(ctx, options);
   await notifyChannelLinkOwnershipConflictRelay(up, {
     ...ctx,
     classifiedReason: options.classifiedReason,
   });
-}
-
-async function tryMergeChannelLinkOwners(
-  pool: Pool,
-  params: {
-    tokenUserId: string;
-    existingUserId: string;
-    secretRowId: string;
-  },
-): Promise<{ ok: true } | { ok: false; reason: string; candidateIds: string[] }> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
-    await runWebappPgText(
-      `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
-      [params.secretRowId],
-      getWebappSqlFromPgClient(client),
-    );
-    await client.query("COMMIT");
-    return { ok: true };
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    const classified = classifyMergeFailure(err, [params.tokenUserId, params.existingUserId]);
-    return {
-      ok: false,
-      reason: classified.code,
-      candidateIds:
-        classified.candidateIds.length > 0
-          ? classified.candidateIds
-          : [params.tokenUserId, params.existingUserId],
-    };
-  } finally {
-    client.release();
-  }
 }
 
 /**
@@ -130,20 +55,11 @@ function hashToken(token: string): string {
 async function platformPhoneBindingInfo(
   userId: string
 ): Promise<{ needsPhone: boolean; phoneNormalized?: string }> {
-  const pool = getPool();
-  const canonical = await resolveCanonicalUserId(pool, userId);
-  const res = await runWebappPgText<{ phone_normalized: string | null }>(
-    `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid`,
-    [canonical],
-  );
-  const p = res.rows[0]?.phone_normalized;
-  const phoneNormalized = typeof p === "string" && p.trim().length > 0 ? p.trim() : undefined;
-  return { needsPhone: phoneNormalized === undefined, phoneNormalized };
+  return requireChannelLinkDbPort().loadPlatformPhoneBindingInfo(userId);
 }
 
 /** Canonical platform user has no non-empty phone — мессенджер должен запросить контакт. */
-export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string): Promise<boolean> {
-  void pool;
+export async function platformUserNeedsPhoneBinding(userId: string): Promise<boolean> {
   const { needsPhone } = await platformPhoneBindingInfo(userId);
   return needsPhone;
 }
@@ -203,15 +119,12 @@ export async function startChannelLink(params: {
   }
 
   try {
-    await runWebappPgText("DELETE FROM channel_link_secrets WHERE user_id = $1 AND channel_code = $2", [
-      params.userId,
-      params.channelCode,
-    ]);
-    await runWebappPgText(
-      `INSERT INTO channel_link_secrets (user_id, channel_code, token_hash, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [params.userId, params.channelCode, hashToken(startPayload), expiresAt.toISOString()]
-    );
+    await requireChannelLinkDbPort().replaceChannelLinkSecret({
+      userId: params.userId,
+      channelCode: params.channelCode,
+      tokenHash: hashToken(startPayload),
+      expiresAtIso: expiresAt.toISOString(),
+    });
     const result = buildResult();
     return { ok: true, ...result, expiresAtIso: expiresAt.toISOString() };
   } catch {
@@ -234,49 +147,41 @@ export async function completeChannelLinkFromIntegrator(params: {
     return { ok: false, code: "database_unavailable" };
   }
 
-  const pool = getPool();
+  const db = requireChannelLinkDbPort();
   const h = hashToken(trimmed);
-  const row = await runWebappPgText<{
-    id: string;
-    user_id: string;
-    expires_at: string;
-    used_at: string | null;
-  }>(
-    `SELECT id, user_id, expires_at, used_at FROM channel_link_secrets
-     WHERE channel_code = $1 AND token_hash = $2`,
-    [params.channelCode, h]
-  );
-  if (row.rows.length === 0) {
+  const r = await db.loadChannelLinkSecretByTokenHash({
+    channelCode: params.channelCode,
+    tokenHash: h,
+  });
+  if (r === null) {
     return { ok: false, code: "unknown_or_expired" };
   }
-  const r = row.rows[0];
-  if (r.used_at) {
-    const needsPhone = await platformUserNeedsPhoneBinding(pool, r.user_id);
+  if (r.usedAt) {
+    const needsPhone = await platformUserNeedsPhoneBinding(r.userId);
     return { ok: false, code: "used_token", needsPhone };
   }
-  if (new Date(r.expires_at).getTime() < Date.now()) {
+  if (new Date(r.expiresAt).getTime() < Date.now()) {
     return { ok: false, code: "unknown_or_expired" };
   }
 
-  const existing = await runWebappPgText<{ user_id: string }>(
-    `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2`,
-    [params.channelCode, params.externalId]
-  );
+  const boundUserId = await db.loadChannelBindingUserId({
+    channelCode: params.channelCode,
+    externalId: params.externalId,
+  });
 
-  if (existing.rows.length > 0) {
-    const boundUserId = existing.rows[0].user_id;
-    if (boundUserId !== r.user_id) {
+  if (boundUserId !== null) {
+    if (boundUserId !== r.userId) {
       const ctx: ChannelLinkConflictContext = {
         channelCode: params.channelCode,
         externalId: params.externalId,
-        tokenUserId: r.user_id,
+        tokenUserId: r.userId,
         existingUserId: boundUserId,
       };
 
-      const classification = await classifyChannelBindingOwnerForLink(getWebappSqlDb(), boundUserId);
+      const classification = await db.classifyChannelBindingOwnerForLink(boundUserId);
       if (classification.kind === "real") {
-        const merged = await tryMergeChannelLinkOwners(pool, {
-          tokenUserId: r.user_id,
+        const merged = await db.tryMergeChannelLinkOwners({
+          tokenUserId: r.userId,
           existingUserId: boundUserId,
           secretRowId: r.id,
         });
@@ -284,11 +189,11 @@ export async function completeChannelLinkFromIntegrator(params: {
           logger.info({
             scope: "channel_link",
             event: "channel_link_full_merge_applied",
-            tokenUserId: r.user_id,
+            tokenUserId: r.userId,
             existingUserId: boundUserId,
             channelCode: params.channelCode,
           });
-          const canonicalAfterMerge = await resolveCanonicalUserId(pool, r.user_id);
+          const canonicalAfterMerge = await db.resolveCanonicalUserId(r.userId);
           if (canonicalAfterMerge == null) {
             return { ok: false, code: "user_not_found" };
           }
@@ -300,61 +205,52 @@ export async function completeChannelLinkFromIntegrator(params: {
             ...(phoneNormalized ? { phoneNormalized } : {}),
           };
         }
-        await recordChannelLinkOwnershipConflict(pool, ctx, {
+        await recordChannelLinkOwnershipConflict(ctx, {
           classifiedReason: merged.reason,
           stubClassificationReason: classification.reason,
         });
         return { ok: false, code: "conflict", mergeReason: merged.reason };
       }
 
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        try {
-          await claimMessengerChannelBindingInTransaction(client, {
-            tokenUserId: r.user_id,
-            stubUserId: boundUserId,
-            channelCode: params.channelCode,
-            externalId: params.externalId,
-            secretRowId: r.id,
-          });
-          await client.query("COMMIT");
-        } catch (err) {
-          await client.query("ROLLBACK");
-          if (err instanceof ChannelLinkClaimRejectedError) {
-            logger.warn({
-              scope: "channel_link",
-              event: "channel_link_claim_rejected",
-              reason: err.reason,
-              channelCode: params.channelCode,
-            });
-            await recordChannelLinkOwnershipConflict(pool, ctx, {
-              classifiedReason: "channel_link_claim_rejected",
-              stubClassificationReason: err.reason,
-            });
-            return { ok: false, code: "conflict", mergeReason: "channel_link_claim_rejected" };
-          }
-          logger.error({
-            err,
+      const claim = await db.claimMessengerChannelBinding({
+        tokenUserId: r.userId,
+        stubUserId: boundUserId,
+        channelCode: params.channelCode,
+        externalId: params.externalId,
+        secretRowId: r.id,
+      });
+      if (!claim.ok) {
+        if (claim.code === "rejected") {
+          logger.warn({
             scope: "channel_link",
-            event: "channel_link_claim_tx_error",
-            tokenUserId: r.user_id,
-            stubUserId: boundUserId,
+            event: "channel_link_claim_rejected",
+            reason: claim.reason,
+            channelCode: params.channelCode,
           });
-          return { ok: false, code: "conflict", mergeReason: "channel_link_claim_failed" };
+          await recordChannelLinkOwnershipConflict(ctx, {
+            classifiedReason: "channel_link_claim_rejected",
+            stubClassificationReason: claim.reason,
+          });
+          return { ok: false, code: "conflict", mergeReason: "channel_link_claim_rejected" };
         }
-      } finally {
-        client.release();
+        logger.error({
+          err: claim.err,
+          scope: "channel_link",
+          event: "channel_link_claim_tx_error",
+          tokenUserId: r.userId,
+          stubUserId: boundUserId,
+        });
+        return { ok: false, code: "conflict", mergeReason: "channel_link_claim_failed" };
       }
 
       logger.info({
         scope: "channel_link",
         event: "channel_link_claim_applied",
-        tokenUserId: r.user_id,
+        tokenUserId: r.userId,
         stubUserId: boundUserId,
         channelCode: params.channelCode,
       });
-      const canonicalAfterClaim = await resolveCanonicalUserId(pool, r.user_id);
+      const canonicalAfterClaim = await db.resolveCanonicalUserId(r.userId);
       if (canonicalAfterClaim == null) {
         return { ok: false, code: "user_not_found" };
       }
@@ -366,29 +262,27 @@ export async function completeChannelLinkFromIntegrator(params: {
         ...(phoneNormalized ? { phoneNormalized } : {}),
       };
     }
-    await runWebappPgText("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1 AND used_at IS NULL", [
-      r.id,
-    ]);
-    const canonical = await resolveCanonicalUserId(pool, r.user_id);
+    await db.markChannelLinkSecretUsedIfUnused(r.id);
+    const canonical = await db.resolveCanonicalUserId(r.userId);
     if (canonical == null) {
       return { ok: false, code: "user_not_found" };
     }
-    const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.user_id);
+    const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.userId);
     return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
   }
 
-  await runWebappPgText(
-    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-     VALUES ($1, $2, $3)`,
-    [r.user_id, params.channelCode, params.externalId]
-  );
-  await upsertBroadcastDefaultsAfterChannelBind(pool, r.user_id, params.channelCode);
-  await runWebappPgText("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1", [r.id]);
+  await db.insertChannelBinding({
+    userId: r.userId,
+    channelCode: params.channelCode,
+    externalId: params.externalId,
+  });
+  await db.upsertBroadcastDefaultsAfterChannelBind(r.userId, params.channelCode);
+  await db.markChannelLinkSecretUsed(r.id);
 
-  const canonical = await resolveCanonicalUserId(pool, r.user_id);
+  const canonical = await db.resolveCanonicalUserId(r.userId);
   if (canonical == null) {
     return { ok: false, code: "user_not_found" };
   }
-  const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.user_id);
+  const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.userId);
   return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
 }

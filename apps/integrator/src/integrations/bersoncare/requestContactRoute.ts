@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { createDbWritePort } from '../../infra/db/writePort.js';
 import { dispatchRequestContactToUser } from './dispatchRequestContact.js';
 
@@ -41,13 +42,25 @@ export type BersoncareRequestContactDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
   db: DbPort;
+  resolveOrganizationIdForMessengerIdentity?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | null>;
+  /** T0.4 channel-binding fallback when the recipient has no per-user org context yet (see routes.ts). */
+  resolveDeploymentOrganizationId?: () => Promise<string | null>;
 };
 
 export async function registerBersoncareRequestContactRoute(
   app: FastifyInstance,
   deps: BersoncareRequestContactDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret, db } = deps;
+  const {
+    dispatchPort,
+    sharedSecret,
+    db,
+    resolveOrganizationIdForMessengerIdentity,
+    resolveDeploymentOrganizationId,
+  } = deps;
   /** In-process only; see module JSDoc. */
   const dedupMap = new Map<string, number>();
 
@@ -108,13 +121,40 @@ export async function registerBersoncareRequestContactRoute(
     const writePort = createDbWritePort({ db });
 
     try {
-      await dispatchRequestContactToUser({
+      const dispatchContact = (): Promise<void> => dispatchRequestContactToUser({
         dispatchPort,
         writePort,
         channel,
         recipientId,
         correlationId: idempotencyKey,
       });
+      let organizationId: string | null = null;
+      if (resolveOrganizationIdForMessengerIdentity) {
+        try {
+          organizationId = await resolveOrganizationIdForMessengerIdentity(recipientId, channel);
+        } catch {
+          organizationId = null;
+        }
+      }
+      if (!organizationId && resolveDeploymentOrganizationId) {
+        try {
+          organizationId = await resolveDeploymentOrganizationId();
+          if (organizationId) {
+            logger.info(
+              { channel },
+              'request-contact: no per-user org context, using deployment channel-binding fallback',
+            );
+          }
+        } catch {
+          organizationId = null;
+        }
+      }
+      if (organizationId) {
+        await runWithOrganizationPrincipal(organizationId, dispatchContact);
+      } else {
+        logger.warn({ channel }, 'request-contact: no organization resolvable for channel; dispatching without principal');
+        await dispatchContact();
+      }
       registerKey(idempotencyKey);
       logger.info({ channel }, 'request-contact: dispatched');
       return reply.code(200).send({ ok: true, status: 'accepted' });

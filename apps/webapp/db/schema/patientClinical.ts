@@ -11,6 +11,7 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { platformUsers, appointmentRecords } from "./schema";
+import { beOrganizations } from "./bookingEngine";
 
 /**
  * Клинический «ядро» карты пациента (раздел «Карта» кабинета врача).
@@ -42,13 +43,20 @@ export const clinicalDiagnosisCatalog = pgTable(
   "clinical_diagnosis_catalog",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     label: text("label").notNull(),
     note: text("note"),
     createdBy: uuid("created_by").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_diagnosis_catalog_organization_id").on(table.organizationId),
     index("idx_clinical_diagnosis_catalog_label").on(table.label),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_diagnosis_catalog_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
@@ -63,12 +71,14 @@ export const clinicalVisit = pgTable(
   "clinical_visit",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     visitType: text("visit_type").notNull(),
     visitedAt: timestamp("visited_at", { withTimezone: true, mode: "string" }).notNull(),
     location: text("location"),
     service: text("service"),
     duration: text("duration"),
+    anamnesisText: text("anamnesis_text"),
     /** Необязательная связь с записью на приём (бронированием). */
     appointmentRecordId: uuid("appointment_record_id"),
     exam: text("exam"),
@@ -79,8 +89,14 @@ export const clinicalVisit = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_visit_organization_id").on(table.organizationId),
     index("idx_clinical_visit_patient_user_id").on(table.patientUserId),
     index("idx_clinical_visit_visited_at").on(table.visitedAt),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_visit_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],
@@ -109,8 +125,10 @@ export const clinicalComplaint = pgTable(
   "clinical_complaint",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     text: text("text").notNull(),
+    description: text("description"),
     priority: boolean("priority").default(false).notNull(),
     status: text("status").default("active").notNull(),
     sourceVisitId: uuid("source_visit_id").notNull(),
@@ -118,7 +136,13 @@ export const clinicalComplaint = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_complaint_organization_id").on(table.organizationId),
     index("idx_clinical_complaint_patient_user_id").on(table.patientUserId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_complaint_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],
@@ -140,6 +164,7 @@ export const clinicalComplaintUpdate = pgTable(
   "clinical_complaint_update",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     complaintId: uuid("complaint_id").notNull(),
     visitId: uuid("visit_id").notNull(),
     note: text("note"),
@@ -148,8 +173,14 @@ export const clinicalComplaintUpdate = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_complaint_update_organization_id").on(table.organizationId),
     index("idx_clinical_complaint_update_complaint_id").on(table.complaintId),
     index("idx_clinical_complaint_update_visit_id").on(table.visitId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_complaint_update_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.complaintId],
       foreignColumns: [clinicalComplaint.id],
@@ -173,6 +204,7 @@ export const clinicalDiagnosis = pgTable(
   "clinical_diagnosis",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     patientUserId: uuid("patient_user_id").notNull(),
     /** Nullable для устойчивости: запись может пережить удаление из справочника. */
     catalogId: uuid("catalog_id"),
@@ -190,7 +222,13 @@ export const clinicalDiagnosis = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_diagnosis_organization_id").on(table.organizationId),
     index("idx_clinical_diagnosis_patient_user_id").on(table.patientUserId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_diagnosis_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.patientUserId],
       foreignColumns: [platformUsers.id],
@@ -223,6 +261,7 @@ export const clinicalDiagnosisStatusHistory = pgTable(
   "clinical_diagnosis_status_history",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     diagnosisId: uuid("diagnosis_id").notNull(),
     oldStatus: text("old_status"),
     newStatus: text("new_status").notNull(),
@@ -231,7 +270,13 @@ export const clinicalDiagnosisStatusHistory = pgTable(
     note: text("note"),
   },
   (table) => [
+    index("idx_clinical_diagnosis_status_history_organization_id").on(table.organizationId),
     index("idx_clinical_diagnosis_status_history_diagnosis_id").on(table.diagnosisId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_diagnosis_status_history_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.diagnosisId],
       foreignColumns: [clinicalDiagnosis.id],
@@ -253,6 +298,7 @@ export const clinicalDiagnosisUpdate = pgTable(
   "clinical_diagnosis_update",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     diagnosisId: uuid("diagnosis_id").notNull(),
     visitId: uuid("visit_id").notNull(),
     refinement: text("refinement"),
@@ -261,8 +307,14 @@ export const clinicalDiagnosisUpdate = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_clinical_diagnosis_update_organization_id").on(table.organizationId),
     index("idx_clinical_diagnosis_update_diagnosis_id").on(table.diagnosisId),
     index("idx_clinical_diagnosis_update_visit_id").on(table.visitId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "clinical_diagnosis_update_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.diagnosisId],
       foreignColumns: [clinicalDiagnosis.id],

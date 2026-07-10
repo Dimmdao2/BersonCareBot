@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 import { buildMaxFacts, registerMaxWebhookRoutes } from './webhook.js';
 import type { MaxUpdateValidated } from './schema.js';
 
@@ -79,6 +80,80 @@ describe('max webhook', () => {
     const event = call![0] as { type: string; meta: { source: string } };
     expect(event.type).toBe('message.received');
     expect(event.meta.source).toBe('max');
+  });
+
+  it('runs eventGateway under resolved organization context and clears it after', async () => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const eventGateway = vi.fn().mockImplementation(async () => {
+      expect(getCurrentOrganizationPrincipalId()).toBe(organizationId);
+      return { status: 'accepted' };
+    });
+    const resolveOrganizationIdForMessengerIdentity = vi.fn(async () => organizationId);
+    const app = Fastify();
+    await registerMaxWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent: eventGateway },
+      resolveIntegratorUserIdForMessenger: async () => undefined,
+      resolveOrganizationIdForMessengerIdentity,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/max',
+      payload: {
+        update_type: 'message_created',
+        timestamp: 1739184000000,
+        message: {
+          recipient: { chat_id: 100, user_id: 12345 },
+          body: { text: 'Hi' },
+          sender: { user_id: 100 },
+        },
+        user_locale: 'ru',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(resolveOrganizationIdForMessengerIdentity).toHaveBeenCalledWith('100', 'max');
+    expect(eventGateway).toHaveBeenCalledTimes(1);
+    expect(getCurrentOrganizationPrincipalId()).toBeUndefined();
+  });
+
+  it('T0.4: falls back to the deployment channel-binding organization for a first-contact (unenrolled) identity', async () => {
+    const deploymentOrganizationId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const eventGateway = vi.fn().mockImplementation(async () => {
+      expect(getCurrentOrganizationPrincipalId()).toBe(deploymentOrganizationId);
+      return { status: 'accepted' };
+    });
+    // First-contact identity: per-user resolution has nothing to resolve yet (not enrolled).
+    const resolveOrganizationIdForMessengerIdentity = vi.fn(async () => null);
+    const resolveDeploymentOrganizationId = vi.fn(async () => deploymentOrganizationId);
+    const app = Fastify();
+    await registerMaxWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent: eventGateway },
+      resolveIntegratorUserIdForMessenger: async () => undefined,
+      resolveOrganizationIdForMessengerIdentity,
+      resolveDeploymentOrganizationId,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/max',
+      payload: {
+        update_type: 'message_created',
+        timestamp: 1739184000000,
+        message: {
+          recipient: { chat_id: 100, user_id: 12345 },
+          body: { text: 'Hi' },
+          sender: { user_id: 100 },
+        },
+        user_locale: 'ru',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(resolveOrganizationIdForMessengerIdentity).toHaveBeenCalledWith('100', 'max');
+    expect(resolveDeploymentOrganizationId).toHaveBeenCalledTimes(1);
+    expect(eventGateway).toHaveBeenCalledTimes(1);
+    expect(getCurrentOrganizationPrincipalId()).toBeUndefined();
   });
 
   it('maps link payload to start.link action', async () => {

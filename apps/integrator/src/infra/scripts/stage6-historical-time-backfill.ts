@@ -11,12 +11,13 @@
  */
 import "../../config/loadEnv.js";
 import { writeFile } from "node:fs/promises";
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
 import {
   classifyHistoricalRubitimeTiming,
   deriveCompatSlotEnd,
   extractIntegratorBranchIdFromPayload,
 } from "../../scripts/stage6/historicalTimeBackfillLogic.js";
+import { createStage6HistoricalBackfillPoolProvider } from "./stage6HistoricalBackfillPoolProvider.js";
 
 type Args = {
   cutoffIso: string;
@@ -172,8 +173,8 @@ Env: DATABASE_URL, optional WEBAPP_DATABASE_URL`);
     process.exit(2);
   }
 
-  const integratorPool = new Pool({ connectionString: args.integratorUrl, max: 4 });
-  const webappPool = new Pool({ connectionString: args.webappUrl, max: 4 });
+  const integratorPool = createStage6HistoricalBackfillPoolProvider({ connectionString: args.integratorUrl });
+  const webappPool = createStage6HistoricalBackfillPoolProvider({ connectionString: args.webappUrl });
 
   const skipHist: Record<string, number> = {};
   const unresolved: UnresolvedRow[] = [];

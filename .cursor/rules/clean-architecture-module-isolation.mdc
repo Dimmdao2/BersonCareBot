@@ -39,7 +39,7 @@ From `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` — same as “Абсол
 From `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` — same as “Абсолютные запреты” items 7–8:
 
 - **Do not mix initiative phases.** One phase per logical batch of work; do not start phase N+1 before phase N passes its gate. Step vs phase validation: `.cursor/rules/test-execution-policy.md`.
-- **Do not change the GitHub CI workflow** without an explicit team decision. Pre-push expectation: `.cursor/rules/pre-push-ci.mdc` (`pnpm install --frozen-lockfile && pnpm run ci`).
+- **Do not change the GitHub CI workflow** without an explicit team decision. Full CI/deploy/merge expectation: `.cursor/rules/pre-push-ci.mdc` (`pnpm install --frozen-lockfile && pnpm run ci` when the full-CI gate applies).
 
 Integration keys (DB not env), onboarding, and the full Drizzle checklist remain in `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` and other `.cursor/rules/*`. Always read that file when working on this initiative.
 
@@ -83,6 +83,7 @@ All new database tables and queries must use Drizzle ORM:
 - Migrations via `drizzle-kit generate` + `drizzle-kit migrate`
 - Types inferred from schema (`typeof table.$inferSelect`)
 - No raw SQL (`pool.query(...)`) for new features
+- Follow `.cursor/rules/saas-foundation-aware-development.mdc`: before adding a table/column/write path, choose the ownership path (`organization_id`, scoped parent, `specialist_id`, patient/enrollment, appointment, program instance, or true global catalog).
 
 ### 6. Service receives dependencies via injection
 

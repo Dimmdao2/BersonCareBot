@@ -2106,14 +2106,16 @@ export function TreatmentProgramConstructorClient({
                   role="radiogroup"
                   aria-label="Тип элемента"
                 >
-                  <button
+                  <Button
                     type="button"
                     role="radio"
                     aria-checked={itemType === "exercise"}
+                    variant="ghost"
+                    size="sm"
                     className={cn(
-                      "text-xs font-medium transition-colors",
+                      "h-full w-full rounded-none text-xs font-medium",
                       itemType === "exercise"
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                         : "bg-transparent text-foreground hover:bg-muted/60",
                     )}
                     onClick={() => {
@@ -2123,15 +2125,17 @@ export function TreatmentProgramConstructorClient({
                     }}
                   >
                     Упражнение ЛФК
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     role="radio"
                     aria-checked={itemType === "lfk_complex"}
+                    variant="ghost"
+                    size="sm"
                     className={cn(
-                      "text-xs font-medium transition-colors",
+                      "h-full w-full rounded-none text-xs font-medium",
                       itemType === "lfk_complex"
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                         : "bg-transparent text-foreground hover:bg-muted/60",
                     )}
                     onClick={() => {
@@ -2141,7 +2145,7 @@ export function TreatmentProgramConstructorClient({
                     }}
                   >
                     Комплекс ЛФК
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -2153,14 +2157,16 @@ export function TreatmentProgramConstructorClient({
                   role="radiogroup"
                   aria-label="Режим добавления тестов"
                 >
-                  <button
+                  <Button
                     type="button"
                     role="radio"
                     aria-checked={testsAddMode === "expand_set"}
+                    variant="ghost"
+                    size="sm"
                     className={cn(
-                      "text-xs font-medium transition-colors",
+                      "h-full w-full rounded-none text-xs font-medium",
                       testsAddMode === "expand_set"
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                         : "bg-transparent text-foreground hover:bg-muted/60",
                     )}
                     onClick={() => {
@@ -2169,15 +2175,17 @@ export function TreatmentProgramConstructorClient({
                     }}
                   >
                     Набор тестов
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     role="radio"
                     aria-checked={testsAddMode === "single_test"}
+                    variant="ghost"
+                    size="sm"
                     className={cn(
-                      "text-xs font-medium transition-colors",
+                      "h-full w-full rounded-none text-xs font-medium",
                       testsAddMode === "single_test"
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                         : "bg-transparent text-foreground hover:bg-muted/60",
                     )}
                     onClick={() => {
@@ -2187,7 +2195,7 @@ export function TreatmentProgramConstructorClient({
                     }}
                   >
                     Один тест
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -2210,8 +2218,9 @@ export function TreatmentProgramConstructorClient({
               ) : (
                 pickerList.map((row) => (
                   <li key={row.id}>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
                       disabled={editLocked}
                       onClick={() =>
                         itemDialogAddContext === "stage_system_tests" && testsAddMode === "expand_set"
@@ -2220,7 +2229,7 @@ export function TreatmentProgramConstructorClient({
                             ? void handleAddLfkComplexFromLibrary(row)
                             : void handleAddItem(row.id)
                       }
-                      className="flex w-full items-start gap-3 rounded-md border border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50"
+                      className="h-auto w-full items-start gap-3 border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm hover:border-border hover:bg-muted/50"
                     >
                       <LibraryMediaThumb
                         src={row.thumbUrl}
@@ -2238,7 +2247,7 @@ export function TreatmentProgramConstructorClient({
                           </span>
                         ) : null}
                       </span>
-                    </button>
+                    </Button>
                   </li>
                 ))
               )}

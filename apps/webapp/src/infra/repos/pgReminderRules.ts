@@ -4,6 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getWebappSqlDb, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
 import type { ReminderRulesPort } from "@/modules/reminders/ports";
 import type {
@@ -137,6 +138,25 @@ const SELECT_COLS = `
 
 type RuleRow = Parameters<typeof toRule>[0];
 
+function currentPrincipalOrganizationId(): string | null {
+  return getCurrentDbPrincipalOrganizationId() ?? null;
+}
+
+function ruleOrgScopeSql(principalOrganizationId: string | null, tableAlias = "rr") {
+  if (!principalOrganizationId) return sql``;
+  return sql` AND (${sql.raw(tableAlias)}.organization_id = ${principalOrganizationId}::uuid OR ${sql.raw(tableAlias)}.organization_id IS NULL)`;
+}
+
+function ruleOrgScopeSqlNoAlias(principalOrganizationId: string | null) {
+  if (!principalOrganizationId) return sql``;
+  return sql` AND (organization_id = ${principalOrganizationId}::uuid OR organization_id IS NULL)`;
+}
+
+function claimPrincipalOrgSql(principalOrganizationId: string | null) {
+  if (!principalOrganizationId) return sql``;
+  return sql`, organization_id = COALESCE(organization_id, ${principalOrganizationId}::uuid)`;
+}
+
 export function createPgReminderRulesPort(): ReminderRulesPort {
   return {
     async resolveIntegratorUserId(platformUserId) {
@@ -148,42 +168,49 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async listByPlatformUser(platformUserId) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       const r = await runWebappSql<RuleRow>(
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(SELECT_COLS)}
          FROM reminder_rules rr
          LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
-         WHERE rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid
+         WHERE (rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+         ${ruleOrgScopeSql(principalOrganizationId)}
          ORDER BY rr.category`,
       );
       return r.rows.map(toRule);
     },
 
     async listByPlatformUserWithObjects(platformUserId) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       const r = await runWebappSql<RuleRow>(
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(SELECT_COLS)}
          FROM reminder_rules rr
          LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
-         WHERE rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid
+         WHERE (rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+         ${ruleOrgScopeSql(principalOrganizationId)}
          ORDER BY rr.updated_at DESC`,
       );
       return r.rows.map(toRule);
     },
 
     async getByPlatformUserAndCategory(platformUserId, category) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       const r = await runWebappSql<RuleRow>(
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(SELECT_COLS)}
          FROM reminder_rules rr
          LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
          WHERE (rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid) AND rr.category = ${category}
+         ${ruleOrgScopeSql(principalOrganizationId)}
          LIMIT 1`,
       );
       return r.rows.length > 0 ? toRule(r.rows[0]) : null;
     },
 
     async create(input) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       const integratorRuleId = `wp-${randomUUID()}`;
       const category = mapLinkedTypeToCategory(input.linkedObjectType);
       const scheduleType = input.scheduleType ?? "interval_window";
@@ -202,7 +229,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
       const r = await runWebappSql<RuleRow>(
         getWebappSqlDb(),
         sql`INSERT INTO reminder_rules (
-          integrator_rule_id, platform_user_id, integrator_user_id, category, is_enabled,
+          integrator_rule_id, organization_id, platform_user_id, integrator_user_id, category, is_enabled,
           schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
           days_mask, content_mode,
           linked_object_type, linked_object_id, custom_title, custom_text,
@@ -211,7 +238,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           notification_topic_code,
           updated_at
         ) VALUES (
-          ${integratorRuleId}, ${input.platformUserId}::uuid, ${input.integratorUserId}::bigint, ${category}, ${input.enabled},
+          ${integratorRuleId}, ${principalOrganizationId}::uuid, ${input.platformUserId}::uuid, ${input.integratorUserId}::bigint, ${category}, ${input.enabled},
           ${scheduleType}, ${tz}, ${input.schedule.intervalMinutes}, ${input.schedule.windowStartMinute}, ${input.schedule.windowEndMinute},
           ${input.schedule.daysMask}, 'none',
           ${input.linkedObjectType}, ${input.linkedObjectId}, ${input.customTitle}, ${input.customText},
@@ -288,24 +315,31 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async updateEnabled(ruleIntegratorId, enabled) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE reminder_rules SET is_enabled = ${enabled}, updated_at = now()
-         WHERE integrator_rule_id = ${ruleIntegratorId}`,
+             ${claimPrincipalOrgSql(principalOrganizationId)}
+         WHERE integrator_rule_id = ${ruleIntegratorId}
+         ${ruleOrgScopeSqlNoAlias(principalOrganizationId)}`,
       );
     },
 
     async updateSchedule(ruleIntegratorId, schedule) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE reminder_rules
          SET interval_minutes = ${schedule.intervalMinutes}, window_start_minute = ${schedule.windowStartMinute}, window_end_minute = ${schedule.windowEndMinute},
              days_mask = ${schedule.daysMask}, updated_at = now()
-         WHERE integrator_rule_id = ${ruleIntegratorId}`,
+             ${claimPrincipalOrgSql(principalOrganizationId)}
+         WHERE integrator_rule_id = ${ruleIntegratorId}
+         ${ruleOrgScopeSqlNoAlias(principalOrganizationId)}`,
       );
     },
 
     async updateScheduleAndType(ruleIntegratorId, params) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       const scheduleDataJson = params.scheduleData ? JSON.stringify(params.scheduleData) : null;
       await runWebappSql(
         getWebappSqlDb(),
@@ -319,25 +353,33 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
              quiet_hours_start_minute = ${params.quietHoursStartMinute},
              quiet_hours_end_minute = ${params.quietHoursEndMinute},
              updated_at = now()
-         WHERE integrator_rule_id = ${ruleIntegratorId}`,
+             ${claimPrincipalOrgSql(principalOrganizationId)}
+         WHERE integrator_rule_id = ${ruleIntegratorId}
+         ${ruleOrgScopeSqlNoAlias(principalOrganizationId)}`,
       );
     },
 
     async updateCustomTexts(ruleIntegratorId, customTitle, customText) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE reminder_rules
          SET custom_title = ${customTitle}, custom_text = ${customText}, updated_at = now()
-         WHERE integrator_rule_id = ${ruleIntegratorId}`,
+             ${claimPrincipalOrgSql(principalOrganizationId)}
+         WHERE integrator_rule_id = ${ruleIntegratorId}
+         ${ruleOrgScopeSqlNoAlias(principalOrganizationId)}`,
       );
     },
 
     async updateDisplayTexts(ruleIntegratorId, displayTitle, displayDescription) {
+      const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE reminder_rules
          SET display_title = ${displayTitle}, display_description = ${displayDescription}, updated_at = now()
-         WHERE integrator_rule_id = ${ruleIntegratorId}`,
+             ${claimPrincipalOrgSql(principalOrganizationId)}
+         WHERE integrator_rule_id = ${ruleIntegratorId}
+         ${ruleOrgScopeSqlNoAlias(principalOrganizationId)}`,
       );
     },
 

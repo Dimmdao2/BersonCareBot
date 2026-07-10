@@ -7,6 +7,9 @@ import {
   getNotificationSettings,
   getUserLinkData,
   getUserState,
+  resolveActiveOrganizationIdForIntegratorUserId,
+  resolveActiveOrganizationIdForMessengerIdentity,
+  resolveDeploymentSingleActiveOrganizationId,
   setUserPhone,
   setUserState,
   tryAdvanceLastUpdateId,
@@ -50,6 +53,117 @@ function mockLinkedPhoneStrategyQuery(
 describe('channelUsers repo (identity/contact/state split)', () => {
   beforeEach(() => {
     resetIntegratorLinkedPhoneSourceCacheForTests();
+  });
+
+  it('resolves a single active organization from messenger identity bridge', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({
+      rows: [{ organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
+      rowCount: 1,
+    } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForMessengerIdentity(db, {
+      resource: 'telegram',
+      externalId: '123',
+    });
+
+    expect(orgId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    const sqlText = flatExec(execute, 0);
+    expect(sqlText).toContain('FROM integrator.identities');
+    expect(sqlText).toContain('identity_row.resource = telegram');
+    expect(sqlText).toContain('identity_row.external_id = 123');
+    expect(sqlText).toContain('public.platform_users');
+    expect(sqlText).toContain('platform_user.integrator_user_id = identity_user.user_id');
+    expect(sqlText).toContain('public.org_enrollments');
+    expect(sqlText).toContain('public.be_organization_members');
+    expect(sqlText).toContain("status = 'active'");
+    expect(sqlText).toContain('LIMIT 2');
+    expect(sqlText).not.toContain('a0000000-0000-4000-8000-000000000001');
+  });
+
+  it('keeps messenger identity organization context unset when no active org exists', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForMessengerIdentity(db, {
+      resource: 'max',
+      externalId: '456',
+    });
+
+    expect(orgId).toBeNull();
+  });
+
+  it('keeps messenger identity organization context unset for multi-org users', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({
+      rows: [
+        { organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+        { organization_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+      ],
+      rowCount: 2,
+    } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForMessengerIdentity(db, {
+      resource: 'telegram',
+      externalId: '123',
+    });
+
+    expect(orgId).toBeNull();
+  });
+
+  it('resolves a single active organization from direct integrator user id', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({
+      rows: [{ organization_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
+      rowCount: 1,
+    } as DbQueryResult<{ organization_id: string }>);
+
+    const orgId = await resolveActiveOrganizationIdForIntegratorUserId(db, '42');
+
+    expect(orgId).toBe('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+    const sqlText = flatExec(execute, 0);
+    expect(sqlText).toContain('platform_user.integrator_user_id = 42::bigint');
+    expect(sqlText).toContain('public.org_enrollments');
+    expect(sqlText).toContain('public.be_organization_members');
+    expect(sqlText).toContain('LIMIT 2');
+  });
+
+  describe('T0.4 deployment channel-binding fallback', () => {
+    it('resolves the deployment single organization when exactly one exists', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({
+        rows: [{ organization_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }],
+        rowCount: 1,
+      } as DbQueryResult<{ organization_id: string }>);
+
+      const orgId = await resolveDeploymentSingleActiveOrganizationId(db);
+
+      expect(orgId).toBe('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+      const sqlText = flatExec(execute, 0);
+      expect(sqlText).toContain('FROM public.be_organizations');
+      expect(sqlText).toContain('LIMIT 2');
+    });
+
+    it('returns null when zero or more than one organization exists (no single deployment org inferable)', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+      expect(await resolveDeploymentSingleActiveOrganizationId(db)).toBeNull();
+
+      execute.mockResolvedValueOnce({
+        rows: [
+          { organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+          { organization_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+        ],
+        rowCount: 2,
+      } as DbQueryResult<{ organization_id: string }>);
+      expect(await resolveDeploymentSingleActiveOrganizationId(db)).toBeNull();
+    });
+
+    it('fails open (returns null) when the query throws', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockRejectedValueOnce(new Error('db down'));
+      await expect(resolveDeploymentSingleActiveOrganizationId(db)).resolves.toBeNull();
+    });
   });
 
   it('upsertUser uses canonical identities and telegram_state only', async () => {
@@ -123,8 +237,14 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
     const insSql = flatExec(execute, 3);
     expect(insSql).toContain('INSERT INTO contacts');
+    expect(insSql).toContain('organization_id');
+    expect(insSql).toContain('public.platform_users');
+    expect(insSql).toContain('public.org_enrollments');
+    expect(insSql).toContain('public.be_organization_members');
+    expect(insSql).toContain('count(DISTINCT active_user_orgs.organization_id) = 1');
     expect(insSql).toContain('::bigint');
     expect(insSql).toContain('WHERE contacts.user_id = ');
+    expect(insSql).toContain('organization_id = COALESCE(EXCLUDED.organization_id, contacts.organization_id)');
     expect(insSql).not.toContain('UPDATE telegram_users');
     expect(insSql).toContain('7');
     expect(insSql).toContain('+79990001122');

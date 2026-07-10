@@ -266,7 +266,7 @@ export function LfkTemplatesPageClient({
         </DoctorCatalogToolbarFiltersSlot>
       }
       end={
-        <button
+        <Button
           type="button"
           className={doctorCatalogToolbarPrimaryActionClassName}
           id="doctor-lfk-templates-new-link"
@@ -277,7 +277,7 @@ export function LfkTemplatesPageClient({
           }}
         >
           Создать
-        </button>
+        </Button>
       }
     />
   );

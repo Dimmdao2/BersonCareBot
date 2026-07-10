@@ -51,6 +51,7 @@ type PuDupNames = AutoMergeNameSideInput & {
   display_name: string;
   first_name: string | null;
   last_name: string | null;
+  patronymic?: string | null;
 };
 
 /** Rubitime / phone-owner row wins for full display string when only one side holds the phone. */
@@ -146,4 +147,8 @@ export function effectiveAutoMergedLastName(pu: PuDupNames, dup: PuDupNames): st
       : normStrField(dup.last_name) ?? normStrField(pu.last_name);
   }
   return normStrField(pu.last_name) ?? normStrField(dup.last_name);
+}
+
+export function effectiveAutoMergedPatronymic(pu: PuDupNames, dup: PuDupNames): string | null {
+  return normStrField(pu.patronymic) ?? normStrField(dup.patronymic);
 }

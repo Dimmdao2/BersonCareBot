@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, Check, Copy } from "lucide-react";
 import toast from "react-hot-toast";
 import type { LandingInstallPlatform } from "@/components/landing/detectLandingInstallPlatform";
+import { Button } from "@/components/ui/button";
 
 const REQUIRED_BROWSER: Record<LandingInstallPlatform, string> = {
   ios: "Safari",
@@ -40,11 +41,13 @@ export function WrongBrowserBanner({ platform }: { platform: LandingInstallPlatf
           Установка работает только через {browser}.
         </span>{" "}
         Скопируйте ссылку{" "}
-        <button
+        <Button
           type="button"
           onClick={handleCopy}
           aria-label={copied ? "Ссылка скопирована" : "Скопировать ссылку"}
-          className="inline-flex items-center gap-1 rounded-md border border-[#FECACA] bg-white/70 px-1.5 py-0.5 font-mono text-[0.8125rem] font-medium text-[#991B1B] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]/40"
+          variant="outline"
+          size="xs"
+          className="inline-flex items-center gap-1 border-[#FECACA] bg-white/70 font-mono text-[0.8125rem] font-medium text-[#991B1B] hover:bg-white focus-visible:ring-[#DC2626]/40"
         >
           {SITE_URL}
           {copied ? (
@@ -52,7 +55,7 @@ export function WrongBrowserBanner({ platform }: { platform: LandingInstallPlatf
           ) : (
             <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
           )}
-        </button>{" "}
+        </Button>{" "}
         и откройте сайт в {browser}.
       </span>
     </div>

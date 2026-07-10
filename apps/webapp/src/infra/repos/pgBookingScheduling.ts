@@ -1,6 +1,8 @@
 import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
 import type { BreakInterval } from "@/modules/booking-scheduling/ports";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
+import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
 import {
   beAppointments,
   beBranches,
@@ -16,7 +18,6 @@ import {
   beWorkingDays as beWd,
   beScheduleTemplates as beStmpl,
 } from "../../../db/schema/bookingScheduling";
-import { systemSettings } from "../../../db/schema/schema";
 import { buildSlotsForContext } from "@/modules/booking-scheduling/service";
 import {
   computeNearestFreeWindowFromData,
@@ -87,6 +88,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       if (!service) return null;
 
       const durationMinutes = ssa.durationMinutesOverride ?? service.durationMinutes;
+      const bufferAfterMinutes = service.bufferAfterMinutes;
 
       return {
         organizationId: orgId,
@@ -96,6 +98,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         roomId: ssa.roomId ?? null,
         branchServiceId,
         durationMinutes,
+        bufferAfterMinutes,
         branchTimezone: branch.timezone,
       } satisfies CanonicalBookingContext;
     },
@@ -175,7 +178,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         specialistId ? eq(beAppointments.specialistId, specialistId) : sql`true`,
         // F1b: soft-deleted appointments do not reserve the slot.
         isNull(beAppointments.deletedAt),
-        gte(beAppointments.endAt, rangeStart),
+        sql`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute')) >= ${rangeStart}`,
         lte(beAppointments.startAt, rangeEnd),
         inArray(beAppointments.status, ACTIVE_APPOINTMENT_STATUSES),
       ];
@@ -183,8 +186,12 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         apptConds.push(ne(beAppointments.id, excludeAppointmentId));
       }
       const apptRows = await db
-        .select({ startAt: beAppointments.startAt, endAt: beAppointments.endAt })
+        .select({
+          startAt: beAppointments.startAt,
+          endAt: sql<string>`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute'))`,
+        })
         .from(beAppointments)
+        .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
         .where(and(...apptConds));
 
       const blockConds = [
@@ -285,48 +292,39 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
     },
 
     async upsertBufferMinutes({ organizationId, specialistId, minutes }) {
-      const db = getDrizzle();
       const safeMinutes = Math.max(0, Math.min(240, Math.round(minutes)));
       const scopeConds = [
         eq(beAvailabilityRules.organizationId, organizationId),
         eq(beAvailabilityRules.ruleType, "buffer_minutes"),
         specialistId ? eq(beAvailabilityRules.specialistId, specialistId) : isNull(beAvailabilityRules.specialistId),
       ];
-      const existing = await db
-        .select({ id: beAvailabilityRules.id })
-        .from(beAvailabilityRules)
-        .where(and(...scopeConds))
-        .limit(1);
       const now = new Date().toISOString();
-      if (existing[0]) {
-        await db
-          .update(beAvailabilityRules)
-          .set({ config: { minutes: safeMinutes }, isActive: true, updatedAt: now })
-          .where(eq(beAvailabilityRules.id, existing[0].id));
-        return;
-      }
-      await db.insert(beAvailabilityRules).values({
-        organizationId,
-        specialistId: specialistId ?? null,
-        branchId: null,
-        ruleType: "buffer_minutes",
-        config: { minutes: safeMinutes },
-        isActive: true,
+      await runWebappTransaction(async (tx) => {
+        const existing = await tx
+          .select({ id: beAvailabilityRules.id })
+          .from(beAvailabilityRules)
+          .where(and(...scopeConds))
+          .limit(1);
+        if (existing[0]) {
+          await tx
+            .update(beAvailabilityRules)
+            .set({ config: { minutes: safeMinutes }, isActive: true, updatedAt: now })
+            .where(eq(beAvailabilityRules.id, existing[0].id));
+          return;
+        }
+        await tx.insert(beAvailabilityRules).values({
+          organizationId,
+          specialistId: specialistId ?? null,
+          branchId: null,
+          ruleType: "buffer_minutes",
+          config: { minutes: safeMinutes },
+          isActive: true,
+        });
       });
     },
 
     async getMinNoticeHours(_organizationId) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ valueJson: systemSettings.valueJson })
-        .from(systemSettings)
-        .where(and(eq(systemSettings.key, "booking_min_notice_hours"), eq(systemSettings.scope, "admin")))
-        .limit(1);
-      const raw = rows[0]?.valueJson;
-      const inner =
-        raw !== null && typeof raw === "object" && "value" in (raw as Record<string, unknown>)
-          ? (raw as { value: unknown }).value
-          : raw;
+      const inner = await readAdminSystemSettingInnerValue("booking_min_notice_hours");
       const n =
         typeof inner === "number" && Number.isFinite(inner)
           ? inner
@@ -372,20 +370,22 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async createScheduleBlock(input) {
       const db = getDrizzle();
-      const inserted = await db
-        .insert(beSb)
-        .values({
-          organizationId: input.organizationId,
-          specialistId: input.specialistId ?? null,
-          branchId: input.branchId ?? null,
-          roomId: input.roomId ?? null,
-          startAt: input.startAt,
-          endAt: input.endAt,
-          blockType: input.blockType,
-          title: input.title ?? null,
-          createdByActorId: input.createdByActorId ?? null,
-        })
-        .returning();
+      const inserted = await db.transaction((tx) =>
+        tx
+          .insert(beSb)
+          .values({
+            organizationId: input.organizationId,
+            specialistId: input.specialistId ?? null,
+            branchId: input.branchId ?? null,
+            roomId: input.roomId ?? null,
+            startAt: input.startAt,
+            endAt: input.endAt,
+            blockType: input.blockType,
+            title: input.title ?? null,
+            createdByActorId: input.createdByActorId ?? null,
+          })
+          .returning(),
+      );
       const row = inserted[0]!;
       return {
         id: row.id,
@@ -402,7 +402,9 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async deleteScheduleBlock(organizationId, blockId) {
       const db = getDrizzle();
-      await db.delete(beSb).where(and(eq(beSb.id, blockId), eq(beSb.organizationId, organizationId)));
+      await db.transaction((tx) =>
+        tx.delete(beSb).where(and(eq(beSb.id, blockId), eq(beSb.organizationId, organizationId))),
+      );
     },
 
     async listWorkingHoursAdmin({ organizationId, specialistId, branchId, roomId, weekday }) {
@@ -439,61 +441,36 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async createWorkingHours(input) {
       const db = getDrizzle();
-      if (input.replace) {
-        if (input.specialistId === undefined) {
-          throw new Error("replace=true requires specialistId for scope safety");
-        }
-        const deactConds = [
-          eq(beWh.organizationId, input.organizationId),
-          eq(beWh.weekday, input.weekday),
-          eq(beWh.isActive, true),
-        ];
-        if (input.specialistId === null) deactConds.push(isNull(beWh.specialistId));
-        else deactConds.push(eq(beWh.specialistId, input.specialistId));
-        if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
-        else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
-        const inserted = await db.transaction(async (tx) => {
+      const inserted = await db.transaction(async (tx) => {
+        if (input.replace) {
+          if (input.specialistId === undefined) {
+            throw new Error("replace=true requires specialistId for scope safety");
+          }
+          const deactConds = [
+            eq(beWh.organizationId, input.organizationId),
+            eq(beWh.weekday, input.weekday),
+            eq(beWh.isActive, true),
+          ];
+          if (input.specialistId === null) deactConds.push(isNull(beWh.specialistId));
+          else deactConds.push(eq(beWh.specialistId, input.specialistId));
+          if (input.branchId === null) deactConds.push(isNull(beWh.branchId));
+          else if (input.branchId) deactConds.push(eq(beWh.branchId, input.branchId));
           await tx.update(beWh).set({ isActive: false, updatedAt: new Date().toISOString() }).where(and(...deactConds));
-          return tx
-            .insert(beWh)
-            .values({
-              organizationId: input.organizationId,
-              specialistId: input.specialistId ?? null,
-              branchId: input.branchId ?? null,
-              roomId: input.roomId ?? null,
-              weekday: input.weekday,
-              startMinute: input.startMinute,
-              endMinute: input.endMinute,
-              isActive: true,
-            })
-            .returning();
-        });
-        const row = inserted[0]!;
-        return {
-          id: row.id,
-          organizationId: row.organizationId,
-          specialistId: row.specialistId,
-          branchId: row.branchId,
-          roomId: row.roomId,
-          weekday: row.weekday,
-          startMinute: row.startMinute,
-          endMinute: row.endMinute,
-          isActive: row.isActive,
-        };
-      }
-      const inserted = await db
-        .insert(beWh)
-        .values({
-          organizationId: input.organizationId,
-          specialistId: input.specialistId ?? null,
-          branchId: input.branchId ?? null,
-          roomId: input.roomId ?? null,
-          weekday: input.weekday,
-          startMinute: input.startMinute,
-          endMinute: input.endMinute,
-          isActive: true,
-        })
-        .returning();
+        }
+        return tx
+          .insert(beWh)
+          .values({
+            organizationId: input.organizationId,
+            specialistId: input.specialistId ?? null,
+            branchId: input.branchId ?? null,
+            roomId: input.roomId ?? null,
+            weekday: input.weekday,
+            startMinute: input.startMinute,
+            endMinute: input.endMinute,
+            isActive: true,
+          })
+          .returning();
+      });
       const row = inserted[0]!;
       return {
         id: row.id,
@@ -515,11 +492,13 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       if (input.startMinute != null) patch.startMinute = input.startMinute;
       if (input.endMinute != null) patch.endMinute = input.endMinute;
       if (input.isActive != null) patch.isActive = input.isActive;
-      const updated = await db
-        .update(beWh)
-        .set(patch)
-        .where(and(eq(beWh.id, input.id), eq(beWh.organizationId, input.organizationId)))
-        .returning();
+      const updated = await db.transaction((tx) =>
+        tx
+          .update(beWh)
+          .set(patch)
+          .where(and(eq(beWh.id, input.id), eq(beWh.organizationId, input.organizationId)))
+          .returning(),
+      );
       const row = updated[0];
       if (!row) throw new Error("working_hours_not_found");
       return {
@@ -537,10 +516,12 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async deactivateWorkingHours(organizationId, id) {
       const db = getDrizzle();
-      await db
-        .update(beWh)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(beWh.id, id), eq(beWh.organizationId, organizationId)));
+      await db.transaction((tx) =>
+        tx
+          .update(beWh)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(beWh.id, id), eq(beWh.organizationId, organizationId))),
+      );
     },
 
     // ── Per-date working days ────────────────────────────────────────────────
@@ -580,30 +561,32 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       const sentinelId = "00000000-0000-0000-0000-000000000000";
       const effectiveBreaks: BreakInterval[] = breaks ?? [];
       const breaksJson = JSON.stringify(effectiveBreaks);
-      for (const workDate of dates) {
-        // Use raw SQL for conflict target because the unique index is expression-based (COALESCE)
-        const rows = await db.execute<RawWorkingDayRow>(
-          sql`INSERT INTO be_working_days
-            (organization_id, specialist_id, branch_id, room_id, work_date,
-             start_minute, end_minute, breaks, is_closed, updated_at)
-          VALUES
-            (${organizationId}, ${specialistId ?? null}, ${branchId ?? null}, ${roomId ?? null}, ${workDate},
-             ${startMinute}, ${endMinute},
-             ${breaksJson}::jsonb, false, ${now})
-          ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
-          DO UPDATE SET
-            branch_id = EXCLUDED.branch_id,
-            room_id = EXCLUDED.room_id,
-            start_minute = EXCLUDED.start_minute,
-            end_minute = EXCLUDED.end_minute,
-            breaks = EXCLUDED.breaks,
-            is_closed = false,
-            updated_at = EXCLUDED.updated_at
-          RETURNING *`,
-        );
-        const row = rows.rows[0] as RawWorkingDayRow | undefined;
-        if (row) results.push(mapRawWorkingDayRow(row));
-      }
+      await db.transaction(async (tx) => {
+        for (const workDate of dates) {
+          // Use raw SQL for conflict target because the unique index is expression-based (COALESCE).
+          const rows = await tx.execute<RawWorkingDayRow>(
+            sql`INSERT INTO be_working_days
+              (organization_id, specialist_id, branch_id, room_id, work_date,
+               start_minute, end_minute, breaks, is_closed, updated_at)
+            VALUES
+              (${organizationId}, ${specialistId ?? null}, ${branchId ?? null}, ${roomId ?? null}, ${workDate},
+               ${startMinute}, ${endMinute},
+               ${breaksJson}::jsonb, false, ${now})
+            ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
+            DO UPDATE SET
+              branch_id = EXCLUDED.branch_id,
+              room_id = EXCLUDED.room_id,
+              start_minute = EXCLUDED.start_minute,
+              end_minute = EXCLUDED.end_minute,
+              breaks = EXCLUDED.breaks,
+              is_closed = false,
+              updated_at = EXCLUDED.updated_at
+            RETURNING *`,
+          );
+          const row = rows.rows[0] as RawWorkingDayRow | undefined;
+          if (row) results.push(mapRawWorkingDayRow(row));
+        }
+      });
       return results;
     },
 
@@ -612,26 +595,28 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       const now = new Date().toISOString();
       const results: WorkingDayRecord[] = [];
       const sentinelId = "00000000-0000-0000-0000-000000000000";
-      for (const workDate of dates) {
-        const rows = await db.execute<RawWorkingDayRow>(
-          sql`INSERT INTO be_working_days
-            (organization_id, specialist_id, branch_id, room_id, work_date,
-             start_minute, end_minute, breaks, is_closed, updated_at)
-          VALUES
-            (${organizationId}, ${specialistId ?? null}, NULL, NULL, ${workDate},
-             NULL, NULL, '[]'::jsonb, true, ${now})
-          ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
-          DO UPDATE SET
-            start_minute = NULL,
-            end_minute = NULL,
-            breaks = '[]'::jsonb,
-            is_closed = true,
-            updated_at = EXCLUDED.updated_at
-          RETURNING *`,
-        );
-        const row = rows.rows[0] as RawWorkingDayRow | undefined;
-        if (row) results.push(mapRawWorkingDayRow(row));
-      }
+      await db.transaction(async (tx) => {
+        for (const workDate of dates) {
+          const rows = await tx.execute<RawWorkingDayRow>(
+            sql`INSERT INTO be_working_days
+              (organization_id, specialist_id, branch_id, room_id, work_date,
+               start_minute, end_minute, breaks, is_closed, updated_at)
+            VALUES
+              (${organizationId}, ${specialistId ?? null}, NULL, NULL, ${workDate},
+               NULL, NULL, '[]'::jsonb, true, ${now})
+            ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
+            DO UPDATE SET
+              start_minute = NULL,
+              end_minute = NULL,
+              breaks = '[]'::jsonb,
+              is_closed = true,
+              updated_at = EXCLUDED.updated_at
+            RETURNING *`,
+          );
+          const row = rows.rows[0] as RawWorkingDayRow | undefined;
+          if (row) results.push(mapRawWorkingDayRow(row));
+        }
+      });
       return results;
     },
 
@@ -647,7 +632,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
           : specialistId
             ? eq(beWd.specialistId, specialistId)
             : undefined;
-      await db.delete(beWd).where(and(...baseConds, specialistCond));
+      await db.transaction((tx) => tx.delete(beWd).where(and(...baseConds, specialistCond)));
     },
 
     // ── Schedule templates ───────────────────────────────────────────────────
@@ -664,28 +649,32 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     async createScheduleTemplate({ organizationId, branchId, name, startMinute, endMinute, breaks, sortOrder }: CreateScheduleTemplateInput) {
       const db = getDrizzle();
-      const inserted = await db
-        .insert(beStmpl)
-        .values({
-          organizationId,
-          branchId: branchId ?? null,
-          name,
-          startMinute,
-          endMinute,
-          breaks: breaks ?? [],
-          sortOrder: sortOrder ?? 0,
-          isActive: true,
-        })
-        .returning();
+      const inserted = await db.transaction((tx) =>
+        tx
+          .insert(beStmpl)
+          .values({
+            organizationId,
+            branchId: branchId ?? null,
+            name,
+            startMinute,
+            endMinute,
+            breaks: breaks ?? [],
+            sortOrder: sortOrder ?? 0,
+            isActive: true,
+          })
+          .returning(),
+      );
       return mapTemplateRow(inserted[0]!);
     },
 
     async deleteScheduleTemplate(organizationId, id) {
       const db = getDrizzle();
-      await db
-        .update(beStmpl)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(and(eq(beStmpl.id, id), eq(beStmpl.organizationId, organizationId)));
+      await db.transaction((tx) =>
+        tx
+          .update(beStmpl)
+          .set({ isActive: false, updatedAt: new Date().toISOString() })
+          .where(and(eq(beStmpl.id, id), eq(beStmpl.organizationId, organizationId))),
+      );
     },
 
     // ── Nearest free window (C3) ─────────────────────────────────────────────

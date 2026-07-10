@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const scopeLevel = z.enum(["organization", "specialist", "service", "product"]);
@@ -77,24 +78,31 @@ export async function POST(request: Request) {
   if (!deps.bookingPolicies) {
     return NextResponse.json({ ok: false, error: "booking_policies_unavailable" }, { status: 503 });
   }
+  const bookingPolicies = deps.bookingPolicies;
   const { organizationId } = gate.ctx;
   const scopeEntityId =
     parsed.data.scopeEntityId ??
     (parsed.data.scopeLevel === "organization" ? organizationId : null);
 
   if (parsed.data.kind === "cancellation") {
-    const policy = await deps.bookingPolicies.upsertCancellationPolicy({
-      ...parsed.data,
-      organizationId,
-      scopeEntityId,
-    });
+    const data = parsed.data;
+    const policy = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.policies.cancellation.upsert", () =>
+      bookingPolicies.upsertCancellationPolicy({
+        ...data,
+        organizationId,
+        scopeEntityId,
+      }),
+    );
     return NextResponse.json({ ok: true, policy });
   }
 
-  const policy = await deps.bookingPolicies.upsertReschedulePolicy({
-    ...parsed.data,
-    organizationId,
-    scopeEntityId,
-  });
+  const data = parsed.data;
+  const policy = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.policies.reschedule.upsert", () =>
+    bookingPolicies.upsertReschedulePolicy({
+      ...data,
+      organizationId,
+      scopeEntityId,
+    }),
+  );
   return NextResponse.json({ ok: true, policy });
 }

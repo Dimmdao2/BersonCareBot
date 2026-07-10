@@ -1,4 +1,4 @@
-# Patient booking wizard (`/app/patient/booking/new`)
+# Patient booking wizard (`/app/patient/booking`)
 
 Экран **«Запись»** (шаг 1 wizard): предстоящие записи, полезные ссылки, оплата/абонементы, выбор формата.
 
@@ -12,6 +12,6 @@
 
 - Контекст города: распознанный `?cityCode=` в URL, иначе `cityCodeSnapshot` ближайшей предстоящей записи (`pickBookingCityCodeForAddressLinks`; нераспознанный query не перекрывает snapshot; upcoming — `ORDER BY slot_start ASC`).
 - Плитка «Адрес кабинета»: при опубликованных `address-msk` / `address-spb` и коде `moscow` / `msk` / `spb` → `/app/patient/help/address-msk|address-spb`; иначе `/app/patient/address` (iframe без изменений).
-- Wizard: «Назад» с шага услуги и редирект после подтверждения очной записи — `bookingNewHref(cityCode)` (`../bookingNewHref.ts`), чтобы на «Запись» сохранился город для плиток.
+- Wizard: «Назад» с шага услуги и редирект после подтверждения очной записи — `bookingNewHref(cityCode)` (`../bookingNewHref.ts`), чтобы на «Запись» сохранился город для плиток. Legacy `/app/patient/booking/new*` routes remain available for old deeplinks.
 
 См. [`modules/help-content/README.md`](../../../../modules/help-content/README.md). После публикации статей help в CMS — инвалидация через `revalidatePatientContentPaths` (включая этот маршрут).

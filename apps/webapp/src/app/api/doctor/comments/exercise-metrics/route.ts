@@ -13,8 +13,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { resolveDoctorInstanceInWorkspace } from "@/app/api/doctor/treatment-program-instances/_doctorInstanceWorkspace";
 
 const querySchema = z.object({
   instanceId: z.string().uuid(),
@@ -26,13 +27,8 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
@@ -48,11 +44,23 @@ export async function GET(request: Request) {
 
   try {
     const deps = buildAppDeps();
-    const points = await deps.treatmentProgramProgress.listExerciseMetricsForWindow({
-      instanceId,
-      instanceStageItemId: stageItemId,
-      windowDays,
-    });
+    const resolved = await resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId);
+    if (!resolved.ok) return resolved.response;
+
+    const itemBelongsToInstance = resolved.instance.stages.some((stage) =>
+      stage.items.some((item) => item.id === stageItemId),
+    );
+    if (!itemBelongsToInstance) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+
+    const points = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.treatmentProgramProgress.listExerciseMetricsForWindow({
+        instanceId,
+        instanceStageItemId: stageItemId,
+        windowDays,
+      }),
+    );
     return NextResponse.json({ ok: true, points });
   } catch {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });

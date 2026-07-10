@@ -1,6 +1,7 @@
 import { getPool } from "@/infra/db/client";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import { withPoolTransaction } from "@/infra/db/withClient";
 import type { BroadcastAuditEntry, DoctorBroadcastDeliveryCommitPort } from "@/modules/doctor-broadcasts/ports";
 import { normalizeBroadcastChannels } from "@/modules/doctor-broadcasts/broadcastChannels";
 
@@ -35,10 +36,8 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
       const auditId = input.auditId;
       const deliveryTotal = input.jobs.length;
       const pool = getPool();
-      const client = await pool.connect();
-      const tx = getWebappSqlFromPgClient(client);
-      try {
-        await client.query("BEGIN");
+      return withPoolTransaction(pool, async (client) => {
+        const tx = getWebappSqlFromPgClient(client);
         const ins = await runWebappPgText<Record<string, unknown>>(
           `INSERT INTO broadcast_audit (
              id,
@@ -105,14 +104,8 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
             tx,
           );
         }
-        await client.query("COMMIT");
         return mapRow(ins.rows[0] as Record<string, unknown>);
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
   };
 }

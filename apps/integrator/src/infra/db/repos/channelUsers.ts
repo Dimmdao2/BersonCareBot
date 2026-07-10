@@ -16,6 +16,7 @@ import {
 } from './linkedPhoneSource.js';
 import { sql } from 'drizzle-orm';
 import { runIntegratorSql } from '../runIntegratorSql.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 
 export type ChannelUserByPhone = {
   chatId: number;
@@ -32,8 +33,127 @@ export type ChannelUserLinkRow = {
   userState: string | null;
 };
 
+export type MessengerIdentityResource = 'telegram' | 'max';
+
 /** Окно подавления повторного «голого» /start (другой `update_id`, тот же смысл). Не путать с gateway dedup по `update_id`. */
 export const TELEGRAM_START_DEBOUNCE_SECONDS = 3;
+
+function singleOrganizationId(rows: { organization_id: string }[]): string | null {
+  return rows.length === 1 && rows[0]?.organization_id ? rows[0].organization_id : null;
+}
+
+function organizationIdForIntegratorUserSql(integratorUserId: string | number) {
+  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
+  return sql`COALESCE(
+    ${currentOrganizationId}::uuid,
+    (
+      SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1]
+      FROM public.platform_users platform_user
+      INNER JOIN (
+        SELECT platform_user_id, organization_id
+        FROM public.org_enrollments
+        WHERE status = 'active'
+        UNION
+        SELECT platform_user_id, organization_id
+        FROM public.be_organization_members
+        WHERE status = 'active'
+      ) active_user_orgs
+        ON active_user_orgs.platform_user_id = platform_user.id
+      WHERE platform_user.integrator_user_id = ${String(integratorUserId)}::bigint
+      HAVING count(DISTINCT active_user_orgs.organization_id) = 1
+    )
+  )`;
+}
+
+export async function resolveActiveOrganizationIdForMessengerIdentity(
+  db: DbPort,
+  input: { resource: MessengerIdentityResource; externalId: string },
+): Promise<string | null> {
+  const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+    WITH identity_user AS (
+      SELECT identity_row.user_id
+      FROM integrator.identities identity_row
+      WHERE identity_row.resource = ${input.resource}
+        AND identity_row.external_id = ${input.externalId}
+      LIMIT 1
+    ),
+    active_user_orgs AS (
+      SELECT platform_user_id, organization_id
+      FROM public.org_enrollments
+      WHERE status = 'active'
+      UNION
+      SELECT platform_user_id, organization_id
+      FROM public.be_organization_members
+      WHERE status = 'active'
+    )
+    SELECT DISTINCT active_user_orgs.organization_id::text AS organization_id
+    FROM identity_user
+    INNER JOIN public.platform_users platform_user
+      ON platform_user.integrator_user_id = identity_user.user_id
+    INNER JOIN active_user_orgs
+      ON active_user_orgs.platform_user_id = platform_user.id
+    ORDER BY organization_id
+    LIMIT 2
+  `);
+  return singleOrganizationId(res.rows);
+}
+
+/**
+ * T0.4 channel-binding fallback for first-contact webhook traffic.
+ *
+ * A brand-new, never-enrolled messenger identity has no row in `org_enrollments` /
+ * `be_organization_members` yet, so {@link resolveActiveOrganizationIdForMessengerIdentity}
+ * returns null. The tenant-context architecture decision is that the *inbound channel/bot*
+ * (not the user's enrollment state) determines the organization: today's deployment runs a
+ * single bot per organization, so "the channel's organization" and "the only organization that
+ * exists" are the same thing. This is a deliberate stopgap for the current single-tenant
+ * deployment shape; once real per-channel bot bindings exist (multi-tenant bot routing), this
+ * must be replaced by an explicit channel -> organization lookup instead of a global count(1).
+ *
+ * Returns null (callers must log and fail open, never throw/reject the webhook) when zero or
+ * more than one organization exists — i.e. when no single deployment-wide organization can be
+ * inferred (empty DB, or a real multi-tenant deployment that has moved past this stopgap).
+ */
+export async function resolveDeploymentSingleActiveOrganizationId(db: DbPort): Promise<string | null> {
+  try {
+    const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+      SELECT id::text AS organization_id
+      FROM public.be_organizations
+      ORDER BY id
+      LIMIT 2
+    `);
+    return singleOrganizationId(res.rows);
+  } catch (err) {
+    // eslint-disable-next-line no-secrets/no-secrets -- log-message identifier, not a secret
+    logger.error({ err }, 'resolveDeploymentSingleActiveOrganizationId error');
+    return null;
+  }
+}
+
+export async function resolveActiveOrganizationIdForIntegratorUserId(
+  db: DbPort,
+  integratorUserId: string,
+): Promise<string | null> {
+  const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+    WITH active_user_orgs AS (
+      SELECT platform_user_id, organization_id
+      FROM public.org_enrollments
+      WHERE status = 'active'
+      UNION
+      SELECT platform_user_id, organization_id
+      FROM public.be_organization_members
+      WHERE status = 'active'
+    )
+    SELECT DISTINCT active_user_orgs.organization_id::text AS organization_id
+    FROM public.platform_users platform_user
+    INNER JOIN active_user_orgs
+      ON active_user_orgs.platform_user_id = platform_user.id
+    WHERE platform_user.integrator_user_id = ${integratorUserId}::bigint
+    ORDER BY organization_id
+    LIMIT 2
+  `);
+  return singleOrganizationId(res.rows);
+}
 
 /**
  * Anti-dup for rapid «голый» /start (legacy handleStart + orchestrator `telegramStartDedup`).
@@ -662,15 +782,17 @@ export async function setUserPhone(
   );
 
   try {
+    const organizationIdExpression = organizationIdForIntegratorUserSql(userId);
     const res = await runIntegratorSql(
       db,
       sql`
-    INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, created_at, updated_at)
-    VALUES (${userId}::bigint, 'phone', ${phoneNormalized}, ${resource}, NULL, now(), now())
+    INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, organization_id, created_at, updated_at)
+    VALUES (${userId}::bigint, 'phone', ${phoneNormalized}, ${resource}, NULL, ${organizationIdExpression}, now(), now())
     ON CONFLICT (type, value_normalized)
     DO UPDATE SET
       user_id = EXCLUDED.user_id,
       label = EXCLUDED.label,
+      organization_id = COALESCE(EXCLUDED.organization_id, contacts.organization_id),
       updated_at = now()
     WHERE contacts.user_id = ${userId}::bigint
   `,

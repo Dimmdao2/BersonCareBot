@@ -13,6 +13,17 @@ import type {
 } from "./types";
 import { exerciseArchiveRequiresAcknowledgement } from "./types";
 
+export type LfkExerciseWriteOptions = {
+  runExerciseWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runExerciseWrite<T>(
+  options: LfkExerciseWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return options?.runExerciseWrite ? options.runExerciseWrite(fn) : fn();
+}
+
 export function createLfkExercisesService(port: LfkExercisesPort) {
   return {
     async listExercises(filter: ExerciseFilter = {}) {
@@ -27,23 +38,29 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       return port.listTitlesByIds(ids);
     },
 
-    async createExercise(input: CreateExerciseInput, createdBy: string | null) {
+    async createExercise(
+      input: CreateExerciseInput,
+      createdBy: string | null,
+      options?: LfkExerciseWriteOptions,
+    ) {
       const title = input.title?.trim() ?? "";
       if (!title) {
         throw new Error("Название упражнения обязательно");
       }
-      return port.create(
-        {
-          ...input,
-          title,
-          description: input.description?.trim() || null,
-          contraindications: input.contraindications?.trim() || null,
-        },
-        createdBy
+      return runExerciseWrite(options, () =>
+        port.create(
+          {
+            ...input,
+            title,
+            description: input.description?.trim() || null,
+            contraindications: input.contraindications?.trim() || null,
+          },
+          createdBy,
+        ),
       );
     },
 
-    async updateExercise(id: string, input: UpdateExerciseInput) {
+    async updateExercise(id: string, input: UpdateExerciseInput, options?: LfkExerciseWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new Error("Упражнение не найдено");
       if (existing.isArchived) {
@@ -61,7 +78,7 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       if (input.contraindications !== undefined) {
         patch.contraindications = input.contraindications?.trim() || null;
       }
-      const row = await port.update(id, patch);
+      const row = await runExerciseWrite(options, () => port.update(id, patch));
       if (!row) throw new Error("Упражнение не найдено");
       return row;
     },
@@ -70,7 +87,11 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       return port.getExerciseUsageSummary(id);
     },
 
-    async archiveExercise(id: string, options?: ArchiveExerciseOptions) {
+    async archiveExercise(
+      id: string,
+      options?: ArchiveExerciseOptions,
+      writeOptions?: LfkExerciseWriteOptions,
+    ) {
       const existing = await port.getById(id);
       if (!existing) throw new ExerciseArchiveNotFoundError();
       if (existing.isArchived) throw new ExerciseArchiveAlreadyArchivedError();
@@ -80,16 +101,16 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
         throw new UsageConfirmationRequiredError(usage);
       }
 
-      const ok = await port.archive(id);
+      const ok = await runExerciseWrite(writeOptions, () => port.archive(id));
       if (!ok) throw new ExerciseArchiveNotFoundError();
     },
 
-    async unarchiveExercise(id: string) {
+    async unarchiveExercise(id: string, options?: LfkExerciseWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new ExerciseArchiveNotFoundError();
       if (!existing.isArchived) throw new ExerciseUnarchiveNotArchivedError();
 
-      const ok = await port.unarchive(id);
+      const ok = await runExerciseWrite(options, () => port.unarchive(id));
       if (!ok) throw new ExerciseArchiveNotFoundError();
     },
   };

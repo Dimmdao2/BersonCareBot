@@ -39,30 +39,38 @@ export function EmailAccountPanel({
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailRetrySec, setEmailRetrySec] = useState(60);
   const [emailStartError, setEmailStartError] = useState<string | null>(null);
+  const [emailStartPending, setEmailStartPending] = useState(false);
 
   const refresh = () => {
     router.refresh();
   };
 
-  const startEmail = async () => {
+  const startEmail = async (emailOverride?: string) => {
     setEmailStartError(null);
-    const res = await fetch("/api/auth/email/start", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: emailDraft.trim() }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      challengeId?: string;
-      retryAfterSeconds?: number;
-      message?: string;
-    };
-    if (data.ok && data.challengeId) {
-      setEmailChallengeId(data.challengeId);
-      setEmailRetrySec(data.retryAfterSeconds ?? 60);
-      setEmailStep("code");
-    } else {
-      setEmailStartError(data.message ?? "Не удалось отправить код");
+    setEmailStartPending(true);
+    const email = (emailOverride ?? emailDraft).trim();
+    try {
+      const res = await fetch("/api/auth/email/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        challengeId?: string;
+        retryAfterSeconds?: number;
+        message?: string;
+      };
+      if (data.ok && data.challengeId) {
+        setEmailDraft(email);
+        setEmailChallengeId(data.challengeId);
+        setEmailRetrySec(data.retryAfterSeconds ?? 60);
+        setEmailStep("code");
+      } else {
+        setEmailStartError(data.message ?? "Не удалось отправить код");
+      }
+    } finally {
+      setEmailStartPending(false);
     }
   };
 
@@ -77,19 +85,34 @@ export function EmailAccountPanel({
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <span className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>Email</span>
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
-              onClick={() => {
-                setEmailStep("enter");
-                setEmailDraft(initialEmail ?? "");
-                setEmailStartError(null);
-              }}
-            >
-              {initialEmail ? "Изменить" : "Привязать"}
-            </Button>
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+              {initialEmail && !emailVerified ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+                  disabled={emailStartPending}
+                  onClick={() => void startEmail(initialEmail)}
+                >
+                  Подтвердить
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+                disabled={emailStartPending}
+                onClick={() => {
+                  setEmailStep("enter");
+                  setEmailDraft(initialEmail ?? "");
+                  setEmailStartError(null);
+                }}
+              >
+                {initialEmail ? "Изменить" : "Привязать"}
+              </Button>
+            </div>
           </div>
           {initialEmail ? (
             <p className="text-sm text-[var(--patient-text-primary)]">
@@ -117,6 +140,7 @@ export function EmailAccountPanel({
             variant="link"
             size="sm"
             className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+            disabled={emailStartPending}
             onClick={() => {
               setEmailStep("enter");
               setEmailDraft(initialEmail ?? "");
@@ -129,18 +153,36 @@ export function EmailAccountPanel({
       ) : null}
 
       {emailStep === "view" && layout !== "profileHero" && initialEmail ? (
-        <p className="text-sm">
-          {initialEmail}
-          {emailVerified ? (
-            <span className="text-muted-foreground ml-2 text-xs">(подтверждён)</span>
-          ) : (
-            <span className="text-muted-foreground ml-2 text-xs">(подтверждение по коду)</span>
-          )}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-sm">
+            {initialEmail}
+            {emailVerified ? (
+              <span className="text-muted-foreground ml-2 text-xs">(подтверждён)</span>
+            ) : (
+              <span className="text-muted-foreground ml-2 text-xs">(подтверждение по коду)</span>
+            )}
+          </p>
+          {!emailVerified ? (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+              disabled={emailStartPending}
+              onClick={() => void startEmail(initialEmail)}
+            >
+              Подтвердить
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       {emailStep === "view" && layout !== "profileHero" && !initialEmail ? (
         <p className="text-muted-foreground text-sm">не указано — добавьте email для уведомлений.</p>
+      ) : null}
+
+      {emailStep === "view" && emailStartError ? (
+        <p className="text-destructive text-sm">{emailStartError}</p>
       ) : null}
 
       {emailStep === "enter" ? (
@@ -166,8 +208,8 @@ export function EmailAccountPanel({
           />
           {emailStartError ? <p className="text-destructive text-sm">{emailStartError}</p> : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void startEmail()}>
-              Получить код
+            <Button type="button" onClick={() => void startEmail()} disabled={emailStartPending}>
+              {emailStartPending ? "Отправка…" : "Получить код"}
             </Button>
             <Button
               type="button"

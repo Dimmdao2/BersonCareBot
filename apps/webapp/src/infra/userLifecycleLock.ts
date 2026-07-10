@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { pgAdvisoryXactLock, pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
+import { withPoolTransaction } from "@/infra/db/withClient";
 
 /** Exclusive: purge / manual merge. Shared: user-owned media presign + intake attachment writes. */
 export type UserLifecycleLockMode = "exclusive" | "shared";
@@ -18,24 +19,11 @@ export async function withTwoUserLifecycleLocksExclusive<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const [x, y] = [userIdA, userIdB].sort();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  return withPoolTransaction(pool, async (client) => {
     await pgAdvisoryXactLock(client, x);
     await pgAdvisoryXactLock(client, y);
-    const out = await fn(client);
-    await client.query("COMMIT");
-    return out;
-  } catch (err) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* ignore */
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
+    return fn(client);
+  });
 }
 
 export async function withUserLifecycleLock<T>(
@@ -44,25 +32,12 @@ export async function withUserLifecycleLock<T>(
   mode: UserLifecycleLockMode,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  return withPoolTransaction(pool, async (client) => {
     if (mode === "exclusive") {
       await pgAdvisoryXactLock(client, userId);
     } else {
       await pgAdvisoryXactLockShared(client, userId);
     }
-    const out = await fn(client);
-    await client.query("COMMIT");
-    return out;
-  } catch (err) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* ignore */
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
+    return fn(client);
+  });
 }

@@ -2,9 +2,11 @@ import { bindEmailAuthDbPort } from "@/modules/auth/emailAuth";
 import { bindPhoneOtpLimitsDbPort } from "@/modules/auth/phoneOtpLimits";
 import { bindDevBypassPlatformUserPhonePort } from "@/modules/auth/devBypassPlatformUserPhonePort";
 import { bindAuthRateLimitDbPort } from "@/modules/auth/authRateLimits";
+import { bindChannelLinkDbPort } from "@/modules/auth/channelLink";
 import { bindEmailSendPort } from "@/modules/auth/emailSendPort";
 import { bindOAuthUserResolvePort } from "@/modules/auth/oauthUserResolvePort";
 import { checkAndRecordAuthRateLimitEvent } from "@/infra/repos/pgAuthRateLimitEvents";
+import { pgChannelLinkDbPort } from "@/infra/repos/pgChannelLinkDbPort";
 import { pgEmailAuthPort } from "@/infra/repos/pgEmailAuth";
 import { pgPhoneOtpLimitsPort } from "@/infra/repos/pgPhoneOtpLimits";
 import { pgDevBypassPlatformUserPhonePort } from "@/infra/repos/pgDevBypassPlatformUserPhone";
@@ -21,6 +23,7 @@ export function ensureAuthModulePortsBound(): void {
   bindPhoneOtpLimitsDbPort(pgPhoneOtpLimitsPort);
   bindDevBypassPlatformUserPhonePort(pgDevBypassPlatformUserPhonePort);
   bindOAuthUserResolvePort(pgOAuthUserResolvePort);
+  bindChannelLinkDbPort(pgChannelLinkDbPort);
   bindEmailSendPort({
     sendCode: async (to, code) => {
       const result = await sendEmailCodeViaIntegrator(to, code);

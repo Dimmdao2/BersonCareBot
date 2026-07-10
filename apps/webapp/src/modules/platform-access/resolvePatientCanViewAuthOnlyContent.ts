@@ -1,5 +1,4 @@
 import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
 import type { AppSession } from "@/shared/types/session";
 import { resolvePlatformAccessContext } from "./resolvePlatformAccessContext";
 
@@ -15,7 +14,7 @@ export async function resolvePatientCanViewAuthOnlyContent(session: AppSession |
     return Boolean(session.user.phone?.trim());
   }
   try {
-    const ctx = await resolvePlatformAccessContext(getPool(), {
+    const ctx = await resolvePlatformAccessContext({
       sessionUserId: session.user.userId,
       sessionRoleHint: session.user.role,
     });

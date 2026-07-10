@@ -606,9 +606,10 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
   return (
     <div className="rounded-md border border-border/60">
       <div className="flex w-full items-center gap-1 px-2 py-1">
-        <button
+        <Button
           type="button"
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-1 py-1.5 text-left"
+          variant="ghost"
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-1 py-1.5 text-left h-auto"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
@@ -620,7 +621,7 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
               aria-hidden
             />
           </span>
-        </button>
+        </Button>
         <CopyForAiButton payload={snapshot} label="Скопировать" className="h-7 shrink-0 px-2 text-xs" />
       </div>
       {open ? (
@@ -1435,8 +1436,12 @@ export function SystemHealthSection() {
               )}
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Cron-задачи хоста" status={cronJobsAccordionStatus}>
+            <HealthAccordionItem name="Проверяльщики и cron-задачи хоста" status={cronJobsAccordionStatus}>
               <DetailRow label="Итог" value={techProbeStatusHuman(cronJobsAccordionStatus)} />
+              <DetailRow
+                label="Смысл"
+                value="Показывает, живы ли сами периодические проверки и служебные tick-задачи, которые наполняют эту панель."
+              />
               <ProbeInfo probe={data?.meta?.probes?.cronJobs} />
               {cronJobRows.length === 0 ? (
                 <DetailRow label="Задачи" value="нет данных" />
@@ -1787,6 +1792,16 @@ export function SystemHealthSection() {
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
             <span>Сервер веб-приложения</span>
             <StatusPill status={workers.webapp} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
+            <span>Проверяльщики и cron-задачи</span>
+            <StatusPill status={cronJobsAccordionStatus} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
+            <span>Доставка уведомлений</span>
+            <StatusPill
+              status={data?.meta?.probes?.notificationDelivery?.status ?? data?.notificationDelivery?.status ?? "no_data"}
+            />
           </div>
         </CardContent>
       </Card>

@@ -1,11 +1,9 @@
-import { and, eq, inArray, notInArray, sql, type Column, type SQL } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
+import { notInArray, sql, type Column, type SQL } from "drizzle-orm";
+import {
+  normalizeTestAccountIdentifiersValue,
+  type TestAccountIdentifiers,
+} from "@/modules/system-settings/testAccounts";
 import type { SystemSetting } from "@/modules/system-settings/types";
-import { platformUsers, systemSettings, userChannelBindings } from "../../../db/schema/schema";
-
-const STAFF_ANALYTICS_ROLES = ["admin", "doctor"] as const;
-const ALWAYS_EXCLUDED_ANALYTICS_PHONES = ["+70000000000"] as const;
 const TTL_MS = 30_000;
 
 type IncludeTestCacheEntry = { value: boolean; expiresAt: number };
@@ -14,12 +12,7 @@ let includeTestCache: IncludeTestCacheEntry | null = null;
 export type AnalyticsAudienceContext = {
   includeTestAccounts: boolean;
   excludedUserIds: string[];
-};
-
-export type ResolveExcludedUserIdsOptions = {
-  includeTestAccounts: boolean;
-  /** Product analytics: always exclude staff roles. Doctor KPIs: false. */
-  excludeStaffRoles?: boolean;
+  organizationId?: string;
 };
 
 function readBooleanValueJson(valueJson: unknown): boolean {
@@ -29,7 +22,7 @@ function readBooleanValueJson(valueJson: unknown): boolean {
 }
 
 type SettingsReader = {
-  getSetting(key: "dev_mode", scope: "admin"): Promise<SystemSetting | null>;
+  getSetting(key: "dev_mode" | "test_account_identifiers", scope: "admin"): Promise<SystemSetting | null>;
 };
 
 /**
@@ -57,98 +50,30 @@ export function resetAnalyticsIncludeTestAccountsCacheForTests(): void {
   includeTestCache = null;
 }
 
-async function readTestAccountIdentifiersFromDb(
-  db: ReturnType<typeof getDrizzle>,
-): Promise<ReturnType<typeof normalizeTestAccountIdentifiersValue>> {
-  const [row] = await db
-    .select({ valueJson: systemSettings.valueJson })
-    .from(systemSettings)
-    .where(and(eq(systemSettings.key, "test_account_identifiers"), eq(systemSettings.scope, "admin")))
-    .limit(1);
+async function readAnalyticsTestAccountIdentifiers(deps: {
+  systemSettings: SettingsReader;
+}): Promise<TestAccountIdentifiers | null> {
+  const row = await deps.systemSettings.getSetting("test_account_identifiers", "admin");
   if (!row?.valueJson || typeof row.valueJson !== "object") return null;
   const inner = (row.valueJson as Record<string, unknown>).value;
   return normalizeTestAccountIdentifiersValue(inner);
 }
 
-/**
- * Resolves platform user ids to exclude from analytics aggregates.
- */
-export async function resolveAnalyticsExcludedUserIds(
-  db: ReturnType<typeof getDrizzle>,
-  options: ResolveExcludedUserIdsOptions,
-): Promise<string[]> {
-  const excluded = new Set<string>();
-
-  if (options.excludeStaffRoles !== false) {
-    const staffRows = await db
-      .select({ id: platformUsers.id })
-      .from(platformUsers)
-      .where(inArray(platformUsers.role, [...STAFF_ANALYTICS_ROLES]));
-    for (const row of staffRows) excluded.add(row.id);
-  }
-
-  const alwaysExcludedPhoneRows = await db
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
-    .where(inArray(platformUsers.phoneNormalized, [...ALWAYS_EXCLUDED_ANALYTICS_PHONES]));
-  for (const row of alwaysExcludedPhoneRows) excluded.add(row.id);
-
-  if (options.includeTestAccounts) {
-    return [...excluded];
-  }
-
-  const spec = await readTestAccountIdentifiersFromDb(db);
-  if (!spec) return [...excluded];
-
-  const phoneRowsPromise =
-    spec.phones.length > 0
-      ? db
-          .select({ id: platformUsers.id })
-          .from(platformUsers)
-          .where(inArray(platformUsers.phoneNormalized, spec.phones))
-      : Promise.resolve([] as Array<{ id: string }>);
-  const telegramRowsPromise =
-    spec.telegramIds.length > 0
-      ? db
-          .select({ id: userChannelBindings.userId })
-          .from(userChannelBindings)
-          .where(
-            and(
-              eq(userChannelBindings.channelCode, "telegram"),
-              inArray(userChannelBindings.externalId, spec.telegramIds),
-            ),
-          )
-      : Promise.resolve([] as Array<{ id: string }>);
-  const maxRowsPromise =
-    spec.maxIds.length > 0
-      ? db
-          .select({ id: userChannelBindings.userId })
-          .from(userChannelBindings)
-          .where(
-            and(eq(userChannelBindings.channelCode, "max"), inArray(userChannelBindings.externalId, spec.maxIds)),
-          )
-      : Promise.resolve([] as Array<{ id: string }>);
-
-  const [phoneRows, telegramRows, maxRows] = await Promise.all([
-    phoneRowsPromise,
-    telegramRowsPromise,
-    maxRowsPromise,
-  ]);
-  for (const row of phoneRows) excluded.add(row.id);
-  for (const row of telegramRows) excluded.add(row.id);
-  for (const row of maxRows) excluded.add(row.id);
-  return [...excluded];
-}
-
 export async function loadAnalyticsAudienceContext(deps: {
   systemSettings: SettingsReader;
+  loadExcludedUserIds: (input: {
+    includeTestAccounts: boolean;
+    excludeStaffRoles?: boolean;
+    testAccountIdentifiers?: TestAccountIdentifiers | null;
+  }) => Promise<string[]>;
   excludeStaffRoles?: boolean;
 }): Promise<AnalyticsAudienceContext> {
   const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
-  const db = getDrizzle();
-  const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
+  const testAccountIdentifiers = includeTestAccounts ? null : await readAnalyticsTestAccountIdentifiers(deps);
+  const excludedUserIds = await deps.loadExcludedUserIds({
     includeTestAccounts,
     excludeStaffRoles: deps.excludeStaffRoles,
+    testAccountIdentifiers,
   });
   return { includeTestAccounts, excludedUserIds };
 }

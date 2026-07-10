@@ -21,16 +21,18 @@ import { DateTime } from "luxon";
 const BUILD_INSIGHTS_CAP = 500;
 
 /** Wave 3 phase 13D — domain SQL via `runWebappPgText`. */
-async function listOnSupportPatients(): Promise<ProactivePatientRef[]> {
+async function listOnSupportPatients(organizationId?: string): Promise<ProactivePatientRef[]> {
   const res = await runWebappPgText<{ id: string; display_name: string | null }>(
     `SELECT pu.id, pu.display_name
      FROM doctor_patient_support dps
      JOIN platform_users pu ON pu.id = dps.patient_user_id
      WHERE dps.on_support = true
+       AND ($1::uuid IS NULL OR dps.organization_id = $1::uuid)
        AND pu.role = 'client'
        AND pu.merged_into_id IS NULL
        AND COALESCE(pu.is_archived, false) = false
      ORDER BY pu.display_name, pu.id`,
+    [organizationId ?? null],
   );
   return res.rows.map((r) => ({
     patientUserId: r.id,
@@ -42,6 +44,7 @@ async function listWellbeingEntries(
   patientIds: string[],
   fromIso: string,
   toExclusiveIso: string,
+  organizationId?: string,
 ): Promise<ProactiveWellbeingEntry[]> {
   if (patientIds.length === 0) return [];
   const res = await runWebappPgText<{
@@ -56,10 +59,12 @@ async function listWellbeingEntries(
      WHERE e.platform_user_id = ANY($1::uuid[])
        AND t.symptom_key = 'general_wellbeing'
        AND t.deleted_at IS NULL
+       AND ($5::uuid IS NULL OR t.organization_id = $5::uuid)
+       AND ($5::uuid IS NULL OR e.organization_id = $5::uuid)
        AND e.recorded_at >= $2::timestamptz
        AND e.recorded_at < $3::timestamptz
        AND (e.notes IS NULL OR e.notes <> $4)`,
-    [patientIds, fromIso, toExclusiveIso, WELLBEING_GENERAL_MIRROR_NOTE],
+    [patientIds, fromIso, toExclusiveIso, WELLBEING_GENERAL_MIRROR_NOTE, organizationId ?? null],
   );
   return res.rows.map((r) => ({
     patientUserId: r.platform_user_id,
@@ -69,7 +74,7 @@ async function listWellbeingEntries(
   }));
 }
 
-async function listProgramActivity(patientIds: string[]): Promise<ProactiveProgramActivity[]> {
+async function listProgramActivity(patientIds: string[], organizationId?: string): Promise<ProactiveProgramActivity[]> {
   if (patientIds.length === 0) return [];
 
   const activeRes = await runWebappPgText<{ patient_user_id: string; instance_id: string }>(
@@ -78,10 +83,11 @@ async function listProgramActivity(patientIds: string[]): Promise<ProactiveProgr
        tpi.id::text AS instance_id
      FROM treatment_program_instances tpi
      WHERE tpi.patient_user_id = ANY($1::uuid[])
+       AND ($2::uuid IS NULL OR tpi.organization_id = $2::uuid)
        AND tpi.status = 'active'
        AND tpi.assignment_source = 'doctor'
      ORDER BY tpi.patient_user_id, tpi.updated_at DESC NULLS LAST, tpi.id DESC`,
-    [patientIds],
+    [patientIds, organizationId ?? null],
   );
 
   const activeByPatient = new Map(
@@ -95,9 +101,10 @@ async function listProgramActivity(patientIds: string[]): Promise<ProactiveProgr
       `SELECT pal.instance_id::text AS instance_id, MAX(pal.created_at) AS last_done_at
        FROM program_action_log pal
        WHERE pal.instance_id = ANY($1::uuid[])
+         AND ($2::uuid IS NULL OR pal.organization_id = $2::uuid)
          AND pal.action_type = 'done'
        GROUP BY pal.instance_id`,
-      [instanceIds],
+      [instanceIds, organizationId ?? null],
     );
     for (const row of doneRes.rows) {
       if (row.last_done_at) {
@@ -117,18 +124,22 @@ async function listProgramActivity(patientIds: string[]): Promise<ProactiveProgr
   });
 }
 
-async function getOnSupportPatientRef(patientUserId: string): Promise<ProactivePatientRef | null> {
+async function getOnSupportPatientRef(
+  patientUserId: string,
+  organizationId?: string,
+): Promise<ProactivePatientRef | null> {
   const res = await runWebappPgText<{ id: string; display_name: string | null }>(
     `SELECT pu.id, pu.display_name
      FROM doctor_patient_support dps
      JOIN platform_users pu ON pu.id = dps.patient_user_id
      WHERE dps.patient_user_id = $1::uuid
        AND dps.on_support = true
+       AND ($2::uuid IS NULL OR dps.organization_id = $2::uuid)
        AND pu.role = 'client'
        AND pu.merged_into_id IS NULL
        AND COALESCE(pu.is_archived, false) = false
      LIMIT 1`,
-    [patientUserId],
+    [patientUserId, organizationId ?? null],
   );
   const row = res.rows[0];
   if (!row) return null;
@@ -142,13 +153,14 @@ async function buildInsights(
   displayIana: string,
   limit: number,
   filterPatientIds?: readonly string[],
+  organizationId?: string,
 ): Promise<ProactiveInsightRow[]> {
   let patients: ProactivePatientRef[];
   if (filterPatientIds?.length === 1) {
-    const ref = await getOnSupportPatientRef(filterPatientIds[0]!);
+    const ref = await getOnSupportPatientRef(filterPatientIds[0]!, organizationId);
     patients = ref ? [ref] : [];
   } else {
-    patients = await listOnSupportPatients();
+    patients = await listOnSupportPatients(organizationId);
     if (filterPatientIds?.length) {
       const allowed = new Set(filterPatientIds);
       patients = patients.filter((p) => allowed.has(p.patientUserId));
@@ -166,8 +178,8 @@ async function buildInsights(
   const wellbeingTo = now.plus({ days: 1 }).startOf("day").toUTC().toISO()!;
 
   const [entries, activity] = await Promise.all([
-    listWellbeingEntries(patientIds, wellbeingFrom, wellbeingTo),
-    listProgramActivity(patientIds),
+    listWellbeingEntries(patientIds, wellbeingFrom, wellbeingTo, organizationId),
+    listProgramActivity(patientIds, organizationId),
   ]);
 
   const wellbeing = detectWellbeingLowStreakInsights({
@@ -192,8 +204,8 @@ export function createPgDoctorProactiveInsightsPort(): DoctorProactiveInsightsPo
       const all = await buildInsights(displayIana, BUILD_INSIGHTS_CAP);
       return { items: all.slice(0, cap), totalCount: all.length };
     },
-    async listForPatient({ patientUserId, displayIana }) {
-      return buildInsights(displayIana, BUILD_INSIGHTS_CAP, [patientUserId]);
+    async listForPatient({ patientUserId, displayIana, organizationId }) {
+      return buildInsights(displayIana, BUILD_INSIGHTS_CAP, [patientUserId], organizationId);
     },
   };
 }

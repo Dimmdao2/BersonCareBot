@@ -9,6 +9,7 @@ import {
   beBranches,
   beClinicServices,
 } from "../../../db/schema/bookingEngine";
+import { bePackageUsages, bePatientPackages } from "../../../db/schema/bookingMemberships";
 import { platformUsers } from "../../../db/schema/schema";
 import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -90,6 +91,9 @@ type ListRow = {
   lastName: string | null;
   serviceTitle: string | null;
   branchTitle: string | null;
+  packageUsageRef: string | null;
+  packageTitle: string | null;
+  packageDisplayNumber: number | null;
 };
 
 function mapListRow(row: ListRow): AppointmentRow {
@@ -118,6 +122,9 @@ function mapListRow(row: ListRow): AppointmentRow {
     link: null,
     cancellationCountForClient: 0,
     branchName: row.branchTitle ?? null,
+    packageUsageRef: row.packageUsageRef,
+    packageTitle: row.packageTitle,
+    packageDisplayNumber: row.packageDisplayNumber,
   };
 }
 
@@ -133,6 +140,9 @@ const listSelect = {
   lastName: platformUsers.lastName,
   serviceTitle: beClinicServices.title,
   branchTitle: beBranches.title,
+  packageUsageRef: beAppointments.packageUsageRef,
+  packageTitle: bePatientPackages.title,
+  packageDisplayNumber: bePatientPackages.displayNumber,
 };
 
 export function createPgDoctorCanonicalAppointmentsPort(
@@ -141,10 +151,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
   return {
     async listAppointmentsForSpecialist(
       filter: DoctorAppointmentsListFilter,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<AppointmentRow[]> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       // F1b: soft-deleted (deleted_at) canonical rows are hidden from all doctor reads.
       const base = and(
         eq(beAppointments.organizationId, organizationId),
@@ -164,6 +174,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(and(base, userAudience, gte(beAppointments.startAt, from), lte(beAppointments.startAt, to)))
           .orderBy(asc(beAppointments.startAt));
       } else if (filter.kind === "statsRange") {
@@ -175,6 +187,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(and(eq(beAppointments.organizationId, organizationId), isNull(beAppointments.deletedAt), userAudience, gte(beAppointments.startAt, from), lt(beAppointments.startAt, toExclusive)))
           .orderBy(desc(beAppointments.startAt));
       } else if (filter.kind === "futureActive") {
@@ -185,6 +199,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
               base,
@@ -201,6 +217,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
               base,
@@ -220,6 +238,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(and(base, userAudience, lt(beAppointments.startAt, nowIso)))
           .orderBy(desc(beAppointments.startAt))
           .limit(limit)
@@ -231,6 +251,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
               eq(beAppointments.organizationId, organizationId),
@@ -248,6 +270,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
               eq(beAppointments.organizationId, organizationId),
@@ -267,10 +291,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getAppointmentStats(
       filter: DoctorAppointmentStatsFilter,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<AppointmentStats> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       const iana = await getAppDisplayTimeZone();
       const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
       const excluded = audience?.excludedUserIds ?? [];
@@ -375,9 +399,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getDashboardAppointmentMetrics(audience?: {
       excludedUserIds?: string[];
+      organizationId?: string;
     }): Promise<DoctorDashboardAppointmentMetrics> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
       const orgCond = and(
         eq(beAppointments.organizationId, organizationId),
@@ -434,10 +459,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getScheduleKpis(
       query: ScheduleKpisQuery,
-      audience?: { excludedUserIds?: string[] },
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
     ): Promise<ScheduleKpis> {
       const db = getDrizzle();
-      const organizationId = await getDefaultOrganizationId();
+      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
       const nowIso = new Date().toISOString();
       const { from, to: toExclusive, branchId, serviceId } = query;
       const excluded = audience?.excludedUserIds ?? [];

@@ -8,15 +8,16 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -24,10 +25,21 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const [state, visits] = await Promise.all([
-    deps.patientClinical.getClinicalState(userId),
-    deps.patientClinical.listVisits(userId),
-  ]);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
+  const [state, visits] = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    Promise.all([
+      deps.patientClinical.getClinicalState(patientUserId),
+      deps.patientClinical.listVisits(patientUserId),
+    ]),
+  );
 
   return NextResponse.json({ ok: true, state, visits });
 }

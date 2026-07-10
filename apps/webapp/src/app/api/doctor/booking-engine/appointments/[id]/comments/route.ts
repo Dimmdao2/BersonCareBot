@@ -4,8 +4,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const postBodySchema = z.object({
   body: z.string().min(1).max(8000),
@@ -15,13 +15,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id: appointmentId } = await context.params;
   if (!z.string().uuid().safeParse(appointmentId).success) {
@@ -33,7 +28,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "booking_unavailable" }, { status: 503 });
   }
 
-  const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const orgId = gate.ctx.organizationId;
   const comments = await deps.clientHistory.listAppointmentComments(orgId, appointmentId);
   return NextResponse.json({ ok: true, comments });
 }
@@ -42,13 +37,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id: appointmentId } = await context.params;
   if (!z.string().uuid().safeParse(appointmentId).success) {
@@ -66,20 +56,23 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "booking_unavailable" }, { status: 503 });
   }
 
-  const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const orgId = gate.ctx.organizationId;
   const appt = await deps.bookingEngine.getAppointment(appointmentId);
   if (!appt || appt.organizationId !== orgId || !appt.platformUserId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
+  const platformUserId = appt.platformUserId;
 
   try {
-    const comment = await deps.clientHistory.createAppointmentComment({
-      organizationId: orgId,
-      appointmentId,
-      platformUserId: appt.platformUserId,
-      authorId: session.user.userId,
-      body: parsed.data.body,
-    });
+    const comment = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.clientHistory.createAppointmentComment({
+        organizationId: orgId,
+        appointmentId,
+        platformUserId,
+        authorId: gate.ctx.session.user.userId,
+        body: parsed.data.body,
+      }),
+    );
     return NextResponse.json({ ok: true, comment });
   } catch (e) {
     if (e instanceof Error && e.message === "empty_comment") {

@@ -526,7 +526,7 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     );
   });
 
-  it('booking.created patient web push uses messages openUrl', async () => {
+  it('booking.created does NOT send web-push (patient sees confirmation on-screen, #306)', async () => {
     const notifyPatientWebPush = vi.fn().mockResolvedValue(undefined);
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     getTargetsByPhone.mockResolvedValue({ channelBindings: { telegramId: 'tg-patient-immediate', maxId: null } });
@@ -542,13 +542,9 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
       body: raw,
     });
     expect(res.statusCode).toBe(200);
-    expect(notifyPatientWebPush).toHaveBeenCalledOnce();
-    const body = JSON.parse(String(notifyPatientWebPush.mock.calls[0]![0].body)) as {
-      openUrl: string;
-      intentType: string;
-    };
-    expect(body.intentType).toBe('appointment_lifecycle');
-    expect(body.openUrl).toContain('/app/patient/messages');
+    // Подтверждение записи идёт email+.ics (webapp) + Telegram/MAX (sendLinkedChannelMessage).
+    // App-push не нужен: пациент уже видит подтверждение на экране.
+    expect(notifyPatientWebPush).not.toHaveBeenCalled();
   });
 
   it('booking.created schedules patient reminders using delivery-targets topic appointment_reminders', async () => {

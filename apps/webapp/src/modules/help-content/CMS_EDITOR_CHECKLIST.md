@@ -2,7 +2,7 @@
 
 Редактор: **Статьи справки** → `/app/doctor/content?section=help`. Slug в URL должен **точно** совпадать с каноном (`canonicalSlugs.ts`).
 
-## Плитки на «Запись» (`/app/patient/booking/new`)
+## Плитки на «Запись» (`/app/patient/booking`)
 
 | Slug | Плитка / поведение | Рекомендация |
 |------|-------------------|--------------|
@@ -32,6 +32,6 @@
 
 ## После публикации
 
-Сохранение / lifecycle в CMS сбрасывает кэш `/help` и `/app/patient/booking/new` (`revalidatePatientContentPaths`).
+Сохранение / lifecycle в CMS сбрасывает кэш `/help` и `/app/patient/booking` (`revalidatePatientContentPaths`).
 
 См. [`README.md`](README.md), [`help/help.md`](../../app/app/patient/help/help.md).

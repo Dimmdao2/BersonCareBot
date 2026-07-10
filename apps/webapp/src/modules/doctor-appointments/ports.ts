@@ -48,6 +48,12 @@ export type AppointmentRow = {
   scheduleProvenancePrefix?: string;
   /** Имя из Rubitime (`payload_json.name`), если отличается от профильной подписи; иначе `null`. */
   rubitimeNameIfDifferent: string | null;
+  /** Linked package usage id for appointments paid by membership. */
+  packageUsageRef: string | null;
+  /** Human title of the linked patient package, for tooltip/fallback context. */
+  packageTitle: string | null;
+  /** Human sequential package number rendered as `аб.#NNN`. */
+  packageDisplayNumber: number | null;
 };
 
 /** Агрегатная статистика по записям за календарное окно (`app_display_timezone`). */
@@ -82,7 +88,7 @@ export type DoctorDashboardAppointmentMetrics = {
   cancellationsInCalendarMonth: number;
 };
 
-export type DoctorAppointmentsAudience = { excludedUserIds?: string[] };
+export type DoctorAppointmentsAudience = { excludedUserIds?: string[]; organizationId?: string };
 
 /** KPI метрики для страницы «Расписание» врача (9 плиток в KPI-строке, ТЗ §4.1). */
 export type ScheduleKpis = {
@@ -149,7 +155,7 @@ export type DoctorAppointmentsPort = {
     audience?: { excludedUserIds?: string[] },
   ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
-  getDashboardAppointmentMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardAppointmentMetrics>;
+  getDashboardAppointmentMetrics(audience?: DoctorAppointmentsAudience): Promise<DoctorDashboardAppointmentMetrics>;
   /** KPI строка раздела «Расписание»: 9 метрик по произвольному диапазону + фильтры. */
   getScheduleKpis(
     query: ScheduleKpisQuery,

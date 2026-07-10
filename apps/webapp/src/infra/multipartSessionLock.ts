@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { pgAdvisoryXactLock } from "@/infra/db/pgAdvisoryLock";
+import { withPoolTransaction } from "@/infra/db/withClient";
 
 const LOCK_PREFIX = "multipart_session:";
 
@@ -12,21 +13,8 @@ export async function withMultipartSessionLock<T>(
   sessionId: string,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  return withPoolTransaction(pool, async (client) => {
     await pgAdvisoryXactLock(client, `${LOCK_PREFIX}${sessionId}`);
-    const out = await fn(client);
-    await client.query("COMMIT");
-    return out;
-  } catch (err) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* ignore */
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
+    return fn(client);
+  });
 }

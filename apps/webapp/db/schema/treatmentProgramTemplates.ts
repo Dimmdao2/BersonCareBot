@@ -12,6 +12,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
+import { beOrganizations } from "./bookingEngine";
 
 export const TREATMENT_PROGRAM_TEMPLATE_STATUSES = ["draft", "published", "archived"] as const;
 
@@ -26,6 +27,7 @@ export const treatmentProgramTemplates = pgTable(
   "treatment_program_templates",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     title: text().notNull(),
     description: text(),
     status: text().default("draft").notNull(),
@@ -34,7 +36,16 @@ export const treatmentProgramTemplates = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("idx_treatment_program_templates_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_treatment_program_templates_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "treatment_program_templates_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
@@ -51,6 +62,7 @@ export const treatmentProgramTemplateStages = pgTable(
   "treatment_program_template_stages",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     templateId: uuid("template_id").notNull(),
     title: text().notNull(),
     description: text(),
@@ -66,11 +78,20 @@ export const treatmentProgramTemplateStages = pgTable(
     expectedDurationText: text("expected_duration_text"),
   },
   (table) => [
+    index("idx_treatment_program_template_stages_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_treatment_program_template_stages_template_order").using(
       "btree",
       table.templateId.asc().nullsLast().op("uuid_ops"),
       table.sortOrder.asc().nullsLast().op("int4_ops"),
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "treatment_program_template_stages_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.templateId],
       foreignColumns: [treatmentProgramTemplates.id],
@@ -88,6 +109,7 @@ export const treatmentProgramTemplateStageGroups = pgTable(
   "treatment_program_template_stage_groups",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     stageId: uuid("stage_id").notNull(),
     title: text().notNull(),
     description: text(),
@@ -97,11 +119,20 @@ export const treatmentProgramTemplateStageGroups = pgTable(
     systemKind: text("system_kind"),
   },
   (table) => [
+    index("idx_treatment_program_template_stage_groups_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_treatment_program_tpl_stage_groups_stage_order").using(
       "btree",
       table.stageId.asc().nullsLast().op("uuid_ops"),
       table.sortOrder.asc().nullsLast().op("int4_ops"),
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "treatment_program_template_stage_groups_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.stageId],
       foreignColumns: [treatmentProgramTemplateStages.id],
@@ -124,6 +155,7 @@ export const treatmentProgramTemplateStageItems = pgTable(
   "treatment_program_template_stage_items",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id"),
     stageId: uuid("stage_id").notNull(),
     itemType: text("item_type").notNull(),
     itemRefId: uuid("item_ref_id").notNull(),
@@ -134,11 +166,20 @@ export const treatmentProgramTemplateStageItems = pgTable(
     groupId: uuid("group_id"),
   },
   (table) => [
+    index("idx_treatment_program_template_stage_items_organization_id").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    ),
     index("idx_treatment_program_stage_items_stage_order").using(
       "btree",
       table.stageId.asc().nullsLast().op("uuid_ops"),
       table.sortOrder.asc().nullsLast().op("int4_ops"),
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "treatment_program_template_stage_items_organization_id_fkey",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [table.stageId],
       foreignColumns: [treatmentProgramTemplateStages.id],

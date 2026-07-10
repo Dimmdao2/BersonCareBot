@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { Input } from "@/shared/ui/patient/primitives/input";
 import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/patient/primitives/select";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
 import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
@@ -14,6 +22,7 @@ import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,
 } from "@/shared/lib/formatBusinessDateTime";
+import { formatDoctorFio, type StructuredFio } from "@/shared/lib/fio";
 import toast from "react-hot-toast";
 import { showBookingPartialOutcomeToast } from "@/shared/booking/bookingPartialOutcomeToast";
 import { cn } from "@/lib/utils";
@@ -36,6 +45,8 @@ type FormField = {
 const CONTACT_FIELD_KEYS = new Set([
   "contact_name",
   "first_name",
+  "last_name",
+  "patronymic",
   "contact_phone",
   "phone",
   "contact_email",
@@ -54,6 +65,7 @@ function isExtraFormField(field: FormField): boolean {
 type ConfirmStepOptions = {
   formFieldsApiPath?: string;
   successRedirectPath?: string;
+  doneRedirectPath?: string;
   buildAwaitingPaymentHref?: (booking: PatientBookingRecord, contactPhone: string) => string;
   useCreateBookingHook?: typeof useCreateBooking;
   useRescheduleBookingHook?: typeof useRescheduleBooking;
@@ -70,8 +82,9 @@ type Props = ConfirmStepOptions & {
   category?: string;
   slotStart: string;
   slotEnd: string;
-  defaultName: string;
+  defaultFio: StructuredFio;
   defaultPhone: string;
+  defaultEmail: string;
   appDisplayTimeZone: string;
 };
 
@@ -86,20 +99,24 @@ export function ConfirmStepClient({
   category,
   slotStart,
   slotEnd,
-  defaultName,
+  defaultFio,
   defaultPhone,
+  defaultEmail,
   appDisplayTimeZone,
   formFieldsApiPath = "/api/booking/form-fields",
   successRedirectPath = routePaths.bookingNew,
+  doneRedirectPath = routePaths.bookingNewDone,
   buildAwaitingPaymentHref,
   useCreateBookingHook = useCreateBooking,
   useRescheduleBookingHook = useRescheduleBooking,
   rescheduleBookingId,
 }: Props & { rescheduleBookingId?: string }) {
   const router = useRouter();
-  const [name, setName] = useState(defaultName);
+  const [lastName, setLastName] = useState(defaultFio.lastName ?? "");
+  const [firstName, setFirstName] = useState(defaultFio.firstName ?? "");
+  const [patronymic, setPatronymic] = useState(defaultFio.patronymic ?? "");
   const [phone, setPhone] = useState(defaultPhone);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
   const [extraFields, setExtraFields] = useState<FormField[]>([]);
   const [extraValues, setExtraValues] = useState<Record<string, string>>({});
   const [fieldsLoading, setFieldsLoading] = useState(true);
@@ -253,7 +270,27 @@ export function ConfirmStepClient({
     (f) => f.isRequired && !(extraValues[f.fieldKey] ?? "").trim(),
   );
 
-  const canSubmit = Boolean(selection && name.trim() && phone.trim() && !submitting && !missingRequiredExtra);
+  const contactFio: StructuredFio = {
+    lastName: lastName.trim() || null,
+    firstName: firstName.trim() || null,
+    patronymic: patronymic.trim() || null,
+  };
+  const contactName = formatDoctorFio(contactFio);
+  const contactFioInput =
+    contactFio.lastName && contactFio.firstName
+      ? {
+          lastName: contactFio.lastName,
+          firstName: contactFio.firstName,
+          ...(contactFio.patronymic ? { patronymic: contactFio.patronymic } : {}),
+        }
+      : undefined;
+  const canSubmit = Boolean(
+    selection &&
+      contactFioInput &&
+      phone.trim() &&
+      !submitting &&
+      !missingRequiredExtra,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -274,6 +311,7 @@ export function ConfirmStepClient({
         onSubmit={(event) => {
           event.preventDefault();
           if (!selection) return;
+          if (!contactFioInput) return;
           const formAnswers = extraFields.map((f) => ({
             fieldKey: f.fieldKey,
             value: (extraValues[f.fieldKey] ?? "").trim(),
@@ -297,7 +335,8 @@ export function ConfirmStepClient({
             .createBooking({
               selection,
               slot,
-              contactName: name.trim(),
+              contactName,
+              contactFio: contactFioInput,
               contactPhone: phone.trim(),
               contactEmail: email.trim() || undefined,
               formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
@@ -329,15 +368,23 @@ export function ConfirmStepClient({
                 (type === "online" ? "Онлайн" : cityTitle ?? "");
               if (loc) doneQ.set("locationLabel", loc);
               if (cityCode) doneQ.set("cityCode", cityCode);
-              router.push(`${routePaths.bookingNewDone}?${doneQ.toString()}`);
+              router.push(`${doneRedirectPath}?${doneQ.toString()}`);
             });
         }}
       >
         <h2 className={patientSectionTitleClass}>Контакты</h2>
 
         <label className="flex flex-col gap-1">
+          <span className={cn(patientMutedTextClass, "text-xs")}>Фамилия</span>
+          <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+        </label>
+        <label className="flex flex-col gap-1">
           <span className={cn(patientMutedTextClass, "text-xs")}>Имя</span>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className={cn(patientMutedTextClass, "text-xs")}>Отчество</span>
+          <Input value={patronymic} onChange={(e) => setPatronymic(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
           <span className={cn(patientMutedTextClass, "text-xs")}>Телефон</span>
@@ -351,43 +398,53 @@ export function ConfirmStepClient({
         {type === "in_person" && !isReschedule && packageOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
             <span className={cn(patientMutedTextClass, "text-xs")}>Абонемент</span>
-            <select
-              className="rounded-md border bg-background px-2 py-2 text-sm"
+            <Select
               value={patientPackageId}
-              onChange={(e) => {
-                setPatientPackageId(e.target.value);
-                if (e.target.value) setProductPurchaseId("");
+              onValueChange={(v) => {
+                const val = v ?? "";
+                setPatientPackageId(val);
+                if (val) setProductPurchaseId("");
               }}
             >
-              <option value="">Без абонемента</option>
-              {packageOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title} (
-                  {p.balance.items.map((it) => `${it.remaining}/${it.quantityInitial}`).join(", ")})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
+                <SelectValue placeholder="Без абонемента" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Без абонемента</SelectItem>
+                {packageOptions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title} (
+                    {p.balance.items.map((it) => `${it.remaining}/${it.quantityInitial}`).join(", ")})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         ) : null}
 
         {type === "in_person" && !isReschedule && productOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
             <span className={cn(patientMutedTextClass, "text-xs")}>Покупка</span>
-            <select
-              className="rounded-md border bg-background px-2 py-2 text-sm"
+            <Select
               value={productPurchaseId}
-              onChange={(e) => {
-                setProductPurchaseId(e.target.value);
-                if (e.target.value) setPatientPackageId("");
+              onValueChange={(v) => {
+                const val = v ?? "";
+                setProductPurchaseId(val);
+                if (val) setPatientPackageId("");
               }}
             >
-              <option value="">Без покупки</option>
-              {productOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title} ({p.visitsRemaining})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
+                <SelectValue placeholder="Без покупки" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Без покупки</SelectItem>
+                {productOptions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title} ({p.visitsRemaining})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         ) : null}
 
@@ -425,9 +482,9 @@ export function ConfirmStepClient({
         ) : null}
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
+        <Button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
           {submitting ? "Создаём запись..." : "Подтвердить запись"}
-        </button>
+        </Button>
       </form>
     </div>
   );

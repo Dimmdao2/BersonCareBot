@@ -31,6 +31,8 @@ export type OrganizationCatalogPort = {
     title: string;
     /** Short display name (e.g. «СПб»). Optional; when omitted, existing value is preserved. */
     shortTitle?: string | null;
+    /** Hex color. Optional; when omitted, existing value is preserved. */
+    color?: string | null;
     cityCode: string;
     address?: string | null;
     timezone?: string;
@@ -91,6 +93,7 @@ export type ServiceAvailabilityPort = {
     title: string;
     description?: string | null;
     durationMinutes: number;
+    bufferAfterMinutes: number;
     priceMinor: number;
     isActive: boolean;
     prepaymentApplicable: boolean;

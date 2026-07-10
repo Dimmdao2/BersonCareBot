@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { cn } from "@/lib/utils";
 
@@ -171,9 +172,10 @@ export function CreatableComboboxInput({
             <p className="px-3 py-2 text-muted-foreground">Нет совпадений</p>
           ) : null}
           {filtered.map((it, idx) => (
-            <button
+            <Button
               key={it.value}
               type="button"
+              variant="ghost"
               role="option"
               aria-selected={idx === activeIdx}
               className={cn(
@@ -185,11 +187,12 @@ export function CreatableComboboxInput({
               onClick={() => pick(it)}
             >
               {it.label}
-            </button>
+            </Button>
           ))}
           {showCreate ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               role="option"
               aria-selected={activeIdx === filtered.length}
               className={cn(
@@ -202,7 +205,7 @@ export function CreatableComboboxInput({
               disabled={busy}
             >
               {busy ? "Создание…" : `+ Добавить «${trimmedQ}»`}
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}

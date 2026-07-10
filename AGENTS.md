@@ -22,11 +22,12 @@
 2. [CRITICAL: конфигурация интеграций только в БД](#2-critical-конфигурация-интеграций-только-в-бд)
 3. [Runtime config: env vs database](#3-runtime-config-env-vs-database)
 4. [system_settings: зеркало public + integrator](#4-system_settings-зеркало-public--integrator)
+4a. [SaaS Foundation-aware development](#4a-saas-foundation-aware-development)
 5. [Clean Architecture: изоляция модулей](#5-clean-architecture-изоляция-модулей)
 6. [Host: PostgreSQL и DATABASE_URL](#6-host-postgresql-и-database_url)
 7. [Git: коммит и пуш](#7-git-коммит-и-пуш)
 8. [Команда «пуш»](#8-команда-пуш)
-9. [Перед пушем — полный CI](#9-перед-пушем--полный-ci)
+9. [Full CI gate](#9-full-ci-gate)
 10. [Test execution and audit policy](#10-test-execution-and-audit-policy)
 11. [Webapp-тесты: компактность](#11-webapp-тесты-компактность)
 12. [Plan Authoring And Execution Standard](#12-plan-authoring-and-execution-standard)
@@ -87,17 +88,17 @@
 
 ---
 
-## Операционные правила (добавлено через Claude, 2026-06): кап тестов · deploy · индекс · задачи
+## Операционные правила (добавлено через Claude, 2026-06): проверки · deploy · индекс · задачи
 
-### Прогон тестов и сборок — ТОЛЬКО через кап-враппер
-- ВСЕ тесты и тяжёлые сборки запускать через `bash /home/dev/orch/run-tests.sh "<команда>"`. Враппер даёт: (а) flock-мьютекс — один прогон за раз; (б) **жёсткий кап CPU** — `taskset` на 2 ядра (env `TEST_CPUSET`, дефолт `6,7`) + `nice 19` + `ionice idle`.
-- Зачем: прод и **МОЗГ** (embed-server/STT) co-resident на этой коробке (8 vCPU, со swap). Прямой `vitest`/`pnpm test`/`pnpm build`/`tsc` форкается на все ядра → вешает систему и голодит мозг (не разбирает голос). Враппер не допускает (тесты чуть медленнее — коробка жива).
-- НЕ запускать тесты/сборки напрямую. **Исключение:** владелец может осознанно прогнать на полную — ТОЛЬКО по его явной команде («гони напрямую») или он сам. По умолчанию агент — всегда через враппер.
+### Прогон тестов и сборок — напрямую разрешено
+- Решение владельца от 2026-07-09: требование обязательного запуска проверок через `run-tests.sh` временно снято. Агенты могут запускать релевантные `pnpm test`, `vitest`, `typecheck`, `lint`, `build` и `pnpm run ci` напрямую.
+- `run-tests.sh` / throttling-wrapper остаётся опциональным инструментом для тяжёлых прогонов, высокой нагрузки на сервер или явной команды владельца, но не является обязательным gate.
+- Уровень проверки выбирается по `.cursor/rules/test-execution-policy.md` и `.cursor/rules/pre-push-ci.mdc`: step/phase/full CI по масштабу риска, без лишних повторов. Команды и результаты проверок указывать честно.
 
 ### CI / lint / build / fix-warnings — делегировать Sonnet, не гнать в Opus
 - **Opus** = оркестрация + принятие решений. **Sonnet** = механический run+fix цикл.
 - Как только нужен зелёный CI / починить lint / build / предупреждения — **сразу** спаунить одного Sonnet-агента с промптом:
-  1. прогони `bash /home/dev/orch/run-tests.sh "pnpm run ci"`;
+  1. прогони нужный gate напрямую, например `pnpm run ci` для full CI или более узкую команду по `test-execution-policy`;
   2. для НОВОГО кода → правь **тесты** (не регрессируй код под устаревшим тестом);
   3. предупреждения и ошибки — чини;
   4. сложное / неочевидное / нужно решение владельца → неси ведущему на выбор, не хачь.
@@ -109,8 +110,13 @@
 - **Два репо:** `origin` = `Dimmdao2/BersonCareBot` (dev/backup; прод-деплой выключен `if:false`). `dimmdao` = `dimmdao/BersonCareBot` — **производственный**.
 - **Прод-деплой — ручной:** в `dimmdao` → Actions → workflow **«Deploy (production)»** (`workflow_dispatch`, ввод `confirm=deploy`) → аппрув окружения `production`. Гейты: зелёный CI на коммите + human-approval. Затем SSH под юзером `deploy` запускает `deploy/host/deploy-prod.sh` (хост: `git pull main` → install → build → `pnpm migrate` → рестарт systemd). Хост `135.106.162.170`, путь `/opt/projects/bersoncarebot`, секреты `DEPLOY_SSH_KEY/USER/HOST/PATH` + read-only deploy-key для pull. Детали: `deploy/HOST_DEPLOY_README.md`.
 
-### Индекс/векторы по репозиторию (в работе)
-- Готовится семантический индекс+векторы по репо. Как появится — для навигации по коду предпочитать семантический поиск вместо дорогих `grep`/чтений целых файлов. Ключи/ссылки индекса хранить в `meta` задач (ниже).
+### 🔴 Индекс/векторы по коду — ГОТОВ, используй ПЕРЕД сканом кода (экономит токены всем)
+- По репо построен семантический индекс кода (pgvector, ~13k кусков, e5-1024; освежается инкрементально по `file_sha`). **ПРАВИЛО СТАРТА: прежде чем лезть в код `grep`/чтением файлов целиком — сперва спроси индекс** (дешевле по токенам и быстрее):
+  - смысл / «где логика X, что отвечает за Y» → `bash /home/dev/brain/tools/codeq.sh "<запрос>" --repo bcb [--k N]` (семантический, вектор);
+  - точное имя / строка / символ → `bash /home/dev/brain/tools/code-search.sh "<строка>" --repo bcb [-k N]` (лексический BM25).
+  - Пара работает: смысл→`codeq`, имя→`code-search`; ОБА перед сканом репо.
+- Переиндексировать до текущего HEAD (если правил много файлов и ищешь только что написанное): `bash /home/dev/brain/tools/code-index-pg.sh --repo /home/dev/dev-projects/BersonCareBot --repo-name bcb`.
+- Ключи/ссылки индекса можно хранить в `meta` задач (ниже).
 
 ### Задачи — расширенные конвенции (доп. к разделу «taskdb-порт» выше)
 - **`title`** = человеческий TL;DR (агент сразу отвечает «что это», без поиска). **`block`** = полное ТЗ/детали. **`note`** = ход + решения/ответы владельца. **`category`** = область/страница (Карточка/Пациенты/Расписание/Напоминания/Рассылки/…) для группировки. **`commit_ref`** = коммит.
@@ -194,13 +200,16 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 - Store integration config in webapp DB table `system_settings` with `scope='admin'`.
 - Keys must be included in `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`).
 - Values must be editable via admin settings flow (`/api/admin/settings` + Settings UI).
+- `system_settings` is org-aware: global defaults are rows with `organization_id IS NULL`; org-specific
+  overrides use the same `key` and `scope` with a non-null `organization_id`. The current admin
+  Settings UI remains global unless a setting flow explicitly passes organization context.
 
 ## Integrator/webapp implementation rule
 
 - Integrator and webapp must read integration keys/URIs from DB-backed config accessors.
 - Env can remain only for process bootstrap/infra (`DATABASE_URL`, `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`) and temporary backward-compat fallback during migration.
 - Any new integration feature that proposes env vars for keys/URIs is considered invalid and must be redesigned to DB config.
-- `public.system_settings` and `integrator.system_settings` must stay aligned: webapp writes go through `updateSetting` (which syncs to integrator until refactored). Production typically uses **one** PostgreSQL (schemas `public` + `integrator`) — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator), `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
+- `public.system_settings` and `integrator.system_settings` must stay aligned for the full logical identity `(key, scope, organization_id)`: webapp writes go through `updateSetting` (which syncs to integrator until refactored). Production typically uses **one** PostgreSQL (schemas `public` + `integrator`) — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator), `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 
 ---
 
@@ -220,10 +229,13 @@ When adding or moving configuration:
 - Integration API keys/tokens and integration webhook URLs/URIs.
 - Operational values editable without redeploy: public URLs, feature flags, **IANA timezones for business-facing text**, whitelists, etc.
 - Keys must be added to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` and exposed in admin Settings UI when user-facing.
+- Current Settings UI writes global defaults (`organization_id IS NULL`) unless a flow explicitly passes
+  organization context. Org-specific overrides use the same key/scope plus non-null `organization_id`
+  and must preserve global NULL fallback.
 
 ### Integrator
 
-- Integrator has `integrator.system_settings` (mirror of `public.system_settings`); rows are **pushed** from webapp after each `updateSetting` via `syncSettingToIntegrator` until refactored to direct SQL (see `service.ts` / `syncToIntegrator.ts`). Production uses **one** PostgreSQL with schemas `integrator` and `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
+- Integrator has `integrator.system_settings` (mirror of `public.system_settings`) with matching `(key, scope, organization_id)` semantics; rows are **pushed** from webapp after each `updateSetting` via `syncSettingToIntegrator` until refactored to direct SQL (see `service.ts` / `syncToIntegrator.ts`). Production uses **one** PostgreSQL with schemas `integrator` and `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
 - Do not add new env vars for values that belong in `system_settings`.
 - When adding or changing keys: follow раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator) so both schemas stay aligned.
 
@@ -235,19 +247,34 @@ See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 
 *Источник: `.cursor/rules/system-settings-integrator-mirror.mdc` (alwaysApply)*
 
-Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope)` and JSON `value_json`. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
+Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope, organization_id)` and JSON `value_json`. `organization_id IS NULL` is the global default row; non-null `organization_id` rows are organization overrides and must fall back to the global row on reads when absent. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
 
 ### Mandatory rules for agents
 
-1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert.
-2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key` and the same `scope` (`admin` | `doctor` | `global`) in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
+1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert. Pass `organizationId` only when the write is intentionally org-scoped; otherwise writes stay global (`organization_id IS NULL`).
+2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key`, the same `scope` (`admin` | `doctor` | `global`), and the same `organization_id` semantics in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
 3. **Migrations / SQL scripts / seeds** that write `system_settings` in `public` must either:
-   - duplicate the same row into `integrator.system_settings` in a migration, **or**
+   - duplicate the same `(key, scope, organization_id)` row into `integrator.system_settings` in a migration, **or**
    - document a follow-up admin "save" in Settings UI to push via HTTP sync, **or**
    - call the same sync mechanism from a one-off ops script (signed POST to integrator).
 4. **Do not** add a second sync call in Next.js route handlers; sync lives in `service.ts` only.
 
 Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
+
+---
+
+## 4a. SaaS Foundation-aware development
+
+*Источник: `.cursor/rules/saas-foundation-aware-development.mdc` (alwaysApply) + `docs/RULES/SAAS_FOUNDATION_AWARE_DEVELOPMENT.md`*
+
+Перед добавлением или изменением таблиц, колонок, миграций, репозиториев, API, write-paths или фоновых задач учитывай текущее направление `SAAS_FOUNDATION`: shared-DB SaaS, tenant = `Organization`, будущая изоляция данных.
+
+- Новые clinical / patient-facing / doctor-facing / booking / messaging / notification / media / catalog / product / payment / entitlement / integration / settings / staff/admin данные не должны быть глобальными по умолчанию.
+- До реализации выбери ownership path: прямой `organization_id`, scoped parent, `specialist_id`, patient/enrollment, appointment, program instance или настоящий global catalog.
+- Если ownership неочевиден — не добавляй unscoped таблицу/поле. Пометь подпункт как `needs_decision` и оставь design note для dev-lead/владельца.
+- Не добавляй ad hoc RLS/policy enforcement до канонических этапов `DB_ACCESS_CHOKEPOINT` + `SAAS_FOUNDATION`; допустимы dormant/backward-compatible поля, индексы, backfill/compat планы и сервисные проверки.
+- Не переноси tenant/org integration settings в env; они остаются DB-backed через `system_settings` и mirror-правила.
+- Не усиливай single-clinic/single-doctor assumption. Если текущая модель уже использует `organizationId` / `specialistId` / scoped parent, новый код обязан продолжать этот путь.
 
 ---
 
@@ -287,7 +314,7 @@ From `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` — same as "Абсолю
 From `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` — same as "Абсолютные запреты" items 7–8:
 
 - **Do not mix initiative phases.** One phase per logical batch of work; do not start phase N+1 before phase N passes its gate. Step vs phase validation: раздел [Test execution policy](#10-test-execution-and-audit-policy).
-- **Do not change the GitHub CI workflow** without an explicit team decision. Pre-push expectation: раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci) (`pnpm install --frozen-lockfile && pnpm run ci`).
+- **Do not change the GitHub CI workflow** without an explicit team decision. Full CI/deploy/merge expectation: раздел [Full CI gate](#9-full-ci-gate) (`pnpm install --frozen-lockfile && pnpm run ci` when the full-CI gate applies).
 
 Integration keys (DB not env), onboarding, and the full Drizzle checklist remain in `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` and other `.cursor/rules/*`. Always read that file when working on this initiative.
 
@@ -457,7 +484,7 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 ### Связь с «пуш»
 
-Для сценария **`пуш`** (CI + commit + push) шаг commit выполняется с тем же принципом: **полное дерево как есть**, без правок файлов «в процессе коммита», пока пользователь явно не ограничил файлы. Детали CI и барьера перед push — в разделах [Команда «пуш»](#8-команда-пуш) и [Перед пушем — полный CI](#9-перед-пушем--полный-ci).
+Для сценария **`пуш`** (validation + commit + push) шаг commit выполняется с тем же принципом: **полное дерево как есть**, без правок файлов «в процессе коммита», пока пользователь явно не ограничил файлы. Детали validation/full-CI gate — в разделах [Команда «пуш»](#8-команда-пуш), [Test execution policy](#10-test-execution-and-audit-policy) и [Full CI gate](#9-full-ci-gate).
 
 ---
 
@@ -467,29 +494,40 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 Если пользователь пишет `пуш` (или эквиваленты: "push", "запушь"), агент должен трактовать это как полный поток:
 
-1. Запустить pre-push барьер как в проектном правиле:
-   - `pnpm install --frozen-lockfile`
-   - `pnpm run ci`
+1. Запустить validation по масштабу изменения:
+   - обычный docs-only / micro-stage / одно-приложенческий backup-push: step/phase gate из раздела [Test execution policy](#10-test-execution-and-audit-policy);
+   - deploy / merge / integration checkpoint / repo-level risk: full CI gate из раздела [Full CI gate](#9-full-ci-gate).
 2. Если есть изменения — сделать commit по **всему** рабочему дереву (`git add -A`), если пользователь **явно** не указал иной scope файлов (см. раздел [Git: коммит](#7-git-коммит-и-пуш)). **На шаге commit не менять содержимое файлов** — только застейджить и закоммитить текущее состояние.
 3. Выполнить `git push` в текущую ветку/remote.
 
 Не отвечать уточнением "сначала нужно закоммитить?" в этом сценарии — commit является частью команды `пуш`.
 
-Примечание по скорости до команды `пуш`: если ранее `ci` падал, для локальных итераций допускается цикл «упавший шаг + `ci:resume:*`» (см. раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci)), но сам `пуш` всё равно требует полный барьер `pnpm install --frozen-lockfile && pnpm run ci`.
+Примечание: сам факт `push` в feature-ветку не повышает validation до full CI. Full CI нужен перед deploy, merge/integration checkpoints, repo-level изменениями или по явной просьбе пользователя.
 
 ---
 
-## 9. Перед пушем — полный CI
+## 9. Full CI gate
 
 *Источник: `.cursor/rules/pre-push-ci.mdc` (alwaysApply)*
 
-Многоуровневые прогоны во время работы (step / phase, без лишнего `ci`) — в разделе [Test execution policy](#10-test-execution-and-audit-policy). **Этот раздел** фиксирует только барьер перед отправкой в remote.
+Многоуровневые прогоны во время работы (step / phase, без лишнего `ci`) — в разделе [Test execution policy](#10-test-execution-and-audit-policy). **Этот раздел** фиксирует случаи, когда нужен полный корневой `ci`.
 
-**Инструкция для агентов:** когда пользователь просит **пуш**, коммит **с пушем** или явно «прогнать как в CI / перед пушем», выполнить тот же набор, что агрегирует корневой `ci`. Не полагаться только на `pnpm lint` или узкие тесты — локально они могут проходить, а порядок шагов в `ci` на GitHub иной контекст.
+**Канон:** полный `pnpm run ci` НЕ является обязательным перед каждым `git push` / backup-push в feature-ветку. Обычный micro-stage push допускается после подходящего step/phase gate из раздела [Test execution policy](#10-test-execution-and-audit-policy).
 
-### После падения CI (до push) — ускоренный цикл
+### Когда full CI обязателен
 
-Если `pnpm run ci` упал в середине и вносится локальный фикс, **разрешено** не перезапускать весь `ci` на каждой итерации:
+Выполнить полный набор, который агрегирует корневой `ci`, перед:
+
+- deploy / production deploy / staging deploy / prod-readiness gate;
+- merge/sync/integration checkpoint между ветками, особенно перед merge в `main`, `test`, `feat/doctor-ui-rebuild` или другую общую интеграционную ветку;
+- глобальным этапом инициативы, который меняет несколько приложений, shared-пакеты, root/tooling config, CI workflow, lockfile, миграционный контракт, DB-access chokepoint, RLS/policy/invariant framework или DI-контракты между приложениями;
+- явной просьбой пользователя: «полный CI», «как в GitHub», «перед деплоем», «перед merge», «перед релизом».
+
+Обычный docs-only, одно-приложенческий или micro-stage backup-push в текущую feature-ветку **не требует** full CI, если локальный gate по масштабу изменения прошёл.
+
+### После падения CI — ускоренный цикл
+
+Если full `pnpm run ci` был уместен по правилам выше, упал в середине и вносится локальный фикс, **разрешено** не перезапускать весь `ci` на каждой итерации:
 
 - сначала прогнать упавший шаг (или ещё уже — конкретный test file),
 - затем догнать хвост пайплайна через `ci:resume:*` из корневого `package.json`:
@@ -501,7 +539,7 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
   - `ci:resume:after-build`
   - `ci:resume:after-build-webapp`
 
-Это ускорение действует **только между правками**. Перед фактическим push барьер ниже остаётся обязательным в полном виде.
+Это ускорение действует **только между правками**. Перед deploy/merge/final integration gate полный барьер ниже остаётся обязательным в полном виде, если после последнего полного прогона были изменения.
 
 Выполнять:
 
@@ -514,7 +552,7 @@ pnpm run ci
 
 Состав `ci` задаётся корневым `package.json` (например: `lint`, `typecheck`, `test`, `test:webapp`, `build`, `build:webapp`, `audit`). Если `pnpm run ci` прошёл локально на актуальном дереве, ожидается зелёный GitHub Actions для того же коммита.
 
-**Не пушить без успешного `pnpm run ci`** в сценариях выше. Повторно гонять `ci` без новых изменений кода — не требуется (reuse — в test-execution-policy).
+**Не выполнять deploy/merge/final integration без успешного `pnpm run ci`** в сценариях выше. Повторно гонять `ci` без новых изменений кода — не требуется (reuse — в test-execution-policy).
 
 ---
 
@@ -522,13 +560,13 @@ pnpm run ci
 
 *Источник: `.cursor/rules/test-execution-policy.md` (alwaysApply)*
 
-Связь с пушем: полный CI перед отправкой в remote — раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci). Этот раздел задаёт поведение **между** коммитами и при аудите.
+Связь с push/deploy/merge: обычный push в feature-ветку использует validation по масштабу изменения; full CI gate описан в разделе [Full CI gate](#9-full-ci-gate) и нужен перед deploy, merge/integration checkpoints и repo-level изменениями. Этот раздел задаёт поведение **между** коммитами и при аудите.
 
 ### Приоритет правил (policy vs pre-push)
 
 **По умолчанию все проверки между коммитами и при аудите** определяются **этим** разделом (уровни step / phase / full CI только когда здесь разрешено).
 
-**Исключение:** раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci) включается **только** в сценарии финального **commit/push** (или явная просьба пользователя прогнать как перед пушем). Нельзя подменять повседневную работу «более безопасным» полным `ci`, если нет repo-уровня или запроса на push.
+**Исключение:** раздел [Full CI gate](#9-full-ci-gate) включается **только** для deploy, merge/integration checkpoints, repo-level изменений или явной просьбы пользователя прогнать полный CI. Нельзя подменять повседневную работу «более безопасным» полным `ci`, если нет repo-level риска.
 
 ### Принцип
 
@@ -553,7 +591,7 @@ pnpm run ci
 
 **Запрещено:** `pnpm run ci` / `pnpm check`, осознанный прогон **всех** тестов монорепы без repo-уровня риска.
 
-**Fallback, если нет однозначного файла/паттерна для Vitest:** не расширять до full CI. Подняться максимум до **phase-level** затронутого приложения (полный `test` этого `apps/*`). Автоматический переход к `pnpm run ci` из-за «не нашёл таргет» **запрещён**, пока нет признаков repo-уровня или сценария pre-push.
+**Fallback, если нет однозначного файла/паттерна для Vitest:** не расширять до full CI. Подняться максимум до **phase-level** затронутого приложения (полный `test` этого `apps/*`). Автоматический переход к `pnpm run ci` из-за «не нашёл таргет» **запрещён**, пока нет признаков repo-уровня или deploy/merge/integration сценария.
 
 **Примеры команд (этот репозиторий):**
 
@@ -582,7 +620,8 @@ pnpm run ci
 
 **Разрешено** в том числе:
 
-- перед финальным push (обязательное правило — pre-push-ci);
+- перед deploy / production-readiness / release gate;
+- перед merge/sync/integration checkpoint между ветками;
 - после изменений в shared-пакетах, корневых конфигах (`tsconfig`, ESLint, Vitest), workflows CI, lockfile/зависимостях, контрактах/DI на уровне нескольких приложений.
 
 **Запрещено:** повторять полный CI без новых изменений кода; гонять полный CI после каждого микрошага; «на всякий случай» без repo-риска.
@@ -613,7 +652,7 @@ pnpm run ci
 - после `build`: `pnpm run ci:resume:after-build`
 - после `build:webapp`: `pnpm run ci:resume:after-build-webapp`
 
-**Важно:** перед фактическим push остаётся обязательным барьер из раздела [Перед пушем — полный CI](#9-перед-пушем--полный-ci) (`pnpm install --frozen-lockfile && pnpm run ci`).
+**Важно:** перед deploy/merge/final integration остаётся обязательным барьер из раздела [Full CI gate](#9-full-ci-gate) (`pnpm install --frozen-lockfile && pnpm run ci`). Обычный feature-branch backup-push не требует full CI сам по себе.
 
 ### Логи
 
@@ -623,9 +662,9 @@ pnpm run ci
 
 - точечная правка в одном модуле → **step**;
 - законченный кусок работы внутри одного приложения → **phase** для этого приложения;
-- затронут общий пакет, CI, lockfile, корневые типы/контракты, несколько приложений → **full CI** (и обязательно перед push).
+- затронут общий пакет, CI, lockfile, корневые типы/контракты, несколько приложений → **full CI** перед deploy/merge/integration checkpoint.
 
-**Если scope не удаётся определить однозначно:** выбирать **phase-level** для наиболее вероятного приложения, **не** full CI до появления признаков repo-уровня или до сценария push.
+**Если scope не удаётся определить однозначно:** выбирать **phase-level** для наиболее вероятного приложения, **не** full CI до появления признаков repo-уровня или deploy/merge/integration сценария.
 
 ### Антипаттерны
 
@@ -762,7 +801,7 @@ pnpm run ci
 - **В тексте плана** явно различать:
   - **Обычный финал задачи / маленький план:** достаточно целевых проверок из чек-листа (часто — затронутые тесты + lint/typecheck по области).
   - **Большой многоэтапный план:** один финальный прогон **`pnpm run ci`** (или эквивалент из корневого `package.json`) после завершения всего объёма или перед передачей в merge — указать это один раз в Definition of Done / критериях приёмки.
-  - **Пуш в remote:** полный CI обязателен по правилам репозитория (см. раздел [Перед пушем — полный CI](#9-перед-пушем--полный-ci), команда «пуш») — **не** дублировать это как требование после каждого подпункта плана.
+  - **Deploy / merge / integration checkpoint:** полный CI обязателен по правилам репозитория (см. раздел [Full CI gate](#9-full-ci-gate)) — **не** дублировать это как требование после каждого подпункта плана. Обычный feature-branch backup-push после локального gate не требует full CI сам по себе.
 
 ### Дополнительно (без лишнего усложнения)
 

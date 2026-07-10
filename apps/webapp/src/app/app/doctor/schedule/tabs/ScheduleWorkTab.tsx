@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type MouseEvent } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -37,6 +37,8 @@ import type { ScheduleTabProps } from "../scheduleTabRegistry";
 const WD_BASE = "/api/doctor/booking-engine/working-days";
 const TPL_BASE = "/api/doctor/booking-engine/working-schedule-templates";
 const WH_BASE = "/api/doctor/booking-engine/working-hours";
+const DEFAULT_PANEL_START = "09:00";
+const DEFAULT_PANEL_END = "18:00";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,6 +49,7 @@ type Branch = {
   title: string;
   /** Short display name (e.g. «СПб», «Мск»). Migration 0117. */
   shortTitle: string | null;
+  color: string | null;
   isActive: boolean;
 };
 
@@ -90,6 +93,13 @@ type EffectiveHours =
 
 /** A single break row state in the hours panel or template form. */
 type BreakRow = { from: string; to: string };
+
+type PanelScheduleDefaults = {
+  startMinute: number;
+  endMinute: number;
+  breaks: BreakInterval[];
+  branchId: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,6 +174,49 @@ function resolveEffectiveHours(
   return null;
 }
 
+function resolvePanelDefaultsForDate(
+  dateKey: string,
+  dayMap: Map<string, WorkingDayRecord>,
+  workingHours: WorkingHoursRow[],
+): PanelScheduleDefaults | null {
+  const record = dayMap.get(dateKey);
+  if (record) {
+    if (record.isClosed) return null;
+    if (record.startMinute != null && record.endMinute != null) {
+      return {
+        startMinute: record.startMinute,
+        endMinute: record.endMinute,
+        breaks: resolveBreaks(record),
+        branchId: record.branchId,
+      };
+    }
+  }
+
+  const wd = DateTime.fromISO(dateKey).weekday % 7;
+  const match = workingHours.find((wh) => wh.weekday === wd && wh.isActive);
+  if (!match) return null;
+  return {
+    startMinute: match.startMinute,
+    endMinute: match.endMinute,
+    breaks: [],
+    branchId: match.branchId,
+  };
+}
+
+function resolvePanelDefaultsForWeekday(
+  weekday: number,
+  workingHours: WorkingHoursRow[],
+): PanelScheduleDefaults | null {
+  const match = workingHours.find((wh) => wh.weekday === weekday && wh.isActive);
+  if (!match) return null;
+  return {
+    startMinute: match.startMinute,
+    endMinute: match.endMinute,
+    breaks: [],
+    branchId: match.branchId,
+  };
+}
+
 function formatHourRange(start: number | null, end: number | null): string {
   if (start == null || end == null) return "";
   const sh = Math.floor(start / 60);
@@ -233,40 +286,44 @@ function validateBreakRows(
 
 const BRANCH_COLORS = ["blue", "green", "violet", "orange"] as const;
 type BranchColor = typeof BRANCH_COLORS[number];
+const FALLBACK_BRANCH_HEX: Record<BranchColor, string> = {
+  blue: "#2563eb",
+  green: "#16a34a",
+  violet: "#7c3aed",
+  orange: "#ea580c",
+};
 
 function getBranchColor(branches: Branch[], branchId: string): BranchColor {
   const idx = branches.findIndex((b) => b.id === branchId);
   return BRANCH_COLORS[(idx >= 0 ? idx : 0) % BRANCH_COLORS.length] ?? "blue";
 }
 
-function branchColorActiveClass(color: BranchColor): string {
-  // §3.17: приглушённые тинты вместо ядрёной заливки — мягкий фон /10 +
-  // цветной текст + цветная граница (активный фильтр читается, но не «кричит»).
-  if (color === "blue") return "bg-blue-500/10 border-blue-500/35 text-blue-700";
-  if (color === "green") return "bg-green-500/10 border-green-600/35 text-green-700";
-  if (color === "violet") return "bg-violet-500/10 border-violet-500/35 text-violet-700";
-  return "bg-orange-500/10 border-orange-500/35 text-orange-700";
+function resolveBranchHex(branches: Branch[], branchId: string): string {
+  const branch = branches.find((b) => b.id === branchId);
+  return branch?.color ?? FALLBACK_BRANCH_HEX[getBranchColor(branches, branchId)];
 }
 
-function branchColorInactiveClass(color: BranchColor): string {
-  if (color === "blue") return "border-blue-500/30 text-blue-600 hover:bg-blue-500/5";
-  if (color === "green") return "border-green-600/30 text-green-700 hover:bg-green-500/5";
-  if (color === "violet") return "border-violet-500/30 text-violet-700 hover:bg-violet-500/5";
-  return "border-orange-500/30 text-orange-700 hover:bg-orange-500/5";
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : FALLBACK_BRANCH_HEX.blue;
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  };
 }
 
-function branchCellClass(color: BranchColor): string {
-  if (color === "blue") return "bg-blue-500/10 border-blue-500/35";
-  if (color === "green") return "bg-green-500/10 border-green-600/35";
-  if (color === "violet") return "bg-violet-500/10 border-violet-500/35";
-  return "bg-orange-500/10 border-orange-500/35";
+function rgba(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function branchDotClass(color: BranchColor): string {
-  if (color === "blue") return "text-blue-600";
-  if (color === "green") return "text-green-700";
-  if (color === "violet") return "text-violet-600";
-  return "text-orange-600";
+function branchStyle(hex: string, active = false): CSSProperties {
+  return {
+    "--branch-bg": rgba(hex, active ? 0.16 : 0.08),
+    "--branch-hover": rgba(hex, active ? 0.2 : 0.12),
+    "--branch-border": rgba(hex, active ? 0.42 : 0.3),
+    "--branch-fg": hex,
+  } as CSSProperties;
 }
 
 // ---------------------------------------------------------------------------
@@ -288,8 +345,9 @@ type DayCellProps = {
 function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onToggle, onClearSelection, effectiveHours }: DayCellProps) {
   if (!dateKey) {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
         className="min-h-[52px] rounded-md border border-dashed border-transparent bg-transparent transition-colors hover:border-border/70 hover:bg-muted/20"
         aria-label="Сбросить выбор дней"
         onClick={() => onClearSelection?.()}
@@ -302,8 +360,8 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
   // §3.15: «выходной»/isClosed removed — a day either has a schedule or falls
   // back to weekday hours (no explicit closed state surfaced in the grid).
   const hasSchedule = record?.startMinute != null;
-  const color = hasSchedule && record?.branchId
-    ? getBranchColor(branches, record.branchId)
+  const branchHex = hasSchedule && record?.branchId
+    ? resolveBranchHex(branches, record.branchId)
     : undefined;
 
   // Resolved breaks for display
@@ -316,8 +374,8 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
   } else if (isToday) {
     // §3.17 / §3.10–3.12: muted transparent-green «сегодня» (no yellow).
     cellClass += "bg-emerald-500/10 border-emerald-500/40 ";
-  } else if (color) {
-    cellClass += branchCellClass(color) + " ";
+  } else if (branchHex) {
+    cellClass += "bg-[color:var(--branch-bg)] border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] ";
   } else if (effectiveHours?.source === "override") {
     // SCH-R-06: override = light blue tint
     cellClass += "bg-primary/10 border-primary/30 hover:bg-primary/15 ";
@@ -343,6 +401,7 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
       className={cellClass}
       aria-pressed={isSelected}
       aria-label={`${dateKey}${hasSchedule ? ` ${formatHourRange(record!.startMinute, record!.endMinute)}` : ""}`}
+      style={branchHex ? branchStyle(branchHex) : undefined}
       onClick={(e) => onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey)}
       onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey); } }}
       data-testid={`day-cell-${dateKey}`}
@@ -351,7 +410,7 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
         {isSelected ? `${day} ●` : day}
       </div>
       {effectiveHours?.source === "override" && effectiveHours.startMinute != null && (
-        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
+        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", branchHex ? "text-[color:var(--branch-fg)]" : "text-primary")}>
           {formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
         </div>
       )}
@@ -365,7 +424,7 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
       )}
       {/* Keep existing block for backward compat when effectiveHours not passed */}
       {!effectiveHours && hasSchedule && record?.startMinute != null && record?.endMinute != null && (
-        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
+        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", branchHex ? "text-[color:var(--branch-fg)]" : "text-primary")}>
           {formatHourRange(record.startMinute, record.endMinute)}
         </div>
       )}
@@ -455,11 +514,12 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [workingHours, setWorkingHours] = useState<WorkingHoursRow[]>([]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedPrimaryDate, setSelectedPrimaryDate] = useState<string | null>(null);
   const lastClickedRef = useRef<string | null>(null);
 
   // Panel state (E4 — строчная раскладка + N перерывов)
-  const [panelStart, setPanelStart] = useState("09:00");
-  const [panelEnd, setPanelEnd] = useState("18:00");
+  const [panelStart, setPanelStart] = useState(DEFAULT_PANEL_START);
+  const [panelEnd, setPanelEnd] = useState(DEFAULT_PANEL_END);
   const [panelBreaks, setPanelBreaks] = useState<BreakRow[]>([]);
   const [panelBranchId, setPanelBranchId] = useState("");
 
@@ -470,8 +530,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // E5 — Create template dialog with N breaks
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
   const [tplName, setTplName] = useState("");
-  const [tplStart, setTplStart] = useState("09:00");
-  const [tplEnd, setTplEnd] = useState("18:00");
+  const [tplStart, setTplStart] = useState(DEFAULT_PANEL_START);
+  const [tplEnd, setTplEnd] = useState(DEFAULT_PANEL_END);
   const [tplBreaks, setTplBreaks] = useState<BreakRow[]>([]);
 
   // ── Today string ─────────────────────────────────────────────────────────
@@ -483,6 +543,15 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const setGridBranchFilter = useCallback(
     (id: string) => {
       setGridBranchFilterState(id);
+      setSelected(new Set());
+      setSelectedPrimaryDate(null);
+      lastClickedRef.current = null;
+      setSelectionMode("dates");
+      setSelectedWeekday(null);
+      setActionError(null);
+      if (id !== "all") {
+        setPanelBranchId(id);
+      }
       onDeepLinkChange("location", id !== "all" ? id : null);
     },
     [onDeepLinkChange],
@@ -497,6 +566,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setViewYear(y);
       setViewMonth(m);
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
       lastClickedRef.current = null;
       onDeepLinkChange("month", formatMonth(y, m));
     },
@@ -606,26 +676,43 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     (date: string, shift: boolean, meta: boolean) => {
       setSelected((prev) => {
         const next = new Set(prev);
+        let nextPrimaryDate = selectedPrimaryDate;
         if (shift && lastClickedRef.current) {
           const from = lastClickedRef.current;
           const [a, b] = from < date ? [from, date] : [date, from];
           for (const d of gridDates) {
             if (d >= a && d <= b) next.add(d);
           }
+          nextPrimaryDate = nextPrimaryDate ?? date;
         } else if (meta) {
-          if (next.has(date)) { next.delete(date); }
-          else { next.add(date); }
+          if (next.has(date)) {
+            next.delete(date);
+            if (nextPrimaryDate === date) {
+              const fallback = next.values().next().value;
+              nextPrimaryDate = typeof fallback === "string" ? fallback : null;
+            }
+          } else {
+            next.add(date);
+            nextPrimaryDate = nextPrimaryDate ?? date;
+          }
         } else {
-          if (next.size === 1 && next.has(date)) { next.clear(); }
-          else { next.clear(); next.add(date); }
+          if (next.size === 1 && next.has(date)) {
+            next.clear();
+            nextPrimaryDate = null;
+          } else {
+            next.clear();
+            next.add(date);
+            nextPrimaryDate = date;
+          }
         }
+        setSelectedPrimaryDate(nextPrimaryDate);
         return next;
       });
       lastClickedRef.current = date;
       setSelectionMode("dates");
       setSelectedWeekday(null);
     },
-    [gridDates],
+    [gridDates, selectedPrimaryDate],
   );
 
   const handleWeekdayHeaderClick = useCallback(
@@ -636,6 +723,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         setSelectionMode("dates");
         setSelectedWeekday(null);
         setSelected(new Set());
+        setSelectedPrimaryDate(null);
         return;
       }
       // Select all dates of this weekday in current month view
@@ -649,6 +737,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         }),
       );
       setSelected(matching);
+      setSelectedPrimaryDate([...matching].sort()[0] ?? null);
       setSelectionMode("weekday");
       setSelectedWeekday(wd);
       lastClickedRef.current = null;
@@ -736,6 +825,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     if (toDeactivate.length === 0) {
       // #233: сбрасываем выделение даже если шаблон уже пуст
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
       setSelectionMode("dates");
       setSelectedWeekday(null);
       lastClickedRef.current = null;
@@ -743,6 +833,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     }
     // #233: сбрасываем выделение СРАЗУ (до сетевого запроса), чтобы UI реагировал немедленно
     setSelected(new Set());
+    setSelectedPrimaryDate(null);
     setSelectionMode("dates");
     setSelectedWeekday(null);
     lastClickedRef.current = null;
@@ -798,6 +889,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         }),
       });
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
     });
   }
 
@@ -819,11 +911,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ action: "clear", dates, specialistId }),
       });
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
     });
   }
 
   function handleClearSelection() {
     setSelected(new Set());
+    setSelectedPrimaryDate(null);
     lastClickedRef.current = null;
     setSelectionMode("dates");
     setSelectedWeekday(null);
@@ -843,6 +937,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         body: JSON.stringify({ templateId, dates, specialistId }),
       });
       setSelected(new Set());
+      setSelectedPrimaryDate(null);
     });
   }
 
@@ -892,11 +987,37 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const dayMap = new Map(dayRecords.map((r) => [r.workDate, r]));
+  const dayMap = useMemo(() => new Map(dayRecords.map((r) => [r.workDate, r])), [dayRecords]);
   const cells = buildMonthGrid(viewYear, viewMonth);
   const selectedCount = selected.size;
   const selectedDates = [...selected].sort();
+  const firstSelectedDate = selectedPrimaryDate ?? selectedDates[0] ?? null;
   const panelBranchLabel = branches.find((b) => b.id === panelBranchId)?.title;
+
+  useEffect(() => {
+    if (!firstSelectedDate && selectedWeekday === null) return;
+    const defaults =
+      selectionMode === "weekday" && selectedWeekday !== null
+        ? resolvePanelDefaultsForWeekday(selectedWeekday, workingHours)
+        : firstSelectedDate
+          ? resolvePanelDefaultsForDate(firstSelectedDate, dayMap, workingHours)
+          : null;
+    if (!defaults) {
+      setPanelStart(DEFAULT_PANEL_START);
+      setPanelEnd(DEFAULT_PANEL_END);
+      setPanelBreaks([]);
+      if (gridBranchFilter !== "all") {
+        setPanelBranchId(gridBranchFilter);
+      }
+      return;
+    }
+    setPanelStart(minuteToTimeLabel(defaults.startMinute));
+    setPanelEnd(minuteToTimeLabel(defaults.endMinute));
+    setPanelBreaks(breaksToRows(defaults.breaks));
+    if (defaults.branchId) {
+      setPanelBranchId(defaults.branchId);
+    }
+  }, [firstSelectedDate, selectedWeekday, selectionMode, dayMap, workingHours, gridBranchFilter]);
 
   // E3: branch label for the filter switcher
   function getBranchDisplayLabel(b: Branch): string {
@@ -911,10 +1032,20 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     }
   }
 
+  function handleSurfaceMouseDown(e: MouseEvent<HTMLElement>) {
+    const target = e.target as HTMLElement;
+    const interactive = target.closest(
+      "button,[role='button'],[role='combobox'],a,input,label,select,textarea,[data-radix-popper-content-wrapper]",
+    );
+    if (!interactive) {
+      handleClearSelection();
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <DoctorSection data-testid="schedule-work-tab">
+    <DoctorSection data-testid="schedule-work-tab" onMouseDown={handleSurfaceMouseDown}>
       {/* Sticky top bar: filter (E3) + month nav */}
       <div
         className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}
@@ -923,8 +1054,10 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       >
         {/* E3: Branch filter switcher (Все + individual branches) */}
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setGridBranchFilter("all")}
               className={cn(
                 "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium transition-colors",
@@ -935,23 +1068,27 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               data-testid="branch-filter-all"
             >
               Все
-            </button>
+            </Button>
             {branches.map((b) => {
-              const color = getBranchColor(branches, b.id);
+              const branchHex = resolveBranchHex(branches, b.id);
               const isActive = b.id === gridBranchFilter;
               return (
-                <button
+                <Button
                   key={b.id}
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setGridBranchFilter(b.id)}
+                  style={branchStyle(branchHex, isActive)}
                   className={cn(
                     "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
-                    isActive ? branchColorActiveClass(color) : branchColorInactiveClass(color),
+                    "border-[color:var(--branch-border)] text-[color:var(--branch-fg)]",
+                    isActive ? "bg-[color:var(--branch-bg)]" : "hover:bg-[color:var(--branch-hover)]",
                   )}
                   data-testid={`branch-btn-${b.id}`}
                 >
                   ● {getBranchDisplayLabel(b)}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -982,6 +1119,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           const inside = target.closest("[data-testid='month-grid'], [data-testid='hours-panel']");
           if (!inside) {
             setSelected(new Set());
+            setSelectedPrimaryDate(null);
             setSelectionMode("dates");
             setSelectedWeekday(null);
             lastClickedRef.current = null;
@@ -997,9 +1135,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
                 const isActiveWd = selectionMode === "weekday" && selectedWeekday === wd;
                 return (
-                  <button
+                  <Button
                     key={d}
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleWeekdayHeaderClick(colIndex)}
                     className={cn(
                       // #236: border как у DayCell — видно что кликабельна
@@ -1012,7 +1152,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     aria-pressed={isActiveWd}
                   >
                     {d}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -1099,14 +1239,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     />
                   ))}
                   {panelBreaks.length < 6 && (
-                    <button
+                    <Button
                       type="button"
-                      className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
+                      variant="link"
+                      size="sm"
+                      className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
                       onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
                       data-testid="btn-add-break"
                     >
                       + перерыв
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -1304,14 +1446,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 />
               ))}
               {tplBreaks.length < 6 && (
-                <button
+                <Button
                   type="button"
-                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
+                  variant="link"
+                  size="sm"
+                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
                   onClick={() => setTplBreaks(addBreakRow(tplBreaks))}
                   data-testid="tpl-btn-add-break"
                 >
                   + перерыв
-                </button>
+                </Button>
               )}
             </div>
           </div>

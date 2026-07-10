@@ -33,6 +33,7 @@ const runWebappSqlMock = vi.hoisted(() =>
   }),
 );
 const rollbackMock = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn<() => string | undefined>());
 const runWebappTransactionMock = vi.hoisted(() =>
   vi.fn(async (fn: (tx: { rollback: () => void }) => Promise<unknown>) => {
     const tx = { rollback: rollbackMock };
@@ -46,6 +47,10 @@ vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappTransaction: runWebappTransactionMock,
 }));
 
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
+}));
+
 import { createPgReminderRulesPort } from "./pgReminderRules";
 
 function lastApproxSql(): string {
@@ -56,6 +61,7 @@ function lastApproxSql(): string {
 describe("createPgReminderRulesPort", () => {
   beforeEach(() => {
     runWebappSqlMock.mockClear();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
     rollbackMock.mockClear();
     runWebappTransactionMock.mockImplementation(async (fn) => {
       const tx = { rollback: rollbackMock };
@@ -73,6 +79,17 @@ describe("createPgReminderRulesPort", () => {
     const sql = lastApproxSql();
     expect(sql).toContain("FROM reminder_rules");
     expect(sql).toContain("platform_users");
+  });
+
+  it("listByPlatformUser scopes rows to current organization principal or legacy NULL", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    const port = createPgReminderRulesPort();
+    await port.listByPlatformUser("platform-uuid-1");
+    const sql = lastApproxSql();
+    expect(sql).toContain("(rr.platform_user_id");
+    expect(sql).toContain("rr.organization_id");
+    expect(sql).toContain("OR rr.organization_id IS NULL");
+    expect(sql).toContain("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   });
 
   it("getByPlatformUserAndCategory passes category filter", async () => {
@@ -131,5 +148,25 @@ describe("createPgReminderRulesPort", () => {
     const sql = lastApproxSql();
     expect(sql).toContain("is_enabled");
     expect(sql).toContain("int-rule-2");
+  });
+
+  it("updateScheduleAndType claims legacy NULL rows and rejects other organization rows under principal", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    const port = createPgReminderRulesPort();
+    await port.updateScheduleAndType("int-rule-2", {
+      scheduleType: "slots_v1",
+      intervalMinutes: 60,
+      windowStartMinute: 480,
+      windowEndMinute: 1200,
+      daysMask: "1111111",
+      scheduleData: { timesLocal: ["09:00"], dayFilter: "weekdays" },
+      quietHoursStartMinute: null,
+      quietHoursEndMinute: null,
+    });
+    const sql = lastApproxSql();
+    expect(sql).toContain("organization_id = COALESCE(organization_id");
+    expect(sql).toContain("(organization_id");
+    expect(sql).toContain("OR organization_id IS NULL");
+    expect(sql).toContain("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   });
 });

@@ -1,9 +1,10 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { ClinicalTestUsageConfirmationRequiredError, TestSetUsageConfirmationRequiredError } from "./errors";
 import {
   createClinicalTestsService,
   createTestSetsService,
 } from "./service";
+import type { ClinicalTestsPort, TestSetsPort } from "./ports";
 import {
   inMemoryClinicalTestsPort,
   resetInMemoryClinicalTestsStore,
@@ -265,5 +266,133 @@ describe("clinical tests / test sets service", () => {
     });
     await setsSvc.archiveTestSet(set.id);
     expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(true);
+  });
+
+  it("archiveClinicalTest runs only archive write through write options", async () => {
+    const calls: string[] = [];
+    const port: ClinicalTestsPort = {
+      list: vi.fn(),
+      getById: vi.fn(async () => {
+        calls.push("getById");
+        return {
+          id: "test-1",
+          title: "T",
+          description: null,
+          testType: null,
+          scoring: null,
+          rawText: null,
+          assessmentKind: null,
+          bodyRegionId: null,
+          bodyRegionIds: [],
+          media: [],
+          tags: null,
+          isArchived: false,
+          createdBy: null,
+          createdAt: "",
+          updatedAt: "",
+        };
+      }),
+      create: vi.fn(),
+      update: vi.fn(),
+      getClinicalTestUsageSummary: vi.fn(async () => {
+        calls.push("usage");
+        return { ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT };
+      }),
+      archive: vi.fn(async () => {
+        calls.push("archive");
+        return true;
+      }),
+      unarchive: vi.fn(),
+    };
+    const svc = createClinicalTestsService(port, inMemoryReferencesPort);
+
+    await svc.archiveClinicalTest(
+      "test-1",
+      undefined,
+      {
+        runClinicalTestWrite: async (fn) => {
+          calls.push("runner:start");
+          const result = await fn();
+          calls.push("runner:end");
+          return result;
+        },
+      },
+    );
+
+    expect(calls).toEqual(["getById", "usage", "runner:start", "archive", "runner:end"]);
+  });
+
+  it("setTestSetItems runs only replaceItems write through write options", async () => {
+    const calls: string[] = [];
+    const testId = "00000000-0000-4000-8000-000000000001";
+    const setsPort: TestSetsPort = {
+      list: vi.fn(),
+      getById: vi.fn(async () => {
+        calls.push("set:getById");
+        return {
+          id: "set-1",
+          title: "Set",
+          description: null,
+          publicationStatus: "draft" as const,
+          isArchived: false,
+          createdBy: null,
+          createdAt: "",
+          updatedAt: "",
+          items: [],
+        };
+      }),
+      create: vi.fn(),
+      update: vi.fn(),
+      getTestSetUsageSummary: vi.fn(),
+      archive: vi.fn(),
+      unarchive: vi.fn(),
+      replaceItems: vi.fn(async () => {
+        calls.push("replaceItems");
+      }),
+    };
+    const testsPort: ClinicalTestsPort = {
+      list: vi.fn(),
+      getById: vi.fn(async () => {
+        calls.push("test:getById");
+        return {
+          id: testId,
+          title: "T",
+          description: null,
+          testType: null,
+          scoring: null,
+          rawText: null,
+          assessmentKind: null,
+          bodyRegionId: null,
+          bodyRegionIds: [],
+          media: [],
+          tags: null,
+          isArchived: false,
+          createdBy: null,
+          createdAt: "",
+          updatedAt: "",
+        };
+      }),
+      create: vi.fn(),
+      update: vi.fn(),
+      getClinicalTestUsageSummary: vi.fn(),
+      archive: vi.fn(),
+      unarchive: vi.fn(),
+    };
+    const svc = createTestSetsService(setsPort, testsPort);
+
+    await svc.setTestSetItems(
+      "set-1",
+      [{ testId, sortOrder: 0 }],
+      {
+        runTestSetWrite: async (fn) => {
+          calls.push("runner:start");
+          const result = await fn();
+          calls.push("runner:end");
+          return result;
+        },
+      },
+    );
+
+    expect(calls).toEqual(["set:getById", "test:getById", "runner:start", "replaceItems", "runner:end"]);
   });
 });

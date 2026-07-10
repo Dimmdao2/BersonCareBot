@@ -10,7 +10,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 // -- Request body schemas ----------------------------------------------------
@@ -49,8 +50,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -58,7 +59,18 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const anamnesis = await deps.patientClinical.getAnamnesis(userId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
+
+  const anamnesis = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientClinical.getAnamnesis(patientUserId),
+  );
   return NextResponse.json({ ok: true, anamnesis });
 }
 
@@ -66,8 +78,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const auth = await requireDoctorApiSession();
-  if (!auth.ok) return auth.response;
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -89,39 +101,62 @@ export async function POST(
     );
   }
   const b = parsed.data;
-  const createdBy = auth.session.user.userId;
+  const createdBy = gate.ctx.session.user.userId;
 
   const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const patientUserId = identity.userId;
 
   if (b.section === "trauma") {
-    const entry = await deps.patientClinical.appendAnamnesisTrauma({
-      patientUserId: userId,
-      year: b.year,
-      what: b.what,
-      type: b.type,
-      immobilization: b.immobilization,
-      createdBy,
-    });
+    const entry = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.clinical.anamnesis.trauma.create",
+      () =>
+      deps.patientClinical.appendAnamnesisTrauma({
+        patientUserId,
+        year: b.year,
+        what: b.what,
+        type: b.type,
+        immobilization: b.immobilization,
+        createdBy,
+      }),
+    );
     return NextResponse.json({ ok: true, entry }, { status: 201 });
   }
 
   if (b.section === "illness") {
-    const entry = await deps.patientClinical.appendAnamnesisIllness({
-      patientUserId: userId,
-      period: b.period,
-      what: b.what,
-      comment: b.comment,
-      createdBy,
-    });
+    const entry = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.clinical.anamnesis.illness.create",
+      () =>
+      deps.patientClinical.appendAnamnesisIllness({
+        patientUserId,
+        period: b.period,
+        what: b.what,
+        comment: b.comment,
+        createdBy,
+      }),
+    );
     return NextResponse.json({ ok: true, entry }, { status: 201 });
   }
 
   // section === "lifestyle"
-  const entry = await deps.patientClinical.appendAnamnesisLifestyle({
-    patientUserId: userId,
-    recordDate: b.recordDate,
-    text: b.text,
-    createdBy,
-  });
+  const entry = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.patients.clinical.anamnesis.lifestyle.create",
+    () =>
+    deps.patientClinical.appendAnamnesisLifestyle({
+      patientUserId,
+      recordDate: b.recordDate,
+      text: b.text,
+      createdBy,
+    }),
+  );
   return NextResponse.json({ ok: true, entry }, { status: 201 });
 }

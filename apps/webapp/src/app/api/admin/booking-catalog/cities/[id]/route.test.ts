@@ -4,6 +4,19 @@ const getSessionMock = vi.hoisted(() => vi.fn());
 const getCityByIdMock = vi.hoisted(() => vi.fn());
 const updateCityByIdMock = vi.hoisted(() => vi.fn());
 const deactivateCityMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -13,6 +26,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       updateCityById: updateCityByIdMock,
       deactivateCity: deactivateCityMock,
     },
+    organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 }));
 
@@ -41,6 +55,7 @@ describe("cities/[id] route", () => {
     getCityByIdMock.mockReset();
     updateCityByIdMock.mockReset();
     deactivateCityMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("GET returns 400 for invalid id", async () => {

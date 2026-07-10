@@ -1,9 +1,11 @@
 import type { Pool } from "pg";
 import type { Logger } from "../logger.js";
+import { startMediaWorkerTransaction } from "../withClient.js";
 
 export type ClaimedJob = {
   id: string;
   mediaId: string;
+  organizationId: string | null;
   /** `attempts` column after successful claim (includes increment for this run). */
   attempts: number;
 };
@@ -38,9 +40,9 @@ export async function reclaimStaleProcessing(
  * Claim one pending job using `FOR UPDATE SKIP LOCKED` + transition to `processing`.
  */
 export async function claimNextJob(pool: Pool, lockedBy: string): Promise<ClaimedJob | null> {
-  const client = await pool.connect();
+  const tx = await startMediaWorkerTransaction(pool);
+  const client = tx.client;
   try {
-    await client.query("BEGIN");
     const sel = await client.query<{ id: string }>(
       `SELECT id FROM media_transcode_jobs
        WHERE status = 'pending'
@@ -51,41 +53,51 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
     );
     const row = sel.rows[0];
     if (!row) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       return null;
     }
     const upd = await client.query<{
       id: string;
       media_id: string;
+      organization_id: string | null;
       attempts: number;
     }>(
-      `UPDATE media_transcode_jobs
+      `UPDATE media_transcode_jobs AS j
        SET status = 'processing',
            locked_at = now(),
            locked_by = $2,
            attempts = attempts + 1,
+           organization_id = COALESCE(j.organization_id, mf.organization_id),
            processing_started_at = now(),
            finished_at = NULL,
            updated_at = now()
-       WHERE id = $1::uuid AND status = 'pending'
-       RETURNING id, media_id, attempts`,
+       FROM media_files AS mf
+       WHERE j.id = $1::uuid
+         AND j.status = 'pending'
+         AND mf.id = j.media_id
+       RETURNING j.id, j.media_id, j.organization_id, j.attempts`,
       [row.id, lockedBy],
     );
     const job = upd.rows[0];
     if (!job) {
-      await client.query("ROLLBACK");
+      await tx.rollback();
       return null;
     }
-    await client.query("COMMIT");
-    return { id: job.id, mediaId: job.media_id, attempts: job.attempts };
+    await tx.commit();
+    return {
+      id: job.id,
+      mediaId: job.media_id,
+      organizationId: job.organization_id,
+      attempts: job.attempts,
+    };
   } catch (e) {
     try {
-      await client.query("ROLLBACK");
+      await tx.rollback();
     } catch {
       /* ignore */
     }
     throw e;
   } finally {
-    client.release();
+    tx.release();
   }
 }

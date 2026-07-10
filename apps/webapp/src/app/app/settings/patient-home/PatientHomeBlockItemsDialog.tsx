@@ -6,6 +6,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -69,15 +70,17 @@ function SortableItemRow({
       className="flex flex-col gap-2 rounded-lg border border-border p-2 sm:flex-row sm:items-center"
     >
       <div className="flex flex-1 items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           {...attributes}
           {...listeners}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center"
           aria-label="Переместить"
         >
           <GripVertical className="h-4 w-4" />
-        </button>
+        </Button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="truncate text-sm font-medium">{patientHomeBlockItemDisplayTitle(item, refDisplayTitles)}</div>
@@ -93,21 +96,17 @@ function SortableItemRow({
           {usefulPost ?
             <>
               <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-foreground">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
+                <Checkbox
                   checked={usefulPostShowTitle}
-                  onChange={(e) => onShowTitleChange(item.id, e.target.checked)}
+                  onCheckedChange={(v) => onShowTitleChange(item.id, Boolean(v))}
                 />
                 Отображать заголовок текстом
               </label>
               <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-foreground">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
+                <Checkbox
                   checked={badgeOn}
-                  onChange={(e) =>
-                    onBadgeChange(item.id, e.target.checked ? PATIENT_HOME_USEFUL_POST_BADGE_LABEL : null)
+                  onCheckedChange={(v) =>
+                    onBadgeChange(item.id, v ? PATIENT_HOME_USEFUL_POST_BADGE_LABEL : null)
                   }
                 />
                 Показывать бейдж «Новый пост»

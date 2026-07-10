@@ -41,16 +41,50 @@ describe("claimNextJob", () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ rows: [{ id: "job-1" }] })
       .mockResolvedValueOnce({
-        rows: [{ id: "job-1", media_id: "media-1", attempts: 2 }],
+        rows: [{
+          id: "job-1",
+          media_id: "media-1",
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          attempts: 2,
+        }],
       })
       .mockResolvedValueOnce(undefined);
     const pool = createPoolMock(client);
 
     const job = await claimNextJob(pool as never, "worker-1");
 
-    expect(job).toEqual({ id: "job-1", mediaId: "media-1", attempts: 2 });
+    expect(job).toEqual({
+      id: "job-1",
+      mediaId: "media-1",
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      attempts: 2,
+    });
     const selectSql = String(client.query.mock.calls[1]?.[0] ?? "");
     expect(selectSql).toContain("FOR UPDATE SKIP LOCKED");
+    const updateSql = String(client.query.mock.calls[2]?.[0] ?? "");
+    expect(updateSql).toContain("organization_id = COALESCE(j.organization_id, mf.organization_id)");
+    expect(client.query).toHaveBeenCalledWith("COMMIT");
+  });
+
+  it("preserves missing organization as dormant no-op context", async () => {
+    const client = createClientMock();
+    client.query
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ rows: [{ id: "job-null-org" }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: "job-null-org", media_id: "media-null-org", organization_id: null, attempts: 1 }],
+      })
+      .mockResolvedValueOnce(undefined);
+    const pool = createPoolMock(client);
+
+    const job = await claimNextJob(pool as never, "worker-1");
+
+    expect(job).toEqual({
+      id: "job-null-org",
+      mediaId: "media-null-org",
+      organizationId: null,
+      attempts: 1,
+    });
     expect(client.query).toHaveBeenCalledWith("COMMIT");
   });
 
