@@ -38,6 +38,26 @@ touching test/prod. All work is code + scratch-DB only. No push to main/test, no
       `0169_p0_8_b4_core_patient_wall_rls.sql` (60 tables). Scope explicitly excludes tables reachable
       only via multi-hop FK/JOIN chains (documented in LOG.md, not silently dropped) — see LOG.md for
       the full excluded-table list and rationale.
+      **UPDATE 2026-07-11 (B4-fanout gap closure, taskdb `#656`, LOG.md entry "B4-fanout gap closure —
+      GUC alignment + chain-only patient wall"): the two gaps this item's own audit left open are now
+      CLOSED.** (1) GUC alignment: bigint integrator-identity predicates now read the DEDICATED
+      `app.integrator_user_id` GUC (not `app.patient_user_id` cast to bigint) — fixed in
+      `rls-sql-renderer.mjs`, `0169` regenerated in place (never applied outside scratch, so safe to
+      correct). (2) The 11 chain-only tables (`integrator.conversations`/`message_drafts`/
+      `user_questions`/`conversation_messages`/`question_messages`/`user_reminder_occurrences`/
+      `user_reminder_delivery_logs`, `support_questions`/`support_conversation_messages`/
+      `support_question_messages`/`support_delivery_events`) now get a patient wall via a new
+      EXISTS-chain predicate (`patientChainOwnedTables` registry + `renderPatientChainPredicate`),
+      migration `0170_p0_8_b4_fanout_chain_patient_wall_rls.sql`. Extended smoke proves staff org-wide
+      visibility, a SINGLE MIXED session (uuid + bigint GUCs together) seeing only its own rows across
+      BOTH identity spaces including chain-only conversations/messages/reminders, and empty-context
+      deny — all across the newly-walled targets. No known patient-owned SCOPED table remains open.
+      Also found/fixed 2 bugs along the way: a substring-matching false-positive in
+      `check-p0-8-3-policy-generator.mjs`, and a process-exit-code bug in the smoke itself (`\quit 1`
+      is not honored on this box's psql 16 — every FATAL assertion was silently non-fatal to the exit
+      code; fixed here, same bug flagged as a separate follow-up in 4 sibling smoke/fixture files not
+      touched by this pass). The B4-fanout READ-CONTEXT WRAPPER (who sets these GUCs per request) is
+      untouched — that is the separate checklist item below, not yet started.
 - [ ] **B4-fanout — read-context wrapper + coverage.** The chokepoint read wrapper sets `app.org` +
       `app.actor` (+ `app.patient_user_id` for patient sessions) on every SCOPED read, per session type.
       Apply per process family (webapp readers, integrator DbPort/pool, scheduler, media). Unset → dormant.
@@ -61,6 +81,9 @@ touching test/prod. All work is code + scratch-DB only. No push to main/test, no
 
 ## Done today
 - [x] Pattern isolation proof re-run green (`smoke-p0-13-db-isolation.mjs`).
+- [x] B4-fanout gap closure: GUC alignment + 11-table chain-only patient wall (taskdb `#656`) —
+      see B4-core checklist entry above and LOG.md for full detail. `check-saas-db-regression.mjs`
+      full gate green; `smoke-r2-real-policy-isolation.mjs` exit 0.
 
 ## НЕ СДЕЛАНО / owner-gated (not in this track)
 - Deploy dormant foundation to test/prod; run migrations on test/prod; push to main/test.
