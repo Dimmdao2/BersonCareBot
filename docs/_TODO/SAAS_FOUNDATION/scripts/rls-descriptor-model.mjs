@@ -192,16 +192,21 @@ function exemptionDescriptor(tier) {
 //
 // Scope is deliberately narrower than "every table with any user-reference column" — see
 // docs/_TODO/SAAS_FOUNDATION/LOG.md (taskdb #653) for the full classification and the excluded
-// set. In short, excluded (documented, not silently dropped):
-//   - tables with NO direct patient-owner column, only reachable via a multi-hop FK/JOIN chain
-//     (support_questions family, most P0.8.4 catalog-child tables, integrator P0.4.I3 tables,
-//     integrator P0.4.I2 identity-bridge tables which need a JOIN through integrator.identities);
+// set. Tables reachable only via a multi-hop FK/JOIN chain to an identity-bearing parent (the
+// support_questions family, integrator P0.4.I2 identity-bridge tables, integrator P0.4.I3
+// parent-denorm tables) are NOT excluded — see the separate `patientChainOwnedTables` registry
+// below (taskdb #656, B4-fanout gap closure), which walls them via an EXISTS-chain instead of a
+// direct column match. What remains genuinely excluded here (documented, not silently dropped):
+//   - most P0.8.4 catalog-child tables with no per-patient chain at all (org catalog/content
+//     line items — e.g. clinical_diagnosis_catalog children, test/exercise catalog rows);
 //   - tables where the "owner" column is actually a STAFF actor, not a patient
 //     (be_package_usages.created_by_platform_user_id, content_section_slug_history.changed_by_user_id, ...);
 //   - dual-role owner columns that mean "staff OR patient" depending on ANOTHER column's value,
 //     where a plain column-equality predicate would incorrectly wall off legitimate org-wide
-//     content (media_files/media_upload_sessions.owner_user_id — org library uploads vs a
-//     patient's own submission, keyed by usage_purpose);
+//     content: public.media_files.uploaded_by (NOT media_files.owner_user_id — that column does
+//     not exist on media_files; owner_user_id lives on the SEPARATE public.media_upload_sessions
+//     table, itself excluded here for the same dual-role reason) — org library uploads vs a
+//     patient's own submission, keyed by usage_purpose ('program_item_submission' vs NULL/other);
 //   - public.patient_merge_candidates (staff/system dedup queue, not a patient's own record);
 //   - P0.8.6 BOOTSTRAP-hybrid tables (system_settings, platform_user_contacts, user_phone_history,
 //     integrator.system_settings) — explicitly out of scope per owner instruction, pre-org-context
@@ -255,6 +260,8 @@ const patientOwnedColumns = new Map([
   ["public.treatment_program_instances", { column: "patient_user_id" }],
   // public.* bridge tables that store the INTEGRATOR bigint id directly (no platform_users uuid
   // column at all) — verified against apps/webapp/migrations/012_subscription_mailing.sql.
+  // castType: "bigint" reads the DEDICATED integrator identity GUC `app.integrator_user_id`
+  // (P0.13/T0.4 convention — see smoke-p0-13-db-isolation.mjs), never `app.patient_user_id`.
   ["public.mailing_logs_webapp", { column: "integrator_user_id", castType: "bigint" }],
   ["public.user_subscriptions_webapp", { column: "integrator_user_id", castType: "bigint" }],
 
@@ -276,8 +283,9 @@ const patientOwnedColumns = new Map([
   // is an org catalog definition) and stays org-only.
   ["public.be_patient_package_items", { column: "platform_user_id" }],
 
-  // integrator.* direct_org_column (P0.8.5), patient identity = integrator.users.id (bigint).
-  // contacts/content_access_grants/user_reminder_rules verified via
+  // integrator.* direct_org_column (P0.8.5), patient identity = integrator.users.id (bigint),
+  // read from the dedicated `app.integrator_user_id` GUC (castType: "bigint" — see the note above
+  // public.mailing_logs_webapp). contacts/content_access_grants/user_reminder_rules verified via
   // apps/integrator/src/infra/db/migrations/core/20260306_0014_create_contacts.sql and
   // 20260311_0002_create_user_reminders.sql (user_id bigint REFERENCES users(id)). mailing_logs
   // and user_subscriptions originally referenced the legacy telegram_users(id) space, but
@@ -290,6 +298,106 @@ const patientOwnedColumns = new Map([
   ["integrator.mailing_logs", { column: "user_id", castType: "bigint" }],
   ["integrator.user_reminder_rules", { column: "user_id", castType: "bigint" }],
   ["integrator.user_subscriptions", { column: "user_id", castType: "bigint" }],
+]);
+
+// B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
+// tables with NO direct patient-owner column, whose owning patient is only reachable by walking
+// one or more FK hops to a table that DOES carry one — verified against the real CREATE TABLE SQL
+// for every hop (apps/integrator/src/infra/db/migrations/core/20260306_0013_create_identities.sql,
+// 20260310_0001_create_message_threads.sql, 20260311_0001_create_user_questions.sql,
+// 20260311_0002_create_user_reminders.sql; apps/webapp/migrations/009_support_communication_history.sql).
+// Rendered via renderPatientChainPredicate (rls-sql-renderer.mjs): a single EXISTS with a chain of
+// INNER JOINs from the policy row down to the identity-bearing terminal table/column — a broken or
+// NULL hop anywhere denies (fail-closed), same as a direct column predicate.
+const patientChainOwnedTables = new Map([
+  // I2 identity-bridge (P0.4.I2, direct_org_column): owner is reached in ONE hop through
+  // integrator.identities(id, user_id bigint REFERENCES integrator.users(id)).
+  ["integrator.conversations", {
+    hops: [{ table: "integrator.identities", alias: "b4f_conversations_identity", parentPk: "id", localFk: "user_identity_id" }],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }],
+  ["integrator.message_drafts", {
+    hops: [{ table: "integrator.identities", alias: "b4f_message_drafts_identity", parentPk: "id", localFk: "identity_id" }],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }],
+  ["integrator.user_questions", {
+    hops: [{ table: "integrator.identities", alias: "b4f_user_questions_identity", parentPk: "id", localFk: "user_identity_id" }],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }],
+
+  // I3 parent-denorm (P0.4.I3, denorm_org_column): owner reached by walking to the immediate
+  // parent, then (where the parent itself is identity-bridged, not directly user-owned) on through
+  // integrator.identities. user_reminder_occurrences/_delivery_logs walk to user_reminder_rules,
+  // which already carries a direct bigint user_id (no identities hop needed there).
+  ["integrator.conversation_messages", {
+    hops: [
+      { table: "integrator.conversations", alias: "b4f_conv", parentPk: "id", localFk: "conversation_id" },
+      { table: "integrator.identities", alias: "b4f_ident", parentPk: "id", localFk: "user_identity_id" },
+    ],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }],
+  ["integrator.question_messages", {
+    hops: [
+      { table: "integrator.user_questions", alias: "b4f_question", parentPk: "id", localFk: "question_id" },
+      { table: "integrator.identities", alias: "b4f_ident", parentPk: "id", localFk: "user_identity_id" },
+    ],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }],
+  ["integrator.user_reminder_occurrences", {
+    hops: [{ table: "integrator.user_reminder_rules", alias: "b4f_rule", parentPk: "id", localFk: "rule_id" }],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }],
+  ["integrator.user_reminder_delivery_logs", {
+    hops: [
+      { table: "integrator.user_reminder_occurrences", alias: "b4f_occ", parentPk: "id", localFk: "occurrence_id" },
+      { table: "integrator.user_reminder_rules", alias: "b4f_rule", parentPk: "id", localFk: "rule_id" },
+    ],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }],
+
+  // public.support_* family (webapp, uuid castType, apps/webapp/migrations/009_support_communication_history.sql):
+  // chain to support_conversations.platform_user_id — the SAME column already registered DIRECTLY
+  // on public.support_conversations above (patientOwnedColumns). Deliberately NOT also chaining to
+  // support_conversations.integrator_user_id (its bigint bridge column): that column is not yet
+  // part of any registered patient-owner predicate for support_conversations itself, so adding it
+  // only here would be an inconsistent, narrower-than-parent wall. conversation_id/question_id/
+  // conversation_message_id hops are nullable on some of these child tables (e.g. support_questions
+  // .conversation_id, support_delivery_events.conversation_message_id) — a NULL hop simply fails
+  // the INNER JOIN and denies for patient sessions (fail-closed), same as staff-unaffected/org-wide
+  // visibility is preserved via the staff-actor bypass.
+  ["public.support_questions", {
+    hops: [{ table: "public.support_conversations", alias: "b4f_conv", parentPk: "id", localFk: "conversation_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.support_conversation_messages", {
+    hops: [{ table: "public.support_conversations", alias: "b4f_conv", parentPk: "id", localFk: "conversation_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.support_question_messages", {
+    hops: [
+      { table: "public.support_questions", alias: "b4f_question", parentPk: "id", localFk: "question_id" },
+      { table: "public.support_conversations", alias: "b4f_conv", parentPk: "id", localFk: "conversation_id" },
+    ],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.support_delivery_events", {
+    hops: [
+      { table: "public.support_conversation_messages", alias: "b4f_msg", parentPk: "id", localFk: "conversation_message_id" },
+      { table: "public.support_conversations", alias: "b4f_conv", parentPk: "id", localFk: "conversation_id" },
+    ],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
 ]);
 
 export function buildRlsDescriptors() {
@@ -366,6 +474,35 @@ export function buildRlsDescriptors() {
       patientColumn: ownership.column,
       patientColumnCastType: ownership.castType ?? "uuid",
       ...(ownership.nullableShared ? { patientColumnNullableShared: true } : {}),
+    });
+  }
+
+  for (const [table, chain] of patientChainOwnedTables) {
+    const descriptor = descriptors.get(table);
+
+    if (!descriptor) {
+      throw new Error(`Patient chain registered for unknown table ${table}`);
+    }
+
+    if (descriptor.tier !== "SCOPED") {
+      throw new Error(`Patient chain registered for non-SCOPED table ${table} (tier=${descriptor.tier})`);
+    }
+
+    if (descriptor.patientColumn) {
+      throw new Error(`Table ${table} cannot declare both a direct patientColumn and a patientChain`);
+    }
+
+    if (!Array.isArray(chain.hops) || chain.hops.length === 0) {
+      throw new Error(`Patient chain for ${table} must declare at least one hop`);
+    }
+
+    descriptors.set(table, {
+      ...descriptor,
+      patientChain: {
+        hops: chain.hops,
+        terminalColumn: chain.terminalColumn,
+        castType: chain.castType ?? "uuid",
+      },
     });
   }
 

@@ -6,12 +6,15 @@ import {
   quoteSqlIdentifier,
   renderBootstrapHybridPredicate,
   renderOrgPredicate,
+  renderPatientChainPredicate,
   renderPatientPredicate,
   renderPolicyTarget,
+  renderStaffOrPatientChainPredicate,
 } from "./rls-sql-renderer.mjs";
 
 const orgGuc = "NULLIF(current_setting('app.org', true), '')";
 const patientGuc = "NULLIF(current_setting('app.patient_user_id', true), '')";
+const integratorGuc = "NULLIF(current_setting('app.integrator_user_id', true), '')";
 const orgA = "00000000-0000-4000-8000-000000000001";
 const orgB = "00000000-0000-4000-8000-000000000002";
 const patientA = "10000000-0000-4000-8000-000000000001";
@@ -61,6 +64,40 @@ assert.equal(
   renderPatientPredicate({ patientColumn: "platform_user_id", mode: "enforce" }),
   `(${patientGuc} IS NOT NULL AND "platform_user_id" = ${patientGuc}::uuid)`,
   "patient predicate should require matching app.patient_user_id in enforce mode",
+);
+
+// GUC alignment (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md B4-fanout, taskdb #656):
+// a bigint-cast patient predicate (integrator identity) must read the DEDICATED
+// `app.integrator_user_id` GUC, never `app.patient_user_id` cast to bigint.
+assert.equal(
+  renderPatientPredicate({ patientColumn: "user_id", mode: "enforce", castType: "bigint" }),
+  `(${integratorGuc} IS NOT NULL AND "user_id" = ${integratorGuc}::bigint)`,
+  "bigint-cast patient predicate must require matching app.integrator_user_id, not app.patient_user_id",
+);
+
+// Chain-only patient ownership (B4-fanout gap closure, taskdb #656): a single EXISTS with a chain
+// of INNER JOINs from the policy row down to the identity-bearing terminal table/column.
+assert.equal(
+  renderPatientChainPredicate({
+    hops: [
+      { table: "integrator.user_reminder_occurrences", alias: "b4f_occ", parentPk: "id", localFk: "occurrence_id" },
+      { table: "integrator.user_reminder_rules", alias: "b4f_rule", parentPk: "id", localFk: "rule_id" },
+    ],
+    terminalColumn: "user_id",
+    castType: "bigint",
+  }),
+  `(${integratorGuc} IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "integrator"."user_reminder_rules" AS "b4f_rule" ON "b4f_rule"."id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."user_id" = ${integratorGuc}::bigint ))`,
+  "chain patient predicate must nest joins from the policy row to the terminal identity column",
+);
+
+assert.match(
+  renderStaffOrPatientChainPredicate({
+    hops: [{ table: "public.support_conversations", alias: "b4f_conv", parentPk: "id", localFk: "conversation_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }),
+  /NULLIF\(current_setting\('app\.actor', true\), ''\) = 'staff' OR \(.*EXISTS/,
+  "chain predicate must stay staff-bypassed (org-wide, variant A) same as the direct-column shape",
 );
 
 assert.equal(

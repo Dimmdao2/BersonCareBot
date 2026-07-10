@@ -114,6 +114,29 @@ assertIncludes(
   "P0.9 be_patient_package_items patient predicate must EXISTS-join its parent's platform_user_id",
 );
 
+// B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656): a
+// chain-owned table (no direct patient column) must ALSO get the fail-closed staff-or-patient
+// branch in enforce mode, rendered as an EXISTS chain, terminating on the bigint integrator GUC.
+const chainScoped = getP09EnforceDescriptorByTable("integrator.user_reminder_delivery_logs");
+const chainScopedSql = renderP09EnforcePolicyStatements(chainScoped).join("\n");
+
+assertIncludes(
+  chainScopedSql,
+  "NULLIF(current_setting('app.actor', true), '') = 'staff'",
+  "P0.9 chain-owned enforce SQL must include the fail-closed staff-or-patient branch",
+);
+assertIncludes(chainScopedSql, "EXISTS (", "P0.9 chain-owned enforce SQL must preserve the identity-chain EXISTS");
+assertIncludes(
+  chainScopedSql,
+  "\"user_id\" = NULLIF(current_setting('app.integrator_user_id', true), '')::bigint",
+  "P0.9 chain-owned enforce SQL must terminate on app.integrator_user_id, not app.patient_user_id",
+);
+assertNotIncludes(
+  chainScopedSql,
+  "app.patient_user_id",
+  "P0.9 integrator chain-owned enforce SQL must not reference the uuid app.patient_user_id GUC",
+);
+
 const pendingPolymorphic = getP09EnforceDescriptorByTable("public.comments");
 
 if (pendingPolymorphic.enforceMode.action !== "scoped_pending_default_deny") {

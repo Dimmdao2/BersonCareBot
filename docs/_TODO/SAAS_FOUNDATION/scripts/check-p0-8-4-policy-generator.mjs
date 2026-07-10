@@ -111,6 +111,14 @@ if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
   fail(`Expected ${expectedPatientOwnedTargets} P0.8.4 patient-owned targets, got ${patientOwnedDescriptors.length}`);
 }
 
+// GUC alignment (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md B4-fanout, taskdb #656):
+// a bigint-cast patient column (integrator identity bridge, e.g. reminder_delivery_events/
+// reminder_occurrence_history.integrator_user_id) must read the DEDICATED `app.integrator_user_id`
+// GUC, not `app.patient_user_id` cast to bigint.
+function patientGucNameFor(descriptor) {
+  return descriptor.patientColumnCastType === "bigint" ? "app.integrator_user_id" : "app.patient_user_id";
+}
+
 for (const descriptor of patientOwnedDescriptors) {
   const quotedTarget = descriptor.table
     .split(".")
@@ -128,11 +136,52 @@ for (const descriptor of patientOwnedDescriptors) {
     if (!createStatement.includes(`"p0_8_4_patient_parent"."${descriptor.patientColumn}"`)) {
       fail(`${descriptor.table} fk_path patient predicate must EXISTS-join the parent's patient column`);
     }
-  } else if (!createStatement.includes(`"${descriptor.patientColumn}" = NULLIF(current_setting('app.patient_user_id'`)) {
-    fail(`${descriptor.table} denorm patient predicate must compare its own ${descriptor.patientColumn} column`);
+  } else if (!createStatement.includes(`"${descriptor.patientColumn}" = NULLIF(current_setting('${patientGucNameFor(descriptor)}'`)) {
+    fail(`${descriptor.table} denorm patient predicate must compare its own ${descriptor.patientColumn} column against ${patientGucNameFor(descriptor)}`);
+  }
+}
+
+// B4-fanout gap closure (taskdb #656): chain-owned P0.8.4 targets — no direct patient column on
+// the child row, patient owner reached via an EXISTS chain to support_conversations.platform_user_id.
+const expectedPatientChainOwnedTargets = 3;
+const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
+
+if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
+  fail(`Expected ${expectedPatientChainOwnedTargets} P0.8.4 patient-chain-owned targets, got ${patientChainOwnedDescriptors.length}`);
+}
+
+const expectedChainTables = [
+  "public.support_conversation_messages",
+  "public.support_delivery_events",
+  "public.support_question_messages",
+].sort();
+
+if (JSON.stringify(patientChainOwnedDescriptors.map((d) => d.table).sort()) !== JSON.stringify(expectedChainTables)) {
+  fail(`P0.8.4 patient-chain-owned target set must stay stable: ${patientChainOwnedDescriptors.map((d) => d.table).join(", ")}`);
+}
+
+for (const descriptor of patientChainOwnedDescriptors) {
+  const quotedTarget = descriptor.table
+    .split(".")
+    .map((part) => `"${part}"`)
+    .join(".");
+  const createStatement = statements.find(
+    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+  );
+
+  if (!createStatement?.includes("NULLIF(current_setting('app.actor', true), '') = 'staff'")) {
+    fail(`${descriptor.table} chain-owned policy must include the fail-closed staff-or-patient branch`);
+  }
+
+  if (!createStatement.includes("EXISTS (")) {
+    fail(`${descriptor.table} chain-owned policy must include an EXISTS chain to its identity-bearing parent`);
+  }
+
+  if (!createStatement.includes(`"platform_user_id" = NULLIF(current_setting('app.patient_user_id'`)) {
+    fail(`${descriptor.table} chain-owned policy must terminate on support_conversations.platform_user_id`);
   }
 }
 
 console.log(
-  `P0.8.4 policy generator OK: 37 targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm, ${patientOwnedDescriptors.length} patient-owned), public.comments blocked for P0.12.1.`,
+  `P0.8.4 policy generator OK: 37 targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm, ${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned), public.comments blocked for P0.12.1.`,
 );
