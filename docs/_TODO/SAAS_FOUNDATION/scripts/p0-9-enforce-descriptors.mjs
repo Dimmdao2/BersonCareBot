@@ -242,7 +242,7 @@ export function renderP09EnforcePredicate(descriptor) {
   if (action === "scoped_org") {
     const orgPredicate = renderOrgPredicate(descriptor, { mode: "enforce" });
 
-    if (!descriptor.patientColumn) {
+    if (!descriptor.patientColumn && !descriptor.patientChain) {
       return orgPredicate;
     }
 

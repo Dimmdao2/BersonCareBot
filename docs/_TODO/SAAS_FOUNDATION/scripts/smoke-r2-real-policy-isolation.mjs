@@ -66,14 +66,30 @@
  *    (`renderStaffOrPatientPredicate` in rls-sql-renderer.mjs): staff (`app.actor='staff'`) keeps
  *    org-wide visibility (owner decision: variant A, no assignment predicate); a patient session
  *    (`app.actor='patient'` + `app.patient_user_id`) sees ONLY its own rows; unset/empty context denies.
- *    Of this smoke's 6 targets, `org_enrollments` (platform_user_id), `notification_delivery_attempts`
- *    (user_id), and `integrator.content_access_grants` (user_id, bigint) are now patient-owned and are
+ *    Of this smoke's 6 original targets, `org_enrollments` (platform_user_id), `notification_delivery_attempts`
+ *    (user_id), and `integrator.content_access_grants` (user_id, bigint) are patient-owned and are
  *    exercised below under the real enforce-mode patient wall. `be_package_items` (org catalog line
  *    item, no patient owner) and `system_settings` (BOOTSTRAP hybrid, untouched per instruction) stay
- *    unaffected. `integrator.user_reminder_delivery_logs` is a DOCUMENTED REMAINING GAP: its patient
- *    identity is only reachable via a 2-hop chain (occurrence_id -> user_reminder_occurrences.rule_id ->
- *    user_reminder_rules.user_id), not a direct column, so it is deliberately NOT in the
- *    `patientOwnedColumns` registry this pass — proven still-open below, not silently assumed fixed.
+ *    unaffected.
+ *  - UPDATE (B4-fanout gap closure, taskdb #656): the two remaining gaps from the B4-core pass are
+ *    now CLOSED and proven below, not just documented-open:
+ *      (1) GUC alignment — the bigint integrator-identity predicates (e.g.
+ *          integrator.content_access_grants.user_id) now compare against the DEDICATED
+ *          app.integrator_user_id GUC, not app.patient_user_id cast to bigint (P0.13/T0.4
+ *          convention, see smoke-p0-13-db-isolation.mjs). Proven below via a MIXED session that sets
+ *          BOTH app.patient_user_id (uuid, webapp identity) and app.integrator_user_id (bigint,
+ *          integrator identity) simultaneously.
+ *      (2) chain-only patient ownership — integrator.user_reminder_delivery_logs (2-hop:
+ *          occurrence_id -> user_reminder_occurrences.rule_id -> user_reminder_rules.user_id) and 10
+ *          sibling chain-only tables (integrator I2 identity-bridge: conversations/message_drafts/
+ *          user_questions; I3 parent-denorm: conversation_messages/question_messages/
+ *          user_reminder_occurrences; webapp support family: support_questions/
+ *          support_conversation_messages/support_question_messages/support_delivery_events) now get a
+ *          patient wall via rls-descriptor-model.mjs's new patientChainOwnedTables registry and
+ *          renderPatientChainPredicate (rls-sql-renderer.mjs) — a single EXISTS with a chain of
+ *          INNER JOINs down to the identity-bearing table/column. Migration 0170_p0_8_b4_fanout_
+ *          chain_patient_wall_rls.sql carries these 11 tables' dormant-mode policies; this smoke
+ *          simulates their enforce-mode flip the same way as the original 6 B4-core targets.
  *
  * Scratch only. Guards refuse non-scratch/dev/prod/test databases, same as smoke-p0-13-db-isolation.mjs.
  * No push/deploy.
@@ -204,6 +220,40 @@ const integratorUserA1 = 90000101;
 const integratorUserA2 = 90000102;
 const integratorUserB1 = 90000201;
 
+// B4-fanout gap closure (taskdb #656): fixture ids for the 11 chain-only patient-wall targets.
+const identityA1 = 1;
+const identityA2 = 2;
+const identityB1 = 3;
+const conversationA1 = "b6-conv-a1";
+const conversationA2 = "b6-conv-a2";
+const conversationB1 = "b6-conv-b1";
+const messageDraftA1 = "b6-draft-a1";
+const messageDraftA2 = "b6-draft-a2";
+const messageDraftB1 = "b6-draft-b1";
+const conversationMessageA1 = "b6-convmsg-a1";
+const conversationMessageA2 = "b6-convmsg-a2";
+const conversationMessageB1 = "b6-convmsg-b1";
+const userQuestionA1 = "b6-q-a1";
+const userQuestionA2 = "b6-q-a2";
+const userQuestionB1 = "b6-q-b1";
+const questionMessageA1 = "b6-qmsg-a1";
+const questionMessageA2 = "b6-qmsg-a2";
+const questionMessageB1 = "b6-qmsg-b1";
+const reminderRuleA2 = "b6-rule-a2";
+const reminderOccurrenceA2 = "b6-occ-a2";
+const reminderDeliveryLogA2 = "b6-log-a2";
+const supportConversationA1 = "b6100000-0000-4000-8000-00000000c0a1";
+const supportConversationA2 = "b6100000-0000-4000-8000-00000000c0a2";
+const supportConversationB1 = "b6100000-0000-4000-8000-00000000c0b1";
+const supportQuestionA1 = "b6100000-0000-4000-8000-00000000d0a1";
+const supportQuestionA2 = "b6100000-0000-4000-8000-00000000d0a2";
+const supportConversationMessageA1 = "b6100000-0000-4000-8000-00000000e0a1";
+const supportConversationMessageA2 = "b6100000-0000-4000-8000-00000000e0a2";
+const supportQuestionMessageA1 = "b6100000-0000-4000-8000-00000000f0a1";
+const supportQuestionMessageA2 = "b6100000-0000-4000-8000-00000000f0a2";
+const supportDeliveryEventA1 = "b6100000-0000-4000-8000-000000000a01";
+const supportDeliveryEventA2 = "b6100000-0000-4000-8000-000000000a02";
+
 // ---------------------------------------------------------------------------
 // Phase 1: minimal real webapp DDL (see adaptation #1 above)
 // ---------------------------------------------------------------------------
@@ -218,6 +268,7 @@ const WEBAPP_DDL_FILES = [
   "apps/webapp/db/drizzle-migrations/0144_org_enrollments.sql",
   "apps/webapp/db/drizzle-migrations/0164_p0_11_3_system_settings_audit_org.sql",
   "apps/webapp/db/drizzle-migrations/0166_p0_4_en_org_enrollments_org_semantics.sql",
+  "apps/webapp/migrations/009_support_communication_history.sql",
 ];
 
 // Real system_settings org-column retrofit + RLS lives inside 0163 (bootstrap-hybrid sweep) —
@@ -232,6 +283,9 @@ const INTEGRATOR_DDL_FILES = [
   "apps/integrator/src/infra/db/migrations/core/20260306_0012_create_users.sql",
   "apps/integrator/src/infra/db/migrations/core/20260311_0002_create_user_reminders.sql",
   "apps/integrator/src/infra/db/migrations/core/20260406_0002_create_system_settings.sql",
+  "apps/integrator/src/infra/db/migrations/core/20260306_0013_create_identities.sql",
+  "apps/integrator/src/infra/db/migrations/core/20260310_0001_create_message_threads.sql",
+  "apps/integrator/src/infra/db/migrations/core/20260311_0001_create_user_questions.sql",
 ];
 
 // ---------------------------------------------------------------------------
@@ -315,6 +369,153 @@ END $$;
 ALTER TABLE integrator.content_access_grants ALTER COLUMN organization_id SET NOT NULL;
 ALTER TABLE integrator.user_reminder_occurrences ALTER COLUMN organization_id SET NOT NULL;
 ALTER TABLE integrator.user_reminder_delivery_logs ALTER COLUMN organization_id SET NOT NULL;
+
+-- B4-fanout gap closure (taskdb #656): I2 excerpt (conversations/message_drafts/user_questions;
+-- ADD COLUMN + index + FK only, verified against
+-- apps/integrator/src/infra/db/migrations/core/20260708_0002_p0_4_i2_integrator_identity_path_org.sql
+-- lines 1-46 -- the file's backfill DO $$ blocks (lines 48+) need org_enrollments/
+-- be_organization_members/platform_users.integrator_user_id machinery this minimal scratch schema
+-- does not build; this smoke seeds organization_id directly at INSERT time instead, same approach
+-- already used for the I1/I3/0152 excerpts above. NOT NULL is intentionally not added here (not
+-- required to prove the predicate; fixtures never insert a NULL organization_id row).
+ALTER TABLE integrator.conversations ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE integrator.message_drafts ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE integrator.user_questions ADD COLUMN IF NOT EXISTS organization_id uuid;
+CREATE INDEX IF NOT EXISTS idx_conversations_organization_id
+  ON integrator.conversations USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_message_drafts_organization_id
+  ON integrator.message_drafts USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_user_questions_organization_id
+  ON integrator.user_questions USING btree (organization_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'conversations_organization_id_fkey'
+      AND conrelid = 'integrator.conversations'::regclass
+  ) THEN
+    ALTER TABLE integrator.conversations
+      ADD CONSTRAINT conversations_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'message_drafts_organization_id_fkey'
+      AND conrelid = 'integrator.message_drafts'::regclass
+  ) THEN
+    ALTER TABLE integrator.message_drafts
+      ADD CONSTRAINT message_drafts_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'user_questions_organization_id_fkey'
+      AND conrelid = 'integrator.user_questions'::regclass
+  ) THEN
+    ALTER TABLE integrator.user_questions
+      ADD CONSTRAINT user_questions_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- I3 excerpt continued (conversation_messages/question_messages; sibling tables
+-- user_reminder_occurrences/user_reminder_delivery_logs already retrofitted above). Verified
+-- against 20260708_0003_p0_4_i3_integrator_parent_denorm_org.sql lines 1-16 (ADD COLUMN/index only).
+ALTER TABLE integrator.conversation_messages ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE integrator.question_messages ADD COLUMN IF NOT EXISTS organization_id uuid;
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_organization_id
+  ON integrator.conversation_messages USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_question_messages_organization_id
+  ON integrator.question_messages USING btree (organization_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'conversation_messages_organization_id_fkey'
+      AND conrelid = 'integrator.conversation_messages'::regclass
+  ) THEN
+    ALTER TABLE integrator.conversation_messages
+      ADD CONSTRAINT conversation_messages_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'question_messages_organization_id_fkey'
+      AND conrelid = 'integrator.question_messages'::regclass
+  ) THEN
+    ALTER TABLE integrator.question_messages
+      ADD CONSTRAINT question_messages_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- B4-fanout: P0.4.P6 excerpt (support_conversations/support_questions/support_conversation_messages/
+-- support_question_messages/support_delivery_events; ADD COLUMN + index + FK only). Verified against
+-- apps/webapp/db/drizzle-migrations/0151_p0_4_p6_support_comms_org.sql lines 1-29 (this file also
+-- covers doctor_notes/doctor_patient_support/specialist_tasks, not needed by this smoke).
+ALTER TABLE support_conversations ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE support_conversation_messages ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE support_delivery_events ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE support_question_messages ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE support_questions ADD COLUMN IF NOT EXISTS organization_id uuid;
+CREATE INDEX IF NOT EXISTS idx_support_conversations_organization_id
+  ON support_conversations USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_support_conversation_messages_organization_id
+  ON support_conversation_messages USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_support_delivery_events_organization_id
+  ON support_delivery_events USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_support_question_messages_organization_id
+  ON support_question_messages USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_support_questions_organization_id
+  ON support_questions USING btree (organization_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'support_conversations_organization_id_fkey'
+      AND conrelid = 'support_conversations'::regclass
+  ) THEN
+    ALTER TABLE support_conversations
+      ADD CONSTRAINT support_conversations_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES be_organizations(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'support_conversation_messages_organization_id_fkey'
+      AND conrelid = 'support_conversation_messages'::regclass
+  ) THEN
+    ALTER TABLE support_conversation_messages
+      ADD CONSTRAINT support_conversation_messages_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES be_organizations(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'support_delivery_events_organization_id_fkey'
+      AND conrelid = 'support_delivery_events'::regclass
+  ) THEN
+    ALTER TABLE support_delivery_events
+      ADD CONSTRAINT support_delivery_events_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES be_organizations(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'support_question_messages_organization_id_fkey'
+      AND conrelid = 'support_question_messages'::regclass
+  ) THEN
+    ALTER TABLE support_question_messages
+      ADD CONSTRAINT support_question_messages_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES be_organizations(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'support_questions_organization_id_fkey'
+      AND conrelid = 'support_questions'::regclass
+  ) THEN
+    ALTER TABLE support_questions
+      ADD CONSTRAINT support_questions_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES be_organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 `;
 
 // ---------------------------------------------------------------------------
@@ -324,10 +525,15 @@ const rls0161 = readRepoFile("apps/webapp/db/drizzle-migrations/0161_p0_8_4_publ
 const rls0162 = readRepoFile("apps/webapp/db/drizzle-migrations/0162_p0_8_5_integrator_scoped_rls.sql");
 const rls0163 = readRepoFile("apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql");
 const rls0167 = readRepoFile("apps/webapp/db/drizzle-migrations/0167_p0_8_3_org_enrollments_broadcast_drafts_rls.sql");
+const rls0170 = readRepoFile("apps/webapp/db/drizzle-migrations/0170_p0_8_b4_fanout_chain_patient_wall_rls.sql");
 
 const dormantRlsSql = [
   selectRlsBlocks(rls0161, ["public.be_package_items", "public.notification_delivery_attempts"]),
-  selectRlsBlocks(rls0162, ["integrator.content_access_grants", "integrator.user_reminder_delivery_logs"]),
+  // user_reminder_delivery_logs' dormant block now comes from 0170 (chain-aware predicate)
+  // below, not this original org-only 0162 version -- phase 5 (enforce simulation) would
+  // overwrite either one, but sourcing the chain-aware version keeps phase 4's installed state
+  // consistent with what a real deploy would have after 0170 lands.
+  selectRlsBlocks(rls0162, ["integrator.content_access_grants"]),
   (() => {
     // 0163 has real preamble DDL (add column/indexes/FK) for BOTH system_settings tables that we need
     // in full, plus policy blocks for 4 tables — keep the preamble, filter blocks to our 2 targets.
@@ -338,6 +544,21 @@ const dormantRlsSql = [
     return `${preamble}\n${wanted.map((t) => blocksByTable.get(t)).join("\n")}`;
   })(),
   selectRlsBlocks(rls0167, ["public.org_enrollments"]),
+  // B4-fanout gap closure (taskdb #656): the 11 chain-only patient-wall targets, all carried by
+  // migration 0170 (byte-identical generated output, same extraction shape as 0161/0162/0167).
+  selectRlsBlocks(rls0170, [
+    "public.support_questions",
+    "public.support_conversation_messages",
+    "public.support_delivery_events",
+    "public.support_question_messages",
+    "integrator.conversation_messages",
+    "integrator.conversations",
+    "integrator.message_drafts",
+    "integrator.question_messages",
+    "integrator.user_questions",
+    "integrator.user_reminder_delivery_logs",
+    "integrator.user_reminder_occurrences",
+  ]),
 ].join("\n");
 
 // ---------------------------------------------------------------------------
@@ -353,6 +574,18 @@ const ENFORCE_TARGETS = [
   "integrator.content_access_grants",
   "integrator.user_reminder_delivery_logs",
   "public.system_settings",
+  // B4-fanout gap closure (taskdb #656): the 10 ADDITIONAL chain-only patient-wall targets
+  // (integrator.user_reminder_delivery_logs above is one of the original 6, now proven closed).
+  "public.support_questions",
+  "public.support_conversation_messages",
+  "public.support_delivery_events",
+  "public.support_question_messages",
+  "integrator.conversations",
+  "integrator.message_drafts",
+  "integrator.user_questions",
+  "integrator.conversation_messages",
+  "integrator.question_messages",
+  "integrator.user_reminder_occurrences",
 ];
 
 // IMPORTANT mechanical finding: Postgres OR-combines multiple PERMISSIVE policies on the same table
@@ -367,6 +600,16 @@ const DORMANT_POLICY_NAME_BY_TABLE = {
   "integrator.content_access_grants": p085PolicyName,
   "integrator.user_reminder_delivery_logs": p085PolicyName,
   "public.system_settings": p086PolicyName,
+  "public.support_questions": p083PolicyName,
+  "public.support_conversation_messages": p084PolicyName,
+  "public.support_delivery_events": p084PolicyName,
+  "public.support_question_messages": p084PolicyName,
+  "integrator.conversations": p085PolicyName,
+  "integrator.message_drafts": p085PolicyName,
+  "integrator.user_questions": p085PolicyName,
+  "integrator.conversation_messages": p085PolicyName,
+  "integrator.question_messages": p085PolicyName,
+  "integrator.user_reminder_occurrences": p085PolicyName,
 };
 
 const enforceFindings = [];
@@ -465,7 +708,178 @@ INSERT INTO integrator.user_reminder_delivery_logs (id, occurrence_id, channel, 
   ('b6-log-a1', 'b6-occ-a1', 'sms', 'sent', '${orgA}'::uuid),
   ('b6-log-b1', 'b6-occ-b1', 'sms', 'sent', '${orgB}'::uuid)
 ON CONFLICT (id) DO NOTHING;
+
+-- B4-fanout gap closure (taskdb #656): fixtures for the 11 chain-only patient-wall targets. A
+-- second org-A reminder rule/occurrence/log (A2) proves A1<>A2 isolation on the reminder chain,
+-- not just the A1-vs-org-B split already covered above.
+INSERT INTO integrator.user_reminder_rules
+  (id, user_id, category, interval_minutes, window_start_minute, window_end_minute) VALUES
+  ('${reminderRuleA2}', ${integratorUserA2}, 'b6', 60, 0, 1440)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.user_reminder_occurrences (id, rule_id, occurrence_key, planned_at, organization_id) VALUES
+  ('${reminderOccurrenceA2}', '${reminderRuleA2}', 'b6-occ-key-a2', now(), '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.user_reminder_delivery_logs (id, occurrence_id, channel, status, organization_id) VALUES
+  ('${reminderDeliveryLogA2}', '${reminderOccurrenceA2}', 'sms', 'sent', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.identities (id, user_id, resource, external_id) VALUES
+  (${identityA1}, ${integratorUserA1}, 'b6', 'identity-a1'),
+  (${identityA2}, ${integratorUserA2}, 'b6', 'identity-a2'),
+  (${identityB1}, ${integratorUserB1}, 'b6', 'identity-b1')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.conversations
+  (id, source, user_identity_id, admin_scope, status, opened_at, last_message_at, organization_id) VALUES
+  ('${conversationA1}', 'telegram', ${identityA1}, 'support', 'open', now(), now(), '${orgA}'::uuid),
+  ('${conversationA2}', 'telegram', ${identityA2}, 'support', 'open', now(), now(), '${orgA}'::uuid),
+  ('${conversationB1}', 'telegram', ${identityB1}, 'support', 'open', now(), now(), '${orgB}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.message_drafts (id, identity_id, source, draft_text_current, organization_id) VALUES
+  ('${messageDraftA1}', ${identityA1}, 'telegram', 'draft A1', '${orgA}'::uuid),
+  ('${messageDraftA2}', ${identityA2}, 'telegram', 'draft A2', '${orgA}'::uuid),
+  ('${messageDraftB1}', ${identityB1}, 'telegram', 'draft B1', '${orgB}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.conversation_messages
+  (id, conversation_id, sender_role, text, source, created_at, organization_id) VALUES
+  ('${conversationMessageA1}', '${conversationA1}', 'user', 'hello A1', 'telegram', now(), '${orgA}'::uuid),
+  ('${conversationMessageA2}', '${conversationA2}', 'user', 'hello A2', 'telegram', now(), '${orgA}'::uuid),
+  ('${conversationMessageB1}', '${conversationB1}', 'user', 'hello B1', 'telegram', now(), '${orgB}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.user_questions (id, user_identity_id, text, organization_id) VALUES
+  ('${userQuestionA1}', ${identityA1}, 'question A1', '${orgA}'::uuid),
+  ('${userQuestionA2}', ${identityA2}, 'question A2', '${orgA}'::uuid),
+  ('${userQuestionB1}', ${identityB1}, 'question B1', '${orgB}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO integrator.question_messages (id, question_id, sender_type, message_text, organization_id) VALUES
+  ('${questionMessageA1}', '${userQuestionA1}', 'user', 'answer A1', '${orgA}'::uuid),
+  ('${questionMessageA2}', '${userQuestionA2}', 'user', 'answer A2', '${orgA}'::uuid),
+  ('${questionMessageB1}', '${userQuestionB1}', 'user', 'answer B1', '${orgB}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO support_conversations
+  (id, integrator_conversation_id, platform_user_id, source, admin_scope, status, opened_at, last_message_at, organization_id) VALUES
+  ('${supportConversationA1}'::uuid, 'b6-sc-a1', '${patientA1}'::uuid, 'telegram', 'support', 'open', now(), now(), '${orgA}'::uuid),
+  ('${supportConversationA2}'::uuid, 'b6-sc-a2', '${patientA2}'::uuid, 'telegram', 'support', 'open', now(), now(), '${orgA}'::uuid),
+  ('${supportConversationB1}'::uuid, 'b6-sc-b1', '${patientB1}'::uuid, 'telegram', 'support', 'open', now(), now(), '${orgB}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO support_questions (id, integrator_question_id, conversation_id, status, organization_id) VALUES
+  ('${supportQuestionA1}'::uuid, 'b6-sq-a1', '${supportConversationA1}'::uuid, 'open', '${orgA}'::uuid),
+  ('${supportQuestionA2}'::uuid, 'b6-sq-a2', '${supportConversationA2}'::uuid, 'open', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO support_conversation_messages
+  (id, integrator_message_id, conversation_id, sender_role, text, source, created_at, organization_id) VALUES
+  ('${supportConversationMessageA1}'::uuid, 'b6-scm-a1', '${supportConversationA1}'::uuid, 'user', 'hi A1', 'telegram', now(), '${orgA}'::uuid),
+  ('${supportConversationMessageA2}'::uuid, 'b6-scm-a2', '${supportConversationA2}'::uuid, 'user', 'hi A2', 'telegram', now(), '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO support_question_messages
+  (id, integrator_question_message_id, question_id, sender_role, text, created_at, organization_id) VALUES
+  ('${supportQuestionMessageA1}'::uuid, 'b6-sqm-a1', '${supportQuestionA1}'::uuid, 'user', 'q-msg A1', now(), '${orgA}'::uuid),
+  ('${supportQuestionMessageA2}'::uuid, 'b6-sqm-a2', '${supportQuestionA2}'::uuid, 'user', 'q-msg A2', now(), '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO support_delivery_events
+  (id, conversation_message_id, channel_code, status, attempt, occurred_at, organization_id) VALUES
+  ('${supportDeliveryEventA1}'::uuid, '${supportConversationMessageA1}'::uuid, 'telegram', 'sent', 1, now(), '${orgA}'::uuid),
+  ('${supportDeliveryEventA2}'::uuid, '${supportConversationMessageA2}'::uuid, 'telegram', 'sent', 1, now(), '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
 `;
+
+// ---------------------------------------------------------------------------
+// B4-fanout gap closure (taskdb #656): generate the "own row visible, sibling patient's row NOT
+// visible" proof shape across ALL chain-only targets programmatically instead of hand-duplicating
+// near-identical psql blocks per table -- each entry names the table and a plain-SQL WHERE clause
+// identifying patient A1's own row vs patient A2's row (same org, same table).
+// ---------------------------------------------------------------------------
+const INTEGRATOR_CHAIN_PROOFS = [
+  { table: "integrator.conversations", ownWhere: `id = '${conversationA1}'`, otherWhere: `id = '${conversationA2}'` },
+  { table: "integrator.message_drafts", ownWhere: `id = '${messageDraftA1}'`, otherWhere: `id = '${messageDraftA2}'` },
+  { table: "integrator.user_questions", ownWhere: `id = '${userQuestionA1}'`, otherWhere: `id = '${userQuestionA2}'` },
+  { table: "integrator.conversation_messages", ownWhere: `id = '${conversationMessageA1}'`, otherWhere: `id = '${conversationMessageA2}'` },
+  { table: "integrator.question_messages", ownWhere: `id = '${questionMessageA1}'`, otherWhere: `id = '${questionMessageA2}'` },
+  { table: "integrator.user_reminder_occurrences", ownWhere: `id = 'b6-occ-a1'`, otherWhere: `id = '${reminderOccurrenceA2}'` },
+  { table: "integrator.user_reminder_delivery_logs", ownWhere: `id = 'b6-log-a1'`, otherWhere: `id = '${reminderDeliveryLogA2}'` },
+];
+
+const SUPPORT_CHAIN_PROOFS = [
+  { table: "public.support_questions", ownWhere: `id = '${supportQuestionA1}'::uuid`, otherWhere: `id = '${supportQuestionA2}'::uuid` },
+  { table: "public.support_conversation_messages", ownWhere: `id = '${supportConversationMessageA1}'::uuid`, otherWhere: `id = '${supportConversationMessageA2}'::uuid` },
+  { table: "public.support_question_messages", ownWhere: `id = '${supportQuestionMessageA1}'::uuid`, otherWhere: `id = '${supportQuestionMessageA2}'::uuid` },
+  { table: "public.support_delivery_events", ownWhere: `id = '${supportDeliveryEventA1}'::uuid`, otherWhere: `id = '${supportDeliveryEventA2}'::uuid` },
+];
+
+function renderChainOwnNotOtherProofSql(proofs, { label }) {
+  return proofs
+    .map(({ table, ownWhere, otherWhere }, index) => {
+      // Short, collision-free var names -- Postgres truncates result-column aliases (hence
+      // \gset variable names) at 63 bytes; embedding the full schema.table name here overflowed
+      // that limit and caused \gset to silently create a DIFFERENT (truncated) variable than the
+      // one \if referenced, always evaluating as unset. The table name is still shown in \echo.
+      const ownVar = `co_${label}_${index}`;
+      const otherVar = `cx_${label}_${index}`;
+      return [
+        `SELECT (count(*) > 0)::int AS ${ownVar} FROM ${table} WHERE ${ownWhere} \\gset`,
+        `\\if :${ownVar}`,
+        `\\else`,
+        `\\echo 'FATAL (${label}): patient A1 must see its own row in ${table}.'`,
+        `SELECT 1/0; -- forces a real error under ON_ERROR_STOP (psql 16's \\quit does not honor an exit-status arg)`,
+        `\\endif`,
+        `SELECT (count(*) > 0)::int AS ${otherVar} FROM ${table} WHERE ${otherWhere} \\gset`,
+        `\\if :${otherVar}`,
+        `\\echo 'FATAL (${label}): patient A1 must NOT see patient A2 row in ${table} (chain-only gap must stay closed).'`,
+        `SELECT 1/0; -- forces a real error under ON_ERROR_STOP (psql 16's \\quit does not honor an exit-status arg)`,
+        `\\endif`,
+      ].join("\n");
+    })
+    .join("\n");
+}
+
+function renderChainBothVisibleProofSql(proofs, { label }) {
+  return proofs
+    .map(({ table, ownWhere, otherWhere }, index) => {
+      const ownVar = `so_${label}_${index}`;
+      const otherVar = `sx_${label}_${index}`;
+      return [
+        `SELECT (count(*) > 0)::int AS ${ownVar} FROM ${table} WHERE ${ownWhere} \\gset`,
+        `\\if :${ownVar}`,
+        `\\else`,
+        `\\echo 'FATAL (${label}): staff must see patient A1 row in ${table} (org-wide, variant A).'`,
+        `SELECT 1/0; -- forces a real error under ON_ERROR_STOP (psql 16's \\quit does not honor an exit-status arg)`,
+        `\\endif`,
+        `SELECT (count(*) > 0)::int AS ${otherVar} FROM ${table} WHERE ${otherWhere} \\gset`,
+        `\\if :${otherVar}`,
+        `\\else`,
+        `\\echo 'FATAL (${label}): staff must ALSO see patient A2 row in ${table} (org-wide, variant A).'`,
+        `SELECT 1/0; -- forces a real error under ON_ERROR_STOP (psql 16's \\quit does not honor an exit-status arg)`,
+        `\\endif`,
+      ].join("\n");
+    })
+    .join("\n");
+}
+
+function renderChainEmptyContextDeniesSql(proofs, { label }) {
+  return proofs
+    .map(({ table, ownWhere }, index) => {
+      const denyVar = `em_${label}_${index}`;
+      return [
+        `SELECT (count(*) > 0)::int AS ${denyVar} FROM ${table} WHERE ${ownWhere} \\gset`,
+        `\\if :${denyVar}`,
+        `\\echo 'FATAL (${label}): empty actor/patient context must deny ${table} even with app.org set.'`,
+        `SELECT 1/0; -- forces a real error under ON_ERROR_STOP (psql 16's \\quit does not honor an exit-status arg)`,
+        `\\endif`,
+      ].join("\n");
+    })
+    .join("\n");
+}
 
 // ---------------------------------------------------------------------------
 // Phase 6: NOBYPASSRLS role + grants, then assertions.
@@ -481,13 +895,13 @@ SELECT (
 \if :r2_b6_scratch_db_ok
 \else
 \echo 'FATAL: B6 real-policy smoke must run only on a scratch/SaaS proof database.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (current_database() ~ 'bcb_webapp_(dev|prod|test)')::int AS r2_b6_runtime_db \gset
 \if :r2_b6_runtime_db
 \echo 'FATAL: B6 real-policy smoke refuses dev/prod/test application databases.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 CREATE ROLE ${appRoleIdent} NOLOGIN NOBYPASSRLS;
@@ -503,7 +917,18 @@ GRANT SELECT ON
   integrator.content_access_grants,
   integrator.user_reminder_delivery_logs,
   integrator.user_reminder_occurrences,
-  integrator.user_reminder_rules
+  integrator.user_reminder_rules,
+  integrator.identities,
+  integrator.conversations,
+  integrator.message_drafts,
+  integrator.conversation_messages,
+  integrator.user_questions,
+  integrator.question_messages,
+  public.support_conversations,
+  public.support_questions,
+  public.support_conversation_messages,
+  public.support_question_messages,
+  public.support_delivery_events
 TO ${appRoleIdent};
 
 SET ROLE ${appRoleIdent};
@@ -518,7 +943,7 @@ SELECT (rolbypassrls = false)::int AS app_role_nobypass_ok FROM pg_roles WHERE r
 \if :app_role_nobypass_ok
 \else
 \echo 'FATAL: B6 app role must be NOBYPASSRLS.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 -- FINDING (documented, not fudged): be_organization_members has no RLS at all under the real
@@ -528,7 +953,7 @@ SELECT (relrowsecurity)::int AS be_org_members_rowsecurity FROM pg_class
   WHERE oid = 'public.be_organization_members'::regclass \gset
 \if :be_org_members_rowsecurity
 \echo 'UNEXPECTED: be_organization_members now has row security enabled — re-check the substitution finding.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \else
 \echo 'FINDING CONFIRMED: public.be_organization_members has RLS DISABLED under real migrations (BOOTSTRAP/bootstrap_global, no policy). Not usable as the direct-org example; org_enrollments substituted.'
 \endif
@@ -539,31 +964,31 @@ RESET app.org;
 SELECT (count(*) > 0)::int AS missing_org_enrollments_count FROM public.org_enrollments \gset
 \if :missing_org_enrollments_count
 \echo 'FATAL: missing app.org must fail closed for org_enrollments (direct-org, enforce mode).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (count(*) > 0)::int AS missing_org_package_items_count FROM public.be_package_items \gset
 \if :missing_org_package_items_count
 \echo 'FATAL: missing app.org must fail closed for be_package_items (fk-path, enforce mode).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (count(*) > 0)::int AS missing_org_notif_count FROM public.notification_delivery_attempts \gset
 \if :missing_org_notif_count
 \echo 'FATAL: missing app.org must fail closed for notification_delivery_attempts (denorm, enforce mode).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (count(*) > 0)::int AS missing_org_cag_count FROM integrator.content_access_grants \gset
 \if :missing_org_cag_count
 \echo 'FATAL: missing app.org must fail closed for integrator.content_access_grants (enforce mode).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (count(*) > 0)::int AS missing_org_rdl_count FROM integrator.user_reminder_delivery_logs \gset
 \if :missing_org_rdl_count
 \echo 'FATAL: missing app.org must fail closed for integrator.user_reminder_delivery_logs (enforce mode).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 -- bootstrap-hybrid: global row readable without app.org, org rows are not
@@ -572,14 +997,14 @@ SELECT (count(*) > 0)::int AS bootstrap_global_unset_count FROM public.system_se
 \if :bootstrap_global_unset_count
 \else
 \echo 'FATAL: bootstrap global system_settings row must remain readable without app.org.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (count(*) > 0)::int AS bootstrap_org_unset_count FROM public.system_settings
   WHERE key = 'b6_org_setting' \gset
 \if :bootstrap_org_unset_count
 \echo 'FATAL: bootstrap org-scoped system_settings rows must NOT be readable without app.org.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 -- empty app.org ('') must also fail closed
@@ -587,7 +1012,7 @@ SET app.org = '';
 SELECT (count(*) > 0)::int AS empty_org_enrollments_count FROM public.org_enrollments \gset
 \if :empty_org_enrollments_count
 \echo 'FATAL: empty app.org must fail closed for org_enrollments.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 -- org A: sees own rows, not org B's, across all SCOPED families
@@ -596,20 +1021,20 @@ SELECT (count(*) > 0)::int AS org_a_enrollments_count FROM public.org_enrollment
 \if :org_a_enrollments_count
 \else
 \echo 'FATAL: org A must see its own org_enrollments rows (direct-org).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS org_a_sees_b_enrollments FROM public.org_enrollments
   WHERE organization_id = '${orgB}'::uuid \gset
 \if :org_a_sees_b_enrollments
 \echo 'FATAL: org A must NOT see org B org_enrollments rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (count(*) > 0)::int AS org_a_package_items_count FROM public.be_package_items \gset
 \if :org_a_package_items_count
 \else
 \echo 'FATAL: org A must see its own be_package_items rows (fk-path).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgB}';
@@ -618,7 +1043,7 @@ SELECT (count(*) > 0)::int AS org_b_sees_a_package_items FROM public.be_package_
   WHERE pkg.organization_id = '${orgA}'::uuid \gset
 \if :org_b_sees_a_package_items
 \echo 'FATAL: org B must NOT see org A be_package_items rows (fk-path).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -626,14 +1051,14 @@ SELECT (count(*) > 0)::int AS org_a_notif_count FROM public.notification_deliver
 \if :org_a_notif_count
 \else
 \echo 'FATAL: org A must see its own notification_delivery_attempts rows (denorm).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SET app.org = '${orgB}';
 SELECT (count(*) > 0)::int AS org_b_sees_a_notif FROM public.notification_delivery_attempts
   WHERE organization_id = '${orgA}'::uuid \gset
 \if :org_b_sees_a_notif
 \echo 'FATAL: org B must NOT see org A notification_delivery_attempts rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -641,14 +1066,14 @@ SELECT (count(*) > 0)::int AS org_a_cag_count FROM integrator.content_access_gra
 \if :org_a_cag_count
 \else
 \echo 'FATAL: org A must see its own integrator.content_access_grants rows (integrator-bridge direct).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SET app.org = '${orgB}';
 SELECT (count(*) > 0)::int AS org_b_sees_a_cag FROM integrator.content_access_grants
   WHERE organization_id = '${orgA}'::uuid \gset
 \if :org_b_sees_a_cag
 \echo 'FATAL: org B must NOT see org A integrator.content_access_grants rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -656,14 +1081,14 @@ SELECT (count(*) > 0)::int AS org_a_rdl_count FROM integrator.user_reminder_deli
 \if :org_a_rdl_count
 \else
 \echo 'FATAL: org A must see its own integrator.user_reminder_delivery_logs rows (integrator-bridge denorm).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SET app.org = '${orgB}';
 SELECT (count(*) > 0)::int AS org_b_sees_a_rdl FROM integrator.user_reminder_delivery_logs
   WHERE organization_id = '${orgA}'::uuid \gset
 \if :org_b_sees_a_rdl
 \echo 'FATAL: org B must NOT see org A integrator.user_reminder_delivery_logs rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -672,20 +1097,20 @@ SELECT (count(*) > 0)::int AS org_a_sysset_count FROM public.system_settings
 \if :org_a_sysset_count
 \else
 \echo 'FATAL: org A must see its own system_settings org-scoped row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS org_a_sees_b_sysset FROM public.system_settings
   WHERE key = 'b6_org_setting' AND organization_id = '${orgB}'::uuid \gset
 \if :org_a_sees_b_sysset
 \echo 'FATAL: org A must NOT see org B system_settings org-scoped row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS org_a_sysset_global_count FROM public.system_settings
   WHERE key = 'b6_global_setting' AND organization_id IS NULL \gset
 \if :org_a_sysset_global_count
 \else
 \echo 'FATAL: org A (with app.org set) must still see the global system_settings row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 -- B4-core proof (a): STAFF (app.actor='staff', set earlier) sees ALL patients in its own org —
@@ -696,7 +1121,7 @@ SELECT (count(*) > 0)::int AS org_a_patient_rows_visible FROM public.notificatio
 \if :org_a_patient_rows_visible
 \else
 \echo 'FATAL: expected at least the seeded org A notification_delivery_attempts rows to be visible to staff.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS org_a_both_patients_visible FROM public.notification_delivery_attempts
   WHERE organization_id = '${orgA}'::uuid AND user_id IN ('${patientA1}'::uuid, '${patientA2}'::uuid) \gset
@@ -704,7 +1129,7 @@ SELECT (count(*) > 0)::int AS org_a_both_patients_visible FROM public.notificati
 \echo 'B4-core (a) CONFIRMED: staff (app.actor=staff) sees ALL org A patients (A1 and A2) in notification_delivery_attempts — org-wide, variant A.'
 \else
 \echo 'UNEXPECTED: patient rows not visible at all under matching app.org — re-check fixture seed.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 -- B4-core proof (b) + (c) + (d): patient-session isolation on the 3 now-patient-owned targets
@@ -721,13 +1146,13 @@ SELECT (count(*) > 0)::int AS patient_a1_sees_own_enrollment FROM public.org_enr
 \if :patient_a1_sees_own_enrollment
 \else
 \echo 'FATAL: patient A1 must see its own org_enrollments row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS patient_a1_sees_a2_enrollment FROM public.org_enrollments
   WHERE platform_user_id = '${patientA2}'::uuid \gset
 \if :patient_a1_sees_a2_enrollment
 \echo 'FATAL: patient A1 must NOT see patient A2 org_enrollments row (same org).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (count(*) > 0)::int AS patient_a1_sees_own_notif FROM public.notification_delivery_attempts
@@ -735,13 +1160,13 @@ SELECT (count(*) > 0)::int AS patient_a1_sees_own_notif FROM public.notification
 \if :patient_a1_sees_own_notif
 \else
 \echo 'FATAL: patient A1 must see its own notification_delivery_attempts row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS patient_a1_sees_a2_notif FROM public.notification_delivery_attempts
   WHERE user_id = '${patientA2}'::uuid \gset
 \if :patient_a1_sees_a2_notif
 \echo 'FATAL: patient A1 must NOT see patient A2 notification_delivery_attempts row (same org).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.patient_user_id = '${patientA2}';
@@ -750,13 +1175,13 @@ SELECT (count(*) > 0)::int AS patient_a2_sees_own_enrollment FROM public.org_enr
 \if :patient_a2_sees_own_enrollment
 \else
 \echo 'FATAL: patient A2 must see its own org_enrollments row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS patient_a2_sees_a1_enrollment FROM public.org_enrollments
   WHERE platform_user_id = '${patientA1}'::uuid \gset
 \if :patient_a2_sees_a1_enrollment
 \echo 'FATAL: patient A2 must NOT see patient A1 org_enrollments row (same org).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 \echo 'B4-core (b) CONFIRMED: patient A1 <> A2 wall holds for org_enrollments and notification_delivery_attempts (same org, uuid platform_user_id/user_id).'
@@ -768,17 +1193,17 @@ RESET app.patient_user_id;
 SELECT (count(*) > 0)::int AS empty_context_enrollments FROM public.org_enrollments \gset
 \if :empty_context_enrollments
 \echo 'FATAL: empty app.actor/app.patient_user_id (app.org still set) must deny org_enrollments — neither staff nor patient identified.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS empty_context_notif FROM public.notification_delivery_attempts \gset
 \if :empty_context_notif
 \echo 'FATAL: empty app.actor/app.patient_user_id must deny notification_delivery_attempts.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS empty_context_cag FROM integrator.content_access_grants \gset
 \if :empty_context_cag
 \echo 'FATAL: empty app.actor/app.patient_user_id must deny integrator.content_access_grants.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 \echo 'B4-core (c) CONFIRMED: empty actor/patient context denies all 3 patient-owned targets even with app.org set.'
 
@@ -791,7 +1216,7 @@ SELECT (count(*) > 0)::int AS wrong_org_patient_b1_enrollment FROM public.org_en
   WHERE platform_user_id = '${patientB1}'::uuid \gset
 \if :wrong_org_patient_b1_enrollment
 \echo 'FATAL: patient B1 under app.org=A must NOT see its own (org B) org_enrollments row — org wall must hold.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgB}';
@@ -800,45 +1225,90 @@ SELECT (count(*) > 0)::int AS right_org_patient_b1_enrollment FROM public.org_en
 \if :right_org_patient_b1_enrollment
 \else
 \echo 'FATAL: patient B1 under app.org=B (its real org) must see its own org_enrollments row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 \echo 'B4-core (d) CONFIRMED: org wall holds for patient sessions too — right patient + wrong org still denies.'
 
--- B4-core: integrator bigint identity cast, same A1/A2 isolation shape, on
--- integrator.content_access_grants (user_id bigint, castType bigint — proves the "для
--- интегратора — bigint-ключ" requirement, not just the uuid public-schema path above).
+-- B4-fanout GUC alignment (taskdb #656): integrator bigint identity now reads the DEDICATED
+-- app.integrator_user_id GUC (fixed from the previous, incorrect app.patient_user_id cast to
+-- bigint), same A1/A2 isolation shape, on integrator.content_access_grants.
 SET app.org = '${orgA}';
-SET app.patient_user_id = '${integratorUserA1}';
+SET app.actor = 'patient';
+RESET app.patient_user_id;
+SET app.integrator_user_id = '${integratorUserA1}';
 SELECT (count(*) > 0)::int AS patient_a1_sees_own_cag FROM integrator.content_access_grants
   WHERE user_id = ${integratorUserA1} \gset
 \if :patient_a1_sees_own_cag
 \else
 \echo 'FATAL: integrator patient A1 must see its own content_access_grants row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 SELECT (count(*) > 0)::int AS patient_a1_sees_a2_cag FROM integrator.content_access_grants
   WHERE user_id = ${integratorUserA2} \gset
 \if :patient_a1_sees_a2_cag
 \echo 'FATAL: integrator patient A1 must NOT see integrator patient A2 content_access_grants row (same org, bigint identity).'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
-\echo 'B4-core (bigint) CONFIRMED: integrator.content_access_grants patient wall holds under the bigint app.patient_user_id cast.'
+\echo 'B4-fanout (bigint GUC) CONFIRMED: integrator.content_access_grants patient wall holds under app.integrator_user_id (not app.patient_user_id).'
 
--- DOCUMENTED REMAINING GAP (not silently assumed fixed): integrator.user_reminder_delivery_logs
--- has NO direct patient-owner column (only reachable via occurrence_id -> user_reminder_occurrences
--- .rule_id -> user_reminder_rules.user_id, a 2-hop chain) and is deliberately NOT in this pass's
--- patientOwnedColumns registry. Confirm it still shows both org A patients' delivery logs under a
--- staff-shaped org-only query (its enforce predicate stays org-only, unaffected by B4-core).
+-- B4-fanout gap closure (taskdb #656) proof (e): STAFF (org-wide, variant A) sees BOTH patient A1's
+-- and patient A2's rows across all 11 chain-only targets (the 10 additional ones plus
+-- integrator.user_reminder_delivery_logs, whose gap is now CLOSED, not merely documented-open).
 SET app.actor = 'staff';
 RESET app.patient_user_id;
-SELECT (count(*) > 0)::int AS org_a_rdl_still_org_only FROM integrator.user_reminder_delivery_logs
-  WHERE organization_id = '${orgA}'::uuid \gset
-\if :org_a_rdl_still_org_only
+RESET app.integrator_user_id;
+${renderChainBothVisibleProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "staff_integrator" })}
+${renderChainBothVisibleProofSql(SUPPORT_CHAIN_PROOFS, { label: "staff_support" })}
+\echo 'B4-fanout (e) CONFIRMED: staff sees both A1 and A2 rows across all chain-only targets (integrator I2/I3 + webapp support family).'
+
+-- B4-fanout gap closure proof (f): a SINGLE MIXED patient session -- app.patient_user_id (uuid,
+-- webapp identity) AND app.integrator_user_id (bigint, integrator identity) set SIMULTANEOUSLY --
+-- sees ONLY patient A1's own rows across BOTH identity spaces (webapp support family via the uuid
+-- GUC, integrator I2/I3 chain-only family via the bigint GUC), never patient A2's, in either space.
+SET app.org = '${orgA}';
+SET app.actor = 'patient';
+SET app.patient_user_id = '${patientA1}';
+SET app.integrator_user_id = '${integratorUserA1}';
+${renderChainOwnNotOtherProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "mixed_integrator" })}
+${renderChainOwnNotOtherProofSql(SUPPORT_CHAIN_PROOFS, { label: "mixed_support" })}
+-- Already-covered families (direct/bridge, not chain-only) also hold under this SAME mixed session:
+SELECT (count(*) > 0)::int AS mixed_own_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientA1}'::uuid \gset
+\if :mixed_own_enrollment
 \else
-\echo 'FATAL: expected org A user_reminder_delivery_logs rows to remain visible (org-only enforce, gap not yet closed).'
-\quit 1
+\echo 'FATAL (mixed session): patient A1 must see its own org_enrollments row.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
-\echo 'B4-core GAP CONFIRMED STILL OPEN (as documented): integrator.user_reminder_delivery_logs has no patient wall yet (chain-only identity, no direct column) — follow-up, not silently fixed.'
+SELECT (count(*) > 0)::int AS mixed_other_enrollment FROM public.org_enrollments
+  WHERE platform_user_id = '${patientA2}'::uuid \gset
+\if :mixed_other_enrollment
+\echo 'FATAL (mixed session): patient A1 must NOT see patient A2 org_enrollments row.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+SELECT (count(*) > 0)::int AS mixed_own_cag FROM integrator.content_access_grants
+  WHERE user_id = ${integratorUserA1} \gset
+\if :mixed_own_cag
+\else
+\echo 'FATAL (mixed session): patient A1 must see its own integrator.content_access_grants row.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+SELECT (count(*) > 0)::int AS mixed_other_cag FROM integrator.content_access_grants
+  WHERE user_id = ${integratorUserA2} \gset
+\if :mixed_other_cag
+\echo 'FATAL (mixed session): patient A1 must NOT see patient A2 integrator.content_access_grants row.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+\echo 'B4-fanout (f) CONFIRMED: a single mixed patient session (uuid + bigint GUCs set together) sees ONLY its own rows across webapp AND integrator identity spaces, including all chain-only conversations/messages/reminders -- never A2, in either space.'
+
+-- B4-fanout gap closure proof (g): empty actor/patient context (app.org still set, neither staff
+-- nor a valid patient identity) denies across the chain-only targets too, not just the direct/bridge
+-- ones already proven in proof (c).
+RESET app.actor;
+RESET app.patient_user_id;
+RESET app.integrator_user_id;
+${renderChainEmptyContextDeniesSql(INTEGRATOR_CHAIN_PROOFS, { label: "empty_integrator" })}
+${renderChainEmptyContextDeniesSql(SUPPORT_CHAIN_PROOFS, { label: "empty_support" })}
+\echo 'B4-fanout (g) CONFIRMED: empty actor/patient context denies all chain-only targets too, even with app.org set.'
 
 \echo 'B6 real-policy isolation OK'
 `;

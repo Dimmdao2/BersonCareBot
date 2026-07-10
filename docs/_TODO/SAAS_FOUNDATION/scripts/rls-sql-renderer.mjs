@@ -39,6 +39,28 @@ function assertMode(mode) {
 
 const patientCastTypes = new Set(["uuid", "bigint"]);
 
+// Convention (P0.13/T0.4, established by smoke-p0-13-db-isolation.mjs): the webapp patient
+// identity (platform_users.id, uuid) lives in `app.patient_user_id`; the integrator patient
+// identity (integrator.users.id, bigint) lives in its OWN dedicated GUC `app.integrator_user_id`.
+// A single patient session sets whichever of the two applies (a webapp patient sets
+// app.patient_user_id; an integrator-only identity sets app.integrator_user_id; both may be set
+// together for a bridged identity). castType selects which GUC a given predicate reads — never
+// cast app.patient_user_id to bigint or app.integrator_user_id to uuid.
+const patientGucNameByCastType = {
+  uuid: "app.patient_user_id",
+  bigint: "app.integrator_user_id",
+};
+
+function patientGucNameForCastType(castType) {
+  const gucName = patientGucNameByCastType[castType];
+
+  if (!gucName) {
+    throw new Error(`Unsupported patient cast type for GUC selection: ${castType}`);
+  }
+
+  return gucName;
+}
+
 function renderUuidColumnMatchesGuc({ column, gucName, mode, castType = "uuid" }) {
   assertMode(mode);
 
@@ -77,7 +99,7 @@ export function renderOrgPredicate(descriptor, { mode = "dormant_permissive" } =
 export function renderPatientPredicate({ patientColumn = "platform_user_id", mode = "enforce", castType = "uuid" } = {}) {
   return renderUuidColumnMatchesGuc({
     column: patientColumn,
-    gucName: "app.patient_user_id",
+    gucName: patientGucNameForCastType(castType),
     mode,
     castType,
   });
@@ -119,7 +141,74 @@ export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, cas
   return `(${columnSql} IS NULL OR ${renderStaffOrPatientPredicate({ patientColumn, castType })})`;
 }
 
+// B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
+// chain-only patient ownership — tables with NO direct patient-identifying column, where the
+// owning patient is only reachable by walking one or more FK hops to a table that DOES carry one
+// (e.g. integrator.conversation_messages -> integrator.conversations -> integrator.identities, or
+// public.support_delivery_events -> public.support_conversation_messages -> public.support_conversations).
+// Rendered as a single EXISTS with a chain of INNER JOINs (not nested EXISTS) so a broken/NULL hop
+// anywhere in the chain naturally fails the join and denies (fail-closed), matching the shape
+// already proven live in smoke-p0-13-db-isolation.mjs for user_reminder_delivery_logs.
+//
+// `hops` is ordered from the OUTER (policy) row down to the terminal identity-owning table:
+//   hops[0].localFk is a column on the OUTER row that equals hops[0].alias.parentPk.
+//   hops[i>0].localFk is a column on hops[i-1].alias that equals hops[i].alias.parentPk.
+// `terminalColumn` lives on the LAST hop's alias and is matched against the identity GUC selected
+// by `castType` (uuid -> app.patient_user_id, bigint -> app.integrator_user_id).
+export function renderPatientChainPredicate({ hops, terminalColumn, castType = "uuid" } = {}) {
+  if (!Array.isArray(hops) || hops.length === 0) {
+    throw new Error("Patient chain predicate requires at least one hop");
+  }
+
+  if (typeof terminalColumn !== "string" || terminalColumn.length === 0) {
+    throw new Error("Patient chain predicate requires a terminalColumn");
+  }
+
+  if (!patientCastTypes.has(castType)) {
+    throw new Error(`Unsupported predicate cast type: ${castType}`);
+  }
+
+  const gucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
+  const fromParts = [];
+  let previousAlias = null;
+
+  hops.forEach((hop, index) => {
+    if (typeof hop.table !== "string" || typeof hop.alias !== "string" || typeof hop.parentPk !== "string" || typeof hop.localFk !== "string") {
+      throw new Error(`Patient chain hop ${index} is missing table/alias/parentPk/localFk`);
+    }
+
+    const aliasSql = quoteSqlIdentifier(hop.alias);
+    const tableSql = renderPolicyTarget(hop.table);
+
+    if (index === 0) {
+      fromParts.push(`FROM ${tableSql} AS ${aliasSql}`);
+    } else {
+      const previousAliasSql = quoteSqlIdentifier(previousAlias);
+      fromParts.push(
+        `JOIN ${tableSql} AS ${aliasSql} ON ${aliasSql}.${quoteSqlIdentifier(hop.parentPk)} = ${previousAliasSql}.${quoteSqlIdentifier(hop.localFk)}`,
+      );
+    }
+
+    previousAlias = hop.alias;
+  });
+
+  const firstHop = hops[0];
+  const outerJoinCondition = `${quoteSqlIdentifier(firstHop.alias)}.${quoteSqlIdentifier(firstHop.parentPk)} = ${quoteSqlIdentifier(firstHop.localFk)}`;
+  const lastAlias = hops[hops.length - 1].alias;
+  const terminalSql = `${quoteSqlIdentifier(lastAlias)}.${quoteSqlIdentifier(terminalColumn)} = ${gucSql}::${castType}`;
+
+  return `(${gucSql} IS NOT NULL AND EXISTS ( SELECT 1 ${fromParts.join(" ")} WHERE ${outerJoinCondition} AND ${terminalSql} ))`;
+}
+
+export function renderStaffOrPatientChainPredicate({ hops, terminalColumn, castType = "uuid" } = {}) {
+  return `(${renderStaffActorCheck()} OR ${renderPatientChainPredicate({ hops, terminalColumn, castType })})`;
+}
+
 export function renderStaffOrPatientPredicateForDescriptor(descriptor) {
+  if (descriptor.patientChain) {
+    return renderStaffOrPatientChainPredicate(descriptor.patientChain);
+  }
+
   const render = descriptor.patientColumnNullableShared
     ? renderNullableSharedStaffOrPatientPredicate
     : renderStaffOrPatientPredicate;
@@ -181,7 +270,7 @@ export function renderOrgDormantPolicyStatements(descriptor, { policyName }) {
     throw new Error("Policy name must be a non-empty string");
   }
 
-  const predicate = descriptor.patientColumn
+  const predicate = descriptor.patientColumn || descriptor.patientChain
     ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
     : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 
@@ -208,7 +297,7 @@ export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName,
     throw new Error("Policy name must be a non-empty string");
   }
 
-  const predicate = descriptor.patientColumn
+  const predicate = descriptor.patientColumn || descriptor.patientChain
     ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
     : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 
@@ -316,7 +405,7 @@ export function renderFkPathPatientPredicate(descriptor) {
     throw new Error(`FK-path patient predicate for ${descriptor.table} requires a patientColumn`);
   }
 
-  const patientGucSql = renderNullableTextGuc("app.patient_user_id");
+  const patientGucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
   const parentAlias = quoteSqlIdentifier("p0_8_4_patient_parent");
   const existsSql = [
     "EXISTS (",
