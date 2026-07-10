@@ -87,3 +87,14 @@ Every ~25 min while the run is alive, and via an external OS watchdog if the ses
 3. **Branch discipline:** on `feat`; audited work merged back; `feat` pushed; no lingering divergent branch.
 4. **Docs/logs:** LOG.md + this file updated; taskdb statuses honest.
 5. **Direction:** are we advancing M1 items toward the M1 exit proof, or polishing non-blockers?
+
+---
+
+## Cross-model direction audit — 2026-07-11 (Codex, independent)
+Verdict: **ON-TRACK direction** (milestone order, single-trunk/audit/owner-gated discipline confirmed by a different model family; no product drift). 4 concrete issues:
+- [x] **(1) GUC split-brain** — B4-core compares patient predicates to `app.patient_user_id` even for bigint integrator columns; the smoke "proved" bigint by putting a bigint in that uuid GUC (not a real mixed session → cast error / blind under enforcement). **Being fixed by B4-core-2** (align integrator to `app.integrator_user_id`); verify on completion.
+- [ ] **(2) OWNER DECISION — patient-wall trust model.** `app.actor='staff'` is a custom GUC settable by ANY SQL on the connection → the wall defends against FORGOTTEN filters, NOT against arbitrary-SQL/injection. For a truly "absolute" patient wall, use **separate DB roles for patient vs staff paths** (staff-bypass keyed on the role, not a user-settable GUC) — or at minimum a server-only guard on `set_config('app.actor',...)`. Decide BEFORE the enforcement flip. Not blocking dormant work.
+- [ ] **(3) B5 under-grants runtime.** App role grants only SCOPED+BOOTSTRAP, but the runtime role (webapp/integrator/worker/scheduler/media) also touches **INFRA** queues/outboxes (`projection_outbox`, `integrator_push_outbox`, `outgoing_delivery_queue`) + LEGACY/TELEMETRY → PERMISSION DENIED after flip. Grant scope ≠ RLS tier: the role needs DML on ALL tables it queries. Fix: expand grants to the runtime's full surface (or a separate infra-runtime role). Add a **pre-flip process-family smoke** running each process under the app role.
+- [x] **(4) Don't call R2 complete until chain-only walls closed** — B4-core-2 in flight.
+
+Gate tightened: **no runtime role flip (even on test) until #1 GUC align, chain-only walls, B4-fanout wrapper, and #3 INFRA grants are all resolved.**
