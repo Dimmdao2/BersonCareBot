@@ -22,12 +22,13 @@ Progress:
 - [x] Reminder dispatch slice: `integrator.user_reminder_rules` and `integrator.content_access_grants` write paths stamp `organization_id` from the current organization principal or the target integrator user's single active organization; `integrator.user_reminder_occurrences` and `integrator.user_reminder_delivery_logs` continue copying org from parent rule/occurrence rows.
 - [x] Contacts fallback slice: `integrator.contacts` phone-link writes stamp `organization_id` from the current organization principal or the canonical integrator user's single active organization; conflict updates preserve existing org when no new org is derivable.
 - [x] Mailing/subscription slice: `integrator.user_subscriptions` and `integrator.mailing_logs` writes stamp `organization_id` from the current organization principal or the canonical integrator user's single active organization; conflict updates preserve existing org when no new org is derivable. `mailing_topics` remains a global catalog projection in this slice.
+- [x] Media-worker context slice: webapp enqueue stamps `media_transcode_jobs.organization_id` from `media_files.organization_id`; worker claim keeps a legacy `COALESCE(job.organization_id, media_files.organization_id)` backfill; post-claim media/job updates run through `runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId)` and the media-worker SQL chokepoint applies `app.org` inside transactions.
 
 - [ ] Integrator DB trunk: every SCOPED integrator writer derives or receives organization context.
 - [ ] Integrator entrypoint-to-org map: Telegram/MAX/Rubitime/M2M/worker/scheduler sources documented and tested.
 - [ ] Integrator worker/scheduler: jobs that touch SCOPED rows run with the correct organization principal.
-- [ ] Media-worker claim/reclaim: claim remains safe and post-claim writes run with job/media organization context.
-- [ ] Media-worker processing/failure/duration writes: `media_files` and `media_transcode_jobs` writes run with organization principal.
+- [x] Media-worker claim/reclaim: claim remains safe and post-claim writes run with job/media organization context.
+- [x] Media-worker processing/failure/duration writes: `media_files` and `media_transcode_jobs` writes run with organization principal.
 - [ ] Focused tests and source audit cover runtime paths.
 
 ## T0.5-T0.8 readiness markers
