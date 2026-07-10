@@ -20,6 +20,7 @@ Progress:
 
 - [x] Support transport slice: `integrator.message_drafts`, `integrator.conversations`, `integrator.conversation_messages`, `integrator.user_questions`, and `integrator.question_messages` write paths derive/copy `organization_id`; legacy conversation merge re-stamps moved children to the target thread org.
 - [x] Reminder dispatch slice: `integrator.user_reminder_rules` and `integrator.content_access_grants` write paths stamp `organization_id` from the current organization principal or the target integrator user's single active organization; `integrator.user_reminder_occurrences` and `integrator.user_reminder_delivery_logs` continue copying org from parent rule/occurrence rows.
+- [x] Contacts fallback slice: `integrator.contacts` phone-link writes stamp `organization_id` from the current organization principal or the canonical integrator user's single active organization; conflict updates preserve existing org when no new org is derivable.
 
 - [ ] Integrator DB trunk: every SCOPED integrator writer derives or receives organization context.
 - [ ] Integrator entrypoint-to-org map: Telegram/MAX/Rubitime/M2M/worker/scheduler sources documented and tested.

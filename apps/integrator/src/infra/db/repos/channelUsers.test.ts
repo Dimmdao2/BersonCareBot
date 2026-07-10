@@ -198,8 +198,14 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
     const insSql = flatExec(execute, 3);
     expect(insSql).toContain('INSERT INTO contacts');
+    expect(insSql).toContain('organization_id');
+    expect(insSql).toContain('public.platform_users');
+    expect(insSql).toContain('public.org_enrollments');
+    expect(insSql).toContain('public.be_organization_members');
+    expect(insSql).toContain('count(DISTINCT active_user_orgs.organization_id) = 1');
     expect(insSql).toContain('::bigint');
     expect(insSql).toContain('WHERE contacts.user_id = ');
+    expect(insSql).toContain('organization_id = COALESCE(EXCLUDED.organization_id, contacts.organization_id)');
     expect(insSql).not.toContain('UPDATE telegram_users');
     expect(insSql).toContain('7');
     expect(insSql).toContain('+79990001122');
