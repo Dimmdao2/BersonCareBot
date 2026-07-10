@@ -35,10 +35,10 @@ Progress:
 
 ## T0.5-T0.8 readiness markers
 
-This task does not execute these stages, but T0.4-pre findings constrain them:
+These markers are affirmed by `T0_5_T0_8_READINESS_REVIEW.md`. This does not execute T0.5-T0.8 runtime changes, migrations, RLS role flips, or table drops.
 
-- [ ] System settings mirror removal is not assumed; runtime reads already use public canonical settings.
-- [ ] Reminder bot dispatch is not assumed public-only; integrator dispatch state remains live.
-- [ ] Rubitime legacy paths are not assumed removed; canonical booking cutover is a separate gate.
-- [ ] `integrator.contacts` fallback is not assumed removed; `public_only` cutover needs a clean exception audit.
-- [ ] Queue/retention cleanup is not treated as business-data migration.
+- [x] System settings mirror removal is not assumed; runtime reads already use public canonical settings.
+- [x] Reminder bot dispatch is not assumed public-only; integrator dispatch state remains live.
+- [x] Rubitime legacy paths are not assumed removed; canonical booking cutover is a separate gate.
+- [x] `integrator.contacts` fallback is not assumed removed; `public_only` cutover needs a clean exception audit.
+- [x] Queue/retention cleanup is not treated as business-data migration.
