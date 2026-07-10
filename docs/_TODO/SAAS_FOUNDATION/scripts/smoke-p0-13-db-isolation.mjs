@@ -60,13 +60,13 @@ SELECT (
 \if :p0_13_2_scratch_db_ok
 \else
 \echo 'FATAL: P0.13.2 isolation smoke must run only on a scratch/SaaS proof database.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (current_database() ~ 'bcb_webapp_(dev|prod|test)')::int AS p0_13_2_runtime_db \gset
 \if :p0_13_2_runtime_db
 \echo 'FATAL: P0.13.2 isolation smoke refuses dev/prod/test application databases.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 CREATE ROLE ${appRoleIdent} NOLOGIN NOBYPASSRLS;
@@ -227,7 +227,7 @@ SELECT (rolbypassrls = false)::int AS app_role_nobypass_ok FROM pg_roles WHERE r
 \if :app_role_nobypass_ok
 \else
 \echo 'FATAL: P0.13.2 app role must be NOBYPASSRLS.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 RESET app.org;
@@ -237,13 +237,13 @@ RESET app.integrator_user_id;
 SELECT count(*)::int AS missing_org_member_count FROM public.be_organization_members \gset
 \if :missing_org_member_count
 \echo 'FATAL: missing app.org must fail closed for SCOPED org rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS missing_org_patient_count FROM public.org_enrollments \gset
 \if :missing_org_patient_count
 \echo 'FATAL: missing app.org must fail closed for patient rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS bootstrap_global_unset_count
@@ -252,7 +252,7 @@ WHERE key = 'p0_13_fixture_global' AND organization_id IS NULL \gset
 \if :bootstrap_global_unset_count
 \else
 \echo 'FATAL: bootstrap global row must remain readable without app.org.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS bootstrap_org_unset_count
@@ -260,7 +260,7 @@ FROM public.system_settings
 WHERE organization_id IS NOT NULL \gset
 \if :bootstrap_org_unset_count
 \echo 'FATAL: bootstrap org rows must not be readable without app.org.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS infra_count FROM p0_13_isolation.infra_rows \gset
@@ -269,16 +269,16 @@ SELECT count(*)::int AS legacy_count FROM p0_13_isolation.legacy_rows \gset
 \if :infra_count
 \else
 \echo 'FATAL: INFRA explicit treatment must remain readable.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 \if :telemetry_count
 \else
 \echo 'FATAL: TELEMETRY explicit treatment must remain readable.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 \if :legacy_count
 \echo 'FATAL: LEGACY frozen treatment must deny rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -289,7 +289,7 @@ SELECT count(*)::int AS org_a_member_count FROM public.be_organization_members \
 \if :org_a_member_count
 \else
 \echo 'FATAL: correct org must see own direct-org rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS org_a_wrong_member_count
@@ -297,14 +297,14 @@ FROM public.be_organization_members
 WHERE organization_id = '${orgB}'::uuid \gset
 \if :org_a_wrong_member_count
 \echo 'FATAL: org A must not see org B direct-org rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS org_a_fk_count FROM public.be_package_items \gset
 \if :org_a_fk_count
 \else
 \echo 'FATAL: correct org must see own FK-path rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgB}';
@@ -314,14 +314,14 @@ JOIN public.be_subscription_packages package ON package.id = item.package_id
 WHERE package.organization_id = '${orgA}'::uuid \gset
 \if :org_b_wrong_fk_count
 \echo 'FATAL: org B must not see org A FK-path rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '';
 SELECT count(*)::int AS empty_org_member_count FROM public.be_organization_members \gset
 \if :empty_org_member_count
 \echo 'FATAL: empty app.org must fail closed for SCOPED org rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -329,7 +329,7 @@ RESET app.patient_user_id;
 SELECT count(*)::int AS missing_patient_count FROM public.org_enrollments \gset
 \if :missing_patient_count
 \echo 'FATAL: missing app.patient_user_id must fail closed where patient predicate applies.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.patient_user_id = '${patientA1}';
@@ -337,7 +337,7 @@ SELECT count(*)::int AS patient_a1_enrollment_count FROM public.org_enrollments 
 \if :patient_a1_enrollment_count
 \else
 \echo 'FATAL: patient A1 must see own enrollment row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS patient_a1_cross_patient_count
@@ -345,7 +345,7 @@ FROM public.org_enrollments
 WHERE platform_user_id = '${patientA2}'::uuid \gset
 \if :patient_a1_cross_patient_count
 \echo 'FATAL: patient A1 must not see patient A2 same-org rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS patient_a1_denorm_count
@@ -353,7 +353,7 @@ FROM public.notification_delivery_attempts \gset
 \if :patient_a1_denorm_count
 \else
 \echo 'FATAL: patient A1 must see own denorm-path row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS patient_a1_package_item_count
@@ -361,7 +361,7 @@ FROM public.be_patient_package_items \gset
 \if :patient_a1_package_item_count
 \else
 \echo 'FATAL: patient A1 must see own patient FK-path row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.patient_user_id = '${patientA2}';
@@ -370,7 +370,7 @@ FROM public.notification_delivery_attempts
 WHERE user_id = '${patientA1}'::uuid \gset
 \if :patient_a2_cross_patient_count
 \echo 'FATAL: patient A2 must not see patient A1 denorm rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgB}';
@@ -379,7 +379,7 @@ SELECT count(*)::int AS patient_b1_enrollment_count FROM public.org_enrollments 
 \if :patient_b1_enrollment_count
 \else
 \echo 'FATAL: patient B1 must see own cross-org fixture row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -388,21 +388,21 @@ SELECT count(*)::int AS integrator_a1_grant_count FROM integrator.content_access
 \if :integrator_a1_grant_count
 \else
 \echo 'FATAL: integrator patient A1 must see own direct bridge row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS integrator_a1_log_count FROM integrator.user_reminder_delivery_logs \gset
 \if :integrator_a1_log_count
 \else
 \echo 'FATAL: integrator patient A1 must see own denorm log row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.integrator_user_id = '${syntheticIntegratorUserIds.patientB1}';
 SELECT count(*)::int AS integrator_wrong_patient_count FROM integrator.content_access_grants \gset
 \if :integrator_wrong_patient_count
 \echo 'FATAL: integrator wrong patient must see zero rows inside org A.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 \echo 'P0.13.2 DB isolation scratch smoke OK: NOBYPASSRLS, org wall, patient wall, bootstrap, INFRA/TELEMETRY/LEGACY.'

@@ -612,13 +612,13 @@ SELECT (
 \if :p0_13_1_scratch_db_ok
 \else
 \echo 'FATAL: P0.13.1 synthetic fixture must run only on a scratch/SaaS proof database.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (current_database() ~ 'bcb_webapp_(dev|prod|test)')::int AS p0_13_1_runtime_db \gset
 \if :p0_13_1_runtime_db
 \echo 'FATAL: P0.13.1 synthetic fixture refuses dev/prod/test application databases.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 ${renderP013ManifestSql({ rows })}
