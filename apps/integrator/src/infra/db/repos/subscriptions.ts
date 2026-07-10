@@ -1,7 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { userSubscriptions } from '../schema/integratorPublicProduct.js';
+import { organizationIdForIntegratorUserSql } from './integratorUserOrganizationSql.js';
 
 /** Возвращает активные topic_id подписок пользователя (канонический user_id). */
 export async function getUserSubscriptions(db: DbPort, userId: number): Promise<Set<number>> {
@@ -21,12 +22,16 @@ export async function upsertUserSubscription(
   isActive: boolean,
 ): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
+  const organizationIdExpression = organizationIdForIntegratorUserSql(userId);
   await d
     .insert(userSubscriptions)
-    .values({ userId, topicId, isActive })
+    .values({ userId, topicId, isActive, organizationId: organizationIdExpression })
     .onConflictDoUpdate({
       target: [userSubscriptions.userId, userSubscriptions.topicId],
-      set: { isActive },
+      set: {
+        isActive,
+        organizationId: sql`COALESCE(${organizationIdExpression}, ${userSubscriptions.organizationId})`,
+      },
     });
 }
 

@@ -1,6 +1,8 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { mailingLogs } from '../schema/integratorPublicProduct.js';
+import { sql } from 'drizzle-orm';
+import { organizationIdForIntegratorUserSql } from './integratorUserOrganizationSql.js';
 
 export type InsertMailingLogParams = {
   userId: number;
@@ -13,6 +15,7 @@ export type InsertMailingLogParams = {
 /** Вставляет запись в лог рассылки (идемпотентно по (user_id, mailing_id) через ON CONFLICT). */
 export async function insertMailingLog(db: DbPort, params: InsertMailingLogParams): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
+  const organizationIdExpression = organizationIdForIntegratorUserSql(params.userId);
   await d
     .insert(mailingLogs)
     .values({
@@ -21,6 +24,7 @@ export async function insertMailingLog(db: DbPort, params: InsertMailingLogParam
       status: params.status,
       sentAt: params.sentAt,
       error: params.error,
+      organizationId: organizationIdExpression,
     })
     .onConflictDoUpdate({
       target: [mailingLogs.userId, mailingLogs.mailingId],
@@ -28,6 +32,7 @@ export async function insertMailingLog(db: DbPort, params: InsertMailingLogParam
         status: params.status,
         sentAt: params.sentAt,
         error: params.error,
+        organizationId: sql`COALESCE(${organizationIdExpression}, ${mailingLogs.organizationId})`,
       },
     });
 }
