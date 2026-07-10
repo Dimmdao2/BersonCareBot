@@ -298,6 +298,19 @@ const patientOwnedColumns = new Map([
   ["integrator.mailing_logs", { column: "user_id", castType: "bigint" }],
   ["integrator.user_reminder_rules", { column: "user_id", castType: "bigint" }],
   ["integrator.user_subscriptions", { column: "user_id", castType: "bigint" }],
+
+  // B4-core-3 census follow-up (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): 4 more
+  // public.* direct_org_column tables with a direct `user_id` column referencing
+  // platform_users(id) (NOT NULL) that record per-viewer media playback telemetry — same shape
+  // as the already-registered patient_daily_warmup_video_views/product_analytics_events_recent
+  // (generic "user_id", not "patient_"-prefixed, still the viewing platform_user). Verified
+  // against apps/webapp/db/drizzle-migrations/0059_media_playback_client_events.sql,
+  // 0061_media_hls_proxy_error_events.sql, 0106_media_playback_resolution_events.sql,
+  // 0027_media_playback_user_video_first_resolve.sql.
+  ["public.media_playback_client_events", { column: "user_id" }],
+  ["public.media_hls_proxy_error_events", { column: "user_id" }],
+  ["public.media_playback_resolution_events", { column: "user_id" }],
+  ["public.media_playback_user_video_first_resolve", { column: "user_id" }],
 ]);
 
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
@@ -456,6 +469,120 @@ const patientChainOwnedTables = new Map([
   }],
   ["public.lfk_complex_exercises", {
     hops: [{ table: "public.lfk_complexes", alias: "b4f_complex", parentPk: "id", localFk: "complex_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+
+  // B4-core-3 census follow-up (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): the exhaustive
+  // SCOPED-table census systematically checked every not-yet-walled SCOPED table's FK columns
+  // against the walled-table set above and found 14 more single/double-hop parent_denorm chains to
+  // an already-walled patient-owning parent — verified against the real CREATE TABLE/ALTER TABLE
+  // SQL for every hop.
+  //
+  // Treatment-program event/hierarchy children (P0.8.4, denorm_org_column) — chain to
+  // treatment_program_instances.patient_user_id (already walled directly):
+  ["public.treatment_program_events", {
+    hops: [{ table: "public.treatment_program_instances", alias: "b4f_instance", parentPk: "id", localFk: "instance_id" }],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+  // treatment_program_instance_stages (already walled via a B4-core-3 direct chain above) has NO
+  // direct patient column itself, so its own children need a 2-hop chain: down to the stage, then
+  // on to the instance. apps/webapp/db/drizzle-migrations/0003_treatment_program_instances.sql
+  // (stage_id/instance_id NOT NULL) + 0029_treatment_program_a3_stage_groups.sql.
+  ["public.treatment_program_instance_stage_items", {
+    hops: [
+      { table: "public.treatment_program_instance_stages", alias: "b4f_stage", parentPk: "id", localFk: "stage_id" },
+      { table: "public.treatment_program_instances", alias: "b4f_instance", parentPk: "id", localFk: "instance_id" },
+    ],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+  ["public.treatment_program_instance_stage_groups", {
+    hops: [
+      { table: "public.treatment_program_instance_stages", alias: "b4f_stage", parentPk: "id", localFk: "stage_id" },
+      { table: "public.treatment_program_instances", alias: "b4f_instance", parentPk: "id", localFk: "instance_id" },
+    ],
+    terminalColumn: "patient_user_id",
+    castType: "uuid",
+  }],
+
+  // be_appointment_* history/event/lifecycle children (P0.8.3, direct_org_column — these carry
+  // their own organization_id) — chain to be_appointments.platform_user_id (already walled
+  // directly, nullable — ordinary nullable-denies-for-patient semantics, NOT nullableShared).
+  // Verified against apps/webapp/db/drizzle-migrations/0086_booking_engine_canonical.sql,
+  // 0091_booking_stage4_policies_lifecycle.sql, 0126_be_no_show_handling.sql,
+  // 0089_booking_stage2_scheduling_and_forms.sql (all appointment_id NOT NULL).
+  ["public.be_appointment_cancellations", {
+    hops: [{ table: "public.be_appointments", alias: "b4f_appt", parentPk: "id", localFk: "appointment_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.be_appointment_events", {
+    hops: [{ table: "public.be_appointments", alias: "b4f_appt", parentPk: "id", localFk: "appointment_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.be_appointment_history_events", {
+    hops: [{ table: "public.be_appointments", alias: "b4f_appt", parentPk: "id", localFk: "appointment_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.be_appointment_no_shows", {
+    hops: [{ table: "public.be_appointments", alias: "b4f_appt", parentPk: "id", localFk: "appointment_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.be_appointment_reschedules", {
+    hops: [{ table: "public.be_appointments", alias: "b4f_appt", parentPk: "id", localFk: "appointment_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.be_booking_form_submissions", {
+    hops: [{ table: "public.be_appointments", alias: "b4f_appt", parentPk: "id", localFk: "appointment_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+
+  // be_refunds (P0.8.3): payment_id NOT NULL -> be_payments.platform_user_id (already walled
+  // directly, nullable). apps/webapp/db/drizzle-migrations/0092_booking_stage5_payments.sql.
+  ["public.be_refunds", {
+    hops: [{ table: "public.be_payments", alias: "b4f_payment", parentPk: "id", localFk: "payment_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+
+  // be_package_usages / be_package_history_events (P0.8.3): patient_package_id NOT NULL ->
+  // be_patient_packages.platform_user_id (already walled directly, NOT NULL). Note:
+  // be_package_usages.created_by_platform_user_id is the STAFF actor who recorded the usage
+  // (documented exclusion at the top of this file) — the chain below walls the row by which
+  // PATIENT's package it belongs to, a different column entirely.
+  // apps/webapp/db/drizzle-migrations/0094_booking_stage6_memberships.sql.
+  ["public.be_package_usages", {
+    hops: [{ table: "public.be_patient_packages", alias: "b4f_pkg", parentPk: "id", localFk: "patient_package_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+  ["public.be_package_history_events", {
+    hops: [{ table: "public.be_patient_packages", alias: "b4f_pkg", parentPk: "id", localFk: "patient_package_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+
+  // reminder_journal (P0.8.3): rule_id NOT NULL -> reminder_rules.platform_user_id (already walled
+  // directly, nullable for integrator-only reminder rules — ordinary nullable-denies semantics).
+  // apps/webapp/migrations/050_reminder_rules_object_links_and_journal.sql.
+  ["public.reminder_journal", {
+    hops: [{ table: "public.reminder_rules", alias: "b4f_rule", parentPk: "id", localFk: "rule_id" }],
+    terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+
+  // be_product_history_events (P0.8.3): product_purchase_id NOT NULL ->
+  // be_product_purchases.platform_user_id (already walled directly, nullable — e.g. gift/phone-only
+  // purchases). apps/webapp/db/drizzle-migrations/0095_booking_stage7_products.sql.
+  ["public.be_product_history_events", {
+    hops: [{ table: "public.be_product_purchases", alias: "b4f_purchase", parentPk: "id", localFk: "product_purchase_id" }],
     terminalColumn: "platform_user_id",
     castType: "uuid",
   }],

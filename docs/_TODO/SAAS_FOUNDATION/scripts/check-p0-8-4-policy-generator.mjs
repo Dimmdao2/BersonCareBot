@@ -144,11 +144,14 @@ for (const descriptor of patientOwnedDescriptors) {
 // B4-fanout gap closure (taskdb #656): chain-owned P0.8.4 targets — no direct patient column on
 // the child row, patient owner reached via an EXISTS chain to an identity-bearing parent
 // (support_conversations.platform_user_id for the original 3).
-// B4-core-3 (taskdb #658) adds 9 more single-hop parent_denorm chain targets whose parent already
+// B4-core-3 (taskdb #658) adds 9 single-hop parent_denorm chain targets whose parent already
 // carries a direct patient column (online_intake_requests.user_id, clinical_complaint/
 // clinical_diagnosis/test_attempts/treatment_program_instances.patient_user_id,
-// lfk_complexes.platform_user_id).
-const expectedPatientChainOwnedTargets = 12;
+// lfk_complexes.platform_user_id), plus 3 more found by the exhaustive census: a single-hop
+// treatment_program_events -> treatment_program_instances.patient_user_id, and TWO-hop
+// treatment_program_instance_stage_items/_groups -> treatment_program_instance_stages (itself
+// chain-owned, no direct column) -> treatment_program_instances.patient_user_id.
+const expectedPatientChainOwnedTargets = 15;
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
@@ -168,6 +171,9 @@ const expectedChainTables = [
   "public.test_results",
   "public.treatment_program_instance_stages",
   "public.lfk_complex_exercises",
+  "public.treatment_program_events",
+  "public.treatment_program_instance_stage_items",
+  "public.treatment_program_instance_stage_groups",
 ].sort();
 
 if (JSON.stringify(patientChainOwnedDescriptors.map((d) => d.table).sort()) !== JSON.stringify(expectedChainTables)) {
