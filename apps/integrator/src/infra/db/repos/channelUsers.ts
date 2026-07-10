@@ -98,6 +98,38 @@ export async function resolveActiveOrganizationIdForMessengerIdentity(
   return singleOrganizationId(res.rows);
 }
 
+/**
+ * T0.4 channel-binding fallback for first-contact webhook traffic.
+ *
+ * A brand-new, never-enrolled messenger identity has no row in `org_enrollments` /
+ * `be_organization_members` yet, so {@link resolveActiveOrganizationIdForMessengerIdentity}
+ * returns null. The tenant-context architecture decision is that the *inbound channel/bot*
+ * (not the user's enrollment state) determines the organization: today's deployment runs a
+ * single bot per organization, so "the channel's organization" and "the only organization that
+ * exists" are the same thing. This is a deliberate stopgap for the current single-tenant
+ * deployment shape; once real per-channel bot bindings exist (multi-tenant bot routing), this
+ * must be replaced by an explicit channel -> organization lookup instead of a global count(1).
+ *
+ * Returns null (callers must log and fail open, never throw/reject the webhook) when zero or
+ * more than one organization exists — i.e. when no single deployment-wide organization can be
+ * inferred (empty DB, or a real multi-tenant deployment that has moved past this stopgap).
+ */
+export async function resolveDeploymentSingleActiveOrganizationId(db: DbPort): Promise<string | null> {
+  try {
+    const res = await runIntegratorSql<{ organization_id: string }>(db, sql`
+      SELECT id::text AS organization_id
+      FROM public.be_organizations
+      ORDER BY id
+      LIMIT 2
+    `);
+    return singleOrganizationId(res.rows);
+  } catch (err) {
+    // eslint-disable-next-line no-secrets/no-secrets -- log-message identifier, not a secret
+    logger.error({ err }, 'resolveDeploymentSingleActiveOrganizationId error');
+    return null;
+  }
+}
+
 export async function resolveActiveOrganizationIdForIntegratorUserId(
   db: DbPort,
   integratorUserId: string,

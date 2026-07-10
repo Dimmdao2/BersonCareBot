@@ -46,13 +46,21 @@ export type BersoncareRequestContactDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
+  /** T0.4 channel-binding fallback when the recipient has no per-user org context yet (see routes.ts). */
+  resolveDeploymentOrganizationId?: () => Promise<string | null>;
 };
 
 export async function registerBersoncareRequestContactRoute(
   app: FastifyInstance,
   deps: BersoncareRequestContactDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret, db, resolveOrganizationIdForMessengerIdentity } = deps;
+  const {
+    dispatchPort,
+    sharedSecret,
+    db,
+    resolveOrganizationIdForMessengerIdentity,
+    resolveDeploymentOrganizationId,
+  } = deps;
   /** In-process only; see module JSDoc. */
   const dedupMap = new Map<string, number>();
 
@@ -128,9 +136,23 @@ export async function registerBersoncareRequestContactRoute(
           organizationId = null;
         }
       }
+      if (!organizationId && resolveDeploymentOrganizationId) {
+        try {
+          organizationId = await resolveDeploymentOrganizationId();
+          if (organizationId) {
+            logger.info(
+              { channel },
+              'request-contact: no per-user org context, using deployment channel-binding fallback',
+            );
+          }
+        } catch {
+          organizationId = null;
+        }
+      }
       if (organizationId) {
         await runWithOrganizationPrincipal(organizationId, dispatchContact);
       } else {
+        logger.warn({ channel }, 'request-contact: no organization resolvable for channel; dispatching without principal');
         await dispatchContact();
       }
       registerKey(idempotencyKey);

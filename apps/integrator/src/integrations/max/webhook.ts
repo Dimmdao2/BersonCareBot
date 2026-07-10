@@ -27,6 +27,14 @@ export type MaxWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
+  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
+  /**
+   * T0.4 channel-binding fallback: resolves the deployment's single organization when the
+   * messenger identity has no per-user org context yet (first-contact, not yet enrolled). The
+   * tenant boundary is the inbound channel/bot, not the user's enrollment state — see
+   * `resolveDeploymentSingleActiveOrganizationId` for the architecture rationale/limits.
+   */
+  resolveDeploymentOrganizationId?: () => Promise<string | null>;
 };
 
 function getSourceMaxExternalId(data: MaxUpdateValidated): string | null {
@@ -36,12 +44,33 @@ function getSourceMaxExternalId(data: MaxUpdateValidated): string | null {
 
 async function resolveMaxOrganizationId(
   data: MaxUpdateValidated,
-  resolveOrganizationIdForMessengerIdentity: MaxWebhookDeps['resolveOrganizationIdForMessengerIdentity'],
+  deps: MaxWebhookDeps,
+  reqLogger: ReturnType<typeof getRequestLogger>,
 ): Promise<string | null> {
   const externalId = getSourceMaxExternalId(data);
-  if (!externalId || !resolveOrganizationIdForMessengerIdentity) return null;
+  if (externalId && deps.resolveOrganizationIdForMessengerIdentity) {
+    try {
+      const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max');
+      if (perUserOrg) return perUserOrg;
+    } catch {
+      // fall through to channel-binding fallback below
+    }
+  }
+  if (!deps.resolveDeploymentOrganizationId) return null;
   try {
-    return await resolveOrganizationIdForMessengerIdentity(externalId, 'max');
+    const deploymentOrg = await deps.resolveDeploymentOrganizationId();
+    if (deploymentOrg) {
+      reqLogger.info(
+        { source: 'max' },
+        'max webhook: no per-user org context, using deployment channel-binding fallback',
+      );
+      return deploymentOrg;
+    }
+    reqLogger.warn(
+      { source: 'max' },
+      'max webhook: no organization resolvable for this channel (unbound/misconfigured deployment)',
+    );
+    return null;
   } catch {
     return null;
   }
@@ -145,7 +174,6 @@ export async function registerMaxWebhookRoutes(
   const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
   const getAppBaseUrl = deps.getAppBaseUrl;
   const resolveMessengerStaffAdmin = deps.resolveMessengerStaffAdmin;
-  const resolveOrganizationIdForMessengerIdentity = deps.resolveOrganizationIdForMessengerIdentity;
 
   app.post('/webhook/max', async (request, reply) => {
     const correlationId = request.id;
@@ -242,7 +270,7 @@ export async function registerMaxWebhookRoutes(
           resolveMessengerStaffAdmin,
         ),
       });
-      const organizationId = await resolveMaxOrganizationId(data, resolveOrganizationIdForMessengerIdentity);
+      const organizationId = await resolveMaxOrganizationId(data, deps, reqLogger);
       const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
         deps.eventGateway.handleIncomingEvent(event);
       const result = organizationId

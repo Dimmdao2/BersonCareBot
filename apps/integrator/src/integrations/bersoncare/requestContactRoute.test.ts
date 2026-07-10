@@ -147,6 +147,49 @@ describe('POST /api/bersoncare/request-contact', () => {
     await app.close();
   });
 
+  it('T0.4: falls back to the deployment channel-binding organization when the recipient has no per-user org context yet', async () => {
+    const deploymentOrganizationId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const dispatchOutgoing = vi.fn().mockImplementation(async () => {
+      expect(getCurrentOrganizationPrincipalId()).toBe(deploymentOrganizationId);
+    });
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    // First-contact recipient: per-user resolution has nothing to resolve yet (not enrolled).
+    const resolveOrganizationIdForMessengerIdentity = vi.fn(async () => null);
+    const resolveDeploymentOrganizationId = vi.fn(async () => deploymentOrganizationId);
+    const app = await buildApp({
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: TEST_SECRET,
+      db: dbWithTx(query),
+      resolveOrganizationIdForMessengerIdentity,
+      resolveDeploymentOrganizationId,
+    });
+    const bodyObj = {
+      channel: 'telegram' as const,
+      recipientId: '999',
+      idempotencyKey: 'idem-deployment-fallback',
+    };
+    const rawBody = JSON.stringify(bodyObj);
+    const ts = String(Math.floor(Date.now() / 1000));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/request-contact',
+      headers: {
+        'content-type': 'application/json',
+        'x-bersoncare-timestamp': ts,
+        'x-bersoncare-signature': sign(ts, rawBody, TEST_SECRET),
+      },
+      body: rawBody,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(resolveOrganizationIdForMessengerIdentity).toHaveBeenCalledWith('999', 'telegram');
+    expect(resolveDeploymentOrganizationId).toHaveBeenCalledTimes(1);
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
+    expect(getCurrentOrganizationPrincipalId()).toBeUndefined();
+    await app.close();
+  });
+
   it('dispatches max message with inline_keyboard request_contact and does not set telegram state', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const query = vi.fn();

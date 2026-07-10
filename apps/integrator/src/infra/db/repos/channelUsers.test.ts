@@ -9,6 +9,7 @@ import {
   getUserState,
   resolveActiveOrganizationIdForIntegratorUserId,
   resolveActiveOrganizationIdForMessengerIdentity,
+  resolveDeploymentSingleActiveOrganizationId,
   setUserPhone,
   setUserState,
   tryAdvanceLastUpdateId,
@@ -125,6 +126,44 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(sqlText).toContain('public.org_enrollments');
     expect(sqlText).toContain('public.be_organization_members');
     expect(sqlText).toContain('LIMIT 2');
+  });
+
+  describe('T0.4 deployment channel-binding fallback', () => {
+    it('resolves the deployment single organization when exactly one exists', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({
+        rows: [{ organization_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }],
+        rowCount: 1,
+      } as DbQueryResult<{ organization_id: string }>);
+
+      const orgId = await resolveDeploymentSingleActiveOrganizationId(db);
+
+      expect(orgId).toBe('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+      const sqlText = flatExec(execute, 0);
+      expect(sqlText).toContain('FROM public.be_organizations');
+      expect(sqlText).toContain('LIMIT 2');
+    });
+
+    it('returns null when zero or more than one organization exists (no single deployment org inferable)', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult<{ organization_id: string }>);
+      expect(await resolveDeploymentSingleActiveOrganizationId(db)).toBeNull();
+
+      execute.mockResolvedValueOnce({
+        rows: [
+          { organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+          { organization_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+        ],
+        rowCount: 2,
+      } as DbQueryResult<{ organization_id: string }>);
+      expect(await resolveDeploymentSingleActiveOrganizationId(db)).toBeNull();
+    });
+
+    it('fails open (returns null) when the query throws', async () => {
+      const { db, execute } = createDbMock();
+      execute.mockRejectedValueOnce(new Error('db down'));
+      await expect(resolveDeploymentSingleActiveOrganizationId(db)).resolves.toBeNull();
+    });
   });
 
   it('upsertUser uses canonical identities and telegram_state only', async () => {
