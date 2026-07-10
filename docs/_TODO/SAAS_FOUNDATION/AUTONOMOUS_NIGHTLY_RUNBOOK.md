@@ -1,9 +1,8 @@
 # SAAS Foundation Autonomous Nightly Runbook
 
-Status: execution base document for autonomous/nightly agents after P0.7.4.
+Status: historical Phase 0 execution base. Phase 0 is complete as of 2026-07-08. Do not execute the P0 "Next Stage Plans" below as live work. The next live direction is T0/R2 tenant-context cutover via `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`.
 
-Purpose: let agents continue Phase 0 one micro-stage at a time without broadening scope, touching
-production, overusing full CI, or leaving unlogged work.
+Purpose: preserve the Phase 0 autonomous execution rules and evidence. For new T0 work, use this document only for general discipline (taskdb, logs, targeted validation, no prod touch) and use the T0 checklist for scope.
 
 ## Current Branch Baseline
 
@@ -47,7 +46,7 @@ bash /home/dev/brain/tools/code-search.sh "<exact token>" --repo bcb -k 20
 
 ## One-Pass Contract
 
-Each autonomous pass handles exactly one micro-stage from `CORRECTED_PLAN.md`.
+Historical Phase 0 autonomous passes handled exactly one P0 micro-stage from `CORRECTED_PLAN.md`. For live T0 work, use `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md` instead.
 
 Allowed:
 
@@ -71,7 +70,7 @@ Forbidden:
 
 - [ ] Confirm `git status --short` is clean or unrelated changes are understood.
 - [ ] Confirm current branch is not `main` or `test`.
-- [ ] Confirm the next stage from `LOG.md` and `CORRECTED_PLAN.md`.
+- [ ] Historical P0 only: confirm the next stage from `LOG.md` and `CORRECTED_PLAN.md`. For T0, confirm the next stage from `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`.
 - [ ] Find or create the taskdb task for this exact stage; set `status doing`.
 - [ ] Run the stage preflight guard through the wrapper:
 
@@ -134,6 +133,8 @@ git push origin HEAD
 Do not push `main`, `test`, or `dimmdao` without explicit owner instruction.
 
 ## Next Stage Plans
+
+Historical P0 section only. Phase 0 is complete; do not execute these P0 next-stage plans as live work.
 
 ### P0.7.5 Media-Worker Writers
 

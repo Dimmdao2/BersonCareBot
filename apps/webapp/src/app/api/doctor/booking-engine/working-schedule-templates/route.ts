@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
 import { resolveDoctorOwnSpecialistId } from "../_resolveDoctorSpecialistId";
 
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
+  const bookingScheduling = deps.bookingScheduling;
 
   if (action === "apply") {
     const parsed = applyBody.safeParse(await request.json().catch(() => null));
@@ -68,13 +70,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "specialist_not_configured" }, { status: 409 });
     }
     try {
-      await deps.bookingScheduling.applyScheduleTemplate({
-        organizationId: gate.ctx.organizationId,
-        templateId: parsed.data.templateId,
-        dates: parsed.data.dates,
-        // FORCED: own specialist only — apply writes per-date rows scoped by specialist.
-        specialistId,
-      });
+      await withDoctorWorkspacePrincipal(
+        gate.ctx,
+        "doctor.booking-engine.working-schedule-templates.apply",
+        () =>
+          bookingScheduling.applyScheduleTemplate({
+            organizationId: gate.ctx.organizationId,
+            templateId: parsed.data.templateId,
+            dates: parsed.data.dates,
+            // FORCED: own specialist only — apply writes per-date rows scoped by specialist.
+            specialistId,
+          }),
+      );
       return NextResponse.json({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown";
@@ -88,15 +95,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   try {
-    const row = await deps.bookingScheduling.createScheduleTemplate({
-      organizationId: gate.ctx.organizationId,
-      name: parsed.data.name,
-      startMinute: parsed.data.startMinute,
-      endMinute: parsed.data.endMinute,
-      breaks: parsed.data.breaks,
-      sortOrder: parsed.data.sortOrder,
-      branchId: resolveNullableUuid(parsed.data.branchId ?? undefined),
-    });
+    const row = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.booking-engine.working-schedule-templates.create",
+      () =>
+        bookingScheduling.createScheduleTemplate({
+          organizationId: gate.ctx.organizationId,
+          name: parsed.data.name,
+          startMinute: parsed.data.startMinute,
+          endMinute: parsed.data.endMinute,
+          breaks: parsed.data.breaks,
+          sortOrder: parsed.data.sortOrder,
+          branchId: resolveNullableUuid(parsed.data.branchId ?? undefined),
+        }),
+    );
     return NextResponse.json({ ok: true, row });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
@@ -115,6 +127,11 @@ export async function DELETE(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
-  await deps.bookingScheduling.deleteScheduleTemplate(id, gate.ctx.organizationId);
+  const bookingScheduling = deps.bookingScheduling;
+  await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.booking-engine.working-schedule-templates.delete",
+    () => bookingScheduling.deleteScheduleTemplate(id, gate.ctx.organizationId),
+  );
   return NextResponse.json({ ok: true });
 }

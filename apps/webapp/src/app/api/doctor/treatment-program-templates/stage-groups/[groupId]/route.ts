@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
@@ -12,8 +12,9 @@ const patchBodySchema = z.object({
 });
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ groupId: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { groupId } = await ctx.params;
   if (!z.string().uuid().safeParse(groupId).success) {
@@ -28,9 +29,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ groupId: 
 
   const deps = buildAppDeps();
   try {
-    const group = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.treatmentProgram.updateTemplateStageGroup(groupId, parsed.data),
-    );
+    const group = await deps.treatmentProgram.updateTemplateStageGroup(groupId, parsed.data, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-groups.update", fn),
+    });
     return NextResponse.json({ ok: true, group });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
@@ -39,8 +41,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ groupId: 
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ groupId: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { groupId } = await ctx.params;
   if (!z.string().uuid().safeParse(groupId).success) {
@@ -49,9 +52,10 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ groupId
 
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.treatmentProgram.deleteTemplateStageGroup(groupId),
-    );
+    await deps.treatmentProgram.deleteTemplateStageGroup(groupId, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-groups.delete", fn),
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

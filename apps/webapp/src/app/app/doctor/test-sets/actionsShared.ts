@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/infra/logging/logger";
 import {
@@ -98,19 +98,23 @@ export async function saveTestSetCore(
         return { ok: false, error: "Набор в архиве. Верните из архива, чтобы редактировать." };
       }
       const nextPublicationStatus = intent === "publish" ? "published" : cur.publicationStatus;
-      await withDoctorWorkspacePrincipal(workspace, () =>
-        deps.testSets.updateTestSet(id, {
-          title,
-          description: description || null,
-          publicationStatus: nextPublicationStatus,
-        }),
-      );
+      await deps.testSets.updateTestSet(id, {
+        title,
+        description: description || null,
+        publicationStatus: nextPublicationStatus,
+      }, {
+        runTestSetWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.update", fn),
+      });
       const itemsPayloadField = formData.get("itemsPayload");
       if (itemsPayloadField !== null && typeof itemsPayloadField === "string") {
         try {
           const raw = itemsPayloadField.trim() === "" ? "[]" : itemsPayloadField;
           const items = parseTestSetItemsPayloadJson(raw);
-          await withDoctorWorkspacePrincipal(workspace, () => deps.testSets.setTestSetItems(id, items));
+          await deps.testSets.setTestSetItems(id, items, {
+            runTestSetWrite: (fn) =>
+              withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.items.update", fn),
+          });
         } catch (e) {
           if (e instanceof z.ZodError) return { ok: false, error: "Некорректный формат состава набора" };
           return { ok: false, error: e instanceof Error ? e.message : "Ошибка разбора состава" };
@@ -119,18 +123,23 @@ export async function saveTestSetCore(
       return { ok: true, setId: id, wasUpdate: true };
     }
     const nextPublicationStatus = intent === "publish" ? "published" : "draft";
-    const row = await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.testSets.createTestSet(
-        {
-          title,
-          description: description || null,
-          publicationStatus: nextPublicationStatus,
-        },
-        workspace.session.user.userId,
-      ),
+    const row = await deps.testSets.createTestSet(
+      {
+        title,
+        description: description || null,
+        publicationStatus: nextPublicationStatus,
+      },
+      workspace.session.user.userId,
+      {
+        runTestSetWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.create", fn),
+      },
     );
     if (initialItems) {
-      await withDoctorWorkspacePrincipal(workspace, () => deps.testSets.setTestSetItems(row.id, initialItems));
+      await deps.testSets.setTestSetItems(row.id, initialItems, {
+        runTestSetWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.items.update", fn),
+      });
     }
     return { ok: true, setId: row.id, wasUpdate: false };
   } catch (e) {
@@ -147,15 +156,17 @@ export async function createTestSetDraftCore(
   const publicationStatus = input.publicationStatus;
   const deps = buildAppDeps();
   try {
-    const row = await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.testSets.createTestSet(
-        {
-          title,
-          description,
-          ...(publicationStatus !== undefined ? { publicationStatus } : {}),
-        },
-        workspace.session.user.userId,
-      ),
+    const row = await deps.testSets.createTestSet(
+      {
+        title,
+        description,
+        ...(publicationStatus !== undefined ? { publicationStatus } : {}),
+      },
+      workspace.session.user.userId,
+      {
+        runTestSetWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.create", fn),
+      },
     );
     return { ok: true, setId: row.id };
   } catch (e) {
@@ -191,7 +202,10 @@ export async function saveTestSetItemsCore(
     if (set.isArchived) {
       return { ok: false, error: "Набор в архиве. Верните из архива, чтобы менять состав." };
     }
-    await withDoctorWorkspacePrincipal(workspace, () => deps.testSets.setTestSetItems(setId, items));
+    await deps.testSets.setTestSetItems(setId, items, {
+      runTestSetWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.items.update", fn),
+    });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Ошибка сохранения состава" };
@@ -207,8 +221,13 @@ export async function archiveTestSetCore(formData: FormData): Promise<ArchiveTes
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.testSets.archiveTestSet(id, { acknowledgeUsageWarning }),
+    await deps.testSets.archiveTestSet(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runTestSetWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.archive", fn),
+      },
     );
     return { kind: "archived", id };
   } catch (e) {
@@ -234,7 +253,10 @@ export async function unarchiveTestSetCore(formData: FormData): Promise<Unarchiv
 
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(workspace, () => deps.testSets.unarchiveTestSet(id));
+    await deps.testSets.unarchiveTestSet(id, {
+      runTestSetWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.unarchive", fn),
+    });
     return { kind: "unarchived", id };
   } catch (e) {
     if (isTestSetArchiveNotFoundError(e)) {

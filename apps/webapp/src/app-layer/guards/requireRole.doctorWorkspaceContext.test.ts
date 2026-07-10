@@ -25,7 +25,11 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
-import { requireDoctorWorkspaceApiContext, requireDoctorWorkspaceContext } from "./requireRole";
+import {
+  requireAdminWorkspaceApiContext,
+  requireDoctorWorkspaceApiContext,
+  requireDoctorWorkspaceContext,
+} from "./requireRole";
 
 function session(role: AppSession["user"]["role"]): AppSession {
   return {
@@ -134,6 +138,65 @@ describe("requireDoctorWorkspaceApiContext", () => {
     await expect(gate.response.json()).resolves.toMatchObject({
       ok: false,
       error: "organization_selection_required",
+    });
+  });
+});
+
+describe("requireAdminWorkspaceApiContext", () => {
+  it("returns unauthorized when session is missing", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(null);
+
+    const gate = await requireAdminWorkspaceApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(401);
+  });
+
+  it("returns forbidden for admin when adminMode is disabled", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce({ ...session("admin"), adminMode: false });
+
+    const gate = await requireAdminWorkspaceApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("returns resolved organization membership context for admin mode", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: "org-1",
+        platformUserId: admin.user.userId,
+        role: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+      },
+    });
+
+    const gate = await requireAdminWorkspaceApiContext({ selectedOrganizationId: "org-1" });
+
+    expect(gate).toEqual({
+      ok: true,
+      ctx: {
+        session: admin,
+        organizationId: "org-1",
+        membershipId: "membership-1",
+        membershipRole: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+      },
+    });
+    expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
+      platformUserId: admin.user.userId,
+      selectedOrganizationId: "org-1",
     });
   });
 });

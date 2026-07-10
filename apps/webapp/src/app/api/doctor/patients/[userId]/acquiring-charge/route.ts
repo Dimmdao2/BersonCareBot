@@ -101,7 +101,7 @@ export async function POST(
   }
 
   // Record the pending payment in the patient ledger.
-  const payment = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+  const payment = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.payments.acquiring.record", () =>
     deps.patientPayments.recordAcquiringCharge({
       organizationId: gate.ctx.organizationId,
       patientUserId: identity.userId,

@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   isTestSetArchiveAlreadyArchivedError,
   isTestSetArchiveNotFoundError,
@@ -31,8 +31,9 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -43,7 +44,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   const deps = buildAppDeps();
   try {
-    const item = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.testSets.updateTestSet(id, parsed.data));
+    const item = await deps.testSets.updateTestSet(id, parsed.data, {
+      runTestSetWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.update", fn),
+    });
     return NextResponse.json({ ok: true, item });
   } catch {
     return NextResponse.json({ ok: false, error: "not_found_or_invalid" }, { status: 400 });
@@ -52,8 +56,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
 /** Архивация (DELETE): при необходимости подтверждения usage — 409; повтор с `?acknowledgeUsageWarning=1`. */
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const url = new URL(request.url);
@@ -62,8 +67,13 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
 
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.testSets.archiveTestSet(id, { acknowledgeUsageWarning }),
+    await deps.testSets.archiveTestSet(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runTestSetWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.archive", fn),
+      },
     );
     return NextResponse.json({ ok: true });
   } catch (e) {

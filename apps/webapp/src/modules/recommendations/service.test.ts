@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { createRecommendationsService } from "./service";
 import {
   RecommendationInvalidDomainError,
@@ -12,6 +12,7 @@ import {
 } from "@/app-layer/testing/clinicalLibraryInMemory";
 import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
 import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "./types";
+import type { RecommendationsPort } from "./ports";
 
 describe("recommendations service", () => {
   beforeEach(() => {
@@ -214,5 +215,59 @@ describe("recommendations service", () => {
     await expect(svc.updateRecommendation(rec.id, { domain: "bad_new" })).rejects.toBeInstanceOf(
       RecommendationInvalidDomainError,
     );
+  });
+
+  it("archiveRecommendation runs only archive write through write options", async () => {
+    const calls: string[] = [];
+    const port: RecommendationsPort = {
+      list: vi.fn(),
+      getById: vi.fn(async () => {
+        calls.push("getById");
+        return {
+          id: "rec-1",
+          title: "R",
+          bodyMd: "md",
+          media: [],
+          tags: null,
+          domain: null,
+          bodyRegionId: null,
+          bodyRegionIds: [],
+          quantityText: null,
+          frequencyText: null,
+          durationText: null,
+          isArchived: false,
+          createdBy: null,
+          createdAt: "",
+          updatedAt: "",
+        };
+      }),
+      create: vi.fn(),
+      update: vi.fn(),
+      getRecommendationUsageSummary: vi.fn(async () => {
+        calls.push("usage");
+        return { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
+      }),
+      archive: vi.fn(async () => {
+        calls.push("archive");
+        return true;
+      }),
+      unarchive: vi.fn(),
+    };
+    const svc = createRecommendationsService(port, inMemoryReferencesPort);
+
+    await svc.archiveRecommendation(
+      "rec-1",
+      undefined,
+      {
+        runRecommendationWrite: async (fn) => {
+          calls.push("runner:start");
+          const result = await fn();
+          calls.push("runner:end");
+          return result;
+        },
+      },
+    );
+
+    expect(calls).toEqual(["getById", "usage", "runner:start", "archive", "runner:end"]);
   });
 });

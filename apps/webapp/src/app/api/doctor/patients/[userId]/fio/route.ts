@@ -79,7 +79,7 @@ export async function PATCH(
   }
   const patientUserId = identity.userId;
 
-  await withDoctorWorkspacePrincipal(gate.ctx, async () => {
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.fio.update", async () => {
     if (Object.keys(nameFields).length > 0) {
       await deps.doctorClients.setPatientNames(patientUserId, nameFields);
     }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
@@ -29,6 +30,9 @@ export async function POST(
       productId: id,
       expiresAt: parsed.data.expiresAt ?? null,
       maxUses: parsed.data.maxUses ?? null,
+    }, {
+      runProductWrite: (fn) =>
+        withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.products.pay-link.create", fn),
     });
     return NextResponse.json({ ok: true, link, payUrl: `/book/product/${link.token}` });
   } catch (error) {

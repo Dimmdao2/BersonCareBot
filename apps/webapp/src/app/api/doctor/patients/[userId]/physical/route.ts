@@ -113,7 +113,7 @@ export async function PATCH(
   }
   const patientUserId = identity.userId;
 
-  await withDoctorWorkspacePrincipal(gate.ctx, () =>
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.physical.update", () =>
     deps.doctorClients.setPatientPhysical(patientUserId, {
       ...(("heightCm" in data) && { heightCm: data.heightCm ?? null }),
       ...(("weightKg" in data) && { weightKg: data.weightKg ?? null }),

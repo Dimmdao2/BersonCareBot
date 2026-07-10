@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const courseStatusSchema = z.enum(["draft", "published", "archived"]);
 
@@ -46,8 +46,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
@@ -57,8 +58,8 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.courses.createCourse({
+    const item = await deps.courses.createCourse(
+      {
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         programTemplateId: parsed.data.programTemplateId,
@@ -67,7 +68,10 @@ export async function POST(request: Request) {
         status: parsed.data.status,
         priceMinor: parsed.data.priceMinor,
         currency: parsed.data.currency,
-      }),
+      },
+      {
+        runCourseWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "doctor.courses.create", fn),
+      },
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {

@@ -82,7 +82,10 @@ export async function POST(
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  const entry = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+  const entry = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.patients.clinical.diagnosis-catalog.create",
+    () =>
     deps.patientClinical.createDiagnosisCatalogEntry({
       label: parsed.data.label,
       note: parsed.data.note ?? null,

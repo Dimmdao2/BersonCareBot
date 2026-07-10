@@ -21,6 +21,7 @@ export async function runPackageDetach(params: {
   createdByPlatformUserId: string | null;
   outcome?: PackageDetachOutcome;
   confirmPastTwice?: boolean;
+  runDetachMutation?: <T>(fn: () => Promise<T>) => Promise<T>;
 }) {
   const deps = buildAppDeps();
   if (!deps.memberships || !deps.bookingEngine) {
@@ -53,15 +54,19 @@ export async function runPackageDetach(params: {
       (allowPastRow.valueJson as { value?: unknown }).value === true);
 
   try {
-    const result = await deps.memberships.detachAppointmentPackage({
-      organizationId: params.organizationId,
-      appointmentId: params.appointmentId,
-      createdByPlatformUserId: params.createdByPlatformUserId,
-      outcome: params.outcome,
-      confirmPastTwice: params.confirmPastTwice,
-      allowPastUnlink,
-      freeCancelHoursBefore: policy.freeCancelHoursBefore,
-    });
+    const detach = () =>
+      deps.memberships!.detachAppointmentPackage({
+        organizationId: params.organizationId,
+        appointmentId: params.appointmentId,
+        createdByPlatformUserId: params.createdByPlatformUserId,
+        outcome: params.outcome,
+        confirmPastTwice: params.confirmPastTwice,
+        allowPastUnlink,
+        freeCancelHoursBefore: policy.freeCancelHoursBefore,
+      });
+    const result = params.runDetachMutation
+      ? await params.runDetachMutation(detach)
+      : await detach();
     const appointment = await deps.bookingEngine.getAppointment(params.appointmentId);
     if (appointment) {
       await emitPackageCalendarSync({

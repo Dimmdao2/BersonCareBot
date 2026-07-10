@@ -87,7 +87,7 @@ export async function POST(
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  const payment = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+  const payment = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.payments.cash.create", () =>
     deps.patientPayments.addCashPayment({
       organizationId: gate.ctx.organizationId,
       patientUserId: identity.userId,

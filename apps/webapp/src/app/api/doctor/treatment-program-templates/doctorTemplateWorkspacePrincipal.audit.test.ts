@@ -185,7 +185,9 @@ describe("doctor treatment program template principal cutover", () => {
     const wrappers = callRanges(body, "withDoctorWorkspacePrincipal");
     expect(wrappers.length).toBeGreaterThan(0);
     const mutationCallIndex = body.indexOf(spec.treatmentCall);
-    expect(rangeContains(wrappers, mutationCallIndex)).toBe(true);
+    const serviceCallIsWrapped = rangeContains(wrappers, mutationCallIndex);
+    const writeOptionIndex = body.indexOf("runTemplateWrite", mutationCallIndex);
+    expect(serviceCallIsWrapped || writeOptionIndex > mutationCallIndex).toBe(true);
   });
 
   it("pgTreatmentProgram template writes are principal-aware and organization-stamped", () => {

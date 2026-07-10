@@ -131,6 +131,7 @@ describe("doctor-clients service", () => {
       async getClientSupport() {
         return {
           patientUserId: "user-1",
+          organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           onSupport: false,
           supportStartedAt: null,
           commentsEnabled: true,

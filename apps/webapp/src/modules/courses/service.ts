@@ -29,6 +29,14 @@ function enrollmentOpen(accessSettings: Record<string, unknown>): boolean {
   return accessSettings.enrollment !== "closed";
 }
 
+export type CourseWriteOptions = {
+  runCourseWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runCourseWrite<T>(options: CourseWriteOptions | undefined, fn: () => Promise<T>): Promise<T> {
+  return options?.runCourseWrite ? options.runCourseWrite(fn) : fn();
+}
+
 export function assertValidIntroLessonPage(
   row: IntroLessonPageRecord | null,
 ): asserts row is IntroLessonPageRecord {
@@ -100,7 +108,7 @@ export function createCoursesService(deps: {
       return snap;
     },
 
-    async createCourse(input: CreateCourseInput) {
+    async createCourse(input: CreateCourseInput, options?: CourseWriteOptions) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название курса обязательно");
       assertUuid(input.programTemplateId);
@@ -109,14 +117,21 @@ export function createCoursesService(deps: {
         const page = await introPages.getById(input.introLessonPageId);
         assertValidIntroLessonPage(page);
       }
-      return courses.create({
-        ...input,
-        title,
-        description: input.description?.trim() ? input.description.trim() : input.description ?? null,
-      });
+      return runCourseWrite(options, () =>
+        courses.create({
+          ...input,
+          title,
+          description: input.description?.trim() ? input.description.trim() : input.description ?? null,
+        }),
+      );
     },
 
-    async updateCourse(id: string, input: UpdateCourseInput, options?: ArchiveCourseOptions) {
+    async updateCourse(
+      id: string,
+      input: UpdateCourseInput,
+      options?: ArchiveCourseOptions,
+      writeOptions?: CourseWriteOptions,
+    ) {
       assertUuid(id);
       const patch: UpdateCourseInput = { ...input };
       if (input.title !== undefined) {
@@ -145,7 +160,7 @@ export function createCoursesService(deps: {
         }
       }
 
-      const row = await courses.update(id.trim(), patch);
+      const row = await runCourseWrite(writeOptions, () => courses.update(id.trim(), patch));
       if (!row) throw new Error("Курс не найден");
       return row;
     },

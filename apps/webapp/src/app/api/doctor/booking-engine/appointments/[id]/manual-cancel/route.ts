@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runStaffManualCancelAfterCanonical } from "@/app-layer/booking/staffManualCancelAfterCanonical";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
@@ -30,20 +31,26 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   const deps = buildAppDeps();
-  if (!deps.bookingAppointmentLifecycle) {
+  const lifecycle = deps.bookingAppointmentLifecycle;
+  if (!lifecycle) {
     return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
   }
   const actorType = gate.ctx.session.user.role === "admin" ? "admin" : "specialist";
-  const result = await deps.bookingAppointmentLifecycle.staffCancel({
-    appointmentId,
-    organizationId: gate.ctx.organizationId,
-    actorType,
-    actorId: gate.ctx.session.user.userId,
-    decisionType: parsed.data.decisionType,
-    reason: parsed.data.reason,
-    staffComment: parsed.data.staffComment,
-    manualOverride: true,
-  });
+  const result = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.booking-engine.appointments.manual-cancel",
+    () =>
+      lifecycle.staffCancel({
+        appointmentId,
+        organizationId: gate.ctx.organizationId,
+        actorType,
+        actorId: gate.ctx.session.user.userId,
+        decisionType: parsed.data.decisionType,
+        reason: parsed.data.reason,
+        staffComment: parsed.data.staffComment,
+        manualOverride: true,
+      }),
+  );
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
   }

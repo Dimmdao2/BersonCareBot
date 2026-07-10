@@ -28,7 +28,7 @@ export async function POST(
     if (!identity) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
-    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    await withDoctorWorkspacePrincipal(gate.ctx, "doctor.treatment-program.test-attempt.accept", () =>
       deps.treatmentProgramProgress.doctorAcceptTestAttempt({
         instanceId,
         attemptId,

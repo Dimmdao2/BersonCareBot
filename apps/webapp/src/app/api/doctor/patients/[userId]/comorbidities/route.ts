@@ -104,7 +104,7 @@ export async function POST(
   const patientUserId = identity.userId;
 
   try {
-    const comorbidity = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    const comorbidity = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.create", () =>
       deps.patientComorbidities.add({
         patientUserId,
         text: parsed.data.text,

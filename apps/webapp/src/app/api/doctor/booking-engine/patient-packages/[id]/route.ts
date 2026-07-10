@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { membershipErrorResponse } from "@/app/api/booking-engine/patientPackagesRouteShared";
 import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
@@ -27,6 +28,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       id,
       gate.ctx.organizationId,
       parsed.data.notes,
+      {
+        runMembershipWrite: (fn) =>
+          withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.patient-packages.notes.update", fn),
+      },
     );
     return NextResponse.json({ ok: true, package: pkg });
   } catch (err) {

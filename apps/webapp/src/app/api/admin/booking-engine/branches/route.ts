@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const PostSchema = z.object({
@@ -25,15 +26,17 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
-  const branch = await gate.ctx.service.catalog.upsertBranch({
-    organizationId: gate.ctx.organizationId,
-    title: parsed.data.title.trim(),
-    color: parsed.data.color ?? null,
-    cityCode: parsed.data.cityCode.trim().toLowerCase(),
-    address: parsed.data.address ?? null,
-    timezone: parsed.data.timezone,
-    isActive: parsed.data.isActive,
-    sortOrder: parsed.data.sortOrder,
-  });
+  const branch = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.branches.upsert", () =>
+    gate.ctx.service.catalog.upsertBranch({
+      organizationId: gate.ctx.organizationId,
+      title: parsed.data.title.trim(),
+      color: parsed.data.color ?? null,
+      cityCode: parsed.data.cityCode.trim().toLowerCase(),
+      address: parsed.data.address ?? null,
+      timezone: parsed.data.timezone,
+      isActive: parsed.data.isActive,
+      sortOrder: parsed.data.sortOrder,
+    }),
+  );
   return NextResponse.json({ ok: true, branch });
 }

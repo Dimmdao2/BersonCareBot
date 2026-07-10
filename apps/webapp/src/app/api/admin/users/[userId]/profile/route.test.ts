@@ -49,8 +49,15 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
-    withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 import { PATCH } from "./route";

@@ -8,6 +8,17 @@ import type { ProductComposition, ProductPurchaseRecord, ProductRecord, UpsertPr
 
 const BOOKABLE_AT_APPOINTMENT_TYPES = ["promo", "gift_certificate", "single_visit"] as const;
 
+export type ProductWriteOptions = {
+  runProductWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runProductWrite<T>(
+  options: ProductWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return options?.runProductWrite ? options.runProductWrite(fn) : fn();
+}
+
 type ResolvePlatformUserByPhone = (
   phone: string,
   name: string,
@@ -107,11 +118,11 @@ export function createProductsService(deps: {
       productId: string;
       expiresAt?: string | null;
       maxUses?: number | null;
-    }) {
+    }, options?: ProductWriteOptions) {
       const product = await deps.port.getProduct(input.productId, input.organizationId);
       if (!product?.payByLinkEnabled) throw new Error("pay_link_not_enabled");
       const token = randomBytes(24).toString("base64url");
-      return deps.port.createPayLink({ ...input, token });
+      return runProductWrite(options, () => deps.port.createPayLink({ ...input, token }));
     },
 
     async resolvePayLink(token: string) {
@@ -406,7 +417,7 @@ export function createProductsService(deps: {
       platformUserId: string;
       appointmentId: string;
       serviceId: string;
-    }) {
+    }, options?: ProductWriteOptions) {
       const purchase = await deps.port.getPurchase(input.productPurchaseId, input.organizationId);
       if (!purchase || purchase.platformUserId !== input.platformUserId) {
         throw new Error("product_purchase_not_found");
@@ -434,14 +445,16 @@ export function createProductsService(deps: {
         appointmentIds,
       };
       const status = nextRemaining <= 0 ? ("used" as const) : purchase.status;
-      await deps.port.setPurchaseStatus(input.productPurchaseId, input.organizationId, status, {
-        fulfillmentJson,
-      });
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        productPurchaseId: input.productPurchaseId,
-        eventType: "visit_consumed",
-        payloadJson: { appointmentId: input.appointmentId, visitsRemaining: nextRemaining },
+      await runProductWrite(options, async () => {
+        await deps.port.setPurchaseStatus(input.productPurchaseId, input.organizationId, status, {
+          fulfillmentJson,
+        });
+        await deps.port.appendHistoryEvent({
+          organizationId: input.organizationId,
+          productPurchaseId: input.productPurchaseId,
+          eventType: "visit_consumed",
+          payloadJson: { appointmentId: input.appointmentId, visitsRemaining: nextRemaining },
+        });
       });
     },
 
@@ -489,14 +502,14 @@ export function createProductsService(deps: {
       appointmentId?: string | null;
       serviceId: string;
       actorPlatformUserId: string;
-    }) {
+    }, options?: ProductWriteOptions) {
       await this.consumeVisitForAppointment({
         organizationId: input.organizationId,
         productPurchaseId: input.productPurchaseId,
         platformUserId: input.platformUserId,
         appointmentId: input.appointmentId ?? `staff:${input.actorPlatformUserId}:${Date.now()}`,
         serviceId: input.serviceId,
-      });
+      }, options);
     },
   };
 }

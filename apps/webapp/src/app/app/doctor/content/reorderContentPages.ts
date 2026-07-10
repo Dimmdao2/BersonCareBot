@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { routePaths } from "@/app-layer/routes/paths";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isHelpSectionSlug } from "@/modules/content-sections/types";
 
@@ -12,7 +13,7 @@ export async function reorderContentPagesInSection(
   section: string,
   orderedIds: string[],
 ): Promise<ReorderContentPagesState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const sec = section?.trim();
   if (!sec) return { ok: false, error: "Не указан раздел" };
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
@@ -23,7 +24,9 @@ export async function reorderContentPagesInSection(
 
   const deps = buildAppDeps();
   try {
-    await deps.contentPages.reorderInSection(sec, ids);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.pages.reorder", () =>
+      deps.contentPages.reorderInSection(sec, ids),
+    );
   } catch (e) {
     console.error("reorderContentPagesInSection", e);
     return { ok: false, error: "Не удалось сохранить порядок" };

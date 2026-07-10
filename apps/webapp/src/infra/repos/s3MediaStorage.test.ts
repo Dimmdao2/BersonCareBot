@@ -22,6 +22,7 @@ vi.mock("@/infra/db/runWebappSql", () => ({
   })),
   getWebappSqlFromPgClient: vi.fn(() => ({})),
   runWebappSql: runWebappSqlMock,
+  runWebappTransaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
 }));
 
 vi.mock("@/infra/db/pgAdvisoryLock", () => ({

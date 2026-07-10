@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   assessmentKindWriteAllowSet,
@@ -74,8 +74,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
@@ -85,21 +86,23 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.clinicalTests.createClinicalTest(
-        {
-          title: parsed.data.title,
-          description: parsed.data.description ?? null,
-          testType: parsed.data.testType ?? null,
-          assessmentKind: parsed.data.assessmentKind?.trim() || null,
-          media: parsed.data.media?.map((m, i) => ({
-            ...m,
-            sortOrder: m.sortOrder ?? i,
-          })),
-          tags: parsed.data.tags ?? null,
-        },
-        gate.ctx.session.user.userId,
-      ),
+    const row = await deps.clinicalTests.createClinicalTest(
+      {
+        title: parsed.data.title,
+        description: parsed.data.description ?? null,
+        testType: parsed.data.testType ?? null,
+        assessmentKind: parsed.data.assessmentKind?.trim() || null,
+        media: parsed.data.media?.map((m, i) => ({
+          ...m,
+          sortOrder: m.sortOrder ?? i,
+        })),
+        tags: parsed.data.tags ?? null,
+      },
+      workspace.session.user.userId,
+      {
+        runClinicalTestWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.clinical-tests.create", fn),
+      },
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {

@@ -52,6 +52,10 @@ vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: () => mockDb,
 }));
 
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappTransaction: (fn: (tx: typeof mockDb) => Promise<unknown>) => fn(mockDb),
+}));
+
 // ── Import subject after mock is hoisted ──────────────────────────────────────
 import { pgEnsureClientFilesRootFolder } from "@/infra/repos/pgClientMediaFolders";
 

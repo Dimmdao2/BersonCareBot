@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 export type LifecycleState = { ok: boolean; error?: string };
 
 export async function applyContentLifecycle(_prev: LifecycleState | null, formData: FormData): Promise<LifecycleState> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const id = (formData.get("id") as string)?.trim();
   const op = (formData.get("op") as string)?.trim();
   if (!id || !op) return { ok: false, error: "Некорректные данные" };
@@ -18,28 +19,24 @@ export async function applyContentLifecycle(_prev: LifecycleState | null, formDa
   const now = new Date().toISOString();
 
   try {
-    switch (op) {
-      case "publish":
-        await deps.contentPages.updateLifecycle(id, { isPublished: true });
-        break;
-      case "unpublish":
-        await deps.contentPages.updateLifecycle(id, { isPublished: false });
-        break;
-      case "archive":
-        await deps.contentPages.updateLifecycle(id, { archivedAt: now });
-        break;
-      case "unarchive":
-        await deps.contentPages.updateLifecycle(id, { archivedAt: null });
-        break;
-      case "soft_delete":
-        await deps.contentPages.updateLifecycle(id, { deletedAt: now });
-        break;
-      case "restore":
-        await deps.contentPages.updateLifecycle(id, { deletedAt: null });
-        break;
-      default:
-        return { ok: false, error: "Неизвестное действие" };
-    }
+    const patch =
+      op === "publish"
+        ? { isPublished: true }
+        : op === "unpublish"
+          ? { isPublished: false }
+          : op === "archive"
+            ? { archivedAt: now }
+            : op === "unarchive"
+              ? { archivedAt: null }
+              : op === "soft_delete"
+                ? { deletedAt: now }
+                : op === "restore"
+                  ? { deletedAt: null }
+                  : null;
+    if (!patch) return { ok: false, error: "Неизвестное действие" };
+    await withDoctorWorkspacePrincipal(workspace, "doctor.content.page.lifecycle", () =>
+      deps.contentPages.updateLifecycle(id, patch),
+    );
   } catch (e) {
     console.error("applyContentLifecycle", e);
     return { ok: false, error: "Не удалось применить действие" };

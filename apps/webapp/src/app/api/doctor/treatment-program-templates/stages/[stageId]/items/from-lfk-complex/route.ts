@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   GROUP_DESCRIPTION_CONFLICT,
   isTreatmentProgramExpandNotFoundError,
@@ -34,8 +34,9 @@ const expandBodySchema = z.discriminatedUnion("mode", [
 ]);
 
 export async function POST(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { stageId } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -46,12 +47,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
 
   const deps = buildAppDeps();
   try {
-    const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.treatmentProgram.expandLfkComplexIntoTemplateStageItems(
-        parsed.data.templateId,
-        stageId,
-        parsed.data,
-      ),
+    const result = await deps.treatmentProgram.expandLfkComplexIntoTemplateStageItems(
+      parsed.data.templateId,
+      stageId,
+      parsed.data,
+      {
+        runTemplateWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.expand-lfk", fn),
+      },
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

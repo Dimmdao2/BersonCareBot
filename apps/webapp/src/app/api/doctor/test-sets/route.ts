@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { testSetListFilterFromDoctorApiGetQuery } from "@/shared/lib/doctorCatalogListStatus";
 
 const postBodySchema = z.object({
@@ -39,8 +39,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
@@ -50,14 +51,16 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.testSets.createTestSet(
-        {
-          title: parsed.data.title,
-          description: parsed.data.description ?? null,
-        },
-        gate.ctx.session.user.userId,
-      ),
+    const row = await deps.testSets.createTestSet(
+      {
+        title: parsed.data.title,
+        description: parsed.data.description ?? null,
+      },
+      workspace.session.user.userId,
+      {
+        runTestSetWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.test-sets.create", fn),
+      },
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {

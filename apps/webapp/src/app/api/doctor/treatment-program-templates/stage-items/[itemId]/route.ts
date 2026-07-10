@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { TREATMENT_PROGRAM_ITEM_TYPES } from "@/modules/treatment-program/types";
 
 const patchBodySchema = z.object({
@@ -16,8 +16,9 @@ const patchBodySchema = z.object({
 });
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { itemId } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -28,9 +29,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: s
 
   const deps = buildAppDeps();
   try {
-    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.treatmentProgram.updateStageItem(itemId, parsed.data),
-    );
+    const item = await deps.treatmentProgram.updateStageItem(itemId, parsed.data, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.update", fn),
+    });
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
@@ -39,13 +41,17 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: s
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ itemId: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { itemId } = await ctx.params;
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(gate.ctx, () => deps.treatmentProgram.deleteStageItem(itemId));
+    await deps.treatmentProgram.deleteStageItem(itemId, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.delete", fn),
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

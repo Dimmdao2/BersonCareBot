@@ -5,6 +5,21 @@ const listWorkingDaysMock = vi.hoisted(() => vi.fn());
 const upsertWorkingDaysMock = vi.hoisted(() => vi.fn());
 const closeWorkingDaysMock = vi.hoisted(() => vi.fn());
 const clearWorkingDaysMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../_requireAdminBookingEngine", () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
@@ -21,6 +36,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
+}));
+
 import { GET, PUT } from "./route";
 
 const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -29,6 +48,7 @@ const SPEC = "11111111-1111-4111-8111-111111111111";
 describe("/api/admin/booking-engine/working-days", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
   });
 
   describe("GET", () => {
@@ -51,7 +71,10 @@ describe("/api/admin/booking-engine/working-days", () => {
 
     it("returns rows for valid date range", async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
-      listWorkingDaysMock.mockResolvedValue([{ id: "wd-1", workDate: "2026-06-10" }]);
+      listWorkingDaysMock.mockImplementation(async () => {
+        expect(principalState.inside).toBe(false);
+        return [{ id: "wd-1", workDate: "2026-06-10" }];
+      });
       const res = await GET(
         new Request(
           `http://localhost/api/admin/booking-engine/working-days?dateFrom=2026-06-01&dateTo=2026-06-30&specialistId=${SPEC}`,
@@ -64,6 +87,7 @@ describe("/api/admin/booking-engine/working-days", () => {
       expect(listWorkingDaysMock).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: ORG, specialistId: SPEC, dateFrom: "2026-06-01", dateTo: "2026-06-30" }),
       );
+      expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
     });
 
     it("resolves __none__ specialistId to null", async () => {
@@ -108,7 +132,10 @@ describe("/api/admin/booking-engine/working-days", () => {
 
     it("upserts working days", async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
-      upsertWorkingDaysMock.mockResolvedValue([]);
+      upsertWorkingDaysMock.mockImplementation(async () => {
+        expect(principalState.inside).toBe(true);
+        return [];
+      });
       const res = await PUT(
         new Request("http://localhost/api/admin/booking-engine/working-days", {
           method: "PUT",
@@ -134,13 +161,21 @@ describe("/api/admin/booking-engine/working-days", () => {
           dates: ["2026-06-10", "2026-06-11"],
         }),
       );
+      expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: ORG }),
+        "admin.booking-engine.working-days.upsert",
+        expect.any(Function),
+      );
     });
   });
 
   describe("PUT close", () => {
     it("closes working days", async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
-      closeWorkingDaysMock.mockResolvedValue([]);
+      closeWorkingDaysMock.mockImplementation(async () => {
+        expect(principalState.inside).toBe(true);
+        return [];
+      });
       const res = await PUT(
         new Request("http://localhost/api/admin/booking-engine/working-days", {
           method: "PUT",
@@ -152,13 +187,20 @@ describe("/api/admin/booking-engine/working-days", () => {
       expect(closeWorkingDaysMock).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: ORG, dates: ["2026-06-10"] }),
       );
+      expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: ORG }),
+        "admin.booking-engine.working-days.close",
+        expect.any(Function),
+      );
     });
   });
 
   describe("PUT clear", () => {
     it("clears working days", async () => {
       requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG } });
-      clearWorkingDaysMock.mockResolvedValue(undefined);
+      clearWorkingDaysMock.mockImplementation(async () => {
+        expect(principalState.inside).toBe(true);
+      });
       const res = await PUT(
         new Request("http://localhost/api/admin/booking-engine/working-days", {
           method: "PUT",
@@ -169,6 +211,11 @@ describe("/api/admin/booking-engine/working-days", () => {
       expect(res.status).toBe(200);
       expect(clearWorkingDaysMock).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: ORG, dates: ["2026-06-10"] }),
+      );
+      expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: ORG }),
+        "admin.booking-engine.working-days.clear",
+        expect.any(Function),
       );
     });
   });

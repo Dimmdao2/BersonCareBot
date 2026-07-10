@@ -2,15 +2,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
-const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
-    withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -34,7 +45,13 @@ describe("PATCH /api/doctor/patients/[userId]/visits/[visitId]", () => {
         session: { user: { userId: "00000000-0000-4000-8000-00000000000d", role: "doctor" } },
       },
     });
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
   });
 
   it("updates visit fields for canonical patient under selected workspace principal", async () => {

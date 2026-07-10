@@ -3,6 +3,21 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const listCatalogPackagesMock = vi.hoisted(() => vi.fn());
 const upsertCatalogPackageMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
@@ -15,6 +30,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       upsertCatalogPackage: upsertCatalogPackageMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 import { GET, POST } from "./route";
@@ -37,12 +56,16 @@ const createdPkg = {
 describe("/api/doctor/booking-engine/packages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: "org-1", session: { user: { userId: "u1" } } },
     });
     listCatalogPackagesMock.mockResolvedValue([createdPkg]);
-    upsertCatalogPackageMock.mockResolvedValue(createdPkg);
+    upsertCatalogPackageMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return createdPkg;
+    });
   });
 
   it("GET returns all packages including inactive", async () => {
@@ -52,6 +75,7 @@ describe("/api/doctor/booking-engine/packages", () => {
     expect(json.ok).toBe(true);
     expect(json.packages).toHaveLength(1);
     expect(listCatalogPackagesMock).toHaveBeenCalledWith("org-1", false);
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("POST creates a catalog package and it appears in listCatalogPackages", async () => {
@@ -80,6 +104,11 @@ describe("/api/doctor/booking-engine/packages", () => {
         priceMinor: 15000,
         items: [{ serviceId: SERVICE_ID, quantity: 10 }],
       }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.packages.upsert",
+      expect.any(Function),
     );
     // Confirm the created package appears when we list
     const listRes = await GET();

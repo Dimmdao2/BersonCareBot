@@ -1,10 +1,21 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => fn()),
+);
 const runPackageDetachMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/app/api/booking-engine/packageDetachShared", () => ({
@@ -35,6 +46,15 @@ describe("POST appointments/[id]/package/refund", () => {
         appointmentId: APPT_ID,
         outcome: "refund_consumed",
       }),
+    );
+    const [{ runDetachMutation }] = runPackageDetachMock.mock.calls[0] as [
+      { runDetachMutation: <T>(fn: () => Promise<T>) => Promise<T> },
+    ];
+    await runDetachMutation(async () => "ok");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.package.refund",
+      expect.any(Function),
     );
   });
 });

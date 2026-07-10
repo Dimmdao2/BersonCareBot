@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const upsertSchema = z.discriminatedUnion("scope", [
@@ -46,16 +47,19 @@ export async function PUT(request: Request) {
   if (!deps.payments) {
     return NextResponse.json({ ok: false, error: "payments_unavailable" }, { status: 503 });
   }
+  const payments = deps.payments;
   const body = parsed.data;
-  const policy = await deps.payments.upsertPrepaymentPolicy({
-    organizationId: gate.ctx.organizationId,
-    serviceId: body.scope === "service" ? body.serviceId : null,
-    onlineCategory: body.scope === "online" ? body.onlineCategory : null,
-    mode: body.mode,
-    amountMinor: body.amountMinor ?? null,
-    percentBps: body.percentBps ?? null,
-    currency: body.currency,
-    isActive: body.isActive,
-  });
+  const policy = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.prepayment-policies.upsert", () =>
+    payments.upsertPrepaymentPolicy({
+      organizationId: gate.ctx.organizationId,
+      serviceId: body.scope === "service" ? body.serviceId : null,
+      onlineCategory: body.scope === "online" ? body.onlineCategory : null,
+      mode: body.mode,
+      amountMinor: body.amountMinor ?? null,
+      percentBps: body.percentBps ?? null,
+      currency: body.currency,
+      isActive: body.isActive,
+    }),
+  );
   return NextResponse.json({ ok: true, policy });
 }

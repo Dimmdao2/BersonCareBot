@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
 const mockRequireDoctorWorkspaceApiContext = vi.hoisted(() => vi.fn());
-const mockWithDoctorWorkspacePrincipal = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
+const mockWithDoctorWorkspacePrincipal = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}));
 const mockGetClientIdentityForOrganization = vi.hoisted(() => vi.fn());
 const mockCreateSymptomTracking = vi.hoisted(() => vi.fn());
 
@@ -46,7 +50,13 @@ describe("POST /api/doctor/clients/[userId]/symptom-trackings", () => {
         session: DOCTOR_SESSION,
       },
     });
-    mockWithDoctorWorkspacePrincipal.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    mockWithDoctorWorkspacePrincipal.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     mockGetClientIdentityForOrganization.mockResolvedValue({ userId: PATIENT_ID, displayName: "P" });
     mockCreateSymptomTracking.mockResolvedValue({
       id: "tr-1",

@@ -14,7 +14,11 @@ const {
   const listMockInner = vi.fn();
   const getSessionMockInner = vi.fn();
   const requireDoctorWorkspaceApiContextMockInner = vi.fn();
-  const withDoctorWorkspacePrincipalMockInner = vi.fn((_: unknown, fn: () => unknown) => fn());
+  const withDoctorWorkspacePrincipalMockInner = vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+});
   return {
     insertMock: insertMockInner,
     findCatMock: findCatMockInner,
@@ -42,8 +46,15 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
-    withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 import { GET, POST } from "./route";
@@ -60,7 +71,13 @@ describe("/api/doctor/references/[categoryCode]", () => {
       ctx: { organizationId: "org-1", session: { user: { userId: "d1", role: "doctor" } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
   });
 
   it("GET returns 401 without session", async () => {

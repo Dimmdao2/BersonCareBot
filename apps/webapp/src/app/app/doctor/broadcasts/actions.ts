@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import type {
   BroadcastAuditEntry,
   BroadcastCommand,
@@ -62,9 +63,18 @@ export async function previewBroadcastAction(
 export async function executeBroadcastAction(
   command: Omit<BroadcastCommand, "actorId">
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  const result = await deps.doctorBroadcasts.execute({ ...command, actorId: session.user.userId });
+  const result = await deps.doctorBroadcasts.execute(
+    {
+      ...command,
+      actorId: workspace.session.user.userId,
+    },
+    {
+      runDeliveryCommit: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.broadcasts.execute", fn),
+    },
+  );
   revalidatePath("/app/doctor/broadcasts");
   return result;
 }
@@ -82,13 +92,21 @@ export async function loadDraftAction(): Promise<BroadcastDraft | null> {
 }
 
 export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const parsed = draftSchema.safeParse(draft);
   if (!parsed.success) {
     throw new Error("draft_validation_error");
   }
   const deps = buildAppDeps();
-  await deps.doctorBroadcastComposer.saveDraft(session.user.userId, parsed.data as BroadcastDraft);
+  await withDoctorWorkspacePrincipal(
+    workspace,
+    "doctor.broadcasts.draft.save",
+    () =>
+      deps.doctorBroadcastComposer.saveDraft(
+        workspace.session.user.userId,
+        parsed.data as BroadcastDraft,
+      ),
+  );
 }
 
 export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> {

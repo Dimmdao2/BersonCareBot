@@ -17,7 +17,11 @@ const {
   createFolderMock: vi.fn(),
   pgExistsMock: vi.fn(),
   requireDoctorWorkspaceApiContextMock: vi.fn(),
-  withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, fn: () => unknown) => fn()),
+  withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -39,8 +43,15 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
-    withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
@@ -103,7 +114,13 @@ describe("POST /api/admin/media/folders", () => {
       ctx: { organizationId: "org-1", session: { user: { userId: "u1", role: "doctor" } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     validateParentMock.mockReset();
     validateParentMock.mockResolvedValue({ ok: true });
     getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "doctor" } });

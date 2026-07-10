@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../../../_requireAdminBookingEngine";
 
 const bodySchema = z.object({
@@ -31,6 +32,9 @@ export async function POST(request: Request, context: RouteContext) {
       serviceId: parsed.data.serviceId,
       appointmentId: parsed.data.appointmentId ?? null,
       actorPlatformUserId: gate.ctx.session.user.userId as string,
+    }, {
+      runProductWrite: (fn) =>
+        withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.patient-products.consume", fn),
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -3,15 +3,26 @@ import { NextResponse } from "next/server";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
-const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
-    withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -35,7 +46,13 @@ describe("doctor patient payment timeline route", () => {
         session: { user: { userId: DOCTOR_ID, role: "doctor" } },
       },
     });
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
   });
 
   it("returns workspace gate response before resolving deps", async () => {

@@ -61,7 +61,10 @@ export async function PATCH(
 
   let ok: boolean;
   try {
-    ok = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    ok = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.clinical.complaint.update",
+      () =>
       deps.patientClinical.updateComplaintFields({
         patientUserId,
         complaintId,

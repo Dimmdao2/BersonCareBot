@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
 import { resolveDoctorOwnSpecialistId } from "../_resolveDoctorSpecialistId";
 
@@ -43,7 +44,7 @@ async function assertOwnedByDoctor(
     organizationId,
     specialistId,
   });
-  return rows.some((r) => r.id === id);
+  return rows.some((r) => r.id === id && r.specialistId === specialistId);
 }
 
 export async function GET(request: Request) {
@@ -101,18 +102,21 @@ export async function POST(request: Request) {
   if (!specialistId) {
     return NextResponse.json({ ok: false, error: "specialist_not_configured" }, { status: 409 });
   }
+  const bookingScheduling = deps.bookingScheduling;
   try {
-    const row = await deps.bookingScheduling.createWorkingHours({
-      organizationId: gate.ctx.organizationId,
-      // FORCED: own specialist only (overrides anything in the body).
-      specialistId,
-      branchId: parsed.data.branchId ?? undefined,
-      roomId: parsed.data.roomId ?? undefined,
-      weekday: parsed.data.weekday,
-      startMinute: parsed.data.startMinute,
-      endMinute: parsed.data.endMinute,
-      replace: parsed.data.replace,
-    });
+    const row = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.working-hours.create", () =>
+      bookingScheduling.createWorkingHours({
+        organizationId: gate.ctx.organizationId,
+        // FORCED: own specialist only (overrides anything in the body).
+        specialistId,
+        branchId: parsed.data.branchId ?? undefined,
+        roomId: parsed.data.roomId ?? undefined,
+        weekday: parsed.data.weekday,
+        startMinute: parsed.data.startMinute,
+        endMinute: parsed.data.endMinute,
+        replace: parsed.data.replace,
+      }),
+    );
     return NextResponse.json({ ok: true, row });
   } catch {
     return NextResponse.json({ ok: false, error: "create_failed" }, { status: 400 });
@@ -137,15 +141,18 @@ export async function PATCH(request: Request) {
   if (!(await assertOwnedByDoctor(deps, gate.ctx.organizationId, specialistId, parsed.data.id))) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
+  const bookingScheduling = deps.bookingScheduling;
   try {
-    const row = await deps.bookingScheduling.updateWorkingHours({
-      organizationId: gate.ctx.organizationId,
-      id: parsed.data.id,
-      weekday: parsed.data.weekday,
-      startMinute: parsed.data.startMinute,
-      endMinute: parsed.data.endMinute,
-      isActive: parsed.data.isActive,
-    });
+    const row = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.working-hours.update", () =>
+      bookingScheduling.updateWorkingHours({
+        organizationId: gate.ctx.organizationId,
+        id: parsed.data.id,
+        weekday: parsed.data.weekday,
+        startMinute: parsed.data.startMinute,
+        endMinute: parsed.data.endMinute,
+        isActive: parsed.data.isActive,
+      }),
+    );
     return NextResponse.json({ ok: true, row });
   } catch {
     return NextResponse.json({ ok: false, error: "update_failed" }, { status: 400 });
@@ -170,6 +177,9 @@ export async function DELETE(request: Request) {
   if (!(await assertOwnedByDoctor(deps, gate.ctx.organizationId, specialistId, id))) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
-  await deps.bookingScheduling.deactivateWorkingHours(id, gate.ctx.organizationId);
+  const bookingScheduling = deps.bookingScheduling;
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.working-hours.deactivate", () =>
+    bookingScheduling.deactivateWorkingHours(gate.ctx.organizationId, id),
+  );
   return NextResponse.json({ ok: true });
 }

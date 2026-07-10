@@ -114,7 +114,10 @@ export async function POST(
   const patientUserId = identity.userId;
 
   if (b.section === "trauma") {
-    const entry = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    const entry = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.clinical.anamnesis.trauma.create",
+      () =>
       deps.patientClinical.appendAnamnesisTrauma({
         patientUserId,
         year: b.year,
@@ -128,7 +131,10 @@ export async function POST(
   }
 
   if (b.section === "illness") {
-    const entry = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    const entry = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.patients.clinical.anamnesis.illness.create",
+      () =>
       deps.patientClinical.appendAnamnesisIllness({
         patientUserId,
         period: b.period,
@@ -141,7 +147,10 @@ export async function POST(
   }
 
   // section === "lifestyle"
-  const entry = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+  const entry = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    "doctor.patients.clinical.anamnesis.lifestyle.create",
+    () =>
     deps.patientClinical.appendAnamnesisLifestyle({
       patientUserId,
       recordDate: b.recordDate,

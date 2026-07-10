@@ -19,6 +19,17 @@ type BookingEngineService = Pick<
   'getAppointment' | 'getStatusBeforePackageCharge' | 'transitionAppointmentStatus'
 >;
 
+export type MembershipWriteOptions = {
+  runMembershipWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runMembershipWrite<T>(
+  options: MembershipWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return options?.runMembershipWrite ? options.runMembershipWrite(fn) : fn();
+}
+
 import { parsePatientPackageProductRef } from './patientPackageProductRef';
 import { isPatientPackageExpired, isPatientPackageWithinValidity } from './packageValidity';
 import { buildManualPatientPackageTitle } from './packageManualTitle';
@@ -202,6 +213,7 @@ export function createMembershipsService(deps: {
 
     async createManualPatientPackage(
       input: Parameters<MembershipsPort['createManualPatientPackage']>[0],
+      options?: MembershipWriteOptions,
     ) {
       const title =
         input.title?.trim() ||
@@ -209,13 +221,17 @@ export function createMembershipsService(deps: {
           itemCount: input.items.length,
           soldAtIso: input.soldAt,
         });
-      const pkg = await deps.port.createManualPatientPackage({ ...input, title });
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        eventType: 'manual_created',
-        payloadJson: { title: input.title, priceMinor: input.priceMinor },
-      });
+      const pkg = await runMembershipWrite(options, () =>
+        deps.port.createManualPatientPackage({ ...input, title }),
+      );
+      await runMembershipWrite(options, () =>
+        deps.port.appendHistoryEvent({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          eventType: 'manual_created',
+          payloadJson: { title: input.title, priceMinor: input.priceMinor },
+        }),
+      );
       const staffSold =
         input.activateImmediately === true ||
         (input.soldAt != null && input.paidAmountMinor != null && input.sendForPayment === false);
@@ -225,9 +241,15 @@ export function createMembershipsService(deps: {
           input.organizationId,
           input.platformUserId,
           pkg,
+          options,
         );
       }
-      const activated = await this.activatePatientPackage(pkg.id, input.organizationId);
+      const activated = await this.activatePatientPackage(
+        pkg.id,
+        input.organizationId,
+        undefined,
+        options,
+      );
       return activated ?? (await withBalance(pkg));
     },
 
@@ -241,14 +263,16 @@ export function createMembershipsService(deps: {
       paidAmountMinor?: number | null;
       paidCurrency?: string | null;
       activateImmediately?: boolean;
-    }) {
-      const pkg = await deps.port.offerCatalogPackageToPatient(input);
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        eventType: 'catalog_offered',
-        payloadJson: { subscriptionPackageId: input.subscriptionPackageId },
-      });
+    }, options?: MembershipWriteOptions) {
+      const pkg = await runMembershipWrite(options, () => deps.port.offerCatalogPackageToPatient(input));
+      await runMembershipWrite(options, () =>
+        deps.port.appendHistoryEvent({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          eventType: 'catalog_offered',
+          payloadJson: { subscriptionPackageId: input.subscriptionPackageId },
+        }),
+      );
       const staffSold =
         input.activateImmediately === true ||
         (input.soldAt != null && input.paidAmountMinor != null);
@@ -262,6 +286,7 @@ export function createMembershipsService(deps: {
             paidCurrency: input.paidCurrency,
             paymentRef: `doctor_sale:${pkg.id}`,
           },
+          options,
         );
         return activated ?? (await withBalance(pkg));
       }
@@ -271,9 +296,15 @@ export function createMembershipsService(deps: {
           input.organizationId,
           input.platformUserId,
           pkg,
+          options,
         );
       }
-      const activated = await this.activatePatientPackage(pkg.id, input.organizationId);
+      const activated = await this.activatePatientPackage(
+        pkg.id,
+        input.organizationId,
+        undefined,
+        options,
+      );
       return activated ?? (await withBalance(pkg));
     },
 
@@ -281,6 +312,7 @@ export function createMembershipsService(deps: {
       patientPackageId: string,
       organizationId: string,
       platformUserId: string,
+      options?: MembershipWriteOptions,
     ) {
       const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!pkg) throw new Error('package_not_found');
@@ -294,19 +326,21 @@ export function createMembershipsService(deps: {
         currency: pkg.currency,
         idempotencyKey,
       });
-      await deps.port.setPatientPackageStatus(
-        patientPackageId,
-        organizationId,
-        'awaiting_payment',
-        {
-          paymentIntentId: intent.id,
-        },
-      );
-      await deps.port.appendHistoryEvent({
-        organizationId,
-        patientPackageId,
-        eventType: 'payment_offer_created',
-        payloadJson: { intentId: intent.id, amountMinor: pkg.priceMinor },
+      await runMembershipWrite(options, async () => {
+        await deps.port.setPatientPackageStatus(
+          patientPackageId,
+          organizationId,
+          'awaiting_payment',
+          {
+            paymentIntentId: intent.id,
+          },
+        );
+        await deps.port.appendHistoryEvent({
+          organizationId,
+          patientPackageId,
+          eventType: 'payment_offer_created',
+          payloadJson: { intentId: intent.id, amountMinor: pkg.priceMinor },
+        });
       });
       const updated = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!updated) throw new Error('package_not_found');
@@ -318,9 +352,15 @@ export function createMembershipsService(deps: {
       organizationId: string,
       platformUserId: string,
       fallbackPkg: PatientPackageRecord,
+      options?: MembershipWriteOptions,
     ) {
       try {
-        return await this.createPaymentOffer(patientPackageId, organizationId, platformUserId);
+        return await this.createPaymentOffer(
+          patientPackageId,
+          organizationId,
+          platformUserId,
+          options,
+        );
       } catch (err) {
         const code = err instanceof Error ? err.message : '';
         if (isPaymentOfferConfigurationError(code)) {
@@ -339,23 +379,27 @@ export function createMembershipsService(deps: {
         paidCurrency?: string | null;
         paymentRef?: string;
       },
+      options?: MembershipWriteOptions,
     ) {
       const activated = await this.activatePatientPackage(
         patientPackageId,
         organizationId,
         input.paymentRef,
+        options,
       );
       if (!activated) return null;
       const now = input.soldAt ?? new Date().toISOString();
-      const updated = await deps.port.setPatientPackageStatus(
-        patientPackageId,
-        organizationId,
-        'active',
-        {
-          soldAt: now,
-          paidAmountMinor: input.paidAmountMinor ?? activated.priceMinor,
-          paidCurrency: input.paidCurrency ?? activated.currency,
-        },
+      const updated = await runMembershipWrite(options, () =>
+        deps.port.setPatientPackageStatus(
+          patientPackageId,
+          organizationId,
+          'active',
+          {
+            soldAt: now,
+            paidAmountMinor: input.paidAmountMinor ?? activated.priceMinor,
+            paidCurrency: input.paidCurrency ?? activated.currency,
+          },
+        ),
       );
       return updated ? withBalance(updated) : activated;
     },
@@ -364,29 +408,34 @@ export function createMembershipsService(deps: {
       patientPackageId: string,
       organizationId: string,
       paymentRef?: string,
+      options?: MembershipWriteOptions,
     ) {
       const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!pkg) return null;
       if (pkg.status === 'active') return withBalance(pkg);
       const now = new Date().toISOString();
       const validUntil = addValidity(now, pkg.validityDays);
-      const updated = await deps.port.setPatientPackageStatus(
-        patientPackageId,
-        organizationId,
-        'active',
-        {
-          paymentRef: paymentRef ?? pkg.paymentRef,
-          validFrom: now,
-          validUntil,
-        },
+      const updated = await runMembershipWrite(options, () =>
+        deps.port.setPatientPackageStatus(
+          patientPackageId,
+          organizationId,
+          'active',
+          {
+            paymentRef: paymentRef ?? pkg.paymentRef,
+            validFrom: now,
+            validUntil,
+          },
+        ),
       );
       if (!updated) return null;
-      await deps.port.appendHistoryEvent({
-        organizationId,
-        patientPackageId,
-        eventType: 'activated',
-        payloadJson: { paymentRef: paymentRef ?? null },
-      });
+      await runMembershipWrite(options, () =>
+        deps.port.appendHistoryEvent({
+          organizationId,
+          patientPackageId,
+          eventType: 'activated',
+          payloadJson: { paymentRef: paymentRef ?? null },
+        }),
+      );
       return withBalance(updated);
     },
 
@@ -857,7 +906,7 @@ export function createMembershipsService(deps: {
       patientPackageItemId: string;
       appointmentId?: string | null;
       createdByPlatformUserId: string;
-    }) {
+    }, options?: MembershipWriteOptions) {
       const pkg = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
       if (!pkg) throw new Error('package_not_found');
       if (input.appointmentId) {
@@ -868,34 +917,43 @@ export function createMembershipsService(deps: {
       const row = balances.find((b) => b.patientPackageItemId === input.patientPackageItemId);
       if (!row || row.remaining < 1) throw new Error('package_no_balance');
 
-      const usage = await deps.port.appendUsage({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        patientPackageItemId: input.patientPackageItemId,
-        appointmentId: input.appointmentId ?? null,
-        usageKind: 'consume',
-        quantity: 1,
-        createdByPlatformUserId: input.createdByPlatformUserId,
-      });
+      const usage = await runMembershipWrite(options, () =>
+        deps.port.appendUsage({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          patientPackageItemId: input.patientPackageItemId,
+          appointmentId: input.appointmentId ?? null,
+          usageKind: 'consume',
+          quantity: 1,
+          createdByPlatformUserId: input.createdByPlatformUserId,
+        }),
+      );
 
       if (input.appointmentId && deps.bookingEngine) {
-        await deps.port.setAppointmentPackageUsageRef(input.appointmentId, usage.id);
-        const appt = await deps.bookingEngine.getAppointment(input.appointmentId);
+        const appointmentId = input.appointmentId;
+        await runMembershipWrite(options, () =>
+          deps.port.setAppointmentPackageUsageRef(appointmentId, usage.id),
+        );
+        const appt = await deps.bookingEngine.getAppointment(appointmentId);
         if (appt && appt.status !== 'charged_to_package') {
-          await deps.bookingEngine.transitionAppointmentStatus({
-            appointmentId: input.appointmentId,
-            toStatus: 'charged_to_package',
-            payload: { source: 'membership_manual_consume' },
-          });
+          await runMembershipWrite(options, () =>
+            deps.bookingEngine!.transitionAppointmentStatus({
+              appointmentId,
+              toStatus: 'charged_to_package',
+              payload: { source: 'membership_manual_consume' },
+            }),
+          );
         }
       }
 
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        eventType: 'manual_consume',
-        payloadJson: { usageId: usage.id, appointmentId: input.appointmentId ?? null },
-      });
+      await runMembershipWrite(options, () =>
+        deps.port.appendHistoryEvent({
+          organizationId: input.organizationId,
+          patientPackageId: pkg.id,
+          eventType: 'manual_consume',
+          payloadJson: { usageId: usage.id, appointmentId: input.appointmentId ?? null },
+        }),
+      );
 
       if (input.appointmentId) {
         await refreshPackageCalendarForAppointment(input.appointmentId);
@@ -908,11 +966,14 @@ export function createMembershipsService(deps: {
       patientPackageId: string,
       organizationId: string,
       notes: string | null,
+      options?: MembershipWriteOptions,
     ) {
-      const updated = await deps.port.updatePatientPackageNotes(
-        patientPackageId,
-        organizationId,
-        notes,
+      const updated = await runMembershipWrite(options, () =>
+        deps.port.updatePatientPackageNotes(
+          patientPackageId,
+          organizationId,
+          notes,
+        ),
       );
       if (!updated) throw new Error('package_not_found');
       return withBalance(updated);
@@ -1080,47 +1141,46 @@ export function createMembershipsService(deps: {
      * the calendar — mirroring `consumeForAppointment`. Balance is always DERIVED from the
      * ledger; nothing is mutated directly.
      */
-    async recalcPastSessionsForPackage(input: {
+    async recalcPastSessionsForPackageDbPhase(input: {
       organizationId: string;
       patientPackageId: string;
       createdByPlatformUserId?: string | null;
       nowIso?: string;
-    }): Promise<RecalcPastSessionsSummary> {
-      const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
-      if (!raw) throw new Error('package_not_found');
-      const pkg = await refreshPatientPackageRecord(raw);
-
-      const summary: RecalcPastSessionsSummary = {
-        patientPackageId: pkg.id,
-        debited: [],
-        skipped: [],
-        outOfBalance: [],
-        corrected: [],
-      };
-
-      // Only active packages within validity can be debited. Nothing to do otherwise.
-      if (pkg.status !== 'active' || !isPatientPackageWithinValidity(pkg)) {
-        return summary;
-      }
-
-      const soldAtIso = pkg.soldAt ?? pkg.validFrom ?? pkg.createdAt;
-      const nowIso = input.nowIso ?? new Date().toISOString();
-      if (soldAtIso >= nowIso) {
-        return summary;
-      }
-
-      const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
-      const serviceIds = [...packageServiceIds];
-      if (serviceIds.length === 0) return summary;
-
+    }): Promise<{ summary: RecalcPastSessionsSummary; appointmentsToRefresh: string[] }> {
       // ST-02: serialize the whole read-balance→debit pass under a per-package lock so two
       // concurrent «Пересчитать» requests can never both read the same balance and double-debit.
       // The pg port runs this inside an advisory-locked transaction; the fake port mutexes it.
-      const appointmentsToRefresh: string[] = [];
-      const lockedSummary = await deps.port.runWithPackageLock(
-        pkg.id,
-        pkg.organizationId,
+      return deps.port.runWithPackageLock(
+        input.patientPackageId,
+        input.organizationId,
         async () => {
+          const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
+          if (!raw) throw new Error('package_not_found');
+          const pkg = await refreshPatientPackageRecord(raw);
+          const summary: RecalcPastSessionsSummary = {
+            patientPackageId: pkg.id,
+            debited: [],
+            skipped: [],
+            outOfBalance: [],
+            corrected: [],
+          };
+          const appointmentsToRefresh: string[] = [];
+
+          // Only active packages within validity can be debited. Nothing to do otherwise.
+          if (pkg.status !== 'active' || !isPatientPackageWithinValidity(pkg)) {
+            return { summary, appointmentsToRefresh };
+          }
+
+          const soldAtIso = pkg.soldAt ?? pkg.validFrom ?? pkg.createdAt;
+          const nowIso = input.nowIso ?? new Date().toISOString();
+          if (soldAtIso >= nowIso) {
+            return { summary, appointmentsToRefresh };
+          }
+
+          const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
+          const serviceIds = [...packageServiceIds];
+          if (serviceIds.length === 0) return { summary, appointmentsToRefresh };
+
           const candidates = await deps.port.listRecalcCandidateAppointments({
             organizationId: input.organizationId,
             platformUserId: pkg.platformUserId,
@@ -1282,15 +1342,27 @@ export function createMembershipsService(deps: {
             });
           }
 
-          return summary;
+          return { summary, appointmentsToRefresh };
         },
       );
+    },
 
-      for (const appointmentId of appointmentsToRefresh) {
+    async refreshRecalcPastSessionsCalendar(appointmentIds: readonly string[]): Promise<void> {
+      for (const appointmentId of appointmentIds) {
         await refreshPackageCalendarForAppointment(appointmentId);
       }
+    },
 
-      return lockedSummary;
+    async recalcPastSessionsForPackage(input: {
+      organizationId: string;
+      patientPackageId: string;
+      createdByPlatformUserId?: string | null;
+      nowIso?: string;
+    }): Promise<RecalcPastSessionsSummary> {
+      const result = await this.recalcPastSessionsForPackageDbPhase(input);
+      await this.refreshRecalcPastSessionsCalendar(result.appointmentsToRefresh);
+
+      return result.summary;
     },
 
     async onVisitConfirmed(appointmentId: string, organizationId: string) {

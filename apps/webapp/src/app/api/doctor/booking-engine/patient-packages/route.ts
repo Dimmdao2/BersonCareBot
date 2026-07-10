@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   membershipErrorResponse,
   resolveAssignedByPlatformUserId,
@@ -96,6 +97,9 @@ export async function POST(request: Request) {
         paidAmountMinor: body.paidAmountMinor ?? null,
         paidCurrency: body.paidCurrency,
         activateImmediately: body.activateImmediately,
+      }, {
+        runMembershipWrite: (fn) =>
+          withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.patient-packages.manual-create", fn),
       });
       return NextResponse.json({ ok: true, package: pkg });
     }
@@ -109,6 +113,9 @@ export async function POST(request: Request) {
       paidAmountMinor: body.paidAmountMinor ?? null,
       paidCurrency: body.paidCurrency,
       activateImmediately: body.activateImmediately,
+    }, {
+      runMembershipWrite: (fn) =>
+        withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.patient-packages.catalog-offer", fn),
     });
     return NextResponse.json({ ok: true, package: pkg });
   } catch (err) {

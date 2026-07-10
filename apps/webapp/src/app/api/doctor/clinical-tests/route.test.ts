@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
-const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn((_: unknown, _source: string, fn: () => unknown) => fn()),
+);
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: vi.fn(),
@@ -11,8 +13,9 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) => withDoctorWorkspacePrincipalMock(ctx, fn),
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: (ctx: unknown, source: string, fn: () => unknown) =>
+    withDoctorWorkspacePrincipalMock(ctx, source, fn),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", async () => {
@@ -86,6 +89,7 @@ describe("POST /api/doctor/clinical-tests", () => {
     expect(data.item.assessmentKind).toBe("mobility");
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      "doctor.clinical-tests.create",
       expect.any(Function),
     );
   });

@@ -1,5 +1,5 @@
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/infra/logging/logger";
 import {
@@ -141,36 +141,39 @@ export async function saveRecommendationCore(formData: FormData): Promise<
       if (cur.isArchived) {
         return { ok: false, error: "Рекомендация в архиве. Верните из архива, чтобы редактировать." };
       }
-      await withDoctorWorkspacePrincipal(workspace, () =>
-        deps.recommendations.updateRecommendation(id, {
-          title,
-          bodyMd,
-          tags,
-          media,
-          domain,
-          bodyRegionIds,
-          quantityText: quantityTextRaw,
-          frequencyText: frequencyTextRaw,
-          durationText: durationTextRaw,
-        }),
-      );
+      await deps.recommendations.updateRecommendation(id, {
+        title,
+        bodyMd,
+        tags,
+        media,
+        domain,
+        bodyRegionIds,
+        quantityText: quantityTextRaw,
+        frequencyText: frequencyTextRaw,
+        durationText: durationTextRaw,
+      }, {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.update", fn),
+      });
       return { ok: true, recommendationId: id, wasUpdate: true };
     }
-    const row = await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.recommendations.createRecommendation(
-        {
-          title,
-          bodyMd,
-          tags,
-          media,
-          domain,
-          bodyRegionIds,
-          quantityText: quantityTextRaw,
-          frequencyText: frequencyTextRaw,
-          durationText: durationTextRaw,
-        },
-        workspace.session.user.userId,
-      ),
+    const row = await deps.recommendations.createRecommendation(
+      {
+        title,
+        bodyMd,
+        tags,
+        media,
+        domain,
+        bodyRegionIds,
+        quantityText: quantityTextRaw,
+        frequencyText: frequencyTextRaw,
+        durationText: durationTextRaw,
+      },
+      workspace.session.user.userId,
+      {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.create", fn),
+      },
     );
     return { ok: true, recommendationId: row.id, wasUpdate: false };
   } catch (e) {
@@ -187,8 +190,13 @@ export async function archiveRecommendationCore(formData: FormData): Promise<Arc
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.recommendations.archiveRecommendation(id, { acknowledgeUsageWarning }),
+    await deps.recommendations.archiveRecommendation(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.archive", fn),
+      },
     );
     return { kind: "archived", id };
   } catch (e) {
@@ -214,7 +222,10 @@ export async function unarchiveRecommendationCore(formData: FormData): Promise<U
 
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(workspace, () => deps.recommendations.unarchiveRecommendation(id));
+    await deps.recommendations.unarchiveRecommendation(id, {
+      runRecommendationWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.unarchive", fn),
+    });
     return { kind: "unarchived", id };
   } catch (e) {
     if (isRecommendationArchiveNotFoundError(e)) {

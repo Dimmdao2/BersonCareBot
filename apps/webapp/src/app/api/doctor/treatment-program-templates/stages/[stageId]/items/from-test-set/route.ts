@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   isTreatmentProgramExpandNotFoundError,
   isTreatmentProgramTemplateAlreadyArchivedError,
@@ -14,8 +14,9 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { stageId } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -26,12 +27,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
 
   const deps = buildAppDeps();
   try {
-    const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.treatmentProgram.expandTestSetIntoTemplateStageItems(
-        parsed.data.templateId,
-        stageId,
-        parsed.data.testSetId,
-      ),
+    const result = await deps.treatmentProgram.expandTestSetIntoTemplateStageItems(
+      parsed.data.templateId,
+      stageId,
+      parsed.data.testSetId,
+      {
+        runTemplateWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.expand-test-set", fn),
+      },
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

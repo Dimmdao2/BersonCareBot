@@ -1,9 +1,28 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 const listWorkingHoursAdminMock = vi.hoisted(() => vi.fn());
@@ -44,12 +63,27 @@ function mockGateWithSpecialist(specialists: { id: string; isActive: boolean }[]
 describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
+    listWorkingHoursAdminMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+      return [];
+    });
+    usesWorkingHoursFallbackMock.mockResolvedValue(false);
+    createWorkingHoursMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return { id: "wh-new" };
+    });
+    updateWorkingHoursMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return { id: OWN_ROW_ID };
+    });
+    deactivateWorkingHoursMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
   });
 
   it("GET forces the doctor's own specialist and ignores a client-supplied specialistId", async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
-    listWorkingHoursAdminMock.mockResolvedValue([]);
-    usesWorkingHoursFallbackMock.mockResolvedValue(false);
 
     // Client tries to read ANOTHER specialist's rows — must be overridden to own id.
     const res = await GET(
@@ -59,11 +93,11 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     expect(listWorkingHoursAdminMock).toHaveBeenCalledWith(
       expect.objectContaining({ specialistId: OWN_SPECIALIST }),
     );
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("POST forces own specialist (body specialistId is ignored)", async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
-    createWorkingHoursMock.mockResolvedValue({ id: "wh-new" });
 
     const res = await POST(
       new Request("http://localhost/api/doctor/booking-engine/working-hours", {
@@ -82,6 +116,11 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     expect(createWorkingHoursMock).toHaveBeenCalledWith(
       expect.objectContaining({ specialistId: OWN_SPECIALIST }),
     );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.working-hours.create",
+      expect.any(Function),
+    );
   });
 
   it("PATCH rejects a row that does not belong to the doctor's specialist (403, no update)", async () => {
@@ -98,12 +137,28 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     );
     expect(res.status).toBe(403);
     expect(updateWorkingHoursMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+  });
+
+  it("PATCH rejects a global fallback row even when it is visible in the ownership probe", async () => {
+    mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
+    listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: null }]);
+
+    const res = await PATCH(
+      new Request("http://localhost/api/doctor/booking-engine/working-hours", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: OWN_ROW_ID, startMinute: 540, endMinute: 1020 }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(updateWorkingHoursMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("PATCH updates a row that belongs to the doctor's specialist", async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
-    listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID }]);
-    updateWorkingHoursMock.mockResolvedValue({ id: OWN_ROW_ID });
+    listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: OWN_SPECIALIST }]);
 
     const res = await PATCH(
       new Request("http://localhost/api/doctor/booking-engine/working-hours", {
@@ -116,6 +171,11 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     expect(updateWorkingHoursMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: OWN_ROW_ID, organizationId: "org-1" }),
     );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.working-hours.update",
+      expect.any(Function),
+    );
   });
 
   it("DELETE rejects a row not owned by the doctor's specialist (403, no deactivate)", async () => {
@@ -127,17 +187,35 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
     );
     expect(res.status).toBe(403);
     expect(deactivateWorkingHoursMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+  });
+
+  it("DELETE rejects a global fallback row even when it is visible in the ownership probe", async () => {
+    mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
+    listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: null }]);
+
+    const res = await DELETE(
+      new Request(`http://localhost/api/doctor/booking-engine/working-hours?id=${OWN_ROW_ID}`),
+    );
+    expect(res.status).toBe(403);
+    expect(deactivateWorkingHoursMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("DELETE deactivates an owned row", async () => {
     mockGateWithSpecialist([{ id: OWN_SPECIALIST, isActive: true }]);
-    listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID }]);
+    listWorkingHoursAdminMock.mockResolvedValue([{ id: OWN_ROW_ID, specialistId: OWN_SPECIALIST }]);
 
     const res = await DELETE(
       new Request(`http://localhost/api/doctor/booking-engine/working-hours?id=${OWN_ROW_ID}`),
     );
     expect(res.status).toBe(200);
-    expect(deactivateWorkingHoursMock).toHaveBeenCalledWith(OWN_ROW_ID, "org-1");
+    expect(deactivateWorkingHoursMock).toHaveBeenCalledWith("org-1", OWN_ROW_ID);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.working-hours.deactivate",
+      expect.any(Function),
+    );
   });
 
   it("returns 409 when the org has no specialist configured", async () => {

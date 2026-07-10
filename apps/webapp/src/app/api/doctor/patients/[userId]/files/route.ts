@@ -143,7 +143,7 @@ export async function POST(
     pgEnsureClientPatientFolder(patientUserId),
   );
 
-  const file = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+  const file = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.files.create", () =>
     deps.patientFiles.createFile({
       patientUserId,
       category,

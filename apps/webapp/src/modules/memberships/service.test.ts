@@ -683,6 +683,54 @@ describe('createMembershipsService', () => {
     ).rejects.toThrow('appointment_already_linked_to_package');
   });
 
+  it('manualConsume runs appointment status transition inside the write runner', async () => {
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([]),
+    });
+    let insideRunner = false;
+    const transitionsInsideRunner: boolean[] = [];
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: 'appt-manual',
+        packageUsageRef: null,
+        status: 'visit_confirmed',
+        organizationId: 'org-1',
+      }),
+      getStatusBeforePackageCharge: vi.fn(),
+      transitionAppointmentStatus: vi.fn().mockImplementation(async () => {
+        transitionsInsideRunner.push(insideRunner);
+      }),
+    };
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+
+    await svc.manualConsume(
+      {
+        organizationId: 'org-1',
+        patientPackageId: 'pp-1',
+        patientPackageItemId: 'i1',
+        appointmentId: 'appt-manual',
+        createdByPlatformUserId: 'doc-1',
+      },
+      {
+        runMembershipWrite: async (fn) => {
+          insideRunner = true;
+          try {
+            return await fn();
+          } finally {
+            insideRunner = false;
+          }
+        },
+      },
+    );
+
+    expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledWith({
+      appointmentId: 'appt-manual',
+      toStatus: 'charged_to_package',
+      payload: { source: 'membership_manual_consume' },
+    });
+    expect(transitionsInsideRunner).toEqual([true]);
+  });
+
   it('unlinkAppointmentFromPackage releases reserve', async () => {
     const port = makePort();
     const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
@@ -1230,6 +1278,125 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
     expect(port.recalcConsumeForAppointment).toHaveBeenCalledWith(
       expect.objectContaining({ appointmentId: 'a-stale' }),
     );
+  });
+
+  it('runs package load, refresh, recalc reads/writes inside the lock and calendar refresh after commit', async () => {
+    const events: string[] = [];
+    const expiredRaw: PatientPackageRecord = {
+      ...recalcPkg,
+      validUntil: '2026-01-01T00:00:00Z',
+    };
+    const refreshedPkg: PatientPackageRecord = {
+      ...recalcPkg,
+      validUntil: '2999-01-01T00:00:00Z',
+    };
+    const port = recalcPort(
+      [
+        candidate({
+          id: 'a-wrong',
+          status: 'confirmed',
+          canonicalStatus: 'canceled',
+          usageRows: [{ usageKind: 'consume' }],
+        }),
+        candidate({ id: 'a1', startsAt: '2050-01-02T00:00:00Z' }),
+      ],
+      {
+        runWithPackageLock: vi.fn().mockImplementation(async (_pkg, _org, fn) => {
+          events.push('lock:begin');
+          const result = await fn();
+          events.push('lock:commit');
+          return result;
+        }),
+        getPatientPackage: vi.fn().mockImplementation(async () => {
+          events.push('getPatientPackage');
+          return expiredRaw;
+        }),
+        setPatientPackageStatus: vi.fn().mockImplementation(async () => {
+          events.push('setPatientPackageStatus');
+          return refreshedPkg;
+        }),
+        appendHistoryEvent: vi.fn().mockImplementation(async () => {
+          events.push('appendHistoryEvent');
+        }),
+        listRecalcCandidateAppointments: vi.fn().mockImplementation(async () => {
+          events.push('listRecalcCandidateAppointments');
+          return [
+            candidate({
+              id: 'a-wrong',
+              status: 'confirmed',
+              canonicalStatus: 'canceled',
+              usageRows: [{ usageKind: 'consume' }],
+            }),
+            candidate({ id: 'a1', startsAt: '2050-01-02T00:00:00Z' }),
+          ];
+        }),
+        listUsagesForPackage: vi.fn().mockImplementation(async () => {
+          events.push('listUsagesForPackage');
+          return [];
+        }),
+        recalcCorrectCanceledAppointment: vi.fn().mockImplementation(async (input) => {
+          events.push(`recalcCorrectCanceledAppointment:${input.appointmentId}`);
+          return {
+            id: 'u-refund',
+            patientPackageId: input.patientPackageId,
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            usageKind: 'refund' as const,
+            quantity: input.quantity,
+            comment: 'recalc_correction_canceled_visit',
+            occurredAt: new Date().toISOString(),
+          };
+        }),
+        recalcConsumeForAppointment: vi.fn().mockImplementation(async (input) => {
+          events.push(`recalcConsumeForAppointment:${input.appointmentId}`);
+          return {
+            id: 'u-consume',
+            patientPackageId: input.patientPackageId,
+            patientPackageItemId: input.patientPackageItemId,
+            appointmentId: input.appointmentId,
+            usageKind: 'consume' as const,
+            quantity: 1,
+            comment: null,
+            occurredAt: new Date().toISOString(),
+          };
+        }),
+      },
+    );
+    const refreshPackageCalendar = vi.fn().mockImplementation(async (appointmentId: string) => {
+      events.push(`refresh:${appointmentId}`);
+    });
+    const svc = createMembershipsService({
+      port,
+      payments: null,
+      bookingEngine: null,
+      refreshPackageCalendar,
+    });
+
+    const res = await svc.recalcPastSessionsForPackage({
+      organizationId: 'org-1',
+      patientPackageId: 'pp-r',
+      nowIso: NOW,
+    });
+
+    expect(res.corrected).toEqual([
+      { appointmentId: 'a-wrong', serviceId: 'svc-1', refundUsageId: 'u-refund' },
+    ]);
+    expect(res.debited.map((d) => d.appointmentId)).toEqual(['a1']);
+    expect(port.runWithPackageLock).toHaveBeenCalledWith('pp-r', 'org-1', expect.any(Function));
+    expect(port.setPatientPackageStatus).toHaveBeenCalledWith('pp-r', 'org-1', 'expired');
+    expect(events).toEqual([
+      'lock:begin',
+      'getPatientPackage',
+      'setPatientPackageStatus',
+      'appendHistoryEvent',
+      'listRecalcCandidateAppointments',
+      'listUsagesForPackage',
+      'recalcCorrectCanceledAppointment:a-wrong',
+      'recalcConsumeForAppointment:a1',
+      'lock:commit',
+      'refresh:a-wrong',
+      'refresh:a1',
+    ]);
   });
 
   it('T3 correction: a consume on a canonical-cancelled visit is refunded (self-heal)', async () => {

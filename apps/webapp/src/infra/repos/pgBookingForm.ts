@@ -53,9 +53,32 @@ export function createPgBookingFormPort(): BookingFormPort {
       const db = getDrizzle();
       const now = new Date().toISOString();
       if (input.id) {
-        const updated = await db
-          .update(beBookingFormFields)
-          .set({
+        const fieldId = input.id;
+        const updated = await db.transaction((tx) =>
+          tx
+            .update(beBookingFormFields)
+            .set({
+              fieldKey: input.fieldKey,
+              fieldType: input.fieldType,
+              label: input.label,
+              placeholder: input.placeholder ?? null,
+              isRequired: input.isRequired,
+              visibleToPatient: input.visibleToPatient,
+              visibleToStaff: input.visibleToStaff,
+              sortOrder: input.sortOrder,
+              isActive: input.isActive,
+              updatedAt: now,
+            })
+            .where(and(eq(beBookingFormFields.id, fieldId), eq(beBookingFormFields.organizationId, organizationId)))
+            .returning(),
+        );
+        return mapField(updated[0]!);
+      }
+      const inserted = await db.transaction((tx) =>
+        tx
+          .insert(beBookingFormFields)
+          .values({
+            organizationId,
             fieldKey: input.fieldKey,
             fieldType: input.fieldType,
             label: input.label,
@@ -65,29 +88,11 @@ export function createPgBookingFormPort(): BookingFormPort {
             visibleToStaff: input.visibleToStaff,
             sortOrder: input.sortOrder,
             isActive: input.isActive,
+            createdAt: now,
             updatedAt: now,
           })
-          .where(and(eq(beBookingFormFields.id, input.id), eq(beBookingFormFields.organizationId, organizationId)))
-          .returning();
-        return mapField(updated[0]!);
-      }
-      const inserted = await db
-        .insert(beBookingFormFields)
-        .values({
-          organizationId,
-          fieldKey: input.fieldKey,
-          fieldType: input.fieldType,
-          label: input.label,
-          placeholder: input.placeholder ?? null,
-          isRequired: input.isRequired,
-          visibleToPatient: input.visibleToPatient,
-          visibleToStaff: input.visibleToStaff,
-          sortOrder: input.sortOrder,
-          isActive: input.isActive,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+          .returning(),
+      );
       return mapField(inserted[0]!);
     },
 

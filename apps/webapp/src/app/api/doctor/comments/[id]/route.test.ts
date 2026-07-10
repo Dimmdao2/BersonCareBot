@@ -31,7 +31,11 @@ const {
   const updateMockInner = vi.fn();
   const deleteMockInner = vi.fn();
   const requireDoctorWorkspaceApiContextMockInner = vi.fn();
-  const withDoctorWorkspacePrincipalMockInner = vi.fn((_: unknown, fn: () => unknown) => fn());
+  const withDoctorWorkspacePrincipalMockInner = vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+});
   return {
     getByIdMock: getByIdMockInner,
     updateMock: updateMockInner,
@@ -55,8 +59,15 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
-    withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 import { DELETE, GET, PATCH } from "./route";
@@ -70,7 +81,13 @@ describe("/api/doctor/comments/[id]", () => {
     deleteMock.mockClear();
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {

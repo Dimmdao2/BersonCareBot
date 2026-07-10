@@ -121,7 +121,7 @@ export async function PATCH(
   try {
     const visitId = parsed.data.visitId;
     if (visitId !== undefined) {
-      updated = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      updated = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.files.link", () =>
         deps.patientFiles.linkFileToVisit(fileId, visitId),
       );
       if (!updated) {
@@ -131,7 +131,7 @@ export async function PATCH(
 
     const fileName = parsed.data.fileName;
     if (fileName !== undefined) {
-      updated = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      updated = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.files.rename", () =>
         deps.patientFiles.renameFile(fileId, fileName),
       );
     }

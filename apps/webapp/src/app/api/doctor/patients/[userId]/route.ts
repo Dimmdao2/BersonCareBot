@@ -97,7 +97,7 @@ export async function PATCH(
   }
   const patientUserId = identity.userId;
 
-  await withDoctorWorkspacePrincipal(gate.ctx, async () => {
+  await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.profile.update", async () => {
     if ("birthDate" in parsed.data) {
       await deps.doctorClients.setPatientBirthDate(patientUserId, parsed.data.birthDate ?? null);
     }

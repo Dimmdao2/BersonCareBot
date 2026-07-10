@@ -5,7 +5,11 @@ const doctorApplyInstanceEditorBatchMock = vi.fn();
 const getClientIdentityMock = vi.fn();
 
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
-const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, fn: () => unknown) => fn()));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}));
 
 vi.mock("@/app-layer/cache/revalidatePatientTreatmentProgramUi", () => ({
   revalidatePatientTreatmentProgramUi: vi.fn(),
@@ -28,7 +32,15 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) => withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 import { POST } from "./route";
@@ -68,7 +80,13 @@ describe("POST .../editor-batch", () => {
     getClientIdentityMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspaceCtx });
     getInstanceByIdMock.mockResolvedValue({ id: instanceId, organizationId: workspaceCtx.organizationId, patientUserId });
     getClientIdentityMock.mockResolvedValue({ userId: patientUserId, displayName: "Пациент" });

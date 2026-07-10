@@ -353,6 +353,84 @@ describe("doctor-broadcasts service", () => {
     });
   });
 
+  it("scopes delivery commit wrapper away from chat append and push fan-out", async () => {
+    const wrapperState = { inside: false };
+    const localCommitPort = {
+      async commitAuditAndDeliveryQueue(input: {
+        auditId: string;
+        audit: Omit<BroadcastAuditEntry, "id" | "executedAt">;
+        jobs: readonly DoctorBroadcastQueueJob[];
+        recipientUserIds: readonly string[];
+      }): Promise<BroadcastAuditEntry> {
+        expect(wrapperState.inside).toBe(true);
+        return {
+          ...input.audit,
+          id: input.auditId,
+          executedAt: new Date().toISOString(),
+          deliveryJobsTotal: input.jobs.length,
+          attachMenuAfterSend: input.audit.attachMenuAfterSend,
+        };
+      },
+    };
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    vi.mocked(appendPatientInboundAdminMessage).mockImplementationOnce(async () => {
+      expect(wrapperState.inside).toBe(false);
+      return { conversationId: "c1", messageId: "m1" };
+    });
+    const fanOut = vi.fn().mockImplementation(async () => {
+      expect(wrapperState.inside).toBe(false);
+      return { attempted: 1, delivered: 1, errors: 0, skipped: 0 };
+    });
+    const pushEligible = new Set(["u1"]);
+    const emailRecipientsPort = {
+      getVerifiedEmailsForUserIds: vi.fn().mockImplementation(async () => {
+        expect(wrapperState.inside).toBe(false);
+        return new Map<string, string>();
+      }),
+    };
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: async (filter, channels, category) => ({
+        ...(await makeResolve([client("u1")])(filter, channels, category)),
+        webPushEligibleUserIds: pushEligible,
+        emailEligibleUserIds: new Set(["u1"]),
+      }),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort: localCommitPort,
+      patientInboundChatPort: {} as never,
+      fanOutBroadcastWebPush: fanOut,
+      patientWebPushNotifyDeps: {} as never,
+      fanOutBroadcastEmailDeps: {
+        emailRecipientsPort,
+        getSmtpValueJson: () => Promise.resolve(null),
+      },
+    });
+
+    await svc.execute(
+      {
+        category: "marketing",
+        audienceFilter: "all",
+        message: { title: "Новость", body: "Текст длиннее десяти символов" },
+        actorId: "doctor-1",
+        channels: ["bot_message", "push", "email"],
+      },
+      {
+        runDeliveryCommit: async (fn) => {
+          wrapperState.inside = true;
+          try {
+            return await fn();
+          } finally {
+            wrapperState.inside = false;
+          }
+        },
+      },
+    );
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledOnce();
+    expect(fanOut).toHaveBeenCalledOnce();
+    expect(emailRecipientsPort.getVerifiedEmailsForUserIds).toHaveBeenCalledOnce();
+    expect(wrapperState.inside).toBe(false);
+  });
+
   it("throws when delivery job cap exceeded", async () => {
     const many = Array.from({ length: 3000 }, (_, i) => client(`u${i}`, { bindings: { telegramId: String(100000 + i) } }));
     const svc = createDoctorBroadcastsService({

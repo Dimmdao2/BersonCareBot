@@ -4,6 +4,21 @@ const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const staffRescheduleMock = vi.hoisted(() => vi.fn());
 const updateRecordMock = vi.hoisted(() => vi.fn());
 const getBookingByCanonicalAppointmentMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 
 vi.mock("../../../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
@@ -11,6 +26,10 @@ vi.mock("../../../_requireDoctorBookingEngine", () => ({
 
 vi.mock("@/app-layer/booking/staffAppointmentLifecycleEffects", () => ({
   applyStaffRescheduleSideEffects: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/modules/integrator/bookingM2mApi", () => ({
@@ -38,6 +57,7 @@ import { POST } from "./route";
 describe("POST manual-reschedule", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
   });
 
   it("returns ok when lifecycle accepts reschedule", async () => {
@@ -60,10 +80,13 @@ describe("POST manual-reschedule", () => {
         },
       },
     });
-    staffRescheduleMock.mockResolvedValue({
-      ok: true,
-      appointment: { id: "appt-1", platformUserId: "u1" },
-      reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+    staffRescheduleMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return {
+        ok: true,
+        appointment: { id: "appt-1", platformUserId: "u1" },
+        reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+      };
     });
 
     const res = await POST(
@@ -83,6 +106,11 @@ describe("POST manual-reschedule", () => {
     expect(json.ok).toBe(true);
     expect(staffRescheduleMock).toHaveBeenCalledWith(
       expect.objectContaining({ durationMinutes: 60 }),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1" }),
+      "doctor.booking-engine.appointments.manual-reschedule",
+      expect.any(Function),
     );
     expect(updateRecordMock).not.toHaveBeenCalled();
   });
@@ -128,6 +156,7 @@ describe("POST manual-reschedule", () => {
     expect(json.ok).toBe(false);
     expect(json.error).toBe("external_slot_taken");
     expect(staffRescheduleMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("rolls back Rubitime update when canonical reschedule throws slot_overlap", async () => {
@@ -135,7 +164,10 @@ describe("POST manual-reschedule", () => {
       rubitimeId: "rt-1",
     });
     updateRecordMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined);
-    staffRescheduleMock.mockRejectedValue(new Error("slot_overlap"));
+    staffRescheduleMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      throw new Error("slot_overlap");
+    });
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {

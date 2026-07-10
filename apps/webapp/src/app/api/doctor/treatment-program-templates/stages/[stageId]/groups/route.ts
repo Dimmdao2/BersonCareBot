@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
@@ -12,8 +12,9 @@ const postBodySchema = z.object({
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { stageId } = await ctx.params;
   if (!z.string().uuid().safeParse(stageId).success) {
@@ -28,9 +29,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
 
   const deps = buildAppDeps();
   try {
-    const group = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.treatmentProgram.createTemplateStageGroup(stageId, parsed.data),
-    );
+    const group = await deps.treatmentProgram.createTemplateStageGroup(stageId, parsed.data, {
+      runTemplateWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-groups.create", fn),
+    });
     return NextResponse.json({ ok: true, group });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

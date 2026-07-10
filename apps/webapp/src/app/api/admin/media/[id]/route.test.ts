@@ -42,7 +42,11 @@ const {
     folderExistsMock: folderExistsMockInner,
     isInSubtreeMock: isInSubtreeMockInner,
     requireDoctorWorkspaceApiContextMock: vi.fn(),
-    withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, fn: () => unknown) => fn()),
+    withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+}),
   };
 });
 
@@ -59,8 +63,15 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) =>
-    withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/app-layer/media/clientMediaFolders", () => ({
@@ -139,7 +150,13 @@ describe("DELETE /api/admin/media/[id]", () => {
       ctx: { organizationId: "org-1", session: { user: { userId: "admin-1", role: "admin" } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     getSessionMock.mockReset();
     findUsageMock.mockReset();
     deleteHardMock.mockReset();
@@ -307,7 +324,13 @@ describe("PATCH /api/admin/media/[id] — ST-07 move-out gate", () => {
       ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     getSessionMock.mockReset();
     getByIdMock.mockReset();
     updateMediaFolderMock.mockReset();
@@ -400,7 +423,13 @@ describe("PATCH /api/admin/media/[id] — ST-09 displayName rename in patient fo
       ctx: { organizationId: "org-1", session: { user: { userId: "doc-1", role: "doctor" } } },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     getSessionMock.mockReset();
     getByIdMock.mockReset();
     updateDisplayNameMock.mockReset();

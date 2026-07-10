@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
   parseRecommendationDomain,
@@ -87,8 +87,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
@@ -104,24 +105,26 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.recommendations.createRecommendation(
-        {
-          title: parsed.data.title,
-          bodyMd: parsed.data.bodyMd,
-          media: parsed.data.media?.map((m, i) => ({
-            ...m,
-            sortOrder: m.sortOrder ?? i,
-          })),
-          tags: parsed.data.tags ?? null,
-          domain,
-          bodyRegionId: parsed.data.bodyRegionId ?? null,
-          quantityText: parsed.data.quantityText ?? null,
-          frequencyText: parsed.data.frequencyText ?? null,
-          durationText: parsed.data.durationText ?? null,
-        },
-        gate.ctx.session.user.userId,
-      ),
+    const row = await deps.recommendations.createRecommendation(
+      {
+        title: parsed.data.title,
+        bodyMd: parsed.data.bodyMd,
+        media: parsed.data.media?.map((m, i) => ({
+          ...m,
+          sortOrder: m.sortOrder ?? i,
+        })),
+        tags: parsed.data.tags ?? null,
+        domain,
+        bodyRegionId: parsed.data.bodyRegionId ?? null,
+        quantityText: parsed.data.quantityText ?? null,
+        frequencyText: parsed.data.frequencyText ?? null,
+        durationText: parsed.data.durationText ?? null,
+      },
+      workspace.session.user.userId,
+      {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.create", fn),
+      },
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {

@@ -5,6 +5,14 @@ export type { MediaRecord, MediaPreviewStatus, MediaAvailableQuality, VideoDeliv
 export type { MediaListParams, MediaListSortBy, MediaSortDirection, MediaUsageRef } from "./types";
 export type { UploadMediaParams, UploadMediaResult, MediaStoragePort } from "./ports";
 
+export type MediaWriteOptions = {
+  runMediaWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runMediaWrite<T>(options: MediaWriteOptions | undefined, fn: () => Promise<T>): Promise<T> {
+  return options?.runMediaWrite ? options.runMediaWrite(fn) : fn();
+}
+
 export function createMediaService(port: MediaStoragePort) {
   return {
     async upload(params: Parameters<MediaStoragePort["upload"]>[0]) {
@@ -19,8 +27,8 @@ export function createMediaService(port: MediaStoragePort) {
     async list(params: Parameters<MediaStoragePort["list"]>[0]) {
       return port.list(params);
     },
-    async updateDisplayName(mediaId: string, displayName: string | null) {
-      return port.updateDisplayName(mediaId, displayName);
+    async updateDisplayName(mediaId: string, displayName: string | null, options?: MediaWriteOptions) {
+      return runMediaWrite(options, () => port.updateDisplayName(mediaId, displayName));
     },
     async findUsage(mediaId: string) {
       return port.findUsage(mediaId);
@@ -28,11 +36,11 @@ export function createMediaService(port: MediaStoragePort) {
     async getUsageSummary(mediaId: string) {
       return port.getUsageSummary(mediaId);
     },
-    async deleteHard(mediaId: string) {
-      return port.deleteHard(mediaId);
+    async deleteHard(mediaId: string, options?: MediaWriteOptions) {
+      return runMediaWrite(options, () => port.deleteHard(mediaId));
     },
-    async updateMediaFolder(mediaId: string, folderId: string | null) {
-      return port.updateMediaFolder(mediaId, folderId);
+    async updateMediaFolder(mediaId: string, folderId: string | null, options?: MediaWriteOptions) {
+      return runMediaWrite(options, () => port.updateMediaFolder(mediaId, folderId));
     },
     async listFolders(parentId: string | null) {
       return port.listFolders(parentId);
@@ -40,17 +48,17 @@ export function createMediaService(port: MediaStoragePort) {
     async listAllFolders() {
       return port.listAllFolders();
     },
-    async createFolder(params: Parameters<MediaStoragePort["createFolder"]>[0]) {
-      return port.createFolder(params);
+    async createFolder(params: Parameters<MediaStoragePort["createFolder"]>[0], options?: MediaWriteOptions) {
+      return runMediaWrite(options, () => port.createFolder(params));
     },
-    async renameFolder(folderId: string, name: string) {
-      return port.renameFolder(folderId, name);
+    async renameFolder(folderId: string, name: string, options?: MediaWriteOptions) {
+      return runMediaWrite(options, () => port.renameFolder(folderId, name));
     },
-    async moveFolder(folderId: string, newParentId: string | null) {
-      return port.moveFolder(folderId, newParentId);
+    async moveFolder(folderId: string, newParentId: string | null, options?: MediaWriteOptions) {
+      return runMediaWrite(options, () => port.moveFolder(folderId, newParentId));
     },
-    async deleteFolder(folderId: string) {
-      return port.deleteFolder(folderId);
+    async deleteFolder(folderId: string, options?: MediaWriteOptions) {
+      return runMediaWrite(options, () => port.deleteFolder(folderId));
     },
     async folderExists(folderId: string) {
       return port.folderExists(folderId);

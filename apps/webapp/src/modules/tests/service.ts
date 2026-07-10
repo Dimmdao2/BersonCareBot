@@ -28,6 +28,28 @@ import {
 } from "./clinicalTestAssessmentKind";
 import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "./clinicalTestScoring";
 
+export type ClinicalTestWriteOptions = {
+  runClinicalTestWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+export type TestSetWriteOptions = {
+  runTestSetWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runClinicalTestWrite<T>(
+  options: ClinicalTestWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return options?.runClinicalTestWrite ? options.runClinicalTestWrite(fn) : fn();
+}
+
+function runTestSetWrite<T>(
+  options: TestSetWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return options?.runTestSetWrite ? options.runTestSetWrite(fn) : fn();
+}
+
 type ClinicalTestAssessmentWriteContext =
   | { kind: "create" }
   | { kind: "update"; existingAssessmentKind: string | null };
@@ -81,7 +103,11 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       return port.getById(id);
     },
 
-    async createClinicalTest(input: CreateClinicalTestInput, createdBy: string | null) {
+    async createClinicalTest(
+      input: CreateClinicalTestInput,
+      createdBy: string | null,
+      options?: ClinicalTestWriteOptions,
+    ) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название теста обязательно");
       const normalized = await normalizeClinicalWritePayload(
@@ -99,10 +125,10 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
         },
         { kind: "create" },
       );
-      return port.create(normalized, createdBy);
+      return runClinicalTestWrite(options, () => port.create(normalized, createdBy));
     },
 
-    async updateClinicalTest(id: string, input: UpdateClinicalTestInput) {
+    async updateClinicalTest(id: string, input: UpdateClinicalTestInput, options?: ClinicalTestWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new Error("Тест не найден");
       if (existing.isArchived) {
@@ -132,7 +158,7 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
         kind: "update",
         existingAssessmentKind: existing.assessmentKind,
       });
-      const row = await port.update(id, normalized);
+      const row = await runClinicalTestWrite(options, () => port.update(id, normalized));
       if (!row) throw new Error("Тест не найден");
       return row;
     },
@@ -141,7 +167,11 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       return port.getClinicalTestUsageSummary(id);
     },
 
-    async archiveClinicalTest(id: string, options?: ArchiveClinicalTestOptions) {
+    async archiveClinicalTest(
+      id: string,
+      options?: ArchiveClinicalTestOptions,
+      writeOptions?: ClinicalTestWriteOptions,
+    ) {
       const existing = await port.getById(id);
       if (!existing) throw new ClinicalTestArchiveNotFoundError();
       if (existing.isArchived) throw new ClinicalTestArchiveAlreadyArchivedError();
@@ -151,16 +181,16 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
         throw new ClinicalTestUsageConfirmationRequiredError(usage);
       }
 
-      const ok = await port.archive(id);
+      const ok = await runClinicalTestWrite(writeOptions, () => port.archive(id));
       if (!ok) throw new ClinicalTestArchiveNotFoundError();
     },
 
-    async unarchiveClinicalTest(id: string) {
+    async unarchiveClinicalTest(id: string, options?: ClinicalTestWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new ClinicalTestArchiveNotFoundError();
       if (!existing.isArchived) throw new ClinicalTestUnarchiveNotArchivedError();
 
-      const ok = await port.unarchive(id);
+      const ok = await runClinicalTestWrite(options, () => port.unarchive(id));
       if (!ok) throw new ClinicalTestArchiveNotFoundError();
     },
   };
@@ -176,20 +206,22 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       return setsPort.getById(id);
     },
 
-    async createTestSet(input: CreateTestSetInput, createdBy: string | null) {
+    async createTestSet(input: CreateTestSetInput, createdBy: string | null, options?: TestSetWriteOptions) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название набора обязательно");
-      return setsPort.create(
-        {
-          ...input,
-          title,
-          description: input.description?.trim() || null,
-        },
-        createdBy,
+      return runTestSetWrite(options, () =>
+        setsPort.create(
+          {
+            ...input,
+            title,
+            description: input.description?.trim() || null,
+          },
+          createdBy,
+        ),
       );
     },
 
-    async updateTestSet(id: string, input: UpdateTestSetInput) {
+    async updateTestSet(id: string, input: UpdateTestSetInput, options?: TestSetWriteOptions) {
       const existing = await setsPort.getById(id);
       if (!existing) throw new Error("Набор не найден");
       if (existing.isArchived) {
@@ -208,7 +240,7 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
         }
         patch.publicationStatus = input.publicationStatus;
       }
-      const row = await setsPort.update(id, patch);
+      const row = await runTestSetWrite(options, () => setsPort.update(id, patch));
       if (!row) throw new Error("Набор не найден");
       return row;
     },
@@ -217,7 +249,11 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       return setsPort.getTestSetUsageSummary(id);
     },
 
-    async archiveTestSet(id: string, options?: ArchiveTestSetOptions) {
+    async archiveTestSet(
+      id: string,
+      options?: ArchiveTestSetOptions,
+      writeOptions?: TestSetWriteOptions,
+    ) {
       const existing = await setsPort.getById(id);
       if (!existing) throw new TestSetArchiveNotFoundError();
       if (existing.isArchived) throw new TestSetArchiveAlreadyArchivedError();
@@ -227,20 +263,20 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
         throw new TestSetUsageConfirmationRequiredError(usage);
       }
 
-      const ok = await setsPort.archive(id);
+      const ok = await runTestSetWrite(writeOptions, () => setsPort.archive(id));
       if (!ok) throw new TestSetArchiveNotFoundError();
     },
 
-    async unarchiveTestSet(id: string) {
+    async unarchiveTestSet(id: string, options?: TestSetWriteOptions) {
       const existing = await setsPort.getById(id);
       if (!existing) throw new TestSetArchiveNotFoundError();
       if (!existing.isArchived) throw new TestSetUnarchiveNotArchivedError();
 
-      const ok = await setsPort.unarchive(id);
+      const ok = await runTestSetWrite(options, () => setsPort.unarchive(id));
       if (!ok) throw new TestSetArchiveNotFoundError();
     },
 
-    async setTestSetItems(testSetId: string, items: TestSetItemInput[]) {
+    async setTestSetItems(testSetId: string, items: TestSetItemInput[], options?: TestSetWriteOptions) {
       const set = await setsPort.getById(testSetId);
       if (!set) throw new Error("Набор не найден");
       if (set.isArchived) {
@@ -268,7 +304,7 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
         if (test.isArchived) throw new Error(`Тест архивирован и не может входить в набор: ${test.title}`);
       }
 
-      await setsPort.replaceItems(testSetId, normalized);
+      await runTestSetWrite(options, () => setsPort.replaceItems(testSetId, normalized));
     },
   };
 }

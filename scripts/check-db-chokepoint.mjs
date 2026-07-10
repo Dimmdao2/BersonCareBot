@@ -42,6 +42,14 @@ const allowedLayerRawSqlFiles = new Set([
   "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
 ]);
 
+function hasOnlyAllowedDrizzlePrincipalSql(rel, src, rawSqlCount) {
+  return (
+    rel === "apps/webapp/src/app-layer/db/drizzle.ts" &&
+    rawSqlCount === 1 &&
+    src.includes("sql`SELECT set_config('app.org', ${organizationId}, true)`")
+  );
+}
+
 function listTsFiles(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
@@ -108,7 +116,11 @@ function collectOffenders(files) {
     }
 
     const rawSqlCount = isGuardedLayerFile(rel) ? countLayerRawSqlMatches(src) : 0;
-    if (rawSqlCount > 0 && !allowedLayerRawSqlFiles.has(rel)) {
+    if (
+      rawSqlCount > 0 &&
+      !allowedLayerRawSqlFiles.has(rel) &&
+      !hasOnlyAllowedDrizzlePrincipalSql(rel, src, rawSqlCount)
+    ) {
       layerRawSqlOffenders.push(`${rel} (${rawSqlCount}x layer SQL signal)`);
     }
   }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { resolvePatientProgramInteractionPolicy } from "./supportPolicy";
 
 describe("resolvePatientProgramInteractionPolicy", () => {
@@ -9,6 +10,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
       resolvePatientProgramInteractionPolicy({
         profile: {
           patientUserId: "u1",
+          organizationId: "org-1",
           onSupport: true,
           supportStartedAt: null,
           commentsEnabled: null,
@@ -19,6 +21,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
         defaultsWithoutSupport: defaults,
       }),
     ).toEqual({
+      organizationId: "org-1",
       onSupport: true,
       commentsAllowed: true,
       mediaAllowed: false,
@@ -30,6 +33,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
       resolvePatientProgramInteractionPolicy({
         profile: {
           patientUserId: "u1",
+          organizationId: "org-1",
           onSupport: false,
           supportStartedAt: null,
           commentsEnabled: null,
@@ -40,6 +44,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
         defaultsWithoutSupport: { commentsEnabled: true, mediaEnabled: false },
       }),
     ).toEqual({
+      organizationId: "org-1",
       onSupport: false,
       commentsAllowed: true,
       mediaAllowed: false,
@@ -51,6 +56,7 @@ describe("resolvePatientProgramInteractionPolicy", () => {
       resolvePatientProgramInteractionPolicy({
         profile: {
           patientUserId: "u1",
+          organizationId: "org-1",
           onSupport: false,
           supportStartedAt: null,
           commentsEnabled: true,
@@ -61,6 +67,37 @@ describe("resolvePatientProgramInteractionPolicy", () => {
         defaultsWithoutSupport: defaults,
       }),
     ).toEqual({
+      organizationId: "org-1",
+      onSupport: false,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
+  });
+
+  it("fails closed when defaults would allow interaction but no organization context exists", () => {
+    expect(
+      resolvePatientProgramInteractionPolicy({
+        profile: null,
+        defaultsWithoutSupport: { commentsEnabled: true, mediaEnabled: true },
+      }),
+    ).toEqual({
+      organizationId: null,
+      onSupport: false,
+      commentsAllowed: false,
+      mediaAllowed: false,
+    });
+  });
+
+  it("uses active DB principal as organization context for default-without-support policy", async () => {
+    await expect(
+      runWithDbOrganizationPrincipal("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", async () =>
+        resolvePatientProgramInteractionPolicy({
+          profile: null,
+          defaultsWithoutSupport: { commentsEnabled: true, mediaEnabled: true },
+        }),
+      ),
+    ).resolves.toEqual({
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       onSupport: false,
       commentsAllowed: true,
       mediaAllowed: true,

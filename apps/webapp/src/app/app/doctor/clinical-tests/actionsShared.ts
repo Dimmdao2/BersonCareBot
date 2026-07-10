@@ -1,5 +1,5 @@
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/infra/logging/logger";
 import type { ClinicalTestMediaItem, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
@@ -161,36 +161,39 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
       if (cur.isArchived) {
         return { ok: false, error: "Тест в архиве. Верните из архива, чтобы редактировать." };
       }
-      await withDoctorWorkspacePrincipal(workspace, () =>
-        deps.clinicalTests.updateClinicalTest(id, {
-          title,
-          description: description || null,
-          testType: testType || null,
-          assessmentKind,
-          bodyRegionIds,
-          scoring,
-          rawText,
-          tags,
-          media,
-        }),
-      );
+      await deps.clinicalTests.updateClinicalTest(id, {
+        title,
+        description: description || null,
+        testType: testType || null,
+        assessmentKind,
+        bodyRegionIds,
+        scoring,
+        rawText,
+        tags,
+        media,
+      }, {
+        runClinicalTestWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.clinical-tests.update", fn),
+      });
       return { ok: true, testId: id, wasUpdate: true };
     }
-    const row = await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.clinicalTests.createClinicalTest(
-        {
-          title,
-          description: description || null,
-          testType: testType || null,
-          assessmentKind,
-          bodyRegionIds,
-          scoring,
-          rawText,
-          tags,
-          media,
-        },
-        workspace.session.user.userId,
-      ),
+    const row = await deps.clinicalTests.createClinicalTest(
+      {
+        title,
+        description: description || null,
+        testType: testType || null,
+        assessmentKind,
+        bodyRegionIds,
+        scoring,
+        rawText,
+        tags,
+        media,
+      },
+      workspace.session.user.userId,
+      {
+        runClinicalTestWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.clinical-tests.create", fn),
+      },
     );
     return { ok: true, testId: row.id, wasUpdate: false };
   } catch (e) {
@@ -207,8 +210,13 @@ export async function archiveClinicalTestCore(formData: FormData): Promise<Archi
   const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.clinicalTests.archiveClinicalTest(id, { acknowledgeUsageWarning }),
+    await deps.clinicalTests.archiveClinicalTest(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runClinicalTestWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.clinical-tests.archive", fn),
+      },
     );
     return { kind: "archived", id };
   } catch (e) {
@@ -234,7 +242,10 @@ export async function unarchiveClinicalTestCore(formData: FormData): Promise<Una
 
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(workspace, () => deps.clinicalTests.unarchiveClinicalTest(id));
+    await deps.clinicalTests.unarchiveClinicalTest(id, {
+      runClinicalTestWrite: (fn) =>
+        withDoctorWorkspacePrincipal(workspace, "doctor.clinical-tests.unarchive", fn),
+    });
     return { kind: "unarchived", id };
   } catch (e) {
     if (isClinicalTestArchiveNotFoundError(e)) {

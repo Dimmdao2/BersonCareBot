@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { BE_PRODUCT_TYPES } from "@/modules/products/types";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
@@ -44,11 +45,14 @@ export async function POST(request: Request) {
   if (!deps.products) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
-  const product = await deps.products.upsertProduct({
-    organizationId: gate.ctx.organizationId,
-    ...parsed.data,
-    compositionJson: parsed.data.compositionJson as never,
-    accessRulesJson: parsed.data.accessRulesJson as never,
-  });
+  const products = deps.products;
+  const product = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.products.upsert", () =>
+    products.upsertProduct({
+      organizationId: gate.ctx.organizationId,
+      ...parsed.data,
+      compositionJson: parsed.data.compositionJson as never,
+      accessRulesJson: parsed.data.accessRulesJson as never,
+    }),
+  );
   return NextResponse.json({ ok: true, product });
 }

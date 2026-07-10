@@ -76,7 +76,7 @@ export async function PATCH(
 
   if ("action" in parsed.data && parsed.data.action === "restore") {
     try {
-      const ok = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      const ok = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.restore", () =>
         deps.patientComorbidities.restore(patientUserId, comorbidityId),
       );
       if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
@@ -92,7 +92,7 @@ export async function PATCH(
   // editText branch
   const editData = parsed.data as { text?: string; since?: string | null };
   try {
-    const ok = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    const ok = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.update", () =>
       deps.patientComorbidities.editText({
         patientUserId,
         comorbidityId,
@@ -142,7 +142,7 @@ export async function DELETE(
   }
   const patientUserId = identity.userId;
   try {
-    const ok = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    const ok = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.patients.comorbidities.delete", () =>
       deps.patientComorbidities.markRemoved(patientUserId, comorbidityId),
     );
     if (!ok) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

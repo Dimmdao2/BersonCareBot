@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 /** Список перекрытий (GET) ожидает dateFrom/dateTo (YYYY-MM-DD). */
@@ -94,31 +95,38 @@ export async function PUT(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
+  const bookingScheduling = deps.bookingScheduling;
   const orgId = gate.ctx.organizationId;
   try {
     if (parsed.data.action === "upsert") {
       const { action: _, ...rest } = parsed.data;
-      await deps.bookingScheduling.upsertWorkingDays({
-        organizationId: orgId,
-        ...rest,
-        specialistId: resolveNullableUuid(rest.specialistId ?? undefined),
-        branchId: resolveNullableUuid(rest.branchId ?? undefined),
-        roomId: resolveNullableUuid(rest.roomId ?? undefined),
-      });
+      await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-days.upsert", () =>
+        bookingScheduling.upsertWorkingDays({
+          organizationId: orgId,
+          ...rest,
+          specialistId: resolveNullableUuid(rest.specialistId ?? undefined),
+          branchId: resolveNullableUuid(rest.branchId ?? undefined),
+          roomId: resolveNullableUuid(rest.roomId ?? undefined),
+        }),
+      );
     } else if (parsed.data.action === "close") {
       const { action: _, ...rest } = parsed.data;
-      await deps.bookingScheduling.closeWorkingDays({
-        organizationId: orgId,
-        ...rest,
-        specialistId: resolveNullableUuid(rest.specialistId ?? undefined),
-      });
+      await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-days.close", () =>
+        bookingScheduling.closeWorkingDays({
+          organizationId: orgId,
+          ...rest,
+          specialistId: resolveNullableUuid(rest.specialistId ?? undefined),
+        }),
+      );
     } else {
       const { action: _, ...rest } = parsed.data;
-      await deps.bookingScheduling.clearWorkingDays({
-        organizationId: orgId,
-        ...rest,
-        specialistId: resolveNullableUuid(rest.specialistId ?? undefined),
-      });
+      await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.working-days.clear", () =>
+        bookingScheduling.clearWorkingDays({
+          organizationId: orgId,
+          ...rest,
+          specialistId: resolveNullableUuid(rest.specialistId ?? undefined),
+        }),
+      );
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

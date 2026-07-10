@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   isRecommendationArchiveAlreadyArchivedError,
   isRecommendationArchiveNotFoundError,
@@ -45,8 +45,9 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -67,8 +68,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       domainPatch = String(rawDomain).trim();
     }
 
-    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.recommendations.updateRecommendation(id, {
+    const item = await deps.recommendations.updateRecommendation(
+      id,
+      {
         ...parsed.data,
         domain: domainPatch,
         bodyRegionId: parsed.data.bodyRegionId,
@@ -82,7 +84,11 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
                 ...m,
                 sortOrder: m.sortOrder ?? i,
               })),
-      }),
+      },
+      {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.update", fn),
+      },
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
@@ -95,8 +101,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
 /** Архивация (DELETE): при необходимости подтверждения usage — 409; повтор с `?acknowledgeUsageWarning=1`. */
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const url = new URL(request.url);
@@ -105,8 +112,13 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
 
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.recommendations.archiveRecommendation(id, { acknowledgeUsageWarning }),
+    await deps.recommendations.archiveRecommendation(
+      id,
+      { acknowledgeUsageWarning },
+      {
+        runRecommendationWrite: (fn) =>
+          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.archive", fn),
+      },
     );
     return NextResponse.json({ ok: true });
   } catch (e) {

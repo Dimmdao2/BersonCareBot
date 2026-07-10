@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   isCourseArchiveNotFoundError,
   isCourseUsageConfirmationRequiredError,
@@ -54,8 +54,9 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await context.params;
   if (!z.string().uuid().safeParse(id).success) {
@@ -71,8 +72,14 @@ export async function PATCH(
   const deps = buildAppDeps();
   const { acknowledgeUsageWarning, ...patch } = parsed.data;
   try {
-    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.courses.updateCourse(id, patch, { acknowledgeUsageWarning }),
+    const source = patch.status === "archived" ? "doctor.courses.archive" : "doctor.courses.update";
+    const item = await deps.courses.updateCourse(
+      id,
+      patch,
+      { acknowledgeUsageWarning },
+      {
+        runCourseWrite: (fn) => withDoctorWorkspacePrincipal(workspace, source, fn),
+      },
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {

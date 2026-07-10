@@ -1,6 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const principalState = vi.hoisted(() => ({ inside: false }));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn(async <T,>(
+    _workspace: { organizationId: string },
+    _source: string,
+    fn: () => Promise<T>,
+  ) => {
+    principalState.inside = true;
+    try {
+      return await fn();
+    } finally {
+      principalState.inside = false;
+    }
+  }),
+);
 const createAppointmentMock = vi.hoisted(() => vi.fn());
 const transitionAppointmentStatusMock = vi.hoisted(() => vi.fn());
 const deleteAppointmentHardMock = vi.hoisted(() => vi.fn());
@@ -13,6 +28,10 @@ const listSpecialistsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../_requireAdminBookingEngine", () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
 vi.mock("@/modules/integrator/bookingM2mApi", () => ({
@@ -53,6 +72,7 @@ import { POST } from "./route";
 describe("POST admin manual appointment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    principalState.inside = false;
   });
 
   it("returns external_slot_taken and rolls back appointment on Rubitime conflict", async () => {
@@ -214,6 +234,7 @@ describe("POST admin manual appointment", () => {
     expect(json.error).toBe("specialist_required");
     expect(createAppointmentMock).not.toHaveBeenCalled();
     expect(assertSlotAvailableMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 
   it("F2: in-person create with a resolvable specialist succeeds (uses default specialist)", async () => {
@@ -231,22 +252,28 @@ describe("POST admin manual appointment", () => {
         },
       },
     });
+    const bodyOrgId = "44444444-4444-4444-8444-444444444444";
     listSpecialistsMock.mockResolvedValue([
       { id: "33333333-3333-4333-8333-333333333333", isActive: true },
     ]);
-    createAppointmentMock.mockResolvedValue({
-      id: "appt-1",
-      startAt: "2026-06-01T10:00:00.000Z",
-      endAt: "2026-06-01T11:00:00.000Z",
-      platformUserId: null,
-      phoneNormalized: null,
-      attributionJson: {},
-      organizationId: "org-1",
-      status: "confirmed",
-      source: "admin_manual",
-      specialistId: "33333333-3333-4333-8333-333333333333",
+    createAppointmentMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return {
+        id: "appt-1",
+        startAt: "2026-06-01T10:00:00.000Z",
+        endAt: "2026-06-01T11:00:00.000Z",
+        platformUserId: null,
+        phoneNormalized: null,
+        attributionJson: {},
+        organizationId: bodyOrgId,
+        status: "confirmed",
+        source: "admin_manual",
+        specialistId: "33333333-3333-4333-8333-333333333333",
+      };
     });
-    assertSlotAvailableMock.mockResolvedValue(undefined);
+    assertSlotAvailableMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(false);
+    });
     resolveLegacyBranchServiceIdMock.mockResolvedValue("branch-service-id");
     resolveBranchServiceMock.mockResolvedValue({
       branch: { rubitimeBranchId: "123" },
@@ -260,6 +287,7 @@ describe("POST admin manual appointment", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          organizationId: bodyOrgId,
           branchId: "11111111-1111-4111-8111-111111111111",
           serviceId: "22222222-2222-4222-8222-222222222222",
           // no explicit specialistId → resolved from catalog default
@@ -273,10 +301,22 @@ describe("POST admin manual appointment", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(assertSlotAvailableMock).toHaveBeenCalledWith(
-      expect.objectContaining({ specialistId: "33333333-3333-4333-8333-333333333333" }),
+      expect.objectContaining({
+        organizationId: bodyOrgId,
+        specialistId: "33333333-3333-4333-8333-333333333333",
+      }),
     );
     expect(createAppointmentMock).toHaveBeenCalledWith(
-      expect.objectContaining({ specialistId: "33333333-3333-4333-8333-333333333333" }),
+      expect.objectContaining({
+        organizationId: bodyOrgId,
+        specialistId: "33333333-3333-4333-8333-333333333333",
+      }),
     );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: bodyOrgId }),
+      "admin.booking-engine.appointments.manual-create",
+      expect.any(Function),
+    );
+    expect(principalState.inside).toBe(false);
   });
 });

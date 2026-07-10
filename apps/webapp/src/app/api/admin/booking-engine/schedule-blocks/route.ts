@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const createBody = z.object({
@@ -45,11 +46,14 @@ export async function POST(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
-  const block = await deps.bookingScheduling.createScheduleBlock({
-    organizationId: gate.ctx.organizationId,
-    ...parsed.data,
-    createdByActorId: gate.ctx.session.user.userId,
-  });
+  const bookingScheduling = deps.bookingScheduling;
+  const block = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.schedule-blocks.create", () =>
+    bookingScheduling.createScheduleBlock({
+      organizationId: gate.ctx.organizationId,
+      ...parsed.data,
+      createdByActorId: gate.ctx.session.user.userId,
+    }),
+  );
   return NextResponse.json({ ok: true, block });
 }
 
@@ -64,6 +68,9 @@ export async function DELETE(request: Request) {
   if (!deps.bookingScheduling) {
     return NextResponse.json({ ok: false, error: "booking_scheduling_unavailable" }, { status: 503 });
   }
-  await deps.bookingScheduling.deleteScheduleBlock(id, gate.ctx.organizationId);
+  const bookingScheduling = deps.bookingScheduling;
+  await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.schedule-blocks.delete", () =>
+    bookingScheduling.deleteScheduleBlock(id, gate.ctx.organizationId),
+  );
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
 
 const PatchSchema = z.object({
@@ -23,18 +24,20 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const body = await request.json().catch(() => null);
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
-  const branch = await gate.ctx.service.catalog.upsertBranch({
-    organizationId: existing.organizationId,
-    id,
-    title: parsed.data.title ?? existing.title,
-    ...(parsed.data.shortTitle !== undefined ? { shortTitle: parsed.data.shortTitle } : {}),
-    ...(parsed.data.color !== undefined ? { color: parsed.data.color } : {}),
-    cityCode: parsed.data.cityCode ?? existing.cityCode,
-    address: parsed.data.address !== undefined ? parsed.data.address : existing.address,
-    timezone: parsed.data.timezone ?? existing.timezone,
-    isActive: parsed.data.isActive ?? existing.isActive,
-    sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
-  });
+  const branch = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.branches.update", () =>
+    gate.ctx.service.catalog.upsertBranch({
+      organizationId: existing.organizationId,
+      id,
+      title: parsed.data.title ?? existing.title,
+      ...(parsed.data.shortTitle !== undefined ? { shortTitle: parsed.data.shortTitle } : {}),
+      ...(parsed.data.color !== undefined ? { color: parsed.data.color } : {}),
+      cityCode: parsed.data.cityCode ?? existing.cityCode,
+      address: parsed.data.address !== undefined ? parsed.data.address : existing.address,
+      timezone: parsed.data.timezone ?? existing.timezone,
+      isActive: parsed.data.isActive ?? existing.isActive,
+      sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
+    }),
+  );
   return NextResponse.json({ ok: true, branch });
 }
 
@@ -42,6 +45,8 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
-  const ok = await gate.ctx.service.catalog.deactivateBranch(id);
+  const ok = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.branches.deactivate", () =>
+    gate.ctx.service.catalog.deactivateBranch(id),
+  );
   return NextResponse.json({ ok });
 }

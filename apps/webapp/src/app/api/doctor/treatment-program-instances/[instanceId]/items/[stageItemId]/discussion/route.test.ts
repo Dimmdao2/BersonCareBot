@@ -3,7 +3,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireDoctorWorkspaceApiContextMock = vi.fn();
-const withDoctorWorkspacePrincipalMock = vi.fn((_: unknown, fn: () => unknown) => fn());
+const withDoctorWorkspacePrincipalMock = vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+  if (!fn) throw new Error("principal_callback_required");
+  return fn();
+});
 const getInstanceMock = vi.fn();
 const getClientIdentityForOrganizationMock = vi.fn();
 const listDiscussionPageMergedMock = vi.fn();
@@ -13,7 +17,15 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
-  withDoctorWorkspacePrincipal: (ctx: unknown, fn: () => unknown) => withDoctorWorkspacePrincipalMock(ctx, fn),
+  withDoctorWorkspacePrincipal: (
+    ctx: unknown,
+    sourceOrFn: string | (() => unknown),
+    maybeFn?: () => unknown,
+  ) => {
+    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error("principal_callback_required");
+    return withDoctorWorkspacePrincipalMock(ctx, fn);
+  },
 }));
 
 vi.mock("@/modules/program-item-discussion/listDiscussionPage", () => ({
@@ -49,7 +61,13 @@ describe("GET doctor program item discussion", () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockClear();
-    withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error("principal_callback_required");
+        return fn();
+      },
+    );
     getInstanceMock.mockReset();
     getClientIdentityForOrganizationMock.mockReset();
     listDiscussionPageMergedMock.mockReset();

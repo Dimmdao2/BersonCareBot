@@ -205,6 +205,37 @@ describe("treatment-program service", () => {
     expect(archived.status).toBe("archived");
   });
 
+  it("reorderTemplateStages runs prechecks outside and reorder write through write options", async () => {
+    const calls: string[] = [];
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "T" }, null);
+    const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const detail = await svc.getTemplate(tpl.id);
+    const orderedStageIds = detail.stages.map((s) => s.id);
+    const originalGetTemplateById = port.getTemplateById.bind(port);
+    const originalReorderTemplateStages = port.reorderTemplateStages.bind(port);
+    port.getTemplateById = async (id) => {
+      calls.push("getTemplateById");
+      return originalGetTemplateById(id);
+    };
+    port.reorderTemplateStages = async (templateId, ids) => {
+      calls.push("reorderTemplateStages");
+      return originalReorderTemplateStages(templateId, ids);
+    };
+
+    await svc.reorderTemplateStages(tpl.id, orderedStageIds, {
+      runTemplateWrite: async (fn) => {
+        calls.push("runner:start");
+        const result = await fn();
+        calls.push("runner:end");
+        return result;
+      },
+    });
+
+    expect(stage.id).toBeTruthy();
+    expect(calls).toEqual(["getTemplateById", "runner:start", "reorderTemplateStages", "runner:end"]);
+  });
+
   describe("expandLfkComplexIntoTemplateStageItems", () => {
     const complexId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const ex1 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

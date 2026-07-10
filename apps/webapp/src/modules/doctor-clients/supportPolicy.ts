@@ -1,3 +1,5 @@
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+
 /** Per-patient row from `doctor_patient_support` (null row = defaults only). */
 export type ClientSupportProfile = {
   organizationId?: string | null;
@@ -17,6 +19,7 @@ export type DoctorSupportWithoutSupportDefaults = {
 };
 
 export type PatientProgramInteractionPolicy = {
+  organizationId: string | null;
   onSupport: boolean;
   commentsAllowed: boolean;
   mediaAllowed: boolean;
@@ -26,22 +29,28 @@ export function resolvePatientProgramInteractionPolicy(params: {
   profile: ClientSupportProfile | null;
   defaultsWithoutSupport: DoctorSupportWithoutSupportDefaults;
 }): PatientProgramInteractionPolicy {
+  const organizationId = params.profile?.organizationId ?? getCurrentDbPrincipalOrganizationId() ?? null;
   const onSupport = params.profile?.onSupport ?? false;
   if (onSupport) {
     return {
+      organizationId,
       onSupport: true,
       commentsAllowed: params.profile?.commentsEnabled !== false,
       mediaAllowed: params.profile?.mediaEnabled !== false,
     };
   }
+  const hasOrganizationContext = Boolean(organizationId);
   return {
+    organizationId,
     onSupport: false,
     commentsAllowed:
-      params.profile?.commentsEnabled === true ||
-      (params.profile?.commentsEnabled == null && params.defaultsWithoutSupport.commentsEnabled),
+      hasOrganizationContext &&
+      (params.profile?.commentsEnabled === true ||
+        (params.profile?.commentsEnabled == null && params.defaultsWithoutSupport.commentsEnabled)),
     mediaAllowed:
-      params.profile?.mediaEnabled === true ||
-      (params.profile?.mediaEnabled == null && params.defaultsWithoutSupport.mediaEnabled),
+      hasOrganizationContext &&
+      (params.profile?.mediaEnabled === true ||
+        (params.profile?.mediaEnabled == null && params.defaultsWithoutSupport.mediaEnabled)),
   };
 }
 

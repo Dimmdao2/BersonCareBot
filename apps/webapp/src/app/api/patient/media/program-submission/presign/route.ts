@@ -5,6 +5,7 @@ import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { getPool } from "@/app-layer/db/client";
 import { withUserLifecycleLock } from "@/app-layer/locks/userLifecycleLock";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   deletePendingMediaFileById,
   insertPendingProgramSubmissionMediaFileTx,
@@ -43,6 +44,10 @@ export async function POST(request: Request) {
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
+  const organizationId = supportGate.policy.organizationId;
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "organization_context_required" }, { status: 403 });
+  }
 
   let json: unknown;
   try {
@@ -72,18 +77,23 @@ export async function POST(request: Request) {
   const readUrl = `/api/media/${mediaId}`;
 
   try {
-    const patientFolder = await pgEnsureClientPatientFolder(gate.session.user.userId);
-    await withUserLifecycleLock(getPool(), gate.session.user.userId, "shared", async (client) => {
-      await insertPendingProgramSubmissionMediaFileTx(client, {
-        id: mediaId,
-        filename: parsed.data.filename,
-        key,
-        mimeType: mime,
-        sizeBytes: parsed.data.size,
-        userId: gate.session.user.userId,
-        folderId: patientFolder.id,
-      });
-    });
+    await withExplicitOrganizationPrincipal(
+      { organizationId, source: "patient.program-submission.media.presign" },
+      async () => {
+        const patientFolder = await pgEnsureClientPatientFolder(gate.session.user.userId);
+        await withUserLifecycleLock(getPool(), gate.session.user.userId, "shared", async (client) => {
+          await insertPendingProgramSubmissionMediaFileTx(client, {
+            id: mediaId,
+            filename: parsed.data.filename,
+            key,
+            mimeType: mime,
+            sizeBytes: parsed.data.size,
+            userId: gate.session.user.userId,
+            folderId: patientFolder.id,
+          });
+        });
+      },
+    );
     const uploadUrl = await presignPutUrl(key, mime);
     return NextResponse.json({
       ok: true as const,
@@ -92,9 +102,14 @@ export async function POST(request: Request) {
       readUrl,
     });
   } catch (e) {
-    await deletePendingMediaFileById(mediaId).catch(() => {
-      /* best-effort rollback */
-    });
+    await withExplicitOrganizationPrincipal(
+      { organizationId, source: "patient.program-submission.media.presign.rollback" },
+      async () => {
+        await deletePendingMediaFileById(mediaId).catch(() => {
+          /* best-effort rollback */
+        });
+      },
+    );
     logger.error({ err: e }, "[patient/program-submission/presign] presign_failed");
     return NextResponse.json({ ok: false, error: "presign_failed" }, { status: 500 });
   }

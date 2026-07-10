@@ -115,7 +115,10 @@ describe("createPgLfkExercisesPort", () => {
     const port = createPgLfkExercisesPort();
     const ok = await port.archive(exerciseId);
     expect(ok).toBe(true);
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    const txCalls = runWebappPgTextMock.mock.calls.filter((c) => c[2] != null);
+    expect(txCalls).toHaveLength(1);
+    const sql = String(txCalls[0]?.[0] ?? "");
     expect(sql).toContain("is_archived = true");
   });
 
@@ -124,7 +127,10 @@ describe("createPgLfkExercisesPort", () => {
     const port = createPgLfkExercisesPort();
     const ok = await port.unarchive(exerciseId);
     expect(ok).toBe(true);
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    const txCalls = runWebappPgTextMock.mock.calls.filter((c) => c[2] != null);
+    expect(txCalls).toHaveLength(1);
+    const sql = String(txCalls[0]?.[0] ?? "");
     expect(sql).toContain("is_archived = false");
   });
 

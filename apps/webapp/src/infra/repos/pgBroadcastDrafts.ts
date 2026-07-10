@@ -4,6 +4,7 @@
  */
 import { sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import type { BroadcastDraftPort, BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
 
 type RawDraftRow = {
@@ -39,8 +40,8 @@ export function createPgBroadcastDraftPort(): BroadcastDraftPort {
     },
 
     async saveDraft(doctorUserId: string, draft: BroadcastDraft): Promise<void> {
-      const db = getDrizzle();
-      await db.execute(sql`
+      await runWebappTransaction(async (tx) => {
+        await tx.execute(sql`
         INSERT INTO broadcast_drafts
           (doctor_user_id, category, audience, channels, title, body, media_url, media_type, updated_at)
         VALUES (
@@ -65,6 +66,7 @@ export function createPgBroadcastDraftPort(): BroadcastDraftPort {
           media_type = EXCLUDED.media_type,
           updated_at = NOW()
       `);
+      });
     },
   };
 }

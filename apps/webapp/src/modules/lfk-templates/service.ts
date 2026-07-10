@@ -14,6 +14,17 @@ import type {
 } from "./types";
 import { lfkTemplateArchiveRequiresAcknowledgement } from "./types";
 
+export type LfkTemplateWriteOptions = {
+  runTemplateWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+};
+
+function runTemplateWrite<T>(
+  options: LfkTemplateWriteOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return options?.runTemplateWrite ? options.runTemplateWrite(fn) : fn();
+}
+
 export function createLfkTemplatesService(port: LfkTemplatesPort) {
   return {
     async listTemplates(filter: TemplateFilter = {}) {
@@ -24,13 +35,19 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       return port.getById(id);
     },
 
-    async createTemplate(input: CreateTemplateInput, createdBy: string | null) {
+    async createTemplate(
+      input: CreateTemplateInput,
+      createdBy: string | null,
+      options?: LfkTemplateWriteOptions,
+    ) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название шаблона обязательно");
-      return port.create({ ...input, title, description: input.description?.trim() || null }, createdBy);
+      return runTemplateWrite(options, () =>
+        port.create({ ...input, title, description: input.description?.trim() || null }, createdBy),
+      );
     },
 
-    async updateTemplate(id: string, input: UpdateTemplateInput) {
+    async updateTemplate(id: string, input: UpdateTemplateInput, options?: LfkTemplateWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new Error("Шаблон не найден");
       if (existing.status === "archived") {
@@ -45,12 +62,16 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       if (input.description !== undefined) {
         patch.description = input.description?.trim() || null;
       }
-      const row = await port.update(id, patch);
+      const row = await runTemplateWrite(options, () => port.update(id, patch));
       if (!row) throw new Error("Шаблон не найден");
       return row;
     },
 
-    async updateExercises(templateId: string, exercises: TemplateExerciseInput[]) {
+    async updateExercises(
+      templateId: string,
+      exercises: TemplateExerciseInput[],
+      options?: LfkTemplateWriteOptions,
+    ) {
       const t = await port.getById(templateId);
       if (!t) throw new Error("Шаблон не найден");
       if (t.status === "archived") {
@@ -63,10 +84,10 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
         ...e,
         sortOrder: e.sortOrder ?? idx,
       }));
-      await port.updateExercises(templateId, normalized);
+      await runTemplateWrite(options, () => port.updateExercises(templateId, normalized));
     },
 
-    async publishTemplate(id: string) {
+    async publishTemplate(id: string, options?: LfkTemplateWriteOptions) {
       const t = await port.getById(id);
       if (!t) throw new Error("Шаблон не найден");
       if (t.status !== "draft") {
@@ -77,7 +98,7 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       if (t.exercises.length < 1) {
         throw new Error("Добавьте хотя бы одно упражнение");
       }
-      const next = await port.setStatus(id, "published");
+      const next = await runTemplateWrite(options, () => port.setStatus(id, "published"));
       if (!next) throw new Error("Шаблон не найден");
       return next;
     },
@@ -86,7 +107,11 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       return port.getTemplateUsageSummary(id);
     },
 
-    async archiveTemplate(id: string, options?: ArchiveTemplateOptions) {
+    async archiveTemplate(
+      id: string,
+      options?: ArchiveTemplateOptions,
+      writeOptions?: LfkTemplateWriteOptions,
+    ) {
       const existing = await port.getById(id);
       if (!existing) throw new TemplateArchiveNotFoundError();
       if (existing.status === "archived") throw new TemplateArchiveAlreadyArchivedError();
@@ -96,17 +121,17 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
         throw new LfkTemplateUsageConfirmationRequiredError(usage);
       }
 
-      const next = await port.setStatus(id, "archived");
+      const next = await runTemplateWrite(writeOptions, () => port.setStatus(id, "archived"));
       if (!next) throw new TemplateArchiveNotFoundError();
       return next;
     },
 
-    async unarchiveTemplate(id: string) {
+    async unarchiveTemplate(id: string, options?: LfkTemplateWriteOptions) {
       const existing = await port.getById(id);
       if (!existing) throw new TemplateArchiveNotFoundError();
       if (existing.status !== "archived") throw new TemplateUnarchiveNotArchivedError();
 
-      const next = await port.setStatus(id, "draft");
+      const next = await runTemplateWrite(options, () => port.setStatus(id, "draft"));
       if (!next) throw new TemplateArchiveNotFoundError();
       return next;
     },
