@@ -42,3 +42,12 @@ These markers are affirmed by `T0_5_T0_8_READINESS_REVIEW.md`. This does not exe
 - [x] Rubitime legacy paths are not assumed removed; canonical booking cutover is a separate gate.
 - [x] `integrator.contacts` fallback is not assumed removed; `public_only` cutover needs a clean exception audit.
 - [x] Queue/retention cleanup is not treated as business-data migration.
+
+## R2 readiness closure
+
+Closure artifact: `R2_READINESS_CLOSURE.md`.
+
+- [x] R2 deliverables mapped to current T0/P0 artifacts.
+- [x] R2 exit-gate evidence mapped to `check:saas-db-regression` and full CI.
+- [x] Enforcement execution remains explicitly out of scope: no runtime role/env/grant flip, no production/test deploy, no DB writes, no external-channel calls.
+- [x] Final R2 readiness validation passed and is recorded in `LOG.md`.
