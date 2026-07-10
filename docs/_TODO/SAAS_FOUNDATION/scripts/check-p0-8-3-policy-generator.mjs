@@ -21,7 +21,7 @@ const targets = descriptors.map((descriptor) => descriptor.table);
 const statements = renderP083PolicyStatements({ descriptors });
 const expectedPredicate = renderOrgPredicate(descriptors[0], { mode: "dormant_permissive" });
 
-assert.equal(targets.length, 103, "P0.8.3 must target exactly 103 public direct-org tables");
+assert.equal(targets.length, 105, "P0.8.3 must target exactly 105 public direct-org tables");
 assert.deepEqual(targets, [...expectedP083PublicDirectOrgTargets].sort(), "P0.8.3 targets must stay stable");
 assert.equal(statements.length, targets.length * 4, "Each target must render four DDL statements");
 
@@ -58,4 +58,4 @@ assert.match(
   "Generated policy must use the dormant permissive org predicate",
 );
 
-console.log("P0.8.3 policy generator OK: 103 targets and deterministic dormant policy DDL.");
+console.log("P0.8.3 policy generator OK: 105 targets and deterministic dormant policy DDL.");

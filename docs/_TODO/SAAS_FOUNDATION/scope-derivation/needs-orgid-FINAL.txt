@@ -14,6 +14,7 @@ integrator.user_subscriptions
 public.admin_audit_log
 public.broadcast_audit
 public.broadcast_audit_recipients
+public.broadcast_drafts
 public.clinical_anamnesis_illness
 public.clinical_anamnesis_lifestyle
 public.clinical_anamnesis_trauma
@@ -59,6 +60,7 @@ public.online_intake_attachments
 public.online_intake_requests
 public.online_intake_status_history
 public.operator_health_failure_archive
+public.org_enrollments
 public.patient_comorbidity
 public.patient_content_rating_feedback
 public.patient_daily_warmup_presentations

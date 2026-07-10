@@ -17,7 +17,9 @@ const batchMigrationPaths = Object.freeze({
   "P0.4.P6": "apps/webapp/db/drizzle-migrations/0151_p0_4_p6_support_comms_org.sql",
   "P0.4.P7": "apps/webapp/db/drizzle-migrations/0152_p0_4_p7_reminders_media_org.sql",
   "P0.4.P8": "apps/webapp/db/drizzle-migrations/0153_p0_4_p8_catalog_content_audit_org.sql",
+  "P0.4.P8B": "apps/webapp/db/drizzle-migrations/0165_p0_4_p8b_broadcast_drafts_org.sql",
   "P0.4.RC": "apps/webapp/db/drizzle-migrations/0155_p0_4_rc_reference_categories_org.sql",
+  "P0.4.EN": "apps/webapp/db/drizzle-migrations/0166_p0_4_en_org_enrollments_org_semantics.sql",
 });
 
 const orgColumnKinds = new Set(["direct_org_column", "denorm_org_column"]);

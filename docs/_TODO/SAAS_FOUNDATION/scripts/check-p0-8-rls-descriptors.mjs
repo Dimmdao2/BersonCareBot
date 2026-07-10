@@ -9,10 +9,10 @@ import {
 } from "./rls-descriptor-model.mjs";
 
 const expectedTierCounts = new Map([
-  ["BOOTSTRAP", 24],
+  ["BOOTSTRAP", 26],
   ["INFRA", 22],
   ["LEGACY", 16],
-  ["SCOPED", 155],
+  ["SCOPED", 157],
   ["TELEMETRY", 2],
 ]);
 
@@ -20,6 +20,7 @@ const expectedBootstrapHybridTables = new Set([
   "integrator.system_settings",
   "public.platform_user_contacts",
   "public.system_settings",
+  "public.system_settings_audit",
   "public.user_phone_history",
 ]);
 
@@ -28,7 +29,7 @@ const expectedScopedFkPathTables = new Set([
   "public.be_patient_package_items",
 ]);
 
-const expectedPublicDirectOrgPolicyTargets = 103;
+const expectedPublicDirectOrgPolicyTargets = 105;
 
 const expectedP083ParentCopyHolds = new Set([
   "public.content_section_slug_history",
@@ -76,8 +77,8 @@ if (duplicates.size > 0) {
   fail(`Duplicate tier rows: ${Array.from(duplicates).sort().join(", ")}`);
 }
 
-if (tierRows.length !== 219) {
-  fail(`Expected 219 tier rows, got ${tierRows.length}`);
+if (tierRows.length !== 223) {
+  fail(`Expected 223 tier rows, got ${tierRows.length}`);
 }
 
 if (descriptors.size !== tierRows.length) {
@@ -207,7 +208,7 @@ if (publicDirectOrgPolicyTargetCount !== expectedPublicDirectOrgPolicyTargets) {
   );
 }
 
-console.log("P0.8.1 RLS descriptor model OK: 219 descriptors cover tiers-218.tsv exactly once.");
+console.log("P0.8.1 RLS descriptor model OK: 223 descriptors cover tiers-218.tsv exactly once.");
 console.log(
   Array.from(actualTierCounts.entries())
     .sort(([left], [right]) => left.localeCompare(right))

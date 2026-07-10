@@ -35,6 +35,7 @@ const bootstrapHybridTables = new Set([
   "integrator.system_settings",
   "public.platform_user_contacts",
   "public.system_settings",
+  "public.system_settings_audit",
   "public.user_phone_history",
 ]);
 

@@ -3,6 +3,7 @@ BOOTSTRAP|integrator.system_settings
 BOOTSTRAP|integrator.telegram_state
 BOOTSTRAP|integrator.telegram_users
 BOOTSTRAP|integrator.users
+BOOTSTRAP|public.be_organization_members
 BOOTSTRAP|public.channel_link_secrets
 BOOTSTRAP|public.email_challenges
 BOOTSTRAP|public.email_send_cooldowns
@@ -12,6 +13,7 @@ BOOTSTRAP|public.phone_messenger_bind_secrets
 BOOTSTRAP|public.platform_user_contacts
 BOOTSTRAP|public.platform_users
 BOOTSTRAP|public.system_settings
+BOOTSTRAP|public.system_settings_audit
 BOOTSTRAP|public.user_channel_bindings
 BOOTSTRAP|public.user_channel_preferences
 BOOTSTRAP|public.user_email_setup_tokens
@@ -120,6 +122,7 @@ SCOPED|public.be_working_days
 SCOPED|public.be_working_hours
 SCOPED|public.broadcast_audit
 SCOPED|public.broadcast_audit_recipients
+SCOPED|public.broadcast_drafts
 SCOPED|public.clinical_anamnesis_illness
 SCOPED|public.clinical_anamnesis_lifestyle
 SCOPED|public.clinical_anamnesis_trauma
@@ -165,6 +168,7 @@ SCOPED|public.online_intake_attachments
 SCOPED|public.online_intake_requests
 SCOPED|public.online_intake_status_history
 SCOPED|public.operator_health_failure_archive
+SCOPED|public.org_enrollments
 SCOPED|public.patient_comorbidity
 SCOPED|public.patient_content_rating_feedback
 SCOPED|public.patient_daily_warmup_presentations

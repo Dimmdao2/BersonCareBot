@@ -12,10 +12,10 @@ const paths = {
 };
 
 const expectedTierCounts = Object.freeze({
-  BOOTSTRAP: 24,
+  BOOTSTRAP: 26,
   INFRA: 22,
   LEGACY: 16,
-  SCOPED: 155,
+  SCOPED: 157,
   TELEMETRY: 2,
 });
 
@@ -192,16 +192,16 @@ function runP0101Invariant({
     fail(`Unexpected tier(s): ${unexpectedTiers.join(", ")}`);
   }
 
-  if (scopedTables.length !== 155) {
-    fail(`Expected 155 SCOPED tables, got ${scopedTables.length}`);
+  if (scopedTables.length !== 157) {
+    fail(`Expected 157 SCOPED tables, got ${scopedTables.length}`);
   }
 
   if (scopedBeTables.length !== 44) {
     fail(`Expected 44 already-org-scoped public.be_* tables, got ${scopedBeTables.length}`);
   }
 
-  if (scopedNeedingOrgMaterialization.length !== 111) {
-    fail(`Expected 111 SCOPED non-be tables needing organization_id materialization, got ${scopedNeedingOrgMaterialization.length}`);
+  if (scopedNeedingOrgMaterialization.length !== 113) {
+    fail(`Expected 113 SCOPED non-be tables needing organization_id materialization, got ${scopedNeedingOrgMaterialization.length}`);
   }
 
   assertSameSet({
@@ -325,19 +325,19 @@ function runSelfTest() {
     /needs-orgid-FINAL\.txt vs SCOPED non-be tables mismatch|P0\.4\.BE FK-path tables must stay outside/,
   );
 
-  // Proves the grounding check itself fails closed on the REAL, unmutated
-  // repo state. As of this writing tiers-218.tsv is missing tier rows for
-  // at least 4 live base tables (public.be_organization_members,
-  // public.org_enrollments, public.system_settings_audit,
-  // public.broadcast_drafts) — see LOG.md. This self-test case is
-  // expected to keep passing (i.e. the underlying drift keeps being
-  // reported) until that follow-up tiers every stray table; at that point
-  // this case will need a different injected fault to keep testing the
-  // mechanism, since the real facts will no longer be able to supply one.
+  // tiers-218.tsv now covers the full actual schema (P0.10.1 W2, taskdb #648: the
+  // 4 stray tables be_organization_members/org_enrollments/system_settings_audit/
+  // broadcast_drafts are tiered — see LOG.md), so the grounding check no longer
+  // has a real drift to report on the unmutated repo state. Prove the grounding
+  // check still fails closed against the REAL (non-synthetic) facts by injecting
+  // a drift directly: drop one real tier row so its table reads as untiered.
   expectFailure(
-    "real schema is not fully tiered yet (expected-red proof)",
+    "real schema drift is caught (tier row removed)",
     cloneFacts(buildP0101Facts()),
-    () => {},
+    (facts) => {
+      const [droppedTable] = facts.tierTables;
+      facts.tierTableSet.delete(droppedTable);
+    },
     /not grounded in the actual schema.*IN CODE, NO TIER/s,
   );
 
@@ -354,7 +354,7 @@ if (process.argv.includes("--self-test")) {
     [
       "P0.10.1 tier completeness invariant OK:",
       "tiers-218.tsv tier rows match the actual schema (code + migrations) exactly once;",
-      "needs-orgid-FINAL=111 SCOPED non-be tables;",
+      "needs-orgid-FINAL=113 SCOPED non-be tables;",
       "P0.4 batches cover needs-org exactly;",
       "P0.4.BE FK-path tables stay outside needs-org.",
     ].join(" "),

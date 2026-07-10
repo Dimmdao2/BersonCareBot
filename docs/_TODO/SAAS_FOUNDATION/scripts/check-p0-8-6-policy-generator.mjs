@@ -16,12 +16,12 @@ const statements = renderP086PolicyStatements({ descriptors });
 const sql = statements.join("\n");
 const gucSql = "NULLIF(current_setting('app.org', true), '')";
 
-if (descriptors.length !== 4) {
-  fail(`Expected 4 P0.8.6 descriptors, got ${descriptors.length}`);
+if (descriptors.length !== 5) {
+  fail(`Expected 5 P0.8.6 descriptors, got ${descriptors.length}`);
 }
 
-if (expectedP086BootstrapHybridTargets.length !== 4) {
-  fail(`Expected 4 explicit P0.8.6 targets, got ${expectedP086BootstrapHybridTargets.length}`);
+if (expectedP086BootstrapHybridTargets.length !== 5) {
+  fail(`Expected 5 explicit P0.8.6 targets, got ${expectedP086BootstrapHybridTargets.length}`);
 }
 
 if (statements.length !== descriptors.length * 4) {
@@ -71,4 +71,4 @@ if (sql.includes(`${gucSql} IS NULL OR "organization_id"`)) {
   fail("P0.8.6 generated SQL must not use dormant permissive all-row semantics");
 }
 
-console.log("P0.8.6 policy generator OK: 4 BOOTSTRAP hybrid targets with global-or-matching-org predicate.");
+console.log("P0.8.6 policy generator OK: 5 BOOTSTRAP hybrid targets with global-or-matching-org predicate.");

@@ -15,6 +15,7 @@ P0.4.I1	integrator.user_subscriptions	bridge_user_id	add nullable organization_i
 P0.4.P8	public.admin_audit_log	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
 P0.4.P8	public.broadcast_audit	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
 P0.4.P8	public.broadcast_audit_recipients	audit_parent_denorm	copy organization_id from public.broadcast_audit; quarantine orphan child rows
+P0.4.P8B	public.broadcast_drafts	doctor_member_org	add nullable organization_id; backfill from doctor_user_id single active org via org_enrollments/be_organization_members, otherwise current single org; separate follow-up migration from P0.4.P8 (0153), which did not cover this table
 P0.4.P1	public.clinical_anamnesis_illness	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P1	public.clinical_anamnesis_lifestyle	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P1	public.clinical_anamnesis_trauma	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
@@ -60,6 +61,7 @@ P0.4.P5	public.online_intake_attachments	parent_denorm_copy	copy organization_id
 P0.4.P5	public.online_intake_requests	patient_org	add nullable organization_id; backfill from request patient/platform user membership/enrollment where linked, otherwise current single org with count check
 P0.4.P5	public.online_intake_status_history	parent_denorm_copy	copy organization_id from public.online_intake_requests; quarantine orphan child rows
 P0.4.P7	public.operator_health_failure_archive	user_org	add nullable organization_id; backfill from user key where present
+P0.4.EN	public.org_enrollments	already_direct_org	already has organization_id NOT NULL from creation (0144) and single-org seed backfill (0145); P0.4.EN supplemental migration validates the no-NULL invariant instead of adding another column
 P0.4.P1	public.patient_comorbidity	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P7	public.patient_content_rating_feedback	user_or_content_org	add nullable organization_id; backfill from patient/user membership/enrollment and validate content org
 P0.4.P4	public.patient_daily_warmup_presentations	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment

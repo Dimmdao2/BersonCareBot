@@ -129,7 +129,7 @@ if (legacy.enforceMode.action !== "legacy_frozen_deny" || renderP09EnforcePredic
 console.log(
   [
     "P0.9 enforce descriptors OK:",
-    "219 descriptors,",
+    "223 descriptors,",
     "missing/unknown deny,",
     "SCOPED enforce app.org,",
     "BOOTSTRAP explicit pre-context behavior,",
