@@ -40,14 +40,14 @@ SELECT (count(*) = 2)::int AS org_count_ok FROM public.be_organizations \\gset
 \\if :org_count_ok
 \\else
 \\echo 'FATAL: expected two synthetic organizations.'
-\\quit 1
+SELECT 1/0; -- psql 16's quit ignores an exit-status argument; force a real error under ON_ERROR_STOP instead
 \\endif
 
 SELECT (count(*) = 5)::int AS user_count_ok FROM public.platform_users \\gset
 \\if :user_count_ok
 \\else
 \\echo 'FATAL: expected five synthetic platform users.'
-\\quit 1
+SELECT 1/0; -- psql 16's quit ignores an exit-status argument; force a real error under ON_ERROR_STOP instead
 \\endif
 
 SELECT (count(*) FILTER (WHERE organization_key = 'org_a') > 0 AND count(*) FILTER (WHERE organization_key = 'org_b') > 0)::int AS manifest_orgs_ok
@@ -55,7 +55,7 @@ FROM p0_13_fixture.synthetic_rows \\gset
 \\if :manifest_orgs_ok
 \\else
 \\echo 'FATAL: manifest must include org A and org B rows.'
-\\quit 1
+SELECT 1/0; -- psql 16's quit ignores an exit-status argument; force a real error under ON_ERROR_STOP instead
 \\endif
 
 SELECT (count(*) FILTER (WHERE patient_key = 'patient_a1') > 0 AND count(*) FILTER (WHERE patient_key = 'patient_a2') > 0 AND count(*) FILTER (WHERE patient_key = 'patient_b1') > 0)::int AS manifest_patients_ok
@@ -63,7 +63,7 @@ FROM p0_13_fixture.synthetic_rows \\gset
 \\if :manifest_patients_ok
 \\else
 \\echo 'FATAL: manifest must include same-org and cross-org patient rows.'
-\\quit 1
+SELECT 1/0; -- psql 16's quit ignores an exit-status argument; force a real error under ON_ERROR_STOP instead
 \\endif
 
 SELECT (
@@ -82,7 +82,7 @@ SELECT (
 \\if :target_rows_ok
 \\else
 \\echo 'FATAL: representative synthetic target rows missing.'
-\\quit 1
+SELECT 1/0; -- psql 16's quit ignores an exit-status argument; force a real error under ON_ERROR_STOP instead
 \\endif
 `;
 

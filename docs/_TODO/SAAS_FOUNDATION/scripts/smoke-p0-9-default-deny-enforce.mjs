@@ -54,13 +54,13 @@ SELECT (
 \if :p0_9_1_scratch_db_ok
 \else
 \echo 'FATAL: P0.9.1 scratch smoke must run only on a scratch/SaaS proof database.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT (current_database() ~ 'bcb_webapp_(dev|prod|test)')::int AS p0_9_1_runtime_db \gset
 \if :p0_9_1_runtime_db
 \echo 'FATAL: P0.9.1 scratch smoke refuses dev/prod/test application databases.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 DROP SCHEMA IF EXISTS p0_9_1 CASCADE;
@@ -193,14 +193,14 @@ RESET app.org;
 SELECT count(*)::int AS scoped_unset_count FROM p0_9_1.scoped_rows \gset
 \if :scoped_unset_count
 \echo 'FATAL: missing app.org must deny SCOPED rows in enforce mode.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgB}';
 SELECT count(*)::int AS scoped_wrong_count FROM p0_9_1.scoped_rows WHERE payload = 'org-a' \gset
 \if :scoped_wrong_count
 \echo 'FATAL: wrong app.org must deny non-matching SCOPED rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SET app.org = '${orgA}';
@@ -208,20 +208,20 @@ SELECT count(*)::int AS scoped_correct_count FROM p0_9_1.scoped_rows \gset
 \if :scoped_correct_count
 \else
 \echo 'FATAL: correct app.org must permit matching SCOPED rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS scoped_correct_exact_count FROM p0_9_1.scoped_rows WHERE payload = 'org-a' \gset
 \if :scoped_correct_exact_count
 \else
 \echo 'FATAL: correct app.org must expose the org A SCOPED row.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS scoped_wrong_org_visible_count FROM p0_9_1.scoped_rows WHERE payload = 'org-b' \gset
 \if :scoped_wrong_org_visible_count
 \echo 'FATAL: correct app.org must not expose other org SCOPED rows.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 RESET app.org;
@@ -229,20 +229,20 @@ SELECT count(*)::int AS bootstrap_unset_count FROM p0_9_1.bootstrap_hybrid_rows 
 \if :bootstrap_unset_count
 \else
 \echo 'FATAL: BOOTSTRAP hybrid must keep global rows readable before org context.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS bootstrap_unset_org_count FROM p0_9_1.bootstrap_hybrid_rows WHERE organization_id IS NOT NULL \gset
 \if :bootstrap_unset_org_count
 \echo 'FATAL: BOOTSTRAP hybrid must not expose org rows before org context.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS bootstrap_global_count FROM p0_9_1.bootstrap_global_rows \gset
 \if :bootstrap_global_count
 \else
 \echo 'FATAL: BOOTSTRAP global descriptor must be readable before org context.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS infra_count FROM p0_9_1.explicit_infra_rows \gset
@@ -251,22 +251,22 @@ SELECT count(*)::int AS telemetry_count FROM p0_9_1.explicit_telemetry_rows \gse
 \if :infra_count
 \else
 \echo 'FATAL: explicit INFRA descriptor behavior must be readable.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 \if :legacy_count
 \echo 'FATAL: LEGACY frozen descriptor behavior must deny rows in enforce mode.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 \if :telemetry_count
 \else
 \echo 'FATAL: explicit TELEMETRY descriptor behavior must be readable.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 SELECT count(*)::int AS unknown_count FROM p0_9_1.unknown_rows \gset
 \if :unknown_count
 \echo 'FATAL: unknown/missing descriptor must fail closed under RLS default deny.'
-\quit 1
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
 \endif
 
 \echo 'P0.9.1 default-deny enforce scratch smoke OK: SCOPED fail-closed, BOOTSTRAP pre-context readable, INFRA/TELEMETRY explicit readable, LEGACY frozen denied, unknown descriptor denied.'
