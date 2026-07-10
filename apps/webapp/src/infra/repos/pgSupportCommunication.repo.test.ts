@@ -107,14 +107,14 @@ describe("createPgSupportCommunicationPort", () => {
       expect(sql).toContain("last_personal.personal_msg_at IS NOT NULL");
       expect(sql).toContain("$1::text IS NULL OR sc.source = $1");
       expect(sql).toContain("$3::boolean = false OR");
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true]);
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true, null]);
     });
 
     it("uses null source when filter omitted", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgSupportCommunicationPort();
       await port.listOpenConversationsForAdmin({ limit: 10 });
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false]);
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false, null]);
     });
   });
 

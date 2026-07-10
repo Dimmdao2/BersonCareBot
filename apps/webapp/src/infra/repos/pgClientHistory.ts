@@ -1,5 +1,7 @@
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import {
   beAppointmentStaffComments,
   bePatientBookingProfiles,
@@ -71,6 +73,25 @@ function mapStaffComment(row: typeof beAppointmentStaffComments.$inferSelect): A
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function currentPrincipalOrganizationId(): string {
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!principalOrganizationId) {
+    throw new Error("organization_principal_required");
+  }
+  return principalOrganizationId;
+}
+
+function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
+  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
+  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
+  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+    throw new Error("organization_principal_mismatch");
+  }
+  return principalOrganizationId;
 }
 
 async function resolveUserPhone(platformUserId: string): Promise<string | null> {
@@ -859,20 +880,22 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
     },
 
     async createAppointmentComment(input) {
-      const db = getDrizzle();
+      const organizationId = currentWriteOrganizationId(input.organizationId);
       const now = new Date().toISOString();
-      const rows = await db
-        .insert(beAppointmentStaffComments)
-        .values({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          platformUserId: input.platformUserId,
-          authorId: input.authorId,
-          body: input.body,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
+      const rows = await runDrizzleMutationTransaction((tx) =>
+        tx
+          .insert(beAppointmentStaffComments)
+          .values({
+            organizationId,
+            appointmentId: input.appointmentId,
+            platformUserId: input.platformUserId,
+            authorId: input.authorId,
+            body: input.body,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning(),
+      );
       return mapStaffComment(rows[0]!);
     },
   };
