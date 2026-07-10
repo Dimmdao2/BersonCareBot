@@ -36,9 +36,14 @@ cross-org; patient wall denies cross-patient (webapp uuid + integrator bigint, i
 staff (`actor='staff'`) sees all-org (variant A); unset context fails closed. Regression gate + full CI
 green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gated).
 - [x] **B4-core** — patient wall on 60 direct-column tables (mig 0169), audit-clean, merged/pushed.
-- [ ] **B4-core-2** — chain-only patient walls (integrator I2/I3 + support) + integrator GUC aligned to
-      `app.integrator_user_id`; smoke proves mixed patient session sees only own; **0 patient-owned SCOPED
-      tables left unwalled**. (#656)
+- [x] **B4-core-2** — chain-only patient walls for 11 tables (integrator I2/I3 + support) + integrator GUC
+      aligned to `app.integrator_user_id`; smoke proves mixed uuid+bigint patient session sees only own.
+      Audit-clean on those 11 + the GUC realign. Also fixed the `\quit 1` non-fatal smoke bug. (#656, merged)
+- [ ] **B4-core-3** — close the **9 MORE patient-owned chain tables the B4-core-2 audit found still open**
+      (PHI-bearing: online_intake_answers/attachments/status_history, clinical_complaint_update,
+      clinical_diagnosis_update/status_history, test_results, treatment_program_instance_stages,
+      lfk_complex_exercises). Same parent_denorm pattern, parents already walled. Register in
+      `patientChainOwnedTables` + regenerate + prove. THEN "0 patient-owned SCOPED open" is true. (#658)
 - [ ] **B5** — non-bypass app DB role + grants materialized (P0.5), static check green; live scratch
       proof by lead. (#655, Codex)
 - [ ] **B4-fanout** — read-context wrapper contract (Opus design): staff sessions set `app.actor='staff'`;
