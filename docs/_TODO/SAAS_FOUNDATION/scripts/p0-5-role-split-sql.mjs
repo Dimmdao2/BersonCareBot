@@ -264,14 +264,16 @@ WHERE rolname = :'p0_5_app_role' \\gset
 SELECT 1 / 0 AS p0_5_abort;
 \\endif
 
-SELECT (NOT EXISTS (
-  SELECT 1
-  FROM pg_auth_members membership
-  JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
-  JOIN pg_roles member_role ON member_role.oid = membership.member
-  WHERE member_role.rolname = :'p0_5_app_role'
-    AND granted_role.rolname IN (:'p0_5_owner_role', :'p0_5_migrator_role')
-))::int AS p0_5_app_membership_safe_ok \\gset
+-- MUST use pg_has_role(...) here, NOT a raw one-hop pg_auth_members lookup: pg_has_role follows the
+-- FULL transitive membership chain, so it also catches e.g. app_role -> some_intermediary_role ->
+-- owner_role, which a direct pg_auth_members row check would miss (it only sees a DIRECT grant and
+-- would report "safe" even though the app role could still assume owner/migrator privileges through
+-- an intermediary). Same fix/rationale as deploy/postgres/p0-5b-role-split-staff-patient.sql's
+-- app_patient/app_staff assertion (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #655/#662).
+SELECT (
+  NOT pg_has_role(:'p0_5_app_role', :'p0_5_owner_role', 'MEMBER')
+  AND NOT pg_has_role(:'p0_5_app_role', :'p0_5_migrator_role', 'MEMBER')
+)::int AS p0_5_app_membership_safe_ok \\gset
 
 \\if :p0_5_app_membership_safe_ok
 \\else
