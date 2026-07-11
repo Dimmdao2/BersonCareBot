@@ -10,11 +10,27 @@ CREATE TABLE IF NOT EXISTS "doctor_patient_support" (
   "updated_by" uuid
 );
 
-ALTER TABLE "doctor_patient_support" ADD CONSTRAINT "doctor_patient_support_patient_user_id_fkey"
-  FOREIGN KEY ("patient_user_id") REFERENCES "platform_users"("id") ON DELETE cascade;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'doctor_patient_support_patient_user_id_fkey'
+      AND conrelid = '"doctor_patient_support"'::regclass
+  ) THEN
+    ALTER TABLE "doctor_patient_support" ADD CONSTRAINT "doctor_patient_support_patient_user_id_fkey"
+      FOREIGN KEY ("patient_user_id") REFERENCES "platform_users"("id") ON DELETE cascade;
+  END IF;
+END $$;
 
-ALTER TABLE "doctor_patient_support" ADD CONSTRAINT "doctor_patient_support_updated_by_fkey"
-  FOREIGN KEY ("updated_by") REFERENCES "platform_users"("id") ON DELETE set null;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'doctor_patient_support_updated_by_fkey'
+      AND conrelid = '"doctor_patient_support"'::regclass
+  ) THEN
+    ALTER TABLE "doctor_patient_support" ADD CONSTRAINT "doctor_patient_support_updated_by_fkey"
+      FOREIGN KEY ("updated_by") REFERENCES "platform_users"("id") ON DELETE set null;
+  END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "uq_doctor_patient_support_patient"
   ON "doctor_patient_support" ("patient_user_id");
