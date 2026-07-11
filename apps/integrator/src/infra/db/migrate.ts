@@ -13,7 +13,7 @@ import { createIntegratorMigrationPoolProvider } from './integratorMigrationPool
 const INTEGRATOR_MIGRATIONS_TABLE = 'integrator.schema_migrations';
 
 // Описывает одну миграцию: область (scope), имя файла, путь и версию
-type MigrationFile = {
+export type MigrationFile = {
   scope: string;
   fileName: string;
   filePath: string;
@@ -218,6 +218,65 @@ async function discoverMigrations(): Promise<MigrationFile[]> {
   return merged;
 }
 
+/**
+ * Cross-app migration-ordering fix (taskdb #667): integrator SaaS migrations (filename date
+ * >= 20260708) do `... FROM public.org_enrollments` / `public.be_organization_members`, which are
+ * created by WEBAPP migrations. On a fresh DB, integrator's own migrate step must therefore be
+ * split into a "base" phase (runs before webapp core) and a "SaaS" phase (runs after webapp core
+ * creates those public tables). `scripts/migrate-all.sh` orchestrates this with
+ * INTEGRATOR_MIGRATIONS_BEFORE_DATE as an optional upper bound on the FIRST integrator phase.
+ *
+ * Extracts the leading 8-digit YYYYMMDD date embedded in the migration filename (all real
+ * integrator migration filenames start with one, e.g. `20260708_0001_....sql`; `version` is
+ * `<scope>:<fileName>`, so it also works as a fallback source). Returns null if no 8-digit date
+ * can be found — such a migration is treated as "base" (always eligible) so an unparseable
+ * filename never silently gets skipped.
+ */
+export function extractMigrationDate(migration: MigrationFile): number | null {
+  const fromFileName = /^(\d{8})_/.exec(migration.fileName);
+  if (fromFileName?.[1]) return Number(fromFileName[1]);
+
+  const fromVersion = /:(\d{8})_/.exec(migration.version);
+  if (fromVersion?.[1]) return Number(fromVersion[1]);
+
+  return null;
+}
+
+type BoundedMigrations = {
+  eligible: MigrationFile[];
+  deferred: MigrationFile[];
+};
+
+/**
+ * Splits `migrations` by the optional INTEGRATOR_MIGRATIONS_BEFORE_DATE bound (a YYYYMMDD string,
+ * e.g. "20260708"). Migrations whose embedded date is >= the bound are deferred (not applied this
+ * run). When `boundRaw` is unset/empty, everything is eligible and nothing is deferred — this is
+ * the default path and MUST stay behaviorally identical to "no bound at all".
+ */
+export function applyBeforeDateBound(migrations: MigrationFile[], boundRaw: string | undefined): BoundedMigrations {
+  if (!boundRaw) return { eligible: migrations, deferred: [] };
+
+  const bound = Number(boundRaw);
+  if (!Number.isFinite(bound) || !/^\d{8}$/.test(boundRaw)) {
+    throw new Error(
+      `INTEGRATOR_MIGRATIONS_BEFORE_DATE must be an 8-digit date (YYYYMMDD), got: "${boundRaw}"`,
+    );
+  }
+
+  const eligible: MigrationFile[] = [];
+  const deferred: MigrationFile[] = [];
+  for (const migration of migrations) {
+    const date = extractMigrationDate(migration);
+    // No parseable date => treat as base (< bound) so it always runs rather than being silently skipped.
+    if (date === null || date < bound) {
+      eligible.push(migration);
+    } else {
+      deferred.push(migration);
+    }
+  }
+  return { eligible, deferred };
+}
+
 
 
 
@@ -324,7 +383,24 @@ export async function runMigrations(): Promise<void> {
       'Discovered migrations',
     );
 
-    for (const migration of migrations) {
+    // Optional phase bound (taskdb #667): when set, skip (don't even attempt) migrations whose
+    // embedded filename date is >= the bound. Unset => eligible is the full `migrations` list and
+    // deferred is empty, so the loop below is byte-for-byte identical to the pre-existing behavior.
+    const beforeDateBoundRaw = process.env.INTEGRATOR_MIGRATIONS_BEFORE_DATE?.trim() || undefined;
+    const { eligible, deferred } = applyBeforeDateBound(migrations, beforeDateBoundRaw);
+
+    if (beforeDateBoundRaw) {
+      logger.info(
+        {
+          bound: beforeDateBoundRaw,
+          deferredCount: deferred.length,
+          deferredVersions: deferred.map((migration) => migration.version),
+        },
+        'INTEGRATOR_MIGRATIONS_BEFORE_DATE set: deferring migrations at/after bound to a later phase',
+      );
+    }
+
+    for (const migration of eligible) {
       if (applied.has(migration.version)) {
         logger.info(
           {
