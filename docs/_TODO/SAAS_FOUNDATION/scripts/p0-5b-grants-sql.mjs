@@ -69,13 +69,22 @@ export function getAppStaffGrantTables() {
 
 // app_patient BOOTSTRAP identity/settings subset -- the patient PWA's OWN account surface only.
 // Every entry traced to a confirmed patient-authenticated route/repo (2026-07-11 audit, taskdb #655):
-//   - public.platform_users: SELECT + UPDATE. Patient never INSERTs its own row (created at
-//     signup/pre-session, a still-undecided B4-fanout boundary -- see the excluded auth-flow tables
-//     below); confirmed UPDATE from the patient's own session: calendar_timezone
-//     (pgPatientCalendarTimezone.ts, PatientCalendarTimezoneSection.tsx) and reminder_muted_until
-//     (pgReminderRules.ts).
-//   - public.user_pins: SELECT + INSERT + UPDATE. PinSection.tsx (patient profile) + pgUserPins.ts
-//     upsert (`/api/auth/pin/set`) -- the patient's own login PIN, keyed by its own user_id.
+//   - public.platform_users: SELECT (whole-table) + a COLUMN-LEVEL UPDATE grant (see
+//     patientColumnGrants below) restricted to calendar_timezone + reminder_muted_until. gpt-5.6-sol
+//     audit (2026-07-11, this task, taskdb #655) rejected the original whole-table UPDATE grant:
+//     platform_users.role/is_blocked/trust/merge/verification/identity columns live on this SAME row
+//     the patient already owns -- RLS restricts which ROW app_patient can touch, never which COLUMN,
+//     so a whole-table UPDATE grant would let a patient's own session (or anything with raw SQL
+//     access via this role) write `role='admin'` on itself. Confirmed UPDATE from the patient's own
+//     session: calendar_timezone (pgPatientCalendarTimezone.ts, PatientCalendarTimezoneSection.tsx)
+//     and reminder_muted_until (pgReminderRules.ts). No other column has a traced patient-session
+//     write path -- everything else (role, is_blocked, trust/merge/verification/identity fields)
+//     stays out of the grant entirely, not just SELECT-only-by-omission.
+//   - public.user_pins: SELECT + INSERT (whole-table) + a COLUMN-LEVEL UPDATE grant restricted to
+//     pin_hash. PinSection.tsx (patient profile) + pgUserPins.ts upsert (`/api/auth/pin/set`) confirms
+//     the patient's own session writes pin_hash. attempts_failed/locked_until implement the PIN
+//     brute-force lockout counters (incrementFailed/resetAttempts) -- excluded from the patient grant
+//     so a patient session cannot self-reset its own lockout after failed PIN guesses.
 //   - public.user_channel_preferences / user_notification_topics / user_notification_topic_channels:
 //     SELECT + INSERT + UPDATE. profileTopicChannelsModel.ts + `/api/patient/web-push/unsubscribe` --
 //     the patient's own notification-channel toggles.
@@ -87,10 +96,12 @@ export function getAppStaffGrantTables() {
 //     display via pgPatientTelegramUsernameMention.ts) but no patient-session WRITE path was found --
 //     bindings/contacts are created by the bind-secret/webhook flow, not a browser PATCH.
 const appPatientBootstrapTables = [
-  { qualifiedName: "public.platform_users", privileges: "SELECT, UPDATE" },
+  // SELECT-only at table level -- the UPDATE these two tables get is column-restricted, see
+  // patientColumnGrants below.
+  { qualifiedName: "public.platform_users", privileges: "SELECT" },
   { qualifiedName: "public.platform_user_contacts", privileges: "SELECT" },
   { qualifiedName: "public.user_phone_history", privileges: "SELECT" },
-  { qualifiedName: "public.user_pins", privileges: "SELECT, INSERT, UPDATE" },
+  { qualifiedName: "public.user_pins", privileges: "SELECT, INSERT" },
   { qualifiedName: "public.user_channel_bindings", privileges: "SELECT" },
   { qualifiedName: "public.user_channel_preferences", privileges: "SELECT, INSERT, UPDATE" },
   { qualifiedName: "public.user_notification_topics", privileges: "SELECT, INSERT, UPDATE" },
@@ -109,17 +120,50 @@ const patientScopedPrivilegeOverrides = new Map([
   // inside patientCancel/patientReschedule. be_appointment_no_shows and be_appointment_staff_comments
   // are deliberately NOT here (no-show is staff-marked; staff_comments is staff-authored content --
   // both stay SELECT-only).
-  ["public.be_appointments", "SELECT, INSERT, UPDATE"],
-  ["public.be_appointment_cancellations", "SELECT, INSERT, UPDATE"],
-  ["public.be_appointment_reschedules", "SELECT, INSERT, UPDATE"],
+  //
+  // be_appointments: SELECT (whole-table) + COLUMN-LEVEL INSERT/UPDATE (see patientColumnGrants).
+  // 2026-07-11 re-audit (taskdb #655, gpt-5.6-sol general-sweep finding): the traced patient
+  // INSERT/UPDATE genuinely needs to write status/specialist_id/branch_id/room_id/service_id (a
+  // reschedule can move room/branch; cancel/reschedule sets status) -- RLS+app-layer validation, not
+  // the GRANT, is what keeps those values sane, and that residual risk is documented in
+  // P0_5B_GRANTS.md. What the column grant DOES newly close: payment_ref, package_usage_ref, and
+  // deleted_at are NEVER written by the traced patient path (payment/package bookkeeping is
+  // staff/webhook-only; deleted_at is the Rubitime-sync soft-delete) -- excluded from both column
+  // lists so a patient session cannot forge a payment/package reference or un/soft-delete a booking.
+  ["public.be_appointments", "SELECT"],
+  // be_appointment_cancellations / be_appointment_reschedules: whole-table INSERT is safe (every
+  // column the traced applyCancellation/applyReschedule insert is patient-context-legitimate,
+  // staff_comment is explicitly passed NULL by the patient path). UPDATE dropped entirely -- the only
+  // UPDATE call on either table (patchLatest*Notifications, sets notifications_sent) has NO caller
+  // anywhere in apps/webapp/src (dead/unwired code); re-add narrowly on notifications_sent only if
+  // that feature is ever wired up.
+  ["public.be_appointment_cancellations", "SELECT, INSERT"],
+  ["public.be_appointment_reschedules", "SELECT, INSERT"],
   ["public.be_appointment_events", "SELECT, INSERT"],
   ["public.be_appointment_history_events", "SELECT, INSERT"],
   ["public.be_patient_timeline_events", "SELECT, INSERT"],
-  ["public.be_patient_booking_profiles", "SELECT, INSERT, UPDATE"],
+  // be_patient_booking_profiles: SELECT-only. 2026-07-11 gpt-5.6-sol audit rejected INSERT/UPDATE --
+  // EVERY non-key/non-FK column on this table (is_problematic, booking_blocked, problematic_note,
+  // no_show_count, updated_by) is staff-controlled per-patient moderation state; there is no
+  // patient-owned column on this table at all, so unlike platform_users this is not a
+  // column-restriction candidate -- the write grant is removed entirely.
+  ["public.be_patient_booking_profiles", "SELECT"],
+  // be_booking_form_submissions: SELECT, INSERT (whole-table) + COLUMN-LEVEL UPDATE (value_text
+  // only). 2026-07-11 general-sweep finding: pgBookingForm.ts's saveSubmissions does
+  // `.insert(...).onConflictDoUpdate({ set: { valueText } })` -- Postgres requires UPDATE privilege
+  // on value_text for the ON CONFLICT DO UPDATE branch to succeed, so the original SELECT+INSERT-only
+  // grant was actually under-provisioned (would have thrown permission denied once this role went
+  // live), not over-provisioned. Fixed alongside the over-grants found in the same sweep.
   ["public.be_booking_form_submissions", "SELECT, INSERT"],
 
-  // Support/chat: confirmed patient-facing `/api/patient/support`, pgSupportCommunication.ts.
-  ["public.support_conversations", "SELECT, INSERT, UPDATE"],
+  // Support/chat: confirmed patient-facing `/api/patient/messages` -> patientMessagingService ->
+  // ensureWebappConversationForUser (pgSupportCommunication.ts). support_conversations: SELECT
+  // (whole-table) + COLUMN-LEVEL INSERT/UPDATE (see patientColumnGrants). 2026-07-11 general-sweep
+  // finding: the original whole-table UPDATE grant covered status/closed_at/close_reason/admin_scope/
+  // channel_code/channel_external_id -- all staff/moderation state a patient session never
+  // legitimately touches (the ON CONFLICT DO UPDATE branch this repo actually runs only ever sets
+  // organization_id, platform_user_id, updated_at).
+  ["public.support_conversations", "SELECT"],
   ["public.support_conversation_messages", "SELECT, INSERT"],
   ["public.support_question_messages", "SELECT, INSERT"],
   ["public.support_questions", "SELECT, INSERT"],
@@ -141,17 +185,33 @@ const patientScopedPrivilegeOverrides = new Map([
   ["public.online_intake_requests", "SELECT, INSERT"],
   ["public.online_intake_answers", "SELECT, INSERT"],
   ["public.online_intake_attachments", "SELECT, INSERT"],
-  // FLAG (see P0_5B_GRANTS.md): org_enrollments is written from the SAME pgOnlineIntake.ts repo as
-  // online_intake_requests above (first intake submission can enroll the patient in the org) --
-  // included here on that coupling, but the exact call site was not independently traced; re-verify
-  // in B4-fanout before the real flip.
-  ["public.org_enrollments", "SELECT, INSERT"],
+  // org_enrollments: SELECT-only. 2026-07-11 gpt-5.6-sol audit rejected the INSERT grant -- an
+  // enrollment row IS the org-membership authorization record (status: active/invited/discharged/
+  // archived controls what an org member can see/do), and the call site coupling to
+  // online_intake_requests above was never independently traced (the generator comment said so
+  // itself -- "not independently traced"). Removed entirely rather than kept as an unconfirmed write;
+  // re-add with a traced call site + column-restriction (status excluded, since granting it is
+  // equivalent to letting a patient self-enroll/self-discharge) if B4-fanout confirms a real
+  // patient-session INSERT path.
+  ["public.org_enrollments", "SELECT"],
 
-  // Media: confirmed `/api/patient/media/program-submission`, mediaUploadSessionsRepo.ts. Own
-  // program-submission uploads only; media_transcode_jobs (worker-created) and media_folders stay
-  // SELECT-only.
-  ["public.media_files", "SELECT, INSERT, UPDATE"],
-  ["public.media_upload_sessions", "SELECT, INSERT, UPDATE"],
+  // Media: confirmed `/api/patient/media/program-submission`, mediaUploadSessionsRepo.ts +
+  // s3MediaStorage.ts. media_transcode_jobs (worker-created) and media_folders stay SELECT-only.
+  // media_files: SELECT (whole-table) + COLUMN-LEVEL INSERT/UPDATE (see patientColumnGrants).
+  // 2026-07-11 general-sweep finding: this table also carries the transcode/preview pipeline's own
+  // bookkeeping (preview_*, video_processing_*, hls_*, poster_*, video_duration_seconds,
+  // available_qualities_json, delete_attempts, next_attempt_at) -- all worker-owned, none written by
+  // the traced patient upload path. UPDATE is restricted to `status` only (confirmProgramSubmission-
+  // MediaFileReady sets nothing else); a whole-table UPDATE would let a patient forge transcode/
+  // preview state or bypass S3 size/mime bookkeeping on their own row.
+  ["public.media_files", "SELECT"],
+  // media_upload_sessions: SELECT, INSERT (whole-table; the traced createSession call sets the full
+  // row at creation, no staff columns exist on this table) + COLUMN-LEVEL UPDATE (see
+  // patientColumnGrants) restricted to the state-machine columns the traced code actually
+  // transitions (status/completed_at/last_error/updated_at) -- excludes expires_at/part_size_bytes/
+  // s3_key/upload_id, none of which the app ever updates post-insert; a whole-table UPDATE would let
+  // a patient extend its own upload TTL or repoint the multipart upload target.
+  ["public.media_upload_sessions", "SELECT, INSERT"],
 
   // Practice/warmup engagement tracking: confirmed `/api/patient/practice/completion`,
   // `/api/patient/daily-warmup/video-viewed`.
@@ -163,23 +223,65 @@ const patientScopedPrivilegeOverrides = new Map([
   ["public.material_ratings", "SELECT, INSERT, UPDATE"],
   ["public.patient_content_rating_feedback", "SELECT, INSERT, UPDATE"],
 
-  // Comments on own program/lfk items (polymorphic patient-ownership, B4-core-4): patient can post/
-  // edit its own comment.
-  ["public.comments", "SELECT, INSERT, UPDATE"],
+  // Comments on own program/lfk items (polymorphic patient-ownership, B4-core-4): SELECT-only.
+  // 2026-07-11 general-sweep finding: no patient-facing route/caller was found anywhere in
+  // apps/webapp/src for this table (only modules/comments/service.ts + tests reference it) -- the
+  // write grant was speculative/forward-looking, not a confirmed patient-session path. Per this
+  // generator's own stated conservative default (an unconfirmed write grant is a silent privilege
+  // escalation risk; a missing one surfaces loudly as "permission denied"), dropped to SELECT-only.
+  // Also note for whenever B4-core-4 wires a real route: comment_type's CHECK allows
+  // 'template'/'clinical_note' alongside 'individual_override' -- column presence alone would not
+  // stop a patient INSERT from claiming comment_type='clinical_note' (impersonating a doctor's
+  // note), so the eventual write grant should be column-restricted to (body, comment_type) with an
+  // app-layer/RLS WITH CHECK pinning patient inserts to individual_override + author_id = self.
+  ["public.comments", "SELECT"],
 
-  // Reminders: confirmed `/api/patient/reminders/{create,mute}`.
+  // Reminders: confirmed `/api/patient/reminders/{create,mute}` (app/app/patient/reminders/
+  // actions.ts) -- patient writes is_enabled, interval_minutes/window_start/window_end/days_mask,
+  // schedule_type/schedule_data/quiet_hours_* and its own reminder content. No true staff-owned
+  // column exists on this table (no doctor-authorship concept here) -- whole-table kept, but
+  // notification_topic_code (drives delivery-suppression routing, not user-facing) was not traced as
+  // patient-written by any confirmed call site; re-check before the real flip.
   ["public.reminder_rules", "SELECT, INSERT, UPDATE"],
 
   // LFK self-service diary: confirmed pgLfkDiary.ts -- patient can create its OWN complex (origin
   // column distinguishes patient- vs doctor-authored), log/update its own sessions, and edit its own
   // local comment on an assigned exercise. patient_lfk_assignments (doctor assigns a complex to a
   // patient) stays SELECT-only -- no patient-session write path found for the assignment itself.
-  ["public.lfk_complexes", "SELECT, INSERT, UPDATE"],
+  //
+  // lfk_complexes: SELECT, INSERT (whole-table; createComplex is the only patient-session write).
+  // UPDATE dropped entirely -- 2026-07-11 general-sweep finding: grepped every `UPDATE lfk_complexes`
+  // call site in the repo (pgLfkAssignments.ts, platformUserFullPurge.ts, pgDiaryPurge.ts) and NONE
+  // is a patient-authenticated route (doctor-assignment / GDPR-purge / retention-job paths only) --
+  // the whole-table UPDATE grant was pure unused attack surface, most notably over `origin` (a
+  // patient could relabel a doctor-assigned complex as patient-authored or vice versa) and
+  // `is_active`.
+  ["public.lfk_complexes", "SELECT, INSERT"],
+  // lfk_sessions: SELECT, INSERT, UPDATE (whole-table) -- no staff-controlled column exists on this
+  // table (addSession/updateSession write completed_at, source, recorded_at, duration_minutes,
+  // difficulty_0_10, pain_0_10, comment; all patient-owned). Residual note (not a security
+  // over-grant, flagged for the RLS-policy side, not the GRANT side): the traced INSERT path never
+  // explicitly sets organization_id -- confirm the RLS policy/default backfills it correctly before
+  // the real flip, otherwise this is a cross-tenant-NULL footgun rather than a privilege-escalation
+  // one.
   ["public.lfk_sessions", "SELECT, INSERT, UPDATE"],
-  ["public.lfk_complex_exercises", "SELECT, UPDATE"],
+  // lfk_complex_exercises: SELECT (whole-table) + COLUMN-LEVEL UPDATE (see patientColumnGrants)
+  // restricted to local_comment only. 2026-07-11 general-sweep finding: the traced patient path
+  // (updateLfkComplexExerciseLocalCommentForUser) writes ONLY local_comment; this table also carries
+  // the frozen doctor/template-authored prescription snapshot (reps, sets, side, max_pain_0_10,
+  // comment, sort_order) -- a whole-table UPDATE would let a patient alter their own prescribed
+  // exercise parameters (e.g. pain threshold, rep count) or forge the doctor's instruction text.
+  ["public.lfk_complex_exercises", "SELECT"],
 
-  // Tests/quizzes: patient takes a test -> creates an attempt + its results.
-  ["public.test_attempts", "SELECT, INSERT, UPDATE"],
+  // Tests/quizzes: patient takes a test -> creates an attempt; result rows are its own.
+  // test_attempts: SELECT (whole-table) + COLUMN-LEVEL INSERT/UPDATE (see patientColumnGrants).
+  // 2026-07-11 gpt-5.6-sol general-sweep finding (clearest over-grant in this sweep): the traced
+  // patient path only INSERTs (organization_id, instance_stage_item_id, patient_user_id) and UPDATEs
+  // submitted_at. accepted_at/accepted_by are set EXCLUSIVELY by acceptAttempt, called from the
+  // doctor-only `/api/doctor/.../test-attempts/[attemptId]/accept` route with a doctorUserId -- the
+  // original whole-table UPDATE grant would have let a patient self-mark their own test attempt as
+  // clinically accepted, forging doctor sign-off.
+  ["public.test_attempts", "SELECT"],
   ["public.test_results", "SELECT, INSERT"],
 
   // Program action/event audit trail: confirmed side effect of the patient's own progress actions
@@ -193,15 +295,35 @@ const patientScopedPrivilegeOverrides = new Map([
   ["public.product_analytics_events_recent", "SELECT, INSERT"],
 ]);
 
+// Tables that are structurally patient-linked in the RLS descriptor model (they carry a
+// patient_user_id / patientColumn FK, so buildRlsDescriptors() picks them up as "patient-owned" for
+// RLS-policy purposes) but are NOT patient-facing at all -- excluded from the app_patient GRANT set
+// entirely (not even SELECT). This is deliberately separate from patientScopedPrivilegeOverrides
+// (which only controls privilege LEVEL for tables that DO belong in the set) because the RLS
+// descriptor model is shared with the actual RLS-policy generator, where these tables correctly keep
+// their patient-row-scoping (a staff query still resolves org via the patient FK) -- only the
+// app_patient GRANT (this file's own concern) is wrong to include them in.
+const appPatientTableExclusions = new Set([
+  // specialist_tasks: a SPECIALIST-owned task list (owner_user_id = the specialist), patient_user_id
+  // is just an optional filter FK ("null = global task for the specialist" per the schema comment) --
+  // not patient-owned data. 2026-07-11 gpt-5.6-sol audit rejected the SELECT grant this table
+  // inherited from the descriptor's patientColumn match: there is no patient-facing API for
+  // specialist_tasks anywhere in apps/webapp/src, and the table's own content (title, description,
+  // due_at, reminder_sent_at) is the specialist's private task, not something the patient should even
+  // read about themselves.
+  "public.specialist_tasks",
+]);
+
 export function getAppPatientGrantTables({ descriptors = buildRlsDescriptors() } = {}) {
   const patientScopedTables = Array.from(descriptors.values())
     .filter(
       (descriptor) =>
-        descriptor.patientColumn ||
-        descriptor.patientChain ||
-        descriptor.patientConditional ||
-        descriptor.patientConditionalChain ||
-        descriptor.patientPolymorphic,
+        (descriptor.patientColumn ||
+          descriptor.patientChain ||
+          descriptor.patientConditional ||
+          descriptor.patientConditionalChain ||
+          descriptor.patientPolymorphic) &&
+        !appPatientTableExclusions.has(descriptor.table),
     )
     .map((descriptor) => ({
       qualifiedName: descriptor.table,
@@ -214,6 +336,145 @@ export function getAppPatientGrantTables({ descriptors = buildRlsDescriptors() }
     .map((table) => ({ ...splitQualifiedName(table.qualifiedName), ...table }))
     .sort((left, right) => left.qualifiedName.localeCompare(right.qualifiedName));
 }
+
+// Column-level GRANTs for app_patient. RLS policies restrict which ROWS app_patient can touch; they
+// never restrict which COLUMNS a granted privilege applies to -- a whole-table UPDATE/INSERT grant
+// lets the patient's own session (or, in the raw-SQL/role-compromise case the gpt-5.6-sol audit was
+// modeling, anything authenticated as app_patient) write ANY column of a row it owns, including
+// staff-only fields living on that same row (role, moderation flags, doctor-authored content,
+// clinical sign-off fields, etc.). Every entry below is `GRANT <priv> (<columns>) ON TABLE <table> TO
+// app_patient`, layered on top of that table's whole-table privilege in patientScopedPrivilegeOverrides
+// / appPatientBootstrapTables (typically just SELECT). See the inline comment next to each table's
+// entry in the maps above for the traced patient-authenticated call site this narrows to, and
+// P0_5B_GRANTS.md's "Column-level restrictions (app_patient)" section for the full rationale.
+//
+// REVOKE ALL PRIVILEGES ON TABLE ... FROM app_patient (used by the DOWN/rollback branch below) already
+// revokes column-level privileges too -- no separate rollback statements are needed for these.
+export const appPatientColumnGrants = [
+  // platform_users: the patient's own account row also carries role/is_blocked/trust/merge/
+  // verification/identity columns -- restrict UPDATE to exactly the two fields a traced
+  // patient-session write path touches.
+  { qualifiedName: "public.platform_users", privilege: "UPDATE", columns: ["calendar_timezone", "reminder_muted_until"] },
+
+  // user_pins: attempts_failed/locked_until are the brute-force lockout counters; a patient session
+  // must not be able to self-reset its own lockout.
+  { qualifiedName: "public.user_pins", privilege: "UPDATE", columns: ["pin_hash"] },
+
+  // be_appointments: excludes payment_ref/package_usage_ref (staff/webhook-only bookkeeping) and
+  // deleted_at (Rubitime-sync soft-delete) from both INSERT and UPDATE -- everything else here is
+  // genuinely written by the traced patient booking/cancel/reschedule path.
+  {
+    qualifiedName: "public.be_appointments",
+    privilege: "INSERT",
+    columns: [
+      "organization_id",
+      "branch_id",
+      "room_id",
+      "specialist_id",
+      "service_id",
+      "platform_user_id",
+      "start_at",
+      "end_at",
+      "duration_minutes",
+      "source",
+      "status",
+      "original_start_at",
+      "reschedule_count",
+      "phone_normalized",
+      "attribution_json",
+      "created_at",
+      "updated_at",
+    ],
+  },
+  {
+    qualifiedName: "public.be_appointments",
+    privilege: "UPDATE",
+    columns: [
+      "status",
+      "updated_at",
+      "start_at",
+      "end_at",
+      "duration_minutes",
+      "branch_id",
+      "room_id",
+      "specialist_id",
+      "service_id",
+      "original_start_at",
+      "reschedule_count",
+    ],
+  },
+
+  // be_booking_form_submissions: ON CONFLICT DO UPDATE needs UPDATE on value_text only.
+  { qualifiedName: "public.be_booking_form_submissions", privilege: "UPDATE", columns: ["value_text"] },
+
+  // support_conversations: the traced ensureWebappConversationForUser upsert only ever
+  // INSERTs/updates these columns -- status/closed_at/close_reason/admin_scope/channel_code/
+  // channel_external_id/last_message_at stay out entirely (staff/moderation conversation state).
+  {
+    qualifiedName: "public.support_conversations",
+    privilege: "INSERT",
+    columns: [
+      "organization_id",
+      "integrator_conversation_id",
+      "platform_user_id",
+      "integrator_user_id",
+      "source",
+      "admin_scope",
+      "status",
+      "opened_at",
+      "last_message_at",
+    ],
+  },
+  {
+    qualifiedName: "public.support_conversations",
+    privilege: "UPDATE",
+    columns: ["organization_id", "platform_user_id", "updated_at"],
+  },
+
+  // media_files: transcode/preview pipeline bookkeeping (preview_*, video_processing_*, hls_*,
+  // poster_*, video_duration_seconds, available_qualities_json, delete_attempts, next_attempt_at)
+  // stays out of both column lists -- worker-owned, not patient-session written.
+  {
+    qualifiedName: "public.media_files",
+    privilege: "INSERT",
+    columns: [
+      "id",
+      "original_name",
+      "stored_path",
+      "s3_key",
+      "mime_type",
+      "size_bytes",
+      "uploaded_by",
+      "folder_id",
+      "usage_purpose",
+      "video_delivery_override",
+    ],
+  },
+  { qualifiedName: "public.media_files", privilege: "UPDATE", columns: ["status"] },
+
+  // media_upload_sessions: state-machine transition columns only -- expires_at/part_size_bytes/
+  // s3_key/upload_id are set once at creation (covered by the whole-table INSERT grant) and never
+  // legitimately changed after.
+  {
+    qualifiedName: "public.media_upload_sessions",
+    privilege: "UPDATE",
+    columns: ["status", "completed_at", "last_error", "updated_at"],
+  },
+
+  // lfk_complex_exercises: the frozen doctor/template-authored prescription snapshot (reps, sets,
+  // side, max_pain_0_10, comment, sort_order) stays out -- only the patient's own local note is
+  // writable.
+  { qualifiedName: "public.lfk_complex_exercises", privilege: "UPDATE", columns: ["local_comment"] },
+
+  // test_attempts: accepted_at/accepted_by are doctor-only sign-off fields (set exclusively by the
+  // doctor-authenticated accept route) -- excluded from both INSERT and UPDATE.
+  {
+    qualifiedName: "public.test_attempts",
+    privilege: "INSERT",
+    columns: ["organization_id", "instance_stage_item_id", "patient_user_id"],
+  },
+  { qualifiedName: "public.test_attempts", privilege: "UPDATE", columns: ["submitted_at"] },
+];
 
 function sqlIdent(name) {
   return `"${name.replaceAll('"', '""')}"`;
@@ -234,11 +495,34 @@ function sqlString(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
+function renderColumnGrantStatements(columnGrants, patientTables) {
+  const knownQualifiedNames = new Set(patientTables.map((table) => table.qualifiedName));
+
+  for (const grant of columnGrants) {
+    if (!knownQualifiedNames.has(grant.qualifiedName)) {
+      throw new Error(
+        `appPatientColumnGrants references ${grant.qualifiedName}, which is not in the app_patient ` +
+          `whole-table grant set (getAppPatientGrantTables()) -- the table needs a base entry (even ` +
+          `SELECT-only) before it can carry a column-level grant on top.`,
+      );
+    }
+  }
+
+  return columnGrants
+    .map((grant) => {
+      const { schemaName, tableName } = splitQualifiedName(grant.qualifiedName);
+      const columnList = grant.columns.map((column) => sqlIdent(column)).join(", ");
+      return `GRANT ${grant.privilege} (${columnList}) ON TABLE ${sqlIdent(schemaName)}.${sqlIdent(tableName)} TO app_patient;`;
+    })
+    .join("\n");
+}
+
 export function renderP05bGrantsSql({ descriptors = buildRlsDescriptors() } = {}) {
   const staffTables = getAppStaffGrantTables();
   const patientTables = getAppPatientGrantTables({ descriptors });
   const staffSchemas = Array.from(new Set(staffTables.map((table) => table.schemaName))).sort();
   const patientSchemas = Array.from(new Set(patientTables.map((table) => table.schemaName))).sort();
+  const patientColumnGrantSql = renderColumnGrantStatements(appPatientColumnGrants, patientTables);
 
   return `-- P0.5b-v2 / B5 (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #655): dormant table-level GRANTs
 -- for the fixed app_staff / app_patient roles created by
@@ -369,6 +653,12 @@ SELECT format('GRANT %s ON TABLE %I.%I TO app_patient', privileges, schema_name,
 FROM p0_5b_patient_grant_tables
 ORDER BY schema_name, table_name
 \\gexec
+
+-- Column-level GRANTs for app_patient, layered on top of the whole-table grants above. RLS
+-- restricts ROWS, never COLUMNS -- see appPatientColumnGrants in the generator + P0_5B_GRANTS.md
+-- "Column-level restrictions (app_patient)" for the table-by-table rationale (2026-07-11 gpt-5.6-sol
+-- audit fix, taskdb #655).
+${patientColumnGrantSql}
 
 SELECT format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq

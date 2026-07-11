@@ -11,7 +11,7 @@
 --   - app_staff: the FULL runtime DML surface -- 219 tables (SCOPED + BOOTSTRAP +
 --     INFRA + LEGACY + TELEMETRY, excluding the 4 pure migration-bookkeeping tables the migrator role
 --     alone touches).
---   - app_patient: ONLY the patient-facing surface -- 111 tables (the patient-owned
+--   - app_patient: ONLY the patient-facing surface -- 110 tables (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
 --
@@ -296,17 +296,17 @@ VALUES
   ('integrator', 'user_reminder_occurrences', 'SELECT'),
   ('integrator', 'user_reminder_rules', 'SELECT'),
   ('integrator', 'user_subscriptions', 'SELECT'),
-  ('public', 'be_appointment_cancellations', 'SELECT, INSERT, UPDATE'),
+  ('public', 'be_appointment_cancellations', 'SELECT, INSERT'),
   ('public', 'be_appointment_events', 'SELECT, INSERT'),
   ('public', 'be_appointment_history_events', 'SELECT, INSERT'),
   ('public', 'be_appointment_no_shows', 'SELECT'),
-  ('public', 'be_appointment_reschedules', 'SELECT, INSERT, UPDATE'),
+  ('public', 'be_appointment_reschedules', 'SELECT, INSERT'),
   ('public', 'be_appointment_staff_comments', 'SELECT'),
-  ('public', 'be_appointments', 'SELECT, INSERT, UPDATE'),
+  ('public', 'be_appointments', 'SELECT'),
   ('public', 'be_booking_form_submissions', 'SELECT, INSERT'),
   ('public', 'be_package_history_events', 'SELECT'),
   ('public', 'be_package_usages', 'SELECT'),
-  ('public', 'be_patient_booking_profiles', 'SELECT, INSERT, UPDATE'),
+  ('public', 'be_patient_booking_profiles', 'SELECT'),
   ('public', 'be_patient_package_items', 'SELECT'),
   ('public', 'be_patient_packages', 'SELECT'),
   ('public', 'be_patient_timeline_events', 'SELECT, INSERT'),
@@ -326,30 +326,30 @@ VALUES
   ('public', 'clinical_diagnosis_status_history', 'SELECT'),
   ('public', 'clinical_diagnosis_update', 'SELECT'),
   ('public', 'clinical_visit', 'SELECT'),
-  ('public', 'comments', 'SELECT, INSERT, UPDATE'),
+  ('public', 'comments', 'SELECT'),
   ('public', 'content_access_grants_webapp', 'SELECT'),
   ('public', 'doctor_notes', 'SELECT'),
   ('public', 'doctor_patient_support', 'SELECT'),
-  ('public', 'lfk_complex_exercises', 'SELECT, UPDATE'),
-  ('public', 'lfk_complexes', 'SELECT, INSERT, UPDATE'),
+  ('public', 'lfk_complex_exercises', 'SELECT'),
+  ('public', 'lfk_complexes', 'SELECT, INSERT'),
   ('public', 'lfk_sessions', 'SELECT, INSERT, UPDATE'),
   ('public', 'mailing_logs_webapp', 'SELECT'),
   ('public', 'material_ratings', 'SELECT, INSERT, UPDATE'),
-  ('public', 'media_files', 'SELECT, INSERT, UPDATE'),
+  ('public', 'media_files', 'SELECT'),
   ('public', 'media_folders', 'SELECT'),
   ('public', 'media_hls_proxy_error_events', 'SELECT'),
   ('public', 'media_playback_client_events', 'SELECT'),
   ('public', 'media_playback_resolution_events', 'SELECT'),
   ('public', 'media_playback_user_video_first_resolve', 'SELECT'),
   ('public', 'media_transcode_jobs', 'SELECT'),
-  ('public', 'media_upload_sessions', 'SELECT, INSERT, UPDATE'),
+  ('public', 'media_upload_sessions', 'SELECT, INSERT'),
   ('public', 'message_log', 'SELECT'),
   ('public', 'notification_delivery_attempts', 'SELECT'),
   ('public', 'online_intake_answers', 'SELECT, INSERT'),
   ('public', 'online_intake_attachments', 'SELECT, INSERT'),
   ('public', 'online_intake_requests', 'SELECT, INSERT'),
   ('public', 'online_intake_status_history', 'SELECT'),
-  ('public', 'org_enrollments', 'SELECT, INSERT'),
+  ('public', 'org_enrollments', 'SELECT'),
   ('public', 'patient_comorbidity', 'SELECT'),
   ('public', 'patient_content_rating_feedback', 'SELECT, INSERT, UPDATE'),
   ('public', 'patient_daily_warmup_presentations', 'SELECT, INSERT'),
@@ -360,7 +360,7 @@ VALUES
   ('public', 'patient_payment', 'SELECT'),
   ('public', 'patient_practice_completions', 'SELECT, INSERT'),
   ('public', 'platform_user_contacts', 'SELECT'),
-  ('public', 'platform_users', 'SELECT, UPDATE'),
+  ('public', 'platform_users', 'SELECT'),
   ('public', 'product_analytics_events_recent', 'SELECT, INSERT'),
   ('public', 'product_analytics_user_hourly', 'SELECT'),
   ('public', 'product_push_notifications', 'SELECT'),
@@ -371,15 +371,14 @@ VALUES
   ('public', 'reminder_journal', 'SELECT'),
   ('public', 'reminder_occurrence_history', 'SELECT'),
   ('public', 'reminder_rules', 'SELECT, INSERT, UPDATE'),
-  ('public', 'specialist_tasks', 'SELECT'),
   ('public', 'support_conversation_messages', 'SELECT, INSERT'),
-  ('public', 'support_conversations', 'SELECT, INSERT, UPDATE'),
+  ('public', 'support_conversations', 'SELECT'),
   ('public', 'support_delivery_events', 'SELECT'),
   ('public', 'support_question_messages', 'SELECT, INSERT'),
   ('public', 'support_questions', 'SELECT, INSERT'),
   ('public', 'symptom_entries', 'SELECT, INSERT, UPDATE'),
   ('public', 'symptom_trackings', 'SELECT, INSERT, UPDATE'),
-  ('public', 'test_attempts', 'SELECT, INSERT, UPDATE'),
+  ('public', 'test_attempts', 'SELECT'),
   ('public', 'test_results', 'SELECT, INSERT'),
   ('public', 'treatment_program_events', 'SELECT, INSERT'),
   ('public', 'treatment_program_instance_stage_groups', 'SELECT'),
@@ -391,7 +390,7 @@ VALUES
   ('public', 'user_notification_topic_channels', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_notification_topics', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_phone_history', 'SELECT'),
-  ('public', 'user_pins', 'SELECT, INSERT, UPDATE'),
+  ('public', 'user_pins', 'SELECT, INSERT'),
   ('public', 'user_subscriptions_webapp', 'SELECT'),
   ('public', 'user_web_push_subscriptions', 'SELECT, INSERT, UPDATE, DELETE'),
   ('public', 'webapp_reminder_occurrences', 'SELECT');
@@ -460,6 +459,24 @@ FROM p0_5b_patient_grant_tables
 ORDER BY schema_name, table_name
 \gexec
 
+-- Column-level GRANTs for app_patient, layered on top of the whole-table grants above. RLS
+-- restricts ROWS, never COLUMNS -- see appPatientColumnGrants in the generator + P0_5B_GRANTS.md
+-- "Column-level restrictions (app_patient)" for the table-by-table rationale (2026-07-11 gpt-5.6-sol
+-- audit fix, taskdb #655).
+GRANT UPDATE ("calendar_timezone", "reminder_muted_until") ON TABLE "public"."platform_users" TO app_patient;
+GRANT UPDATE ("pin_hash") ON TABLE "public"."user_pins" TO app_patient;
+GRANT INSERT ("organization_id", "branch_id", "room_id", "specialist_id", "service_id", "platform_user_id", "start_at", "end_at", "duration_minutes", "source", "status", "original_start_at", "reschedule_count", "phone_normalized", "attribution_json", "created_at", "updated_at") ON TABLE "public"."be_appointments" TO app_patient;
+GRANT UPDATE ("status", "updated_at", "start_at", "end_at", "duration_minutes", "branch_id", "room_id", "specialist_id", "service_id", "original_start_at", "reschedule_count") ON TABLE "public"."be_appointments" TO app_patient;
+GRANT UPDATE ("value_text") ON TABLE "public"."be_booking_form_submissions" TO app_patient;
+GRANT INSERT ("organization_id", "integrator_conversation_id", "platform_user_id", "integrator_user_id", "source", "admin_scope", "status", "opened_at", "last_message_at") ON TABLE "public"."support_conversations" TO app_patient;
+GRANT UPDATE ("organization_id", "platform_user_id", "updated_at") ON TABLE "public"."support_conversations" TO app_patient;
+GRANT INSERT ("id", "original_name", "stored_path", "s3_key", "mime_type", "size_bytes", "uploaded_by", "folder_id", "usage_purpose", "video_delivery_override") ON TABLE "public"."media_files" TO app_patient;
+GRANT UPDATE ("status") ON TABLE "public"."media_files" TO app_patient;
+GRANT UPDATE ("status", "completed_at", "last_error", "updated_at") ON TABLE "public"."media_upload_sessions" TO app_patient;
+GRANT UPDATE ("local_comment") ON TABLE "public"."lfk_complex_exercises" TO app_patient;
+GRANT INSERT ("organization_id", "instance_stage_item_id", "patient_user_id") ON TABLE "public"."test_attempts" TO app_patient;
+GRANT UPDATE ("submitted_at") ON TABLE "public"."test_attempts" TO app_patient;
+
 SELECT format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq
 JOIN pg_namespace seq_ns ON seq_ns.oid = seq.relnamespace
@@ -493,5 +510,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 111 tables.'
+\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 110 tables.'
 \endif
