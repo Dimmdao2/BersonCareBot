@@ -55,8 +55,43 @@
 -- connection routing is a separate, owner-gated stage). This migration only changes what the policy
 -- WOULD do under a NOBYPASSRLS session — proven via
 -- docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-roles-1-staff-role-boundary.mjs, scratch DB only.
+--
+-- HARDENING (post-merge audit, taskdb #662, 2026-07-11): the initial version of this migration let
+-- `CREATE SCHEMA IF NOT EXISTS app` / `CREATE OR REPLACE FUNCTION app.is_staff()` silently keep the
+-- OWNER of a pre-existing object (both statements are no-ops/replace-in-place, neither re-asserts
+-- ownership). If a lower-trust role had squatted `app`/`app.is_staff()` before this migration first
+-- ran, a migration executed with enough privilege to bypass ownership checks (e.g. as a superuser)
+-- would replace the function body while leaving the squatter as owner, who could then silently
+-- rewrite it back to `SELECT true` later. Fixed by reclaiming ownership unconditionally right after
+-- each CREATE (`ALTER SCHEMA app OWNER TO CURRENT_USER` / `ALTER FUNCTION app.is_staff() OWNER TO
+-- CURRENT_USER`, both harmless no-ops on a clean/idempotent run) plus an explicit `REVOKE CREATE ON
+-- SCHEMA app FROM PUBLIC`. See inline comments below for the live scratch-DB proof.
 
 CREATE SCHEMA IF NOT EXISTS app;
+
+-- Hardening (B4-roles-1 audit fix #2, taskdb #662): `CREATE SCHEMA IF NOT EXISTS` and
+-- `CREATE OR REPLACE FUNCTION` (below) both silently PRESERVE the owner of a pre-existing object --
+-- they are no-ops/replace-in-place when the object already exists, they do not re-assert ownership.
+-- If a lower-trust role had already squatted `app` / `app.is_staff()` before this migration first
+-- ran (name-squatting ahead of the legitimate migration), a migration run with enough privilege to
+-- bypass ownership checks (e.g. run as a superuser, which some deploy/bootstrap paths do) would
+-- happily replace the function BODY while leaving OWNERSHIP with the attacker -- who could then
+-- silently rewrite app.is_staff() back to `SELECT true` (or anything else) at any later time,
+-- defeating the RLS bypass check without touching this migration again. Live-proven, scratch DB
+-- only, 2026-07-11: a role squatting `app`/`app.is_staff()` (owned by the squatter) followed by this
+-- migration's original CREATE SCHEMA IF NOT EXISTS + CREATE OR REPLACE FUNCTION, run as a
+-- superuser-equivalent role, left `app.is_staff()` owned by the squatter with the new body installed
+-- -- exactly the silent-takeover risk described above. (A non-superuser, non-owner migrator is
+-- already blocked earlier, by Postgres's own "must be owner" check on CREATE OR REPLACE FUNCTION /
+-- GRANT on a schema it doesn't own -- this ALTER ... OWNER TO closes the gap for the
+-- superuser/elevated-migrator case, and is a harmless no-op on every clean/idempotent run where this
+-- migration's own role already owns both objects.)
+ALTER SCHEMA app OWNER TO CURRENT_USER;
+
+-- Explicit belt-and-suspenders (CREATE SCHEMA already grants no privileges to PUBLIC by default):
+-- re-assert this so schema app can never end up CREATE-able by PUBLIC -- the precondition for the
+-- squatting attack above -- even after a future manual GRANT made outside of this migration file.
+REVOKE CREATE ON SCHEMA app FROM PUBLIC;
 
 -- CREATE SCHEMA grants NO privileges to PUBLIC by default (unlike the pre-existing `public` schema).
 -- Without this, ANY non-superuser NOBYPASSRLS role (app_staff/app_patient included) evaluating a
@@ -81,6 +116,12 @@ SET search_path = pg_catalog
 AS $$
   SELECT pg_has_role(current_user, 'app_staff', 'MEMBER');
 $$;
+
+-- Same ownership-reclaim reasoning as `ALTER SCHEMA app OWNER TO CURRENT_USER` above: CREATE OR
+-- REPLACE FUNCTION replaces the BODY of a pre-existing function in place but does not touch its
+-- OWNER, so a squatted app.is_staff() would keep the squatter's ownership even after this migration
+-- "fixes" its body. No-op on a clean/idempotent run where this migration's role already owns it.
+ALTER FUNCTION app.is_staff() OWNER TO CURRENT_USER;
 
 COMMENT ON FUNCTION app.is_staff() IS
   'B4-roles-1 (taskdb #662): canonical staff-bypass check for patient-wall RLS policies. True iff '

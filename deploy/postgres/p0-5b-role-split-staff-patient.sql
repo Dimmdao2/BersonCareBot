@@ -112,20 +112,24 @@ SELECT 1 / 0 AS p0_5b_abort;
 \endif
 
 -- THE security-boundary assertion this whole file exists for: app_patient must NEVER be (directly
--- or indirectly) a member of app_staff. If this ever fails, app.is_staff() would return true for a
--- patient session and the entire B4-roles-1 fix would be silently defeated.
-SELECT (NOT EXISTS (
-  SELECT 1
-  FROM pg_auth_members membership
-  JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
-  JOIN pg_roles member_role ON member_role.oid = membership.member
-  WHERE member_role.rolname = 'app_patient'
-    AND granted_role.rolname = 'app_staff'
-))::int AS p0_5b_patient_not_staff_ok \gset
+-- or indirectly, through any chain of intermediary role grants) a member of app_staff. If this ever
+-- fails, app.is_staff() -- which calls pg_has_role(current_user, 'app_staff', 'MEMBER') -- would
+-- return true for a patient session and the entire B4-roles-1 fix would be silently defeated.
+--
+-- MUST use pg_has_role(...) here, NOT a raw one-hop pg_auth_members lookup. pg_has_role follows the
+-- FULL transitive membership chain (exactly like app.is_staff() itself does), so it also catches
+-- e.g. app_patient -> some_intermediary_role -> app_staff, which a direct pg_auth_members row check
+-- would miss (it only sees a DIRECT app_patient->app_staff grant and passes even though is_staff()
+-- would still return true for an app_patient session). Live-proven, scratch DB only, 2026-07-11:
+-- building that exact chain (app_patient MEMBER OF intermediary; intermediary MEMBER OF app_staff)
+-- made the old one-hop query report "ok" while pg_has_role('app_patient', 'app_staff', 'MEMBER')
+-- correctly returned true -- this assertion must match what app.is_staff() actually evaluates, or it
+-- proves nothing about the real bypass check.
+SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_patient_not_staff_ok \gset
 
 \if :p0_5b_patient_not_staff_ok
 \else
-\echo 'FATAL: P0.5b app_patient must NOT be a member of app_staff.'
+\echo 'FATAL: P0.5b app_patient must NOT be a member of app_staff (directly or transitively).'
 SELECT 1 / 0 AS p0_5b_abort;
 \endif
 
