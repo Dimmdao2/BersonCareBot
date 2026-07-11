@@ -117,15 +117,26 @@ export function renderPatientPredicate({ patientColumn = "platform_user_id", mod
   });
 }
 
+// B4-roles-1 (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #662): the staff bypass used to be a GUC
+// flag (`app.actor='staff'`) — settable by ANY session (patient sessions included), i.e. provably
+// spoofable by injection. It is now a DB ROLE-MEMBERSHIP check via the canonical helper function
+// `app.is_staff()` (SECURITY INVOKER, STABLE — created by migration 0175, right before the patient-
+// wall policies it is used in). `app.is_staff()` is the SINGLE source of the staff role's name
+// (canonical: `app_staff`, created by deploy/postgres/p0-5b-role-split-staff-patient.sql) — no
+// predicate here or anywhere else duplicates that name. Unlike a GUC, role membership cannot be
+// forged by the session that holds it: `SET ROLE app_staff` / `SET SESSION AUTHORIZATION app_staff`
+// issued by a session authenticated as `app_patient` is rejected by Postgres itself, because
+// `app_patient` is deliberately NOT granted membership in `app_staff` — proven live by
+// docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-roles-1-staff-role-boundary.mjs.
 export function renderStaffActorCheck() {
-  return `${renderNullableTextGuc("app.actor")} = 'staff'`;
+  return "app.is_staff()";
 }
 
 // Owner decision 2026-07-11 (B4-core): doctor/staff visibility is org-wide (variant A, no
-// assignment predicate); the patient wall is absolute — a patient session (app.actor='patient' +
+// assignment predicate); the patient wall is absolute — a patient session (app_patient role +
 // app.patient_user_id) sees ONLY its own rows, and an unset/empty context denies (fail-closed).
-// A patient session can never set app.actor='staff' (separate authenticated code path — enforced
-// at the app layer, out of scope here / B4-fanout).
+// A patient session can never become a member of app_staff (role membership is deploy-time DDL,
+// not something a runtime session can grant itself — enforced by Postgres, not app code).
 export function renderStaffOrPatientPredicate({ patientColumn, castType = "uuid" } = {}) {
   if (typeof patientColumn !== "string" || patientColumn.length === 0) {
     throw new Error("Staff-or-patient predicate requires a patientColumn");

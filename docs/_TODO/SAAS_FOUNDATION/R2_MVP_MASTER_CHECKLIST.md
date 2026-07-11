@@ -81,13 +81,43 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
       this checklist's own prior "0 patient-owned open" claim was wrong once already, this claim should
       be treated as provisional pending a SECOND independent audit pass before being trusted at face
       value for the M1 DoD. (#660)
+- [x] **B4-roles-1** — owner decision: separate DB roles instead of a GUC flag for the staff bypass
+      (`app.actor='staff'` was settable by ANY session, patient sessions included — not a real
+      security boundary). New canonical helper `app.is_staff()` (schema `app`, SECURITY INVOKER,
+      STABLE) = `pg_has_role(current_user, 'app_staff', 'MEMBER')` — single source of the staff role
+      name. `rls-sql-renderer.mjs` `renderStaffActorCheck()` is the one chokepoint every
+      staff-or-patient predicate shape (direct/chain/conditional/conditional-chain/polymorphic) calls
+      through, so this one change flips ALL of them. Mig
+      `0175_p0_8_b4_roles_1_is_staff_wall_rls.sql`: creates schema `app` + `GRANT USAGE ON SCHEMA app
+      TO PUBLIC` (found live — without it, ANY non-superuser NOBYPASSRLS role gets a hard
+      `permission denied for schema app` instead of allow/deny) + `app.is_staff()`, then re-creates
+      (byte-for-byte generator output) the dormant policy for all **102 patient-owned SCOPED tables**
+      (same 102 as 0169-0174 — only the staff-bypass mechanism changed). New
+      `deploy/postgres/p0-5b-role-split-staff-patient.sql` creates fixed roles `app_staff`/
+      `app_patient` (LOGIN NOBYPASSRLS, no credential) and asserts `app_patient` has NO membership in
+      `app_staff` — the actual security invariant. Proven live on scratch by new
+      `smoke-b4-roles-1-staff-role-boundary.mjs`: (a) `app_staff` sees org-wide; (b) `app_patient`
+      sees own-only; (c) **`app_patient` cannot `SET ROLE app_staff`** — Postgres rejects it (the
+      boundary the old GUC never had); (d) empty context denies. `check:saas-db-regression` green
+      (unchanged descriptor/target counts, only predicate text changed). **NOT DONE / flagged:**
+      table-level GRANTs for the two roles (B5-v2, separate), wiring them into any real
+      `DATABASE_URL` (B4-fanout, below), `smoke-r2-real-policy-isolation.mjs` phase 5 is now stale
+      (documented in that file, not fixed — needs a two-role restructure out of scope here), and a
+      **residual risk**: `app.patient_user_id`/`app.integrator_user_id` are STILL plain GUCs — an
+      `app_patient` session could still `SET app.patient_user_id` to a victim's id (identity
+      impersonation, not staff impersonation — a separate follow-up, e.g. `GRANT SET ON PARAMETER`).
+      Cluster-topology note: `app_staff`/`app_patient` are fixed cluster-global role names; if dev+prod
+      share one Postgres cluster (per `host-psql-database-url.mdc`), B4-fanout wiring will need a
+      per-environment namespacing decision, not resolved here. (#662)
 - [ ] **B5** — non-bypass app DB role + grants materialized (P0.5), static check green; live scratch
       proof by lead. (#655, Codex)
-- [ ] **B4-fanout** — read-context wrapper contract (Opus design): staff sessions set `app.actor='staff'`;
-      patient sessions set `app.actor='patient'` + `app.patient_user_id` (+ `app.integrator_user_id`);
-      a patient connection is **structurally unable** to set `actor='staff'`. Then apply per process
-      family (webapp readers, integrator DbPort/pool, scheduler, media) — mechanical sweep = **Codex**.
-      DoD: every SCOPED read carries the right GUCs; unset → dormant; staff never gets 0 rows.
+- [ ] **B4-fanout** — read-context wrapper contract (Opus design): staff sessions become/authenticate
+      as the `app_staff` role; patient sessions become/authenticate as `app_patient` +
+      `app.patient_user_id` (+ `app.integrator_user_id`) — role split done by B4-roles-1 above
+      (`app_patient` structurally cannot become `app_staff`, proven live); this item is the
+      APPLICATION-layer wiring (webapp readers, integrator DbPort/pool, scheduler, media) that
+      actually connects/switches to the right role per session — mechanical sweep = **Codex**.
+      DoD: every SCOPED read runs under the right role + GUCs; unset → dormant; staff never gets 0 rows.
 - [ ] **B7** — shadow-mode toggle (log RLS violations, don't deny) for the staging shadow-run.
 - [ ] **B8** — flip plan + rollback drafted (permissive→FORCE + role switch, behind flag/GUC). Owner approves.
 - [ ] **be_organization_members** tier review (BOOTSTRAP-global → hybrid?) decided.
@@ -135,7 +165,7 @@ Every ~25 min while the run is alive, and via an external OS watchdog if the ses
 ## Cross-model direction audit — 2026-07-11 (Codex, independent)
 Verdict: **ON-TRACK direction** (milestone order, single-trunk/audit/owner-gated discipline confirmed by a different model family; no product drift). 4 concrete issues:
 - [x] **(1) GUC split-brain** — B4-core compares patient predicates to `app.patient_user_id` even for bigint integrator columns; the smoke "proved" bigint by putting a bigint in that uuid GUC (not a real mixed session → cast error / blind under enforcement). **Being fixed by B4-core-2** (align integrator to `app.integrator_user_id`); verify on completion.
-- [ ] **(2) OWNER DECISION — patient-wall trust model.** `app.actor='staff'` is a custom GUC settable by ANY SQL on the connection → the wall defends against FORGOTTEN filters, NOT against arbitrary-SQL/injection. For a truly "absolute" patient wall, use **separate DB roles for patient vs staff paths** (staff-bypass keyed on the role, not a user-settable GUC) — or at minimum a server-only guard on `set_config('app.actor',...)`. Decide BEFORE the enforcement flip. Not blocking dormant work.
+- [x] **(2) OWNER DECISION — patient-wall trust model.** `app.actor='staff'` is a custom GUC settable by ANY SQL on the connection → the wall defends against FORGOTTEN filters, NOT against arbitrary-SQL/injection. For a truly "absolute" patient wall, use **separate DB roles for patient vs staff paths** (staff-bypass keyed on the role, not a user-settable GUC) — or at minimum a server-only guard on `set_config('app.actor',...)`. Decide BEFORE the enforcement flip. Not blocking dormant work. **DECIDED + DONE by B4-roles-1 above (#662): separate roles `app_staff`/`app_patient`, staff bypass keyed on `app.is_staff()` role membership, proven live that `app_patient` cannot escalate.** Residual: `app.patient_user_id` GUC identity-impersonation is still open (flagged in B4-roles-1's entry), and the app-layer connection wiring (B4-fanout) is still pending.
 - [ ] **(3) B5 under-grants runtime.** App role grants only SCOPED+BOOTSTRAP, but the runtime role (webapp/integrator/worker/scheduler/media) also touches **INFRA** queues/outboxes (`projection_outbox`, `integrator_push_outbox`, `outgoing_delivery_queue`) + LEGACY/TELEMETRY → PERMISSION DENIED after flip. Grant scope ≠ RLS tier: the role needs DML on ALL tables it queries. Fix: expand grants to the runtime's full surface (or a separate infra-runtime role). Add a **pre-flip process-family smoke** running each process under the app role.
 - [x] **(4) Don't call R2 complete until chain-only walls closed** — B4-core-2 in flight.
 

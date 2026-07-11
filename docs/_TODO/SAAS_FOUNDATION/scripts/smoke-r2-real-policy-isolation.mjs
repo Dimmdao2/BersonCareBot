@@ -111,6 +111,25 @@
  *
  * Scratch only. Guards refuse non-scratch/dev/prod/test databases, same as smoke-p0-13-db-isolation.mjs.
  * No push/deploy.
+ *
+ * STALE NOTE (B4-roles-1, docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #662): the staff-bypass
+ * predicate changed from the GUC `app.actor='staff'` to the role-membership check `app.is_staff()`
+ * (rls-sql-renderer.mjs `renderStaffActorCheck()`, migration 0175). Phases 1-4 below (dormant-mode
+ * 0161-0174 policies, applied verbatim from those UNCHANGED historical migration files) are
+ * unaffected and still correctly exercise the GUC-based mechanism those files actually contain.
+ * Phase 5 ("simulate the flip" via p0-9-enforce-descriptors.mjs) now fails with `ERROR: schema "app"
+ * does not exist` -- p0-9-enforce-descriptors.mjs calls through the SAME renderStaffActorCheck(),
+ * so its simulated enforce-mode predicates now also reference app.is_staff(), and this smoke's
+ * fixture bootstrap never creates the app schema/function or an app_staff role. Properly fixing this
+ * would require restructuring this smoke's single-role GUC-toggle design (one NOBYPASSRLS role,
+ * `app.actor` flipped between 'staff'/'patient') into a two-role design (real app_staff vs
+ * app_patient roles, no shared role to toggle) -- a materially bigger change than this smoke's
+ * existing scope, and NOT done here. The role-based mechanism (app.is_staff(), the app_staff/
+ * app_patient role boundary, and the app_patient-cannot-SET-ROLE-app_staff proof) is instead proven
+ * live, correctly, by the purpose-built docs/_TODO/SAAS_FOUNDATION/scripts/
+ * smoke-b4-roles-1-staff-role-boundary.mjs. This file is left unmodified as historical evidence for
+ * the 0161-0174 GUC-based stages; running it past phase 4 will fail until it is rewritten for the
+ * two-role design (tracked as a residual, not silently fixed).
  */
 
 import { spawnSync } from "node:child_process";

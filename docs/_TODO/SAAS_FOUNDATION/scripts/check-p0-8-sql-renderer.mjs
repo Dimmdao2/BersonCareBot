@@ -96,7 +96,7 @@ assert.match(
     terminalColumn: "platform_user_id",
     castType: "uuid",
   }),
-  /NULLIF\(current_setting\('app\.actor', true\), ''\) = 'staff' OR \(.*EXISTS/,
+  /app\.is_staff\(\) OR \(.*EXISTS/,
   "chain predicate must stay staff-bypassed (org-wide, variant A) same as the direct-column shape",
 );
 
