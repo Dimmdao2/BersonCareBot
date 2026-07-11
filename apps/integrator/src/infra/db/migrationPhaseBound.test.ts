@@ -53,6 +53,15 @@ describe('applyBeforeDateBound', () => {
     expect(deferred).toEqual([saas1, saas2]);
   });
 
+  it('the 20260707 I0 org-column pre-declare sorts into phase 1 (< 20260708 bound)', () => {
+    // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
+    const i0 = migration('core', '20260707_0001_p0_4_i0_integrator_org_columns_predeclare.sql');
+    expect(extractMigrationDate(i0)).toBe(20260707);
+    const { eligible, deferred } = applyBeforeDateBound([i0, saas1], '20260708');
+    expect(eligible).toEqual([i0]);
+    expect(deferred).toEqual([saas1]);
+  });
+
   it('a migration with no parseable date is always treated as eligible (base)', () => {
     const undated = migration('core', 'legacy-no-date.sql');
     const { eligible, deferred } = applyBeforeDateBound([undated, saas1], '20260708');

@@ -36,5 +36,17 @@ if [[ "${api_exists}" -eq 1 || "${webapp_exists}" -eq 1 ]]; then
   set +a
 fi
 
-pnpm --dir apps/integrator run migrate
+# --- Cross-app migration order (see taskdb #667) ---
+# integrator SaaS migrations (>=20260708) depend on public org tables (org_enrollments,
+# be_organizations, be_organization_members) created by webapp; webapp RLS (0169/0170) in turn
+# depend on integrator org COLUMNS. The true order is a 3-phase interleave. The 20260707 I0
+# pre-declare migration forward-declares the nullable integrator organization_id columns so
+# webapp RLS can reference them before the real FK/index/backfill land in the 20260708 I1-I4.
+# Do NOT collapse this back to two calls.
+#
+# Phase 1: integrator base + org-column pre-declare (<20260708), no webapp dep
+INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 pnpm --dir apps/integrator run migrate
+# Phase 2: webapp ALL (creates public org tables; RLS finds pre-declared integrator org cols)
 pnpm --dir apps/webapp run migrate
+# Phase 3: integrator SaaS (>=20260708): FK + index + backfill from public org tables + NOT NULL
+pnpm --dir apps/integrator run migrate
