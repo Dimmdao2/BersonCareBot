@@ -74,7 +74,7 @@ assertNotIncludes(
 // must AND the fail-closed staff-or-patient branch onto the org predicate.
 assertIncludes(
   directScopedSql,
-  "NULLIF(current_setting('app.actor', true), '') = 'staff'",
+  "app.is_staff()",
   "P0.9 patient-owned direct scoped SQL must include the fail-closed staff-or-patient branch",
 );
 assertIncludes(
@@ -105,7 +105,7 @@ const fkScopedPatientSql = renderP09EnforcePolicyStatements(fkScopedPatient).joi
 
 assertIncludes(
   fkScopedPatientSql,
-  "NULLIF(current_setting('app.actor', true), '') = 'staff'",
+  "app.is_staff()",
   "P0.9 be_patient_package_items must include the fail-closed staff-or-patient branch",
 );
 assertIncludes(
@@ -122,7 +122,7 @@ const chainScopedSql = renderP09EnforcePolicyStatements(chainScoped).join("\n");
 
 assertIncludes(
   chainScopedSql,
-  "NULLIF(current_setting('app.actor', true), '') = 'staff'",
+  "app.is_staff()",
   "P0.9 chain-owned enforce SQL must include the fail-closed staff-or-patient branch",
 );
 assertIncludes(chainScopedSql, "EXISTS (", "P0.9 chain-owned enforce SQL must preserve the identity-chain EXISTS");

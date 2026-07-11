@@ -93,7 +93,7 @@ descriptors.forEach((descriptor, index) => {
   if (hasAnyPatientOwnership(descriptor)) {
     assert.match(
       targetStatements[3],
-      /NULLIF\(current_setting\('app\.actor', true\), ''\) = 'staff'/,
+      /app\.is_staff\(\)/,
       `${target} patient-owned policy must include the fail-closed staff-or-patient branch`,
     );
   }
@@ -171,7 +171,7 @@ for (const descriptor of patientConditionalOwnedDescriptors) {
 
   assert.match(
     createStatement,
-    /NULLIF\(current_setting\('app\.actor', true\), ''\) = 'staff'/,
+    /app\.is_staff\(\)/,
     `${target} conditional-owned policy must include the fail-closed staff-or-patient branch`,
   );
 
@@ -190,7 +190,7 @@ for (const descriptor of patientConditionalOwnedDescriptors) {
 
 // Sanity: the staff-bypass check must be present verbatim so staff (org-wide, variant A) is
 // never additionally restricted by the patient branch.
-assert.equal(renderStaffActorCheck(), "NULLIF(current_setting('app.actor', true), '') = 'staff'");
+assert.equal(renderStaffActorCheck(), "app.is_staff()");
 
 console.log(
   `P0.8.3 policy generator OK: 105 targets (${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalOwnedDescriptors.length} patient-conditional-owned) and deterministic dormant policy DDL.`,

@@ -172,7 +172,7 @@ for (const descriptor of patientOwnedDescriptors) {
     (statement) => statement.startsWith(`CREATE POLICY "${p085PolicyName}" ON ${quotedTarget}`),
   );
 
-  if (!createStatement?.includes("NULLIF(current_setting('app.actor', true), '') = 'staff'")) {
+  if (!createStatement?.includes("app.is_staff()")) {
     fail(`${descriptor.table} patient-owned policy must include the fail-closed staff-or-patient branch`);
   }
 
@@ -218,7 +218,7 @@ for (const descriptor of patientChainOwnedDescriptors) {
     (statement) => statement.startsWith(`CREATE POLICY "${p085PolicyName}" ON ${quotedTarget}`),
   );
 
-  if (!createStatement?.includes("NULLIF(current_setting('app.actor', true), '') = 'staff'")) {
+  if (!createStatement?.includes("app.is_staff()")) {
     fail(`${descriptor.table} chain-owned policy must include the fail-closed staff-or-patient branch`);
   }
 
