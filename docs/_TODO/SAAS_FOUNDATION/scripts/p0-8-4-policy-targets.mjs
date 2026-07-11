@@ -51,11 +51,25 @@ export const expectedP084PublicDenormTargets = Object.freeze([
   "public.webapp_reminder_occurrences",
 ]);
 
-export const expectedP084BlockedPolymorphicTargets = Object.freeze(["public.comments"]);
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): public.comments
+// is no longer blocked. P0.12.1 (docs/_TODO/SAAS_FOUNDATION/P0_12_RESIDUAL_REFS_CHECKLIST.md) is
+// complete — its polymorphic organization_id resolver is documented, materialized (0154), and
+// checked by check-p0-12-polymorphic-references.mjs for all 9 target_type values. rls-descriptor-
+// model.mjs now attaches a `patientPolymorphic` predicate to it (see `patientPolymorphicOwnedTables`
+// there), so it renders a real dormant policy here like every other P0.8.4 target. A polymorphic_
+// resolver descriptor WITHOUT a resolved patientPolymorphic predicate would still be treated as
+// blocked (the mechanism stays available for any future, not-yet-resolved polymorphic target) —
+// expectedP084BlockedPolymorphicTargets is intentionally empty now, not removed, so a regression
+// (a new unresolved polymorphic SCOPED table) fails loudly here instead of silently rendering `false`
+// or being silently skipped.
+export const expectedP084BlockedPolymorphicTargets = Object.freeze([]);
+
+export const expectedP084PublicPolymorphicTargets = Object.freeze(["public.comments"]);
 
 const expectedTargetSet = new Set([
   ...expectedP084PublicFkPathTargets,
   ...expectedP084PublicDenormTargets,
+  ...expectedP084PublicPolymorphicTargets,
 ]);
 
 function setDiff(left, right) {
@@ -75,12 +89,16 @@ export function getP084PublicPathDescriptors({ descriptors = buildRlsDescriptors
   );
 
   const targets = sortedDescriptors(
-    publicScopedPathDescriptors.filter((descriptor) =>
-      ["fk_path", "denorm_org_column"].includes(descriptor.scopingKind),
+    publicScopedPathDescriptors.filter(
+      (descriptor) =>
+        ["fk_path", "denorm_org_column"].includes(descriptor.scopingKind) ||
+        (descriptor.scopingKind === "polymorphic_resolver" && Boolean(descriptor.patientPolymorphic)),
     ),
   );
   const blockedPolymorphic = sortedDescriptors(
-    publicScopedPathDescriptors.filter((descriptor) => descriptor.scopingKind === "polymorphic_resolver"),
+    publicScopedPathDescriptors.filter(
+      (descriptor) => descriptor.scopingKind === "polymorphic_resolver" && !descriptor.patientPolymorphic,
+    ),
   );
 
   assertP084PublicPathTargets(targets, blockedPolymorphic);
@@ -96,16 +114,20 @@ export function getP084PublicFkPathDescriptors(options) {
   return getP084PublicPathDescriptors(options).filter((descriptor) => descriptor.scopingKind === "fk_path");
 }
 
+export function getP084PublicPolymorphicDescriptors(options) {
+  return getP084PublicPathDescriptors(options).filter((descriptor) => descriptor.scopingKind === "polymorphic_resolver");
+}
+
 export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 37) {
-    throw new Error(`Expected 37 P0.8.4 public FK/denorm path targets, got ${actualTables.length}`);
+  if (actualTables.length !== 38) {
+    throw new Error(`Expected 38 P0.8.4 public FK/denorm/polymorphic path targets, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {
-    throw new Error("P0.8.4 public FK/denorm path targets contain duplicates");
+    throw new Error("P0.8.4 public FK/denorm/polymorphic path targets contain duplicates");
   }
 
   const expectedSet = expectedTargetSet;
@@ -124,6 +146,9 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
   const denormTargets = targets
     .filter((descriptor) => descriptor.scopingKind === "denorm_org_column")
     .map((descriptor) => descriptor.table);
+  const polymorphicTargets = targets
+    .filter((descriptor) => descriptor.scopingKind === "polymorphic_resolver")
+    .map((descriptor) => descriptor.table);
 
   if (fkTargets.length !== 2) {
     throw new Error(`Expected 2 P0.8.4 FK-path targets, got ${fkTargets.length}`);
@@ -131,6 +156,10 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
 
   if (denormTargets.length !== 35) {
     throw new Error(`Expected 35 P0.8.4 denorm-org targets, got ${denormTargets.length}`);
+  }
+
+  if (polymorphicTargets.length !== 1) {
+    throw new Error(`Expected 1 P0.8.4 resolved polymorphic target, got ${polymorphicTargets.length}`);
   }
 
   const blockedTables = blockedPolymorphic.map((descriptor) => descriptor.table);
@@ -150,6 +179,12 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
       throw new Error(`Blocked polymorphic descriptor ${descriptor.table} must require P0.12.1`);
     }
   }
+
+  for (const descriptor of targets.filter((candidate) => candidate.scopingKind === "polymorphic_resolver")) {
+    if (!descriptor.patientPolymorphic) {
+      throw new Error(`Resolved polymorphic descriptor ${descriptor.table} must declare patientPolymorphic`);
+    }
+  }
 }
 
 export function renderP084PolicyStatements({ descriptors = getP084PublicPathDescriptors() } = {}) {
@@ -160,7 +195,7 @@ export function renderP084PolicyStatements({ descriptors = getP084PublicPathDesc
 
     return renderOrgColumnDormantPolicyStatements(descriptor, {
       policyName: p084PolicyName,
-      scopingKinds: ["denorm_org_column"],
+      scopingKinds: ["denorm_org_column", "polymorphic_resolver"],
     });
   });
 }
@@ -188,6 +223,11 @@ function printCli(format) {
     return;
   }
 
+  if (format === "--polymorphic-targets") {
+    console.log(getP084PublicPolymorphicDescriptors().map((descriptor) => descriptor.table).join("\n"));
+    return;
+  }
+
   if (format === "--blocked-polymorphic") {
     console.log(expectedP084BlockedPolymorphicTargets.join("\n"));
     return;
@@ -199,7 +239,7 @@ function printCli(format) {
   }
 
   throw new Error(
-    `Unsupported format ${format}. Use --targets, --denorm-targets, --fk-targets, --blocked-polymorphic, --json, or --sql.`,
+    `Unsupported format ${format}. Use --targets, --denorm-targets, --fk-targets, --polymorphic-targets, --blocked-polymorphic, --json, or --sql.`,
   );
 }
 

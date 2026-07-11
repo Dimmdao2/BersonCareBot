@@ -4,6 +4,7 @@ import {
   expectedP084BlockedPolymorphicTargets,
   expectedP084PublicDenormTargets,
   expectedP084PublicFkPathTargets,
+  expectedP084PublicPolymorphicTargets,
   getP084PublicPathDescriptors,
   p084PolicyName,
   renderP084PolicyStatements,
@@ -17,8 +18,8 @@ const descriptors = getP084PublicPathDescriptors();
 const statements = renderP084PolicyStatements({ descriptors });
 const sql = statements.join("\n");
 
-if (descriptors.length !== 37) {
-  fail(`Expected 37 P0.8.4 descriptors, got ${descriptors.length}`);
+if (descriptors.length !== 38) {
+  fail(`Expected 38 P0.8.4 descriptors, got ${descriptors.length}`);
 }
 
 if (expectedP084PublicFkPathTargets.length !== 2) {
@@ -29,8 +30,17 @@ if (expectedP084PublicDenormTargets.length !== 35) {
   fail(`Expected 35 explicit denorm targets, got ${expectedP084PublicDenormTargets.length}`);
 }
 
-if (expectedP084BlockedPolymorphicTargets.join(",") !== "public.comments") {
-  fail("P0.8.4 must keep public.comments blocked behind P0.12.1");
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): P0.12.1 is
+// complete (docs/_TODO/SAAS_FOUNDATION/P0_12_RESIDUAL_REFS_CHECKLIST.md) — public.comments is no
+// longer blocked, it now renders a real (org AND (staff OR polymorphic-patient)) dormant policy.
+// The blocked-set mechanism stays available (and must stay EMPTY) for any future, not-yet-resolved
+// polymorphic SCOPED target.
+if (expectedP084BlockedPolymorphicTargets.length !== 0) {
+  fail("P0.8.4 blocked-polymorphic set must be empty now that public.comments is resolved");
+}
+
+if (expectedP084PublicPolymorphicTargets.join(",") !== "public.comments") {
+  fail("P0.8.4 must resolve exactly public.comments as its polymorphic target");
 }
 
 if (statements.length !== descriptors.length * 4) {
@@ -38,7 +48,7 @@ if (statements.length !== descriptors.length * 4) {
 }
 
 for (const descriptor of descriptors) {
-  if (!["fk_path", "denorm_org_column"].includes(descriptor.scopingKind)) {
+  if (!["fk_path", "denorm_org_column", "polymorphic_resolver"].includes(descriptor.scopingKind)) {
     fail(`Unexpected P0.8.4 scoping kind for ${descriptor.table}: ${descriptor.scopingKind}`);
   }
 
@@ -64,8 +74,8 @@ for (const descriptor of descriptors) {
   }
 }
 
-if (sql.includes('"public"."comments"')) {
-  fail("P0.8.4 generated SQL must not target public.comments before P0.12.1");
+if (!sql.includes('"public"."comments"')) {
+  fail("P0.8.4 generated SQL must target public.comments now that P0.12.1 is resolved");
 }
 
 for (const table of expectedP084PublicFkPathTargets) {
@@ -204,6 +214,89 @@ for (const descriptor of patientChainOwnedDescriptors) {
   }
 }
 
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): public.
+// media_transcode_jobs has no owner column of its own — its dual-role ownership is inherited via an
+// EXISTS to its media_id parent (public.media_files), same conditional (shared-or-own-submission)
+// shape media_files itself gets under P0.8.3 (see check-p0-8-3-policy-generator.mjs).
+const expectedPatientConditionalChainOwnedTargets = 1;
+const patientConditionalChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientConditionalChain);
+
+if (patientConditionalChainOwnedDescriptors.length !== expectedPatientConditionalChainOwnedTargets) {
+  fail(
+    `Expected ${expectedPatientConditionalChainOwnedTargets} P0.8.4 patient-conditional-chain-owned targets, got ${patientConditionalChainOwnedDescriptors.length}`,
+  );
+}
+
+if (patientConditionalChainOwnedDescriptors[0]?.table !== "public.media_transcode_jobs") {
+  fail("P0.8.4 patient-conditional-chain-owned target must be public.media_transcode_jobs");
+}
+
+for (const descriptor of patientConditionalChainOwnedDescriptors) {
+  const quotedTarget = descriptor.table
+    .split(".")
+    .map((part) => `"${part}"`)
+    .join(".");
+  const createStatement = statements.find(
+    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+  );
+
+  if (!createStatement?.includes("NULLIF(current_setting('app.actor', true), '') = 'staff'")) {
+    fail(`${descriptor.table} conditional-chain-owned policy must include the fail-closed staff-or-patient branch`);
+  }
+
+  if (!createStatement.includes(`EXISTS ( SELECT 1 FROM "public"."media_files"`)) {
+    fail(`${descriptor.table} conditional-chain-owned policy must EXISTS-join its media_files parent`);
+  }
+
+  if (!createStatement.includes(`"usage_purpose" IS DISTINCT FROM 'program_item_submission'`)) {
+    fail(`${descriptor.table} conditional-chain-owned policy must permit the shared/library branch of its parent`);
+  }
+
+  if (!createStatement.includes(`"uploaded_by" = NULLIF(current_setting('app.patient_user_id'`)) {
+    fail(`${descriptor.table} conditional-chain-owned policy must permit the patient's own-submission branch of its parent`);
+  }
+}
+
+// B4-core-4: public.comments is polymorphic — 5 catalog target_type values stay org-wide (no extra
+// check), 4 patient-instance target_type values additionally resolve to their owning patient via a
+// chain predicate (same renderPatientChainPredicate shape proven for the direct chain family above).
+const expectedPatientPolymorphicOwnedTargets = 1;
+const patientPolymorphicOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientPolymorphic);
+
+if (patientPolymorphicOwnedDescriptors.length !== expectedPatientPolymorphicOwnedTargets) {
+  fail(
+    `Expected ${expectedPatientPolymorphicOwnedTargets} P0.8.4 patient-polymorphic-owned targets, got ${patientPolymorphicOwnedDescriptors.length}`,
+  );
+}
+
+if (patientPolymorphicOwnedDescriptors[0]?.table !== "public.comments") {
+  fail("P0.8.4 patient-polymorphic-owned target must be public.comments");
+}
+
+for (const descriptor of patientPolymorphicOwnedDescriptors) {
+  const quotedTarget = descriptor.table
+    .split(".")
+    .map((part) => `"${part}"`)
+    .join(".");
+  const createStatement = statements.find(
+    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+  );
+
+  if (!createStatement?.includes("NULLIF(current_setting('app.actor', true), '') = 'staff'")) {
+    fail(`${descriptor.table} polymorphic-owned policy must include the fail-closed staff-or-patient branch`);
+  }
+
+  if (!createStatement.includes(`"target_type" = ANY (ARRAY[`)) {
+    fail(`${descriptor.table} polymorphic-owned policy must keep the shared/catalog target_type branch`);
+  }
+
+  for (const variant of descriptor.patientPolymorphic.variants) {
+    if (!createStatement.includes(`"target_type" = '${variant.typeValue}'`)) {
+      fail(`${descriptor.table} polymorphic-owned policy must gate the ${variant.typeValue} variant on its target_type`);
+    }
+  }
+}
+
 console.log(
-  `P0.8.4 policy generator OK: 37 targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm, ${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned), public.comments blocked for P0.12.1.`,
+  `P0.8.4 policy generator OK: 38 targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm, ${expectedP084PublicPolymorphicTargets.length} polymorphic, ${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalChainOwnedDescriptors.length} patient-conditional-chain-owned, ${patientPolymorphicOwnedDescriptors.length} patient-polymorphic-owned), public.comments resolved (P0.12.1 complete).`,
 );
