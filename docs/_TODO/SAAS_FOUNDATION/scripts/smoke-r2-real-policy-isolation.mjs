@@ -309,6 +309,8 @@ const lfkComplexExerciseA2 = "b6200000-0000-4000-8000-000000000122";
 const mediaFileDummy = "b6200000-0000-4000-8000-000000000130";
 const mediaPlaybackEventA1 = "b6200000-0000-4000-8000-000000000141";
 const mediaPlaybackEventA2 = "b6200000-0000-4000-8000-000000000142";
+const uploadSessionA1 = "b6200000-0000-4000-8000-000000000151";
+const uploadSessionA2 = "b6200000-0000-4000-8000-000000000152";
 
 // ---------------------------------------------------------------------------
 // Phase 1: minimal real webapp DDL (see adaptation #1 above)
@@ -501,6 +503,35 @@ CREATE TABLE "media_playback_client_events" (
   "created_at" timestamptz DEFAULT now() NOT NULL,
   CONSTRAINT "media_playback_client_events_user_id_fkey"
     FOREIGN KEY ("user_id") REFERENCES "public"."platform_users"("id") ON DELETE cascade
+);
+`,
+  // media_upload_sessions excerpt (B4-core-3 audit correction, taskdb #658): verbatim CREATE TABLE
+  // from apps/webapp/migrations/067_media_folders_and_multipart.sql, EXCEPT the FK on media_id ->
+  // media_files(id) is dropped (media_files not built in this minimal scratch schema) — media_id
+  // stays a plain uuid seeded with a dummy value. The owner_user_id FK to platform_users(id) is
+  // KEPT: it is the direct patient-owner column this table is walled by. This table has NO
+  // usage_purpose column (that lives on media_files) — proving it is genuinely a direct per-patient
+  // owner, not the dual-role case its earlier false exclusion claimed.
+  `
+CREATE TABLE media_upload_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  media_id UUID NOT NULL,
+  s3_key TEXT NOT NULL,
+  upload_id TEXT NOT NULL,
+  owner_user_id UUID NOT NULL REFERENCES platform_users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'initiated',
+  expected_size_bytes BIGINT NOT NULL CHECK (expected_size_bytes > 0),
+  mime_type TEXT NOT NULL,
+  part_size_bytes INT NOT NULL CHECK (part_size_bytes >= 1 AND part_size_bytes <= 536870912),
+  expires_at TIMESTAMPTZ NOT NULL,
+  completed_at TIMESTAMPTZ,
+  aborted_at TIMESTAMPTZ,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT media_upload_sessions_status_check CHECK (
+    status IN ('initiated', 'uploading', 'completing', 'completed', 'aborted', 'expired', 'failed')
+  )
 );
 `,
   `
@@ -802,6 +833,7 @@ ALTER TABLE lfk_complex_exercises ADD COLUMN IF NOT EXISTS organization_id uuid;
 ALTER TABLE treatment_program_events ADD COLUMN IF NOT EXISTS organization_id uuid;
 ALTER TABLE treatment_program_instance_stage_items ADD COLUMN IF NOT EXISTS organization_id uuid;
 ALTER TABLE media_playback_client_events ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE media_upload_sessions ADD COLUMN IF NOT EXISTS organization_id uuid;
 `;
 
 // ---------------------------------------------------------------------------
@@ -872,14 +904,16 @@ const ENFORCE_TARGETS = [
   "integrator.conversation_messages",
   "integrator.question_messages",
   "integrator.user_reminder_occurrences",
-  // B4-core-3 (taskdb #658): representative sample of the 27 newly-walled patient-owned SCOPED
-  // tables (9 from migration 0171 + 18 from 0172), covering every mechanism: single-hop
-  // parent_denorm chains (all PHI), a 2-hop deep chain, a 1-hop chain to an already-walled parent,
-  // and a direct-user_id column. The remaining 15 of the 27 (be_appointment_* / be_package_* /
-  // be_refunds / be_product_history_events / reminder_journal single-hop chains, and the other 3
-  // media_playback_* direct columns) use byte-for-byte the SAME renderPatientChainPredicate /
-  // direct-column predicate shapes proven here + already proven for the be_* / notification_*
-  // families elsewhere in this smoke, so this sample is representative, not a coverage gap.
+  // B4-core-3 (taskdb #658): representative sample (13 tables) of the 28 newly-walled patient-owned
+  // SCOPED tables (9 from migration 0171 + 18 from 0172 + 1 from 0173 media_upload_sessions audit
+  // correction), covering every mechanism: single-hop parent_denorm chains (all PHI), a 2-hop deep
+  // chain, a 1-hop chain to an already-walled parent, and two direct-owner columns
+  // (media_playback_client_events.user_id + media_upload_sessions.owner_user_id). The remaining 15
+  // (be_appointment_* / be_package_* / be_refunds / be_product_history_events / reminder_journal
+  // single-hop chains, and the other 3 media_playback_* direct columns) use byte-for-byte the SAME
+  // renderPatientChainPredicate / direct-column predicate shapes proven here + already proven for
+  // the be_* / notification_* families elsewhere in this smoke, so this sample is representative,
+  // not a coverage gap.
   "public.online_intake_answers",
   "public.online_intake_attachments",
   "public.online_intake_status_history",
@@ -892,6 +926,7 @@ const ENFORCE_TARGETS = [
   "public.treatment_program_events",
   "public.lfk_complex_exercises",
   "public.media_playback_client_events",
+  "public.media_upload_sessions",
 ];
 
 // IMPORTANT mechanical finding: Postgres OR-combines multiple PERMISSIVE policies on the same table
@@ -932,6 +967,7 @@ const DORMANT_POLICY_NAME_BY_TABLE = {
   "public.treatment_program_events": p084PolicyName,
   "public.lfk_complex_exercises": p084PolicyName,
   "public.media_playback_client_events": p083PolicyName,
+  "public.media_upload_sessions": p083PolicyName,
 };
 
 const enforceFindings = [];
@@ -1232,6 +1268,13 @@ INSERT INTO media_playback_client_events (id, media_id, user_id, event_class, or
   ('${mediaPlaybackEventA1}'::uuid, '${mediaFileDummy}'::uuid, '${patientA1}'::uuid, 'hls_fatal', '${orgA}'::uuid),
   ('${mediaPlaybackEventA2}'::uuid, '${mediaFileDummy}'::uuid, '${patientA2}'::uuid, 'hls_fatal', '${orgA}'::uuid)
 ON CONFLICT (id) DO NOTHING;
+
+-- direct-column (0173 audit correction): media_upload_sessions.owner_user_id is the patient owner.
+INSERT INTO media_upload_sessions
+  (id, media_id, s3_key, upload_id, owner_user_id, expected_size_bytes, mime_type, part_size_bytes, expires_at, organization_id) VALUES
+  ('${uploadSessionA1}'::uuid, '${mediaFileDummy}'::uuid, 's3/a1', 'up-a1', '${patientA1}'::uuid, 1024, 'video/mp4', 5242880, now() + interval '1 day', '${orgA}'::uuid),
+  ('${uploadSessionA2}'::uuid, '${mediaFileDummy}'::uuid, 's3/a2', 'up-a2', '${patientA2}'::uuid, 1024, 'video/mp4', 5242880, now() + interval '1 day', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
 `;
 
 // ---------------------------------------------------------------------------
@@ -1257,10 +1300,11 @@ const SUPPORT_CHAIN_PROOFS = [
   { table: "public.support_delivery_events", ownWhere: `id = '${supportDeliveryEventA1}'::uuid`, otherWhere: `id = '${supportDeliveryEventA2}'::uuid` },
 ];
 
-// B4-core-3 (taskdb #658): the 12 representative newly-walled targets. All are webapp/uuid-keyed
-// (app.patient_user_id), so they ride the SAME staff / mixed-patient / empty proof blocks as the
-// SUPPORT_CHAIN_PROOFS above -- own row (A1) visible, sibling patient's row (A2) NOT, for a patient
-// session; both visible for staff; neither for empty context.
+// B4-core-3 (taskdb #658): the representative sample of newly-walled tables (0171 + 0172 + the
+// 0173 media_upload_sessions audit correction). All are webapp/uuid chains or direct uuid columns,
+// so they read the app.patient_user_id GUC (same as the support family) and slot into the SAME
+// staff/mixed/empty proof harness below. A1 and A2 are two patients in the SAME org (org A), so
+// each "own visible / other NOT visible" pair is a real A1<>A2 wall test (not merely A-vs-B).
 const B4_CORE_3_CHAIN_PROOFS = [
   { table: "public.online_intake_answers", ownWhere: `id = '${intakeAnswerA1}'::uuid`, otherWhere: `id = '${intakeAnswerA2}'::uuid` },
   { table: "public.online_intake_attachments", ownWhere: `id = '${intakeAttachmentA1}'::uuid`, otherWhere: `id = '${intakeAttachmentA2}'::uuid` },
@@ -1274,6 +1318,7 @@ const B4_CORE_3_CHAIN_PROOFS = [
   { table: "public.treatment_program_events", ownWhere: `id = '${treatmentEventA1}'::uuid`, otherWhere: `id = '${treatmentEventA2}'::uuid` },
   { table: "public.lfk_complex_exercises", ownWhere: `id = '${lfkComplexExerciseA1}'::uuid`, otherWhere: `id = '${lfkComplexExerciseA2}'::uuid` },
   { table: "public.media_playback_client_events", ownWhere: `id = '${mediaPlaybackEventA1}'::uuid`, otherWhere: `id = '${mediaPlaybackEventA2}'::uuid` },
+  { table: "public.media_upload_sessions", ownWhere: `id = '${uploadSessionA1}'::uuid`, otherWhere: `id = '${uploadSessionA2}'::uuid` },
 ];
 
 function renderChainOwnNotOtherProofSql(proofs, { label }) {
@@ -1388,7 +1433,7 @@ GRANT SELECT ON
   public.support_conversation_messages,
   public.support_question_messages,
   public.support_delivery_events,
-  -- B4-core-3 (taskdb #658): the 12 flipped targets + their (non-flipped) chain-parent tables the
+  -- B4-core-3 (taskdb #658): the 13 flipped targets + their (non-flipped) chain-parent tables the
   -- EXISTS subqueries must read.
   public.online_intake_requests,
   public.online_intake_answers,
@@ -1407,7 +1452,8 @@ GRANT SELECT ON
   public.test_results,
   public.lfk_complexes,
   public.lfk_complex_exercises,
-  public.media_playback_client_events
+  public.media_playback_client_events,
+  public.media_upload_sessions
 TO ${appRoleIdent};
 
 SET ROLE ${appRoleIdent};
@@ -1740,7 +1786,7 @@ ${renderChainBothVisibleProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "staff_integr
 ${renderChainBothVisibleProofSql(SUPPORT_CHAIN_PROOFS, { label: "staff_support" })}
 ${renderChainBothVisibleProofSql(B4_CORE_3_CHAIN_PROOFS, { label: "staff_b4c3" })}
 \echo 'B4-fanout (e) CONFIRMED: staff sees both A1 and A2 rows across all chain-only targets (integrator I2/I3 + webapp support family).'
-\echo 'B4-core-3 (e) CONFIRMED: staff sees both A1 and A2 rows across all 12 newly-walled representative targets (PHI clinical/intake/test/treatment/lfk chains + media direct column).'
+\echo 'B4-core-3 (e) CONFIRMED: staff sees both A1 and A2 rows across all 13 newly-walled representative targets (PHI clinical/intake/test/treatment/lfk chains + media_playback + media_upload_sessions direct columns).'
 
 -- B4-fanout gap closure proof (f): a SINGLE MIXED patient session -- app.patient_user_id (uuid,
 -- webapp identity) AND app.integrator_user_id (bigint, integrator identity) set SIMULTANEOUSLY --
@@ -1753,7 +1799,7 @@ SET app.integrator_user_id = '${integratorUserA1}';
 ${renderChainOwnNotOtherProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "mixed_integrator" })}
 ${renderChainOwnNotOtherProofSql(SUPPORT_CHAIN_PROOFS, { label: "mixed_support" })}
 ${renderChainOwnNotOtherProofSql(B4_CORE_3_CHAIN_PROOFS, { label: "mixed_b4c3" })}
-\echo 'B4-core-3 (f) CONFIRMED: the mixed patient A1 session sees ONLY its own row (never A2, same org) across all 12 newly-walled representative targets -- PHI clinical_*_update/diagnosis_status_history/test_results/treatment_program_instance_stages/stage_items/events/online_intake_*/lfk_complex_exercises + media_playback direct column.'
+\echo 'B4-core-3 (f) CONFIRMED: the mixed patient A1 session sees ONLY its own row (never A2, same org) across all 13 newly-walled representative targets -- PHI clinical_*_update/diagnosis_status_history/test_results/treatment_program_instance_stages/stage_items/events/online_intake_*/lfk_complex_exercises + media_playback_client_events + media_upload_sessions direct columns.'
 -- Already-covered families (direct/bridge, not chain-only) also hold under this SAME mixed session:
 SELECT (count(*) > 0)::int AS mixed_own_enrollment FROM public.org_enrollments
   WHERE platform_user_id = '${patientA1}'::uuid \gset
@@ -1793,7 +1839,7 @@ ${renderChainEmptyContextDeniesSql(INTEGRATOR_CHAIN_PROOFS, { label: "empty_inte
 ${renderChainEmptyContextDeniesSql(SUPPORT_CHAIN_PROOFS, { label: "empty_support" })}
 ${renderChainEmptyContextDeniesSql(B4_CORE_3_CHAIN_PROOFS, { label: "empty_b4c3" })}
 \echo 'B4-fanout (g) CONFIRMED: empty actor/patient context denies all chain-only targets too, even with app.org set.'
-\echo 'B4-core-3 (g) CONFIRMED: empty actor/patient context denies all 12 newly-walled representative targets too, even with app.org set.'
+\echo 'B4-core-3 (g) CONFIRMED: empty actor/patient context denies all 13 newly-walled representative targets too, even with app.org set.'
 
 \echo 'B6 real-policy isolation OK'
 `;

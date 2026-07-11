@@ -28,11 +28,12 @@ const parentCopyHolds = new Set([
 // B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #653): patient-owned
 // P0.8.3 direct-org tables render org AND (staff OR patient) instead of a plain org predicate.
 // See rls-descriptor-model.mjs `patientOwnedColumns` for the full classification/rationale.
-// B4-core-3 (taskdb #658) adds 4 more: media_playback_client_events/media_hls_proxy_error_events/
-// media_playback_resolution_events/media_playback_user_video_first_resolve each carry a direct
-// `user_id` column referencing platform_users(id), same shape as the already-registered
-// patient_daily_warmup_video_views/product_analytics_events_recent.
-const expectedPatientOwnedTargets = 48;
+// B4-core-3 (taskdb #658) adds 5 more: media_playback_client_events/media_hls_proxy_error_events/
+// media_playback_resolution_events/media_playback_user_video_first_resolve (direct `user_id`) plus
+// media_upload_sessions (direct `owner_user_id`, audit-correction: it has NO usage_purpose column,
+// so its earlier dual-role exclusion was false) — all referencing platform_users(id), same shape as
+// the already-registered patient_daily_warmup_video_views/product_analytics_events_recent.
+const expectedPatientOwnedTargets = 49;
 
 const descriptors = getP083PublicDirectOrgDescriptors();
 const targets = descriptors.map((descriptor) => descriptor.table);

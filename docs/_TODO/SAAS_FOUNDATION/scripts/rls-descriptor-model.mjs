@@ -203,10 +203,13 @@ function exemptionDescriptor(tier) {
 //     (be_package_usages.created_by_platform_user_id, content_section_slug_history.changed_by_user_id, ...);
 //   - dual-role owner columns that mean "staff OR patient" depending on ANOTHER column's value,
 //     where a plain column-equality predicate would incorrectly wall off legitimate org-wide
-//     content: public.media_files.uploaded_by (NOT media_files.owner_user_id — that column does
-//     not exist on media_files; owner_user_id lives on the SEPARATE public.media_upload_sessions
-//     table, itself excluded here for the same dual-role reason) — org library uploads vs a
-//     patient's own submission, keyed by usage_purpose ('program_item_submission' vs NULL/other);
+//     content: public.media_files.uploaded_by — org library uploads (uploaded_by = a staff member)
+//     vs a patient's own submission, DISAMBIGUATED by media_files.usage_purpose
+//     ('program_item_submission' vs NULL/other), verified present on media_files in
+//     apps/webapp/db/drizzle-migrations/0113_client_media_folders.sql. (NOTE: public.media_upload_sessions
+//     is NOT excluded for this reason — B4-core-3 audit correction, taskdb #658: it has NO
+//     usage_purpose column, its owner_user_id is a plain NOT NULL per-patient FK, so it is walled
+//     directly below in patientOwnedColumns, same shape as media_playback_*);
 //   - public.patient_merge_candidates (staff/system dedup queue, not a patient's own record);
 //   - P0.8.6 BOOTSTRAP-hybrid tables (system_settings, platform_user_contacts, user_phone_history,
 //     integrator.system_settings) — explicitly out of scope per owner instruction, pre-org-context
@@ -311,6 +314,15 @@ const patientOwnedColumns = new Map([
   ["public.media_hls_proxy_error_events", { column: "user_id" }],
   ["public.media_playback_resolution_events", { column: "user_id" }],
   ["public.media_playback_user_video_first_resolve", { column: "user_id" }],
+
+  // B4-core-3 audit correction (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): media_upload_sessions
+  // was previously (wrongly) excluded as "dual-role keyed by usage_purpose" — but that column lives
+  // on media_files, NOT on this table. media_upload_sessions.owner_user_id is a plain NOT NULL FK to
+  // platform_users(id) (apps/webapp/migrations/067_media_folders_and_multipart.sql), the direct
+  // per-patient owner of the upload session. Same direct-column wall as media_playback_*; the
+  // staff-actor bypass covers the case where the uploader is a staff member (org library upload),
+  // so legitimate staff access is unaffected while a patient sees only its own upload sessions.
+  ["public.media_upload_sessions", { column: "owner_user_id" }],
 ]);
 
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
