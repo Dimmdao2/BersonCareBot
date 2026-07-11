@@ -39,11 +39,21 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
 - [x] **B4-core-2** — chain-only patient walls for 11 tables (integrator I2/I3 + support) + integrator GUC
       aligned to `app.integrator_user_id`; smoke proves mixed uuid+bigint patient session sees only own.
       Audit-clean on those 11 + the GUC realign. Also fixed the `\quit 1` non-fatal smoke bug. (#656, merged)
-- [ ] **B4-core-3** — close the **9 MORE patient-owned chain tables the B4-core-2 audit found still open**
-      (PHI-bearing: online_intake_answers/attachments/status_history, clinical_complaint_update,
-      clinical_diagnosis_update/status_history, test_results, treatment_program_instance_stages,
-      lfk_complex_exercises). Same parent_denorm pattern, parents already walled. Register in
-      `patientChainOwnedTables` + regenerate + prove. THEN "0 patient-owned SCOPED open" is true. (#658)
+- [x] **B4-core-3** — closed the 9 named PHI chain tables (mig 0171) PLUS **18 MORE found by the
+      mandated exhaustive census** (mig 0172): 3 treatment-program denorm chains (incl. a 2-hop
+      instance_stage_items/_groups chain), 11 be_appointment_*/be_package_*/be_refunds/
+      be_product_history_events/reminder_journal single-hop chains to already-walled parents, and 4
+      media_playback_* direct `user_id` columns that had simply been missed — PLUS **1 MORE the
+      independent audit caught** (media_upload_sessions.owner_user_id, mig 0173; was falsely excluded
+      as "dual-role keyed by usage_purpose", but that column is on media_files, not this table).
+      **28 tables newly walled. Census proved by enumeration: 157 SCOPED → 99 walled (65 direct/fk-path
+      + 34 chain), 58 excluded, every excluded one org-catalog/booking-config/staff-actor/shared-config/
+      dual-role — NONE patient-owned. 0 patient-owned SCOPED remain org-only.** Registered in
+      `patientChainOwnedTables`/`patientOwnedColumns`, regenerated (checkers green: P0.8.3 49
+      patient-owned + 12 chain, P0.8.4 11 + 15 chain), full `check:saas-db-regression` green,
+      `smoke-r2-real-policy-isolation.mjs` green (exit 0) proving A1≠A2 fail-closed (staff sees all;
+      mixed uuid+bigint patient sees only own; empty→deny) on a 13-table representative sample of the
+      28. (#658)
 - [ ] **B5** — non-bypass app DB role + grants materialized (P0.5), static check green; live scratch
       proof by lead. (#655, Codex)
 - [ ] **B4-fanout** — read-context wrapper contract (Opus design): staff sessions set `app.actor='staff'`;
