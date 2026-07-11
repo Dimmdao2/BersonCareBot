@@ -90,6 +90,24 @@
  *          INNER JOINs down to the identity-bearing table/column. Migration 0170_p0_8_b4_fanout_
  *          chain_patient_wall_rls.sql carries these 11 tables' dormant-mode policies; this smoke
  *          simulates their enforce-mode flip the same way as the original 6 B4-core targets.
+ *  - UPDATE (B4-core-4, taskdb #660): an INDEPENDENT AUDIT of the B4-core-3 census found 3 more REAL
+ *    patient-owned SCOPED tables still org-only — the "hard" cases deliberately excluded from the
+ *    plain column/chain registries: public.media_files (dual-role uploaded_by, disambiguated by
+ *    usage_purpose), public.media_transcode_jobs (inherits media_files' conditional ownership via
+ *    its media_id FK, no ownership column of its own), and public.comments (polymorphic
+ *    target_type/target_id — previously had NO RLS policy at all, blocked behind P0.12.1, which is
+ *    now complete). Closed by 2 NEW predicate shapes (rls-sql-renderer.mjs
+ *    renderConditionalPatientPredicate / renderConditionalChainPatientPredicate /
+ *    renderPolymorphicPatientPredicate) and proven below via their REAL dormant policy (migration
+ *    0174) directly — unlike the B4-core/B4-fanout/B4-core-3 targets above, these 3 are NOT added to
+ *    p0-9-enforce-descriptors.mjs's ENFORCE_TARGETS simulated flip (comments' polymorphic_resolver
+ *    scopingKind deliberately stays `scoped_pending_default_deny` under P0.9 — a separate, more
+ *    conservative gate, out of scope for this patient-wall closure). This is sufficient: with
+ *    app.org SET (as every assertion here does), the dormant org predicate already behaves like
+ *    enforce mode (the only difference is the unset-app.org permissive fallback, and org isolation
+ *    for these scopingKinds is already proven generically elsewhere in this smoke), and the patient
+ *    branch of every predicate shape in this file is ALWAYS fail-closed regardless of dormant/
+ *    enforce mode.
  *
  * Scratch only. Guards refuse non-scratch/dev/prod/test databases, same as smoke-p0-13-db-isolation.mjs.
  * No push/deploy.
@@ -311,6 +329,29 @@ const mediaPlaybackEventA1 = "b6200000-0000-4000-8000-000000000141";
 const mediaPlaybackEventA2 = "b6200000-0000-4000-8000-000000000142";
 const uploadSessionA1 = "b6200000-0000-4000-8000-000000000151";
 const uploadSessionA2 = "b6200000-0000-4000-8000-000000000152";
+
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): fixture ids for
+// the 3 conditional/polymorphic patient-wall targets found by the independent audit. Unlike the
+// dummy-uuid media_id used above for media_playback_client_events/media_upload_sessions (whose FK
+// to media_files was deliberately dropped, see B4_CORE_3_DDL_STEPS), this smoke builds a REAL
+// public.media_files table (see B4_CORE_4_DDL_STEPS) so its own conditional predicate, and
+// media_transcode_jobs' inherited-via-FK conditional predicate, can be exercised directly.
+const mediaFileSharedA = "b6400000-0000-4000-8000-000000000001"; // library upload, usage_purpose NULL
+const mediaFileSubmissionA1 = "b6400000-0000-4000-8000-000000000002"; // patient A1's own submission
+const mediaFileSubmissionA2 = "b6400000-0000-4000-8000-000000000003"; // patient A2's own submission
+const transcodeJobSharedA = "b6400000-0000-4000-8000-000000000011";
+const transcodeJobSubmissionA1 = "b6400000-0000-4000-8000-000000000012";
+const transcodeJobSubmissionA2 = "b6400000-0000-4000-8000-000000000013";
+// comments: 1 catalog/shared target_type (visible to any org member) + 2 patient-instance variants
+// at opposite ends of the hop-depth spectrum -- program_instance (1 hop) and stage_item_instance
+// (3 hops, the deepest chain registered) -- each with an A1 row and an A2 row on the SAME org-A
+// parent instances already built by B4_CORE_3_DDL_STEPS (treatmentInstanceA1/A2,
+// treatmentInstanceStageItemA1/A2).
+const commentCatalogShared = "b6400000-0000-4000-8000-000000000021";
+const commentProgramA1 = "b6400000-0000-4000-8000-000000000022";
+const commentProgramA2 = "b6400000-0000-4000-8000-000000000023";
+const commentStageItemA1 = "b6400000-0000-4000-8000-000000000024";
+const commentStageItemA2 = "b6400000-0000-4000-8000-000000000025";
 
 // ---------------------------------------------------------------------------
 // Phase 1: minimal real webapp DDL (see adaptation #1 above)
@@ -552,6 +593,98 @@ CREATE TABLE lfk_exercises (
 `,
   "apps/webapp/migrations/035_lfk_complex_exercises.sql",
 ];
+
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): DDL for the 3
+// conditional/polymorphic targets found by the independent audit. Each entry is verbatim CREATE
+// TABLE SQL from the real file (organization_id/usage_purpose columns are later ADD COLUMN
+// retrofits in the real migrations too -- applied separately below in b4c4RetrofitSql, same
+// "adaptation" convention as b4c3RetrofitSql).
+//   - media_files: verbatim CREATE TABLE from apps/webapp/migrations/028_media_files.sql
+//     (uploaded_by already REFERENCES platform_users(id), no adaptation needed).
+//   - media_transcode_jobs: verbatim CREATE TABLE + media_id FK + indexes from
+//     apps/webapp/db/drizzle-migrations/0019_media_transcode_jobs_queue.sql, EXCEPT the file's
+//     trailing `INSERT INTO system_settings (...) VALUES ('video_hls_pipeline_enabled', ...)`
+//     seed row is dropped (unrelated to the RLS predicate this smoke proves). Unlike
+//     media_playback_client_events/media_upload_sessions above, media_id's FK to media_files(id) is
+//     KEPT here -- media_files is a real table in this smoke's schema now, so the FK is meaningful.
+//   - comments: verbatim CREATE TABLE + author_id FK from
+//     apps/webapp/db/drizzle-migrations/0004_entity_comments.sql (author_id already REFERENCES
+//     platform_users(id), no adaptation needed; target_type/target_id stay polymorphic, no FK, per
+//     P0.12.1 / check-p0-12-polymorphic-references.mjs's assertNoItemRefFk).
+const B4_CORE_4_DDL_STEPS = [
+  `
+CREATE TABLE IF NOT EXISTS media_files (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  original_name TEXT NOT NULL,
+  stored_path TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes BIGINT NOT NULL CHECK (size_bytes >= 0 AND size_bytes <= 52428800),
+  uploaded_by UUID REFERENCES platform_users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_files_created_at ON media_files(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_media_files_uploaded_by ON media_files(uploaded_by);
+`,
+  `
+CREATE TABLE "media_transcode_jobs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"media_id" uuid NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"locked_at" timestamp with time zone,
+	"locked_by" text,
+	"last_error" text,
+	"next_attempt_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "media_transcode_jobs_status_check" CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'failed'::text]))
+);
+ALTER TABLE "media_transcode_jobs" ADD CONSTRAINT "media_transcode_jobs_media_id_fkey" FOREIGN KEY ("media_id") REFERENCES "public"."media_files"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "idx_media_transcode_jobs_pending_pick" ON "media_transcode_jobs" USING btree ("next_attempt_at" timestamptz_ops,"created_at" timestamptz_ops) WHERE (status = 'pending'::text);
+CREATE UNIQUE INDEX "media_transcode_jobs_one_active_per_media" ON "media_transcode_jobs" USING btree ("media_id" uuid_ops) WHERE (status = ANY (ARRAY['pending'::text, 'processing'::text]));
+`,
+  `
+CREATE TABLE "comments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"author_id" uuid NOT NULL,
+	"target_type" text NOT NULL,
+	"target_id" uuid NOT NULL,
+	"comment_type" text NOT NULL,
+	"body" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "comments_target_type_check" CHECK (target_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'test'::text, 'test_set'::text, 'recommendation'::text, 'lesson'::text, 'stage_item_instance'::text, 'stage_instance'::text, 'program_instance'::text])),
+	CONSTRAINT "comments_comment_type_check" CHECK (comment_type = ANY (ARRAY['template'::text, 'individual_override'::text, 'clinical_note'::text]))
+);
+ALTER TABLE "comments" ADD CONSTRAINT "comments_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "public"."platform_users"("id") ON DELETE restrict ON UPDATE no action;
+CREATE INDEX "idx_comments_target_type_target_id" ON "comments" USING btree ("target_type" text_ops,"target_id" uuid_ops);
+`,
+];
+
+// B4-core-4 org-column + usage_purpose retrofits (real migrations: 0098 for usage_purpose, 0152
+// P0.4.P7 for media_files/media_transcode_jobs organization_id, 0154 P0.4.D for comments
+// organization_id) -- restricted to these 3 tables, same "adaptation" convention as b4c3RetrofitSql.
+const b4c4RetrofitSql = `
+ALTER TABLE "media_files" ADD COLUMN IF NOT EXISTS "usage_purpose" text;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'media_files_usage_purpose_check'
+  ) THEN
+    ALTER TABLE "media_files"
+      ADD CONSTRAINT "media_files_usage_purpose_check"
+      CHECK (("usage_purpose" IS NULL) OR ("usage_purpose" = ANY (ARRAY['program_item_submission'::text])));
+  END IF;
+END $$;
+
+ALTER TABLE media_files ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE media_transcode_jobs ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS organization_id uuid;
+CREATE INDEX IF NOT EXISTS idx_media_files_organization_id ON media_files USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_media_transcode_jobs_organization_id ON media_transcode_jobs USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_comments_organization_id ON comments USING btree (organization_id);
+`;
 
 // Real system_settings org-column retrofit + RLS lives inside 0163 (bootstrap-hybrid sweep) —
 // applied in phase 4 alongside the other extracted RLS blocks, since it is itself a real,
@@ -844,6 +977,9 @@ const rls0162 = readRepoFile("apps/webapp/db/drizzle-migrations/0162_p0_8_5_inte
 const rls0163 = readRepoFile("apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql");
 const rls0167 = readRepoFile("apps/webapp/db/drizzle-migrations/0167_p0_8_3_org_enrollments_broadcast_drafts_rls.sql");
 const rls0170 = readRepoFile("apps/webapp/db/drizzle-migrations/0170_p0_8_b4_fanout_chain_patient_wall_rls.sql");
+const rls0174 = readRepoFile(
+  "apps/webapp/db/drizzle-migrations/0174_p0_8_b4_core_4_conditional_polymorphic_patient_wall_rls.sql",
+);
 
 const dormantRlsSql = [
   selectRlsBlocks(rls0161, ["public.be_package_items", "public.notification_delivery_attempts"]),
@@ -877,6 +1013,20 @@ const dormantRlsSql = [
     "integrator.user_reminder_delivery_logs",
     "integrator.user_reminder_occurrences",
   ]),
+  // B4-core-4 (taskdb #660): the 3 conditional/polymorphic patient-wall targets, carried by
+  // migration 0174 (byte-identical generated output, same extraction shape as the migrations
+  // above). Proven DIRECTLY against this dormant block (not flipped to enforce mode like the
+  // targets above) — with app.org SET (as every assertion below does), the dormant org predicate
+  // `(app.org IS NULL OR organization_id = app.org)` already behaves identically to enforce mode
+  // (the only difference is the unset-app.org fallback, which this smoke does not need to
+  // re-prove for these 3 — org isolation is already proven generically for direct_org_column/
+  // denorm_org_column elsewhere in this smoke), and the patient branch is ALWAYS fail-closed
+  // regardless of dormant/enforce mode (see rls-sql-renderer.mjs renderPatientPredicate's doc
+  // comment). public.comments' polymorphic_resolver scopingKind is deliberately NOT added to
+  // p0-9-enforce-descriptors.mjs's ENFORCE_TARGETS mechanism (it stays `scoped_pending_default_deny`
+  // there, unrelated/more conservative P0.9 gate, out of scope for this patient-wall closure) — so
+  // testing it via its real DORMANT policy directly is the only (and correct) way to prove it here.
+  selectRlsBlocks(rls0174, ["public.media_files", "public.media_transcode_jobs", "public.comments"]),
 ].join("\n");
 
 // ---------------------------------------------------------------------------
@@ -1278,6 +1428,46 @@ ON CONFLICT (id) DO NOTHING;
 `;
 
 // ---------------------------------------------------------------------------
+// B4-core-4 (taskdb #660): fixtures for the 3 conditional/polymorphic patient-wall targets, all in
+// org A (isolation proven patient-vs-patient, same shape as the B4-core-3 sample above; org-level
+// isolation for direct_org_column/denorm_org_column/polymorphic_resolver is already proven
+// generically elsewhere in this smoke).
+// ---------------------------------------------------------------------------
+const b4c4SeedSql = `
+-- media_files: one shared/library row (uploaded_by = staff doctor A, usage_purpose NULL --
+-- visible to every patient in the org) + one submission row per patient (usage_purpose =
+-- 'program_item_submission', uploaded_by = that patient -- visible ONLY to that patient).
+INSERT INTO media_files (id, original_name, stored_path, mime_type, size_bytes, uploaded_by, usage_purpose, organization_id) VALUES
+  ('${mediaFileSharedA}'::uuid, 'shared.mp4', 's3/shared.mp4', 'video/mp4', 1024, '${doctorA}'::uuid, NULL, '${orgA}'::uuid),
+  ('${mediaFileSubmissionA1}'::uuid, 'a1-submission.mp4', 's3/a1-sub.mp4', 'video/mp4', 1024, '${patientA1}'::uuid, 'program_item_submission', '${orgA}'::uuid),
+  ('${mediaFileSubmissionA2}'::uuid, 'a2-submission.mp4', 's3/a2-sub.mp4', 'video/mp4', 1024, '${patientA2}'::uuid, 'program_item_submission', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+-- media_transcode_jobs: no ownership column of its own -- inherits media_files' conditional
+-- ownership via media_id. One job per media_files row above.
+INSERT INTO media_transcode_jobs (id, media_id, status, organization_id) VALUES
+  ('${transcodeJobSharedA}'::uuid, '${mediaFileSharedA}'::uuid, 'pending', '${orgA}'::uuid),
+  ('${transcodeJobSubmissionA1}'::uuid, '${mediaFileSubmissionA1}'::uuid, 'pending', '${orgA}'::uuid),
+  ('${transcodeJobSubmissionA2}'::uuid, '${mediaFileSubmissionA2}'::uuid, 'pending', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+
+-- comments: one catalog/shared target_type ('exercise', visible to any org member regardless of
+-- patient identity) + patient-instance comments at the two ends of the registered hop-depth
+-- spectrum -- program_instance (1-hop, target_id = treatmentInstanceA1/A2.id directly) and
+-- stage_item_instance (3-hop, target_id = treatmentInstanceStageItemA1/A2.id, chains down through
+-- treatment_program_instance_stages -> treatment_program_instances to reach patient_user_id).
+-- author_id is the (staff) doctor for all of them -- proving ownership resolves through the
+-- TARGET, never the author.
+INSERT INTO comments (id, author_id, target_type, target_id, comment_type, body, organization_id) VALUES
+  ('${commentCatalogShared}'::uuid, '${doctorA}'::uuid, 'exercise', '${lfkExerciseCatalogRow}'::uuid, 'template', 'catalog note', '${orgA}'::uuid),
+  ('${commentProgramA1}'::uuid, '${doctorA}'::uuid, 'program_instance', '${treatmentInstanceA1}'::uuid, 'clinical_note', 'note on A1 program', '${orgA}'::uuid),
+  ('${commentProgramA2}'::uuid, '${doctorA}'::uuid, 'program_instance', '${treatmentInstanceA2}'::uuid, 'clinical_note', 'note on A2 program', '${orgA}'::uuid),
+  ('${commentStageItemA1}'::uuid, '${doctorA}'::uuid, 'stage_item_instance', '${treatmentInstanceStageItemA1}'::uuid, 'clinical_note', 'note on A1 stage item', '${orgA}'::uuid),
+  ('${commentStageItemA2}'::uuid, '${doctorA}'::uuid, 'stage_item_instance', '${treatmentInstanceStageItemA2}'::uuid, 'clinical_note', 'note on A2 stage item', '${orgA}'::uuid)
+ON CONFLICT (id) DO NOTHING;
+`;
+
+// ---------------------------------------------------------------------------
 // B4-fanout gap closure (taskdb #656): generate the "own row visible, sibling patient's row NOT
 // visible" proof shape across ALL chain-only targets programmatically instead of hand-duplicating
 // near-identical psql blocks per table -- each entry names the table and a plain-SQL WHERE clause
@@ -1319,6 +1509,22 @@ const B4_CORE_3_CHAIN_PROOFS = [
   { table: "public.lfk_complex_exercises", ownWhere: `id = '${lfkComplexExerciseA1}'::uuid`, otherWhere: `id = '${lfkComplexExerciseA2}'::uuid` },
   { table: "public.media_playback_client_events", ownWhere: `id = '${mediaPlaybackEventA1}'::uuid`, otherWhere: `id = '${mediaPlaybackEventA2}'::uuid` },
   { table: "public.media_upload_sessions", ownWhere: `id = '${uploadSessionA1}'::uuid`, otherWhere: `id = '${uploadSessionA2}'::uuid` },
+];
+
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): the 3
+// conditional/polymorphic patient-wall targets found by the independent audit. Same
+// own-visible/other-NOT-visible harness shape as B4_CORE_3_CHAIN_PROOFS above (the generic
+// renderChain*ProofSql functions below don't care WHICH predicate shape is behind a table — direct
+// column, EXISTS chain, conditional dual-role, or polymorphic — they only assert on row visibility).
+// media_files/media_transcode_jobs proofs here use each table's SUBMISSION row (own vs the other
+// patient's submission) -- the SHARED/library row is proven separately below (visible to BOTH
+// patients, not an own-vs-other split). comments proofs cover both hop-depth extremes registered in
+// patientPolymorphicOwnedTables (program_instance = 1 hop, stage_item_instance = 3 hops).
+const B4_CORE_4_PROOFS = [
+  { table: "public.media_files", ownWhere: `id = '${mediaFileSubmissionA1}'::uuid`, otherWhere: `id = '${mediaFileSubmissionA2}'::uuid` },
+  { table: "public.media_transcode_jobs", ownWhere: `id = '${transcodeJobSubmissionA1}'::uuid`, otherWhere: `id = '${transcodeJobSubmissionA2}'::uuid` },
+  { table: "public.comments", ownWhere: `id = '${commentProgramA1}'::uuid`, otherWhere: `id = '${commentProgramA2}'::uuid` },
+  { table: "public.comments", ownWhere: `id = '${commentStageItemA1}'::uuid`, otherWhere: `id = '${commentStageItemA2}'::uuid` },
 ];
 
 function renderChainOwnNotOtherProofSql(proofs, { label }) {
@@ -1453,7 +1659,11 @@ GRANT SELECT ON
   public.lfk_complexes,
   public.lfk_complex_exercises,
   public.media_playback_client_events,
-  public.media_upload_sessions
+  public.media_upload_sessions,
+  -- B4-core-4 (taskdb #660): the 3 conditional/polymorphic patient-wall targets.
+  public.media_files,
+  public.media_transcode_jobs,
+  public.comments
 TO ${appRoleIdent};
 
 SET ROLE ${appRoleIdent};
@@ -1785,8 +1995,10 @@ RESET app.integrator_user_id;
 ${renderChainBothVisibleProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "staff_integrator" })}
 ${renderChainBothVisibleProofSql(SUPPORT_CHAIN_PROOFS, { label: "staff_support" })}
 ${renderChainBothVisibleProofSql(B4_CORE_3_CHAIN_PROOFS, { label: "staff_b4c3" })}
+${renderChainBothVisibleProofSql(B4_CORE_4_PROOFS, { label: "staff_b4c4" })}
 \echo 'B4-fanout (e) CONFIRMED: staff sees both A1 and A2 rows across all chain-only targets (integrator I2/I3 + webapp support family).'
 \echo 'B4-core-3 (e) CONFIRMED: staff sees both A1 and A2 rows across all 13 newly-walled representative targets (PHI clinical/intake/test/treatment/lfk chains + media_playback + media_upload_sessions direct columns).'
+\echo 'B4-core-4 (e) CONFIRMED: staff sees both A1 and A2 submission rows across media_files/media_transcode_jobs (conditional) and comments (polymorphic, both hop-depth variants).'
 
 -- B4-fanout gap closure proof (f): a SINGLE MIXED patient session -- app.patient_user_id (uuid,
 -- webapp identity) AND app.integrator_user_id (bigint, integrator identity) set SIMULTANEOUSLY --
@@ -1799,7 +2011,61 @@ SET app.integrator_user_id = '${integratorUserA1}';
 ${renderChainOwnNotOtherProofSql(INTEGRATOR_CHAIN_PROOFS, { label: "mixed_integrator" })}
 ${renderChainOwnNotOtherProofSql(SUPPORT_CHAIN_PROOFS, { label: "mixed_support" })}
 ${renderChainOwnNotOtherProofSql(B4_CORE_3_CHAIN_PROOFS, { label: "mixed_b4c3" })}
+${renderChainOwnNotOtherProofSql(B4_CORE_4_PROOFS, { label: "mixed_b4c4" })}
 \echo 'B4-core-3 (f) CONFIRMED: the mixed patient A1 session sees ONLY its own row (never A2, same org) across all 13 newly-walled representative targets -- PHI clinical_*_update/diagnosis_status_history/test_results/treatment_program_instance_stages/stage_items/events/online_intake_*/lfk_complex_exercises + media_playback_client_events + media_upload_sessions direct columns.'
+\echo 'B4-core-4 (f) CONFIRMED: the mixed patient A1 session sees ONLY its own submission row (never A2, same org) across media_files/media_transcode_jobs (conditional) and comments (polymorphic, both hop-depth variants).'
+
+-- B4-core-4 proof (i): the SHARED/library branch is visible to EITHER patient (not gated by
+-- ownership) -- this is the half of the conditional/polymorphic predicate the own-vs-other harness
+-- above does not exercise (it only proves the submission/patient-instance half). Still under the
+-- SAME patient A1 session set up for proof (f) above.
+SELECT (count(*) > 0)::int AS patient_a1_sees_shared_media FROM public.media_files
+  WHERE id = '${mediaFileSharedA}'::uuid \gset
+\if :patient_a1_sees_shared_media
+\else
+\echo 'FATAL: patient A1 must see the shared/library media_files row (usage_purpose IS NULL, not a submission).'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+SELECT (count(*) > 0)::int AS patient_a1_sees_shared_transcode FROM public.media_transcode_jobs
+  WHERE id = '${transcodeJobSharedA}'::uuid \gset
+\if :patient_a1_sees_shared_transcode
+\else
+\echo 'FATAL: patient A1 must see the transcode job for the shared/library media_files row.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+SELECT (count(*) > 0)::int AS patient_a1_sees_catalog_comment FROM public.comments
+  WHERE id = '${commentCatalogShared}'::uuid \gset
+\if :patient_a1_sees_catalog_comment
+\else
+\echo 'FATAL: patient A1 must see the catalog/shared (target_type=exercise) comment.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+
+SET app.patient_user_id = '${patientA2}';
+RESET app.integrator_user_id;
+SELECT (count(*) > 0)::int AS patient_a2_sees_shared_media FROM public.media_files
+  WHERE id = '${mediaFileSharedA}'::uuid \gset
+\if :patient_a2_sees_shared_media
+\else
+\echo 'FATAL: patient A2 must ALSO see the shared/library media_files row (org-wide, not gated by uploader identity).'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+SELECT (count(*) > 0)::int AS patient_a2_sees_own_submission FROM public.media_files
+  WHERE id = '${mediaFileSubmissionA2}'::uuid \gset
+\if :patient_a2_sees_own_submission
+\else
+\echo 'FATAL: patient A2 must see its own media_files submission row.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+SELECT (count(*) > 0)::int AS patient_a2_sees_a1_submission FROM public.media_files
+  WHERE id = '${mediaFileSubmissionA1}'::uuid \gset
+\if :patient_a2_sees_a1_submission
+\echo 'FATAL: patient A2 must NOT see patient A1''s media_files submission row.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+\echo 'B4-core-4 (i) CONFIRMED: the shared/library media_files row and the catalog/shared comment are visible to BOTH patients (not gated by uploader/author identity), while each patient still sees only its OWN submission -- proving the conditional/polymorphic OR-branch is neither too narrow (blocking shared content) nor too wide (leaking another patients submission).'
+SET app.patient_user_id = '${patientA1}';
+SET app.integrator_user_id = '${integratorUserA1}';
 -- Already-covered families (direct/bridge, not chain-only) also hold under this SAME mixed session:
 SELECT (count(*) > 0)::int AS mixed_own_enrollment FROM public.org_enrollments
   WHERE platform_user_id = '${patientA1}'::uuid \gset
@@ -1838,8 +2104,40 @@ RESET app.integrator_user_id;
 ${renderChainEmptyContextDeniesSql(INTEGRATOR_CHAIN_PROOFS, { label: "empty_integrator" })}
 ${renderChainEmptyContextDeniesSql(SUPPORT_CHAIN_PROOFS, { label: "empty_support" })}
 ${renderChainEmptyContextDeniesSql(B4_CORE_3_CHAIN_PROOFS, { label: "empty_b4c3" })}
+${renderChainEmptyContextDeniesSql(B4_CORE_4_PROOFS, { label: "empty_b4c4" })}
 \echo 'B4-fanout (g) CONFIRMED: empty actor/patient context denies all chain-only targets too, even with app.org set.'
 \echo 'B4-core-3 (g) CONFIRMED: empty actor/patient context denies all 13 newly-walled representative targets too, even with app.org set.'
+\echo 'B4-core-4 (g) CONFIRMED: empty actor/patient context denies media_files/media_transcode_jobs (conditional) and comments (polymorphic) submission rows too, even with app.org set.'
+
+-- B4-core-4 proof (j): the two new predicate shapes deliberately differ on what an EMPTY
+-- actor/patient context (app.org still set, neither staff nor a valid patient identity) does with
+-- their shared/catalog branch -- this smoke asserts the ACTUAL, intended behavior of each (not a
+-- single blanket rule), matching each descriptor's literal spec:
+--   - media_files' conditional predicate wraps its ENTIRE patient-side OR (shared-or-own) behind
+--     app.patient_user_id IS NOT NULL (see renderConditionalPatientPredicate) -- an empty context
+--     denies the shared/library row too, same as it denies a submission row. A session must present
+--     SOME patient identity (or be staff) to read media_files at all once app.org is set.
+--   - comments' polymorphic predicate's catalog/shared branch (target_type = ANY(...)) has NO such
+--     identity gate (see renderPolymorphicPatientPredicate) -- it is unconditionally visible once
+--     org matches, same as any ordinary non-patient-owned SCOPED table (no extra staff-or-patient
+--     check at all) and the SAME shape already established for public.media_folders' nullableShared
+--     rows (column IS NULL OR staff-or-patient, unconditional once the row is shared). Only the 4
+--     patient-INSTANCE target_type variants are identity-gated (each independently, inside its own
+--     renderPatientChainPredicate) -- already proven denied under empty context above (proof g).
+SELECT (count(*) > 0)::int AS empty_context_shared_media FROM public.media_files
+  WHERE id = '${mediaFileSharedA}'::uuid \gset
+\if :empty_context_shared_media
+\echo 'FATAL: empty actor/patient context must deny the shared/library media_files row too (its whole patient-side OR requires app.patient_user_id).'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+SELECT (count(*) > 0)::int AS empty_context_catalog_comment FROM public.comments
+  WHERE id = '${commentCatalogShared}'::uuid \gset
+\if :empty_context_catalog_comment
+\else
+\echo 'FATAL: empty actor/patient context must still see the catalog/shared (target_type=exercise) comment -- it is org-wide, not patient-owned, no identity gate expected.'
+SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
+\endif
+\echo 'B4-core-4 (j) CONFIRMED: media_files denies its shared row without a patient/staff identity (whole predicate identity-gated per spec); comments still permits its catalog/shared target_type without one (org-wide, same as ordinary non-patient-owned SCOPED content) -- both intended, neither leaks a PATIENT-INSTANCE row (already proven denied in proof g).'
 
 \echo 'B6 real-policy isolation OK'
 `;
@@ -1860,6 +2158,11 @@ try {
     psql(resolveDdlStep(step));
   }
 
+  console.log("--- phase 1c: B4-core-4 (taskdb #660) conditional/polymorphic target tables ---");
+  for (const step of B4_CORE_4_DDL_STEPS) {
+    psql(step);
+  }
+
   console.log("--- phase 2: minimal real integrator core DDL (search_path=integrator,public) ---");
   psql("CREATE SCHEMA IF NOT EXISTS integrator;");
   for (const relPath of INTEGRATOR_DDL_FILES) {
@@ -1873,7 +2176,10 @@ try {
   console.log("--- phase 3b: B4-core-3 org-column + lfk_complexes.platform_user_id retrofit ---");
   psql(b4c3RetrofitSql);
 
-  console.log("--- phase 4: dormant RLS (extracted real blocks from 0161/0162/0163/0167) ---");
+  console.log("--- phase 3c: B4-core-4 org-column + usage_purpose retrofit ---");
+  psql(b4c4RetrofitSql);
+
+  console.log("--- phase 4: dormant RLS (extracted real blocks from 0161/0162/0163/0167/0174) ---");
   psql(dormantRlsSql);
 
   console.log("--- phase 5: simulate the flip (real p0-9-enforce-descriptors.mjs, mode enforce) ---");
@@ -1884,6 +2190,9 @@ try {
 
   console.log("--- phase 6b: B4-core-3 fixture seed ---");
   psql(b4c3SeedSql);
+
+  console.log("--- phase 6c: B4-core-4 fixture seed ---");
+  psql(b4c4SeedSql);
 
   console.log("--- phase 7: NOBYPASSRLS role + assertions ---");
   psql(assertionSql);

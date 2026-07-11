@@ -203,13 +203,14 @@ function exemptionDescriptor(tier) {
 //     (be_package_usages.created_by_platform_user_id, content_section_slug_history.changed_by_user_id, ...);
 //   - dual-role owner columns that mean "staff OR patient" depending on ANOTHER column's value,
 //     where a plain column-equality predicate would incorrectly wall off legitimate org-wide
-//     content: public.media_files.uploaded_by — org library uploads (uploaded_by = a staff member)
-//     vs a patient's own submission, DISAMBIGUATED by media_files.usage_purpose
-//     ('program_item_submission' vs NULL/other), verified present on media_files in
-//     apps/webapp/db/drizzle-migrations/0113_client_media_folders.sql. (NOTE: public.media_upload_sessions
-//     is NOT excluded for this reason — B4-core-3 audit correction, taskdb #658: it has NO
-//     usage_purpose column, its owner_user_id is a plain NOT NULL per-patient FK, so it is walled
-//     directly below in patientOwnedColumns, same shape as media_playback_*);
+//     content: public.media_files.uploaded_by (org library uploads vs a patient's own submission,
+//     disambiguated by usage_purpose) is NO LONGER excluded here — B4-core-4 (taskdb #660) closes
+//     this with a conditional predicate instead of a plain column match; see
+//     patientConditionalOwnedColumns below (and its FK-dependent sibling
+//     public.media_transcode_jobs in patientConditionalChainOwnedTables). (NOTE:
+//     public.media_upload_sessions is NOT excluded for this reason — B4-core-3 audit correction,
+//     taskdb #658: it has NO usage_purpose column, its owner_user_id is a plain NOT NULL per-patient
+//     FK, so it is walled directly below in patientOwnedColumns, same shape as media_playback_*);
 //   - public.patient_merge_candidates (staff/system dedup queue, not a patient's own record);
 //   - P0.8.6 BOOTSTRAP-hybrid tables (system_settings, platform_user_contacts, user_phone_history,
 //     integrator.system_settings) — explicitly out of scope per owner instruction, pre-org-context
@@ -600,6 +601,108 @@ const patientChainOwnedTables = new Map([
   }],
 ]);
 
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): independent audit
+// of the B4-core-3 census found 3 REAL patient-owned SCOPED tables still org-only under the
+// dormant policy family — the "hard" cases (conditional/dual-role, and polymorphic), deliberately
+// out of scope for the plain patientOwnedColumns/patientChainOwnedTables registries above since a
+// bare column-equality or chain predicate would either incorrectly wall off legitimate org-wide
+// content or incorrectly leave a patient submission open to other patients:
+//
+//   1. public.media_files — dual-role uploaded_by (verified against
+//      apps/webapp/db/drizzle-migrations/0018_media_files_hls_foundation.sql /
+//      apps/webapp/migrations/028_media_files.sql for the base uploaded_by uuid REFERENCES
+//      platform_users(id) column, and 0098_program_item_discussion_stage1.sql for the usage_purpose
+//      text column + its CHECK constraint restricting values to NULL or 'program_item_submission').
+//      Staff sees everything (org-wide bypass, unchanged). A patient sees: (a) every row that is
+//      NOT a per-patient submission (usage_purpose IS DISTINCT FROM 'program_item_submission' —
+//      covers both NULL and any other future non-submission tag, so the shared/library media stays
+//      visible to every patient in the org) OR (b) a submission it uploaded itself
+//      (uploaded_by = the requesting patient). A patient never sees ANOTHER patient's submission.
+//   2. public.media_transcode_jobs — no ownership column of its own; inherits media_files'
+//      conditional ownership via its media_id FK (verified NOT NULL REFERENCES media_files(id) in
+//      apps/webapp/db/drizzle-migrations/0019_media_transcode_jobs_queue.sql). Same dual-role EXISTS
+//      shape as media_files, just one hop away.
+//   3. public.comments — polymorphic target_type/target_id (organization_id resolver already
+//      verified/materialized in 0154_p0_4_d_polymorphic_denorm_org.sql, all 9 target_type values
+//      documented+checked by check-p0-12-polymorphic-references.mjs, P0.12.1 checklist item
+//      complete — docs/_TODO/SAAS_FOUNDATION/P0_12_RESIDUAL_REFS_CHECKLIST.md). Of the 9 target_type
+//      values, 5 point at org catalog/content rows with no per-patient owner at all (exercise, test,
+//      test_set, recommendation, lesson) — those stay visible to any org member (patients included),
+//      same as before. The remaining 4 point at a PATIENT'S OWN treatment-program/lfk instance
+//      (program_instance -> treatment_program_instances.patient_user_id; lfk_complex ->
+//      lfk_complexes.platform_user_id; stage_instance -> treatment_program_instance_stages ->
+//      treatment_program_instances.patient_user_id, 1 extra hop because the stage row itself carries
+//      no direct patient column, same shape already proven for
+//      public.treatment_program_instance_stages in patientChainOwnedTables above; stage_item_instance
+//      -> treatment_program_instance_stage_items -> treatment_program_instance_stages ->
+//      treatment_program_instances.patient_user_id, 2 extra hops, same shape as
+//      public.treatment_program_instance_stage_items above) — a comment on one of THOSE target types
+//      is only visible to the owning patient (or staff). comments.author_id is the comment's AUTHOR
+//      (could be staff OR the patient), never used for ownership here — a doctor's comment on a
+//      patient's own program instance must still only be visible to THAT patient (not to other
+//      patients), which is exactly what resolving through the TARGET's owner (not the author)
+//      achieves.
+//
+// Descriptors keep their EXISTING scopingKind (direct_org_column / denorm_org_column /
+// polymorphic_resolver) and org predicate unchanged — this only ADDS the fail-closed staff-or-
+// patient branch on top, same "org AND (staff OR patient)" shape as patientOwnedColumns/
+// patientChainOwnedTables, just with a richer patient-branch predicate (see rls-sql-renderer.mjs
+// renderConditionalPatientPredicate / renderConditionalChainPatientPredicate /
+// renderPolymorphicPatientPredicate).
+const patientConditionalOwnedColumns = new Map([
+  ["public.media_files", {
+    column: "uploaded_by",
+    discriminatorColumn: "usage_purpose",
+    discriminatorExcludedValue: "program_item_submission",
+  }],
+]);
+
+const patientConditionalChainOwnedTables = new Map([
+  ["public.media_transcode_jobs", {
+    hop: { table: "public.media_files", alias: "b4c4_transcode_media", parentPk: "id", localFk: "media_id" },
+    patientColumn: "uploaded_by",
+    discriminatorColumn: "usage_purpose",
+    discriminatorExcludedValue: "program_item_submission",
+  }],
+]);
+
+const patientPolymorphicOwnedTables = new Map([
+  ["public.comments", {
+    typeColumn: "target_type",
+    // Catalog/content target types with no per-patient owner — stay visible org-wide (unchanged).
+    sharedTypeValues: ["exercise", "test", "test_set", "recommendation", "lesson"],
+    variants: [
+      {
+        typeValue: "program_instance",
+        hops: [{ table: "public.treatment_program_instances", alias: "b4c4_comment_program", parentPk: "id", localFk: "target_id" }],
+        terminalColumn: "patient_user_id",
+      },
+      {
+        typeValue: "lfk_complex",
+        hops: [{ table: "public.lfk_complexes", alias: "b4c4_comment_complex", parentPk: "id", localFk: "target_id" }],
+        terminalColumn: "platform_user_id",
+      },
+      {
+        typeValue: "stage_instance",
+        hops: [
+          { table: "public.treatment_program_instance_stages", alias: "b4c4_comment_stage", parentPk: "id", localFk: "target_id" },
+          { table: "public.treatment_program_instances", alias: "b4c4_comment_stage_program", parentPk: "id", localFk: "instance_id" },
+        ],
+        terminalColumn: "patient_user_id",
+      },
+      {
+        typeValue: "stage_item_instance",
+        hops: [
+          { table: "public.treatment_program_instance_stage_items", alias: "b4c4_comment_stage_item", parentPk: "id", localFk: "target_id" },
+          { table: "public.treatment_program_instance_stages", alias: "b4c4_comment_item_stage", parentPk: "id", localFk: "stage_id" },
+          { table: "public.treatment_program_instances", alias: "b4c4_comment_item_program", parentPk: "id", localFk: "instance_id" },
+        ],
+        terminalColumn: "patient_user_id",
+      },
+    ],
+  }],
+]);
+
 export function buildRlsDescriptors() {
   const tierRows = readTierRows();
   const batchRowsByTable = new Map(readBatchRows().map((row) => [row.table, row]));
@@ -702,6 +805,92 @@ export function buildRlsDescriptors() {
         hops: chain.hops,
         terminalColumn: chain.terminalColumn,
         castType: chain.castType ?? "uuid",
+      },
+    });
+  }
+
+  for (const [table, ownership] of patientConditionalOwnedColumns) {
+    const descriptor = descriptors.get(table);
+
+    if (!descriptor) {
+      throw new Error(`Patient conditional column registered for unknown table ${table}`);
+    }
+
+    if (descriptor.tier !== "SCOPED") {
+      throw new Error(`Patient conditional column registered for non-SCOPED table ${table} (tier=${descriptor.tier})`);
+    }
+
+    if (descriptor.patientColumn || descriptor.patientChain) {
+      throw new Error(`Table ${table} cannot declare both a direct/chain patientColumn and a patientConditional`);
+    }
+
+    descriptors.set(table, {
+      ...descriptor,
+      patientConditional: {
+        patientColumn: ownership.column,
+        castType: ownership.castType ?? "uuid",
+        discriminatorColumn: ownership.discriminatorColumn,
+        discriminatorExcludedValue: ownership.discriminatorExcludedValue,
+      },
+    });
+  }
+
+  for (const [table, chain] of patientConditionalChainOwnedTables) {
+    const descriptor = descriptors.get(table);
+
+    if (!descriptor) {
+      throw new Error(`Patient conditional chain registered for unknown table ${table}`);
+    }
+
+    if (descriptor.tier !== "SCOPED") {
+      throw new Error(`Patient conditional chain registered for non-SCOPED table ${table} (tier=${descriptor.tier})`);
+    }
+
+    if (descriptor.patientColumn || descriptor.patientChain || descriptor.patientConditional) {
+      throw new Error(`Table ${table} cannot declare both another patient-ownership shape and a patientConditionalChain`);
+    }
+
+    if (!chain.hop?.table || !chain.hop?.alias || !chain.hop?.parentPk || !chain.hop?.localFk) {
+      throw new Error(`Patient conditional chain for ${table} must declare a complete hop`);
+    }
+
+    descriptors.set(table, {
+      ...descriptor,
+      patientConditionalChain: {
+        hop: chain.hop,
+        patientColumn: chain.patientColumn,
+        castType: chain.castType ?? "uuid",
+        discriminatorColumn: chain.discriminatorColumn,
+        discriminatorExcludedValue: chain.discriminatorExcludedValue,
+      },
+    });
+  }
+
+  for (const [table, polymorphic] of patientPolymorphicOwnedTables) {
+    const descriptor = descriptors.get(table);
+
+    if (!descriptor) {
+      throw new Error(`Patient polymorphic ownership registered for unknown table ${table}`);
+    }
+
+    if (descriptor.tier !== "SCOPED") {
+      throw new Error(`Patient polymorphic ownership registered for non-SCOPED table ${table} (tier=${descriptor.tier})`);
+    }
+
+    if (descriptor.scopingKind !== "polymorphic_resolver") {
+      throw new Error(`Patient polymorphic ownership requires polymorphic_resolver descriptor for ${table}`);
+    }
+
+    if (!Array.isArray(polymorphic.variants) || polymorphic.variants.length === 0) {
+      throw new Error(`Patient polymorphic ownership for ${table} must declare at least one variant`);
+    }
+
+    descriptors.set(table, {
+      ...descriptor,
+      patientPolymorphic: {
+        typeColumn: polymorphic.typeColumn,
+        sharedTypeValues: polymorphic.sharedTypeValues ?? [],
+        variants: polymorphic.variants,
       },
     });
   }

@@ -23,6 +23,18 @@ export function quoteQualifiedName(name) {
   return name.split(".").map(quoteSqlIdentifier).join(".");
 }
 
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): the conditional/
+// polymorphic predicates below need to embed a literal SQL string value (a discriminator column
+// value, a polymorphic target_type tag) — quoteSqlIdentifier/quoteQualifiedName are for identifiers
+// only (double-quoted), this is for VALUES (single-quoted, doubled-quote escaping).
+export function quoteSqlLiteral(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error("SQL literal must be a non-empty string");
+  }
+
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
 export function renderNullableTextGuc(gucName) {
   if (typeof gucName !== "string" || !gucNamePattern.test(gucName)) {
     throw new Error(`Unsafe GUC name: ${gucName}`);
@@ -204,7 +216,144 @@ export function renderStaffOrPatientChainPredicate({ hops, terminalColumn, castT
   return `(${renderStaffActorCheck()} OR ${renderPatientChainPredicate({ hops, terminalColumn, castType })})`;
 }
 
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): dual-role owner
+// column — a row is visible to a patient session if EITHER it is a shared/library row (the
+// discriminator column is NOT the excluded "individual submission" tag — IS DISTINCT FROM is used
+// instead of <> so a NULL discriminator value, which also means "shared", is not silently excluded
+// by 3-valued NULL logic) OR the row's owner column matches the patient's own identity. Used for
+// public.media_files (uploaded_by / usage_purpose <> 'program_item_submission').
+export function renderConditionalPatientPredicate({
+  patientColumn,
+  castType = "uuid",
+  discriminatorColumn,
+  discriminatorExcludedValue,
+} = {}) {
+  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+    throw new Error("Conditional patient predicate requires a patientColumn");
+  }
+
+  if (typeof discriminatorColumn !== "string" || discriminatorColumn.length === 0) {
+    throw new Error("Conditional patient predicate requires a discriminatorColumn");
+  }
+
+  if (typeof discriminatorExcludedValue !== "string" || discriminatorExcludedValue.length === 0) {
+    throw new Error("Conditional patient predicate requires a discriminatorExcludedValue");
+  }
+
+  const patientGucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
+  const sharedBranch = `${quoteSqlIdentifier(discriminatorColumn)} IS DISTINCT FROM ${quoteSqlLiteral(discriminatorExcludedValue)}`;
+  const ownBranch = `${quoteSqlIdentifier(patientColumn)} = ${patientGucSql}::${castType}`;
+
+  return `(${patientGucSql} IS NOT NULL AND (${sharedBranch} OR ${ownBranch}))`;
+}
+
+export function renderStaffOrConditionalPatientPredicate(config) {
+  return `(${renderStaffActorCheck()} OR ${renderConditionalPatientPredicate(config)})`;
+}
+
+// B4-core-4: same dual-role shape as renderConditionalPatientPredicate, but the owner/discriminator
+// columns live on a SINGLE parent row reached via one FK hop (e.g. public.media_transcode_jobs ->
+// public.media_files via media_id), not on the policy row itself.
+export function renderConditionalChainPatientPredicate({
+  hop,
+  patientColumn,
+  castType = "uuid",
+  discriminatorColumn,
+  discriminatorExcludedValue,
+} = {}) {
+  if (!hop || typeof hop.table !== "string" || typeof hop.alias !== "string" || typeof hop.parentPk !== "string" || typeof hop.localFk !== "string") {
+    throw new Error("Conditional chain patient predicate requires a hop with table/alias/parentPk/localFk");
+  }
+
+  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+    throw new Error("Conditional chain patient predicate requires a patientColumn");
+  }
+
+  if (typeof discriminatorColumn !== "string" || discriminatorColumn.length === 0) {
+    throw new Error("Conditional chain patient predicate requires a discriminatorColumn");
+  }
+
+  if (typeof discriminatorExcludedValue !== "string" || discriminatorExcludedValue.length === 0) {
+    throw new Error("Conditional chain patient predicate requires a discriminatorExcludedValue");
+  }
+
+  const patientGucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
+  const aliasSql = quoteSqlIdentifier(hop.alias);
+  const sharedBranch = `${aliasSql}.${quoteSqlIdentifier(discriminatorColumn)} IS DISTINCT FROM ${quoteSqlLiteral(discriminatorExcludedValue)}`;
+  const ownBranch = `${aliasSql}.${quoteSqlIdentifier(patientColumn)} = ${patientGucSql}::${castType}`;
+  const existsSql = [
+    "EXISTS (",
+    `SELECT 1 FROM ${renderPolicyTarget(hop.table)} AS ${aliasSql}`,
+    `WHERE ${aliasSql}.${quoteSqlIdentifier(hop.parentPk)} = ${quoteSqlIdentifier(hop.localFk)}`,
+    `AND (${sharedBranch} OR ${ownBranch})`,
+    ")",
+  ].join(" ");
+
+  return `(${patientGucSql} IS NOT NULL AND ${existsSql})`;
+}
+
+export function renderStaffOrConditionalChainPatientPredicate(config) {
+  return `(${renderStaffActorCheck()} OR ${renderConditionalChainPatientPredicate(config)})`;
+}
+
+// B4-core-4: polymorphic ownership (e.g. public.comments.target_type/target_id) — some target_type
+// values are shared/catalog rows (visible to any org member, patients included, no extra check
+// beyond org); others resolve to a per-patient instance (a chain predicate keyed by that specific
+// target_type value). A row matches if EITHER its target_type is one of the shared/catalog values
+// OR its target_type is a registered patient-instance variant AND that variant's chain resolves to
+// the requesting patient. Reuses renderPatientChainPredicate per variant (hops[0].localFk is the
+// polymorphic id column on the policy row itself, e.g. "target_id").
+export function renderPolymorphicPatientPredicate({ typeColumn, sharedTypeValues = [], variants = [] } = {}) {
+  if (typeof typeColumn !== "string" || typeColumn.length === 0) {
+    throw new Error("Polymorphic patient predicate requires a typeColumn");
+  }
+
+  if (!Array.isArray(variants) || variants.length === 0) {
+    throw new Error("Polymorphic patient predicate requires at least one variant");
+  }
+
+  const typeColumnSql = quoteSqlIdentifier(typeColumn);
+  const branches = [];
+
+  if (sharedTypeValues.length > 0) {
+    const list = sharedTypeValues.map(quoteSqlLiteral).join(", ");
+    branches.push(`${typeColumnSql} = ANY (ARRAY[${list}]::text[])`);
+  }
+
+  for (const variant of variants) {
+    if (typeof variant.typeValue !== "string" || variant.typeValue.length === 0) {
+      throw new Error("Polymorphic patient predicate variant requires a typeValue");
+    }
+
+    const chainPredicate = renderPatientChainPredicate({
+      hops: variant.hops,
+      terminalColumn: variant.terminalColumn,
+      castType: variant.castType ?? "uuid",
+    });
+
+    branches.push(`(${typeColumnSql} = ${quoteSqlLiteral(variant.typeValue)} AND ${chainPredicate})`);
+  }
+
+  return `(${branches.join(" OR ")})`;
+}
+
+export function renderStaffOrPolymorphicPatientPredicate(config) {
+  return `(${renderStaffActorCheck()} OR ${renderPolymorphicPatientPredicate(config)})`;
+}
+
 export function renderStaffOrPatientPredicateForDescriptor(descriptor) {
+  if (descriptor.patientPolymorphic) {
+    return renderStaffOrPolymorphicPatientPredicate(descriptor.patientPolymorphic);
+  }
+
+  if (descriptor.patientConditionalChain) {
+    return renderStaffOrConditionalChainPatientPredicate(descriptor.patientConditionalChain);
+  }
+
+  if (descriptor.patientConditional) {
+    return renderStaffOrConditionalPatientPredicate(descriptor.patientConditional);
+  }
+
   if (descriptor.patientChain) {
     return renderStaffOrPatientChainPredicate(descriptor.patientChain);
   }
@@ -217,6 +366,20 @@ export function renderStaffOrPatientPredicateForDescriptor(descriptor) {
     patientColumn: descriptor.patientColumn,
     castType: descriptor.patientColumnCastType ?? "uuid",
   });
+}
+
+// B4-core-4: true if the descriptor declares ANY patient-ownership shape (direct column, chain,
+// conditional/dual-role, conditional chain, or polymorphic) — single chokepoint so callers don't
+// have to keep an ever-growing `descriptor.patientColumn || descriptor.patientChain || ...` list in
+// sync across every render*PolicyStatements function.
+export function hasAnyPatientOwnership(descriptor) {
+  return Boolean(
+    descriptor?.patientColumn ||
+      descriptor?.patientChain ||
+      descriptor?.patientConditional ||
+      descriptor?.patientConditionalChain ||
+      descriptor?.patientPolymorphic,
+  );
 }
 
 // Combines an org predicate (dormant or enforce) with the (always fail-closed) patient wall for
@@ -270,7 +433,7 @@ export function renderOrgDormantPolicyStatements(descriptor, { policyName }) {
     throw new Error("Policy name must be a non-empty string");
   }
 
-  const predicate = descriptor.patientColumn || descriptor.patientChain
+  const predicate = hasAnyPatientOwnership(descriptor)
     ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
     : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 
@@ -297,7 +460,7 @@ export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName,
     throw new Error("Policy name must be a non-empty string");
   }
 
-  const predicate = descriptor.patientColumn || descriptor.patientChain
+  const predicate = hasAnyPatientOwnership(descriptor)
     ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
     : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 

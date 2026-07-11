@@ -7,7 +7,12 @@ import {
   p083PolicyName,
   renderP083PolicyStatements,
 } from "./p0-8-3-policy-targets.mjs";
-import { renderOrgAndPatientPredicate, renderOrgPredicate, renderStaffActorCheck } from "./rls-sql-renderer.mjs";
+import {
+  hasAnyPatientOwnership,
+  renderOrgAndPatientPredicate,
+  renderOrgPredicate,
+  renderStaffActorCheck,
+} from "./rls-sql-renderer.mjs";
 
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656) +
 // B4-core-3 census follow-up (LOG.md, taskdb #658): chain-owned P0.8.3 direct-org tables — patient
@@ -43,7 +48,7 @@ const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.pa
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 function expectedPredicateFor(descriptor) {
-  return descriptor.patientColumn || descriptor.patientChain
+  return hasAnyPatientOwnership(descriptor)
     ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
     : plainOrgPredicate;
 }
@@ -85,7 +90,7 @@ descriptors.forEach((descriptor, index) => {
     `CREATE POLICY "${p083PolicyName}" ON ${escapedTarget} FOR ALL USING (${expectedPredicate}) WITH CHECK (${expectedPredicate});`,
   );
 
-  if (descriptor.patientColumn || descriptor.patientChain) {
+  if (hasAnyPatientOwnership(descriptor)) {
     assert.match(
       targetStatements[3],
       /NULLIF\(current_setting\('app\.actor', true\), ''\) = 'staff'/,
@@ -139,10 +144,54 @@ assert.deepEqual(
   "P0.8.3 patient-chain-owned target set must stay stable",
 );
 
+// B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): public.
+// media_files is dual-role — uploaded_by is a staff library upload (org-wide, patient-visible) OR a
+// patient's own submission (usage_purpose = 'program_item_submission'), disambiguated by
+// usage_purpose. See rls-descriptor-model.mjs patientConditionalOwnedColumns +
+// rls-sql-renderer.mjs renderConditionalPatientPredicate.
+const expectedPatientConditionalOwnedTargets = 1;
+const patientConditionalOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientConditional);
+
+assert.equal(
+  patientConditionalOwnedDescriptors.length,
+  expectedPatientConditionalOwnedTargets,
+  `Expected ${expectedPatientConditionalOwnedTargets} P0.8.3 patient-conditional-owned targets, got ${patientConditionalOwnedDescriptors.length}`,
+);
+
+assert.deepEqual(
+  patientConditionalOwnedDescriptors.map((descriptor) => descriptor.table),
+  ["public.media_files"],
+  "P0.8.3 patient-conditional-owned target must be public.media_files",
+);
+
+for (const descriptor of patientConditionalOwnedDescriptors) {
+  const target = descriptor.table;
+  const index = targets.indexOf(target);
+  const createStatement = statements[index * 4 + 3];
+
+  assert.match(
+    createStatement,
+    /NULLIF\(current_setting\('app\.actor', true\), ''\) = 'staff'/,
+    `${target} conditional-owned policy must include the fail-closed staff-or-patient branch`,
+  );
+
+  assert.match(
+    createStatement,
+    /"usage_purpose" IS DISTINCT FROM 'program_item_submission'/,
+    `${target} conditional-owned policy must permit the shared/library branch`,
+  );
+
+  assert.match(
+    createStatement,
+    /"uploaded_by" = NULLIF\(current_setting\('app\.patient_user_id'/,
+    `${target} conditional-owned policy must permit the patient's own-submission branch`,
+  );
+}
+
 // Sanity: the staff-bypass check must be present verbatim so staff (org-wide, variant A) is
 // never additionally restricted by the patient branch.
 assert.equal(renderStaffActorCheck(), "NULLIF(current_setting('app.actor', true), '') = 'staff'");
 
 console.log(
-  `P0.8.3 policy generator OK: 105 targets (${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned) and deterministic dormant policy DDL.`,
+  `P0.8.3 policy generator OK: 105 targets (${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalOwnedDescriptors.length} patient-conditional-owned) and deterministic dormant policy DDL.`,
 );
