@@ -178,8 +178,47 @@ if (patientTables.some((t) => t.qualifiedName === "public.specialist_tasks")) {
 }
 findOrThrow(staffTables, "public.specialist_tasks"); // still a real app_staff table, sanity-check.
 
+// (j)-(l): second-pass exhaustive sweep additions (taskdb #655, this task) -- lfk_complexes.origin,
+// user_channel_preferences.is_preferred_for_auth, treatment_program_events.actor_id.
+const lfkComplexesTable = findOrThrow(patientTables, "public.lfk_complexes");
+if (lfkComplexesTable.privileges !== "SELECT") {
+  throw new Error(`Unexpected privileges for public.lfk_complexes: ${lfkComplexesTable.privileges}`);
+}
+const lfkComplexesInsertGrant = findColumnGrantOrThrow("public.lfk_complexes", "INSERT");
+if (lfkComplexesInsertGrant.columns.includes("origin")) {
+  throw new Error("public.lfk_complexes INSERT column grant must NOT include origin");
+}
+
+const userChannelPreferencesTable = findOrThrow(patientTables, "public.user_channel_preferences");
+if (userChannelPreferencesTable.privileges !== "SELECT") {
+  throw new Error(
+    `Unexpected privileges for public.user_channel_preferences: ${userChannelPreferencesTable.privileges}`,
+  );
+}
+const userChannelPreferencesInsertGrant = findColumnGrantOrThrow("public.user_channel_preferences", "INSERT");
+const userChannelPreferencesUpdateGrant = findColumnGrantOrThrow("public.user_channel_preferences", "UPDATE");
+if (
+  userChannelPreferencesInsertGrant.columns.includes("is_preferred_for_auth") ||
+  userChannelPreferencesUpdateGrant.columns.includes("is_preferred_for_auth")
+) {
+  throw new Error(
+    "public.user_channel_preferences INSERT/UPDATE column grants must NOT include is_preferred_for_auth",
+  );
+}
+
+const treatmentProgramEventsTable = findOrThrow(patientTables, "public.treatment_program_events");
+if (treatmentProgramEventsTable.privileges !== "SELECT") {
+  throw new Error(
+    `Unexpected privileges for public.treatment_program_events: ${treatmentProgramEventsTable.privileges}`,
+  );
+}
+const treatmentProgramEventsInsertGrant = findColumnGrantOrThrow("public.treatment_program_events", "INSERT");
+if (treatmentProgramEventsInsertGrant.columns.includes("actor_id")) {
+  throw new Error("public.treatment_program_events INSERT column grant must NOT include actor_id");
+}
+
 console.log(
-  `Using real grant metadata: infra=${infraTable.qualifiedName}, patient=${patientTable.qualifiedName} (${patientTable.privileges}), staff-only=${staffOnlyTable.qualifiedName}, platform_users UPDATE columns=${JSON.stringify(platformUsersUpdateGrant.columns)}`,
+  `Using real grant metadata: infra=${infraTable.qualifiedName}, patient=${patientTable.qualifiedName} (${patientTable.privileges}), staff-only=${staffOnlyTable.qualifiedName}, platform_users UPDATE columns=${JSON.stringify(platformUsersUpdateGrant.columns)}, lfk_complexes INSERT columns=${JSON.stringify(lfkComplexesInsertGrant.columns)}, user_channel_preferences INSERT columns=${JSON.stringify(userChannelPreferencesInsertGrant.columns)}, treatment_program_events INSERT columns=${JSON.stringify(treatmentProgramEventsInsertGrant.columns)}`,
 );
 
 // ---------------------------------------------------------------------------
@@ -235,6 +274,55 @@ CREATE TABLE public.specialist_tasks (
   patient_user_id uuid
 );
 
+-- (j): lfk_complexes -- origin has a CHECK + DEFAULT 'manual'; the audit finding was that a patient
+-- could INSERT origin='assigned_by_specialist' directly to forge doctor-assigned provenance. Carries
+-- every column the real INSERT column grant references (see lfkComplexesInsertGrant above) so the
+-- real GRANT statement (not a hand-trimmed subset) applies cleanly.
+CREATE TABLE public.lfk_complexes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text,
+  platform_user_id uuid NOT NULL,
+  title text NOT NULL,
+  origin text NOT NULL DEFAULT 'manual' CHECK (origin IN ('manual', 'assigned_by_specialist')),
+  is_active boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  symptom_tracking_id uuid,
+  region_ref_id uuid,
+  side text,
+  diagnosis_text text,
+  diagnosis_ref_id uuid
+);
+
+-- (k): user_channel_preferences -- is_preferred_for_auth controls which channel receives login/OTP
+-- codes; the audit finding was that a whole-table UPDATE let a patient flip it directly. Carries
+-- every column the real INSERT/UPDATE column grants reference (see userChannelPreferences*Grant
+-- above).
+CREATE TABLE public.user_channel_preferences (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text,
+  platform_user_id uuid NOT NULL,
+  channel_code text NOT NULL,
+  is_enabled_for_messages boolean NOT NULL DEFAULT true,
+  is_enabled_for_notifications boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  is_preferred_for_auth boolean NOT NULL DEFAULT false
+);
+
+-- (l): treatment_program_events -- actor_id records who performed the audited action; the audit
+-- finding was that a patient could INSERT an arbitrary actor_id (forging authorship). Carries every
+-- column the real INSERT column grant references (see treatmentProgramEventsInsertGrant above).
+CREATE TABLE public.treatment_program_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  instance_id uuid NOT NULL,
+  actor_id uuid,
+  event_type text NOT NULL,
+  target_type text,
+  target_id uuid,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  reason text
+);
+
 INSERT INTO public.be_appointments (id, platform_user_id) VALUES
   ('b5000000-0000-4000-8000-000000000001', 'b5000000-0000-4000-8000-0000000000a1');
 
@@ -254,12 +342,22 @@ INSERT INTO public.be_patient_booking_profiles (platform_user_id) VALUES
 
 INSERT INTO public.specialist_tasks (owner_user_id, patient_user_id) VALUES
   ('b5000000-0000-4000-8000-0000000000c1', 'b5000000-0000-4000-8000-0000000000a1');
+
+INSERT INTO public.user_channel_preferences (platform_user_id, channel_code) VALUES
+  ('b5000000-0000-4000-8000-0000000000a1', 'telegram');
+
+INSERT INTO public.treatment_program_events (instance_id, event_type) VALUES
+  ('b5000000-0000-4000-8000-0000000000d1', 'item_added');
 `;
 
 // Real GRANT statement shapes, restricted to just these tables (same format() call the real
 // generator emits, just not run through the full 219/110-row temp-table pipeline since this scratch
 // DB does not have the rest of the application schema).
 const platformUsersUpdateColumns = platformUsersUpdateGrant.columns.join(", ");
+const lfkComplexesInsertColumns = lfkComplexesInsertGrant.columns.join(", ");
+const userChannelPreferencesInsertColumns = userChannelPreferencesInsertGrant.columns.join(", ");
+const userChannelPreferencesUpdateColumns = userChannelPreferencesUpdateGrant.columns.join(", ");
+const treatmentProgramEventsInsertColumns = treatmentProgramEventsInsertGrant.columns.join(", ");
 
 const grantSql = String.raw`
 GRANT USAGE ON SCHEMA public, integrator TO app_staff, app_patient;
@@ -271,12 +369,22 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.platform_users TO app_staff
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.org_enrollments TO app_staff;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.be_patient_booking_profiles TO app_staff;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.specialist_tasks TO app_staff;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.lfk_complexes TO app_staff;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_channel_preferences TO app_staff;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.treatment_program_events TO app_staff;
 
 GRANT ${patientTable.privileges} ON TABLE public.be_appointments TO app_patient;
 GRANT ${platformUsersTable.privileges} ON TABLE public.platform_users TO app_patient;
 GRANT UPDATE (${platformUsersUpdateColumns}) ON TABLE public.platform_users TO app_patient;
 GRANT ${orgEnrollmentsTable.privileges} ON TABLE public.org_enrollments TO app_patient;
 GRANT ${bookingProfilesTable.privileges} ON TABLE public.be_patient_booking_profiles TO app_patient;
+GRANT ${lfkComplexesTable.privileges} ON TABLE public.lfk_complexes TO app_patient;
+GRANT INSERT (${lfkComplexesInsertColumns}) ON TABLE public.lfk_complexes TO app_patient;
+GRANT ${userChannelPreferencesTable.privileges} ON TABLE public.user_channel_preferences TO app_patient;
+GRANT INSERT (${userChannelPreferencesInsertColumns}) ON TABLE public.user_channel_preferences TO app_patient;
+GRANT UPDATE (${userChannelPreferencesUpdateColumns}) ON TABLE public.user_channel_preferences TO app_patient;
+GRANT ${treatmentProgramEventsTable.privileges} ON TABLE public.treatment_program_events TO app_patient;
+GRANT INSERT (${treatmentProgramEventsInsertColumns}) ON TABLE public.treatment_program_events TO app_patient;
 -- deliberately NO grant to app_patient on patient_merge_candidates, integrator.projection_outbox, or
 -- specialist_tasks -- that absence is exactly what proofs (c)/(d)/(h) below exercise.
 `;
@@ -406,8 +514,70 @@ SELECT count(*) FROM public.specialist_tasks;
 SELECT 1/0;
 \endif
 
-RESET SESSION AUTHORIZATION;
 \echo 'P0.5b grants smoke: proofs (a)-(h) CONFIRMED.'
+`;
+
+// (j) lfk_complexes: still app_patient. Legit self-write with the default origin succeeds; an
+// explicit origin='assigned_by_specialist' forgery attempt is permission-denied (2026-07-11
+// second-pass sweep, taskdb #655 -- gpt-5.6-sol finding #1).
+const proofJ = String.raw`
+INSERT INTO public.lfk_complexes (platform_user_id, title) VALUES ('b5000000-0000-4000-8000-0000000000a1', 'My own complex');
+SELECT (count(*) = 1)::int AS b5g_j_patient_self_insert_default_origin FROM public.lfk_complexes WHERE title = 'My own complex' AND origin = 'manual' \gset
+${fatal("b5g_j_patient_self_insert_default_origin", "(j) app_patient must be able to INSERT its own lfk_complexes row and have origin default to 'manual'")}
+
+\set ON_ERROR_STOP off
+INSERT INTO public.lfk_complexes (platform_user_id, title, origin) VALUES ('b5000000-0000-4000-8000-0000000000a1', 'Forged complex', 'assigned_by_specialist');
+\set ON_ERROR_STOP on
+\if :ERROR
+\echo 'CONFIRMED (j): app_patient got permission denied INSERTing lfk_complexes.origin=assigned_by_specialist (column not granted).'
+\else
+\echo 'FATAL (j): app_patient could forge lfk_complexes.origin=assigned_by_specialist -- column-level grant boundary is broken!'
+SELECT 1/0;
+\endif
+`;
+
+// (k) user_channel_preferences: still app_patient. Legit notification-toggle UPDATE succeeds; an
+// attempt to flip is_preferred_for_auth is permission-denied (2026-07-11 second-pass sweep, taskdb
+// #655 -- gpt-5.6-sol finding #2).
+const proofK = String.raw`
+UPDATE public.user_channel_preferences SET is_enabled_for_messages = false WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1';
+SELECT (is_enabled_for_messages = false)::int AS b5g_k_patient_updates_own_toggle FROM public.user_channel_preferences WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1' \gset
+${fatal("b5g_k_patient_updates_own_toggle", "(k) app_patient must be able to UPDATE its own user_channel_preferences.is_enabled_for_messages")}
+
+\set ON_ERROR_STOP off
+UPDATE public.user_channel_preferences SET is_preferred_for_auth = true WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1';
+\set ON_ERROR_STOP on
+\if :ERROR
+\echo 'CONFIRMED (k): app_patient got permission denied UPDATEing user_channel_preferences.is_preferred_for_auth (column not granted).'
+\else
+\echo 'FATAL (k): app_patient could UPDATE user_channel_preferences.is_preferred_for_auth -- column-level grant boundary is broken!'
+SELECT 1/0;
+\endif
+
+SELECT (is_preferred_for_auth = false)::int AS b5g_k_auth_pref_unchanged FROM public.user_channel_preferences WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1' \gset
+${fatal("b5g_k_auth_pref_unchanged", "(k) user_channel_preferences.is_preferred_for_auth must remain unchanged after the rejected UPDATE")}
+`;
+
+// (l) treatment_program_events: still app_patient. Legit self-write without actor_id succeeds; an
+// explicit actor_id forgery attempt is permission-denied (2026-07-11 second-pass sweep, taskdb #655
+// -- gpt-5.6-sol finding #3).
+const proofL = String.raw`
+INSERT INTO public.treatment_program_events (instance_id, event_type) VALUES ('b5000000-0000-4000-8000-0000000000d1', 'item_added');
+SELECT (count(*) = 2)::int AS b5g_l_patient_self_insert_no_actor FROM public.treatment_program_events WHERE event_type = 'item_added' \gset
+${fatal("b5g_l_patient_self_insert_no_actor", "(l) app_patient must be able to INSERT its own treatment_program_events row without actor_id")}
+
+\set ON_ERROR_STOP off
+INSERT INTO public.treatment_program_events (instance_id, actor_id, event_type) VALUES ('b5000000-0000-4000-8000-0000000000d1', 'b5000000-0000-4000-8000-0000000000c1', 'item_added');
+\set ON_ERROR_STOP on
+\if :ERROR
+\echo 'CONFIRMED (l): app_patient got permission denied INSERTing treatment_program_events.actor_id (column not granted).'
+\else
+\echo 'FATAL (l): app_patient could forge treatment_program_events.actor_id -- column-level grant boundary is broken!'
+SELECT 1/0;
+\endif
+
+RESET SESSION AUTHORIZATION;
+\echo 'P0.5b grants smoke: proofs (j)-(l) CONFIRMED.'
 `;
 
 // (i) app_staff remains fully unrestricted -- both row-level (already shown in (a)) AND column-level:
@@ -440,9 +610,11 @@ try {
   // session to still genuinely BE app_patient (not a fresh superuser connection) when the
   // permission-denied checks run.
   console.log(
-    "--- phases 4-12: proofs (a) staff full surface, (b) patient own table, (c) staff-only denied, (d) infra denied, (e) column-level role-escalation blocked, (f) org_enrollments INSERT denied, (g) booking-profile UPDATE denied, (h) specialist_tasks denied, (i) staff unrestricted ---",
+    "--- phases 4-13: proofs (a) staff full surface, (b) patient own table, (c) staff-only denied, (d) infra denied, (e) column-level role-escalation blocked, (f) org_enrollments INSERT denied, (g) booking-profile UPDATE denied, (h) specialist_tasks denied, (j) lfk_complexes.origin forgery blocked, (k) user_channel_preferences.is_preferred_for_auth blocked, (l) treatment_program_events.actor_id forgery blocked, (i) staff unrestricted ---",
   );
-  psql([proofA, proofB, proofC, proofD, proofE, proofF, proofG, proofH, proofI].join("\n"));
+  psql(
+    [proofA, proofB, proofC, proofD, proofE, proofF, proofG, proofH, proofJ, proofK, proofL, proofI].join("\n"),
+  );
 
   console.log(`smoke-p0-5b-grants: OK (${dbName})`);
 } finally {

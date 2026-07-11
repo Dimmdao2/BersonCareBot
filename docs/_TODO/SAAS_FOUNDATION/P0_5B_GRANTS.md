@@ -11,6 +11,25 @@ UPDATE grant on `platform_users` let a patient's own session write its own `role
 what the "Column-level restrictions" and updated write-capable list below reflect. See
 `docs/_TODO/SAAS_FOUNDATION/LOG.md` for the dated entry.
 
+**2026-07-11 second-pass exhaustive sweep (taskdb #655, this task, worker=Sonnet):** the first re-audit
+was not complete. A second gpt-5.6-sol pass found 3 more of the exact same class of over-grant
+(`lfk_complexes.origin`, `user_channel_preferences.is_preferred_for_auth`,
+`treatment_program_events.actor_id`), and this task's own exhaustive per-table, per-column pass against
+the **live `bcb_webapp_dev` schema** (not just the generator's own comments) found 4 additional
+over-grants the first re-audit missed (`online_intake_requests.status`, `support_questions`/
+`support_question_messages` — no confirmed patient write path at all, `test_results` — no confirmed
+write path + a staff sign-off column). It also found a class of **value-level residual risk that a
+GRANT structurally cannot fix** (columns a shared repo function always references explicitly, even for
+the confirmed patient call, with a currently-safe hardcoded value) on `program_item_discussion_messages`
+(`sender_role`/`origin`), `support_conversation_messages` (`sender_role`), and the
+`be_appointment_cancellations`/`be_appointment_reschedules`/`be_appointment_events`/
+`be_appointment_history_events` family (`actor_type`, `actor_id`, `staff_comment`, `manual_override`,
+`notifications_sent`, `was_free`, `was_penalized`, `package_session_charged`, `prepayment_retained`,
+`prepayment_refunded`, `applied_policy_id`, `applied_policy_snapshot`) — see "Value-level residuals
+(pre-flip, not GRANT-fixable)" below. All fixes regenerated via `p0-5b-grants-sql.mjs` into
+`deploy/postgres/p0-5b-grants.sql`; live-proven by the extended `smoke-p0-5b-grants.mjs` (proofs
+(j)-(l)).
+
 ## Materialized artifact
 
 Repeatable ops SQL: [`../../../deploy/postgres/p0-5b-grants.sql`](../../../deploy/postgres/p0-5b-grants.sql),
@@ -61,16 +80,17 @@ patient-writable):**
   UPDATE was dropped in the re-audit, see below), `be_appointment_events`/
   `be_appointment_history_events`/`be_patient_timeline_events` (INSERT-only side-effect rows),
   `be_booking_form_submissions` (SELECT+INSERT; its ON CONFLICT DO UPDATE needs a column-level UPDATE
-  too, see below).
-- Support/chat: `support_conversation_messages`, `support_question_messages`, `support_questions`
-  (`/api/patient/support`).
+  too, see below). **Value-level residual on the 4 cancellation/reschedule/event tables** — see
+  "Value-level residuals" below.
+- Support/chat: `support_conversation_messages` (`/api/patient/support`; **value-level residual on
+  `sender_role`**, see below).
 - Program discussion: `program_item_discussion_messages`/`_reads` (`/api/patient/messages*`, per-item
-  discussion route).
+  discussion route; **value-level residual on `sender_role`/`origin`**, see below).
 - Diary/mood: `patient_diary_day_snapshots` (INSERT-only, idempotent side effect of a patient program
   action), `symptom_entries`, `symptom_trackings` (`/api/patient/diary/*`, `/api/patient/mood/*` —
   confirmed no staff-controlled column on either table).
-- Online intake: `online_intake_requests`/`_answers`/`_attachments` (`/api/patient/online-intake*`,
-  gated by `requirePatientApiBusinessAccess`).
+- Online intake: `online_intake_answers`/`_attachments` (`/api/patient/online-intake*`, gated by
+  `requirePatientApiBusinessAccess`; `online_intake_requests` itself is column-restricted, see below).
 - Engagement: `patient_practice_completions`, `patient_daily_warmup_presentations`,
   `patient_daily_warmup_video_views` (`/api/patient/practice/completion`,
   `/api/patient/daily-warmup/video-viewed`).
@@ -79,24 +99,26 @@ patient-writable):**
 - `reminder_rules` (`/api/patient/reminders/{create,mute}` — no true staff-owned column exists on this
   table; `notification_topic_code` was not independently traced as patient-written, re-check before
   the real flip).
-- LFK self-service diary: `lfk_complexes` (INSERT-only — UPDATE dropped, see below), `lfk_sessions`
-  (full write — confirmed no staff-controlled column; residual note: the traced INSERT never
-  explicitly sets `organization_id`, an RLS-policy-side footgun to confirm before the flip, not a
-  privilege-escalation one).
-- `test_results` (INSERT-only; `test_attempts` itself is column-restricted, see below).
-- `program_action_log`/`treatment_program_events` (INSERT-only side-effect audit trail of the
-  patient's own progress actions, confirmed `patient-program-actions.ts`/`progress-service.ts`).
+- LFK self-service diary: `lfk_sessions` (full write — confirmed no staff-controlled column; residual
+  note: the traced INSERT never explicitly sets `organization_id`, an RLS-policy-side footgun to
+  confirm before the flip, not a privilege-escalation one). `lfk_complexes` is now column-restricted,
+  see below.
+- `program_action_log` (INSERT-only side-effect audit trail of the patient's own progress actions,
+  confirmed `patient-program-actions.ts`/`progress-service.ts`). `treatment_program_events` is now
+  column-restricted, see below.
 - `product_analytics_events_recent` (`/api/patient/analytics/events` beacon; the hourly rollup
   `product_analytics_user_hourly` is a background aggregation, stays SELECT-only).
 - BOOTSTRAP: `user_pins` (SELECT+INSERT whole-table; UPDATE is column-restricted, see below),
-  `user_channel_preferences`/`user_notification_topics`/`user_notification_topic_channels` (own
-  notification toggles), `user_web_push_subscriptions` (SELECT+INSERT+UPDATE+DELETE — own browser push
-  subscription/device credentials, no staff column exists).
+  `user_notification_topics`/`user_notification_topic_channels` (own notification toggles),
+  `user_web_push_subscriptions` (SELECT+INSERT+UPDATE+DELETE — own browser push subscription/device
+  credentials, no staff column exists). `user_channel_preferences` is now column-restricted, see below.
 
 **Write-capable, COLUMN-RESTRICTED** (whole-table SELECT + a narrower `GRANT <priv> (<cols>) ON TABLE
 ... TO app_patient` for INSERT/UPDATE — see the "Column-level restrictions" section below for the full
 table-by-table rationale): `platform_users`, `user_pins`, `be_appointments`, `be_booking_form_submissions`,
-`support_conversations`, `media_files`, `media_upload_sessions`, `lfk_complex_exercises`, `test_attempts`.
+`support_conversations`, `media_files`, `media_upload_sessions`, `lfk_complex_exercises`, `test_attempts`,
+`lfk_complexes`, `treatment_program_events`, `online_intake_requests`, `user_channel_preferences`
+(2026-07-11 second-pass sweep additions, taskdb #655).
 
 **Write grant REMOVED entirely in the 2026-07-11 re-audit** (was whole-table write, now SELECT-only —
 no column-restriction was applicable because the table has no patient-owned column at all, or no real
@@ -116,6 +138,21 @@ patient-session call site was found):
 - `be_appointment_cancellations`/`be_appointment_reschedules` UPDATE (INSERT stays) — the only UPDATE
   call on either table (`patchLatest*Notifications`) has no caller anywhere in `apps/webapp/src`
   (dead/unwired code).
+
+**Write grant REMOVED entirely in the 2026-07-11 second-pass exhaustive sweep** (taskdb #655, this
+task — same "no confirmed write path / staff-only column" bar as the first re-audit above):
+- `support_questions`/`support_question_messages` — DOWNGRADED from `SELECT, INSERT` to `SELECT`.
+  Every INSERT call site for both tables (`upsertQuestionFromProjection`/
+  `appendQuestionMessageFromProjection` in `pgSupportCommunication.ts`) is reached ONLY from
+  `modules/integrator/events.ts` — the integrator/bot projection-sync handler, not an authenticated
+  patient webapp session. This is the legacy Rubitime-era "question" thread model, distinct from the
+  `support_conversations`/`support_conversation_messages` family `patientMessagingService.ts` actually
+  uses. No confirmed patient-session write path exists for either table.
+- `test_results` — DOWNGRADED from `SELECT, INSERT` to `SELECT`. The only INSERT/UPDATE call sites
+  (`pgTreatmentProgramTestAttempts.ts`'s `upsertResult`/`overrideResultDecision`) have **no caller
+  anywhere in `apps/webapp/src`** (dead/unwired code) — and the table also carries `decided_by` (a
+  doctor-only sign-off FK), so this was both an unconfirmed write grant AND one that would eventually
+  need column-restriction if wired up.
 
 **Excluded from the app_patient grant set entirely (not even SELECT):**
 - `specialist_tasks` — structurally patient-linked (`patient_user_id` FK) so the RLS descriptor model
@@ -168,6 +205,57 @@ is a small, explicit, individually-reviewed list). `REVOKE ALL PRIVILEGES ON TAB
 | `lfk_complex_exercises` | UPDATE | `local_comment` | `reps`, `sets`, `side`, `max_pain_0_10`, `comment`, `sort_order` (frozen doctor/template-authored prescription snapshot) | High — traced `updateLfkComplexExerciseLocalCommentForUser` |
 | `test_attempts` | INSERT | `organization_id`, `instance_stage_item_id`, `patient_user_id` | `accepted_at`, `accepted_by` (doctor-only sign-off, set exclusively by the doctor-authenticated accept route) | High — traced both sides; **the clearest over-grant found in the sweep** (patient could otherwise self-mark its own test as clinically accepted) |
 | `test_attempts` | UPDATE | `submitted_at` | same as INSERT above | High — same trace |
+| `lfk_complexes` | INSERT | `user_id`, `platform_user_id`, `title`, `is_active`, `updated_at`, `symptom_tracking_id`, `region_ref_id`, `side`, `diagnosis_text`, `diagnosis_ref_id` | `origin` (CHECK-constrained `'manual'`/`'assigned_by_specialist'`, `'manual'::text` DEFAULT — a patient could otherwise forge "assigned by a specialist" provenance on a self-created complex), `organization_id` (not referenced by the traced INSERT either) | High — 2026-07-11 second-pass sweep (gpt-5.6-sol finding #1); the patient-facing `createLfkComplex` webapp action is currently disabled entirely, so this exclusion cannot break any live flow today |
+| `user_channel_preferences` | INSERT | `user_id`, `platform_user_id`, `channel_code`, `is_enabled_for_messages`, `is_enabled_for_notifications`, `updated_at` | `is_preferred_for_auth` (controls which channel receives login/OTP codes) | High — traced `upsertPreference`; **pre-flip follow-up required**, see "Value-level residuals" below — the patient's own "preferred OTP channel" feature currently writes this column and will need it re-added with a proven session-scoping guarantee |
+| `user_channel_preferences` | UPDATE | `platform_user_id`, `is_enabled_for_messages`, `is_enabled_for_notifications`, `updated_at` | same as INSERT above | High — same trace (ON CONFLICT DO UPDATE branch of `upsertPreference`) |
+| `treatment_program_events` | INSERT | `organization_id`, `instance_id`, `event_type`, `target_type`, `target_id`, `payload`, `reason` | `actor_id` (records who performed the audited action — a patient could otherwise forge authorship, e.g. attributing an event to a doctor) | High — 2026-07-11 second-pass sweep (gpt-5.6-sol finding #3); **pre-flip code fix required**, see "Value-level residuals" below — `pgTreatmentProgramEvents.ts`'s `appendEvent` always explicitly references `actor_id`, so this column exclusion will break the currently-active patient progress-tracking flow under `app_patient` until that repo function is changed |
+| `online_intake_requests` | INSERT | `id`, `user_id`, `organization_id`, `type`, `summary` | `status` (CHECK-constrained lifecycle state, `'new'::text` DEFAULT — not referenced by the traced INSERT, which relies on the default), `updated_at` (same reason, DEFAULT `now()`) | High — 2026-07-11 second-pass sweep; traced `createLfkRequest`/`createNutritionRequest` in `pgOnlineIntake.ts` |
+
+## Value-level residuals (pre-flip, not GRANT-fixable)
+
+Postgres column `GRANT`s restrict which **columns** can be referenced in an `INSERT`/`UPDATE` target
+list; they cannot restrict what **value** is written to a granted column. For a handful of tables, a
+column that carries staff/actor/identity meaning is **structurally required** by the confirmed
+patient-session call path itself (a shared repo function references it explicitly, with a currently
+safe hardcoded value from the service layer) — excluding the column from the grant would break the
+live patient flow, not just close an attack surface. These are explicitly **not** GRANT-fixable; they
+need an RLS `WITH CHECK`, a `BEFORE INSERT/UPDATE` trigger, or a repo-level split before the real
+B4-fanout flip. Tracked here so they are not silently dropped between now and that decision:
+
+- **`be_appointment_cancellations` / `be_appointment_reschedules` / `be_appointment_events` /
+  `be_appointment_history_events`** — `pgBookingAppointmentLifecycle.ts`'s `applyCancellation`/
+  `applyReschedule` is a single SHARED repo function serving both the confirmed patient path
+  (`patientCancel`/`patientReschedule` in `booking-appointment-lifecycle/service.ts`, which hardcodes
+  `actorType:"patient"`, `actorId:input.userId`, `manualOverride:false`, `staffComment:undefined` ->
+  `null`) and the staff path (`staffCancel`/`staffReschedule`, real `actorType:"specialist"|"admin"`,
+  a real `staffComment`, `manualOverride:true`). Every one of `actor_type`, `actor_id`,
+  `staff_comment`, `manual_override`, `notifications_sent`, `was_free`, `was_penalized`,
+  `package_session_charged`, `prepayment_retained`, `prepayment_refunded`, `applied_policy_id`,
+  `applied_policy_snapshot` is explicitly referenced by the INSERT for BOTH paths — none can be
+  excluded from the grant without breaking the live patient cancel/reschedule flow. A
+  raw-SQL-privileged `app_patient` session could still forge `staff_comment` content,
+  `manual_override=true`, `actor_type='admin'` (audit-trail impersonation), or `wasFree=true` (billing
+  forgery) on its own row. **Pre-flip fix:** split the repo function into a patient-only INSERT
+  (omitting these columns, letting a trigger/default fill safe values) or add an RLS `WITH CHECK`/
+  `BEFORE INSERT` trigger pinning safe values whenever `current_user = 'app_patient'`.
+- **`program_item_discussion_messages`** (`sender_role`, `origin`) — `sender_role` (CHECK:
+  `'patient'`/`'admin'`) and `origin` (CHECK: `'patient_observation'`/`'support_admin_reply'`) have
+  **no DEFAULT** and are `NOT NULL`, so they must be explicitly referenced by every INSERT.
+  `patient-program-actions.ts`'s confirmed patient call hardcodes `senderRole:"patient"`,
+  `origin:"patient_observation"`, but `pgProgramItemDiscussion.ts`'s `insertMessage` is a SHARED
+  function that also writes `senderRole:"admin"`/`origin:"support_admin_reply"` for the support-sync
+  side. A raw-SQL-privileged `app_patient` session could forge `sender_role='admin'` — impersonating a
+  support/doctor reply on the patient's own program item.
+- **`support_conversation_messages`** (`sender_role`) — same class: `patientMessagingService.ts`
+  hardcodes `senderRole:"user"` for the confirmed patient send-message path, but
+  `appendWebappMessage` (`pgSupportCommunication.ts`) is shared with `doctorSupportMessagingService.ts`/
+  `integratorSupportBridge.ts`, which pass `senderRole:"admin"`.
+
+None of these are GRANT regressions introduced by this task — they were already present before the
+2026-07-11 second-pass sweep (the `be_appointments.status`/`specialist_id` residual documented below is
+the same class of problem, already known). This section makes the **full set** of them explicit for
+B4-fanout triage, per this task's instruction to document rather than silently attempt (and fail) a
+GRANT-only fix.
 
 ### `integrator.*` patient-owned tables — SELECT-only, deliberately
 
@@ -250,6 +338,25 @@ comments for the identical reasoning per table.
   (time-boxed audit). If patients can trigger their own payment intents today, this whole family likely
   needs write grants before the real flip; the B4-fanout pre-flip process smoke should catch it as a
   hard permission-denied rather than a silent gap.
+- **`public.user_channel_preferences.is_preferred_for_auth`** (2026-07-11 second-pass sweep) — excluded
+  from the write grant entirely (see the column-restriction table above), closing the
+  `platform_users.role`-class self-escalation risk this column carries. **But** `patient/profile/
+  actions.ts`'s `setPreferredAuthOtpChannel` (`AuthOtpChannelPreference.tsx` — "choose which channel
+  receives my login/OTP codes") is a confirmed, currently-ACTIVE patient self-service feature that
+  writes this exact column via `pgChannelPreferences.ts`'s `setPreferredAuthChannel`. Once the real role
+  flip happens, this feature will get `permission denied` until it is re-reviewed: the WHERE clause
+  (`userMatchSql`) already scopes every read/write to the caller's own `user_id`/`platform_user_id`, so
+  re-adding the column with a proven RLS/session-scoping tie (not just "it happens to be scoped today")
+  is the likely resolution, not a permanent removal — tracked as a required B4-fanout pre-flip item.
+- **`public.online_intake_status_history`** (found during this task's exhaustive column sweep, NOT
+  fixed here — out of this task's over-grant-closure scope, noted for completeness) — currently
+  SELECT-only, but the traced `createLfkRequest`/`createNutritionRequest` transaction
+  (`pgOnlineIntake.ts`) ALSO inserts a `(from_status: NULL, to_status: 'new')` row into this table in
+  the same confirmed patient-session transaction. This is an **under-grant** (a functional gap, not a
+  security regression) — the confirmed patient intake-creation flow would get `permission denied` on
+  this table specifically once flipped. Needs a traced, column-restricted INSERT grant (`id, request_id,
+  organization_id, from_status, to_status` — `from_status`/`to_status` are CHECK-constrained lifecycle
+  values, same forgery-shape concern as `online_intake_requests.status` above) before the real flip.
 
 ## Live proof
 
@@ -273,6 +380,14 @@ generator computes:
 5. `app_staff` remains fully unrestricted throughout — including `UPDATE platform_users SET role =
    'admin'`, which succeeds for `app_staff` (no column restriction applies to that role at all),
    contrasting directly with (4).
+6. **(2026-07-11 second-pass sweep addition, taskdb #655, this task)** proofs (j)-(l): `app_patient`
+   **can** `INSERT` its own `lfk_complexes` row and have `origin` take the table's `'manual'` default,
+   but gets `permission denied for table` explicitly INSERTing
+   `origin='assigned_by_specialist'` (gpt-5.6-sol finding #1). `app_patient` **can** `UPDATE` its own
+   `user_channel_preferences.is_enabled_for_messages`, but gets `permission denied for table` attempting
+   `UPDATE ... SET is_preferred_for_auth = true` on the same row (finding #2). `app_patient` **can**
+   `INSERT` its own `treatment_program_events` row without `actor_id`, but gets `permission denied for
+   table` explicitly INSERTing an `actor_id` value (finding #3).
 
 ## Gate
 

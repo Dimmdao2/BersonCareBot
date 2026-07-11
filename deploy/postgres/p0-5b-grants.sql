@@ -331,7 +331,7 @@ VALUES
   ('public', 'doctor_notes', 'SELECT'),
   ('public', 'doctor_patient_support', 'SELECT'),
   ('public', 'lfk_complex_exercises', 'SELECT'),
-  ('public', 'lfk_complexes', 'SELECT, INSERT'),
+  ('public', 'lfk_complexes', 'SELECT'),
   ('public', 'lfk_sessions', 'SELECT, INSERT, UPDATE'),
   ('public', 'mailing_logs_webapp', 'SELECT'),
   ('public', 'material_ratings', 'SELECT, INSERT, UPDATE'),
@@ -347,7 +347,7 @@ VALUES
   ('public', 'notification_delivery_attempts', 'SELECT'),
   ('public', 'online_intake_answers', 'SELECT, INSERT'),
   ('public', 'online_intake_attachments', 'SELECT, INSERT'),
-  ('public', 'online_intake_requests', 'SELECT, INSERT'),
+  ('public', 'online_intake_requests', 'SELECT'),
   ('public', 'online_intake_status_history', 'SELECT'),
   ('public', 'org_enrollments', 'SELECT'),
   ('public', 'patient_comorbidity', 'SELECT'),
@@ -374,19 +374,19 @@ VALUES
   ('public', 'support_conversation_messages', 'SELECT, INSERT'),
   ('public', 'support_conversations', 'SELECT'),
   ('public', 'support_delivery_events', 'SELECT'),
-  ('public', 'support_question_messages', 'SELECT, INSERT'),
-  ('public', 'support_questions', 'SELECT, INSERT'),
+  ('public', 'support_question_messages', 'SELECT'),
+  ('public', 'support_questions', 'SELECT'),
   ('public', 'symptom_entries', 'SELECT, INSERT, UPDATE'),
   ('public', 'symptom_trackings', 'SELECT, INSERT, UPDATE'),
   ('public', 'test_attempts', 'SELECT'),
-  ('public', 'test_results', 'SELECT, INSERT'),
-  ('public', 'treatment_program_events', 'SELECT, INSERT'),
+  ('public', 'test_results', 'SELECT'),
+  ('public', 'treatment_program_events', 'SELECT'),
   ('public', 'treatment_program_instance_stage_groups', 'SELECT'),
   ('public', 'treatment_program_instance_stage_items', 'SELECT'),
   ('public', 'treatment_program_instance_stages', 'SELECT'),
   ('public', 'treatment_program_instances', 'SELECT'),
   ('public', 'user_channel_bindings', 'SELECT'),
-  ('public', 'user_channel_preferences', 'SELECT, INSERT, UPDATE'),
+  ('public', 'user_channel_preferences', 'SELECT'),
   ('public', 'user_notification_topic_channels', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_notification_topics', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_phone_history', 'SELECT'),
@@ -476,6 +476,11 @@ GRANT UPDATE ("status", "completed_at", "last_error", "updated_at") ON TABLE "pu
 GRANT UPDATE ("local_comment") ON TABLE "public"."lfk_complex_exercises" TO app_patient;
 GRANT INSERT ("organization_id", "instance_stage_item_id", "patient_user_id") ON TABLE "public"."test_attempts" TO app_patient;
 GRANT UPDATE ("submitted_at") ON TABLE "public"."test_attempts" TO app_patient;
+GRANT INSERT ("user_id", "platform_user_id", "title", "is_active", "updated_at", "symptom_tracking_id", "region_ref_id", "side", "diagnosis_text", "diagnosis_ref_id") ON TABLE "public"."lfk_complexes" TO app_patient;
+GRANT INSERT ("organization_id", "instance_id", "event_type", "target_type", "target_id", "payload", "reason") ON TABLE "public"."treatment_program_events" TO app_patient;
+GRANT INSERT ("id", "user_id", "organization_id", "type", "summary") ON TABLE "public"."online_intake_requests" TO app_patient;
+GRANT INSERT ("user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
+GRANT UPDATE ("platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
 
 SELECT format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq
