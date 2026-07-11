@@ -43,13 +43,17 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
       mandated exhaustive census** (mig 0172): 3 treatment-program denorm chains (incl. a 2-hop
       instance_stage_items/_groups chain), 11 be_appointment_*/be_package_*/be_refunds/
       be_product_history_events/reminder_journal single-hop chains to already-walled parents, and 4
-      media_playback_* direct `user_id` columns that had simply been missed. **Census proved by
-      enumeration: 157 SCOPED total → 98 walled (direct/fk-path/chain), 59 excluded with concrete
-      reasons (org-catalog/booking-config/staff-actor/legacy telemetry — NONE patient-owned). 0
-      patient-owned SCOPED remain org-only.** Registered in `patientChainOwnedTables`/
-      `patientOwnedColumns`, regenerated (checkers green: P0.8.3 48 patient-owned + 12 chain, P0.8.4
-      11 + 15 chain), full `check:saas-db-regression` green, `smoke-r2-real-policy-isolation.mjs`
-      green (exit 0) proving A1≠A2 fail-closed on a 12-table representative sample of the 27. (#658)
+      media_playback_* direct `user_id` columns that had simply been missed — PLUS **1 MORE the
+      independent audit caught** (media_upload_sessions.owner_user_id, mig 0173; was falsely excluded
+      as "dual-role keyed by usage_purpose", but that column is on media_files, not this table).
+      **28 tables newly walled. Census proved by enumeration: 157 SCOPED → 99 walled (65 direct/fk-path
+      + 34 chain), 58 excluded, every excluded one org-catalog/booking-config/staff-actor/shared-config/
+      dual-role — NONE patient-owned. 0 patient-owned SCOPED remain org-only.** Registered in
+      `patientChainOwnedTables`/`patientOwnedColumns`, regenerated (checkers green: P0.8.3 49
+      patient-owned + 12 chain, P0.8.4 11 + 15 chain), full `check:saas-db-regression` green,
+      `smoke-r2-real-policy-isolation.mjs` green (exit 0) proving A1≠A2 fail-closed (staff sees all;
+      mixed uuid+bigint patient sees only own; empty→deny) on a 13-table representative sample of the
+      28. (#658)
 - [ ] **B5** — non-bypass app DB role + grants materialized (P0.5), static check green; live scratch
       proof by lead. (#655, Codex)
 - [ ] **B4-fanout** — read-context wrapper contract (Opus design): staff sessions set `app.actor='staff'`;
