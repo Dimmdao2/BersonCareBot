@@ -132,7 +132,7 @@ async function main() {
     const nameClause = MERGE_ALL ? "" : "AND full_name = $2";
     const dupRows = await db.query<{ id: string; full_name: string }>(
       `SELECT id, full_name FROM be_specialists
-        WHERE organization_id = $1::uuid AND id <> $3::uuid ${nameClause}`,
+        WHERE organization_id = $1::uuid AND is_active = true AND id <> $3::uuid ${nameClause}`,
       MERGE_ALL ? [primaryOrg, primaryId] : [primaryOrg, primaryName, primaryId],
     );
     const dupIds = dupRows.rows.map((d) => d.id);

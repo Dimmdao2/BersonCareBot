@@ -12,6 +12,43 @@ if [[ ! -f "${JOURNAL}" ]]; then
   exit 1
 fi
 
+node - "${JOURNAL}" <<'NODE'
+const fs = require("node:fs");
+
+const journalPath = process.argv[2];
+const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+let previous = null;
+const indexes = new Set();
+const tags = new Set();
+
+for (const [arrayIndex, entry] of journal.entries.entries()) {
+  if (entry.idx !== arrayIndex) {
+    console.error(
+      `check-drizzle-journal-sync: entry ${entry.tag} has idx ${entry.idx}; expected array position ${arrayIndex}`,
+    );
+    process.exit(1);
+  }
+  if (indexes.has(entry.idx)) {
+    console.error(`check-drizzle-journal-sync: duplicate idx ${entry.idx}`);
+    process.exit(1);
+  }
+  if (tags.has(entry.tag)) {
+    console.error(`check-drizzle-journal-sync: duplicate tag ${entry.tag}`);
+    process.exit(1);
+  }
+  indexes.add(entry.idx);
+  tags.add(entry.tag);
+  if (previous !== null && entry.when <= previous.when) {
+    console.error(
+      `check-drizzle-journal-sync: journal when values must be strictly increasing by idx; ` +
+        `idx ${entry.idx} (${entry.when}) is not greater than idx ${previous.idx} (${previous.when})`,
+    );
+    process.exit(1);
+  }
+  previous = entry;
+}
+NODE
+
 missing=0
 for sql in "${MIG_DIR}"/*.sql; do
   base="$(basename "${sql}" .sql)"
