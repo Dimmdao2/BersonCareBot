@@ -53,7 +53,34 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
       patient-owned + 12 chain, P0.8.4 11 + 15 chain), full `check:saas-db-regression` green,
       `smoke-r2-real-policy-isolation.mjs` green (exit 0) proving A1≠A2 fail-closed (staff sees all;
       mixed uuid+bigint patient sees only own; empty→deny) on a 13-table representative sample of the
-      28. (#658)
+      28. (#658) **⚠️ CORRECTED by B4-core-4 below — the "58 excluded / 0 patient-owned remain" claim
+      here was FALSE: 3 of those 58 "excluded" tables were actually patient-owned (the "hard"
+      conditional/polymorphic cases), found by an independent audit.**
+- [x] **B4-core-4** — independent audit (gpt-5.6-sol) found **3 REAL patient-owned SCOPED tables**
+      B4-core-3's census had wrongly counted as "excluded, non-patient": `media_files` (dual-role
+      `uploaded_by`, disambiguated by `usage_purpose`), `media_transcode_jobs` (inherits `media_files`'
+      ownership via its `media_id` FK, no column of its own), and `comments` (polymorphic
+      `target_type`/`target_id` — had **NO RLS policy at all**, blocked behind P0.12.1, which is now
+      complete). Closed with 2 NEW predicate shapes (`renderConditionalPatientPredicate`,
+      `renderConditionalChainPatientPredicate`, `renderPolymorphicPatientPredicate` in
+      `rls-sql-renderer.mjs`; `patientConditionalOwnedColumns`/`patientConditionalChainOwnedTables`/
+      `patientPolymorphicOwnedTables` in `rls-descriptor-model.mjs`), mig
+      `0174_p0_8_b4_core_4_conditional_polymorphic_patient_wall_rls.sql`, same fail-closed
+      `org AND (staff OR patient)` shape as every prior B4-core migration. `comments`: 5 of 9
+      `target_type` values stay org-wide (catalog, no per-patient owner); 4 resolve to the owning
+      patient via a chain (1 to 3 hops deep). Full `check:saas-db-regression` green (P0.8.3 105 = 49 +
+      12 + 1 conditional; P0.8.4 38 = 2 FK-path + 35 denorm + 1 polymorphic = 11 + 15 + 1 conditional-
+      chain + 1 polymorphic patient-owned), `smoke-r2-real-policy-isolation.mjs` green (exit 0) proving
+      staff sees all / patient A1≠A2 / shared-library-and-catalog visible-to-both / empty→deny on all
+      3 tables (both comment hop-depth extremes exercised). **CORRECTED CENSUS: as of this entry, 0
+      patient-owned SCOPED tables remain org-only, verified across 5 registries** (`patientOwnedColumns`,
+      `patientChainOwnedTables`, `patientConditionalOwnedColumns`, `patientConditionalChainOwnedTables`,
+      `patientPolymorphicOwnedTables`) — **102 walled** (65 direct/fk-path + 34 chain + 1 conditional +
+      1 conditional-chain + 1 polymorphic), **55 excluded** (58 − 3 moved into the walled set), every
+      excluded one still org-catalog/booking-config/staff-actor/shared-config/staff-system-queue. Given
+      this checklist's own prior "0 patient-owned open" claim was wrong once already, this claim should
+      be treated as provisional pending a SECOND independent audit pass before being trusted at face
+      value for the M1 DoD. (#660)
 - [ ] **B5** — non-bypass app DB role + grants materialized (P0.5), static check green; live scratch
       proof by lead. (#655, Codex)
 - [ ] **B4-fanout** — read-context wrapper contract (Opus design): staff sessions set `app.actor='staff'`;
