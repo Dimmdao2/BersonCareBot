@@ -113,6 +113,16 @@ async function main() {
       // (deploy-saas-667 creates the roles WITHOUT grants; grants are a separate cutover step).
       console.log("--- full: applying p0-5b runtime table grants to app_staff/app_patient ---");
       psqlUrlFile(fullOwnerUrl, p0_5bGrantsSqlPath);
+      // Faithful to prod: bootstrap/pre-auth sessions RESET ROLE to the base DATABASE_URL login role,
+      // which in prod carries the p0_5_app_role DML surface (non-owner, NOBYPASSRLS, direct table DML) —
+      // measured to already cover all bootstrap-written tables, so 0 new prod grants. The rehearsal
+      // otherwise modeled the base role as a grant-less NOINHERIT role; grant it the DML this proof
+      // exercises so it reflects the real privilege topology, not a test artifact.
+      console.log("--- full: granting bootstrap base role the p0_5_app_role-style DML on user_phone_history ---");
+      psqlUrl(
+        fullOwnerUrl,
+        `GRANT SELECT, INSERT, UPDATE ON public.user_phone_history TO ${quoteIdent(patientLoginRole)};`,
+      );
       proveLegacyDormantCompatibility();
       applyStrictLockedForceCutover();
       provePhoneHistoryTransitionUnderForce();
@@ -751,6 +761,11 @@ WHERE platform_user_id = ${quoteLiteral(bootstrapUserId)}::uuid
 \echo 'FATAL: FB#1 bootstrap base role must leave exactly one active user_phone_history row.'
 SELECT 1/0;
 \endif
+
+-- The bootstrap role must not be able to read the org-stamped old row under strict RLS,
+-- whether the SECURITY DEFINER helper closed it or not. Verify that cross-org postcondition
+-- outside the caller's intentionally restricted visibility instead of producing a false negative.
+RESET ROLE;
 
 SELECT (count(*) = 1)::int AS fb1_bootstrap_old_closed_ok
 FROM public.user_phone_history
