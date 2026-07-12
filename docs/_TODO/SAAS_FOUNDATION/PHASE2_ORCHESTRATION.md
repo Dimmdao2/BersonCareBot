@@ -110,6 +110,30 @@ Residual:
 - Process-family smoke under real app roles, cluster-global role naming, and env-boundary decisions remain
   B4-fanout / pre-flip blockers.
 
+### B4-fanout L2 — locked runtime live scratch proof
+
+Goal:
+- Prove the L1 Node runtime locked principal path against the reusable P2-B SQL artifact on disposable
+  scratch DB/roles, without touching prod/test/dev/app databases.
+
+Status:
+- Worker added `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs`.
+- The smoke creates a disposable `bcb_saas_*_scratch_*` database and owner/staff/patient roles, applies
+  `deploy/postgres/p2-b-protected-principal-context.sql` with a random signing secret, then imports the
+  built `packages/db-principal/dist/index.js` runtime and exercises:
+  `buildDbPrincipalApplyOptions`, `runWithDbStaffPrincipal`, `runWithDbPatientPrincipal`,
+  `runWithDbIntegratorPrincipal`, `applyCurrentDbPrincipalToConnection`, and
+  `clearDbPrincipalFromConnection`.
+
+Validation command:
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs`
+  (the script builds `packages/db-principal` before importing its generated runtime).
+
+Residual:
+- This proves direct Node `pg` connections under disposable staff/patient app roles on local scratch DB.
+  It still does not prove full webapp/integrator/scheduler/media-worker process-family behavior or the
+  eventual production role naming/deployment flip.
+
 ### P2-C — #664 value-level residuals
 
 Goal:
