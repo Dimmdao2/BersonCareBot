@@ -16,6 +16,7 @@ vi.mock("@bersoncare/db-principal", () => ({
   applyCurrentDbPrincipalToConnection: vi.fn().mockResolvedValue(undefined),
   applyCurrentDbPrincipalToTransaction: vi.fn().mockResolvedValue(undefined),
   clearDbPrincipalFromConnection: vi.fn().mockResolvedValue(undefined),
+  buildDbPrincipalApplyOptionsFromEnv: vi.fn(() => ({ mode: "legacy-guc" })),
 }));
 
 vi.mock("@/infra/db/runWebappSql", () => ({

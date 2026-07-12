@@ -95,12 +95,21 @@ function doctorWorkspaceAccessDeniedResponse(reason: string): NextResponse {
   return NextResponse.json({ ok: false, error: reason }, { status });
 }
 
+// Best-effort by contract: staff-principal stamping must never throw. Real prod session ids are
+// platform_users UUIDs; legacy/dev/test session ids (e.g. "a1", "admin-1") are not, and would make
+// normalizeUuid throw inside enterWithDbStaffPrincipal. A malformed id must skip stamping, not 500 —
+// in locked mode a missing principal already fail-closes at the DB port, so skipping stays secure.
 function stampStaffPrincipal(ctx: Pick<DoctorWorkspaceAccessContext, "organizationId" | "session">, source: string): void {
-  enterWithDbStaffPrincipal({
-    organizationId: ctx.organizationId,
-    platformUserId: ctx.session.user.userId,
-    source,
-  });
+  if (!isPlatformUserUuid(ctx.session.user.userId)) return;
+  try {
+    enterWithDbStaffPrincipal({
+      organizationId: ctx.organizationId,
+      platformUserId: ctx.session.user.userId,
+      source,
+    });
+  } catch {
+    return;
+  }
 }
 
 async function stampBestEffortStaffPrincipal(session: AppSession, source: string): Promise<void> {
@@ -117,14 +126,22 @@ async function stampBestEffortStaffPrincipal(session: AppSession, source: string
 async function stampPatientPrincipalForApi(
   session: AppSession,
 ): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  // Best-effort: the lenient isPlatformUserUuid pre-check still lets through ids that fail the
+  // stricter RFC-4122 normalizeUuid inside enterWithDbPatientPrincipal (e.g. non-[89ab] variant
+  // nibble). Stamping must never throw — a malformed id skips stamping, and in locked mode the DB
+  // port already fail-closes without a principal, so skipping stays secure.
   if (!isPlatformUserUuid(session.user.userId)) {
     return { ok: true };
   }
 
-  enterWithDbPatientPrincipal({
-    platformUserId: session.user.userId,
-    source: "requirePatientApiBusinessAccess",
-  });
+  try {
+    enterWithDbPatientPrincipal({
+      platformUserId: session.user.userId,
+      source: "requirePatientApiBusinessAccess",
+    });
+  } catch {
+    return { ok: true };
+  }
   return { ok: true };
 }
 
