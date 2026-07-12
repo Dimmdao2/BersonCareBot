@@ -33,6 +33,10 @@ UNITS=(api worker scheduler webapp media-worker)
 #                         appointment history; the per-branch rubitime dup is merged into it + deactivated)
 ORG_ID=a0000000-0000-4000-8000-000000000001
 CANONICAL_SPECIALIST=c9515025-7224-4d9b-86b6-9cb7d26ea503
+# LIVE prod source (adelaide / 135.106.162.170). The local /opt/backups on THIS (test/151.x) box are of a
+# DEAD June-28 prod copy — NEVER use them for a real rehearsal. Pull a fresh dump from live prod via ssh.
+PROD_SSH=bcb-clone
+PROD_DB=bersoncarebot
 
 log(){ echo; echo "== [deploy-test-saas] $* =="; }
 revoke_bypass(){ sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $DBROLE NOBYPASSRLS;" >/dev/null 2>&1 || true; }
@@ -45,10 +49,17 @@ for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
 
-# 1. fresh test DB = clean copy of the newest production dump
-DUMP="$(sudo -u postgres bash -lc "ls -t /opt/backups/postgres/hourly/*.dump 2>/dev/null | head -1")"
-[ -n "$DUMP" ] || { echo "FATAL: no prod dump in /opt/backups/postgres/hourly"; exit 1; }
-log "restore $DB from $(basename "$DUMP")"
+# 1. fresh test DB = FRESH dump streamed from LIVE prod (read-only pg_dump over ssh; no file left on prod).
+#    Override with DUMP=/path env to reuse a pre-pulled dump. Do NOT fall back to /opt/backups here —
+#    those are the DEAD local copy; a silent stale restore is exactly the bug that wasted hours.
+if [ -z "${DUMP:-}" ]; then
+  DUMP=/tmp/bcb-prod-fresh.dump
+  log "pull FRESH dump from live prod ($PROD_SSH:$PROD_DB) → $DUMP"
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$PROD_SSH" "sudo -u postgres pg_dump -Fc --no-owner --no-acl $PROD_DB" > "$DUMP"
+  chmod 644 "$DUMP"
+fi
+[ -s "$DUMP" ] || { echo "FATAL: dump missing/empty: $DUMP"; exit 1; }
+log "restore $DB from $(basename "$DUMP") ($(du -h "$DUMP" | cut -f1))"
 sudo -u postgres bash "$RESTORE" "$DUMP"
 
 # 2. deliver branch code (bundle → checkout → build); deploy user cannot read /home/dev, so bundle via /tmp
@@ -112,7 +123,9 @@ DROLE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT role FROM platform_users WH
 APADMIN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT value_json->>'value' FROM public.system_settings WHERE key='admin_phones' AND scope='admin' AND organization_id IS NULL;")"
 [ "$APADMIN" = "[]" ] || { echo "FATAL: admin_phones is '$APADMIN', expected [] (owner phone must be doctor, not admin)"; exit 1; }
 APPTS="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id='$CANONICAL_SPECIALIST';")"
-echo "   OK: 1 active specialist · $APPTS appointments on canonical · doctor role held · admin_phones=[]"
+FUT="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id='$CANONICAL_SPECIALIST' AND start_at>=now();")"
+echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT future) · doctor role held · admin_phones=[]"
+[ "${FUT:-0}" -gt 0 ] || echo "   ⚠ WARNING: 0 future appointments — dump may be stale (live prod should have upcoming bookings)"
 
 # 8. restart test units + verify (and that the prod WireGuard relay is untouched)
 log "restart test units"
