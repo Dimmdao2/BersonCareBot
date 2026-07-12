@@ -36,6 +36,20 @@ Accepted findings:
 - `#664` is not a GRANT-only cleanup. It needs `WITH CHECK`, triggers, or repo splits for value-level
   risks listed in `P0_5B_GRANTS.md`.
 
+Scratch proofs completed on local disposable PostgreSQL 16.14:
+- `REVOKE SET ON PARAMETER "app.patient_user_id" FROM PUBLIC` does **not** stop a real non-superuser
+  login role from running `SET app.patient_user_id = ...`.
+- Even after creating `pg_parameter_acl` with explicit `GRANT SET ON PARAMETER "app.patient_user_id"` only
+  for a marker role, an unrelated real non-superuser login role can still run `SET app.patient_user_id`.
+- `pg_parameter_acl` was cleaned after the proof; no `bcb_phase0_%` scratch roles/databases remain.
+- A protected `app.principal_context` table plus SECURITY DEFINER setter with HMAC verification
+  (`pgcrypto` installed in a pinned `app_ext` schema) works as a DB-enforced context mechanism in scratch:
+  `app_patient` cannot read/write the context table, cannot install a victim identity with a bad/replayed
+  signature, and can install only a payload with a matching trusted signature.
+- Caveat: if a victim signature leaks, the setter can install that victim payload. A production design must
+  keep the signing secret outside patient-visible SQL/logs, include short TTL/backend binding, and clear
+  context on release.
+
 Missing cutover blockers now tracked here:
 - Process-family smoke under real app roles after B4-fanout.
 - Cluster-global role naming / environment-boundary decision for `app_staff` and `app_patient` if dev and
@@ -78,6 +92,15 @@ Exit evidence:
   `set_config(...)` are denied for `app_patient`.
 - Scratch DB proof that pooled client reuse does not leak labels across normal return, throw, rollback, or
   release paths.
+
+Current decision direction:
+- Reject `GRANT SET ON PARAMETER` as the sole lock for custom `app.*` labels.
+- Reject raw custom GUCs as the trusted source of patient/integrator identity.
+- Prefer helper functions such as `app.current_org_id()` / `app.current_patient_user_id()` reading a
+  protected backend-context table written only through a signed SECURITY DEFINER setter.
+- Keep `app.is_staff()` role-derived.
+- Phase 1 must prove the production-grade version with TTL/backend binding and release cleanup before any
+  policy renderer is switched from raw `current_setting('app.*')` to helper functions.
 
 ### B. DB Access Surface
 
@@ -155,7 +178,9 @@ Required Phase 0 validation:
 ## Exit Checklist
 
 - [ ] Locked-label mechanism chosen and justified.
-- [ ] Spoofing proofs defined and assigned.
+- [x] Initial spoofing proofs run for custom GUC ACL and signed backend-context setter.
+- [ ] Production-grade locked-label mechanism chosen and justified.
+- [ ] Remaining spoofing proofs defined and assigned.
 - [x] DB access surface refreshed from current branch.
 - [ ] Non-centralizable entrypoints listed with principal source.
 - [x] ORG/PATIENT wall migration risks listed.
