@@ -12,9 +12,13 @@ This deploys the **dormant** multi-tenant isolation foundation to **test** and v
   `FORCE` RLS; change any behavior. The app still connects as the current owner role → RLS stays
   dormant/permissive → single-clinic behaves exactly as today.
 
-**Why safe:** RLS policies are GUC/role-gated permissive + `app.org` unset ⇒ permit (dormant). The new
-roles are created with no login credential and nothing connects as them. Test DB is restored from a prod
-dump, so the whole thing is re-runnable / throwaway.
+**Safety note (2026-07-12 Phase 0 audit):** the old shorthand "GUC/role-gated permissive + `app.org`
+unset ⇒ permit" is only true for the org wall. It is not true for the current patient wall: 0169-0175
+are fail-closed on unset patient context, and `FORCE ROW LEVEL SECURITY` is already present in the
+dormant migration chain. The run remains behavior-safe only while the live runtime still connects through
+the current owner/BYPASSRLS path and does not use the dormant `app_staff`/`app_patient` credentials. Before
+any real role switch, the flip plan must move/neutralize FORCE, add dormant symmetry or an equivalent
+compatibility mode, and prove locked patient/integrator identity labels.
 
 ## Preconditions
 - Fresh prod dump exists (hourly): `bcb-prod:/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump`
