@@ -107,11 +107,55 @@ Targets:
 ### P2-D — Validation and audit
 
 Required before completion:
-- Targeted node checks for renderer/generators/guards.
-- `pnpm run check:saas-db-regression`.
-- Scratch smoke for helper-based enforce/dormant behavior.
-- Disposable prod-dump copy rehearsal when available; never prod/test/dev.
-- Independent Sol/Opus-class audit on final diff with task/design docs and validation output.
+- Repeatable proof package runner:
+  - Default static-only package, DB-free:
+    `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
+  - Explicit scratch-smoke package:
+    `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs --with-scratch-smokes`
+- Static-only package proves:
+  - `node --check` passes for the P2-D runner, `scripts/check-saas-db-regression.mjs`, and the P2-B/C1/C2/C3
+    static/smoke scripts.
+  - P2-B/C1/C2/C3 static SQL guards pass.
+  - `node scripts/check-saas-db-regression.mjs` passes, including the wider SaaS DB guard matrix and the
+    wired P2-B/C1/C2/C3 guards.
+- Scratch-smoke package additionally proves existing P2-B/C1/C2/C3 scratch smokes still pass on disposable
+  `bcb_saas_*_scratch_*` databases. This mode is intentionally not default because it creates and drops local
+  scratch databases/roles via the existing smoke scripts.
+- DB safety boundary:
+  - The runner never uses `DATABASE_URL` and sanitizes `DATABASE_URL`/`PG*` variables for child commands.
+  - Scratch mode refuses parent `DATABASE_URL`/`PGDATABASE` values that parse to prod/test/dev-shaped DB names
+    or names that are not explicitly scratch/rehearsal/copy-shaped.
+  - Never point P2-D validation at `bcb_webapp_prod`, `bcb_webapp_test`, `bcb_webapp_dev`, or any obvious
+    prod/test/dev database name.
+- Separate gates not replaced by the runner:
+  - Real disposable prod-dump copy rehearsal from Phase 4 remains mandatory when available. The runner only
+    packages existing static and scratch-smoke evidence; it does not validate the full production dump,
+    production-sized data, real runtime roles, or process-family behavior.
+  - Final independent Sol/Opus-class audit remains mandatory on the final diff with task/design docs and
+    validation output. Runner success is evidence for the audit, not a substitute for it.
+
+Status:
+- P2-D proof package runner added by worker Newton for taskdb `#685`.
+- Lead validation passed on 2026-07-12:
+  - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
+  - PASS expected-fail safety check:
+    `env DATABASE_URL='postgres://user:secret@127.0.0.1:5432/bcb_webapp_dev' node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs --with-scratch-smokes`
+    failed before package steps and printed only the database name, not the URL secret.
+  - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
+  - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs --with-scratch-smokes`
+    on disposable `bcb_saas_*_scratch_*` databases only; no prod/test/dev database touched.
+  - PASS `git diff --check`
+- Independent Claude Opus audit
+  `claude-auditor-p2-d-proof-package-opus-audit-2026-07-12T04-06-02-518Z` verdict:
+  PASS WITH RISKS, no P0/P1 blockers, safe to commit.
+
+Residuals:
+- The static P2-B/C1/C2/C3 guards run directly and again through `check-saas-db-regression`; this is
+  intentionally redundant proof, not a behavior blocker.
+- Mixed CLI flags are last-write-wins (`--with-scratch-smokes --mode=static` resolves to static). This errs
+  toward less DB activity and is non-blocking; a future cleanup can reject conflicting flags.
+- Parent `PGHOST`/`PGUSER` are stripped from child commands but not inspected by the preflight assertion. The
+  scratch smokes use local `sudo -n -u postgres psql`, so this is defense-in-depth only.
 
 ## Agent ledger
 
