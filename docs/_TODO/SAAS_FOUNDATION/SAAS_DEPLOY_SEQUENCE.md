@@ -64,7 +64,13 @@ Walls stay DORMANT: `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc` (default). App connec
   data-fix + option-D temp-BYPASSRLS migrate + post-asserts) in a stopped-writers window, NOT the plain deploy.
 - So PROD dormant deploy = `deploy-saas-667.sh` (option-D). PROD flip = phase4 enforce artifacts (section B).
 
+## Settings-override fix (RESOLVED 2026-07-12)
+system_settings now has PARTIAL unique indexes: global `UNIQUE (key, scope) WHERE organization_id IS NULL` and
+org `UNIQUE (key, scope, organization_id) WHERE organization_id IS NOT NULL` (same for integrator.system_settings).
+The override inserts GLOBAL rows, so change every `ON CONFLICT (key, scope) DO UPDATE` →
+`ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE` (matches the global partial index). Applied
+cleanly on test. Fold this into `/tmp/bcb-test-setup/test-settings-override.sql` permanently.
+
 ## TODO (small, tracked)
-- test-settings-override.sql: `ON CONFLICT (key, scope)` is stale after the org-aware unique key on system_settings;
-  update the conflict target (add organization_id / match the new unique index) so the override applies cleanly.
 - Turn section A into a single script `deploy/host/deploy-test-saas.sh`; turn section B into `flip-test-saas.sh`.
+- Persist the override ON-CONFLICT fix into the canonical test-settings-override.sql.
