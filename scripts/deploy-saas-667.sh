@@ -59,7 +59,12 @@ cleanup_on_exit() {
     rm -f "${p2_b_psql_file}"
   fi
   if [[ -n "${migrator_role:-}" ]]; then
-    revoke_migrator_elevation >/dev/null 2>&1 || true
+    if ! revoke_migrator_elevation >/dev/null 2>&1; then
+      printf '\n🔴 FATAL: could not revoke temporary elevation from migrator role %q (is SUPERUSER_URL reachable?).\n' "${migrator_role}" >&2
+      printf 'The runtime owner role may STILL hold BYPASSRLS and %q membership. Revoke MANUALLY via a superuser:\n' "${P2_B_OWNER_ROLE}" >&2
+      printf '  ALTER ROLE %q NOBYPASSRLS; REVOKE %q FROM %q;\n' "${migrator_role}" "${P2_B_OWNER_ROLE}" "${migrator_role}" >&2
+      if [[ "${exit_code}" -eq 0 ]]; then exit_code=1; fi
+    fi
   fi
   exit "${exit_code}"
 }
@@ -87,7 +92,7 @@ migrator_table_owner="$(
 )"
 validate_role_name "P2_B_OWNER_ROLE" "${P2_B_OWNER_ROLE}"
 validate_role_name "migrator role" "${migrator_role}"
-trap cleanup_on_exit EXIT
+trap cleanup_on_exit EXIT INT TERM HUP
 if [[ "${superuser_is_superuser}" != "t" ]]; then
   cat >&2 <<'EOF'
 FATAL: SUPERUSER_URL must authenticate as a PostgreSQL superuser.
