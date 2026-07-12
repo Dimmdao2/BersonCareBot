@@ -41,6 +41,7 @@
 12. [Plan Authoring And Execution Standard](#12-plan-authoring-and-execution-standard)
 13. [Формат ответа: ИТОГ](#13-формат-ответа-итог)
 14. [Коммуникация без навязанных концовок](#14-коммуникация-без-навязанных-концовок)
+14a. [Языковая политика Codex](#14a-языковая-политика-codex)
 15. [Patient UI Shared Primitives](#15-patient-ui-shared-primitives)
 16. [Doctor UI Shared Primitives](#16-doctor-ui-shared-primitives)
 17. [Patient / Doctor UI Isolation](#17-patient--doctor-ui-isolation)
@@ -848,6 +849,16 @@ pnpm run ci
 - задавать только необходимые уточняющие вопросы по текущей задаче.
 
 Приоритет: краткий, прямой, уважительный ответ без лишних предложений.
+
+---
+
+## 14a. Языковая политика Codex
+
+*Источник: `.cursor/rules/codex-language-policy.mdc` (alwaysApply)*
+
+- Отвечать владельцу по-русски, если он явно не попросил другой язык.
+- Internal reasoning summaries, execution plans, inter-agent prompts/reports, and working notes should be in English to reduce token overhead.
+- Preserve the language of existing project documents and quoted source text; do not translate Russian-facing docs or UI copy just to follow the internal-work rule.
 
 ---
 
