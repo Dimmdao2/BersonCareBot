@@ -1,0 +1,70 @@
+# SaaS deploy sequence — TEST and PROD (RECORDED, proven 2026-07-12)
+
+> The plain `deploy-test.sh` / `pnpm migrate` is **INSUFFICIENT** for the SaaS branch on a real prod DB.
+> It fails because (a) a migration asserts the doctor/admin membership seed that a **data-fix** must run FIRST,
+> and (b) some migrations backfill under already-installed FORCE RLS, needing a **temp BYPASSRLS** migrator.
+> This is the #667/#708 gap. The sequence below is what actually works (proven end-to-end on the test box:
+> restored fresh prod copy → migrations reached drizzle count 179, org columns present, app healthy).
+
+## Roles / facts
+- Test env is LOCAL on this box (no SSH). DB `bersoncarebot_test` (owner role `bersoncarebot_test`).
+- Newest prod dump: `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump` (hourly). Use the newest.
+- Env files: `/opt/env/bersoncarebot/api.test`, `/opt/env/bersoncarebot/webapp.test`.
+- Deploy repo: `/opt/projects/bersoncarebot-test` (checked out as user `deploy`).
+- Test units: `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`.
+
+## A. DORMANT deploy to TEST (walls installed, asleep — app behaves as today)
+
+```bash
+DUMP=$(sudo -u postgres bash -lc "ls -t /opt/backups/postgres/hourly/*.dump | head -1")
+
+# 1. Fresh test DB = clean prod copy
+sudo -u postgres bash /tmp/bcb-test-setup/restore-test-db.sh "$DUMP"
+
+# 2. Deploy code (bundle branch → build → checkout). Uses deploy-test.sh but its migrate step WILL fail —
+#    that is expected; steps 3-4 do the correct migrate. (Or split: run only the build part.)
+bash deploy/host/deploy-test.sh auto/code-pg-delta   # migrate step fails here — ignore, do steps 3-4
+
+# 3. DATA-FIX first (the missing step — deploy-saas-667.sh Step 2)
+sudo -u deploy bash -lc "cd /opt/projects/bersoncarebot-test && set -a && . /opt/env/bersoncarebot/webapp.test && set +a && \
+  psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -f deploy/postgres/p0-data-fix-doctor-admin-split.sql"
+
+# 4. Migrate with TEMP BYPASSRLS (backfills under FORCE RLS), always revoke
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE bersoncarebot_test BYPASSRLS;"
+sudo -u deploy bash -lc "cd /opt/projects/bersoncarebot-test && \
+  API_ENV_FILE=/opt/env/bersoncarebot/api.test WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.test pnpm migrate"
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE bersoncarebot_test NOBYPASSRLS;"
+# verify: drizzle count >= 178, org columns present
+sudo -u postgres psql -d bersoncarebot_test -tAc "SELECT count(*) FROM drizzle.__drizzle_migrations;"  # expect >=178
+
+# 5. Test-only settings override (send-safety redirect targets, maintenance bypass). NOTE: the override
+#    uses ON CONFLICT (key, scope); system_settings now has a wider org-aware unique key — override needs
+#    updating to match (see TODO below) or apply the fixed variant.
+sudo -u postgres psql -d bersoncarebot_test -v ON_ERROR_STOP=1 -f /tmp/bcb-test-setup/test-settings-override.sql
+
+# 6. Restart + verify
+for u in api worker scheduler webapp media-worker; do sudo systemctl restart "bersoncarebot-$u-test"; done
+curl -sk https://test.bersoncare.ru/api/health      # expect {"ok":true,"db":"up"}
+systemctl is-active awg-quick@awg0                   # must stay 'active' (prod relay untouched)
+```
+Walls stay DORMANT: `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc` (default). App connects as owner; single-clinic = today.
+
+## B. FLIP to ENFORCE on TEST (walls ON — real cross-clinic isolation)
+> Separate, deliberate step AFTER A is verified. Do NOT bundle into A.
+> This is the option-D / phase4 cutover; the rehearsal proved the exact SQL. Sequence (roles → strict policies →
+> FORCE → grants → locked mode → role switch). To be scripted from `scripts/deploy-saas-667.sh` + the phase4
+> artifacts (`deploy/postgres/phase4-locked-helper-rls-policies.sql -v phase4_enforce_locked_context=1`,
+> `phase4-force-rls-cutover.sql` with `phase4_bootstrap_base_role`/`phase4_staff_role`/`phase4_owner_role` vars,
+> `p0-5b-role-split-staff-patient.sql`, `p0-5b-grants.sql`), then set the app env to
+> `DB_PRINCIPAL_CONTEXT_MODE=locked` and restart. FILL EXACT COMMANDS HERE once run on test.
+
+## PROD mapping (eventual)
+- Code: merge to `main` → CI auto-deploys `deploy/host/deploy-prod.sh` (build + `pnpm migrate` + schema guardrail).
+  BUT the same #667 gap applies → prod must run the **`scripts/deploy-saas-667.sh`** chain (which already bundles
+  data-fix + option-D temp-BYPASSRLS migrate + post-asserts) in a stopped-writers window, NOT the plain deploy.
+- So PROD dormant deploy = `deploy-saas-667.sh` (option-D). PROD flip = phase4 enforce artifacts (section B).
+
+## TODO (small, tracked)
+- test-settings-override.sql: `ON CONFLICT (key, scope)` is stale after the org-aware unique key on system_settings;
+  update the conflict target (add organization_id / match the new unique index) so the override applies cleanly.
+- Turn section A into a single script `deploy/host/deploy-test-saas.sh`; turn section B into `flip-test-saas.sh`.
