@@ -1,41 +1,482 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createHmac, randomUUID } from "node:crypto";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const POSITIVE_INTEGER_RE = /^[1-9][0-9]*$/;
+const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n;
 
-type DbPrincipalContext = {
+const APP_ORG_CONFIG_KEY = "app.org";
+const APP_PATIENT_USER_CONFIG_KEY = "app.patient_user_id";
+const APP_INTEGRATOR_USER_CONFIG_KEY = "app.integrator_user_id";
+
+export type DbPrincipalKind =
+  | "organization"
+  | "staff"
+  | "patient"
+  | "integrator"
+  | "bootstrap"
+  | "infra";
+
+export type DbOrganizationPrincipal = {
+  kind: "organization";
   organizationId: string;
+  source?: string;
 };
+
+export type DbStaffPrincipal = {
+  kind: "staff";
+  organizationId: string;
+  platformUserId: string;
+  source?: string;
+};
+
+export type DbPatientPrincipal = {
+  kind: "patient";
+  organizationId: string;
+  platformUserId: string;
+  source?: string;
+};
+
+export type DbIntegratorPrincipal = {
+  kind: "integrator";
+  organizationId: string;
+  integratorUserId: string;
+  source?: string;
+};
+
+export type DbBootstrapPrincipal = {
+  kind: "bootstrap";
+  source?: string;
+};
+
+export type DbInfraPrincipal = {
+  kind: "infra";
+  source?: string;
+};
+
+export type DbPrincipal =
+  | DbOrganizationPrincipal
+  | DbStaffPrincipal
+  | DbPatientPrincipal
+  | DbIntegratorPrincipal
+  | DbBootstrapPrincipal
+  | DbInfraPrincipal;
+
+export type DbOrganizationPrincipalInput = {
+  organizationId: string;
+  source?: string;
+};
+
+export type DbStaffPrincipalInput = {
+  organizationId: string;
+  platformUserId: string;
+  source?: string;
+};
+
+export type DbPatientPrincipalInput = {
+  organizationId: string;
+  platformUserId: string;
+  source?: string;
+};
+
+export type DbIntegratorPrincipalInput = {
+  organizationId: string;
+  integratorUserId: string | number | bigint;
+  source?: string;
+};
+
+export type DbBootstrapPrincipalInput = {
+  source?: string;
+};
+
+export type DbInfraPrincipalInput = {
+  source?: string;
+};
+
+type DbPrincipalApplyScope = "transaction" | "connection";
 
 type DbPrincipalQueryable = {
-  query(sql: string, values?: readonly unknown[]): Promise<unknown>;
+  query(sql: string, values?: readonly unknown[]): Promise<{ rows?: readonly Record<string, unknown>[] } | unknown>;
 };
 
-const principalStorage = new AsyncLocalStorage<DbPrincipalContext>();
+export type DbPrincipalSigner = {
+  secret: string;
+  ttlMs?: number;
+  now?: () => Date;
+  nonce?: () => string;
+};
+
+export type DbPrincipalApplyOptions =
+  | {
+      mode?: "legacy-guc";
+    }
+  | {
+      mode: "locked";
+      signer: DbPrincipalSigner;
+    };
+
+const principalStorage = new AsyncLocalStorage<DbPrincipal>();
 
 export function normalizeDbPrincipalOrganizationId(organizationId: string): string {
-  const trimmed = organizationId.trim();
+  return normalizeUuid(organizationId, "Invalid DB principal organization id");
+}
+
+export function normalizeDbPrincipalPlatformUserId(platformUserId: string): string {
+  return normalizeUuid(platformUserId, "Invalid DB principal platform user id");
+}
+
+export function normalizeDbPrincipalIntegratorUserId(integratorUserId: string | number | bigint): string {
+  if (typeof integratorUserId === "bigint") {
+    if (integratorUserId <= 0n || integratorUserId > MAX_SIGNED_BIGINT) {
+      throw new Error("Invalid DB principal integrator user id");
+    }
+    return integratorUserId.toString();
+  }
+
+  if (typeof integratorUserId === "number") {
+    if (!Number.isSafeInteger(integratorUserId) || integratorUserId <= 0) {
+      throw new Error("Invalid DB principal integrator user id");
+    }
+    return String(integratorUserId);
+  }
+
+  const trimmed = integratorUserId.trim();
+  if (!POSITIVE_INTEGER_RE.test(trimmed)) {
+    throw new Error("Invalid DB principal integrator user id");
+  }
+  if (BigInt(trimmed) > MAX_SIGNED_BIGINT) {
+    throw new Error("Invalid DB principal integrator user id");
+  }
+  return trimmed;
+}
+
+export function normalizeDbPrincipal(principal: DbPrincipal): DbPrincipal {
+  switch (principal.kind) {
+    case "organization":
+      return createDbOrganizationPrincipal(principal);
+    case "staff":
+      return createDbStaffPrincipal(principal);
+    case "patient":
+      return createDbPatientPrincipal(principal);
+    case "integrator":
+      return createDbIntegratorPrincipal(principal);
+    case "bootstrap":
+      return createDbBootstrapPrincipal(principal);
+    case "infra":
+      return createDbInfraPrincipal(principal);
+  }
+}
+
+export function createDbOrganizationPrincipal(input: DbOrganizationPrincipalInput): DbOrganizationPrincipal {
+  return {
+    kind: "organization",
+    organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
+    ...copyOptionalSource(input),
+  };
+}
+
+export function createDbStaffPrincipal(input: DbStaffPrincipalInput): DbStaffPrincipal {
+  return {
+    kind: "staff",
+    organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
+    platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
+    ...copyOptionalSource(input),
+  };
+}
+
+export function createDbPatientPrincipal(input: DbPatientPrincipalInput): DbPatientPrincipal {
+  return {
+    kind: "patient",
+    organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
+    platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
+    ...copyOptionalSource(input),
+  };
+}
+
+export function createDbIntegratorPrincipal(input: DbIntegratorPrincipalInput): DbIntegratorPrincipal {
+  return {
+    kind: "integrator",
+    organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
+    integratorUserId: normalizeDbPrincipalIntegratorUserId(input.integratorUserId),
+    ...copyOptionalSource(input),
+  };
+}
+
+export function createDbBootstrapPrincipal(input: DbBootstrapPrincipalInput = {}): DbBootstrapPrincipal {
+  return {
+    kind: "bootstrap",
+    ...copyOptionalSource(input),
+  };
+}
+
+export function createDbInfraPrincipal(input: DbInfraPrincipalInput = {}): DbInfraPrincipal {
+  return {
+    kind: "infra",
+    ...copyOptionalSource(input),
+  };
+}
+
+export function getCurrentDbPrincipal(): DbPrincipal | undefined {
+  return principalStorage.getStore();
+}
+
+export function getCurrentDbPrincipalOrganizationId(): string | undefined {
+  const principal = getCurrentDbPrincipal();
+  return isOrganizationScopedPrincipal(principal) ? principal.organizationId : undefined;
+}
+
+export function getCurrentDbPrincipalPlatformUserId(): string | undefined {
+  const principal = getCurrentDbPrincipal();
+  if (principal?.kind === "staff" || principal?.kind === "patient") {
+    return principal.platformUserId;
+  }
+  return undefined;
+}
+
+export function getCurrentDbPrincipalIntegratorUserId(): string | undefined {
+  const principal = getCurrentDbPrincipal();
+  return principal?.kind === "integrator" ? principal.integratorUserId : undefined;
+}
+
+export function runWithDbPrincipal<T>(principal: DbPrincipal, fn: () => T): T {
+  return principalStorage.run(normalizeDbPrincipal(principal), fn);
+}
+
+export function runWithDbOrganizationPrincipal<T>(organizationId: string, fn: () => T): T {
+  return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId }), fn);
+}
+
+export function runWithDbStaffPrincipal<T>(input: DbStaffPrincipalInput, fn: () => T): T {
+  return runWithDbPrincipal(createDbStaffPrincipal(input), fn);
+}
+
+export function runWithDbPatientPrincipal<T>(input: DbPatientPrincipalInput, fn: () => T): T {
+  return runWithDbPrincipal(createDbPatientPrincipal(input), fn);
+}
+
+export function runWithDbIntegratorPrincipal<T>(input: DbIntegratorPrincipalInput, fn: () => T): T {
+  return runWithDbPrincipal(createDbIntegratorPrincipal(input), fn);
+}
+
+export function runWithDbBootstrapPrincipal<T>(input: DbBootstrapPrincipalInput, fn: () => T): T {
+  return runWithDbPrincipal(createDbBootstrapPrincipal(input), fn);
+}
+
+export function runWithDbInfraPrincipal<T>(input: DbInfraPrincipalInput, fn: () => T): T {
+  return runWithDbPrincipal(createDbInfraPrincipal(input), fn);
+}
+
+export async function applyCurrentDbPrincipalToTransaction(
+  client: DbPrincipalQueryable,
+  options: DbPrincipalApplyOptions = {},
+): Promise<boolean> {
+  const principal = getCurrentDbPrincipal();
+  if (!principal) {
+    return false;
+  }
+
+  if (options.mode === "locked") {
+    return applyLockedDbPrincipal(client, principal, options.signer);
+  }
+
+  if (principal.kind === "organization") {
+    await client.query("SELECT set_config('app.org', $1, true)", [principal.organizationId]);
+    return true;
+  }
+
+  await applyDbPrincipal(client, principal, "transaction");
+  return true;
+}
+
+export async function applyCurrentDbPrincipalToConnection(
+  client: DbPrincipalQueryable,
+  options: DbPrincipalApplyOptions = {},
+): Promise<boolean> {
+  const principal = getCurrentDbPrincipal();
+  if (!principal) {
+    return false;
+  }
+  if (options.mode === "locked") {
+    return applyLockedDbPrincipal(client, principal, options.signer);
+  }
+  await applyDbPrincipal(client, principal, "connection");
+  return true;
+}
+
+export async function clearDbPrincipalFromConnection(
+  client: DbPrincipalQueryable,
+  options: DbPrincipalApplyOptions = {},
+): Promise<void> {
+  if (options.mode === "locked") {
+    await client.query("SELECT app.release_principal_context()");
+    return;
+  }
+  await clearDbPrincipalConfig(client, "connection");
+}
+
+export async function clearDbPrincipalFromTransaction(
+  client: DbPrincipalQueryable,
+  options: DbPrincipalApplyOptions = {},
+): Promise<void> {
+  if (options.mode === "locked") {
+    await client.query("SELECT app.reset_principal_context()");
+    return;
+  }
+  await clearDbPrincipalConfig(client, "transaction");
+}
+
+function normalizeUuid(value: string, errorMessage: string): string {
+  const trimmed = value.trim();
   if (!UUID_RE.test(trimmed)) {
-    throw new Error("Invalid DB principal organization id");
+    throw new Error(errorMessage);
   }
   return trimmed.toLowerCase();
 }
 
-export function getCurrentDbPrincipalOrganizationId(): string | undefined {
-  return principalStorage.getStore()?.organizationId;
+function copyOptionalSource(input: { source?: string }): { source?: string } {
+  if (input.source === undefined) {
+    return {};
+  }
+
+  const source = input.source.trim();
+  if (!source) {
+    throw new Error("Invalid DB principal source");
+  }
+  return { source };
 }
 
-export function runWithDbOrganizationPrincipal<T>(organizationId: string, fn: () => T): T {
-  return principalStorage.run(
-    { organizationId: normalizeDbPrincipalOrganizationId(organizationId) },
-    fn,
+function isOrganizationScopedPrincipal(principal: DbPrincipal | undefined): principal is
+  | DbOrganizationPrincipal
+  | DbStaffPrincipal
+  | DbPatientPrincipal
+  | DbIntegratorPrincipal {
+  return (
+    principal?.kind === "organization" ||
+    principal?.kind === "staff" ||
+    principal?.kind === "patient" ||
+    principal?.kind === "integrator"
   );
 }
 
-export async function applyCurrentDbPrincipalToTransaction(client: DbPrincipalQueryable): Promise<boolean> {
-  const organizationId = getCurrentDbPrincipalOrganizationId();
-  if (!organizationId) {
+async function applyDbPrincipal(
+  client: DbPrincipalQueryable,
+  principal: DbPrincipal,
+  scope: DbPrincipalApplyScope,
+): Promise<void> {
+  switch (principal.kind) {
+    case "organization":
+      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
+      return;
+    case "staff":
+      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
+      return;
+    case "patient":
+      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, principal.platformUserId, scope);
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
+      return;
+    case "integrator":
+      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, principal.integratorUserId, scope);
+      return;
+    case "bootstrap":
+    case "infra":
+      await clearDbPrincipalConfig(client, scope);
+      return;
+  }
+}
+
+async function clearDbPrincipalConfig(client: DbPrincipalQueryable, scope: DbPrincipalApplyScope): Promise<void> {
+  await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, "", scope);
+  await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
+  await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
+}
+
+async function setDbPrincipalConfig(
+  client: DbPrincipalQueryable,
+  key: typeof APP_ORG_CONFIG_KEY | typeof APP_PATIENT_USER_CONFIG_KEY | typeof APP_INTEGRATOR_USER_CONFIG_KEY,
+  value: string,
+  scope: DbPrincipalApplyScope,
+): Promise<void> {
+  const local = scope === "transaction" ? "true" : "false";
+  await client.query(`SELECT set_config('${key}', $1, ${local})`, [value]);
+}
+
+async function applyLockedDbPrincipal(
+  client: DbPrincipalQueryable,
+  principal: DbPrincipal,
+  signer: DbPrincipalSigner,
+): Promise<boolean> {
+  if (principal.kind === "bootstrap" || principal.kind === "infra") {
+    await clearDbPrincipalFromConnection(client, { mode: "locked", signer });
     return false;
   }
-  await client.query("SELECT set_config('app.org', $1, true)", [organizationId]);
+
+  const backendPid = await readBackendPid(client);
+  const expiresEpoch = Math.floor(((signer.now?.() ?? new Date()).getTime() + (signer.ttlMs ?? 30_000)) / 1000);
+  const nonce = signer.nonce?.() ?? randomUUID();
+  const patientUserId = principal.kind === "patient" ? principal.platformUserId : "";
+  const integratorUserId = principal.kind === "integrator" ? principal.integratorUserId : "";
+  const canonicalPayload = buildCanonicalSignedPrincipalPayload({
+    backendPid,
+    expiresEpoch,
+    integratorUserId,
+    nonce,
+    organizationId: principal.organizationId,
+    patientUserId,
+  });
+
+  await client.query(
+    [
+      "SELECT app.install_signed_context(",
+      "$1::text, $2::integer, $3::bigint, $4::uuid,",
+      "$5::uuid, $6::bigint, $7::text",
+      ")",
+    ].join(" "),
+    [
+      nonce,
+      backendPid,
+      expiresEpoch,
+      principal.organizationId,
+      patientUserId || null,
+      integratorUserId || null,
+      createHmac("sha256", signer.secret).update(canonicalPayload).digest("hex"),
+    ],
+  );
   return true;
+}
+
+function buildCanonicalSignedPrincipalPayload(input: {
+  backendPid: number;
+  expiresEpoch: number;
+  integratorUserId: string;
+  nonce: string;
+  organizationId: string;
+  patientUserId: string;
+}): string {
+  return [
+    "v1",
+    input.nonce,
+    String(input.backendPid),
+    String(input.expiresEpoch),
+    input.organizationId,
+    input.patientUserId,
+    input.integratorUserId,
+  ].join("|");
+}
+
+async function readBackendPid(client: DbPrincipalQueryable): Promise<number> {
+  const result = await client.query("SELECT pg_backend_pid() AS backend_pid");
+  const rows = (result as { rows?: readonly Record<string, unknown>[] }).rows;
+  const raw = rows?.[0]?.backend_pid;
+  const backendPid = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(backendPid) || backendPid <= 0) {
+    throw new Error("Could not read PostgreSQL backend pid for DB principal context");
+  }
+  return backendPid;
 }
