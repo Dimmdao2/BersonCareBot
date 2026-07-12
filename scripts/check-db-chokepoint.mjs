@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
 const scanRoots = ["apps/webapp/src", "apps/integrator/src", "apps/media-worker/src"];
+const roleSwitchScanRoots = [...scanRoots, "packages/db-principal/src"];
 
 const allowedPoolProviderFiles = new Set([
   "apps/webapp/src/infra/db/webappPoolProvider.ts",
@@ -30,6 +31,11 @@ const allowedConnectFiles = new Set([
   "apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts",
 ]);
 
+const allowedRoleSwitchFiles = new Set([
+  "packages/db-principal/src/index.ts",
+  "apps/webapp/src/app-layer/db/drizzle.ts",
+]);
+
 const allowedLayerRawSqlFiles = new Set([
   // S1 residual: SQL fragments intentionally kept until dedicated cleanup/guard allowlist decision.
   "apps/webapp/src/modules/analytics/analyticsAudience.ts",
@@ -50,8 +56,9 @@ const allowedLayerRawSqlFiles = new Set([
 function hasOnlyAllowedDrizzlePrincipalSql(rel, src, rawSqlCount) {
   return (
     rel === "apps/webapp/src/app-layer/db/drizzle.ts" &&
-    rawSqlCount === 1 &&
-    src.includes("sql`SELECT set_config('app.org', ${organizationId}, true)`")
+    rawSqlCount > 0 &&
+    src.includes("applyCurrentDbPrincipalToTransaction") &&
+    src.includes("clearDbPrincipalFromTransaction")
   );
 }
 
@@ -106,6 +113,8 @@ function collectOffenders(files) {
   const poolOffenders = [];
   const connectOffenders = [];
   const layerRawSqlOffenders = [];
+  const callbackQueryOffenders = [];
+  const roleSwitchOffenders = [];
 
   for (const abs of files) {
     const rel = relative(repoRoot, abs).replace(/\\/g, "/");
@@ -128,9 +137,22 @@ function collectOffenders(files) {
     ) {
       layerRawSqlOffenders.push(`${rel} (${rawSqlCount}x layer SQL signal)`);
     }
+
+    const callbackQueryCount = countRuntimeMatches(
+      src,
+      /\.query\s*\([^;\n]*(?:function\s*\(|=>)/,
+    );
+    if (callbackQueryCount > 0) {
+      callbackQueryOffenders.push(`${rel} (${callbackQueryCount}x callback-form query signal)`);
+    }
+
+    const roleSwitchCount = countRuntimeMatches(src, /\b(?:SET|RESET)\s+ROLE\b/);
+    if (roleSwitchCount > 0 && !allowedRoleSwitchFiles.has(rel)) {
+      roleSwitchOffenders.push(`${rel} (${roleSwitchCount}x runtime role switch signal)`);
+    }
   }
 
-  return { poolOffenders, connectOffenders, layerRawSqlOffenders };
+  return { poolOffenders, connectOffenders, layerRawSqlOffenders, callbackQueryOffenders, roleSwitchOffenders };
 }
 
 function printOffenders(label, offenders) {
@@ -148,12 +170,15 @@ if (process.argv.includes("--self-test")) {
     import { Pool } from "pg";
     const pool = new Pool({ connectionString: "${syntheticConnectionString}" });
     await pool.connect();
-    await pool.query("SELECT 1");
+    await pool.query("SELECT 1", [], () => undefined);
+    await client.query("SET ROLE app_staff");
   `;
   const files = [virtualAbs];
   const poolOffenders = [];
   const connectOffenders = [];
   const layerRawSqlOffenders = [];
+  const callbackQueryOffenders = [];
+  const roleSwitchOffenders = [];
   for (const abs of files) {
     const rel = relative(repoRoot, abs).replace(/\\/g, "/");
     const src = abs === virtualAbs ? syntheticSource : originalReadFileSync(abs, "utf8");
@@ -169,8 +194,25 @@ if (process.argv.includes("--self-test")) {
     if (rawSqlCount > 0 && !allowedLayerRawSqlFiles.has(rel)) {
       layerRawSqlOffenders.push(`${rel} (${rawSqlCount}x layer SQL signal)`);
     }
+    const callbackQueryCount = countRuntimeMatches(
+      src,
+      /\.query\s*\([^;\n]*(?:function\s*\(|=>)/,
+    );
+    if (callbackQueryCount > 0) {
+      callbackQueryOffenders.push(`${rel} (${callbackQueryCount}x callback-form query signal)`);
+    }
+    const roleSwitchCount = countRuntimeMatches(src, /\b(?:SET|RESET)\s+ROLE\b/);
+    if (roleSwitchCount > 0 && !allowedRoleSwitchFiles.has(rel)) {
+      roleSwitchOffenders.push(`${rel} (${roleSwitchCount}x runtime role switch signal)`);
+    }
   }
-  if (poolOffenders.length === 1 && connectOffenders.length === 1 && layerRawSqlOffenders.length === 1) {
+  if (
+    poolOffenders.length === 1 &&
+    connectOffenders.length === 1 &&
+    layerRawSqlOffenders.length === 1 &&
+    callbackQueryOffenders.length === 1 &&
+    roleSwitchOffenders.length === 1
+  ) {
     console.log("check-db-chokepoint self-test: OK");
     process.exit(0);
   }
@@ -178,14 +220,33 @@ if (process.argv.includes("--self-test")) {
   process.exit(1);
 }
 
-const files = scanRoots.flatMap((root) => listTsFiles(join(repoRoot, root)));
-const { poolOffenders, connectOffenders, layerRawSqlOffenders } = collectOffenders(files);
+const files = [
+  ...new Set([
+    ...scanRoots.flatMap((root) => listTsFiles(join(repoRoot, root))),
+    ...roleSwitchScanRoots.flatMap((root) => listTsFiles(join(repoRoot, root))),
+  ]),
+];
+const {
+  poolOffenders,
+  connectOffenders,
+  layerRawSqlOffenders,
+  callbackQueryOffenders,
+  roleSwitchOffenders,
+} = collectOffenders(files);
 
 printOffenders("new Pool outside named DB pool providers:", poolOffenders);
 printOffenders(".connect() outside checkout helpers / documented ops KEEP:", connectOffenders);
 printOffenders("raw SQL in guarded layers outside S5 allowlist:", layerRawSqlOffenders);
+printOffenders("callback-form query outside the promise DB chokepoint:", callbackQueryOffenders);
+printOffenders("runtime role switching outside packages/db-principal:", roleSwitchOffenders);
 
-if (poolOffenders.length > 0 || connectOffenders.length > 0 || layerRawSqlOffenders.length > 0) {
+if (
+  poolOffenders.length > 0 ||
+  connectOffenders.length > 0 ||
+  layerRawSqlOffenders.length > 0 ||
+  callbackQueryOffenders.length > 0 ||
+  roleSwitchOffenders.length > 0
+) {
   process.exit(1);
 }
 

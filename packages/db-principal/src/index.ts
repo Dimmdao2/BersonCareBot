@@ -11,6 +11,8 @@ const APP_INTEGRATOR_USER_CONFIG_KEY = "app.integrator_user_id";
 export const DB_PRINCIPAL_CONTEXT_MODE_ENV = "DB_PRINCIPAL_CONTEXT_MODE";
 export const DB_PRINCIPAL_SIGNING_SECRET_ENV = "DB_PRINCIPAL_SIGNING_SECRET";
 export const DEFAULT_DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
+export const DB_PRINCIPAL_STAFF_ROLE = "app_staff";
+export const DB_PRINCIPAL_PATIENT_ROLE = "app_patient";
 
 export type DbPrincipalKind =
   | "organization"
@@ -114,11 +116,15 @@ export type DbPrincipalApplyOptions =
       mode?: "legacy-guc";
     }
   | {
+      mode: "shadow";
+      signer: DbPrincipalSigner;
+    }
+  | {
       mode: "locked";
       signer: DbPrincipalSigner;
     };
 
-export type DbPrincipalContextMode = "legacy-guc" | "locked";
+export type DbPrincipalContextMode = "legacy-guc" | "shadow" | "locked";
 
 export type DbPrincipalApplyOptionsInput = {
   mode?: string | null | undefined;
@@ -287,7 +293,7 @@ export function buildDbPrincipalApplyOptions(input: DbPrincipalApplyOptionsInput
 
   const secret = (input.signingSecret ?? "").trim();
   if (!secret) {
-    throw new Error(`${DB_PRINCIPAL_SIGNING_SECRET_ENV} is required when ${DB_PRINCIPAL_CONTEXT_MODE_ENV}=locked`);
+    throw new Error(`${DB_PRINCIPAL_SIGNING_SECRET_ENV} is required when ${DB_PRINCIPAL_CONTEXT_MODE_ENV}=${mode}`);
   }
 
   return {
@@ -315,12 +321,12 @@ export async function applyCurrentDbPrincipalToTransaction(
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
   const principal = getCurrentDbPrincipal();
-  if (!principal) {
-    return false;
+  if (options.mode === "locked" || options.mode === "shadow") {
+    return applySignedDbPrincipal(client, principal, options);
   }
 
-  if (options.mode === "locked") {
-    return applyLockedDbPrincipal(client, principal, options.signer);
+  if (!principal) {
+    return false;
   }
 
   if (principal.kind === "organization") {
@@ -337,12 +343,14 @@ export async function applyCurrentDbPrincipalToConnection(
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
   const principal = getCurrentDbPrincipal();
+  if (options.mode === "locked" || options.mode === "shadow") {
+    return applySignedDbPrincipal(client, principal, options);
+  }
+
   if (!principal) {
     return false;
   }
-  if (options.mode === "locked") {
-    return applyLockedDbPrincipal(client, principal, options.signer);
-  }
+
   await applyDbPrincipal(client, principal, "connection");
   return true;
 }
@@ -351,8 +359,8 @@ export async function clearDbPrincipalFromConnection(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
 ): Promise<void> {
-  if (options.mode === "locked") {
-    await client.query("SELECT app.release_principal_context()");
+  if (options.mode === "locked" || options.mode === "shadow") {
+    await releaseSignedDbPrincipal(client, options);
     return;
   }
   await clearDbPrincipalConfig(client, "connection");
@@ -362,8 +370,8 @@ export async function clearDbPrincipalFromTransaction(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
 ): Promise<void> {
-  if (options.mode === "locked") {
-    await client.query("SELECT app.reset_principal_context()");
+  if (options.mode === "locked" || options.mode === "shadow") {
+    await releaseSignedDbPrincipal(client, options);
     return;
   }
   await clearDbPrincipalConfig(client, "transaction");
@@ -379,10 +387,10 @@ function normalizeUuid(value: string, errorMessage: string): string {
 
 function normalizeDbPrincipalContextMode(mode: string | null | undefined): DbPrincipalContextMode {
   const normalized = (mode ?? DEFAULT_DB_PRINCIPAL_CONTEXT_MODE).trim() || DEFAULT_DB_PRINCIPAL_CONTEXT_MODE;
-  if (normalized === "legacy-guc" || normalized === "locked") {
+  if (normalized === "legacy-guc" || normalized === "shadow" || normalized === "locked") {
     return normalized;
   }
-  throw new Error(`${DB_PRINCIPAL_CONTEXT_MODE_ENV} must be legacy-guc or locked`);
+  throw new Error(`${DB_PRINCIPAL_CONTEXT_MODE_ENV} must be legacy-guc, shadow, or locked`);
 }
 
 function copyOptionalSource(input: { source?: string }): { source?: string } {
@@ -459,16 +467,64 @@ async function setDbPrincipalConfig(
   await client.query(`SELECT set_config('${key}', $1, ${local})`, [value]);
 }
 
-async function applyLockedDbPrincipal(
+async function applySignedDbPrincipal(
   client: DbPrincipalQueryable,
-  principal: DbPrincipal,
-  signer: DbPrincipalSigner,
+  principal: DbPrincipal | undefined,
+  options: Extract<DbPrincipalApplyOptions, { mode: "shadow" | "locked" }>,
 ): Promise<boolean> {
-  if (principal.kind === "bootstrap" || principal.kind === "infra") {
-    await clearDbPrincipalFromConnection(client, { mode: "locked", signer });
+  if (!principal) {
+    if (options.mode === "locked") {
+      await releaseSignedDbPrincipal(client, options);
+      throw new Error("DB principal context is required before scoped DB access in locked mode");
+    }
     return false;
   }
 
+  if (principal.kind === "bootstrap" || principal.kind === "infra") {
+    await releaseSignedDbPrincipal(client, options);
+    return false;
+  }
+
+  if (options.mode === "locked") {
+    await client.query("RESET ROLE");
+    await client.query(`SET ROLE ${dbRuntimeRoleForPrincipal(principal)}`);
+  }
+
+  await installSignedDbPrincipalContext(client, principal, options.signer);
+  return true;
+}
+
+async function releaseSignedDbPrincipal(
+  client: DbPrincipalQueryable,
+  options: Extract<DbPrincipalApplyOptions, { mode: "shadow" | "locked" }>,
+): Promise<void> {
+  try {
+    await client.query("SELECT app.release_principal_context()");
+  } finally {
+    if (options.mode === "locked") {
+      await client.query("RESET ROLE");
+    }
+  }
+}
+
+function dbRuntimeRoleForPrincipal(
+  principal: DbOrganizationPrincipal | DbStaffPrincipal | DbPatientPrincipal | DbIntegratorPrincipal,
+): typeof DB_PRINCIPAL_STAFF_ROLE | typeof DB_PRINCIPAL_PATIENT_ROLE {
+  switch (principal.kind) {
+    case "organization":
+    case "staff":
+      return DB_PRINCIPAL_STAFF_ROLE;
+    case "patient":
+    case "integrator":
+      return DB_PRINCIPAL_PATIENT_ROLE;
+  }
+}
+
+async function installSignedDbPrincipalContext(
+  client: DbPrincipalQueryable,
+  principal: DbOrganizationPrincipal | DbStaffPrincipal | DbPatientPrincipal | DbIntegratorPrincipal,
+  signer: DbPrincipalSigner,
+): Promise<void> {
   const backendPid = await readBackendPid(client);
   const expiresEpoch = Math.floor(((signer.now?.() ?? new Date()).getTime() + (signer.ttlMs ?? 30_000)) / 1000);
   const nonce = signer.nonce?.() ?? randomUUID();
@@ -500,7 +556,6 @@ async function applyLockedDbPrincipal(
       createHmac("sha256", signer.secret).update(canonicalPayload).digest("hex"),
     ],
   );
-  return true;
 }
 
 function buildCanonicalSignedPrincipalPayload(input: {

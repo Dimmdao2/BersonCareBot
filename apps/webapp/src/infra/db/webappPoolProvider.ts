@@ -15,7 +15,6 @@ function prepareWebappPoolClient(_client: PoolClient): void {
 }
 
 function installPrincipalAwarePoolQuery(pool: Pool): void {
-  const rawQuery = pool.query.bind(pool);
   const queryWithPrincipal = async (
     ...args: Parameters<Pool["query"]>
   ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
@@ -36,7 +35,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
 
   pool.query = ((...args: Parameters<Pool["query"]>) => {
     if (typeof args.at(-1) === "function") {
-      return rawQuery(...args);
+      throw new Error("Callback-form pool.query is forbidden; use the promise-form DB chokepoint");
     }
     return queryWithPrincipal(...args);
   }) as unknown as Pool["query"];

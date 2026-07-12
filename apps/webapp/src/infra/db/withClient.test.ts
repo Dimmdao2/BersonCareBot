@@ -105,12 +105,36 @@ describe("withClient helpers", () => {
       withPoolClient(pool as never, async () => "ok"),
     );
 
-    expect(query.mock.calls[0]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
-    expect(String(query.mock.calls[1]?.[0])).toContain("app.install_signed_context");
-    expect(query.mock.calls[1]?.[1]).toEqual(
+    expect(query.mock.calls[0]).toEqual(["RESET ROLE"]);
+    expect(query.mock.calls[1]).toEqual(["SET ROLE app_staff"]);
+    expect(query.mock.calls[2]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
+    expect(String(query.mock.calls[3]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls[3]?.[1]).toEqual(
       expect.arrayContaining([4242, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]),
     );
-    expect(query.mock.calls.at(-1)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed in locked mode when no DB principal is active", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const release = vi.fn();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await expect(withPoolClient(pool as never, async () => "unused")).rejects.toThrow(
+      "DB principal context is required before scoped DB access in locked mode",
+    );
+
+    expect(query.mock.calls).toEqual([
+      ["SELECT app.release_principal_context()"],
+      ["RESET ROLE"],
+      ["SELECT app.release_principal_context()"],
+      ["RESET ROLE"],
+    ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -251,11 +275,23 @@ describe("withClient helpers", () => {
     );
     await pool.end();
 
-    expect(query.mock.calls[0]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
-    expect(String(query.mock.calls[1]?.[0])).toContain("app.install_signed_context");
-    expect(query.mock.calls[2]).toEqual(["SELECT ok"]);
-    expect(query.mock.calls.at(-1)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls[0]).toEqual(["RESET ROLE"]);
+    expect(query.mock.calls[1]).toEqual(["SET ROLE app_staff"]);
+    expect(query.mock.calls[2]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
+    expect(String(query.mock.calls[3]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls[4]).toEqual(["SELECT ok"]);
+    expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects callback-form pool.query at the provider chokepoint", async () => {
+    const pool = createWebappPoolProvider({ connectionString: "postgres://example/test" });
+
+    expect(() =>
+      pool.query("SELECT ok", () => undefined),
+    ).toThrow("Callback-form pool.query is forbidden");
+    await pool.end();
   });
 
   it("rejects invalid locked DB principal env before pool.query checkout", async () => {

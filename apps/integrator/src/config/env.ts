@@ -13,7 +13,7 @@ const parsed = z
     LOG_LEVEL: z.string().default('info'),
 
     DATABASE_URL: z.string().min(1),
-    DB_PRINCIPAL_CONTEXT_MODE: z.enum(['legacy-guc', 'locked']).optional().default('legacy-guc'),
+    DB_PRINCIPAL_CONTEXT_MODE: z.enum(['legacy-guc', 'shadow', 'locked']).optional().default('legacy-guc'),
     DB_PRINCIPAL_SIGNING_SECRET: z
       .string()
       .optional()
@@ -47,8 +47,13 @@ const parsed = z
   })
   .parse(process.env);
 
-if (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'locked' && !parsed.DB_PRINCIPAL_SIGNING_SECRET) {
-  throw new Error('DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=locked.');
+if (
+  (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'shadow' || parsed.DB_PRINCIPAL_CONTEXT_MODE === 'locked') &&
+  !parsed.DB_PRINCIPAL_SIGNING_SECRET
+) {
+  throw new Error(
+    `DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=${parsed.DB_PRINCIPAL_CONTEXT_MODE}.`,
+  );
 }
 
 /** Нормализованные и валидированные переменные окружения. */

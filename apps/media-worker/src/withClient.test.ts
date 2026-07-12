@@ -91,14 +91,40 @@ describe("media-worker DB client helpers", () => {
     await tx.commit();
     await tx.release();
 
-    expect(query.mock.calls[0]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
-    expect(String(query.mock.calls[1]?.[0])).toContain("app.install_signed_context");
-    expect(query.mock.calls[1]?.[1]).toEqual(
+    expect(query.mock.calls[0]).toEqual(["RESET ROLE"]);
+    expect(query.mock.calls[1]).toEqual(["SET ROLE app_staff"]);
+    expect(query.mock.calls[2]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
+    expect(String(query.mock.calls[3]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls[3]?.[1]).toEqual(
       expect.arrayContaining([8282, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]),
     );
-    expect(query.mock.calls[2]).toEqual(["BEGIN"]);
-    expect(String(query.mock.calls[4]?.[0])).toContain("app.install_signed_context");
-    expect(query.mock.calls.at(-1)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls[4]).toEqual(["BEGIN"]);
+    expect(query.mock.calls[5]).toEqual(["RESET ROLE"]);
+    expect(query.mock.calls[6]).toEqual(["SET ROLE app_staff"]);
+    expect(String(query.mock.calls[8]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed in locked mode when no DB principal is active", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const release = vi.fn();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await expect(startMediaWorkerTransaction(pool as never)).rejects.toThrow(
+      "DB principal context is required before scoped DB access in locked mode",
+    );
+
+    expect(query.mock.calls).toEqual([
+      ["SELECT app.release_principal_context()"],
+      ["RESET ROLE"],
+      ["SELECT app.release_principal_context()"],
+      ["RESET ROLE"],
+    ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -169,11 +195,23 @@ describe("media-worker DB client helpers", () => {
     );
     await pool.end();
 
-    expect(query.mock.calls[0]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
-    expect(String(query.mock.calls[1]?.[0])).toContain("app.install_signed_context");
-    expect(query.mock.calls[2]).toEqual(["SELECT ok"]);
-    expect(query.mock.calls.at(-1)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls[0]).toEqual(["RESET ROLE"]);
+    expect(query.mock.calls[1]).toEqual(["SET ROLE app_staff"]);
+    expect(query.mock.calls[2]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
+    expect(String(query.mock.calls[3]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls[4]).toEqual(["SELECT ok"]);
+    expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects callback-form pool.query at the provider chokepoint", async () => {
+    const pool = createMediaWorkerPoolProvider({ connectionString: "postgres://example/test" });
+
+    expect(() =>
+      pool.query("SELECT ok", () => undefined),
+    ).toThrow("Callback-form pool.query is forbidden");
+    await pool.end();
   });
 
   it("rejects invalid locked DB principal env before pool.query checkout", async () => {

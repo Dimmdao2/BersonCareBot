@@ -39,6 +39,11 @@ Runtime wiring added after the proof smoke:
   clients and clear labels before releasing clients back to the pool.
 - Webapp, integrator, and media-worker pool providers wrap promise-form `pool.query(...)` with the same
   apply/clear bracket so direct pool reads do not bypass the Phase 1 principal carrier.
+- `DB_PRINCIPAL_CONTEXT_MODE` supports `legacy-guc` (default), `shadow`, and `locked`.
+- In `locked`, scoped staff principals run as fixed `app_staff`; patient and integrator principals run
+  as fixed `app_patient`; bootstrap/infra stay on the owner connection.
+- In `locked`, missing scoped principal context fails closed before the query, after clearing any stale
+  backend context left by a pooled connection.
 - Transaction handles now expose async release where cleanup can run before the underlying client is returned.
 - `scripts/check-db-chokepoint.mjs` allowlists only those provider-level wrappers for internal `pool.connect()`.
 

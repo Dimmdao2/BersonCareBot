@@ -1,5 +1,6 @@
 import type { Pool, QueryResultRow } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
@@ -9,6 +10,7 @@ import {
   checkoutIntegratorPoolClient,
   prepareIntegratorTransactionClient,
   releasePreparedIntegratorClient,
+  withIntegratorPoolClient,
 } from './withClient.js';
 
 function databaseUrlDiagnostics(): {
@@ -65,11 +67,13 @@ export function createDbPort(pool: Pool = db): DbPort {
 	return {
 		async query<T = QueryResultRow>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
 			try {
-				const res = await pool.query(sql, params);
-				return {
-					rows: res.rows as T[],
-					...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
-				};
+				return await withIntegratorPoolClient(pool, async (client) => {
+					const res = await client.query(sql, params);
+					return {
+						rows: res.rows as T[],
+						...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
+					};
+				});
 			} catch (err) {
 				const dbDiag = databaseUrlDiagnostics();
 				logger.error({
@@ -172,7 +176,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 /** Проверяет доступность БД коротким health-запросом. */
 export async function healthCheckDb(): Promise<boolean> {
 	try {
-		const res = await db.query('SELECT 1');
+		const res = await runWithDbInfraPrincipal({ source: 'integrator-health-check' }, () => db.query('SELECT 1'));
 		return res.rowCount === 1;
 	} catch {
 		return false;

@@ -530,7 +530,35 @@ SELECT (count(*) = 0)::int AS strict_unset_denies_ok FROM public.org_enrollments
 SELECT 1/0;
 \endif
 
-\echo 'R2 smoke (e) CONFIRMED: unset locked context under strict enforce mode fails CLOSED.'
+RESET ROLE;
+SET ROLE ${quoteIdent(staffRole)};
+SET row_security = on;
+SELECT (app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL)::int AS staff_no_context_helpers_empty_ok \gset
+\if :staff_no_context_helpers_empty_ok
+\else
+\echo 'FATAL: app_staff no-context assertion started with non-empty helper context.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 0)::int AS staff_no_context_denies_ok FROM public.org_enrollments \gset
+\if :staff_no_context_denies_ok
+\else
+\echo 'FATAL: app_staff strict no-context read must fail closed.'
+SELECT 1/0;
+\endif
+
+RESET ROLE;
+SET ROLE ${quoteIdent(patientRole)};
+SET row_security = on;
+SELECT (count(*) = 0)::int AS patient_no_context_denies_ok FROM public.org_enrollments \gset
+\if :patient_no_context_denies_ok
+\else
+\echo 'FATAL: app_patient strict no-context read must fail closed.'
+SELECT 1/0;
+\endif
+
+\echo 'R2 smoke (e) CONFIRMED: no signed context under app_staff/app_patient fails CLOSED in strict+FORCE mode.'
+\echo 'R2 smoke (f) CONFIRMED: after release on the same backend, prior principal context is not inherited inside the 300s TTL.'
 \echo 'smoke-r2-real-policy-isolation: assertions OK'
 `;
 }

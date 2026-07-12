@@ -75,9 +75,14 @@ function runChecks(overrides = {}) {
     "export type DbPrincipalApplyOptions",
     "export const DB_PRINCIPAL_CONTEXT_MODE_ENV = \"DB_PRINCIPAL_CONTEXT_MODE\"",
     "export const DB_PRINCIPAL_SIGNING_SECRET_ENV = \"DB_PRINCIPAL_SIGNING_SECRET\"",
+    "export const DB_PRINCIPAL_STAFF_ROLE = \"app_staff\"",
+    "export const DB_PRINCIPAL_PATIENT_ROLE = \"app_patient\"",
     "export function buildDbPrincipalApplyOptions(",
     "export function buildDbPrincipalApplyOptionsFromEnv(",
-    "DB_PRINCIPAL_SIGNING_SECRET_ENV} is required when ${DB_PRINCIPAL_CONTEXT_MODE_ENV}=locked",
+    "DB principal context is required before scoped DB access in locked mode",
+    "SET ROLE ${dbRuntimeRoleForPrincipal(principal)}",
+    "SELECT app.release_principal_context()",
+    "RESET ROLE",
   ]);
 
   for (const [label, text] of [
@@ -91,6 +96,7 @@ function runChecks(overrides = {}) {
       "DB_PRINCIPAL_CONTEXT_MODE",
       "DB_PRINCIPAL_SIGNING_SECRET",
       "legacy-guc",
+      "shadow",
       "locked",
     ]);
   }
@@ -111,6 +117,14 @@ function runChecks(overrides = {}) {
     ]);
     forbidRuntimeDefaultPrincipalCalls(label, text);
     requireFragmentBefore(label, text, "principalApplyOptions", "pool.connect()");
+  }
+
+  for (const [label, text] of [
+    [files.webappPoolProvider, loaded.webappPoolProvider],
+    [files.integratorPoolProvider, loaded.integratorPoolProvider],
+    [files.mediaPoolProvider, loaded.mediaPoolProvider],
+  ]) {
+    requireFragments(label, text, ["Callback-form pool.query is forbidden"]);
   }
 
   for (const [label, text] of [
@@ -145,8 +159,8 @@ function runChecks(overrides = {}) {
     "DB_PRINCIPAL_CONTEXT_MODE",
     "DB_PRINCIPAL_SIGNING_SECRET",
     "legacy-guc",
+    "shadow",
     "locked",
-    "does NOT switch DB roles",
     "app_staff",
     "app_patient",
   ]);
