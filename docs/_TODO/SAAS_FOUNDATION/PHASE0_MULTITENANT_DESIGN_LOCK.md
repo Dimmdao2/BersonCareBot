@@ -1,6 +1,7 @@
 # Phase 0 design-lock — multitenant flip
 
-Status: started 2026-07-12 after branch sync. Scope: design-lock only; no Phase 1+ code until this file has a reviewed exit note.
+Status: Phase 0 design-lock delivered 2026-07-12 after branch sync. Scope: design-lock only; no Phase 1+
+code until the owner confirms the Phase 1 direction recorded at the end of this file.
 
 Branch baseline:
 - `auto/code-pg-delta` = `db819434fc10073b0fe95af80a54adfd020653ae`
@@ -298,4 +299,21 @@ not be diluted by UI work.
 - [x] Phase 1-4 file list and effort estimate written.
 - [x] Independent read-only audits completed on the Phase 0 inputs.
 - [x] Independent audit completed on the Phase 0 conclusion.
-- [ ] Owner receives Phase 0 result before Phase 1+ coding starts.
+- [x] Owner receives Phase 0 result before Phase 1+ coding starts.
+
+## Exit Note
+
+Phase 0 is complete as a design-lock package. It deliberately does **not** implement Phase 1 runtime
+wiring.
+
+Ready for owner decision:
+- Proceed with protected backend-context table + signed SECURITY DEFINER setter + helper functions for
+  trusted org/patient/integrator identity.
+- Keep `app.is_staff()` role-derived via fixed `app_staff` membership.
+- Decide cluster-global naming/env boundary for fixed `app_staff` / `app_patient` roles before wiring real
+  runtime credentials.
+
+Open Phase 1 proof work, not Phase 0 discovery:
+- Production-grade locked-label implementation with TTL/backend binding/release cleanup.
+- Remaining spoofing proofs against the production-grade implementation.
+- Process-family smoke under real app roles after B4-fanout.
