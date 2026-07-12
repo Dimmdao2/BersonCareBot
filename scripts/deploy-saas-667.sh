@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
 : "${SUPERUSER_URL:?FATAL: SUPERUSER_URL is required (superuser connection used only to create dormant LOGIN roles).}"
-: "${DATABASE_URL:?FATAL: DATABASE_URL is required and must identify a BYPASSRLS migrator role.}"
+: "${DATABASE_URL:?FATAL: DATABASE_URL is required and must identify the runtime owner/migrator role.}"
 
 export DATABASE_URL
 export BOOKING_URL="${BOOKING_URL:-http://localhost:3000}"
@@ -15,6 +15,7 @@ export WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/nonexistent}"
 P2_B_OWNER_ROLE="${P2_B_OWNER_ROLE:-app_owner}"
 P2_B_STAFF_ROLE="app_staff"
 P2_B_PATIENT_ROLE="app_patient"
+p2_b_psql_file=""
 
 header() {
   printf '\n===== %s =====\n' "$1"
@@ -29,11 +30,41 @@ validate_role_name() {
   fi
 }
 
-header "Preflight: migrator must have BYPASSRLS"
-migrator_bypassrls="$(
-  psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
-    "SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user"
-)"
+revoke_migrator_elevation() {
+  psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+    -v p2_b_owner_role="${P2_B_OWNER_ROLE}" \
+    -v p2_b_migrator_role="${migrator_role}" <<'SQL'
+SELECT format('ALTER ROLE %I NOBYPASSRLS', :'p2_b_migrator_role')
+WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_b_migrator_role')
+\gexec
+
+SELECT format('REVOKE %I FROM %I', owner_role.rolname, member_role.rolname)
+FROM pg_roles owner_role
+JOIN pg_roles member_role ON member_role.rolname = :'p2_b_migrator_role'
+WHERE owner_role.rolname = :'p2_b_owner_role'
+  AND EXISTS (
+    SELECT 1
+    FROM pg_auth_members membership
+    WHERE membership.roleid = owner_role.oid
+      AND membership.member = member_role.oid
+  )
+\gexec
+SQL
+}
+
+cleanup_on_exit() {
+  local exit_code=$?
+  set +e
+  if [[ -n "${p2_b_psql_file:-}" ]]; then
+    rm -f "${p2_b_psql_file}"
+  fi
+  if [[ -n "${migrator_role:-}" ]]; then
+    revoke_migrator_elevation >/dev/null 2>&1 || true
+  fi
+  exit "${exit_code}"
+}
+
+header "Preflight: migrator must own representative production tables"
 migrator_role="$(
   psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
     "SELECT current_user"
@@ -46,14 +77,32 @@ superuser_database="$(
   psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
     "SELECT current_database()"
 )"
-if [[ "${migrator_bypassrls}" != "t" ]]; then
+superuser_is_superuser="$(
+  psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
+    "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
+)"
+migrator_table_owner="$(
+  psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
+    "SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'be_patient_packages'"
+)"
+validate_role_name "P2_B_OWNER_ROLE" "${P2_B_OWNER_ROLE}"
+validate_role_name "migrator role" "${migrator_role}"
+trap cleanup_on_exit EXIT
+if [[ "${superuser_is_superuser}" != "t" ]]; then
   cat >&2 <<'EOF'
-FATAL: DATABASE_URL does not authenticate as a role with BYPASSRLS.
-This compatibility deploy enables dormant RLS policies but does not apply FORCE. Keep using postgres
-or a dedicated BYPASSRLS migrator so migration/backfill assertions are not affected by RLS policy shape.
-Never grant BYPASSRLS to the runtime app role.
-See “WHY BYPASSRLS” in docs/_TODO/SAAS_FOUNDATION/DEPLOY_667_SEQUENCE.md.
+FATAL: SUPERUSER_URL must authenticate as a PostgreSQL superuser.
+The deploy temporarily grants BYPASSRLS and app_owner membership to the runtime owner role, then revokes both.
 EOF
+  exit 1
+fi
+if [[ -z "${migrator_table_owner}" || "${migrator_table_owner}" != "${migrator_role}" ]]; then
+  cat >&2 <<'EOF'
+FATAL: DATABASE_URL must authenticate as the runtime table-owner role.
+Migration 0140 uses ALTER SEQUENCE ... OWNED BY and migrations 0160..0175 perform owner-only RLS DDL,
+so the migration chain must run as the owner of public.be_patient_packages.
+EOF
+  printf 'current_user: %s\n' "${migrator_role}" >&2
+  printf 'public.be_patient_packages tableowner: %s\n' "${migrator_table_owner:-<missing>}" >&2
   exit 1
 fi
 if [[ "${superuser_database}" != "${migrator_database}" ]]; then
@@ -64,10 +113,8 @@ DATABASE_URL database: ${migrator_database}
 EOF
   exit 1
 fi
-validate_role_name "P2_B_OWNER_ROLE" "${P2_B_OWNER_ROLE}"
-validate_role_name "migrator role" "${migrator_role}"
 
-header "Step 1/5: prepare dormant roles and pgcrypto schema"
+header "Step 1/6: prepare dormant roles, pgcrypto schema, and temporary migrator elevation"
 psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
   -f deploy/postgres/p0-5b-role-split-staff-patient.sql
 psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
@@ -101,16 +148,34 @@ BEGIN
   END IF;
 END
 $pgcrypto_schema$;
+
+GRANT USAGE ON SCHEMA app_ext TO :"p2_b_owner_role";
+
+SELECT format('ALTER ROLE %I BYPASSRLS', :'p2_b_migrator_role')
+WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_b_migrator_role')
+\gexec
 SQL
 
-header "Step 2/5: apply doctor/admin account data-fix"
+header "Step 2/6: apply doctor/admin account data-fix"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
   -f deploy/postgres/p0-data-fix-doctor-admin-split.sql
 
-header "Step 3/5: run the three-phase migration chain"
+header "Step 3/6: run the three-phase migration chain"
 bash scripts/migrate-all.sh
 
-header "Step 4/5: install protected DB principal context"
+header "Step 4/6: normalize app schema ownership after migrations"
+psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+  -v p2_b_owner_role="${P2_B_OWNER_ROLE}" <<'SQL'
+SELECT format('ALTER SCHEMA app OWNER TO %I', :'p2_b_owner_role')
+WHERE EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'app')
+\gexec
+
+SELECT format('ALTER FUNCTION app.is_staff() OWNER TO %I', :'p2_b_owner_role')
+WHERE to_regprocedure('app.is_staff()') IS NOT NULL
+\gexec
+SQL
+
+header "Step 5/6: install protected DB principal context"
 p2_b_signing_secret="${P2_B_SIGNING_SECRET:-${DB_PRINCIPAL_SIGNING_SECRET:-}}"
 if [[ -z "${p2_b_signing_secret}" ]]; then
   p2_b_signing_secret="$(node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))')"
@@ -125,7 +190,6 @@ if [[ "${p2_b_signing_secret}" =~ [[:space:]\\] ]]; then
 fi
 p2_b_psql_file="$(mktemp)"
 chmod 600 "${p2_b_psql_file}"
-trap 'rm -f "${p2_b_psql_file}"' EXIT
 {
   printf '\\set p2_b_owner_role %s\n' "${P2_B_OWNER_ROLE}"
   printf '\\set p2_b_staff_role %s\n' "${P2_B_STAFF_ROLE}"
@@ -135,10 +199,10 @@ trap 'rm -f "${p2_b_psql_file}"' EXIT
 } > "${p2_b_psql_file}"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${p2_b_psql_file}"
 rm -f "${p2_b_psql_file}"
-trap - EXIT
-unset p2_b_signing_secret p2_b_psql_file
+p2_b_psql_file=""
+unset p2_b_signing_secret
 
-header "Step 5/5: consolidate specialist identity"
+header "Step 6/6: consolidate specialist identity"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 <<'SQL'
 DO $specialist_fingerprint$
 DECLARE
@@ -223,9 +287,14 @@ process.stdout.write(required.map(({ tag }) => {
 }).join(","));
 NODE
 )"
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
-  -v required_drizzle_hash_groups="${required_drizzle_hash_groups}" <<'SQL'
+revoke_migrator_elevation
+psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+  -v required_drizzle_hash_groups="${required_drizzle_hash_groups}" \
+  -v p2_b_owner_role="${P2_B_OWNER_ROLE}" \
+  -v p2_b_migrator_role="${migrator_role}" <<'SQL'
 SELECT set_config('deploy.required_drizzle_hash_groups', :'required_drizzle_hash_groups', false);
+SELECT set_config('deploy.p2_b_owner_role', :'p2_b_owner_role', false);
+SELECT set_config('deploy.p2_b_migrator_role', :'p2_b_migrator_role', false);
 
 DO $assertions$
 DECLARE
@@ -235,6 +304,9 @@ DECLARE
   v_table text;
   v_hash_group text;
   v_hash_group_index integer := 0;
+  v_function_security_definer boolean;
+  v_owner_role text := current_setting('deploy.p2_b_owner_role');
+  v_migrator_role text := current_setting('deploy.p2_b_migrator_role');
   v_saas_versions text[] := ARRAY[
     '20260707_0001_p0_4_i0_integrator_org_columns_predeclare.sql',
     '20260708_0001_p0_4_i1_integrator_direct_user_org.sql',
@@ -244,6 +316,35 @@ DECLARE
     '20260710_0001_r2_integrator_scoped_org_not_null.sql'
   ];
 BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE rolname = v_migrator_role AND rolbypassrls IS TRUE
+  ) THEN
+    RAISE EXCEPTION 'ASSERT FAILED: migrator role % still has BYPASSRLS', v_migrator_role;
+  END IF;
+
+  IF pg_has_role(v_migrator_role, v_owner_role, 'member') THEN
+    RAISE EXCEPTION 'ASSERT FAILED: migrator role % is still a member of %', v_migrator_role, v_owner_role;
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM pg_namespace n
+  JOIN pg_roles r ON r.oid = n.nspowner
+  WHERE n.nspname = 'app' AND r.rolname = v_owner_role;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'ASSERT FAILED: app schema must be owned by %', v_owner_role; END IF;
+
+  SELECT p.prosecdef INTO v_function_security_definer
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  JOIN pg_roles r ON r.oid = p.proowner
+  WHERE n.nspname = 'app'
+    AND p.proname = 'is_staff'
+    AND p.pronargs = 0
+    AND r.rolname = v_owner_role;
+  IF v_function_security_definer IS DISTINCT FROM FALSE THEN
+    RAISE EXCEPTION 'ASSERT FAILED: app.is_staff() must exist, be owned by %, and be SECURITY INVOKER', v_owner_role;
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.platform_users
   WHERE role = 'doctor' AND merged_into_id IS NULL AND is_archived IS FALSE;
@@ -372,5 +473,7 @@ WHERE platform_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'::uuid
        AND merged_into_id IS NULL AND is_archived IS FALSE
    );
 SQL
+
+revoke_migrator_elevation
 
 printf '\n✅ ALL GREEN (#667 deploy sequence)\n'

@@ -42,6 +42,30 @@ Required evidence:
 - Final FORCE / rollback NO FORCE is isolated in `deploy/postgres/phase4-force-rls-cutover.sql` and guarded
   by `docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs`.
 
+### #667: identity мигратора и временная эскалация
+
+Compatibility deploy #667 должен запускать migration chain от runtime table-owner роли
+`bcb_webapp_prod`, а не от отдельного BYPASSRLS-мигратора. Это обязательно, потому что 0140 связывает
+sequence с `be_patient_packages.display_number` (`ALTER SEQUENCE ... OWNED BY`, owner identity должен
+совпадать), а 0160–0175 выполняют owner-only RLS/policy DDL. Сам `BYPASSRLS` не даёт владение таблицами.
+
+Этой же роли временно нужен `BYPASSRLS` для integrator R2 backfill под включённым/FORCE RLS. Поэтому
+`scripts/deploy-saas-667.sh` использует такую модель:
+- `DATABASE_URL` аутентифицируется как `bcb_webapp_prod` и preflight-проверкой сверяет owner
+  `public.be_patient_packages`.
+- `SUPERUSER_URL` указывает на ту же БД и только внутри stopped-writers maintenance-window создаёт
+  `app_owner` (`NOLOGIN NOBYPASSRLS`), готовит `app_ext`/`pgcrypto`, выдаёт `USAGE` на `app_ext`
+  роли `app_owner`, затем временно выполняет `ALTER ROLE bcb_webapp_prod BYPASSRLS` и
+  `GRANT app_owner TO bcb_webapp_prod`.
+- `EXIT` trap всегда пытается выполнить `ALTER ROLE bcb_webapp_prod NOBYPASSRLS` и
+  `REVOKE app_owner FROM bcb_webapp_prod`; success path дополнительно делает тот же revoke явно перед
+  post-state assertions.
+- После `migrate-all` ownership нормализуется на `app_owner` для схемы `app` и `app.is_staff()`.
+
+End-state: схема `app`, `app.is_staff()` и P2-B protected helpers принадлежат trusted-роли
+`app_owner`; runtime-роли `app_staff` и `app_patient` ничего не владеют; `bcb_webapp_prod` не является
+member `app_owner` и имеет `rolbypassrls=false`.
+
 ## Fresh prod-copy rehearsal
 
 1. Restore the newest prod dump into a disposable non-prod DB named like
@@ -145,13 +169,17 @@ Proceed only after all rehearsal gates pass and owner approves the maintenance w
 
 1. Take backup.
 2. Keep signup disabled.
-3. Enter maintenance.
-4. Apply strict policies and final FORCE cutover step from the approved cutover DB session:
+3. Войти в maintenance: остановить все DB-writer units и проверить отсутствие активных runtime DB sessions
+   до запуска #667 или final cutover SQL.
+4. Для #667 compatibility deploy запустить `scripts/deploy-saas-667.sh` по модели выше:
+   `DATABASE_URL` = runtime owner `bcb_webapp_prod`; временные `BYPASSRLS` + membership `app_owner`
+   выдаются только superuser-шагом и auto-revoke снимает их обратно.
+5. Apply strict policies and final FORCE cutover step from the approved cutover DB session:
    `deploy/postgres/phase4-force-rls-cutover.sql`.
-5. Switch runtime to role/marker-aware credentials.
-6. Smoke doctor and patient flows.
-7. Restore traffic.
-8. Enable signup only after green post-traffic smoke.
+6. Switch runtime to role/marker-aware credentials.
+7. Smoke doctor and patient flows.
+8. Restore traffic.
+9. Enable signup only after green post-traffic smoke.
 
 Absolute cutover gates:
 - `0` missing-principal entries.
