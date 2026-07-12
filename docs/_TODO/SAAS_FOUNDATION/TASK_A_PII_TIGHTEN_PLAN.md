@@ -110,8 +110,11 @@ blocked. Independent adversarial audit: **SHIP-WITH-FIXES** — core correct, ho
   early-returns for bootstrap). If that role ∈ app_staff → `NOT app.is_staff()` false → bootstrap NULL reads/writes
   fail closed; if BYPASSRLS → bootstrap sees every clinic. R2 smoke proves the DESIRED role shape works; add a
   flip-gate assertion on the real locked base role.
-- [ ] Full prod-copy rehearsal (`rehearse-multitenant-isolation.mjs`, owner-provided disposable copy) incl. these 2
-  tables + who-sees-what matrix + contacts/phone writes; then owner live acceptance.
+- [x] Full prod-copy rehearsal DONE (dump 20260712_201501, 251 users): deploy-667 GREEN, migration applied,
+  contacts_null_org=0 on real data, dormant clinic#1 not blocked, strict+FORCE who-sees-what matrix ALL CONFIRMED,
+  disposable copy dropped, prod untouched. → landed change PROVEN end-to-end on real data.
+- [ ] Owner live acceptance folds into TASK B TEST-dormant deploy walkthrough (register new specialist → empty
+  patient base; existing clinic keeps working).
 
 ## Audit notes (LOW / no action)
 - 0178 does NOT re-create the drizzle 0163 policy (deploy artifact is canonical; dormant no-op under BYPASSRLS) — by design.
