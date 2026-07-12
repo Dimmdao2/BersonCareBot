@@ -118,6 +118,10 @@ const checks = [
     label: "SAAS P2-B protected context SQL artifact",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs"],
   },
+  {
+    label: "SAAS P2-C1 patient value guard SQL artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs"],
+  },
 ];
 
 for (const check of checks) {

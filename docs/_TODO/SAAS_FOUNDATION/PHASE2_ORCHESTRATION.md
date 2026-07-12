@@ -7,6 +7,12 @@ Rules:
 - Scratch DB and disposable prod-dump copy only.
 - No push.
 - No self-acceptance: code slices require independent audit before Phase 2 can be called complete.
+- Orchestrator mode is mandatory for the rest of Phase 2 and follow-on flip work:
+  - Lead owns scope, taskdb/docs, branch hygiene, validation selection, integration, commit messages, and final verdicts.
+  - Worker/Sol agents own implementation or audit for each code slice.
+  - Lead may make only narrow integration/doc/taskdb edits directly; code behavior changes must either be worker-authored or independently audited before commit.
+  - Each slice flow is: brief -> worker result -> lead review/integration -> targeted validation on allowed DB only -> independent audit -> commit -> taskdb/doc update.
+  - If a slice starts drifting into a broad refactor or full-CI loop, split it at the batch boundary and delegate the mechanical run/fix cycle.
 
 ## Workstreams
 
@@ -132,6 +138,36 @@ Batch P2-C1 — messaging/discussion/event actor pins:
 - `support_conversation_messages`: patient insert must pin `sender_role='user'` and own conversation.
 - `treatment_program_events`: patient insert must pin `actor_id=current patient` and whitelist patient
   event shapes.
+
+Status:
+- Implemented by CLI worker `codex-worker-p2-c1-patient-value-guards-2026-07-12T02-09-50-992Z`.
+- `deploy/postgres/p2-c1-patient-value-guards.sql` adds invoker-mode insert triggers using protected
+  context helpers. Invoker-mode is intentional: `app.is_staff()` remains role-derived from the caller,
+  not from a SECURITY DEFINER owner role and not from a GUC.
+- `apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts` omits `actor_id` for patient-principal
+  inserts; the trigger fills it from `app.current_patient_user_id()`.
+- Static guard is wired into `scripts/check-saas-db-regression.mjs`.
+
+Validation:
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs`
+- PASS `node --check scripts/check-saas-db-regression.mjs`
+- PASS `pnpm --dir apps/webapp exec eslint src/infra/repos/pgTreatmentProgramEvents.ts`
+- PASS `pnpm --dir apps/webapp run typecheck`
+- PASS `node scripts/check-saas-db-regression.mjs`
+- PASS `git diff --check`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs` on
+  scratch DB `bcb_saas_p2_c1_value_guard_scratch_*`; no prod/test/dev DB touched.
+
+Audit:
+- Codex read-only audit `codex-auditor-p2-c1-patient-value-guards-audit-2026-07-12T02-16-38-157Z`:
+  PASS WITH RISKS, no blocking findings.
+- Residual validation risk: the smoke uses a synthetic schema and broad table grants, so it proves
+  trigger behavior but not the exact final P0.5b column-grant + generated-RLS composition end-to-end.
+- Residual product/integrity risk: `treatment_program_events` validates patient event shape and owned
+  instance but does not yet prove `target_id` belongs to that same owned stage/stage_item. Keep on the
+  Phase 2 residual list if event targets become semantically trusted.
 
 Batch P2-C2 — online intake / channel preference / reminder pins:
 - `online_intake_status_history`: patient initial history only `NULL -> 'new'`, no `changed_by`/note.
