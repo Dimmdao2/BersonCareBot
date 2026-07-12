@@ -1,6 +1,7 @@
 # Phase 4 rollout runbook — prod-copy rehearsal and cutover
 
-Status: draft package for task #703. Owner-executed. This document does not authorize prod/test/dev DB
+Status: static package sealed through M3 (`9fe23ae5f`, `066c0ab5c`, `9c4ee5294`) and awaiting
+owner-provided disposable prod-copy/live evidence for M4. This document does not authorize prod/test/dev DB
 validation by agents.
 
 ## Purpose
