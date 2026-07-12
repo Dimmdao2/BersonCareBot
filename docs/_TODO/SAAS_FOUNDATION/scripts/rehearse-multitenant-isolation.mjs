@@ -50,11 +50,11 @@ Optional:
 const stamp = `${new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)}_p${process.pid}_${randomBytes(3).toString("hex")}`;
 const resourceKind = syntheticMode ? "scratch" : "rehearsal";
 const dbName = `bcb_saas_multitenant_${resourceKind}_${stamp}`;
-const appOwnerRole = syntheticMode ? `bcb_saas_multitenant_owner_scratch_${stamp}` : "app_owner";
+const appOwnerRole = syntheticMode ? `bcb_saas_mt_own_scratch_${stamp}` : "app_owner";
 const fullOwnerRole = `bcb_saas_mt_owner_rehearsal_${stamp}`;
 const fullSuperuserRole = `bcb_saas_mt_su_rehearsal_${stamp}`;
-const staffLoginRole = `bcb_saas_multitenant_staff_scratch_${stamp}`;
-const patientLoginRole = `bcb_saas_multitenant_patient_scratch_${stamp}`;
+const staffLoginRole = `bcb_saas_mt_stf_scratch_${stamp}`;
+const patientLoginRole = `bcb_saas_mt_pat_scratch_${stamp}`;
 const fullOwnerPassword = randomBytes(32).toString("hex");
 const fullSuperuserPassword = randomBytes(32).toString("hex");
 const staffPassword = randomBytes(32).toString("base64url");
