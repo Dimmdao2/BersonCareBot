@@ -21,6 +21,7 @@ const scratchSmokeScripts = [
   `${p2ScriptsDir}/smoke-p2-c1-patient-value-guards.mjs`,
   `${p2ScriptsDir}/smoke-p2-c2-patient-value-guards.mjs`,
   `${p2ScriptsDir}/smoke-p2-c3-patient-booking-lfk-guards.mjs`,
+  `${p2ScriptsDir}/smoke-p2-composed-rls-grants-value-guards.mjs`,
 ];
 
 const runnerPath = `${p2ScriptsDir}/run-p2-d-proof-package.mjs`;
@@ -38,7 +39,7 @@ function usage() {
     "",
     "Modes:",
     "  static   DB-free default. Runs node --check, P2-B/C1/C2/C3 static guards, and SaaS DB regression guard.",
-    "  scratch  Runs static mode plus scratch-only P2-B/C1/C2/C3 smokes on disposable bcb_saas_*_scratch_* DBs.",
+    "  scratch  Runs static mode plus scratch-only P2-B/C1/C2/C3/composed smokes on disposable bcb_saas_*_scratch_* DBs.",
     "",
     "DB safety:",
     "  This runner never uses DATABASE_URL. Scratch mode sanitizes DATABASE_URL and PG* env vars for child commands",

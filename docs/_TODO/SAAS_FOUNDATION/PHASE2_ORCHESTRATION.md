@@ -206,6 +206,31 @@ Residuals:
 - Parent `PGHOST`/`PGUSER` are stripped from child commands but not inspected by the preflight assertion. The
   scratch smokes use local `sudo -n -u postgres psql`, so this is defense-in-depth only.
 
+### P2 closeout composed proof — protected context + RLS + grants + value guards
+
+Status:
+- Closeout smoke added: `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-composed-rls-grants-value-guards.mjs`.
+- The P2-D scratch package now includes this smoke and `node --check` covers it.
+- Claude Opus verifier via `agent-port` (`20260712-080701-verifier`) verdict: PASS WITH RISKS; no
+  blocking findings, only low/informational residuals.
+
+Coverage:
+- One disposable `bcb_saas_p2_composed_scratch_*` DB and disposable `bcb_saas_*_scratch_*` roles apply
+  P2-B, P2-C1/C2/C3, representative P0.5b grants from generator metadata, and generated P0.9 enforce RLS
+  policies for representative Phase 2 SCOPED surfaces.
+- It proves patient allow/deny behavior across program discussion, support messages, treatment-program
+  events, intake history, auth channel preferences, reminders, booking lifecycle, and LFK sessions.
+- It also proves critical grant/value intersections: `treatment_program_events.actor_id` remains excluded
+  while P2-C1 fills it; `user_channel_preferences.is_preferred_for_auth` is granted only behind P2-C2;
+  cancellation/reschedule `notifications_sent` updates work while non-notification columns are denied; and
+  payment/soft-delete booking columns remain forbidden to patient role.
+- Staff access is proven through role-derived `app.is_staff()` using the disposable staff role, not a GUC.
+
+Residual:
+- This is still a representative synthetic-schema composition proof, not a full production schema replay,
+  production-sized data rehearsal, or process-family runtime smoke under the eventual cluster-global
+  `app_staff` / `app_patient` role names.
+
 ## Agent ledger
 
 - Jason: RLS/migration read-only audit. Completed; confirmed helper-based renderer, dormant symmetry,
