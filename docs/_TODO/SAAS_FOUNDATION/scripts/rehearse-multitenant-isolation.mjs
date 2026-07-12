@@ -25,6 +25,7 @@ const dbPrincipalRuntimePath = path.join(repoRoot, "packages/db-principal/dist/i
 const p2bSqlPath = path.join(repoRoot, "deploy/postgres/p2-b-protected-principal-context.sql");
 const phase4PolicySqlPath = path.join(repoRoot, "deploy/postgres/phase4-locked-helper-rls-policies.sql");
 const phase4ForceSqlPath = path.join(repoRoot, "deploy/postgres/phase4-force-rls-cutover.sql");
+const p0_5bGrantsSqlPath = path.join(repoRoot, "deploy/postgres/p0-5b-grants.sql");
 const deploySaas667Path = path.join(repoRoot, "scripts/deploy-saas-667.sh");
 const pgBinDir = "/usr/lib/postgresql/16/bin";
 const defaultOrgId = "a0000000-0000-4000-8000-000000000001";
@@ -105,6 +106,10 @@ async function main() {
       restoreNewestProdDump();
       runDeploy667Chain();
       createScratchLoginRoles();
+      // Apply the canonical B5 runtime table grants before any app_staff/app_patient read
+      // (deploy-saas-667 creates the roles WITHOUT grants; grants are a separate cutover step).
+      console.log("--- full: applying p0-5b runtime table grants to app_staff/app_patient ---");
+      psqlUrlFile(fullOwnerUrl, p0_5bGrantsSqlPath);
       proveLegacyDormantCompatibility();
       applyStrictLockedForceCutover();
     }
