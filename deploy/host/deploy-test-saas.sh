@@ -28,9 +28,12 @@ log(){ echo; echo "== [deploy-test-saas] $* =="; }
 revoke_bypass(){ sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $DBROLE NOBYPASSRLS;" >/dev/null 2>&1 || true; }
 trap revoke_bypass EXIT   # NEVER leave BYPASSRLS on
 
-# 0. preflight
-for f in "$RESTORE" "$OVERRIDE" "$API_ENV" "$WEBAPP_ENV"; do
+# 0. preflight (env files are deploy-owned → check as deploy, not as dev)
+for f in "$RESTORE" "$OVERRIDE"; do
   [ -r "$f" ] || { echo "FATAL: missing required file: $f"; exit 1; }
+done
+for f in "$API_ENV" "$WEBAPP_ENV"; do
+  sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
 
 # 1. fresh test DB = clean copy of the newest production dump
