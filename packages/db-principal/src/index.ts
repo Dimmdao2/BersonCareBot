@@ -8,6 +8,9 @@ const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n;
 const APP_ORG_CONFIG_KEY = "app.org";
 const APP_PATIENT_USER_CONFIG_KEY = "app.patient_user_id";
 const APP_INTEGRATOR_USER_CONFIG_KEY = "app.integrator_user_id";
+export const DB_PRINCIPAL_CONTEXT_MODE_ENV = "DB_PRINCIPAL_CONTEXT_MODE";
+export const DB_PRINCIPAL_SIGNING_SECRET_ENV = "DB_PRINCIPAL_SIGNING_SECRET";
+export const DEFAULT_DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
 
 export type DbPrincipalKind =
   | "organization"
@@ -114,6 +117,16 @@ export type DbPrincipalApplyOptions =
       mode: "locked";
       signer: DbPrincipalSigner;
     };
+
+export type DbPrincipalContextMode = "legacy-guc" | "locked";
+
+export type DbPrincipalApplyOptionsInput = {
+  mode?: string | null | undefined;
+  signingSecret?: string | null | undefined;
+  ttlMs?: number;
+  now?: () => Date;
+  nonce?: () => string;
+};
 
 const principalStorage = new AsyncLocalStorage<DbPrincipal>();
 
@@ -266,6 +279,37 @@ export function runWithDbInfraPrincipal<T>(input: DbInfraPrincipalInput, fn: () 
   return runWithDbPrincipal(createDbInfraPrincipal(input), fn);
 }
 
+export function buildDbPrincipalApplyOptions(input: DbPrincipalApplyOptionsInput = {}): DbPrincipalApplyOptions {
+  const mode = normalizeDbPrincipalContextMode(input.mode);
+  if (mode === "legacy-guc") {
+    return { mode };
+  }
+
+  const secret = (input.signingSecret ?? "").trim();
+  if (!secret) {
+    throw new Error(`${DB_PRINCIPAL_SIGNING_SECRET_ENV} is required when ${DB_PRINCIPAL_CONTEXT_MODE_ENV}=locked`);
+  }
+
+  return {
+    mode,
+    signer: {
+      secret,
+      ...(input.ttlMs === undefined ? {} : { ttlMs: input.ttlMs }),
+      ...(input.now === undefined ? {} : { now: input.now }),
+      ...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+    },
+  };
+}
+
+export function buildDbPrincipalApplyOptionsFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): DbPrincipalApplyOptions {
+  return buildDbPrincipalApplyOptions({
+    mode: env[DB_PRINCIPAL_CONTEXT_MODE_ENV],
+    signingSecret: env[DB_PRINCIPAL_SIGNING_SECRET_ENV],
+  });
+}
+
 export async function applyCurrentDbPrincipalToTransaction(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
@@ -331,6 +375,14 @@ function normalizeUuid(value: string, errorMessage: string): string {
     throw new Error(errorMessage);
   }
   return trimmed.toLowerCase();
+}
+
+function normalizeDbPrincipalContextMode(mode: string | null | undefined): DbPrincipalContextMode {
+  const normalized = (mode ?? DEFAULT_DB_PRINCIPAL_CONTEXT_MODE).trim() || DEFAULT_DB_PRINCIPAL_CONTEXT_MODE;
+  if (normalized === "legacy-guc" || normalized === "locked") {
+    return normalized;
+  }
+  throw new Error(`${DB_PRINCIPAL_CONTEXT_MODE_ENV} must be legacy-guc or locked`);
 }
 
 function copyOptionalSource(input: { source?: string }): { source?: string } {

@@ -19,6 +19,11 @@ function loadDotenv() {
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1),
+  DB_PRINCIPAL_CONTEXT_MODE: z.enum(["legacy-guc", "locked"]).optional().default("legacy-guc"),
+  DB_PRINCIPAL_SIGNING_SECRET: z
+    .string()
+    .optional()
+    .transform((value) => (value ?? "").trim()),
   POLL_MS: z.coerce.number().int().positive().default(5000),
   STALE_LOCK_MINUTES: z.coerce.number().int().positive().default(30),
   MAX_TRANSCODE_ATTEMPTS: z.coerce.number().int().positive().default(5),
@@ -47,6 +52,8 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
   const parsed = schema.parse({
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL: process.env.DATABASE_URL,
+    DB_PRINCIPAL_CONTEXT_MODE: process.env.DB_PRINCIPAL_CONTEXT_MODE,
+    DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,
     POLL_MS: process.env.MEDIA_WORKER_POLL_MS ?? process.env.POLL_MS,
     STALE_LOCK_MINUTES: process.env.MEDIA_WORKER_STALE_LOCK_MINUTES,
     MAX_TRANSCODE_ATTEMPTS: process.env.MEDIA_WORKER_MAX_ATTEMPTS,
@@ -61,6 +68,9 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
     S3_REGION: process.env.S3_REGION,
     S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   });
+  if (parsed.DB_PRINCIPAL_CONTEXT_MODE === "locked" && !parsed.DB_PRINCIPAL_SIGNING_SECRET) {
+    throw new Error("DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=locked.");
+  }
   const ffmpegPathResolved =
     parsed.FFMPEG_PATH || (require("@ffmpeg-installer/ffmpeg").path as string);
   const lockId = parsed.MEDIA_WORKER_LOCK_ID || `${hostname()}-${process.pid}`;

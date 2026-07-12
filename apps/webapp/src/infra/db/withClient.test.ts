@@ -1,12 +1,33 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Pool } from "pg";
 import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 import { startPoolTransaction, withPoolClient, withPoolTransaction } from "@/infra/db/withClient";
 
+function restoreEnvValue(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
+
 describe("withClient helpers", () => {
+  const originalDbPrincipalContextMode = process.env.DB_PRINCIPAL_CONTEXT_MODE;
+  const originalDbPrincipalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    restoreEnvValue("DB_PRINCIPAL_CONTEXT_MODE", originalDbPrincipalContextMode);
+    restoreEnvValue("DB_PRINCIPAL_SIGNING_SECRET", originalDbPrincipalSigningSecret);
+  });
+
+  afterEach(() => {
+    restoreEnvValue("DB_PRINCIPAL_CONTEXT_MODE", originalDbPrincipalContextMode);
+    restoreEnvValue("DB_PRINCIPAL_SIGNING_SECRET", originalDbPrincipalSigningSecret);
+    vi.restoreAllMocks();
   });
 
   it("releases checked-out client after successful work", async () => {
@@ -66,6 +87,43 @@ describe("withClient helpers", () => {
       ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses locked DB principal options when opt-in env is set", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string, _values?: readonly unknown[]) =>
+      sql === "SELECT pg_backend_pid() AS backend_pid"
+        ? { rows: [{ backend_pid: 4242 }], rowCount: 1 }
+        : { rows: [], rowCount: 0 },
+    );
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await runWithDbOrganizationPrincipal("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", () =>
+      withPoolClient(pool as never, async () => "ok"),
+    );
+
+    expect(query.mock.calls[0]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
+    expect(String(query.mock.calls[1]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls[1]?.[1]).toEqual(
+      expect.arrayContaining([4242, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]),
+    );
+    expect(query.mock.calls.at(-1)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects invalid locked DB principal env before checking out a client", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
+    const pool = { connect: vi.fn() };
+
+    await expect(withPoolClient(pool as never, async () => "unused")).rejects.toThrow(
+      "DB_PRINCIPAL_SIGNING_SECRET is required",
+    );
+
+    expect(pool.connect).not.toHaveBeenCalled();
   });
 
   it("starts a manual transaction handle through the same checkout path", async () => {
@@ -172,5 +230,43 @@ describe("withClient helpers", () => {
       ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps promise-form pool.query with locked DB principal options", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string, _values?: readonly unknown[]) =>
+      sql === "SELECT pg_backend_pid() AS backend_pid"
+        ? { rows: [{ backend_pid: 5252 }], rowCount: 1 }
+        : { rows: [{ ok: true }], rowCount: 1 },
+    );
+    const client = { query, release };
+    vi.spyOn(Pool.prototype, "connect").mockResolvedValue(client as never);
+    vi.spyOn(Pool.prototype, "end").mockResolvedValue(undefined);
+    const pool = createWebappPoolProvider({ connectionString: "postgres://example/test" });
+
+    await runWithDbOrganizationPrincipal("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", () =>
+      pool.query("SELECT ok"),
+    );
+    await pool.end();
+
+    expect(query.mock.calls[0]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
+    expect(String(query.mock.calls[1]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls[2]).toEqual(["SELECT ok"]);
+    expect(query.mock.calls.at(-1)).toEqual(["SELECT app.release_principal_context()"]);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects invalid locked DB principal env before pool.query checkout", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
+    const connect = vi.spyOn(Pool.prototype, "connect");
+    const pool = createWebappPoolProvider({ connectionString: "postgres://example/test" });
+
+    await expect(pool.query("SELECT ok")).rejects.toThrow("DB_PRINCIPAL_SIGNING_SECRET is required");
+    await pool.end();
+
+    expect(connect).not.toHaveBeenCalled();
   });
 });

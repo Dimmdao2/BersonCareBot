@@ -1,6 +1,10 @@
 import { Pool } from "pg";
 import type { PoolClient } from "pg";
-import { applyCurrentDbPrincipalToConnection, clearDbPrincipalFromConnection } from "@bersoncare/db-principal";
+import {
+  applyCurrentDbPrincipalToConnection,
+  buildDbPrincipalApplyOptionsFromEnv,
+  clearDbPrincipalFromConnection,
+} from "@bersoncare/db-principal";
 
 type MediaWorkerPoolProviderConfig = {
   connectionString: string;
@@ -15,14 +19,15 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
   const queryWithPrincipal = async (
     ...args: Parameters<Pool["query"]>
   ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
+    const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     const client = await pool.connect();
     try {
-      await applyCurrentDbPrincipalToConnection(client);
+      await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
       const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>;
       return await query(...args);
     } finally {
       try {
-        await clearDbPrincipalFromConnection(client);
+        await clearDbPrincipalFromConnection(client, principalApplyOptions);
       } finally {
         client.release();
       }

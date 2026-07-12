@@ -119,6 +119,10 @@ const checks = [
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs"],
   },
   {
+    label: "SAAS B4 locked principal runtime wiring",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs"],
+  },
+  {
     label: "SAAS P2-C1 patient value guard SQL artifact",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs"],
   },

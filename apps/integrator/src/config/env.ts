@@ -13,6 +13,11 @@ const parsed = z
     LOG_LEVEL: z.string().default('info'),
 
     DATABASE_URL: z.string().min(1),
+    DB_PRINCIPAL_CONTEXT_MODE: z.enum(['legacy-guc', 'locked']).optional().default('legacy-guc'),
+    DB_PRINCIPAL_SIGNING_SECRET: z
+      .string()
+      .optional()
+      .transform((value) => (value ?? '').trim()),
 
     BOOKING_URL: z.string().min(1),
     CONTENT_SERVICE_BASE_URL: z.string().optional().default(''),
@@ -41,6 +46,10 @@ const parsed = z
     GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
   })
   .parse(process.env);
+
+if (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'locked' && !parsed.DB_PRINCIPAL_SIGNING_SECRET) {
+  throw new Error('DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=locked.');
+}
 
 /** Нормализованные и валидированные переменные окружения. */
 export const env = parsed;

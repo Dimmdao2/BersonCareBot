@@ -2,36 +2,52 @@ import type { Pool, PoolClient } from "pg";
 import {
   applyCurrentDbPrincipalToConnection,
   applyCurrentDbPrincipalToTransaction,
+  buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
+  type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
 import { getPool } from "@/infra/db/client";
 
-async function prepareClientForRequest(client: PoolClient): Promise<void> {
-  await applyCurrentDbPrincipalToConnection(client);
+function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
+  return buildDbPrincipalApplyOptionsFromEnv(process.env);
 }
 
-async function releasePreparedClient(client: PoolClient): Promise<void> {
+async function prepareClientForRequest(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  await applyCurrentDbPrincipalToConnection(client, options);
+}
+
+async function releasePreparedClient(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
   try {
-    await clearDbPrincipalFromConnection(client);
+    await clearDbPrincipalFromConnection(client, options);
   } finally {
     client.release();
   }
 }
 
-async function prepareTransactionClientForRequest(client: PoolClient): Promise<void> {
-  await applyCurrentDbPrincipalToTransaction(client);
+async function prepareTransactionClientForRequest(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  await applyCurrentDbPrincipalToTransaction(client, options);
 }
 
 export async function withPoolClient<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  const principalApplyOptions = getDbPrincipalApplyOptions();
   const client = await pool.connect();
   try {
-    await prepareClientForRequest(client);
+    await prepareClientForRequest(client, principalApplyOptions);
     return await fn(client);
   } finally {
-    await releasePreparedClient(client);
+    await releasePreparedClient(client, principalApplyOptions);
   }
 }
 
@@ -47,13 +63,14 @@ export type PoolTransactionHandle = {
 };
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
+  const principalApplyOptions = getDbPrincipalApplyOptions();
   const client = await pool.connect();
   let transactionStarted = false;
   try {
-    await prepareClientForRequest(client);
+    await prepareClientForRequest(client, principalApplyOptions);
     await client.query("BEGIN");
     transactionStarted = true;
-    await prepareTransactionClientForRequest(client);
+    await prepareTransactionClientForRequest(client, principalApplyOptions);
   } catch (err) {
     if (transactionStarted) {
       try {
@@ -62,7 +79,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
         /* preserve original setup error */
       }
     }
-    await releasePreparedClient(client);
+    await releasePreparedClient(client, principalApplyOptions);
     throw err;
   }
   return {
@@ -73,7 +90,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     rollback: async () => {
       await client.query("ROLLBACK");
     },
-    release: () => releasePreparedClient(client),
+    release: () => releasePreparedClient(client, principalApplyOptions),
   };
 }
 

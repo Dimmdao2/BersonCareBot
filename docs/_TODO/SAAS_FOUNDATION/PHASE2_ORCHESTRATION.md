@@ -85,6 +85,31 @@ Audit:
   coverage for NULL signatures, and an early `pgcrypto_must_be_installed_in_app_ext` guard.
 - Sol/Codex read-only re-audit found no remaining P0/P1 blocker in P2-B.
 
+### B4-fanout L1 — locked principal runtime wiring
+
+Goal:
+- Add opt-in runtime wiring so webapp, integrator, scheduler, and media-worker DB chokepoints can apply
+  the P2-B protected principal context when operators set `DB_PRINCIPAL_CONTEXT_MODE=locked` and provide
+  `DB_PRINCIPAL_SIGNING_SECRET`.
+- Keep default runtime as `legacy-guc`; this slice must not flip current process behavior before P2-B SQL
+  is deployed and ops explicitly sets the env.
+
+Status:
+- Taskdb `#688` worker slice implemented bounded L1 wiring: shared `DbPrincipalApplyOptions` builder,
+  checkout and promise-form `pool.query` wrappers pass options into
+  `applyCurrentDbPrincipalToConnection`, `applyCurrentDbPrincipalToTransaction`, and
+  `clearDbPrincipalFromConnection`.
+- Scheduler advisory lock cleanup now releases the prepared integrator client through
+  `releasePreparedIntegratorClient`, so locked cleanup is not bypassed after checkout.
+- Static guard `docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs` is wired into
+  `scripts/check-saas-db-regression.mjs`.
+
+Residual:
+- This does NOT switch DB roles and does NOT prove real process-family runtime under `app_staff` /
+  `app_patient`.
+- Process-family smoke under real app roles, cluster-global role naming, and env-boundary decisions remain
+  B4-fanout / pre-flip blockers.
+
 ### P2-C — #664 value-level residuals
 
 Goal:

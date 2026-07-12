@@ -45,4 +45,18 @@ describe('tryAcquireSchedulerLock', () => {
     expect(pgSessionAdvisoryUnlock).toHaveBeenCalledWith(client, 9002);
     expect(release).toHaveBeenCalledTimes(1);
   });
+
+  it('destroys the session client when advisory unlock fails', async () => {
+    const err = new Error('unlock failed');
+    vi.mocked(pgTrySessionAdvisoryLock).mockResolvedValue(true);
+    vi.mocked(pgSessionAdvisoryUnlock).mockRejectedValue(err);
+
+    const handle = await tryAcquireSchedulerLock(9003);
+    expect(handle).not.toBeNull();
+
+    await handle!.release();
+
+    expect(pgSessionAdvisoryUnlock).toHaveBeenCalledWith(client, 9003);
+    expect(release).toHaveBeenCalledWith(err);
+  });
 });
