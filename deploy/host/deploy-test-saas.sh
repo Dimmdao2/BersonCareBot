@@ -24,6 +24,16 @@ OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp);
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 UNITS=(api worker scheduler webapp media-worker)
 
+# ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
+#   doctor phone   +79643805480   (p0-data-fix + override: role=doctor, owns yandex email, doctor allowlist)
+#   client phone   +79189000782   (p0-data-fix: same-name client, must NOT hold the doctor email)
+#   doctor email   dimmdao@yandex.ru   admin email  dimmdao@gmail.com
+#   org id         a0000000-0000-4000-8000-000000000001
+#   canonical specialist  c9515025-7224-4d9b-86b6-9cb7d26ea503  (the "Дмитрий Берсон" row holding the full
+#                         appointment history; the per-branch rubitime dup is merged into it + deactivated)
+ORG_ID=a0000000-0000-4000-8000-000000000001
+CANONICAL_SPECIALIST=c9515025-7224-4d9b-86b6-9cb7d26ea503
+
 log(){ echo; echo "== [deploy-test-saas] $* =="; }
 revoke_bypass(){ sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $DBROLE NOBYPASSRLS;" >/dev/null 2>&1 || true; }
 trap revoke_bypass EXIT   # NEVER leave BYPASSRLS on
@@ -81,7 +91,30 @@ echo "   drizzle migrations = $CNT (org columns present)"
 log "test settings override"
 sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"
 
-# 6. restart test units + verify (and that the prod WireGuard relay is untouched)
+# 6. consolidate duplicate specialists → one canonical (idempotent; deterministic pinned --canonical).
+#    Historical rubitime-per-branch dups split the owner's appointments/working-hours across TWO
+#    "Дмитрий Берсон" be_specialists rows, so the solo-model resolver (resolveDoctorOwnSpecialistId)
+#    picks arbitrarily and the doctor sees a partial/empty schedule. The consolidation REPOINTS every FK
+#    ref of the dup → canonical and SOFT-deactivates the dup (never deletes appointment data). Idempotent:
+#    a 2nd run finds 0 dups and changes 0 rows.
+log "consolidate duplicate specialists → $CANONICAL_SPECIALIST"
+sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
+  pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit --canonical='$CANONICAL_SPECIALIST' --org='$ORG_ID'"
+
+# 7. end-state self-check (reproducibility gate — same asserted state every run, from zero)
+log "verify end-state"
+ACTIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_specialists WHERE is_active=true;")"
+[ "${ACTIVE:-0}" = "1" ] || { echo "FATAL: expected exactly 1 active specialist, got ${ACTIVE:-0}"; exit 1; }
+ORPHAN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id IS NULL OR specialist_id IN (SELECT id FROM be_specialists WHERE is_active=false);")"
+[ "${ORPHAN:-1}" = "0" ] || { echo "FATAL: ${ORPHAN} appointments left on NULL/inactive specialist (data not fully consolidated)"; exit 1; }
+DROLE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT role FROM platform_users WHERE phone_normalized='+79643805480' AND merged_into_id IS NULL;")"
+[ "$DROLE" = "doctor" ] || { echo "FATAL: canonical doctor role is '$DROLE', expected 'doctor'"; exit 1; }
+APADMIN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT value_json->>'value' FROM public.system_settings WHERE key='admin_phones' AND scope='admin' AND organization_id IS NULL;")"
+[ "$APADMIN" = "[]" ] || { echo "FATAL: admin_phones is '$APADMIN', expected [] (owner phone must be doctor, not admin)"; exit 1; }
+APPTS="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id='$CANONICAL_SPECIALIST';")"
+echo "   OK: 1 active specialist · $APPTS appointments on canonical · doctor role held · admin_phones=[]"
+
+# 8. restart test units + verify (and that the prod WireGuard relay is untouched)
 log "restart test units"
 for u in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$u-test"; done
 sleep 4

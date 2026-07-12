@@ -64,6 +64,19 @@ Walls stay DORMANT: `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc` (default). App connec
   data-fix + option-D temp-BYPASSRLS migrate + post-asserts) in a stopped-writers window, NOT the plain deploy.
 - So PROD dormant deploy = `deploy-saas-667.sh` (option-D). PROD flip = phase4 enforce artifacts (section B).
 
+## Duplicate-specialist consolidation (RESOLVED 2026-07-13)
+Historical rubitime-per-branch specialists left TWO active "Дмитрий Берсон" rows in `be_specialists`
+(`c9515025` = full history, `518ea988` = per-branch dup). The solo-model resolver
+(`resolveDoctorOwnSpecialistId`) picks the first active specialist arbitrarily, so the doctor's schedule
+showed a partial/empty set. `deploy-test-saas.sh` step 6 now runs the sanctioned, idempotent
+`consolidate-specialist-identity.ts` with a PINNED `--canonical=c9515025 --org=a0000000-…-0001`: it
+REPOINTS every FK ref (appointments, working-hours/days, service-availability, rubitime mappings) of the
+dup → canonical and SOFT-deactivates the dup (never deletes appointment data; overlapping double-books are
+left on the dup, not dropped). Step 7 asserts the end-state (1 active specialist, 0 appts on NULL/inactive,
+doctor role held, `admin_phones=[]`) so every from-zero run converges to the same correct state.
+NOTE: all appointments in the current prod copy are historical (newest ~2026-06-27); the current-week view
+is legitimately empty — browse to June or seed a future appointment to see records.
+
 ## Identity role-allowlist normalization (RESOLVED 2026-07-13)
 The prod dump carries the owner's OWN phone/telegram/MAX in the `admin_*` allowlists of
 `system_settings` (BOTH `public` and the duplicate `integrator` copy). `resolveRoleAsync` reads those
