@@ -12,8 +12,10 @@ const scriptPath = "docs/_TODO/SAAS_FOUNDATION/scripts/run-phase4-prod-copy-rehe
 const p2ProofRunner = "docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs";
 const phase3SignupSmoke = "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs";
 const b4RoleSmoke = "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs";
+const dbStateChecker = "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs";
 
 const rehearsalUrlEnv = "PHASE4_REHEARSAL_DATABASE_URL";
+const allowedHostsEnv = "PHASE4_REHEARSAL_ALLOWED_HOSTS";
 const safeRehearsalDbNamePattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
 const forbiddenDbNames = new Set([
   "bcb_webapp_prod",
@@ -66,18 +68,24 @@ function usage() {
     "Usage:",
     `  node ${scriptPath} [--mode=preflight] [--require-rehearsal-url] [--evidence=phase4-evidence.json]`,
     `  node ${scriptPath} --mode=gates`,
+    `  node ${scriptPath} --mode=db-state`,
     "",
     "Modes:",
     "  preflight  DB-free default. Refuses unsafe DB hints, runs syntax/static proof gates, and checks optional evidence.",
     "  gates      Prints the required Phase 4 live evidence gate IDs without running subprocesses.",
+    `  db-state   Connects only to ${rehearsalUrlEnv}, after the disposable DB safety guard, and checks catalog state.`,
     "",
     "Optional inputs:",
     `  ${rehearsalUrlEnv}=postgres://.../bcb_saas_<name>_rehearsal_<suffix>`,
+    `  ${allowedHostsEnv}=host1,host2  Required by db-state mode for non-loopback rehearsal hosts.`,
     "  --require-rehearsal-url  Fail if the rehearsal URL env var is absent.",
     "  --evidence=<path>        JSON evidence with gate statuses. Does not print evidence details.",
     "",
     "DB safety:",
-    "  The runner never connects to a database and never prints URLs or secrets.",
+    "  Preflight (the default) and gates modes never connect to a database or print URLs or secrets.",
+    `  DB-state mode connects only to ${rehearsalUrlEnv} after the safety guard and never prints that URL.`,
+    "  DB-state mode allows loopback hosts by default; any remote non-prod host must be explicitly listed",
+    `  in ${allowedHostsEnv}.`,
     "  Any DATABASE_URL, PGDATABASE, or rehearsal URL hint must name an explicit disposable",
     "  bcb_saas_*_scratch_* or bcb_saas_*_rehearsal_* database. Prod/test/dev-shaped names are refused.",
   ].join("\n");
@@ -110,7 +118,7 @@ function parseArgs(argv) {
     throw new Error(`Unknown argument: ${arg}\n\n${usage()}`);
   }
 
-  if (!new Set(["preflight", "gates"]).has(args.mode)) {
+  if (!new Set(["preflight", "gates", "db-state"]).has(args.mode)) {
     throw new Error(`Unsupported mode: ${args.mode}\n\n${usage()}`);
   }
 
@@ -164,7 +172,7 @@ function unsafeHostReason(hostname) {
   return null;
 }
 
-function assertSafeDbHint(source, value, { isUrl }) {
+function assertSafeDbHint(source, value, { isUrl, quietAcceptance = false }) {
   const dbName = isUrl ? databaseNameFromUrl(value) : value;
   const hostReason = isUrl ? unsafeHostReason(hostnameFromUrl(value)) : null;
   if (hostReason) {
@@ -176,10 +184,12 @@ function assertSafeDbHint(source, value, { isUrl }) {
     throw new Error(`${source}: ${dbReason}; refusing Phase 4 rehearsal preflight`);
   }
 
-  console.log(`[phase4] accepted ${source} database hint: ${dbName}`);
+  if (!quietAcceptance) {
+    console.log(`[phase4] accepted ${source} database hint: ${dbName}`);
+  }
 }
 
-function assertSafeEnvironment({ requireRehearsalUrl }) {
+function assertSafeEnvironment({ requireRehearsalUrl, quietAcceptance = false }) {
   if (process.env.PGHOST) {
     const hostReason = unsafeHostReason(process.env.PGHOST);
     if (hostReason) {
@@ -188,13 +198,13 @@ function assertSafeEnvironment({ requireRehearsalUrl }) {
   }
 
   if (process.env.DATABASE_URL) {
-    assertSafeDbHint("DATABASE_URL", process.env.DATABASE_URL, { isUrl: true });
+    assertSafeDbHint("DATABASE_URL", process.env.DATABASE_URL, { isUrl: true, quietAcceptance });
   }
   if (process.env.PGDATABASE) {
-    assertSafeDbHint("PGDATABASE", process.env.PGDATABASE, { isUrl: false });
+    assertSafeDbHint("PGDATABASE", process.env.PGDATABASE, { isUrl: false, quietAcceptance });
   }
   if (process.env[rehearsalUrlEnv]) {
-    assertSafeDbHint(rehearsalUrlEnv, process.env[rehearsalUrlEnv], { isUrl: true });
+    assertSafeDbHint(rehearsalUrlEnv, process.env[rehearsalUrlEnv], { isUrl: true, quietAcceptance });
   } else if (requireRehearsalUrl) {
     throw new Error(`${rehearsalUrlEnv} is required for this preflight but is not set`);
   }
@@ -321,6 +331,15 @@ function main() {
 
   if (args.mode === "gates") {
     printGateList();
+    return;
+  }
+
+  if (args.mode === "db-state") {
+    assertSafeEnvironment({ requireRehearsalUrl: true, quietAcceptance: true });
+    const env = sanitizedChildEnv();
+    env[rehearsalUrlEnv] = process.env[rehearsalUrlEnv];
+    runStep("disposable prod-copy DB catalog state", ["node", dbStateChecker], env);
+    console.log("\n[phase4] DB-state check OK");
     return;
   }
 

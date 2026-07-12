@@ -53,8 +53,23 @@ Required evidence:
    ```
 4. Run live rehearsal manually against the disposable app stack and record only gate statuses.
 
-The harness validates safety and static gates only. It does not connect to the rehearsal DB and does not run
-browser/API flows.
+5. Owner only: verify compatibility catalog state against the owner-provided disposable prod-copy DB:
+   ```bash
+   PHASE4_REHEARSAL_DATABASE_URL='postgres://.../bcb_saas_phase4_rehearsal_<suffix>' \
+     node docs/_TODO/SAAS_FOUNDATION/scripts/run-phase4-prod-copy-rehearsal.mjs --mode=db-state
+   ```
+   For a remote non-prod rehearsal host, set `PHASE4_REHEARSAL_ALLOWED_HOSTS=<host>` explicitly; loopback
+   hosts are the only default allowlist. This mode connects only after the disposable-name guard,
+   non-production hostname allowlist, and connection override parameter refusal (`host`, `hostaddr`,
+   `dbname`/`database`, service/socket-style overrides). It checks the applied 0177 hash, all 161 ENABLE +
+   NO FORCE targets, runtime role invariants (`LOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`,
+   `NOREPLICATION`, `NOBYPASSRLS`, and `app_patient` is not a member of `app_staff`), exact protected
+   principal-context helper signatures/search paths, `PUBLIC` execute revocation, and `app_staff` /
+   `app_patient` execute availability. Agents must not run it against prod/test/dev or without an explicitly
+   owner-provided disposable URL.
+
+The default harness validates safety and static gates only. Only explicit `--mode=db-state` connects to the
+disposable rehearsal DB; no harness mode runs browser/API flows.
 
 ## Live rehearsal gates
 
