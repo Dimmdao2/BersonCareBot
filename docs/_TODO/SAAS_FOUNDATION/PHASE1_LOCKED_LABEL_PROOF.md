@@ -19,3 +19,24 @@ Proof coverage:
 - A valid signed payload installs helper-visible context for org, patient user, and integrator user.
 - `app.reset_principal_context()` and `app.release_principal_context()` clear the backend context.
 - `app.is_staff()` remains role-derived.
+
+## 2026-07-12 checkout/reset integration checkpoint
+
+Runtime wiring added after the proof smoke:
+- Webapp, integrator, and media-worker checkout helpers apply the current async DB principal to checked-out
+  clients and clear labels before releasing clients back to the pool.
+- Webapp, integrator, and media-worker pool providers wrap promise-form `pool.query(...)` with the same
+  apply/clear bracket so direct pool reads do not bypass the Phase 1 principal carrier.
+- Transaction handles now expose async release where cleanup can run before the underlying client is returned.
+- `scripts/check-db-chokepoint.mjs` allowlists only those provider-level wrappers for internal `pool.connect()`.
+
+Validation run:
+- `pnpm --dir packages/db-principal run build`
+- `pnpm --dir packages/db-principal run typecheck`
+- `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs`
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs`
+- targeted webapp, integrator, and media-worker DB checkout/reset tests
+- `pnpm --dir apps/webapp typecheck`
+- `pnpm --dir apps/integrator typecheck`
+- `pnpm --dir apps/media-worker typecheck`
+- `pnpm run check:saas-db-regression`

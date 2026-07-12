@@ -143,12 +143,10 @@ describe("pgDoctorMotivationQuotesEditor", () => {
     const port = createPgDoctorMotivationQuotesEditorPort();
     await runWithDbOrganizationPrincipal(ORGANIZATION_ID, () => port.reorderQuotes(["b", "a"]));
 
-    expect(clientQueryMock).toHaveBeenNthCalledWith(1, "BEGIN");
-    expect(clientQueryMock).toHaveBeenNthCalledWith(
-      2,
-      "SELECT set_config('app.org', $1, true)",
-      [ORGANIZATION_ID],
-    );
+    const sqlOrder = clientQueryMock.mock.calls.map((call) => String(call[0]));
+    expect(sqlOrder.indexOf("BEGIN")).toBeGreaterThanOrEqual(0);
+    expect(sqlOrder.indexOf("SELECT set_config('app.org', $1, true)")).toBeGreaterThan(sqlOrder.indexOf("BEGIN"));
+    expect(clientQueryMock).toHaveBeenCalledWith("SELECT set_config('app.org', $1, true)", [ORGANIZATION_ID]);
     expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
   });
 

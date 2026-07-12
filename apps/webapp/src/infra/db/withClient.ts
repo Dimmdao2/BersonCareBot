@@ -1,9 +1,21 @@
 import type { Pool, PoolClient } from "pg";
-import { applyCurrentDbPrincipalToTransaction } from "@bersoncare/db-principal";
+import {
+  applyCurrentDbPrincipalToConnection,
+  applyCurrentDbPrincipalToTransaction,
+  clearDbPrincipalFromConnection,
+} from "@bersoncare/db-principal";
 import { getPool } from "@/infra/db/client";
 
-async function prepareClientForRequest(_client: PoolClient): Promise<void> {
-  // Dormant SAAS hook: future tenant/app principal setup belongs here.
+async function prepareClientForRequest(client: PoolClient): Promise<void> {
+  await applyCurrentDbPrincipalToConnection(client);
+}
+
+async function releasePreparedClient(client: PoolClient): Promise<void> {
+  try {
+    await clearDbPrincipalFromConnection(client);
+  } finally {
+    client.release();
+  }
 }
 
 async function prepareTransactionClientForRequest(client: PoolClient): Promise<void> {
@@ -19,7 +31,7 @@ export async function withPoolClient<T>(
     await prepareClientForRequest(client);
     return await fn(client);
   } finally {
-    client.release();
+    await releasePreparedClient(client);
   }
 }
 
@@ -31,7 +43,7 @@ export type PoolTransactionHandle = {
   client: PoolClient;
   commit(): Promise<void>;
   rollback(): Promise<void>;
-  release(): void;
+  release(): Promise<void>;
 };
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
@@ -50,7 +62,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
         /* preserve original setup error */
       }
     }
-    client.release();
+    await releasePreparedClient(client);
     throw err;
   }
   return {
@@ -61,7 +73,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     rollback: async () => {
       await client.query("ROLLBACK");
     },
-    release: () => client.release(),
+    release: () => releasePreparedClient(client),
   };
 }
 
@@ -82,7 +94,7 @@ export async function withPoolTransaction<T>(
     }
     throw err;
   } finally {
-    tx.release();
+    await tx.release();
   }
 }
 

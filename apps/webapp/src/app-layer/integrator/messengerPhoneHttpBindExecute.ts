@@ -299,7 +299,7 @@ export async function executeMessengerPhoneHttpBind(
 
     return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };
   } finally {
-    tx?.release();
+    await tx?.release();
   }
 }
 

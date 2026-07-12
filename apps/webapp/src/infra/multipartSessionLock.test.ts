@@ -32,6 +32,7 @@ describe("withMultipartSessionLock", () => {
 
     expect(order[0]).toBe("BEGIN");
     expect(pgAdvisoryXactLock).toHaveBeenCalledWith(expect.anything(), "multipart_session:sess-1");
-    expect(order[order.length - 1]).toBe("COMMIT");
+    expect(order).toContain("COMMIT");
+    expect(order.indexOf("COMMIT")).toBeGreaterThan(order.indexOf("BEGIN"));
   });
 });

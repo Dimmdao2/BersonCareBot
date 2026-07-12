@@ -104,7 +104,8 @@ describe("createPgOnlineIntakePort advisory locks", () => {
     expect(txOrder[0]).toBe("BEGIN");
     expect(pgAdvisoryXactLockShared).toHaveBeenCalledWith(expect.anything(), userId);
     expect(txEventOrder.indexOf("advisory_lock")).toBeLessThan(txEventOrder.indexOf("insert_request"));
-    expect(txOrder.at(-1)).toBe("COMMIT");
+    expect(txOrder).toContain("COMMIT");
+    expect(txOrder.indexOf("COMMIT")).toBeGreaterThan(txOrder.indexOf("BEGIN"));
     expect(txOrder).not.toContain("ROLLBACK");
   });
 
@@ -137,7 +138,8 @@ describe("createPgOnlineIntakePort advisory locks", () => {
     expect(txOrder[0]).toBe("BEGIN");
     expect(pgAdvisoryXactLockShared).toHaveBeenCalledWith(expect.anything(), userId);
     expect(txEventOrder.indexOf("advisory_lock")).toBeLessThan(txEventOrder.indexOf("insert_request"));
-    expect(txOrder.at(-1)).toBe("COMMIT");
+    expect(txOrder).toContain("COMMIT");
+    expect(txOrder.indexOf("COMMIT")).toBeGreaterThan(txOrder.indexOf("BEGIN"));
     expect(txOrder).not.toContain("ROLLBACK");
   });
 
@@ -180,7 +182,8 @@ describe("createPgOnlineIntakePort changeStatus transaction", () => {
 
     expect(pgAdvisoryXactLockShared).not.toHaveBeenCalled();
     expect(txOrder[0]).toBe("BEGIN");
-    expect(txOrder.at(-1)).toBe("COMMIT");
+    expect(txOrder).toContain("COMMIT");
+    expect(txOrder.indexOf("COMMIT")).toBeGreaterThan(txOrder.indexOf("BEGIN"));
     expect(
       runWebappPgTextMock.mock.calls.some((c) =>
         String(c[0]).includes("SELECT * FROM online_intake_requests WHERE id = $1 FOR UPDATE"),

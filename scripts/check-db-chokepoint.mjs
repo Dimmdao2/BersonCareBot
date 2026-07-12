@@ -21,6 +21,11 @@ const allowedConnectFiles = new Set([
   "apps/webapp/src/infra/db/withClient.ts",
   "apps/integrator/src/infra/db/withClient.ts",
   "apps/media-worker/src/withClient.ts",
+  // Phase 1 DB principal chokepoint: provider-level promise pool.query wrappers
+  // must checkout a client so labels can be installed and cleared around the query.
+  "apps/webapp/src/infra/db/webappPoolProvider.ts",
+  "apps/integrator/src/infra/db/integratorPoolProvider.ts",
+  "apps/media-worker/src/poolProvider.ts",
   // One-off ops backfill keeps paired sessions + SAVEPOINT flow by ADR Class C.
   "apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts",
 ]);

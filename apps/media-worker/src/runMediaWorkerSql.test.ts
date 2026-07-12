@@ -65,10 +65,16 @@ describe("mediaWorkerSqlFromPgText", () => {
 
     expect(result.rowCount).toBe(1);
     expect(queryCalls).toEqual([
+      ["SELECT set_config('app.org', $1, false)", ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
       ["BEGIN"],
       ["SELECT set_config('app.org', $1, true)", ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]],
       ["UPDATE public.media_files SET status = $1 WHERE id = $2", ["ready", "media-1"]],
       ["COMMIT"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(releaseCalls).toEqual(["release"]);
   });

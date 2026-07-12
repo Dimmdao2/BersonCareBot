@@ -11,9 +11,15 @@ describe("media-worker DB client helpers", () => {
 
     const tx = await startMediaWorkerTransaction(pool as never);
     await tx.commit();
-    tx.release();
+    await tx.release();
 
-    expect(query.mock.calls).toEqual([["BEGIN"], ["COMMIT"]]);
+    expect(query.mock.calls).toEqual([
+      ["BEGIN"],
+      ["COMMIT"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+    ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -27,12 +33,18 @@ describe("media-worker DB client helpers", () => {
       startMediaWorkerTransaction(pool as never),
     );
     await tx.rollback();
-    tx.release();
+    await tx.release();
 
     expect(query.mock.calls).toEqual([
+      ["SELECT set_config('app.org', $1, false)", ["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
       ["BEGIN"],
       ["SELECT set_config('app.org', $1, true)", ["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"]],
       ["ROLLBACK"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -43,7 +55,12 @@ describe("media-worker DB client helpers", () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
     const client = { query, release };
     const pool = { connect: vi.fn(async () => client) };
@@ -55,9 +72,15 @@ describe("media-worker DB client helpers", () => {
     ).rejects.toBe(err);
 
     expect(query.mock.calls).toEqual([
+      ["SELECT set_config('app.org', $1, false)", ["ffffffff-ffff-4fff-8fff-ffffffffffff"]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
       ["BEGIN"],
       ["SELECT set_config('app.org', $1, true)", ["ffffffff-ffff-4fff-8fff-ffffffffffff"]],
       ["ROLLBACK"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });

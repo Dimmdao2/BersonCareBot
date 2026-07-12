@@ -11,14 +11,19 @@ describe("withClient helpers", () => {
 
   it("releases checked-out client after successful work", async () => {
     const release = vi.fn();
-    const client = { query: vi.fn(), release };
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const client = { query, release };
     const pool = { connect: vi.fn(async () => client) };
 
     await expect(withPoolClient(pool as never, async () => "ok")).resolves.toBe("ok");
 
     expect(pool.connect).toHaveBeenCalledTimes(1);
     expect(release).toHaveBeenCalledTimes(1);
-    expect(client.query).not.toHaveBeenCalled();
+    expect(query.mock.calls).toEqual([
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+    ]);
   });
 
   it("commits a successful transaction and releases client", async () => {
@@ -29,7 +34,13 @@ describe("withClient helpers", () => {
 
     await expect(withPoolTransaction(pool as never, async () => "tx-ok")).resolves.toBe("tx-ok");
 
-    expect(query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
+    expect(query.mock.calls).toEqual([
+      ["BEGIN"],
+      ["COMMIT"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+    ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -44,9 +55,15 @@ describe("withClient helpers", () => {
     );
 
     expect(query.mock.calls).toEqual([
+      ["SELECT set_config('app.org', $1, false)", ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
       ["BEGIN"],
       ["SELECT set_config('app.org', $1, true)", ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]],
       ["COMMIT"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -59,9 +76,15 @@ describe("withClient helpers", () => {
 
     const tx = await startPoolTransaction(pool as never);
     await tx.commit();
-    tx.release();
+    await tx.release();
 
-    expect(query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
+    expect(query.mock.calls).toEqual([
+      ["BEGIN"],
+      ["COMMIT"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+    ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -75,12 +98,18 @@ describe("withClient helpers", () => {
       startPoolTransaction(pool as never),
     );
     await tx.rollback();
-    tx.release();
+    await tx.release();
 
     expect(query.mock.calls).toEqual([
+      ["SELECT set_config('app.org', $1, false)", ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
       ["BEGIN"],
       ["SELECT set_config('app.org', $1, true)", ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]],
       ["ROLLBACK"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -91,7 +120,13 @@ describe("withClient helpers", () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
     const client = { query, release };
     const pool = { connect: vi.fn(async () => client) };
@@ -103,9 +138,15 @@ describe("withClient helpers", () => {
     ).rejects.toBe(err);
 
     expect(query.mock.calls).toEqual([
+      ["SELECT set_config('app.org', $1, false)", ["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
       ["BEGIN"],
       ["SELECT set_config('app.org', $1, true)", ["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"]],
       ["ROLLBACK"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -123,7 +164,13 @@ describe("withClient helpers", () => {
       }),
     ).rejects.toBe(err);
 
-    expect(query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "ROLLBACK"]);
+    expect(query.mock.calls).toEqual([
+      ["BEGIN"],
+      ["ROLLBACK"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+    ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
 });

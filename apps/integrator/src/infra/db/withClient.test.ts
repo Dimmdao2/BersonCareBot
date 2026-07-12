@@ -12,7 +12,11 @@ describe('integrator DB client helpers', () => {
 
     await expect(withIntegratorPoolClient(pool as never, async () => 'ok')).resolves.toBe('ok');
 
-    expect(query).not.toHaveBeenCalled();
+    expect(query.mock.calls).toEqual([
+      ['SELECT set_config(\'app.org\', $1, false)', ['']],
+      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
+      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
+    ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -27,9 +31,15 @@ describe('integrator DB client helpers', () => {
     );
 
     expect(query.mock.calls).toEqual([
+      ['SELECT set_config(\'app.org\', $1, false)', ['dddddddd-dddd-4ddd-8ddd-dddddddddddd']],
+      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
+      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
       ['BEGIN'],
       ['SELECT set_config(\'app.org\', $1, true)', ['dddddddd-dddd-4ddd-8ddd-dddddddddddd']],
       ['COMMIT'],
+      ['SELECT set_config(\'app.org\', $1, false)', ['']],
+      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
+      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -46,9 +56,15 @@ describe('integrator DB client helpers', () => {
     );
 
     expect(query.mock.calls).toEqual([
+      ['SELECT set_config(\'app.org\', $1, false)', ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']],
+      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
+      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
       ['BEGIN'],
       ['SELECT set_config(\'app.org\', $1, true)', ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']],
       ['COMMIT'],
+      ['SELECT set_config(\'app.org\', $1, false)', ['']],
+      ['SELECT set_config(\'app.patient_user_id\', $1, false)', ['']],
+      ['SELECT set_config(\'app.integrator_user_id\', $1, false)', ['']],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
   });

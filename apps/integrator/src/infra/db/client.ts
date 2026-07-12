@@ -5,7 +5,11 @@ import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
 import { integratorDrizzleSchema } from './integratorDrizzleSchema.js';
-import { checkoutIntegratorPoolClient, prepareIntegratorTransactionClient } from './withClient.js';
+import {
+  checkoutIntegratorPoolClient,
+  prepareIntegratorTransactionClient,
+  releasePreparedIntegratorClient,
+} from './withClient.js';
 
 function databaseUrlDiagnostics(): {
   databaseUrlConfigured: boolean;
@@ -159,7 +163,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 				console.error('[db][tx] error, rolled back', err);
 				throw err;
 			} finally {
-				client.release();
+				await releasePreparedIntegratorClient(client);
 			}
 		},
 	};

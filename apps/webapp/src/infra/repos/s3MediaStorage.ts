@@ -1057,7 +1057,7 @@ export async function purgePendingMediaDeleteBatch(
       }
       throw e;
     } finally {
-      tx.release();
+      await tx.release();
     }
   }
 

@@ -54,7 +54,7 @@ export async function runMediaWorkerSql<T extends QueryResultRow = QueryResultRo
     }
     throw err;
   } finally {
-    tx.release();
+    await tx.release();
   }
 }
 

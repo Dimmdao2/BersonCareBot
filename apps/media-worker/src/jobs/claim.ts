@@ -98,6 +98,6 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
     }
     throw e;
   } finally {
-    tx.release();
+    await tx.release();
   }
 }

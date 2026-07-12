@@ -1,8 +1,12 @@
 import type { Pool, PoolClient } from "pg";
-import { applyCurrentDbPrincipalToTransaction } from "@bersoncare/db-principal";
+import {
+  applyCurrentDbPrincipalToConnection,
+  applyCurrentDbPrincipalToTransaction,
+  clearDbPrincipalFromConnection,
+} from "@bersoncare/db-principal";
 
-async function prepareMediaWorkerClient(_client: PoolClient): Promise<void> {
-  // Dormant SAAS hook: future tenant/app principal setup belongs here.
+async function prepareMediaWorkerClient(client: PoolClient): Promise<void> {
+  await applyCurrentDbPrincipalToConnection(client);
 }
 
 async function prepareMediaWorkerTransactionClient(client: PoolClient): Promise<void> {
@@ -13,8 +17,16 @@ export type MediaWorkerTransactionHandle = {
   client: PoolClient;
   commit(): Promise<void>;
   rollback(): Promise<void>;
-  release(): void;
+  release(): Promise<void>;
 };
+
+async function releasePreparedMediaWorkerClient(client: PoolClient): Promise<void> {
+  try {
+    await clearDbPrincipalFromConnection(client);
+  } finally {
+    client.release();
+  }
+}
 
 export async function startMediaWorkerTransaction(pool: Pool): Promise<MediaWorkerTransactionHandle> {
   const client = await pool.connect();
@@ -32,7 +44,7 @@ export async function startMediaWorkerTransaction(pool: Pool): Promise<MediaWork
         /* preserve original setup error */
       }
     }
-    client.release();
+    await releasePreparedMediaWorkerClient(client);
     throw err;
   }
   return {
@@ -43,6 +55,6 @@ export async function startMediaWorkerTransaction(pool: Pool): Promise<MediaWork
     rollback: async () => {
       await client.query("ROLLBACK");
     },
-    release: () => client.release(),
+    release: () => releasePreparedMediaWorkerClient(client),
   };
 }
