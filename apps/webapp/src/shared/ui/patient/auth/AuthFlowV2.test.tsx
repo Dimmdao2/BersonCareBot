@@ -526,4 +526,166 @@ describe("AuthFlowV2 — browser", () => {
     // Code entry should NOT appear
     expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
   });
+
+  it("can switch from patient email login to specialist signup and back", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Я специалист" }));
+    expect(await screen.findByLabelText("Имя специалиста")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Создать кабинет" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Войти как пациент" }));
+    expect(await screen.findByRole("button", { name: "Получить код" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Имя специалиста")).not.toBeInTheDocument();
+  });
+
+  it("specialist signup starts verification and confirms into doctor redirect", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/auth/specialist-signup/start")) {
+        const body = init?.body ? JSON.parse(String(init.body)) : {};
+        expect(body).toMatchObject({
+          email: "doctor@example.com",
+          password: "password12",
+          specialistName: "Doctor Owner",
+          organizationTitle: "Clinic One",
+        });
+        return jsonRes({ ok: true, challengeId: "signup-ch-1", retryAfterSeconds: 60 });
+      }
+      if (url.includes("/api/auth/specialist-signup/confirm")) {
+        return jsonRes({ ok: true, redirectTo: "/app/doctor" });
+      }
+      return jsonRes({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Я специалист" }));
+    await user.type(screen.getByLabelText("Email"), "doctor@example.com");
+    await user.type(screen.getByLabelText("Пароль"), "password12");
+    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Название организации"), "Clinic One");
+    await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
+
+    expect(await screen.findByText(/Код отправлен на doctor@example\.com/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Код подтверждения"), "123456");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/doctor"));
+  });
+
+  it("specialist signup shows duplicate email error from start endpoint", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/start")) {
+          return jsonRes({ ok: false, error: "duplicate_email" }, { ok: false, status: 409 });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Я специалист" }));
+    await user.type(screen.getByLabelText("Email"), "doctor@example.com");
+    await user.type(screen.getByLabelText("Пароль"), "password12");
+    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Название организации"), "Clinic One");
+    await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Аккаунт с этой почтой уже существует."));
+  });
+
+  it("specialist signup confirm shows invalid code and too many attempts errors", async () => {
+    const user = userEvent.setup();
+    let specialistConfirmCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/start")) {
+          return jsonRes({ ok: true, challengeId: "signup-ch-1", retryAfterSeconds: 0 });
+        }
+        if (url.includes("/api/auth/specialist-signup/confirm")) {
+          specialistConfirmCalls += 1;
+          if (specialistConfirmCalls === 1) {
+            return jsonRes({ ok: false, error: "invalid_code" }, { ok: false, status: 400 });
+          }
+          return jsonRes({ ok: false, error: "too_many_attempts", retryAfterSeconds: 60 }, { ok: false, status: 429 });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Я специалист" }));
+    await user.type(screen.getByLabelText("Email"), "doctor@example.com");
+    await user.type(screen.getByLabelText("Пароль"), "password12");
+    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Название организации"), "Clinic One");
+    await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
+
+    const codeInput = await screen.findByLabelText("Код подтверждения");
+    await user.type(codeInput, "123456");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    expect(await screen.findByText("Неверный код")).toBeInTheDocument();
+
+    await user.clear(codeInput);
+    await user.type(codeInput, "654321");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    expect(await screen.findByText(/Превышено количество попыток/i)).toBeInTheDocument();
+  });
 });

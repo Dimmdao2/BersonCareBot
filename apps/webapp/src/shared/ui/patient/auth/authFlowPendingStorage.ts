@@ -25,6 +25,16 @@ export type AuthFlowPendingStored =
       savedAt: number;
       /** Если клиент уже знает challenge (редко — forgot не возвращает id) */
       challengeId?: string;
+    }
+  | {
+      v: 1;
+      mode: "specialist_signup_verify";
+      email: string;
+      challengeId: string;
+      retryAfterSeconds: number;
+      savedAt: number;
+      specialistName: string;
+      organizationTitle: string;
     };
 
 function readRaw(): AuthFlowPendingStored | null {
@@ -33,7 +43,12 @@ function readRaw(): AuthFlowPendingStored | null {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw?.trim()) return null;
     const o = JSON.parse(raw) as Partial<AuthFlowPendingStored>;
-    if (o.v !== 1 || (o.mode !== "register_verify" && o.mode !== "password_reset")) return null;
+    if (
+      o.v !== 1 ||
+      (o.mode !== "register_verify" && o.mode !== "password_reset" && o.mode !== "specialist_signup_verify")
+    ) {
+      return null;
+    }
     if (o.mode === "register_verify") {
       if (
         typeof o.email !== "string" ||
@@ -45,6 +60,17 @@ function readRaw(): AuthFlowPendingStored | null {
       }
     } else if (o.mode === "password_reset") {
       if (typeof o.email !== "string" || typeof o.retryAfterSeconds !== "number") return null;
+    } else {
+      const specialistPending = o as Partial<Extract<AuthFlowPendingStored, { mode: "specialist_signup_verify" }>>;
+      if (
+        typeof specialistPending.email !== "string" ||
+        typeof specialistPending.challengeId !== "string" ||
+        typeof specialistPending.retryAfterSeconds !== "number" ||
+        typeof specialistPending.specialistName !== "string" ||
+        typeof specialistPending.organizationTitle !== "string"
+      ) {
+        return null;
+      }
     }
     const maxAgeMs = 1000 * 60 * 60 * 72;
     if (typeof o.savedAt !== "number" || Date.now() - o.savedAt > maxAgeMs) {
@@ -105,6 +131,23 @@ export function savePasswordResetPending(
   const payload: AuthFlowPendingStored = {
     v: 1,
     mode: "password_reset",
+    ...input,
+    savedAt: Date.now(),
+  };
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function saveSpecialistSignupVerifyPending(
+  input: Omit<Extract<AuthFlowPendingStored, { mode: "specialist_signup_verify" }>, "v" | "savedAt" | "mode">
+): void {
+  if (typeof window === "undefined" || typeof sessionStorage === "undefined") return;
+  const payload: AuthFlowPendingStored = {
+    v: 1,
+    mode: "specialist_signup_verify",
     ...input,
     savedAt: Date.now(),
   };

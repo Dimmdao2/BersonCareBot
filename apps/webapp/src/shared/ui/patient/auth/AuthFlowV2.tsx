@@ -33,6 +33,7 @@ import {
   clearAuthFlowPending,
   readAuthFlowPending,
   saveRegisterVerifyPending,
+  saveSpecialistSignupVerifyPending,
 } from "@/shared/ui/patient/auth/authFlowPendingStorage";
 import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
 import {
@@ -222,14 +223,18 @@ export function AuthFlowV2({
   const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
   const [emailLoginEmail, setEmailLoginEmail] = useState("");
   const [emailRegPassword, setEmailRegPassword] = useState("");
-  const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify">("login");
-  const [emailVerifyPurpose, setEmailVerifyPurpose] = useState<"registration" | "setup" | "email_otp">("registration");
+  const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify" | "specialist_signup">("login");
+  const [emailVerifyPurpose, setEmailVerifyPurpose] =
+    useState<"registration" | "setup" | "email_otp" | "specialist_signup">("registration");
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
   const [emailRegAttemptId, setEmailRegAttemptId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
   const [emailPasswordReturn, setEmailPasswordReturn] =
     useState<"oauth_first" | "phone" | "email_password">("oauth_first");
   const [emailRegDisplayName, setEmailRegDisplayName] = useState("");
+  const [specialistSignupName, setSpecialistSignupName] = useState("");
+  const [specialistSignupOrganizationTitle, setSpecialistSignupOrganizationTitle] = useState("");
+  const [specialistSignupPassword, setSpecialistSignupPassword] = useState("");
   const [pwRecoveryPhase, setPwRecoveryPhase] = useState<"none" | "reset_code">("none");
   const [pwRecoveryPurpose, setPwRecoveryPurpose] = useState<"reset" | "setup">("reset");
   const [pwResetEmail, setPwResetEmail] = useState("");
@@ -278,6 +283,23 @@ export function AuthFlowV2({
       setEmailRegChallengeId(p.challengeId);
       setEmailRegAttemptId(p.attemptId ?? null);
       setEmailVerifyPurpose("registration");
+      setEmailAuthMode("verify");
+      setEmailRegRetrySec(p.retryAfterSeconds);
+    } else if (p.mode === "specialist_signup_verify") {
+      engageInteractive();
+      setStep("email_password");
+      setEmailPasswordReturn(
+        (prefetchedAuthConfig?.oauthProviders?.yandex ||
+          prefetchedAuthConfig?.oauthProviders?.google ||
+          prefetchedAuthConfig?.oauthProviders?.apple)
+          ? "oauth_first"
+          : "email_password",
+      );
+      setEmailLoginEmail(p.email);
+      setSpecialistSignupName(p.specialistName);
+      setSpecialistSignupOrganizationTitle(p.organizationTitle);
+      setEmailRegChallengeId(p.challengeId);
+      setEmailVerifyPurpose("specialist_signup");
       setEmailAuthMode("verify");
       setEmailRegRetrySec(p.retryAfterSeconds);
     } else if (p.mode === "password_reset") {
@@ -342,6 +364,9 @@ export function AuthFlowV2({
     setEmailRegPassword("");
     setEmailRegDisplayName("");
     setEmailLoginEmail("");
+    setSpecialistSignupName("");
+    setSpecialistSignupOrganizationTitle("");
+    setSpecialistSignupPassword("");
     setPwRecoveryPhase("none");
     setPwRecoveryPurpose("reset");
     setPwResetEmail("");
@@ -459,6 +484,80 @@ export function AuthFlowV2({
       setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
       setEmailVerifyPurpose("email_otp");
       setEmailAuthMode("verify");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openSpecialistSignup = () => {
+    engageInteractive();
+    clearAuthFlowPending();
+    setEmailAuthMode("specialist_signup");
+    setEmailVerifyPurpose("specialist_signup");
+    setEmailRegChallengeId(null);
+    setEmailRegRetrySec(60);
+    setEmailLoginEmail("");
+    setSpecialistSignupName("");
+    setSpecialistSignupOrganizationTitle("");
+    setSpecialistSignupPassword("");
+  };
+
+  const submitSpecialistSignupStart = async (e: FormEvent) => {
+    e.preventDefault();
+    engageInteractive();
+    const email = emailLoginEmail.trim();
+    const password = specialistSignupPassword;
+    const specialistName = specialistSignupName.trim();
+    const organizationTitle = specialistSignupOrganizationTitle.trim();
+    if (!email || !password || !specialistName || !organizationTitle) {
+      toast.error("Заполните все поля");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Пароль — не менее 8 символов.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await fetchJsonSafe<{
+        ok?: boolean;
+        challengeId?: string;
+        retryAfterSeconds?: number;
+        error?: string;
+        message?: string;
+      }>("/api/auth/specialist-signup/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password, specialistName, organizationTitle }),
+      });
+      if (!result.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { response: res, data } = result;
+      if (data.ok && data.challengeId) {
+        setEmailRegChallengeId(data.challengeId);
+        setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+        setEmailVerifyPurpose("specialist_signup");
+        setEmailAuthMode("verify");
+        saveSpecialistSignupVerifyPending({
+          email,
+          challengeId: data.challengeId,
+          retryAfterSeconds: data.retryAfterSeconds ?? 60,
+          specialistName,
+          organizationTitle,
+        });
+        return;
+      }
+      if (res.status === 409 || data.error === "duplicate_email") {
+        toast.error("Аккаунт с этой почтой уже существует.");
+        return;
+      }
+      if (res.status === 429 || data.error === "rate_limited") {
+        toast.error(data.message ?? "Слишком много попыток. Попробуйте позже.");
+        return;
+      }
+      toast.error(data.message ?? "Не удалось начать регистрацию");
     } finally {
       setLoading(false);
     }
@@ -787,34 +886,133 @@ export function AuthFlowV2({
         ) : (
           <>
             {emailAuthMode === "login" ? (
-          <form
-            className="mt-3 flex w-full flex-col gap-3"
-            onSubmit={(e) => void submitEmailOtpStart(e)}
-          >
-            <p className={authStepMutedParagraphClass}>
-              Отправим 6-значный код на вашу почту.
-            </p>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="auth-email-otp-input" className={authFormFieldLabelClass}>
-                Email
-              </label>
-              <Input
-                id="auth-email-otp-input"
-                type="email"
-                name="email"
-                autoComplete="email"
-                inputMode="email"
-                value={emailLoginEmail}
-                onChange={(e) => setEmailLoginEmail(e.target.value)}
-                disabled={loading}
-                className={authEmailInputClass}
-              />
-            </div>
-            <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
-              Получить код
-            </Button>
-          </form>
-        ) : null}
+              <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitEmailOtpStart(e)}>
+                <p className={authStepMutedParagraphClass}>Отправим 6-значный код на вашу почту.</p>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-email-otp-input" className={authFormFieldLabelClass}>
+                    Email
+                  </label>
+                  <Input
+                    id="auth-email-otp-input"
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    value={emailLoginEmail}
+                    onChange={(e) => setEmailLoginEmail(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+                  disabled={loading}
+                >
+                  Получить код
+                </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  className={authLinkButtonClass}
+                  disabled={loading}
+                  onClick={openSpecialistSignup}
+                >
+                  Я специалист
+                </Button>
+              </form>
+            ) : null}
+
+            {emailAuthMode === "specialist_signup" ? (
+              <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitSpecialistSignupStart(e)}>
+                <p className={authStepMutedParagraphClass}>Создадим кабинет специалиста и отправим код на почту.</p>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-specialist-email" className={authFormFieldLabelClass}>
+                    Email
+                  </label>
+                  <Input
+                    id="auth-specialist-email"
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    value={emailLoginEmail}
+                    onChange={(e) => setEmailLoginEmail(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-specialist-password" className={authFormFieldLabelClass}>
+                    Пароль
+                  </label>
+                  <Input
+                    id="auth-specialist-password"
+                    type="password"
+                    name="password"
+                    autoComplete="new-password"
+                    value={specialistSignupPassword}
+                    onChange={(e) => setSpecialistSignupPassword(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-specialist-name" className={authFormFieldLabelClass}>
+                    Имя специалиста
+                  </label>
+                  <Input
+                    id="auth-specialist-name"
+                    type="text"
+                    name="specialistName"
+                    autoComplete="name"
+                    value={specialistSignupName}
+                    onChange={(e) => setSpecialistSignupName(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-specialist-organization" className={authFormFieldLabelClass}>
+                    Название организации
+                  </label>
+                  <Input
+                    id="auth-specialist-organization"
+                    type="text"
+                    name="organizationTitle"
+                    autoComplete="organization"
+                    value={specialistSignupOrganizationTitle}
+                    onChange={(e) => setSpecialistSignupOrganizationTitle(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+                  disabled={loading}
+                >
+                  Создать кабинет
+                </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  className={authLinkButtonClass}
+                  disabled={loading}
+                  onClick={() => {
+                    clearAuthFlowPending();
+                    setEmailAuthMode("login");
+                    setEmailVerifyPurpose("registration");
+                    setEmailRegChallengeId(null);
+                    setEmailRegRetrySec(60);
+                  }}
+                >
+                  Войти как пациент
+                </Button>
+              </form>
+            ) : null}
 
         {emailAuthMode === "verify" && emailRegChallengeId ? (
           <div className="mt-2">
@@ -823,9 +1021,44 @@ export function AuthFlowV2({
               retryAfterSeconds={emailRegRetrySec}
               supportContactHref={withContactSupportReturn(supportContactHref, "verify")}
               submitLabel="Продолжить"
-              description="Введите код из письма."
+              description={
+                emailVerifyPurpose === "specialist_signup"
+                  ? "Введите код из письма, чтобы завершить регистрацию кабинета."
+                  : "Введите код из письма."
+              }
               onConfirm={async (code) => {
                 engageInteractive();
+                if (emailVerifyPurpose === "specialist_signup") {
+                  const r = await fetchJsonSafe<{
+                    ok?: boolean;
+                    redirectTo?: string;
+                    error?: string;
+                    message?: string;
+                    retryAfterSeconds?: number;
+                  }>("/api/auth/specialist-signup/confirm", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ challengeId: emailRegChallengeId, code }),
+                  });
+                  if (!r.ok) return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+                  const { response: res, data } = r;
+                  if (data.ok && data.redirectTo) {
+                    redirectOk(data.redirectTo, "doctor");
+                    return { ok: true as const, redirectTo: data.redirectTo };
+                  }
+                  if (res.status === 429 || data.error === "too_many_attempts") {
+                    return {
+                      ok: false as const,
+                      message: data.message ?? "",
+                      code: "too_many_attempts",
+                      retryAfterSeconds: data.retryAfterSeconds,
+                    };
+                  }
+                  if (data.error === "invalid_code") {
+                    return { ok: false as const, message: "Неверный код" };
+                  }
+                  return { ok: false as const, message: data.message ?? "Не удалось подтвердить код" };
+                }
                 if (emailVerifyPurpose === "email_otp") {
                   // Passwordless email-OTP confirm
                   const r = await fetchJsonSafe<{
@@ -904,6 +1137,48 @@ export function AuthFlowV2({
               }}
               onResend={async () => {
                 const email = emailLoginEmail.trim();
+                if (emailVerifyPurpose === "specialist_signup") {
+                  const password = specialistSignupPassword;
+                  const specialistName = specialistSignupName.trim();
+                  const organizationTitle = specialistSignupOrganizationTitle.trim();
+                  if (!email || !password || !specialistName || !organizationTitle) {
+                    return { kind: "error" as const, message: "Заполните email, пароль, имя и организацию" };
+                  }
+                  const r = await fetchJsonSafe<{
+                    ok?: boolean;
+                    challengeId?: string;
+                    retryAfterSeconds?: number;
+                    error?: string;
+                    message?: string;
+                  }>("/api/auth/specialist-signup/start", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ email, password, specialistName, organizationTitle }),
+                  });
+                  if (!r.ok) return { kind: "error" as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+                  const { response: res, data } = r;
+                  if (data.ok && data.challengeId) {
+                    setEmailRegChallengeId(data.challengeId);
+                    setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+                    saveSpecialistSignupVerifyPending({
+                      email,
+                      challengeId: data.challengeId,
+                      retryAfterSeconds: data.retryAfterSeconds ?? 60,
+                      specialistName,
+                      organizationTitle,
+                    });
+                    return { kind: "ok" as const };
+                  }
+                  if (res.status === 429 || data.error === "rate_limited") {
+                    const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
+                    setEmailRegRetrySec(sec);
+                    return { kind: "rate_limited" as const, retryAfterSeconds: sec };
+                  }
+                  if (res.status === 409 || data.error === "duplicate_email") {
+                    return { kind: "error" as const, message: "Аккаунт с этой почтой уже существует." };
+                  }
+                  return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
+                }
                 if (emailVerifyPurpose === "email_otp") {
                   // Passwordless resend
                   if (!email) return { kind: "error" as const, message: "Нет email для повторной отправки" };
@@ -998,11 +1273,16 @@ export function AuthFlowV2({
                 onClick={() => {
                   clearAuthFlowPending();
                   setEmailRegChallengeId(null);
+                  if (emailVerifyPurpose === "specialist_signup") {
+                    setEmailVerifyPurpose("specialist_signup");
+                    setEmailAuthMode("specialist_signup");
+                    return;
+                  }
                   setEmailVerifyPurpose("registration");
                   setEmailAuthMode("login");
                 }}
               >
-                Изменить email
+                {emailVerifyPurpose === "specialist_signup" ? "Изменить данные" : "Изменить email"}
               </Button>
               {emailVerifyPurpose !== "email_otp" ? (
                 <div className="flex flex-col gap-1 pt-2">
@@ -1013,8 +1293,12 @@ export function AuthFlowV2({
                     id="auth-verify-resend-pwd"
                     type="password"
                     autoComplete="new-password"
-                    value={emailRegPassword}
-                    onChange={(e) => setEmailRegPassword(e.target.value)}
+                    value={emailVerifyPurpose === "specialist_signup" ? specialistSignupPassword : emailRegPassword}
+                    onChange={(e) =>
+                      emailVerifyPurpose === "specialist_signup"
+                        ? setSpecialistSignupPassword(e.target.value)
+                        : setEmailRegPassword(e.target.value)
+                    }
                     disabled={loading}
                     className={authEmailInputClass}
                   />
