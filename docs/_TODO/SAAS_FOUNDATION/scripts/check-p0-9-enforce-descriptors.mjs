@@ -8,6 +8,10 @@ import {
   renderP09EnforcePolicyStatements,
   renderP09EnforcePredicate,
 } from "./p0-9-enforce-descriptors.mjs";
+import { renderP083PolicyStatements } from "./p0-8-3-policy-targets.mjs";
+import { renderP084PolicyStatements } from "./p0-8-4-policy-targets.mjs";
+import { renderP085PolicyStatements } from "./p0-8-5-policy-targets.mjs";
+import { renderP086PolicyStatements } from "./p0-8-6-policy-targets.mjs";
 
 function fail(message) {
   throw new Error(message);
@@ -22,6 +26,20 @@ function assertIncludes(value, fragment, message) {
 function assertNotIncludes(value, fragment, message) {
   if (value.includes(fragment)) {
     fail(message);
+  }
+}
+
+const forbiddenRawContextPattern = /current_setting\('app\.(?:org|patient_user_id|integrator_user_id|actor)'/;
+
+function assertNoRawContextSettingsInGeneratedPolicySql(generatedSqlByLabel) {
+  for (const [label, sql] of generatedSqlByLabel) {
+    const match = forbiddenRawContextPattern.exec(sql);
+
+    if (match) {
+      fail(
+        `${label} generated policy SQL must use protected app.current_*() helpers, not raw ${match[0]}. Legacy/proof scripts may keep raw current_setting, but generated policy SQL must not.`,
+      );
+    }
   }
 }
 
@@ -61,13 +79,18 @@ const directScopedSql = renderP09EnforcePolicyStatements(directScoped).join("\n"
 assertIncludes(directScopedSql, `DROP POLICY IF EXISTS "${p09PolicyName}"`, "P0.9 direct scoped SQL must use stable policy name");
 assertIncludes(
   directScopedSql,
-  `NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid`,
-  "P0.9 direct scoped SQL must require non-empty matching app.org",
+  `ALTER TABLE "public"."patient_files" FORCE ROW LEVEL SECURITY;`,
+  "P0.9 enforce SQL must include FORCE ROW LEVEL SECURITY",
+);
+assertIncludes(
+  directScopedSql,
+  `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
+  "P0.9 direct scoped SQL must require matching app.current_org_id()",
 );
 assertNotIncludes(
   directScopedSql,
-  `NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id"`,
-  "P0.9 direct scoped SQL must not use dormant permissive app.org semantics",
+  `app.current_org_id() IS NULL OR "organization_id"`,
+  "P0.9 direct scoped SQL must not use dormant permissive org helper semantics",
 );
 
 // B4-core (taskdb #653): patient_files is patient-owned (patient_user_id) — the enforce model
@@ -79,7 +102,7 @@ assertIncludes(
 );
 assertIncludes(
   directScopedSql,
-  `"patient_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid`,
+  `"patient_user_id" = app.current_patient_user_id()`,
   "P0.9 patient-owned direct scoped SQL must match patient_files.patient_user_id",
 );
 
@@ -88,8 +111,8 @@ const fkScopedSql = renderP09EnforcePolicyStatements(fkScoped).join("\n");
 
 assertIncludes(
   fkScopedSql,
-  `NULLIF(current_setting('app.org', true), '') IS NOT NULL AND`,
-  "P0.9 FK-path SQL must require non-empty app.org",
+  `app.current_org_id() IS NOT NULL AND`,
+  "P0.9 FK-path SQL must require app.current_org_id()",
 );
 assertIncludes(fkScopedSql, "EXISTS (", "P0.9 FK-path SQL must preserve parent path checks");
 assertNotIncludes(
@@ -110,7 +133,7 @@ assertIncludes(
 );
 assertIncludes(
   fkScopedPatientSql,
-  `"p0_8_4_patient_parent"."platform_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid`,
+  `"p0_8_4_patient_parent"."platform_user_id" = app.current_patient_user_id()`,
   "P0.9 be_patient_package_items patient predicate must EXISTS-join its parent's platform_user_id",
 );
 
@@ -128,13 +151,44 @@ assertIncludes(
 assertIncludes(chainScopedSql, "EXISTS (", "P0.9 chain-owned enforce SQL must preserve the identity-chain EXISTS");
 assertIncludes(
   chainScopedSql,
-  "\"user_id\" = NULLIF(current_setting('app.integrator_user_id', true), '')::bigint",
-  "P0.9 chain-owned enforce SQL must terminate on app.integrator_user_id, not app.patient_user_id",
+  "\"user_id\" = app.current_integrator_user_id()",
+  "P0.9 chain-owned enforce SQL must terminate on app.current_integrator_user_id(), not app.current_patient_user_id()",
 );
 assertNotIncludes(
   chainScopedSql,
-  "app.patient_user_id",
-  "P0.9 integrator chain-owned enforce SQL must not reference the uuid app.patient_user_id GUC",
+  "app.current_patient_user_id()",
+  "P0.9 integrator chain-owned enforce SQL must not reference the uuid app.current_patient_user_id() helper",
+);
+
+// B4-core-4: conditional ownership must also get a patient wall in P0.9 enforce mode. These
+// descriptors do not have a plain patientColumn/patientChain, so they guard against accidentally
+// rendering org-only enforce policies for patient-submitted media rows.
+const conditionalScoped = getP09EnforceDescriptorByTable("public.media_files");
+const conditionalScopedSql = renderP09EnforcePolicyStatements(conditionalScoped).join("\n");
+
+assertIncludes(
+  conditionalScopedSql,
+  "app.is_staff()",
+  "P0.9 conditional-owned enforce SQL must include the fail-closed staff-or-patient branch",
+);
+assertIncludes(
+  conditionalScopedSql,
+  `"usage_purpose" IS DISTINCT FROM 'program_item_submission' OR "uploaded_by" = app.current_patient_user_id()`,
+  "P0.9 conditional-owned enforce SQL must preserve the shared-or-own branch",
+);
+
+const conditionalChainScoped = getP09EnforceDescriptorByTable("public.media_transcode_jobs");
+const conditionalChainScopedSql = renderP09EnforcePolicyStatements(conditionalChainScoped).join("\n");
+
+assertIncludes(
+  conditionalChainScopedSql,
+  "app.is_staff()",
+  "P0.9 conditional-chain-owned enforce SQL must include the fail-closed staff-or-patient branch",
+);
+assertIncludes(
+  conditionalChainScopedSql,
+  `"b4c4_transcode_media"."uploaded_by" = app.current_patient_user_id()`,
+  "P0.9 conditional-chain-owned enforce SQL must preserve the parent shared-or-own branch",
 );
 
 const pendingPolymorphic = getP09EnforceDescriptorByTable("public.comments");
@@ -153,8 +207,8 @@ const bootstrapHybridSql = renderP09EnforcePolicyStatements(bootstrapHybrid).joi
 assertIncludes(bootstrapHybridSql, '"organization_id" IS NULL', "P0.9 bootstrap hybrid SQL must allow global rows");
 assertIncludes(
   bootstrapHybridSql,
-  `NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid`,
-  "P0.9 bootstrap hybrid SQL must require app.org for tenant rows",
+  `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
+  "P0.9 bootstrap hybrid SQL must require app.current_org_id() for tenant rows",
 );
 
 const bootstrapGlobal = getP09EnforceDescriptorByTable("public.platform_users");
@@ -182,6 +236,16 @@ if (telemetry.enforceMode.action !== "explicit_global" || renderP09EnforcePredic
 if (legacy.enforceMode.action !== "legacy_frozen_deny" || renderP09EnforcePredicate(legacy) !== "false") {
   fail("P0.9 LEGACY descriptors must render frozen deny predicate");
 }
+
+assertNoRawContextSettingsInGeneratedPolicySql(
+  new Map([
+    ["P0.8.3 dormant", renderP083PolicyStatements().join("\n")],
+    ["P0.8.4 dormant", renderP084PolicyStatements().join("\n")],
+    ["P0.8.5 dormant", renderP085PolicyStatements().join("\n")],
+    ["P0.8.6 dormant", renderP086PolicyStatements().join("\n")],
+    ["P0.9 enforce", descriptors.flatMap((descriptor) => renderP09EnforcePolicyStatements(descriptor)).join("\n")],
+  ]),
+);
 
 console.log(
   [

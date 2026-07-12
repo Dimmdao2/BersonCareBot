@@ -2,6 +2,7 @@
 
 import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
 import {
+  hasAnyPatientOwnership,
   renderBootstrapHybridPredicate,
   renderCreatePolicy,
   renderDropPolicy,
@@ -242,7 +243,7 @@ export function renderP09EnforcePredicate(descriptor) {
   if (action === "scoped_org") {
     const orgPredicate = renderOrgPredicate(descriptor, { mode: "enforce" });
 
-    if (!descriptor.patientColumn && !descriptor.patientChain) {
+    if (!hasAnyPatientOwnership(descriptor)) {
       return orgPredicate;
     }
 

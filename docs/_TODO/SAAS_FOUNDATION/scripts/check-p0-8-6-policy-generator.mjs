@@ -14,7 +14,7 @@ function fail(message) {
 const descriptors = getP086BootstrapHybridDescriptors();
 const statements = renderP086PolicyStatements({ descriptors });
 const sql = statements.join("\n");
-const gucSql = "NULLIF(current_setting('app.org', true), '')";
+const orgContextSql = "app.current_org_id()";
 
 if (descriptors.length !== 5) {
   fail(`Expected 5 P0.8.6 descriptors, got ${descriptors.length}`);
@@ -24,8 +24,12 @@ if (expectedP086BootstrapHybridTargets.length !== 5) {
   fail(`Expected 5 explicit P0.8.6 targets, got ${expectedP086BootstrapHybridTargets.length}`);
 }
 
-if (statements.length !== descriptors.length * 4) {
-  fail(`Expected ${descriptors.length * 4} policy statements, got ${statements.length}`);
+if (statements.length !== descriptors.length * 3) {
+  fail(`Expected ${descriptors.length * 3} dormant policy statements, got ${statements.length}`);
+}
+
+if (sql.includes("FORCE ROW LEVEL SECURITY")) {
+  fail("P0.8.6 dormant generated SQL must not include FORCE ROW LEVEL SECURITY");
 }
 
 for (const descriptor of descriptors) {
@@ -46,10 +50,6 @@ for (const descriptor of descriptors) {
     fail(`Missing ENABLE RLS statement for ${descriptor.table}`);
   }
 
-  if (!sql.includes(`ALTER TABLE ${quotedTarget} FORCE ROW LEVEL SECURITY;`)) {
-    fail(`Missing FORCE RLS statement for ${descriptor.table}`);
-  }
-
   if (!sql.includes(`DROP POLICY IF EXISTS "${p086PolicyName}" ON ${quotedTarget};`)) {
     fail(`Missing DROP POLICY statement for ${descriptor.table}`);
   }
@@ -63,11 +63,11 @@ if (!sql.includes('"organization_id" IS NULL')) {
   fail("P0.8.6 generated SQL must always allow global NULL organization rows");
 }
 
-if (!sql.includes(`${gucSql} IS NOT NULL AND "organization_id" = ${gucSql}::uuid`)) {
-  fail("P0.8.6 generated SQL must require non-empty app.org for organization rows");
+if (!sql.includes(`${orgContextSql} IS NOT NULL AND "organization_id" = ${orgContextSql}`)) {
+  fail("P0.8.6 generated SQL must require app.current_org_id() for organization rows");
 }
 
-if (sql.includes(`${gucSql} IS NULL OR "organization_id"`)) {
+if (sql.includes(`${orgContextSql} IS NULL OR "organization_id"`)) {
   fail("P0.8.6 generated SQL must not use dormant permissive all-row semantics");
 }
 

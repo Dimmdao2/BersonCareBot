@@ -97,8 +97,12 @@ if (expectedP085IntegratorMailingsRootTargets.length !== 1) {
   fail(`Expected 1 explicit P0.4.I4 target, got ${expectedP085IntegratorMailingsRootTargets.length}`);
 }
 
-if (statements.length !== descriptors.length * 4) {
-  fail(`Expected ${descriptors.length * 4} policy statements, got ${statements.length}`);
+if (statements.length !== descriptors.length * 3) {
+  fail(`Expected ${descriptors.length * 3} dormant policy statements, got ${statements.length}`);
+}
+
+if (sql.includes("FORCE ROW LEVEL SECURITY")) {
+  fail("P0.8.5 dormant generated SQL must not include FORCE ROW LEVEL SECURITY");
 }
 
 for (const descriptor of descriptors) {
@@ -119,10 +123,6 @@ for (const descriptor of descriptors) {
     fail(`Missing ENABLE RLS statement for ${descriptor.table}`);
   }
 
-  if (!sql.includes(`ALTER TABLE ${quotedTarget} FORCE ROW LEVEL SECURITY;`)) {
-    fail(`Missing FORCE RLS statement for ${descriptor.table}`);
-  }
-
   if (!sql.includes(`DROP POLICY IF EXISTS "${p085PolicyName}" ON ${quotedTarget};`)) {
     fail(`Missing DROP POLICY statement for ${descriptor.table}`);
   }
@@ -140,9 +140,9 @@ if (sql.includes('"public".')) {
 // direct-user-bridge targets (contacts, content_access_grants, mailing_logs, user_reminder_rules,
 // user_subscriptions) all carry a direct bigint user_id column referencing integrator.users(id) —
 // verified against the real CREATE/ALTER TABLE SQL, including the telegram-schema retarget
-// migration for mailing_logs/user_subscriptions (see rls-descriptor-model.mjs comment). GUC
+// migration for mailing_logs/user_subscriptions (see rls-descriptor-model.mjs comment). Helper
 // alignment (B4-fanout, taskdb #656): the bigint cast reads the DEDICATED `app.integrator_user_id`
-// GUC, never `app.patient_user_id` cast to bigint.
+// helper, never the `app.current_patient_user_id()` UUID helper.
 //
 // The I2 identity-bridge (conversations/message_drafts/user_questions) and I3 parent-denorm
 // targets are CHAIN-owned (taskdb #656 gap closure): their patient identity is only reachable via
@@ -176,12 +176,12 @@ for (const descriptor of patientOwnedDescriptors) {
     fail(`${descriptor.table} patient-owned policy must include the fail-closed staff-or-patient branch`);
   }
 
-  if (!createStatement.includes(`"${descriptor.patientColumn}" = NULLIF(current_setting('app.integrator_user_id', true), '')::bigint`)) {
-    fail(`${descriptor.table} patient predicate must compare its bigint ${descriptor.patientColumn} column against app.integrator_user_id`);
+  if (!createStatement.includes(`"${descriptor.patientColumn}" = app.current_integrator_user_id()`)) {
+    fail(`${descriptor.table} patient predicate must compare its bigint ${descriptor.patientColumn} column against app.current_integrator_user_id()`);
   }
 
-  if (createStatement.includes("app.patient_user_id")) {
-    fail(`${descriptor.table} bigint patient predicate must NOT reference app.patient_user_id`);
+  if (createStatement.includes("app.current_patient_user_id()")) {
+    fail(`${descriptor.table} bigint patient predicate must NOT reference app.current_patient_user_id()`);
   }
 }
 
@@ -226,8 +226,8 @@ for (const descriptor of patientChainOwnedDescriptors) {
     fail(`${descriptor.table} chain-owned policy must include an EXISTS chain to its identity-bearing table`);
   }
 
-  if (!createStatement.includes(`"user_id" = NULLIF(current_setting('app.integrator_user_id', true), '')::bigint`)) {
-    fail(`${descriptor.table} chain-owned policy must terminate on a bigint user_id column via app.integrator_user_id`);
+  if (!createStatement.includes(`"user_id" = app.current_integrator_user_id()`)) {
+    fail(`${descriptor.table} chain-owned policy must terminate on a bigint user_id column via app.current_integrator_user_id()`);
   }
 }
 
