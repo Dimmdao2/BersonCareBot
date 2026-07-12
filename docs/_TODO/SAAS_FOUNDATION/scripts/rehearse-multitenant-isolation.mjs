@@ -40,8 +40,7 @@ if (args.has("--help")) {
   node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs --synthetic
 
 Full host mode requires:
-  REHEARSAL_SUPERUSER_URL or SUPERUSER_URL
-  REHEARSAL_OWNER_URL or DATABASE_URL
+  sudo -n -u postgres access on the host
 
 Optional:
   REHEARSAL_DUMP_DIR=/opt/backups/postgres/hourly`);
@@ -52,8 +51,12 @@ const stamp = `${new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)}_
 const resourceKind = syntheticMode ? "scratch" : "rehearsal";
 const dbName = `bcb_saas_multitenant_${resourceKind}_${stamp}`;
 const appOwnerRole = syntheticMode ? `bcb_saas_multitenant_owner_scratch_${stamp}` : "app_owner";
+const fullOwnerRole = `bcb_saas_mt_owner_rehearsal_${stamp}`;
+const fullSuperuserRole = `bcb_saas_mt_su_rehearsal_${stamp}`;
 const staffLoginRole = `bcb_saas_multitenant_staff_scratch_${stamp}`;
 const patientLoginRole = `bcb_saas_multitenant_patient_scratch_${stamp}`;
+const fullOwnerPassword = randomBytes(32).toString("hex");
+const fullSuperuserPassword = randomBytes(32).toString("hex");
 const staffPassword = randomBytes(32).toString("base64url");
 const patientPassword = randomBytes(32).toString("base64url");
 const signingSecret = randomBytes(32).toString("hex");
@@ -71,8 +74,10 @@ let fullOwnerUrl = null;
 let fullScratchStaffUrl = null;
 let fullScratchPatientUrl = null;
 let latestDumpPath = null;
+let fullPreexistingAppStaff = null;
+let fullPreexistingAppPatient = null;
 
-for (const name of [dbName, staffLoginRole, patientLoginRole]) {
+for (const name of [dbName, staffLoginRole, patientLoginRole, fullOwnerRole, fullSuperuserRole]) {
   assertSafeDisposableName(name);
 }
 if (syntheticMode) assertSafeDisposableName(appOwnerRole);
@@ -96,7 +101,7 @@ async function main() {
       installSyntheticSchemaAndRls();
       createScratchLoginRoles();
     } else {
-      prepareFullModeUrls();
+      prepareFullModeRolesAndUrls();
       restoreNewestProdDump();
       runDeploy667Chain();
       createScratchLoginRoles();
@@ -229,32 +234,25 @@ function createTempClusterScratchDb() {
   pgHarness = { kind: "temp" };
 }
 
-function prepareFullModeUrls() {
-  const rawSuperuserUrl = process.env.REHEARSAL_SUPERUSER_URL ?? process.env.SUPERUSER_URL;
-  const rawOwnerUrl = process.env.REHEARSAL_OWNER_URL ?? process.env.DATABASE_URL;
-  if (!rawSuperuserUrl || !rawOwnerUrl) {
-    throw new Error(
-      "full mode requires REHEARSAL_SUPERUSER_URL/SUPERUSER_URL and REHEARSAL_OWNER_URL/DATABASE_URL; use --synthetic in sandbox",
-    );
-  }
-  fullSuperuserUrl = retargetDatabaseUrl(rawSuperuserUrl, dbName);
-  fullOwnerUrl = retargetDatabaseUrl(rawOwnerUrl, dbName);
-  fullScratchStaffUrl = buildRoleUrl(rawOwnerUrl, dbName, staffLoginRole, staffPassword);
-  fullScratchPatientUrl = buildRoleUrl(rawOwnerUrl, dbName, patientLoginRole, patientPassword);
+function prepareFullModeRolesAndUrls() {
+  console.log("--- full: creating throwaway owner and superuser roles ---");
+  pgHarness = { kind: "host" };
+  fullPreexistingAppStaff = postgresRoleExists("app_staff");
+  fullPreexistingAppPatient = postgresRoleExists("app_patient");
+  postgresPsql("postgres", `
+CREATE ROLE ${quoteIdent(fullOwnerRole)} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD ${quoteLiteral(fullOwnerPassword)};
+CREATE ROLE ${quoteIdent(fullSuperuserRole)} LOGIN SUPERUSER PASSWORD ${quoteLiteral(fullSuperuserPassword)};
+`);
+  fullSuperuserUrl = buildLocalRoleUrl(dbName, fullSuperuserRole, fullSuperuserPassword);
+  fullOwnerUrl = buildLocalRoleUrl(dbName, fullOwnerRole, fullOwnerPassword);
+  fullScratchStaffUrl = buildLocalRoleUrl(dbName, staffLoginRole, staffPassword);
+  fullScratchPatientUrl = buildLocalRoleUrl(dbName, patientLoginRole, patientPassword);
 }
 
-function retargetDatabaseUrl(rawUrl, databaseName) {
-  const url = new URL(rawUrl);
-  url.pathname = `/${databaseName}`;
-  return url.toString();
-}
-
-function buildRoleUrl(rawUrl, databaseName, role, password) {
-  const url = new URL(rawUrl);
-  url.pathname = `/${databaseName}`;
+function buildLocalRoleUrl(databaseName, role, password) {
+  const url = new URL(`postgresql://127.0.0.1:5432/${databaseName}`);
   url.username = role;
   url.password = password;
-  url.searchParams.delete("options");
   return url.toString();
 }
 
@@ -276,30 +274,94 @@ function restoreNewestProdDump() {
   console.log(`--- full: selected dump ${path.basename(latestDumpPath)} ---`);
 
   safeRun("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-  run("sudo", ["-n", "-u", "postgres", "createdb", "-O", "bcb_webapp_prod", dbName], {
+  run("sudo", ["-n", "-u", "postgres", "createdb", "-O", fullOwnerRole, dbName], {
     label: "createdb rehearsal DB",
   });
-  pgHarness = { kind: "host" };
+  run("sudo", [
+    "-n",
+    "-u",
+    "postgres",
+    "psql",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-d",
+    dbName,
+    "-c",
+    "CREATE EXTENSION IF NOT EXISTS btree_gist;",
+  ], {
+    label: "pre-create btree_gist extension",
+  });
 
+  const setRoleSql = `SET ROLE ${quoteIdent(fullOwnerRole)};`;
   if (latestDumpPath.endsWith(".sql")) {
-    run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", dbName, "-f", latestDumpPath], {
+    run("sudo", [
+      "-n",
+      "-u",
+      "postgres",
+      "bash",
+      "-lc",
+      `{ printf '%s\\n' ${quoteShell(setRoleSql)}; cat ${quoteShell(latestDumpPath)}; } | psql -v ON_ERROR_STOP=1 -d ${quoteShell(dbName)}`,
+    ], {
       label: "restore plain SQL dump",
     });
     return;
   }
   if (latestDumpPath.endsWith(".sql.gz")) {
-    run("sudo", ["-n", "-u", "postgres", "bash", "-lc", `gzip -dc ${quoteShell(latestDumpPath)} | psql -v ON_ERROR_STOP=1 -d ${quoteShell(dbName)}`], {
+    run("sudo", [
+      "-n",
+      "-u",
+      "postgres",
+      "bash",
+      "-lc",
+      `{ printf '%s\\n' ${quoteShell(setRoleSql)}; gzip -dc ${quoteShell(latestDumpPath)}; } | psql -v ON_ERROR_STOP=1 -d ${quoteShell(dbName)}`,
+    ], {
       label: "restore gzipped SQL dump",
     });
     return;
   }
-  run("sudo", ["-n", "-u", "postgres", "pg_restore", "--no-acl", "-d", dbName, latestDumpPath], {
+  run("sudo", [
+    "-n",
+    "-u",
+    "postgres",
+    "pg_restore",
+    "--no-owner",
+    `--role=${fullOwnerRole}`,
+    "--no-acl",
+    "-d",
+    dbName,
+    latestDumpPath,
+  ], {
     label: "restore custom production dump",
   });
 }
 
 function quoteShell(value) {
   return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
+}
+
+function postgresPsql(databaseName, sql) {
+  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", databaseName], {
+    input: sql,
+    label: "sudo -u postgres psql (secrets redacted)",
+  });
+}
+
+function postgresRoleExists(roleName) {
+  const result = runCaptured("sudo", [
+    "-n",
+    "-u",
+    "postgres",
+    "psql",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-d",
+    "postgres",
+    "-Atqc",
+    `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${quoteLiteral(roleName)})::int`,
+  ], {
+    label: "check role existence",
+  });
+  return result.stdout.trim() === "1";
 }
 
 function runDeploy667Chain() {
@@ -320,8 +382,6 @@ function runDeploy667Chain() {
 
   psqlUrl(fullSuperuserUrl, `
 GRANT USAGE ON SCHEMA app_ext TO ${quoteIdent(appOwnerRole)};
-ALTER ROLE bcb_webapp_prod NOBYPASSRLS;
-REVOKE ${quoteIdent(appOwnerRole)} FROM bcb_webapp_prod;
 `);
 }
 
@@ -1162,25 +1222,18 @@ async function cleanupScratchResources() {
   cleanupStarted = true;
   console.log("--- cleanup: dropping disposable DB and scratch roles ---");
 
-  if (!syntheticMode && fullSuperuserUrl) {
-    try {
-      psqlUrl(fullSuperuserUrl, `
-ALTER ROLE bcb_webapp_prod NOBYPASSRLS;
-REVOKE ${quoteIdent(appOwnerRole)} FROM bcb_webapp_prod;
-DROP ROLE IF EXISTS ${quoteIdent(patientLoginRole)};
-DROP ROLE IF EXISTS ${quoteIdent(staffLoginRole)};
-`);
-    } catch (error) {
-      console.error(`cleanup warning: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
   if (pgHarness?.kind === "host") {
     safeRun("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+    const dropCanonicalAppPatient = fullPreexistingAppPatient === false ? "DROP ROLE IF EXISTS app_patient;" : "";
+    const dropCanonicalAppStaff = fullPreexistingAppStaff === false ? "DROP ROLE IF EXISTS app_staff;" : "";
     safeRun("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
       input: `
 DROP ROLE IF EXISTS ${quoteIdent(patientLoginRole)};
 DROP ROLE IF EXISTS ${quoteIdent(staffLoginRole)};
+DROP ROLE IF EXISTS ${quoteIdent(fullSuperuserRole)};
+DROP ROLE IF EXISTS ${quoteIdent(fullOwnerRole)};
+${dropCanonicalAppPatient}
+${dropCanonicalAppStaff}
 `,
     });
     return;
