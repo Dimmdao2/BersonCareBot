@@ -107,6 +107,7 @@ Optional harness input:
     "compat.shadow_missing_principal_zero": "pass",
     "prod_copy.fresh_disposable_copy": "pass",
     "prod_copy.no_prod_test_dev_db": "pass",
+    "prod_copy.db_state_catalog": "pass",
     "env_boundary.prod_separate_cluster": "pass",
     "env_boundary.dev_test_shared_nonprod": "pass",
     "roles.app_staff_app_patient_names": "pass",

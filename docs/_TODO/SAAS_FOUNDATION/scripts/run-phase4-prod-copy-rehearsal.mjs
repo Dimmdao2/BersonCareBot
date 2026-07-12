@@ -42,6 +42,7 @@ const requiredGateIds = [
   "compat.shadow_missing_principal_zero",
   "prod_copy.fresh_disposable_copy",
   "prod_copy.no_prod_test_dev_db",
+  "prod_copy.db_state_catalog",
   "env_boundary.prod_separate_cluster",
   "env_boundary.dev_test_shared_nonprod",
   "roles.app_staff_app_patient_names",
