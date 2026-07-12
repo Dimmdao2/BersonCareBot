@@ -468,6 +468,8 @@ GRANT UPDATE ("pin_hash") ON TABLE "public"."user_pins" TO app_patient;
 GRANT INSERT ("organization_id", "branch_id", "room_id", "specialist_id", "service_id", "platform_user_id", "start_at", "end_at", "duration_minutes", "source", "status", "original_start_at", "reschedule_count", "phone_normalized", "attribution_json", "created_at", "updated_at") ON TABLE "public"."be_appointments" TO app_patient;
 GRANT UPDATE ("status", "updated_at", "start_at", "end_at", "duration_minutes", "branch_id", "room_id", "specialist_id", "service_id", "original_start_at", "reschedule_count") ON TABLE "public"."be_appointments" TO app_patient;
 GRANT UPDATE ("value_text") ON TABLE "public"."be_booking_form_submissions" TO app_patient;
+GRANT UPDATE ("notifications_sent") ON TABLE "public"."be_appointment_cancellations" TO app_patient;
+GRANT UPDATE ("notifications_sent") ON TABLE "public"."be_appointment_reschedules" TO app_patient;
 GRANT INSERT ("organization_id", "integrator_conversation_id", "platform_user_id", "integrator_user_id", "source", "admin_scope", "status", "opened_at", "last_message_at") ON TABLE "public"."support_conversations" TO app_patient;
 GRANT UPDATE ("organization_id", "platform_user_id", "updated_at") ON TABLE "public"."support_conversations" TO app_patient;
 GRANT INSERT ("id", "original_name", "stored_path", "s3_key", "mime_type", "size_bytes", "uploaded_by", "folder_id", "usage_purpose", "video_delivery_override") ON TABLE "public"."media_files" TO app_patient;

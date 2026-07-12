@@ -28,7 +28,14 @@ the confirmed patient call, with a currently-safe hardcoded value) on `program_i
 `prepayment_refunded`, `applied_policy_id`, `applied_policy_snapshot`) — see "Value-level residuals
 (pre-flip, not GRANT-fixable)" below. All fixes regenerated via `p0-5b-grants-sql.mjs` into
 `deploy/postgres/p0-5b-grants.sql`; live-proven by the extended `smoke-p0-5b-grants.mjs` (proofs
-(j)-(l)).
+(j)-(m)).
+
+**2026-07-12 P2-C3 reconciliation:** the booking notification patch methods are live call paths
+(`patient-booking/service.ts` calls `patchLatestRescheduleNotifications` /
+`patchLatestCancellationNotifications`). The grant generator now adds exactly
+`UPDATE(notifications_sent)` for `be_appointment_cancellations` and `be_appointment_reschedules`;
+`deploy/postgres/p2-c3-patient-booking-lfk-guards.sql` separately pins patient-context INSERT values
+and rejects any UPDATE except owned latest-row `notifications_sent`.
 
 ## Materialized artifact
 
@@ -76,8 +83,8 @@ commented in-line in `p0-5b-grants-sql.mjs`; the short version:
 
 **Write-capable, whole-table (no column restriction needed — every column on the table is legitimately
 patient-writable):**
-- Booking audit trail: `be_appointment_cancellations`/`be_appointment_reschedules` (INSERT-only —
-  UPDATE was dropped in the re-audit, see below), `be_appointment_events`/
+- Booking audit trail: `be_appointment_cancellations`/`be_appointment_reschedules` (INSERT plus
+  column-restricted `UPDATE(notifications_sent)` behind P2-C3 guards), `be_appointment_events`/
   `be_appointment_history_events`/`be_patient_timeline_events` (INSERT-only side-effect rows),
   `be_booking_form_submissions` (SELECT+INSERT; its ON CONFLICT DO UPDATE needs a column-level UPDATE
   too, see below). **Value-level residual on the 4 cancellation/reschedule/event tables** — see
@@ -134,9 +141,6 @@ patient-session call site was found):
 - `lfk_complexes` UPDATE (INSERT stays) — every `UPDATE lfk_complexes` call site in the repo
   (`pgLfkAssignments.ts`, `platformUserFullPurge.ts`, `pgDiaryPurge.ts`) is a doctor-assignment/
   GDPR-purge/retention-job path, none is patient-authenticated.
-- `be_appointment_cancellations`/`be_appointment_reschedules` UPDATE (INSERT stays) — the only UPDATE
-  call on either table (`patchLatest*Notifications`) has no caller anywhere in `apps/webapp/src`
-  (dead/unwired code).
 
 **Write grant REMOVED entirely in the 2026-07-11 second-pass exhaustive sweep** (taskdb #655, this
 task — same "no confirmed write path / staff-only column" bar as the first re-audit above):
@@ -196,6 +200,8 @@ is a small, explicit, individually-reviewed list). `REVOKE ALL PRIVILEGES ON TAB
 | `be_appointments` | INSERT | `organization_id`, `branch_id`, `room_id`, `specialist_id`, `service_id`, `platform_user_id`, `start_at`, `end_at`, `duration_minutes`, `source`, `status`, `original_start_at`, `reschedule_count`, `phone_normalized`, `attribution_json`, `created_at`, `updated_at` | `payment_ref`, `package_usage_ref` (staff/webhook-only bookkeeping), `deleted_at` (Rubitime-sync soft-delete) | High — traced call sites |
 | `be_appointments` | UPDATE | `status`, `updated_at`, `start_at`, `end_at`, `duration_minutes`, `branch_id`, `room_id`, `specialist_id`, `service_id`, `original_start_at`, `reschedule_count` | same as INSERT above | High — traced call sites; **residual risk note:** the traced patient reschedule/cancel path genuinely needs to `SET` `status`/`specialist_id`/`branch_id`/`room_id`/`service_id` (echo-back or a real move), so the column grant cannot exclude them the way it excludes payment/soft-delete fields — a raw-SQL-privileged `app_patient` could still write an *arbitrary* value into these columns. Closing that fully needs app-layer validation or a DB trigger enforcing valid status transitions, out of scope for a GRANT-only fix; flagged for follow-up. |
 | `be_booking_form_submissions` | UPDATE | `value_text` | (no other column touched by the ON CONFLICT DO UPDATE branch) | High — this was actually an **under-grant bug fix**: `pgBookingForm.ts`'s `saveSubmissions` does `.insert(...).onConflictDoUpdate({ set: { valueText } })`, which needs UPDATE privilege on `value_text` to succeed at all |
+| `be_appointment_cancellations` | UPDATE | `notifications_sent` | all lifecycle/audit/billing fields (`actor_type`, `actor_id`, `staff_comment`, `manual_override`, policy snapshots, penalty/payment booleans) | High — active patient booking flow patches notification outcome after commit; P2-C3 verifies owned latest row and rejects every other patient UPDATE shape |
+| `be_appointment_reschedules` | UPDATE | `notifications_sent` | all lifecycle/audit/policy fields (`actor_type`, `actor_id`, `staff_comment`, `manual_override`, from/to slot fields, policy snapshots) | High — same active post-commit notification patch path; P2-C3 verifies owned latest row and rejects every other patient UPDATE shape |
 | `support_conversations` | INSERT | `organization_id`, `integrator_conversation_id`, `platform_user_id`, `integrator_user_id`, `source`, `admin_scope`, `status`, `opened_at`, `last_message_at` | `closed_at`, `close_reason`, `channel_code`, `channel_external_id` | High — traced `ensureWebappConversationForUser` |
 | `support_conversations` | UPDATE | `organization_id`, `platform_user_id`, `updated_at` | `status`, `closed_at`, `close_reason`, `admin_scope`, `channel_code`, `channel_external_id`, `last_message_at` (conversation-close/moderation state, staff-only) | High — traced call site |
 | `media_files` | INSERT | `id`, `original_name`, `stored_path`, `s3_key`, `mime_type`, `size_bytes`, `uploaded_by`, `folder_id`, `usage_purpose`, `video_delivery_override` | `preview_*`, `video_processing_*`, `hls_*`, `poster_*`, `video_duration_seconds`, `available_qualities_json`, `delete_attempts`, `next_attempt_at` (transcode/preview pipeline, worker-owned) | High — traced `s3MediaStorage.ts` |
@@ -233,11 +239,13 @@ B4-fanout flip. Tracked here so they are not silently dropped between now and th
   `package_session_charged`, `prepayment_retained`, `prepayment_refunded`, `applied_policy_id`,
   `applied_policy_snapshot` is explicitly referenced by the INSERT for BOTH paths — none can be
   excluded from the grant without breaking the live patient cancel/reschedule flow. A
-  raw-SQL-privileged `app_patient` session could still forge `staff_comment` content,
+  raw-SQL-privileged `app_patient` session could otherwise forge `staff_comment` content,
   `manual_override=true`, `actor_type='admin'` (audit-trail impersonation), or `wasFree=true` (billing
-  forgery) on its own row. **Pre-flip fix:** split the repo function into a patient-only INSERT
-  (omitting these columns, letting a trigger/default fill safe values) or add an RLS `WITH CHECK`/
-  `BEFORE INSERT` trigger pinning safe values whenever `current_user = 'app_patient'`.
+  forgery) on its own row. **P2-C3 closes this before flip** with invoker-mode triggers: patient
+  INSERTs must target an owned appointment/org, pin `actor_type='patient'`, `actor_id=current patient`,
+  `staff_comment IS NULL`, and `manual_override=false`; patient UPDATEs on cancellation/reschedule rows
+  are limited to owned latest-row `notifications_sent`. Events/history events are pinned to owned
+  appointments, `actor_id=current patient`, and event types `created|cancelled|rescheduled`.
 - **`program_item_discussion_messages`** (`sender_role`, `origin`) — `sender_role` (CHECK:
   `'patient'`/`'admin'`) and `origin` (CHECK: `'patient_observation'`/`'support_admin_reply'`) have
   **no DEFAULT** and are `NOT NULL`, so they must be explicitly referenced by every INSERT.
@@ -315,10 +323,9 @@ comments for the identical reasoning per table.
   of values* a raw-SQL-privileged `app_patient` could write into them. Fully closing this needs
   app-layer validation or a DB trigger enforcing valid status transitions — out of scope for this
   GRANT-only pass.
-- **`public.lfk_sessions`** — whole-table INSERT/UPDATE kept (no staff-controlled column exists), but
-  the traced patient INSERT path never explicitly sets `organization_id` — confirm the RLS
-  policy/default backfills it correctly before the real flip (a cross-tenant-NULL footgun, not a
-  privilege-escalation one).
+- **`public.lfk_sessions`** — whole-table INSERT/UPDATE kept (no staff-controlled column exists).
+  P2-C3 stamps `organization_id` from `app.current_org_id()` when omitted by the traced patient INSERT
+  path and rejects patient-context org/patient/complex ownership mismatches.
 - **`public.reminder_rules`** — whole-table kept (no true staff-owned column exists on this table).
   P2-C2 recomputes `notification_topic_code` from `category` + `linked_object_type` +
   `reminder_intent` for patient-context INSERT/UPDATE, matching `notificationTopicCode.ts`, so raw SQL
@@ -370,6 +377,11 @@ generator computes:
    trigger smoke proves the allowed-channel/own-row value constraints. `app_patient` **can** `INSERT`
    its own `treatment_program_events` row without `actor_id`, but gets `permission denied for table`
    explicitly INSERTing an `actor_id` value (finding #3).
+7. **(2026-07-12 P2-C3 grant reconciliation)** proof (m): `app_patient` **can** update
+   `be_appointment_cancellations.notifications_sent` and
+   `be_appointment_reschedules.notifications_sent`, but gets permission denied on
+   `be_appointment_cancellations.staff_comment`. P2-C3's separate trigger smoke proves owned/latest
+   row and value-level semantics.
 
 ## Gate
 

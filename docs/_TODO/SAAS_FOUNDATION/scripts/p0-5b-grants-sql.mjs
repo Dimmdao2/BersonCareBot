@@ -147,12 +147,11 @@ const patientScopedPrivilegeOverrides = new Map([
   // staff/webhook-only; deleted_at is the Rubitime-sync soft-delete) -- excluded from both column
   // lists so a patient session cannot forge a payment/package reference or un/soft-delete a booking.
   ["public.be_appointments", "SELECT"],
-  // be_appointment_cancellations / be_appointment_reschedules: whole-table INSERT is safe (every
-  // column the traced applyCancellation/applyReschedule insert is patient-context-legitimate,
-  // staff_comment is explicitly passed NULL by the patient path). UPDATE dropped entirely -- the only
-  // UPDATE call on either table (patchLatest*Notifications, sets notifications_sent) has NO caller
-  // anywhere in apps/webapp/src (dead/unwired code); re-add narrowly on notifications_sent only if
-  // that feature is ever wired up.
+  // be_appointment_cancellations / be_appointment_reschedules: whole-table INSERT is safe only behind
+  // P2-C3's value guard (actor_type/actor_id/staff_comment/manual_override pinned for patient
+  // context). UPDATE is column-restricted to notifications_sent only: patient-booking's committed
+  // cancellation/reschedule flows patch latest notification outcomes after the lifecycle transaction,
+  // and P2-C3 rejects every patient-context UPDATE shape except owned latest-row notifications_sent.
   //
   // RESIDUAL (documented in P0_5B_GRANTS.md, not GRANT-fixable, 2026-07-11 second-pass exhaustive
   // sweep, taskdb #655): pgBookingAppointmentLifecycle.ts's applyCancellation/applyReschedule is a
@@ -368,8 +367,7 @@ const patientScopedPrivilegeOverrides = new Map([
   // test_results: DOWNGRADED to SELECT-only. 2026-07-11 second-pass exhaustive sweep (taskdb #655,
   // this task): grepped every write path -- pgTreatmentProgramTestAttempts.ts's upsertResult/
   // overrideResultDecision (the only INSERT/UPDATE call sites for this table) have NO caller anywhere
-  // in apps/webapp/src (dead/unwired code, same class as the be_appointment_cancellations
-  // notifications_sent UPDATE noted above). No confirmed patient-session write path exists, and the
+  // in apps/webapp/src (dead/unwired code). No confirmed patient-session write path exists, and the
   // table also carries `decided_by` (a doctor-only sign-off FK, set exclusively by the doctor-facing
   // override path once that code IS wired up) -- an unconfirmed write grant on a table with a
   // staff-sign-off column is exactly the risk this generator's conservative default exists to avoid.
@@ -509,6 +507,12 @@ export const appPatientColumnGrants = [
 
   // be_booking_form_submissions: ON CONFLICT DO UPDATE needs UPDATE on value_text only.
   { qualifiedName: "public.be_booking_form_submissions", privilege: "UPDATE", columns: ["value_text"] },
+
+  // be_appointment_cancellations / be_appointment_reschedules: active patient-booking call paths
+  // patch only notifications_sent after the lifecycle row is inserted. P2-C3 validates owned latest
+  // rows and rejects any other patient-context UPDATE shape.
+  { qualifiedName: "public.be_appointment_cancellations", privilege: "UPDATE", columns: ["notifications_sent"] },
+  { qualifiedName: "public.be_appointment_reschedules", privilege: "UPDATE", columns: ["notifications_sent"] },
 
   // support_conversations: the traced ensureWebappConversationForUser upsert only ever
   // INSERTs/updates these columns -- status/closed_at/close_reason/admin_scope/channel_code/

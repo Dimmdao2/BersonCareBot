@@ -223,3 +223,61 @@ Validation evidence:
 Batch P2-C3 — booking lifecycle and LFK org stamp:
 - `be_appointment_*` and `be_appointments`: patient lifecycle value pins and appointment transition guard.
 - `lfk_sessions.organization_id`: stamp/verify org from current context or parent, deny NULL/mismatch.
+
+Status:
+- Implemented by Codex worker on `auto/code-pg-delta` (2026-07-12); no commit/push/branch switch.
+- `deploy/postgres/p2-c3-patient-booking-lfk-guards.sql` adds invoker-mode patient-context triggers
+  using P2-B helpers. Invoker-mode is intentional: `app.is_staff()` remains role-derived and staff
+  sessions with a patient context bypass the patient guards.
+- `be_appointments` patient INSERT is pinned to current org/patient, `source IN ('native',
+  'public_widget')`, `status IN ('confirmed', 'awaiting_payment')`, `original_start_at=start_at`,
+  `reschedule_count=0`, and no payment/package/soft-delete fields.
+- `be_appointments` patient UPDATE allows only the current patient lifecycle shapes: cancel to
+  `cancelled_by_patient|late_cancellation`, the first reschedule step to `rescheduled`, and the second
+  reschedule step back to `confirmed` with slot/location/service/original-start/count fields. Payment,
+  package, and soft-delete fields are immutable for patient context.
+- `be_appointment_cancellations` / `be_appointment_reschedules` patient INSERTs are pinned to owned
+  appointment/org, `actor_type='patient'`, `actor_id=current patient`, `staff_comment IS NULL`, and
+  `manual_override=false`. Policy-derived booleans/snapshots remain app-derived residual inputs.
+- Active notification patch call paths were reconciled with P0.5b: app_patient now gets exactly
+  `UPDATE(notifications_sent)` on cancellation/reschedule rows, and P2-C3 rejects any patient UPDATE
+  except owned latest-row notification patch shape.
+- `be_appointment_events` / `be_appointment_history_events` patient INSERTs are pinned to owned
+  appointment/org, `actor_id=current patient`, and event types `created|cancelled|rescheduled`, so
+  booking creation events are preserved.
+- `lfk_sessions` patient INSERT/UPDATE stamps `organization_id` from `app.current_org_id()` when null,
+  verifies current org, verifies `user_id=current patient`, and verifies the parent `lfk_complexes`
+  row using the same platform-or-legacy ownership predicate as `pgLfkDiary.ts`.
+- P0.5b generator/materialized grants/docs/smoke were updated for the narrow
+  cancellation/reschedule `notifications_sent` UPDATE grant.
+- Independent Claude Opus audit
+  `claude-auditor-p2-c3-claude-opus-audit-2026-07-12T03-32-19-874Z` verdict: PASS WITH RISKS,
+  no blockers. Risk #1 closed before commit by revoking PUBLIC EXECUTE on all C3 helper/trigger
+  functions and explicitly granting EXECUTE to `app_staff`/`app_patient` (or scratch override roles via
+  `p2_c3_staff_role` / `p2_c3_patient_role`). Functions remain `SECURITY INVOKER`; no
+  `SECURITY DEFINER` was introduced.
+- Follow-up Claude Opus audit
+  `claude-auditor-p2-c3-claude-opus-followup-audit-2026-07-12T03-43-43-378Z` verdict: PASS.
+  It confirmed the execute-grant risk is closed and no new blockers were introduced.
+
+Validation:
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c3-patient-booking-lfk-guards.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c3-patient-booking-lfk-guards.mjs` on
+  scratch DB `bcb_saas_p2_c3_booking_lfk_scratch_*`; no prod/test/dev DB touched. The smoke now also
+  proves C3 functions have no PUBLIC EXECUTE and do have explicit EXECUTE for the disposable
+  app-staff/app-patient roles.
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs` on scratch DB
+  `bcb_saas_p0_5b_grants_scratch_*`.
+- PASS `git diff --check`
+- PASS `node scripts/check-saas-db-regression.mjs`
+
+Residuals:
+- Cancellation/reschedule policy-derived booleans and policy snapshots are not recomputed in the DB
+  trigger; the guard verifies patient ownership and actor/staff/manual pins, while trusting the
+  existing service policy calculation.
+- The C3 smoke uses a synthetic schema and broad table grants, so it proves trigger behavior but not
+  the exact final generated RLS + P0.5b grant composition end-to-end.
