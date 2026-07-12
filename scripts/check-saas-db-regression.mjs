@@ -114,6 +114,10 @@ const checks = [
     label: "SAAS P0.13.3 app-level dormant smoke",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-app-dormant-smoke.mjs"],
   },
+  {
+    label: "SAAS P2-B protected context SQL artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs"],
+  },
 ];
 
 for (const check of checks) {

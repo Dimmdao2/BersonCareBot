@@ -54,6 +54,31 @@ Goal:
 
 Owner: pending worker assignment after P2-A checks stabilize.
 
+Current artifact slice:
+- `deploy/postgres/p2-b-protected-principal-context.sql`: reusable ops SQL with protected context
+  tables, signed setter, helper functions, role-derived `app.is_staff()`, revokes/grants, and down
+  mode. Real signing secret is supplied by psql variable, not committed.
+- `docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`: DB-free static guard.
+- `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`: scratch-only live proof
+  applying the reusable artifact.
+- `scripts/check-saas-db-regression.mjs`: static guard wired into the standard SaaS regression gate.
+
+Validation:
+- `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
+- `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`
+- `pnpm --dir packages/db-principal run typecheck`
+- `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs scripts/check-saas-db-regression.mjs`
+- `git diff --check`
+- `pnpm run check:saas-db-regression`
+
+Audit:
+- Sol/Codex read-only audit found a blocking `NULL` signature bypass in the setter and a pgcrypto
+  schema assumption. Fixed by explicit signature format/null validation, `IS DISTINCT FROM`, smoke
+  coverage for NULL signatures, and an early `pgcrypto_must_be_installed_in_app_ext` guard.
+- Sol/Codex read-only re-audit found no remaining P0/P1 blocker in P2-B.
+
 ### P2-C — #664 value-level residuals
 
 Goal:
@@ -96,6 +121,8 @@ Required before completion:
   conditional-chain enforce branches, zero raw `current_setting('app.*')` in generated policy SQL,
   dormant FORCE = 0, enforce FORCE = 223/223, and no uuid/bigint helper mismatches.
 - Beauvoir: P2-B implementation brief. Completed read-only; no files changed, no DB touched.
+- Sol/Codex CLI auditor: P2-B audit + re-audit. Completed read-only; first pass found NULL
+  signature bypass and pgcrypto schema assumption, second pass cleared P2-B after fixes.
 
 ## #664 implementation batches
 

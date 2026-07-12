@@ -6,6 +6,18 @@ Scratch-only proof script:
 node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs
 ```
 
+Phase 2 reusable artifact successor:
+
+```bash
+deploy/postgres/p2-b-protected-principal-context.sql
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs
+```
+
+The Phase 1 script remains the original scratch proof and source assertion matrix. P2-B moves the
+same protected-context contract into a reusable deploy/postgres ops SQL artifact. The real signing
+secret is still not committed; operators must pass it through the `p2_b_signing_secret` psql variable
+or equivalent secret material.
+
 The script uses local PostgreSQL through the same `sudo -n -u postgres psql` scratch pattern as the
 existing SAAS smokes. It creates a disposable database named `bcb_saas_*_scratch_*` plus unique
 disposable roles, refuses dev/prod/test-shaped database names, and drops scratch resources in `finally`.
