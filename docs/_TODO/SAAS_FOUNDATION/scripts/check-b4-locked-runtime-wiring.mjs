@@ -144,7 +144,6 @@ function collectScopedDbTouchingRoutesMissingPrincipalSource() {
   ];
 
   return listRouteFiles(apiRoot).flatMap((path) => {
-    const relFromApi = relative(apiRoot, path).replace(/\\/g, "/");
     const text = readRouteOrFsFile(path, "utf8");
     if (!dbSignals.some((signal) => text.includes(signal))) return [];
     if (principalSources.some((source) => text.includes(source))) return [];

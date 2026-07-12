@@ -1,9 +1,12 @@
 import {
   getCurrentDbPrincipalIntegratorUserId,
   getCurrentDbPrincipalOrganizationId,
+  runWithDbBootstrapPrincipal,
+  runWithDbInfraPrincipal,
   runWithDbIntegratorPrincipal,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
+import type { DbBootstrapPrincipalInput, DbInfraPrincipalInput } from '@bersoncare/db-principal';
 
 export const getCurrentOrganizationPrincipalId = getCurrentDbPrincipalOrganizationId;
 export const getCurrentIntegratorPrincipalUserId = getCurrentDbPrincipalIntegratorUserId;
@@ -14,6 +17,17 @@ export function runWithIntegratorPrincipal<T>(
   fn: () => T,
 ): T {
   return runWithDbIntegratorPrincipal(input, fn);
+}
+
+// Channel/integration adapters (e.g. telegram/**) are barred by eslint's no-restricted-imports
+// (*db* pattern) from importing @bersoncare/db-principal directly — DB access must flow through
+// an infra port. These wrappers are that port for bootstrap/infra principal scopes.
+export function runWithBootstrapPrincipal<T>(input: DbBootstrapPrincipalInput, fn: () => T): T {
+  return runWithDbBootstrapPrincipal(input, fn);
+}
+
+export function runWithInfraPrincipal<T>(input: DbInfraPrincipalInput, fn: () => T): T {
+  return runWithDbInfraPrincipal(input, fn);
 }
 
 export function runWithOptionalOrganizationPrincipal<T>(

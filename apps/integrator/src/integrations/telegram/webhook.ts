@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { env } from '../../config/env.js';
 import {
+  runWithBootstrapPrincipal,
+  runWithInfraPrincipal,
   runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
 } from '../../infra/principal/organizationPrincipal.js';
@@ -23,7 +24,7 @@ import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/re
 type WebhookOutcomeInput = Parameters<typeof recordIntegrationWebhookOutcome>[0];
 
 function recordTelegramWebhookOutcome(input: WebhookOutcomeInput): void {
-  void runWithDbInfraPrincipal({ source: 'telegram-webhook:record-outcome' }, () =>
+  void runWithInfraPrincipal({ source: 'telegram-webhook:record-outcome' }, () =>
     recordIntegrationWebhookOutcome(input),
   );
 }
@@ -311,7 +312,7 @@ export async function processTelegramUpdate(
     }
   }
 
-  const preRouting = await runWithDbBootstrapPrincipal(
+  const preRouting = await runWithBootstrapPrincipal(
     { source: 'telegram-webhook:pre-routing' },
     async () => ({
       facts: await buildTelegramFacts(
@@ -332,7 +333,7 @@ export async function processTelegramUpdate(
     const clearMenu = (): Promise<void> => ensureNoMenuButtonForUser(chatId);
     void (preRouting.organizationId
       ? runWithOrganizationPrincipal(preRouting.organizationId, clearMenu)
-      : runWithDbBootstrapPrincipal({ source: 'telegram-webhook:clear-menu-unresolved-org' }, clearMenu));
+      : runWithBootstrapPrincipal({ source: 'telegram-webhook:clear-menu-unresolved-org' }, clearMenu));
   }
 
   const event = telegramIncomingToEvent({
@@ -353,7 +354,7 @@ export async function processTelegramUpdate(
       )
     : organizationId
       ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-      : await runWithDbBootstrapPrincipal({ source: 'telegram-webhook:unresolved-org' }, handleEvent);
+      : await runWithBootstrapPrincipal({ source: 'telegram-webhook:unresolved-org' }, handleEvent);
   if (result.status === 'rejected') {
     reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram update pipeline rejected');
     recordTelegramWebhookOutcome({
