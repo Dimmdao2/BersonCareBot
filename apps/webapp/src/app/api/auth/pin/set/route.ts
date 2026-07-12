@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
@@ -12,6 +13,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/pin/set:POST");
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.profile });
   if (!gate.ok) return gate.response;
   const { session } = gate;

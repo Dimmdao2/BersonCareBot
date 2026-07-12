@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
-import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
+import {
+  runWithIntegratorPrincipal,
+  runWithOrganizationPrincipal,
+} from '../../infra/principal/organizationPrincipal.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { buildWebappEntryUrlForMax } from '../webappEntryToken.js';
 import { maxConfig } from './config.js';
@@ -71,6 +74,19 @@ async function resolveMaxOrganizationId(
       'max webhook: no organization resolvable for this channel (unbound/misconfigured deployment)',
     );
     return null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveMaxIntegratorUserId(
+  data: MaxUpdateValidated,
+  deps: MaxWebhookDeps,
+): Promise<string | null> {
+  const externalId = getSourceMaxExternalId(data);
+  if (!externalId || !deps.resolveIntegratorUserIdForMessenger) return null;
+  try {
+    return (await deps.resolveIntegratorUserIdForMessenger(externalId, 'max')) ?? null;
   } catch {
     return null;
   }
@@ -271,11 +287,17 @@ export async function registerMaxWebhookRoutes(
         ),
       });
       const organizationId = await resolveMaxOrganizationId(data, deps, reqLogger);
+      const integratorUserId = await resolveMaxIntegratorUserId(data, deps);
       const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
         deps.eventGateway.handleIncomingEvent(event);
-      const result = organizationId
-        ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-        : await handleEvent();
+      const result = organizationId && integratorUserId
+        ? await runWithIntegratorPrincipal(
+            { organizationId, integratorUserId, source: 'max-webhook' },
+            handleEvent,
+          )
+        : organizationId
+          ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+          : await handleEvent();
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'max webhook pipeline rejected');
         void recordIntegrationWebhookOutcome({

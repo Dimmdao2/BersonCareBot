@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { enterWithDbBootstrapPrincipal, getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import type { AppSession } from "@/shared/types/session";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const resolveOrganizationForUserMock = vi.hoisted(() => vi.fn());
+const ORG_1 = "11111111-1111-4111-8111-111111111111";
+const ORG_2 = "22222222-2222-4222-8222-222222222222";
 const redirectMock = vi.hoisted(() =>
   vi.fn((url: string) => {
     throw new Error(`redirect:${url}`);
@@ -27,6 +30,7 @@ vi.mock("next/navigation", () => ({
 
 import {
   requireAdminWorkspaceApiContext,
+  requireDoctorApiSession,
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
 } from "./requireRole";
@@ -34,7 +38,7 @@ import {
 function session(role: AppSession["user"]["role"]): AppSession {
   return {
     user: {
-      userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       role,
       displayName: "User",
       bindings: {},
@@ -45,6 +49,7 @@ function session(role: AppSession["user"]["role"]): AppSession {
 }
 
 beforeEach(() => {
+  enterWithDbBootstrapPrincipal({ source: "test-reset" });
   getCurrentSessionMock.mockReset();
   resolveOrganizationForUserMock.mockReset();
   redirectMock.mockReset();
@@ -78,7 +83,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
       ok: true,
       context: {
         membershipId: "membership-1",
-        organizationId: "org-1",
+        organizationId: ORG_1,
         platformUserId: doctor.user.userId,
         role: "doctor",
         specialistId: "specialist-1",
@@ -93,7 +98,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
       ok: true,
       ctx: {
         session: doctor,
-        organizationId: "org-1",
+        organizationId: ORG_1,
         membershipId: "membership-1",
         membershipRole: "doctor",
         specialistId: "specialist-1",
@@ -104,6 +109,11 @@ describe("requireDoctorWorkspaceApiContext", () => {
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
       platformUserId: doctor.user.userId,
       selectedOrganizationId: "org-1",
+    });
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "staff",
+      organizationId: ORG_1,
+      platformUserId: doctor.user.userId,
     });
   });
 
@@ -127,7 +137,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
     resolveOrganizationForUserMock.mockResolvedValueOnce({
       ok: false,
       reason: "membership_selection_required",
-      organizationIds: ["org-1", "org-2"],
+      organizationIds: [ORG_1, ORG_2],
     });
 
     const gate = await requireDoctorWorkspaceApiContext();
@@ -139,6 +149,19 @@ describe("requireDoctorWorkspaceApiContext", () => {
       ok: false,
       error: "organization_selection_required",
     });
+  });
+});
+
+describe("requireDoctorApiSession", () => {
+  it("does not block when best-effort staff principal resolution fails", async () => {
+    const doctor = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({ ok: false, reason: "no_active_membership" });
+
+    const gate = await requireDoctorApiSession();
+
+    expect(gate).toEqual({ ok: true, session: doctor });
+    expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
   });
 });
 
@@ -171,7 +194,7 @@ describe("requireAdminWorkspaceApiContext", () => {
       ok: true,
       context: {
         membershipId: "membership-1",
-        organizationId: "org-1",
+        organizationId: ORG_1,
         platformUserId: admin.user.userId,
         role: "admin",
         specialistId: null,
@@ -186,7 +209,7 @@ describe("requireAdminWorkspaceApiContext", () => {
       ok: true,
       ctx: {
         session: admin,
-        organizationId: "org-1",
+        organizationId: ORG_1,
         membershipId: "membership-1",
         membershipRole: "admin",
         specialistId: null,
@@ -197,6 +220,11 @@ describe("requireAdminWorkspaceApiContext", () => {
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
       platformUserId: admin.user.userId,
       selectedOrganizationId: "org-1",
+    });
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "staff",
+      organizationId: ORG_1,
+      platformUserId: admin.user.userId,
     });
   });
 });
@@ -209,7 +237,7 @@ describe("requireDoctorWorkspaceContext", () => {
       ok: true,
       context: {
         membershipId: "membership-1",
-        organizationId: "org-1",
+        organizationId: ORG_1,
         platformUserId: doctor.user.userId,
         role: "doctor",
         specialistId: "specialist-1",
@@ -220,8 +248,13 @@ describe("requireDoctorWorkspaceContext", () => {
 
     await expect(requireDoctorWorkspaceContext()).resolves.toMatchObject({
       session: doctor,
-      organizationId: "org-1",
+      organizationId: ORG_1,
       membershipRole: "doctor",
+    });
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "staff",
+      organizationId: ORG_1,
+      platformUserId: doctor.user.userId,
     });
     expect(redirectMock).not.toHaveBeenCalled();
   });

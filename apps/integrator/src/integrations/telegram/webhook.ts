@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
-import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
+import {
+  runWithIntegratorPrincipal,
+  runWithOrganizationPrincipal,
+} from '../../infra/principal/organizationPrincipal.js';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
@@ -173,6 +176,19 @@ async function resolveTelegramOrganizationId(
   }
 }
 
+async function resolveTelegramIntegratorUserId(
+  body: TelegramWebhookBodyValidated,
+  deps: TelegramWebhookDeps,
+): Promise<string | null> {
+  const externalId = getSourceTelegramExternalId(body);
+  if (!externalId || !deps.resolveIntegratorUserIdForMessenger) return null;
+  try {
+    return (await deps.resolveIntegratorUserIdForMessenger(externalId, 'telegram')) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Exported for tests (contact ownership, setphone deep link). */
 export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
   if (body.callback_query) {
@@ -306,11 +322,17 @@ export async function processTelegramUpdate(
     ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
   });
   const organizationId = await resolveTelegramOrganizationId(body, deps, reqLogger);
+  const integratorUserId = await resolveTelegramIntegratorUserId(body, deps);
   const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
     deps.eventGateway.handleIncomingEvent(event);
-  const result = organizationId
-    ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-    : await handleEvent();
+  const result = organizationId && integratorUserId
+    ? await runWithIntegratorPrincipal(
+        { organizationId, integratorUserId, source: 'telegram-webhook' },
+        handleEvent,
+      )
+    : organizationId
+      ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+      : await handleEvent();
   if (result.status === 'rejected') {
     reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram update pipeline rejected');
     void recordIntegrationWebhookOutcome({

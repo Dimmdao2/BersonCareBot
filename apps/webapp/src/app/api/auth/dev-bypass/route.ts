@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
@@ -11,6 +12,7 @@ function redirectToPath(path: string, origin: string): NextResponse {
 }
 
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/auth/dev-bypass:GET");
   const requestUrl = new URL(request.url);
   const origin = getRequestOrigin(request, requestUrl);
 

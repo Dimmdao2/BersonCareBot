@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
-import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
+import {
+  getCurrentIntegratorPrincipalUserId,
+  getCurrentOrganizationPrincipalId,
+} from '../../infra/principal/organizationPrincipal.js';
 import { buildMaxFacts, registerMaxWebhookRoutes } from './webhook.js';
 import type { MaxUpdateValidated } from './schema.js';
 
@@ -84,15 +87,18 @@ describe('max webhook', () => {
 
   it('runs eventGateway under resolved organization context and clears it after', async () => {
     const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const integratorUserId = '42';
     const eventGateway = vi.fn().mockImplementation(async () => {
       expect(getCurrentOrganizationPrincipalId()).toBe(organizationId);
+      expect(getCurrentIntegratorPrincipalUserId()).toBe(integratorUserId);
       return { status: 'accepted' };
     });
     const resolveOrganizationIdForMessengerIdentity = vi.fn(async () => organizationId);
+    const resolveIntegratorUserIdForMessenger = vi.fn(async () => integratorUserId);
     const app = Fastify();
     await registerMaxWebhookRoutes(app, {
       eventGateway: { handleIncomingEvent: eventGateway },
-      resolveIntegratorUserIdForMessenger: async () => undefined,
+      resolveIntegratorUserIdForMessenger,
       resolveOrganizationIdForMessengerIdentity,
     });
 
@@ -113,8 +119,10 @@ describe('max webhook', () => {
 
     expect(res.statusCode).toBe(200);
     expect(resolveOrganizationIdForMessengerIdentity).toHaveBeenCalledWith('100', 'max');
+    expect(resolveIntegratorUserIdForMessenger).toHaveBeenCalledWith('100', 'max');
     expect(eventGateway).toHaveBeenCalledTimes(1);
     expect(getCurrentOrganizationPrincipalId()).toBeUndefined();
+    expect(getCurrentIntegratorPrincipalUserId()).toBeUndefined();
   });
 
   it('T0.4: falls back to the deployment channel-binding organization for a first-contact (unenrolled) identity', async () => {

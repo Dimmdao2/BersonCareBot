@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
@@ -22,6 +23,7 @@ const EMAIL_OTP_START_FALLBACK_CLIENT_KEY = "email_otp_start:missing_x_real_ip";
  * Distinguishing errors: rate_limited (timing), invalid_email (format), email_send_failed (infra).
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email-otp/start:POST");
   ensureAuthModulePortsBound();
 
   // Per-IP limit (trusted X-Real-Ip only) — generic response, no enumeration signal.

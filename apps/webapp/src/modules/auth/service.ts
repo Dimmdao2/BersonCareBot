@@ -87,6 +87,23 @@ function ensureAdminMode(session: AppSession): AppSession {
   return session.user.role === "admin" ? { ...session, adminMode: true } : session;
 }
 
+function dbPrincipalContextModeRequiresSessionStamp(): boolean {
+  const mode = process.env.DB_PRINCIPAL_CONTEXT_MODE?.trim();
+  return mode === "shadow" || mode === "locked";
+}
+
+async function finalizeCurrentSession(session: AppSession): Promise<AppSession> {
+  const normalized = ensureAdminMode(session);
+  if (!dbPrincipalContextModeRequiresSessionStamp()) return normalized;
+  try {
+    const { stampDbPrincipalFromSession } = await import("@/app-layer/principal/sessionPrincipal");
+    await stampDbPrincipalFromSession(normalized, "getCurrentSession");
+  } catch {
+    /* legacy direct-session routes fail closed at the DB port if no principal can be resolved */
+  }
+  return normalized;
+}
+
 function persistNewAuthSession(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
   session: AppSession,
@@ -792,12 +809,12 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const phone = session.user.phone?.trim();
   const telegramId = session.user.bindings?.telegramId?.trim();
   const maxId = session.user.bindings?.maxId?.trim();
-  if (!phone && !telegramId && !maxId) return ensureAdminMode(session);
+  if (!phone && !telegramId && !maxId) return finalizeCurrentSession(session);
 
-  if (isDevBypassSession) return ensureAdminMode(session);
+  if (isDevBypassSession) return finalizeCurrentSession(session);
 
   const envRole = await resolveRoleAsync({ phone, telegramId, maxId });
-  if (session.user.role === envRole) return ensureAdminMode(session);
+  if (session.user.role === envRole) return finalizeCurrentSession(session);
 
   const nextUser = { ...session.user, role: envRole };
   const nextSession: AppSession = {
@@ -819,7 +836,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   // Cookie update skipped intentionally: mutating cookies in Server Component render
   // is forbidden by Next.js. The role is correct in the returned session object;
   // the cookie will be rewritten on the next Server Action or login.
-  return ensureAdminMode(nextSession);
+  return finalizeCurrentSession(nextSession);
 }
 
 export async function clearSession(): Promise<void> {

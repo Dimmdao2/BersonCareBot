@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -24,6 +25,7 @@ const LOG_BASE = {
 
 /** Регистрация email+password: строка канона + пароль; подтверждение почты через существующий email challenge. */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email-password/register:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   const attemptId = newRegistrationAttemptId();

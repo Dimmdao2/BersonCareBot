@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
@@ -13,6 +14,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email/start:POST");
   ensureAuthModulePortsBound();
 
   const session = await getCurrentSession();

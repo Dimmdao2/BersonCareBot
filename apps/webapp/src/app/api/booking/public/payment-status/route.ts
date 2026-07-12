@@ -1,7 +1,9 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/booking/public/payment-status:GET");
   const url = new URL(request.url);
   const bookingId = url.searchParams.get("bookingId")?.trim();
   const phone = url.searchParams.get("phone")?.trim();

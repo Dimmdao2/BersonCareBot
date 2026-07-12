@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -54,6 +55,7 @@ function requestDiagnostics(request: Request): {
  * Подпись: https://dev.max.ru/docs/webapps/validation ; ключ: `max_bot_api_key` в admin settings.
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/max-init:POST");
   const startedAt = Date.now();
   const diag = requestDiagnostics(request);
   const raw = (await request.json().catch(() => null)) as unknown;

@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -24,6 +25,7 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  * setup-код через тот же email challenge; явный UI lookup уже перевёл пользователя в setup-password flow.
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email-password/forgot:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

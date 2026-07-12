@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -8,6 +9,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/booking/public/catalog/services:GET");
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({ cityCode: url.searchParams.get("cityCode") ?? "" });
   if (!parsed.success) {

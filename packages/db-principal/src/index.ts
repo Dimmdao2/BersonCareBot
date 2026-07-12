@@ -100,6 +100,10 @@ export type DbInfraPrincipalInput = {
 
 type DbPrincipalApplyScope = "transaction" | "connection";
 
+type DbPrincipalContextCell = {
+  current: DbPrincipal;
+};
+
 type DbPrincipalQueryable = {
   query(sql: string, values?: readonly unknown[]): Promise<{ rows?: readonly Record<string, unknown>[] } | unknown>;
 };
@@ -134,7 +138,7 @@ export type DbPrincipalApplyOptionsInput = {
   nonce?: () => string;
 };
 
-const principalStorage = new AsyncLocalStorage<DbPrincipal>();
+const principalStorage = new AsyncLocalStorage<DbPrincipalContextCell>();
 
 export function normalizeDbPrincipalOrganizationId(organizationId: string): string {
   return normalizeUuid(organizationId, "Invalid DB principal organization id");
@@ -236,7 +240,7 @@ export function createDbInfraPrincipal(input: DbInfraPrincipalInput = {}): DbInf
 }
 
 export function getCurrentDbPrincipal(): DbPrincipal | undefined {
-  return principalStorage.getStore();
+  return principalStorage.getStore()?.current;
 }
 
 export function getCurrentDbPrincipalOrganizationId(): string | undefined {
@@ -258,31 +262,70 @@ export function getCurrentDbPrincipalIntegratorUserId(): string | undefined {
 }
 
 export function runWithDbPrincipal<T>(principal: DbPrincipal, fn: () => T): T {
-  return principalStorage.run(normalizeDbPrincipal(principal), fn);
+  return principalStorage.run({ current: normalizeDbPrincipal(principal) }, fn);
+}
+
+export function enterWithDbPrincipal(principal: DbPrincipal): void {
+  const normalized = normalizeDbPrincipal(principal);
+  const cell = principalStorage.getStore();
+  if (cell) {
+    cell.current = normalized;
+    return;
+  }
+  principalStorage.enterWith({ current: normalized });
+}
+
+export function ensureDbPrincipalContext(input: DbBootstrapPrincipalInput = {}): void {
+  if (principalStorage.getStore()) return;
+  principalStorage.enterWith({ current: createDbBootstrapPrincipal(input) });
 }
 
 export function runWithDbOrganizationPrincipal<T>(organizationId: string, fn: () => T): T {
   return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId }), fn);
 }
 
+export function enterWithDbOrganizationPrincipal(input: DbOrganizationPrincipalInput): void {
+  enterWithDbPrincipal(createDbOrganizationPrincipal(input));
+}
+
 export function runWithDbStaffPrincipal<T>(input: DbStaffPrincipalInput, fn: () => T): T {
   return runWithDbPrincipal(createDbStaffPrincipal(input), fn);
+}
+
+export function enterWithDbStaffPrincipal(input: DbStaffPrincipalInput): void {
+  enterWithDbPrincipal(createDbStaffPrincipal(input));
 }
 
 export function runWithDbPatientPrincipal<T>(input: DbPatientPrincipalInput, fn: () => T): T {
   return runWithDbPrincipal(createDbPatientPrincipal(input), fn);
 }
 
+export function enterWithDbPatientPrincipal(input: DbPatientPrincipalInput): void {
+  enterWithDbPrincipal(createDbPatientPrincipal(input));
+}
+
 export function runWithDbIntegratorPrincipal<T>(input: DbIntegratorPrincipalInput, fn: () => T): T {
   return runWithDbPrincipal(createDbIntegratorPrincipal(input), fn);
+}
+
+export function enterWithDbIntegratorPrincipal(input: DbIntegratorPrincipalInput): void {
+  enterWithDbPrincipal(createDbIntegratorPrincipal(input));
 }
 
 export function runWithDbBootstrapPrincipal<T>(input: DbBootstrapPrincipalInput, fn: () => T): T {
   return runWithDbPrincipal(createDbBootstrapPrincipal(input), fn);
 }
 
+export function enterWithDbBootstrapPrincipal(input: DbBootstrapPrincipalInput = {}): void {
+  enterWithDbPrincipal(createDbBootstrapPrincipal(input));
+}
+
 export function runWithDbInfraPrincipal<T>(input: DbInfraPrincipalInput, fn: () => T): T {
   return runWithDbPrincipal(createDbInfraPrincipal(input), fn);
+}
+
+export function enterWithDbInfraPrincipal(input: DbInfraPrincipalInput = {}): void {
+  enterWithDbPrincipal(createDbInfraPrincipal(input));
 }
 
 export function buildDbPrincipalApplyOptions(input: DbPrincipalApplyOptionsInput = {}): DbPrincipalApplyOptions {
@@ -477,6 +520,8 @@ async function applySignedDbPrincipal(
       await releaseSignedDbPrincipal(client, options);
       throw new Error("DB principal context is required before scoped DB access in locked mode");
     }
+    await releaseSignedDbPrincipal(client, options);
+    console.warn("DB principal context is missing before scoped DB access in shadow mode");
     return false;
   }
 

@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import {
@@ -20,6 +21,7 @@ import {
 const ROUTE = "auth/oauth/providers";
 
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/auth/oauth/providers:GET");
   const startedAt = Date.now();
   const [yId, ySec, yRedir, gId, gSec, gLogin, aId, aRedir, aTeam, aKid, aPem] = await Promise.all([
     getYandexOauthClientId(),

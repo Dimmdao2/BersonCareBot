@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -17,6 +18,7 @@ import {
 } from "@/modules/patient-booking/inPersonBookingResolve";
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/booking/public/create:POST");
   ensureAuthModulePortsBound();
 
   const rateKey = resolvePublicBookingRateLimitClientKey(request);

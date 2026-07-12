@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -19,6 +20,7 @@ const bodySchema = z.object({
  * On success: sets session cookie, returns redirectTo + role (mirrors phone/confirm shape).
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email-otp/confirm:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
@@ -30,6 +31,7 @@ import {
  * POST /api/auth/oauth/callback/apple — Sign in with Apple (`response_mode=form_post`).
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/oauth/callback/apple:POST");
   const appBase = await getAppBaseUrl();
   const ct = request.headers.get("content-type") ?? "";
   if (!ct.includes("application/x-www-form-urlencoded")) {
