@@ -20,7 +20,7 @@ BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
 RESTORE=/tmp/bcb-test-setup/restore-test-db.sh
-OVERRIDE=/tmp/bcb-test-setup/test-settings-override.sql
+OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 UNITS=(api worker scheduler webapp media-worker)
 
@@ -29,9 +29,8 @@ revoke_bypass(){ sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $DBROLE
 trap revoke_bypass EXIT   # NEVER leave BYPASSRLS on
 
 # 0. preflight (env files are deploy-owned → check as deploy, not as dev)
-for f in "$RESTORE" "$OVERRIDE"; do
-  [ -r "$f" ] || { echo "FATAL: missing required file: $f"; exit 1; }
-done
+[ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
+[ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
@@ -76,9 +75,11 @@ for col in "system_settings.organization_id" "user_phone_history.organization_id
 done
 echo "   drizzle migrations = $CNT (org columns present)"
 
-# 5. test-only settings override — fix ON CONFLICT for the org-aware PARTIAL unique index (global rows)
+# 5. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
+#    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy
+#    checkout so it is version-matched to the branch.
 log "test settings override"
-sudo -u postgres bash -lc "sed 's/ON CONFLICT (key, scope) DO UPDATE/ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE/g' '$OVERRIDE' | psql -d $DB -v ON_ERROR_STOP=1"
+sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"
 
 # 6. restart test units + verify (and that the prod WireGuard relay is untouched)
 log "restart test units"

@@ -64,7 +64,20 @@ Walls stay DORMANT: `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc` (default). App connec
   data-fix + option-D temp-BYPASSRLS migrate + post-asserts) in a stopped-writers window, NOT the plain deploy.
 - So PROD dormant deploy = `deploy-saas-667.sh` (option-D). PROD flip = phase4 enforce artifacts (section B).
 
-## Settings-override fix (RESOLVED 2026-07-12)
+## Identity role-allowlist normalization (RESOLVED 2026-07-13)
+The prod dump carries the owner's OWN phone/telegram/MAX in the `admin_*` allowlists of
+`system_settings` (BOTH `public` and the duplicate `integrator` copy). `resolveRoleAsync` reads those
+DB allowlists FIRST (env is only fallback) and force-promotes the owner's DOCTOR login to admin on every
+messenger poll → the doctor workspace (calendar) 403s. The canonical override
+(`deploy/postgres/test-settings-override.sql`, §8) now moves the owner's identifiers `admin_* → doctor_*`
+in both schemas on every deploy, so a fresh clean-cycle deploy no longer re-introduces the bug. This is a
+STOPGAP; the real fix is replacing allowlist role-forcing with account+membership resolution (see
+SAAS_ENFORCE_ROADMAP "replace auth mechanism").
+
+## Settings-override fix (RESOLVED 2026-07-12; override now repo-tracked 2026-07-13)
+The override moved from `/tmp/bcb-test-setup/test-settings-override.sql` into the repo at
+`deploy/postgres/test-settings-override.sql`; all upserts use the org-aware partial-index conflict target
+`ON CONFLICT (key, scope) WHERE organization_id IS NULL` directly (no more sed rewrite in the deploy script).
 system_settings now has PARTIAL unique indexes: global `UNIQUE (key, scope) WHERE organization_id IS NULL` and
 org `UNIQUE (key, scope, organization_id) WHERE organization_id IS NOT NULL` (same for integrator.system_settings).
 The override inserts GLOBAL rows, so change every `ON CONFLICT (key, scope) DO UPDATE` →
