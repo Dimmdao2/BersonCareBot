@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail } from "@/modules/auth/emailAuth";
-import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 
@@ -39,9 +39,10 @@ export async function POST(request: Request) {
     telegramId: sessionUser.bindings.telegramId,
     maxId: sessionUser.bindings.maxId,
   });
-  if (sessionUser.role !== envRole) {
-    await deps.userProjection.updateRole(sessionUser.userId, envRole);
-    sessionUser = { ...sessionUser, role: envRole };
+  const effectiveRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
+  if (sessionUser.role !== effectiveRole) {
+    await deps.userProjection.updateRole(sessionUser.userId, effectiveRole);
+    sessionUser = { ...sessionUser, role: effectiveRole };
   }
 
   await setSessionFromUser(sessionUser);

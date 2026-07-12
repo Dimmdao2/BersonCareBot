@@ -194,6 +194,26 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
   });
 
+  it("createPgUserPasswordCredentialsPort registerPendingSpecialistVerification stores doctor role", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ id: "u-doctor" }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const port = createPgUserPasswordCredentialsPort();
+    const r = await port.registerPendingSpecialistVerification({
+      emailNormalized: "doctor@example.com",
+      passwordHash: "hash",
+      displayName: "Doctor",
+    });
+    expect(r).toEqual({ ok: true, userId: "u-doctor" });
+    expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "Doctor",
+      "doctor@example.com",
+      "doctor@example.com",
+      "doctor",
+    ]);
+  });
+
   it("createPgEmailPasswordLookupPort resolveAuthState — verified_with_password", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [{ id: "u1", email_verified: true, has_password: true }],

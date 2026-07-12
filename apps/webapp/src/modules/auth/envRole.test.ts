@@ -12,7 +12,7 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-import { resolveRoleFromEnv } from "./envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "./envRole";
 
 describe("resolveRoleFromEnv", () => {
   it("returns admin when phone matches ADMIN_PHONES (normalized)", () => {
@@ -55,5 +55,22 @@ describe("resolveRoleFromEnv", () => {
         phone: "+79990000002",
       }),
     ).toBe("admin");
+  });
+});
+
+describe("reconcileDbRoleWithEnvRole", () => {
+  it("preserves DB staff roles when legacy env allowlists resolve to client", () => {
+    expect(reconcileDbRoleWithEnvRole("doctor", "client")).toBe("doctor");
+    expect(reconcileDbRoleWithEnvRole("admin", "client")).toBe("admin");
+  });
+
+  it("keeps env allowlist promotion compatibility for client accounts", () => {
+    expect(reconcileDbRoleWithEnvRole("client", "doctor")).toBe("doctor");
+    expect(reconcileDbRoleWithEnvRole("client", "admin")).toBe("admin");
+  });
+
+  it("keeps admin as the strongest staff role", () => {
+    expect(reconcileDbRoleWithEnvRole("doctor", "admin")).toBe("admin");
+    expect(reconcileDbRoleWithEnvRole("admin", "doctor")).toBe("admin");
   });
 });

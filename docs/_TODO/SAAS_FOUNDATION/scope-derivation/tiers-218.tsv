@@ -12,6 +12,7 @@ BOOTSTRAP|public.phone_challenges
 BOOTSTRAP|public.phone_messenger_bind_secrets
 BOOTSTRAP|public.platform_user_contacts
 BOOTSTRAP|public.platform_users
+BOOTSTRAP|public.specialist_signup_intents
 BOOTSTRAP|public.system_settings
 BOOTSTRAP|public.system_settings_audit
 BOOTSTRAP|public.user_channel_bindings

@@ -9,6 +9,12 @@ export type UserPasswordCredentialsPort = {
     passwordHash: string;
     displayName: string;
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
+  /** Регистрация специалиста с паролем до подтверждения email; role остаётся doctor для compat projection. */
+  registerPendingSpecialistVerification(params: {
+    emailNormalized: string;
+    passwordHash: string;
+    displayName: string;
+  }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
   /** Удалить канон без подтверждения email (откат после сбоя отправки кода и т.п.). */
   deleteUnverifiedEmailPasswordRegistration(userId: string): Promise<void>;
   /** Владелец активного челленджа на email (для публичного подтверждения после регистрации). */
@@ -38,6 +44,39 @@ export type UserPasswordCredentialsPort = {
 };
 
 export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPort {
+  async function registerPendingVerificationWithRole(params: {
+    emailNormalized: string;
+    passwordHash: string;
+    displayName: string;
+    role: "client" | "doctor";
+  }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }> {
+    try {
+      return await runWebappTransaction(async (tx) => {
+        const ins = await runWebappPgText<{ id: string }>(
+          `INSERT INTO platform_users (display_name, email, email_normalized, role)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id`,
+          [params.displayName, params.emailNormalized, params.emailNormalized, params.role],
+          tx,
+        );
+        const userId = ins.rows[0]!.id;
+        await runWebappPgText(
+          `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
+           VALUES ($1::uuid, $2::text, now())`,
+          [userId, params.passwordHash],
+          tx,
+        );
+        return { ok: true as const, userId };
+      });
+    } catch (e: unknown) {
+      const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: unknown }).code) : "";
+      if (code === "23505") {
+        return { ok: false, reason: "duplicate_email" };
+      }
+      throw e;
+    }
+  }
+
   async function verifyEmailPasswordForLoginImpl(
     emailNormalized: string,
     plainPassword: string,
@@ -65,38 +104,18 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
   return {
     async registerPendingVerification(params) {
-      try {
-        return await runWebappTransaction(async (tx) => {
-          const ins = await runWebappPgText<{ id: string }>(
-            `INSERT INTO platform_users (display_name, email, email_normalized, role)
-             VALUES ($1, $2, $3, 'client')
-             RETURNING id`,
-            [params.displayName, params.emailNormalized, params.emailNormalized],
-            tx,
-          );
-          const userId = ins.rows[0]!.id;
-          await runWebappPgText(
-            `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
-             VALUES ($1::uuid, $2::text, now())`,
-            [userId, params.passwordHash],
-            tx,
-          );
-          return { ok: true as const, userId };
-        });
-      } catch (e: unknown) {
-        const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: unknown }).code) : "";
-        if (code === "23505") {
-          return { ok: false, reason: "duplicate_email" };
-        }
-        throw e;
-      }
+      return registerPendingVerificationWithRole({ ...params, role: "client" });
+    },
+
+    async registerPendingSpecialistVerification(params) {
+      return registerPendingVerificationWithRole({ ...params, role: "doctor" });
     },
 
     async deleteUnverifiedEmailPasswordRegistration(userId) {
       await runWebappPgText(
         `DELETE FROM platform_users
          WHERE id = $1::uuid
-           AND role = 'client'
+           AND role IN ('client', 'doctor')
            AND merged_into_id IS NULL
            AND email_verified_at IS NULL`,
         [userId],
@@ -178,6 +197,9 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
 export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = {
   async registerPendingVerification() {
+    return { ok: false, reason: "duplicate_email" };
+  },
+  async registerPendingSpecialistVerification() {
     return { ok: false, reason: "duplicate_email" };
   },
   async deleteUnverifiedEmailPasswordRegistration() {},

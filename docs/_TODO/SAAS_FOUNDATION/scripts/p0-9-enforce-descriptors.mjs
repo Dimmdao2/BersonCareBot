@@ -33,7 +33,7 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   scoped_fk_path: 2,
   scoped_pending_default_deny: 1,
   bootstrap_hybrid: 5,
-  bootstrap_global_read: 21,
+  bootstrap_global_read: 22,
   explicit_global: 24,
   legacy_frozen_deny: 16,
 });
@@ -197,8 +197,8 @@ export function assertP09EnforceDescriptors(descriptors) {
   const actualTables = descriptors.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 223) {
-    throw new Error(`Expected 223 P0.9 enforce descriptors, got ${actualTables.length}`);
+  if (actualTables.length !== 224) {
+    throw new Error(`Expected 224 P0.9 enforce descriptors, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {
