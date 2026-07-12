@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
@@ -31,6 +32,8 @@ export async function POST(request: Request) {
   if (!token || !bearerMatchesSecret(token, secret)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  // INFRA: scheduler tick plans and dispatches due Web Push reminder occurrences across organizations.
+  enterWithDbInfraPrincipal({ source: "api/internal/reminders/web-push-only/tick:POST" });
 
   let dispatchLimit = 50;
   try {

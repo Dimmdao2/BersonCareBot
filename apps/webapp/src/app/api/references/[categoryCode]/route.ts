@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 
 const PRIVATE_REFERENCE_CATEGORY_CODES = new Set(["visit_manipulation"]);
 
@@ -8,6 +9,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ categoryCode: string }> }
 ) {
+  // BOOTSTRAP: public references are global catalogs; private scoped categories are hidden below.
+  stampBootstrapPrincipal("api/references/[categoryCode]:GET");
   const { categoryCode } = await context.params;
   if (!categoryCode || categoryCode.trim() === "") {
     return NextResponse.json({ ok: false, error: "category_required" }, { status: 400 });

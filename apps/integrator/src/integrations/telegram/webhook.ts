@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { env } from '../../config/env.js';
 import {
   runWithIntegratorPrincipal,
@@ -18,6 +19,14 @@ import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
 import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
+
+type WebhookOutcomeInput = Parameters<typeof recordIntegrationWebhookOutcome>[0];
+
+function recordTelegramWebhookOutcome(input: WebhookOutcomeInput): void {
+  void runWithDbInfraPrincipal({ source: 'telegram-webhook:record-outcome' }, () =>
+    recordIntegrationWebhookOutcome(input),
+  );
+}
 
 function joinDisplayName(input: { first_name?: string | undefined; last_name?: string | undefined }): string | undefined {
   const parts = [input.first_name, input.last_name]
@@ -277,7 +286,7 @@ export async function processTelegramUpdate(
         'telegram update: callback_query dropped (mapBodyToIncoming returned null)',
       );
     }
-    void recordIntegrationWebhookOutcome({
+    recordTelegramWebhookOutcome({
       source: 'telegram',
       processedOk: true,
       httpStatusReturned: 200,
@@ -302,27 +311,39 @@ export async function processTelegramUpdate(
     }
   }
 
+  const preRouting = await runWithDbBootstrapPrincipal(
+    { source: 'telegram-webhook:pre-routing' },
+    async () => ({
+      facts: await buildTelegramFacts(
+        body,
+        deps.resolveIntegratorUserIdForMessenger,
+        deps.getAppBaseUrl,
+        deps.resolveMessengerStaffAdmin,
+      ),
+      organizationId: await resolveTelegramOrganizationId(body, deps, reqLogger),
+      integratorUserId: await resolveTelegramIntegratorUserId(body, deps),
+    }),
+  );
+
   // Убрать кнопку меню у пользователя в личном чате (не админ)
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
   const chatType = body.callback_query?.message?.chat?.type ?? body.message?.chat?.type;
   if (typeof chatId === 'number' && chatType === 'private') {
-    void ensureNoMenuButtonForUser(chatId);
+    const clearMenu = (): Promise<void> => ensureNoMenuButtonForUser(chatId);
+    void (preRouting.organizationId
+      ? runWithOrganizationPrincipal(preRouting.organizationId, clearMenu)
+      : runWithDbBootstrapPrincipal({ source: 'telegram-webhook:clear-menu-unresolved-org' }, clearMenu));
   }
 
   const event = telegramIncomingToEvent({
     incoming,
     correlationId,
     eventId,
-    facts: await buildTelegramFacts(
-      body,
-      deps.resolveIntegratorUserIdForMessenger,
-      deps.getAppBaseUrl,
-      deps.resolveMessengerStaffAdmin,
-    ),
+    facts: preRouting.facts,
     ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
   });
-  const organizationId = await resolveTelegramOrganizationId(body, deps, reqLogger);
-  const integratorUserId = await resolveTelegramIntegratorUserId(body, deps);
+  const organizationId = preRouting.organizationId;
+  const integratorUserId = preRouting.integratorUserId;
   const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
     deps.eventGateway.handleIncomingEvent(event);
   const result = organizationId && integratorUserId
@@ -332,10 +353,10 @@ export async function processTelegramUpdate(
       )
     : organizationId
       ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-      : await handleEvent();
+      : await runWithDbBootstrapPrincipal({ source: 'telegram-webhook:unresolved-org' }, handleEvent);
   if (result.status === 'rejected') {
     reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram update pipeline rejected');
-    void recordIntegrationWebhookOutcome({
+    recordTelegramWebhookOutcome({
       source: 'telegram',
       processedOk: false,
       httpStatusReturned: 200,
@@ -344,7 +365,7 @@ export async function processTelegramUpdate(
     });
     return { status: 'rejected', ...(result.reason !== undefined ? { reason: result.reason } : {}) };
   }
-  void recordIntegrationWebhookOutcome({
+  recordTelegramWebhookOutcome({
     source: 'telegram',
     processedOk: true,
     httpStatusReturned: 200,
@@ -375,7 +396,7 @@ export async function registerTelegramWebhookRoutes(
         const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
         if (headerSecret !== secret) {
           reqLogger.warn('telegram webhook secret mismatch');
-          void recordIntegrationWebhookOutcome({
+          recordTelegramWebhookOutcome({
             source: 'telegram',
             processedOk: false,
             httpStatusReturned: 200,
@@ -392,7 +413,7 @@ export async function registerTelegramWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'telegram webhook body validation failed',
         );
-        void recordIntegrationWebhookOutcome({
+        recordTelegramWebhookOutcome({
           source: 'telegram',
           processedOk: false,
           httpStatusReturned: 200,
@@ -414,7 +435,7 @@ export async function registerTelegramWebhookRoutes(
     } catch (err) {
       reqLogger.error({ err }, 'telegram webhook failed');
       const msg = err instanceof Error ? err.message : String(err);
-      void recordIntegrationWebhookOutcome({
+      recordTelegramWebhookOutcome({
         source: 'telegram',
         processedOk: false,
         httpStatusReturned: 200,

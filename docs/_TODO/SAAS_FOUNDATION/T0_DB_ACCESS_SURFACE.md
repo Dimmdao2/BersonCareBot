@@ -143,6 +143,8 @@ Files using `runWithDbOrganizationPrincipal` in runtime code:
 - `apps/media-worker/src/runMediaWorkerSql.ts`
 - `apps/webapp/src/app-layer/guards/doctorWorkspacePrincipal.ts`
 - `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`
+- `apps/webapp/src/app/api/payments/patient-acquiring-webhook/[provider]/route.ts`
+- `apps/webapp/src/app/api/payments/webhook/[provider]/route.ts`
 - `apps/webapp/src/infra/repos/pgPatientPayments.ts`
 - `apps/webapp/src/infra/repos/pgPayments.ts`
 - `packages/db-principal/src/index.ts`

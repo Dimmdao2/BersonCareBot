@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync as nodeReadFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const repoRoot = process.cwd();
+let routeFilesOverride = null;
+let fileTextOverrides = new Map();
 
 const files = {
   dbPrincipal: "packages/db-principal/src/index.ts",
@@ -22,6 +24,7 @@ const files = {
   webappRequireRole: "apps/webapp/src/app-layer/guards/requireRole.ts",
   webappBootstrapPrincipal: "apps/webapp/src/app-layer/principal/bootstrapPrincipal.ts",
   webappSessionPrincipal: "apps/webapp/src/app-layer/principal/sessionPrincipal.ts",
+  webappIntegratorSignature: "apps/webapp/src/infra/webhooks/verifyIntegratorSignature.ts",
   webappPatientOrganizationService: "apps/webapp/src/modules/patient-organization/service.ts",
   webappPatientOrganizationRepo: "apps/webapp/src/infra/repos/pgPatientOrganization.ts",
   webappAuthPhoneStartRoute: "apps/webapp/src/app/api/auth/phone/start/route.ts",
@@ -36,7 +39,11 @@ const files = {
 };
 
 function read(path) {
-  return readFileSync(join(repoRoot, path), "utf8");
+  return readRouteOrFsFile(join(repoRoot, path), "utf8");
+}
+
+function readRouteOrFsFile(path, encoding) {
+  return fileTextOverrides.get(path) ?? nodeReadFileSync(path, encoding);
 }
 
 function fail(message) {
@@ -79,6 +86,9 @@ function forbidRuntimeDefaultPrincipalCalls(path, text) {
 }
 
 function listRouteFiles(dir) {
+  if (routeFilesOverride && dir === routeFilesOverride.dir) {
+    return routeFilesOverride.files;
+  }
   const out = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
@@ -96,7 +106,6 @@ function listRouteFiles(dir) {
 
 function collectScopedDbTouchingRoutesMissingPrincipalSource() {
   const apiRoot = join(repoRoot, "apps/webapp/src/app/api");
-  const scopedRouteRe = /^(admin|doctor|patient|booking)\//;
   const dbSignals = [
     "buildAppDeps(",
     "getPool(",
@@ -106,25 +115,37 @@ function collectScopedDbTouchingRoutesMissingPrincipalSource() {
     "createPg",
     "drizzle",
     ".query(",
+    "withPoolClient(",
+    "withPoolTransaction(",
+    "runWebappSql(",
+    "runWebappTransaction(",
   ];
   const principalSources = [
     "requireDoctorApiSession",
     "requireDoctorWorkspaceApiContext",
     "requireAdminWorkspaceApiContext",
+    "requireDoctorBookingEngine",
+    "requireAdminBookingEngine",
     "requirePatientApiBusinessAccess",
     "requirePatientApiSessionWithPhone",
     "requirePatientBookingTrustedPhoneAccess",
     "requireAdminModeSession",
-    "requireAdminBookingEngine",
-    "requireDoctorBookingEngine",
     "getCurrentSession",
     "stampBootstrapPrincipal",
+    "stampDbPrincipalFromSession",
+    "enterWithDb",
+    "runWithDb",
+    "runWithIntegratorPrincipal",
+    "runWithOrganizationPrincipal",
+    "withExplicitOrganizationPrincipal",
+    "withDoctorWorkspacePrincipal",
+    "assertIntegratorGetRequest",
+    "verifyIntegratorSignature",
   ];
 
   return listRouteFiles(apiRoot).flatMap((path) => {
     const relFromApi = relative(apiRoot, path).replace(/\\/g, "/");
-    if (!scopedRouteRe.test(relFromApi) || relFromApi.startsWith("booking/public/")) return [];
-    const text = readFileSync(path, "utf8");
+    const text = readRouteOrFsFile(path, "utf8");
     if (!dbSignals.some((signal) => text.includes(signal))) return [];
     if (principalSources.some((source) => text.includes(source))) return [];
     return [relative(repoRoot, path).replace(/\\/g, "/")];
@@ -252,9 +273,13 @@ function runChecks(overrides = {}) {
     "resolveOrganizationForUser",
   ]);
 
+  requireFragments(files.webappIntegratorSignature, loaded.webappIntegratorSignature, [
+    "enterWithDbBootstrapPrincipal",
+    "stampVerifiedIntegratorBootstrapPrincipal(\"verifyIntegratorSignature\")",
+    "stampVerifiedIntegratorBootstrapPrincipal(\"verifyIntegratorGetSignature\")",
+  ]);
+
   requireFragments(files.webappAuthService, loaded.webappAuthService, [
-    "dbPrincipalContextModeRequiresSessionStamp",
-    "mode === \"shadow\" || mode === \"locked\"",
     "stampDbPrincipalFromSession",
     "finalizeCurrentSession",
   ]);
@@ -331,6 +356,27 @@ if (process.argv.includes("--self-test")) {
     process.exit(0);
   }
   fail("self-test did not detect default principal apply call");
+}
+
+if (process.argv.includes("--self-test-route")) {
+  const apiRoot = join(repoRoot, "apps/webapp/src/app/api");
+  const fakePath = join(apiRoot, "doctor", "__self_test_unstamped__", "route.ts");
+  const fakeText = [
+    "import { buildAppDeps } from \"@/app-layer/di/buildAppDeps\";",
+    "export async function GET() {",
+    "  const deps = buildAppDeps();",
+    "  return Response.json(await deps.doctorClients.listClients({}));",
+    "}",
+  ].join("\n");
+  routeFilesOverride = { dir: apiRoot, files: [fakePath] };
+  fileTextOverrides = new Map([[fakePath, fakeText]]);
+  try {
+    runChecks();
+  } catch {
+    console.log("check-b4-locked-runtime-wiring route self-test: OK");
+    process.exit(0);
+  }
+  fail("route self-test did not detect an unstamped DB-touching route");
 }
 
 try {

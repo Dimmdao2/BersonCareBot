@@ -15,13 +15,16 @@
  */
 
 import { NextResponse } from "next/server";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
 import type { PaymentProviderConfig } from "@/modules/payments/types";
 
 type RouteContext = { params: Promise<{ provider: string }> };
 
 export async function POST(request: Request, context: RouteContext) {
+  stampBootstrapPrincipal("api/payments/patient-acquiring-webhook:POST:pre-routing");
   const { provider: providerId } = await context.params;
   const deps = buildAppDeps();
 
@@ -81,10 +84,17 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: true, ignored: true });
   }
 
-  const result = await deps.patientPayments.handleAcquiringWebhookEvent({
-    eventType: verified.eventType,
-    providerPaymentId,
-  });
+  const organizationId = await deps.patientPayments.resolveOrganizationIdByProviderPaymentId(providerPaymentId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: true, ignored: true });
+  }
+
+  const result = await runWithDbOrganizationPrincipal(organizationId, () =>
+    deps.patientPayments.handleAcquiringWebhookEvent({
+      eventType: verified.eventType,
+      providerPaymentId,
+    }),
+  );
 
   if (!result.ok) {
     if (result.reason === "payment_not_found") {

@@ -87,19 +87,13 @@ function ensureAdminMode(session: AppSession): AppSession {
   return session.user.role === "admin" ? { ...session, adminMode: true } : session;
 }
 
-function dbPrincipalContextModeRequiresSessionStamp(): boolean {
-  const mode = process.env.DB_PRINCIPAL_CONTEXT_MODE?.trim();
-  return mode === "shadow" || mode === "locked";
-}
-
 async function finalizeCurrentSession(session: AppSession): Promise<AppSession> {
   const normalized = ensureAdminMode(session);
-  if (!dbPrincipalContextModeRequiresSessionStamp()) return normalized;
   try {
     const { stampDbPrincipalFromSession } = await import("@/app-layer/principal/sessionPrincipal");
     await stampDbPrincipalFromSession(normalized, "getCurrentSession");
   } catch {
-    /* legacy direct-session routes fail closed at the DB port if no principal can be resolved */
+    /* Session auth behavior stays legacy-compatible; locked DB ports fail closed if no principal was resolved. */
   }
   return normalized;
 }

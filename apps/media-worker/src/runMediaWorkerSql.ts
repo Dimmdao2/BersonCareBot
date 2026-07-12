@@ -4,6 +4,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import type { Pool, QueryResultRow } from "pg";
 import {
   getCurrentDbPrincipalOrganizationId,
+  runWithDbInfraPrincipal,
   runWithDbOrganizationPrincipal,
 } from "@bersoncare/db-principal";
 import { startMediaWorkerTransaction } from "./withClient.js";
@@ -63,7 +64,7 @@ export function runWithOptionalMediaWorkerOrganizationPrincipal<T>(
   fn: () => T,
 ): T {
   if (!organizationId) {
-    return fn();
+    return runWithDbInfraPrincipal({ source: "media-worker:legacy-unscoped-job" }, fn);
   }
   return runWithDbOrganizationPrincipal(organizationId, fn);
 }

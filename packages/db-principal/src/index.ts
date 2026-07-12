@@ -276,7 +276,6 @@ export function enterWithDbPrincipal(principal: DbPrincipal): void {
 }
 
 export function ensureDbPrincipalContext(input: DbBootstrapPrincipalInput = {}): void {
-  if (principalStorage.getStore()) return;
   principalStorage.enterWith({ current: createDbBootstrapPrincipal(input) });
 }
 

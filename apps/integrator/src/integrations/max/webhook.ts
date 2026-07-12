@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
 import {
   runWithIntegratorPrincipal,
@@ -17,6 +18,14 @@ import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js
 import { createDbPort } from '../../infra/db/client.js';
 import { getOperationalVerboseLogEnabled } from '../../infra/db/repos/operationalVerboseLog.js';
 import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
+
+type WebhookOutcomeInput = Parameters<typeof recordIntegrationWebhookOutcome>[0];
+
+function recordMaxWebhookOutcome(input: WebhookOutcomeInput): void {
+  void runWithDbInfraPrincipal({ source: 'max-webhook:record-outcome' }, () =>
+    recordIntegrationWebhookOutcome(input),
+  );
+}
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
@@ -202,7 +211,7 @@ export async function registerMaxWebhookRoutes(
         const headerSecret = request.headers['x-max-bot-api-secret'];
         if (headerSecret !== webhookSecret) {
           reqLogger.warn('max webhook secret mismatch');
-          void recordIntegrationWebhookOutcome({
+          recordMaxWebhookOutcome({
             source: 'max',
             processedOk: false,
             httpStatusReturned: 200,
@@ -219,7 +228,7 @@ export async function registerMaxWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'max webhook body validation failed',
         );
-        void recordIntegrationWebhookOutcome({
+        recordMaxWebhookOutcome({
           source: 'max',
           processedOk: false,
           httpStatusReturned: 200,
@@ -230,7 +239,10 @@ export async function registerMaxWebhookRoutes(
       }
 
       const data = parseResult.data;
-      const verbose = await getOperationalVerboseLogEnabled(createDbPort());
+      const verbose = await runWithDbBootstrapPrincipal(
+        { source: 'max-webhook:verbose-config' },
+        () => getOperationalVerboseLogEnabled(createDbPort()),
+      );
       if (verbose) {
         reqLogger.info(
           {
@@ -250,7 +262,7 @@ export async function registerMaxWebhookRoutes(
         if (verbose) {
           reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
         }
-        void recordIntegrationWebhookOutcome({
+        recordMaxWebhookOutcome({
           source: 'max',
           processedOk: true,
           httpStatusReturned: 200,
@@ -275,19 +287,28 @@ export async function registerMaxWebhookRoutes(
         }
       }
 
+      const preRouting = await runWithDbBootstrapPrincipal(
+        { source: 'max-webhook:pre-routing' },
+        async () => ({
+          facts: await buildMaxFacts(
+            parseResult.data,
+            resolveIntegratorUserIdForMessenger,
+            getAppBaseUrl,
+            resolveMessengerStaffAdmin,
+          ),
+          organizationId: await resolveMaxOrganizationId(data, deps, reqLogger),
+          integratorUserId: await resolveMaxIntegratorUserId(data, deps),
+        }),
+      );
+
       const event = maxIncomingToEvent({
         incoming,
         correlationId,
         eventId,
-        facts: await buildMaxFacts(
-          parseResult.data,
-          resolveIntegratorUserIdForMessenger,
-          getAppBaseUrl,
-          resolveMessengerStaffAdmin,
-        ),
+        facts: preRouting.facts,
       });
-      const organizationId = await resolveMaxOrganizationId(data, deps, reqLogger);
-      const integratorUserId = await resolveMaxIntegratorUserId(data, deps);
+      const organizationId = preRouting.organizationId;
+      const integratorUserId = preRouting.integratorUserId;
       const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
         deps.eventGateway.handleIncomingEvent(event);
       const result = organizationId && integratorUserId
@@ -297,10 +318,10 @@ export async function registerMaxWebhookRoutes(
           )
         : organizationId
           ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-          : await handleEvent();
+          : await runWithDbBootstrapPrincipal({ source: 'max-webhook:unresolved-org' }, handleEvent);
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'max webhook pipeline rejected');
-        void recordIntegrationWebhookOutcome({
+        recordMaxWebhookOutcome({
           source: 'max',
           processedOk: false,
           httpStatusReturned: 200,
@@ -309,7 +330,7 @@ export async function registerMaxWebhookRoutes(
         });
         return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
-      void recordIntegrationWebhookOutcome({
+      recordMaxWebhookOutcome({
         source: 'max',
         processedOk: true,
         httpStatusReturned: 200,
@@ -318,7 +339,7 @@ export async function registerMaxWebhookRoutes(
     } catch (err) {
       reqLogger.error({ err }, 'max webhook failed');
       const msg = err instanceof Error ? err.message : String(err);
-      void recordIntegrationWebhookOutcome({
+      recordMaxWebhookOutcome({
         source: 'max',
         processedOk: false,
         httpStatusReturned: 200,
