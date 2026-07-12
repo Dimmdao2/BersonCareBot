@@ -1,4 +1,5 @@
-import { and, asc, eq } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   PlatformUserContactRecord,
@@ -50,10 +51,12 @@ export function createPgPlatformUserContactsPort(): PlatformUserContactsPort {
     async upsertContact(input) {
       const db = getDrizzle();
       const now = new Date().toISOString();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
       const inserted = await db
         .insert(platformUserContacts)
         .values({
           platformUserId: input.platformUserId,
+          organizationId,
           contactType: input.contactType,
           value: input.value,
           valueNormalized: input.valueNormalized,
@@ -70,6 +73,7 @@ export function createPgPlatformUserContactsPort(): PlatformUserContactsPort {
           set: {
             value: input.value,
             source: input.source,
+            organizationId: sql`COALESCE(${platformUserContacts.organizationId}, EXCLUDED.organization_id)`,
             updatedAt: now,
           },
         })

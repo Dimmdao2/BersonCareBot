@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import { check, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { check, foreignKey, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { beOrganizations } from "./bookingEngine";
 import { platformUsers } from "./schema";
 
 /** Doctor-facing supplementary contacts; not used for login / identity. */
@@ -10,6 +11,7 @@ export const platformUserContacts = pgTable(
     platformUserId: uuid("platform_user_id")
       .notNull()
       .references(() => platformUsers.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id"),
     contactType: text("contact_type").notNull(),
     /** Raw value as entered (display / call / message). */
     value: text().notNull(),
@@ -25,6 +27,12 @@ export const platformUserContacts = pgTable(
       table.valueNormalized,
     ),
     index("idx_platform_user_contacts_user").on(table.platformUserId),
+    index("idx_platform_user_contacts_organization_id").on(table.organizationId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "platform_user_contacts_organization_id_fkey",
+    }).onDelete("cascade"),
     check(
       "platform_user_contacts_type_check",
       sql`contact_type = ANY (ARRAY[

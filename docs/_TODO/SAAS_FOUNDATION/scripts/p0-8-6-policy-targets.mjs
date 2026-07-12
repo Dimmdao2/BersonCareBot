@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
-import { renderBootstrapHybridPolicyStatements } from "./rls-sql-renderer.mjs";
+import {
+  renderBootstrapHybridOrgGatedPolicyStatements,
+  renderBootstrapHybridPolicyStatements,
+} from "./rls-sql-renderer.mjs";
 
 export const p086PolicyName = "saas_bootstrap_hybrid_p0_8_6";
 
@@ -15,6 +18,17 @@ export const expectedP086BootstrapHybridTargets = Object.freeze([
 
 const expectedTargetSet = new Set(expectedP086BootstrapHybridTargets);
 
+const expectedBootstrapHybridTables = new Set([
+  "integrator.system_settings",
+  "public.system_settings",
+  "public.system_settings_audit",
+]);
+
+const expectedBootstrapHybridOrgGatedTables = new Set([
+  "public.platform_user_contacts",
+  "public.user_phone_history",
+]);
+
 function setDiff(left, right) {
   return Array.from(left).filter((value) => !right.has(value)).sort();
 }
@@ -25,7 +39,10 @@ function sortedDescriptors(descriptors) {
 
 export function getP086BootstrapHybridDescriptors({ descriptors = buildRlsDescriptors() } = {}) {
   const targets = sortedDescriptors(
-    Array.from(descriptors.values()).filter((descriptor) => descriptor.scopingKind === "bootstrap_hybrid"),
+    Array.from(descriptors.values()).filter((descriptor) =>
+      descriptor.scopingKind === "bootstrap_hybrid" ||
+      descriptor.scopingKind === "bootstrap_hybrid_org_gated"
+    ),
   );
 
   assertP086BootstrapHybridTargets(targets);
@@ -61,24 +78,57 @@ export function assertP086BootstrapHybridTargets(targets) {
       throw new Error(`P0.8.6 target ${descriptor.table} must be BOOTSTRAP, got ${descriptor.tier}`);
     }
 
-    if (descriptor.scopingKind !== "bootstrap_hybrid") {
-      throw new Error(`P0.8.6 target ${descriptor.table} must use bootstrap_hybrid`);
+    const expectedScopingKind = expectedBootstrapHybridOrgGatedTables.has(descriptor.table)
+      ? "bootstrap_hybrid_org_gated"
+      : "bootstrap_hybrid";
+
+    if (descriptor.scopingKind !== expectedScopingKind) {
+      throw new Error(`P0.8.6 target ${descriptor.table} must use ${expectedScopingKind}, got ${descriptor.scopingKind}`);
     }
 
     if (descriptor.orgColumn !== "organization_id") {
       throw new Error(`P0.8.6 target ${descriptor.table} must use nullable organization_id`);
     }
 
-    if (descriptor.predicateTemplate !== "organization_id_is_null_or_matches_app_org") {
-      throw new Error(`P0.8.6 target ${descriptor.table} has unexpected predicate template`);
+    const expectedPredicateTemplate = expectedBootstrapHybridOrgGatedTables.has(descriptor.table)
+      ? "org_gated_null_bootstrap"
+      : "organization_id_is_null_or_matches_app_org";
+
+    if (descriptor.predicateTemplate !== expectedPredicateTemplate) {
+      throw new Error(`P0.8.6 target ${descriptor.table} has unexpected predicate template ${descriptor.predicateTemplate}`);
     }
+  }
+
+  const bootstrapHybridTables = new Set(
+    targets.filter((descriptor) => descriptor.scopingKind === "bootstrap_hybrid").map((descriptor) => descriptor.table),
+  );
+  const bootstrapHybridOrgGatedTables = new Set(
+    targets.filter((descriptor) => descriptor.scopingKind === "bootstrap_hybrid_org_gated").map((descriptor) => descriptor.table),
+  );
+
+  if (
+    setDiff(expectedBootstrapHybridTables, bootstrapHybridTables).length > 0 ||
+    setDiff(bootstrapHybridTables, expectedBootstrapHybridTables).length > 0
+  ) {
+    throw new Error("P0.8.6 bootstrap_hybrid table set mismatch");
+  }
+
+  if (
+    setDiff(expectedBootstrapHybridOrgGatedTables, bootstrapHybridOrgGatedTables).length > 0 ||
+    setDiff(bootstrapHybridOrgGatedTables, expectedBootstrapHybridOrgGatedTables).length > 0
+  ) {
+    throw new Error("P0.8.6 bootstrap_hybrid_org_gated table set mismatch");
   }
 }
 
 export function renderP086PolicyStatements({ descriptors = getP086BootstrapHybridDescriptors() } = {}) {
-  return descriptors.flatMap((descriptor) =>
-    renderBootstrapHybridPolicyStatements(descriptor, { policyName: p086PolicyName }),
-  );
+  return descriptors.flatMap((descriptor) => {
+    if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
+      return renderBootstrapHybridOrgGatedPolicyStatements(descriptor, { policyName: p086PolicyName });
+    }
+
+    return renderBootstrapHybridPolicyStatements(descriptor, { policyName: p086PolicyName });
+  });
 }
 
 function printCli(format) {

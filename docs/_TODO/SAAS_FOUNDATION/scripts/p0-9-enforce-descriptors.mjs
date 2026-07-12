@@ -3,6 +3,7 @@
 import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
 import {
   hasAnyPatientOwnership,
+  renderBootstrapHybridOrgGatedPredicate,
   renderBootstrapHybridPredicate,
   renderCreatePolicy,
   renderDropPolicy,
@@ -22,6 +23,7 @@ export const p09EnforceActions = new Set([
   "scoped_fk_path",
   "scoped_pending_default_deny",
   "bootstrap_hybrid",
+  "bootstrap_hybrid_org_gated",
   "bootstrap_global_read",
   "explicit_global",
   "legacy_frozen_deny",
@@ -32,7 +34,8 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   scoped_org: 154,
   scoped_fk_path: 2,
   scoped_pending_default_deny: 1,
-  bootstrap_hybrid: 5,
+  bootstrap_hybrid: 3,
+  bootstrap_hybrid_org_gated: 2,
   bootstrap_global_read: 22,
   explicit_global: 24,
   legacy_frozen_deny: 16,
@@ -116,6 +119,18 @@ export function buildP09EnforceDescriptor(descriptor) {
           ...base.enforceMode,
           action: "bootstrap_hybrid",
           reason: "global_rows_readable_pre_context_org_rows_require_matching_app_org",
+        },
+      };
+    }
+
+    if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
+      return {
+        ...base,
+        predicateTemplate: "org_gated_null_bootstrap",
+        enforceMode: {
+          ...base.enforceMode,
+          action: "bootstrap_hybrid_org_gated",
+          reason: "null_rows_readable_only_to_contextless_bootstrap_org_rows_require_matching_app_org",
         },
       };
     }
@@ -264,6 +279,10 @@ export function renderP09EnforcePredicate(descriptor) {
 
   if (action === "bootstrap_hybrid") {
     return renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
+  }
+
+  if (action === "bootstrap_hybrid_org_gated") {
+    return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
   }
 
   if (action === "bootstrap_global_read" || action === "explicit_global") {

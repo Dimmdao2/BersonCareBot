@@ -355,6 +355,12 @@ const rowA1 = "b6100000-0000-4000-8000-000000000001";
 const rowA2 = "b6100000-0000-4000-8000-000000000002";
 const rowB1 = "b6100000-0000-4000-8000-000000000003";
 const writeProbe = "b6100000-0000-4000-8000-000000000004";
+// P0.8.6 PII org-gated bootstrap-hybrid probes (platform_user_contacts, user_phone_history):
+// one org-A row + one genuine bootstrap NULL-org row per table.
+const pucOrgA = "b6200000-0000-4000-8000-000000000001";
+const pucNull = "b6200000-0000-4000-8000-000000000002";
+const uphOrgA = "b6200000-0000-4000-8000-000000000011";
+const uphNull = "b6200000-0000-4000-8000-000000000012";
 
 const fixtureSql = `
 INSERT INTO public.be_organizations (id, organization_id) VALUES
@@ -374,6 +380,14 @@ INSERT INTO public.notification_delivery_attempts (id, organization_id, user_id)
   ('${rowA1}'::uuid, '${orgA}'::uuid, '${patientP}'::uuid),
   ('${rowA2}'::uuid, '${orgA}'::uuid, '${patientQ}'::uuid),
   ('${rowB1}'::uuid, '${orgB}'::uuid, '${patientP}'::uuid);
+
+INSERT INTO public.platform_user_contacts (id, organization_id) VALUES
+  ('${pucOrgA}'::uuid, '${orgA}'::uuid),
+  ('${pucNull}'::uuid, NULL);
+
+INSERT INTO public.user_phone_history (id, organization_id) VALUES
+  ('${uphOrgA}'::uuid, '${orgA}'::uuid),
+  ('${uphNull}'::uuid, NULL);
 `;
 
 function installContextSql({ role, nonce, orgId, patientId = null, integratorUserId = null }) {
@@ -460,6 +474,29 @@ SELECT 1/0;
 \endif
 
 \echo 'R2 smoke (b) CONFIRMED: FORCE + locked org A context cannot see org B rows.'
+
+SELECT (count(*) = 1)::int AS staff_puc_org_a_ok FROM public.platform_user_contacts WHERE id = '${pucOrgA}'::uuid \gset
+\if :staff_puc_org_a_ok
+\else
+\echo 'FATAL: staff org A must see its own org-A platform_user_contacts row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 0)::int AS staff_puc_null_hidden_ok FROM public.platform_user_contacts WHERE organization_id IS NULL \gset
+\if :staff_puc_null_hidden_ok
+\else
+\echo 'FATAL: HOLE OPEN — staff must NOT see NULL-org platform_user_contacts rows under enforce.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 0)::int AS staff_uph_null_hidden_ok FROM public.user_phone_history WHERE organization_id IS NULL \gset
+\if :staff_uph_null_hidden_ok
+\else
+\echo 'FATAL: HOLE OPEN — staff must NOT see NULL-org user_phone_history rows under enforce.'
+SELECT 1/0;
+\endif
+
+\echo 'R2 smoke (b2) CONFIRMED: PII org-gated tables — staff org A sees only its org rows, NULL-org rows are NOT globally readable (hole closed).'
 
 ${installContextSql({ role: patientRole, nonce: `patient_p_${stamp}`, orgId: null, patientId: patientP })}
 
@@ -564,6 +601,40 @@ SELECT (count(*) = 0)::int AS patient_no_context_denies_ok FROM public.org_enrol
 \echo 'FATAL: app_patient strict no-context read must fail closed.'
 SELECT 1/0;
 \endif
+
+-- Same no-context non-staff session models a genuine bootstrap/pre-auth principal (OTP/messenger/
+-- public booking). For the PII org-gated tables it must still READ its NULL-org rows (and only those).
+SELECT (count(*) = 1)::int AS bootstrap_puc_null_visible_ok FROM public.platform_user_contacts WHERE organization_id IS NULL \gset
+\if :bootstrap_puc_null_visible_ok
+\else
+\echo 'FATAL: bootstrap (no-context, non-staff) session must still read NULL-org platform_user_contacts rows.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 0)::int AS bootstrap_puc_org_a_hidden_ok FROM public.platform_user_contacts WHERE organization_id = '${orgA}'::uuid \gset
+\if :bootstrap_puc_org_a_hidden_ok
+\else
+\echo 'FATAL: bootstrap session must NOT see org-scoped platform_user_contacts rows.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS bootstrap_uph_null_visible_ok FROM public.user_phone_history WHERE organization_id IS NULL \gset
+\if :bootstrap_uph_null_visible_ok
+\else
+\echo 'FATAL: bootstrap (no-context, non-staff) session must still read NULL-org user_phone_history rows.'
+SELECT 1/0;
+\endif
+
+-- WITH CHECK: a bootstrap session must be able to WRITE a fresh NULL-org row (OTP/messenger insert path).
+INSERT INTO public.user_phone_history (id, organization_id) VALUES ('b6200000-0000-4000-8000-000000000013'::uuid, NULL);
+SELECT (count(*) = 1)::int AS bootstrap_uph_null_write_ok FROM public.user_phone_history WHERE id = 'b6200000-0000-4000-8000-000000000013'::uuid \gset
+\if :bootstrap_uph_null_write_ok
+\else
+\echo 'FATAL: bootstrap session must be able to INSERT a NULL-org user_phone_history row (WITH CHECK).'
+SELECT 1/0;
+\endif
+
+\echo 'R2 smoke (e2) CONFIRMED: PII org-gated tables — bootstrap (no-context, non-staff) reads/writes only NULL-org rows; org rows stay hidden.'
 
 \echo 'R2 smoke (e) CONFIRMED: no signed context under app_staff/app_patient fails CLOSED in strict+FORCE mode.'
 \echo 'R2 smoke (f) CONFIRMED: after release on the same backend, prior principal context is not inherited inside the 300s TTL.'

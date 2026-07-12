@@ -10,6 +10,8 @@ import { getP085IntegratorScopedDescriptors, p085PolicyName } from "./p0-8-5-pol
 import { getP086BootstrapHybridDescriptors, p086PolicyName } from "./p0-8-6-policy-targets.mjs";
 import {
   hasAnyPatientOwnership,
+  dormantCompatibilityPredicate,
+  renderBootstrapHybridOrgGatedPredicate,
   renderBootstrapHybridPredicate,
   renderCreatePolicy,
   renderDropPolicy,
@@ -25,13 +27,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 
 export const phase4LockedPolicyArtifactPath = "deploy/postgres/phase4-locked-helper-rls-policies.sql";
-
-export const dormantCompatibilityPredicate = [
-  "app.current_org_id() IS NULL",
-  "app.current_patient_user_id() IS NULL",
-  "app.current_integrator_user_id() IS NULL",
-  "NOT app.is_staff()",
-].join(" AND ");
 
 function compareTable(left, right) {
   return left.descriptor.table.localeCompare(right.descriptor.table);
@@ -59,6 +54,10 @@ export function getPhase4LockedPolicyTargets() {
 }
 
 export function renderPhase4StrictPredicate(descriptor) {
+  if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
+    return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
+  }
+
   if (descriptor.scopingKind === "bootstrap_hybrid") {
     return renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
   }

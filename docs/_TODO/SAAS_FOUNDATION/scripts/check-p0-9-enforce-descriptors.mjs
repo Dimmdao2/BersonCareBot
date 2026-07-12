@@ -204,12 +204,46 @@ if (renderP09EnforcePredicate(pendingPolymorphic) !== "false") {
 const bootstrapHybrid = getP09EnforceDescriptorByTable("public.system_settings");
 const bootstrapHybridSql = renderP09EnforcePolicyStatements(bootstrapHybrid).join("\n");
 
+if (bootstrapHybrid.enforceMode.action !== "bootstrap_hybrid") {
+  fail("P0.9 system_settings must keep bootstrap_hybrid enforce action");
+}
+
 assertIncludes(bootstrapHybridSql, '"organization_id" IS NULL', "P0.9 bootstrap hybrid SQL must allow global rows");
 assertIncludes(
   bootstrapHybridSql,
   `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
   "P0.9 bootstrap hybrid SQL must require app.current_org_id() for tenant rows",
 );
+assertNotIncludes(
+  bootstrapHybridSql,
+  "NOT app.is_staff()",
+  "P0.9 system_settings global rows must not use the PII bootstrap guard",
+);
+
+for (const table of ["public.platform_user_contacts", "public.user_phone_history"]) {
+  const descriptor = getP09EnforceDescriptorByTable(table);
+  const sql = renderP09EnforcePolicyStatements(descriptor).join("\n");
+
+  if (descriptor.enforceMode.action !== "bootstrap_hybrid_org_gated") {
+    fail(`P0.9 ${table} must use bootstrap_hybrid_org_gated enforce action`);
+  }
+
+  assertIncludes(
+    sql,
+    `(app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())`,
+    `P0.9 ${table} must allow matching organization rows`,
+  );
+  assertIncludes(
+    sql,
+    `"organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()`,
+    `P0.9 ${table} must gate NULL-org rows to contextless bootstrap`,
+  );
+  assertNotIncludes(
+    sql,
+    `"organization_id" IS NULL OR (app.current_org_id() IS NOT NULL`,
+    `P0.9 ${table} must not retain unqualified global NULL rows`,
+  );
+}
 
 const bootstrapGlobal = getP09EnforceDescriptorByTable("public.platform_users");
 

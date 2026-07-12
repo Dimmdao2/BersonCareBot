@@ -18,9 +18,12 @@ const expectedTierCounts = new Map([
 
 const expectedBootstrapHybridTables = new Set([
   "integrator.system_settings",
-  "public.platform_user_contacts",
   "public.system_settings",
   "public.system_settings_audit",
+]);
+
+const expectedBootstrapHybridOrgGatedTables = new Set([
+  "public.platform_user_contacts",
   "public.user_phone_history",
 ]);
 
@@ -96,6 +99,7 @@ if (!sameSet(descriptorTables, tierTables)) {
 
 const actualTierCounts = new Map();
 const actualBootstrapHybridTables = new Set();
+const actualBootstrapHybridOrgGatedTables = new Set();
 const actualScopedFkPathTables = new Set();
 const actualP083ParentCopyHolds = new Set();
 let publicDirectOrgPolicyTargetCount = 0;
@@ -164,6 +168,16 @@ for (const [table, descriptor] of descriptors.entries()) {
       if (descriptor.orgColumn !== "organization_id") {
         fail(`BOOTSTRAP hybrid descriptor ${table} must declare organization_id`);
       }
+    } else if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
+      actualBootstrapHybridOrgGatedTables.add(table);
+
+      if (descriptor.orgColumn !== "organization_id") {
+        fail(`BOOTSTRAP org-gated hybrid descriptor ${table} must declare organization_id`);
+      }
+
+      if (descriptor.predicateTemplate !== "org_gated_null_bootstrap") {
+        fail(`BOOTSTRAP org-gated hybrid descriptor ${table} must use org_gated_null_bootstrap`);
+      }
     } else if (descriptor.scopingKind !== "bootstrap_global") {
       fail(`Invalid BOOTSTRAP scoping kind for ${table}: ${descriptor.scopingKind}`);
     }
@@ -187,6 +201,12 @@ for (const [tier, expectedCount] of expectedTierCounts.entries()) {
 if (!sameSet(actualBootstrapHybridTables, expectedBootstrapHybridTables)) {
   fail(
     `Unexpected BOOTSTRAP hybrid set. Missing: ${setDiff(expectedBootstrapHybridTables, actualBootstrapHybridTables).join(", ")}. Extra: ${setDiff(actualBootstrapHybridTables, expectedBootstrapHybridTables).join(", ")}`,
+  );
+}
+
+if (!sameSet(actualBootstrapHybridOrgGatedTables, expectedBootstrapHybridOrgGatedTables)) {
+  fail(
+    `Unexpected BOOTSTRAP org-gated hybrid set. Missing: ${setDiff(expectedBootstrapHybridOrgGatedTables, actualBootstrapHybridOrgGatedTables).join(", ")}. Extra: ${setDiff(actualBootstrapHybridOrgGatedTables, expectedBootstrapHybridOrgGatedTables).join(", ")}`,
   );
 }
 

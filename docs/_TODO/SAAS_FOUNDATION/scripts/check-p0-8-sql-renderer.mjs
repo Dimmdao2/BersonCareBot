@@ -2,8 +2,10 @@
 
 import assert from "node:assert/strict";
 import {
+  dormantCompatibilityPredicate,
   quoteQualifiedName,
   quoteSqlIdentifier,
+  renderBootstrapHybridOrgGatedPredicate,
   renderBootstrapHybridPredicate,
   renderOrgPredicate,
   renderPatientChainPredicate,
@@ -110,6 +112,18 @@ assert.equal(
   renderBootstrapHybridPredicate({ orgColumn: "organization_id" }),
   `("organization_id" IS NULL OR (${orgContext} IS NOT NULL AND "organization_id" = ${orgContext}))`,
   "bootstrap hybrid predicate should allow global rows or matching app.current_org_id()",
+);
+
+assert.equal(
+  dormantCompatibilityPredicate,
+  "app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()",
+  "dormant compatibility predicate should remain the contextless non-staff bootstrap guard",
+);
+
+assert.equal(
+  renderBootstrapHybridOrgGatedPredicate({ orgColumn: "organization_id" }),
+  `((${orgContext} IS NOT NULL AND "organization_id" = ${orgContext}) OR ("organization_id" IS NULL AND ${dormantCompatibilityPredicate}))`,
+  "bootstrap org-gated hybrid predicate should match org rows or contextless NULL-org bootstrap rows",
 );
 
 assert.equal(

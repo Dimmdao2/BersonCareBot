@@ -50,6 +50,13 @@ function assertPatientMode(mode) {
 const patientCastTypes = new Set(["uuid", "bigint"]);
 const orgContextSql = "app.current_org_id()";
 
+export const dormantCompatibilityPredicate = [
+  "app.current_org_id() IS NULL",
+  "app.current_patient_user_id() IS NULL",
+  "app.current_integrator_user_id() IS NULL",
+  "NOT app.is_staff()",
+].join(" AND ");
+
 // Phase 2 (TASK_FOR_SOL_multitenant_flip.md): trusted org/patient/integrator identity is read only
 // through helper functions backed by the protected backend-context table. Raw custom GUCs remain
 // useful as legacy proof inputs, but generated RLS predicates must not trust current_setting('app.*').
@@ -494,6 +501,12 @@ export function renderBootstrapHybridPredicate({ orgColumn = "organization_id" }
   return `(${columnSql} IS NULL OR (${orgContextSql} IS NOT NULL AND ${columnSql} = ${orgContextSql}))`;
 }
 
+export function renderBootstrapHybridOrgGatedPredicate({ orgColumn = "organization_id" } = {}) {
+  const columnSql = quoteSqlIdentifier(orgColumn);
+
+  return `((${orgContextSql} IS NOT NULL AND ${columnSql} = ${orgContextSql}) OR (${columnSql} IS NULL AND ${dormantCompatibilityPredicate}))`;
+}
+
 export function renderPolicyTarget(table) {
   return quoteQualifiedName(table);
 }
@@ -577,6 +590,25 @@ export function renderBootstrapHybridPolicyStatements(descriptor, { policyName }
   }
 
   const predicate = renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
+
+  return [
+    renderEnableRowLevelSecurity(descriptor.table),
+    renderDropPolicy({ policyName, target: descriptor.table }),
+    renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
+  ];
+}
+
+export function renderBootstrapHybridOrgGatedPolicyStatements(descriptor, { policyName }) {
+  if (descriptor?.scopingKind !== "bootstrap_hybrid_org_gated") {
+    throw new Error(`Bootstrap hybrid org-gated policy requires bootstrap_hybrid_org_gated descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  }
+
+  if (typeof policyName !== "string" || policyName.length === 0) {
+    throw new Error("Policy name must be a non-empty string");
+  }
+
+  const strictPredicate = renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
+  const predicate = `((${dormantCompatibilityPredicate}) OR ${strictPredicate})`;
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),

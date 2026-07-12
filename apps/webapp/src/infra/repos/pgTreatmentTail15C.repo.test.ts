@@ -23,6 +23,10 @@ vi.mock("@/infra/repos/materialRatingTargetVideoMediaIds", () => ({
   resolveMaterialRatingTargetVideoMediaIds: vi.fn(async () => []),
 }));
 
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: vi.fn(() => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+}));
+
 vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: vi.fn(() => {
     const mediaChain = {
@@ -156,6 +160,13 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
     const sqls = runWebappPgTextMock.mock.calls.map((c) => String(c[0]));
     expect(sqls[0]).toContain("UPDATE user_phone_history SET valid_to");
     expect(sqls[1]).toContain("INSERT INTO user_phone_history");
+    expect(sqls[1]).toContain("organization_id");
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([
+      "550e8400-e29b-41d4-a716-446655440000",
+      "+79001234567",
+      "otp",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ]);
     expect(runWebappPgTextMock.mock.calls[0]?.[2]).toBeDefined();
     expect(runWebappPgTextMock.mock.calls[1]?.[2]).toBeDefined();
   });
