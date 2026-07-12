@@ -1,0 +1,90 @@
+/* ============================================================
+   BersonCare — Design tokens for Tailwind v4
+   Источник истины: Design DNA v1.0 + Amendment v1.1 (Nunito).
+   Подключение: @import этот файл после установки Tailwind v4.
+   ============================================================ */
+
+@import "tailwindcss";
+
+/* Шрифт: Nunito (Google Fonts, включает кириллицу).
+   Альтернатива — самохостинг woff2 + @font-face, тогда убрать строку ниже. */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap');
+
+@theme {
+  /* — Типографика — */
+  --font-sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* — Нейтралы (тёплая основа) — */
+  --color-canvas:      #F6F4EF;   /* фон страницы */
+  --color-surface:     #FFFFFF;   /* карточки, панели */
+  --color-rail:        #FBFAF6;   /* меню, поля, второстепенные зоны */
+  --color-warm-sel:    #F1EEE7;   /* фон выбранной/наведённой строки */
+
+  /* — Акцент (синий, ядро бренда) — */
+  --color-accent-50:   #E9F0F8;   /* только мелкий тон (бейдж) */
+  --color-accent-100:  #DCE8F5;
+  --color-accent-200:  #C4D6EC;   /* обводка вторичной кнопки */
+  --color-accent-500:  #386FBA;   /* base: кнопки, полоска выделения, прогресс */
+  --color-accent-600:  #305F9F;   /* hover */
+  --color-accent-700:  #28518A;   /* press */
+  --color-accent-text: #2B548C;   /* ссылки, активный текст, статус-заголовки */
+  --color-accent-900:  #22406B;
+
+  /* — Текст (графит, не чёрный) — */
+  --color-ink:         #232A31;
+  --color-ink-2:       #55606B;
+  --color-muted:       #8B94A0;
+  --color-faint:       #B4BAC2;
+
+  /* — Границы (тёплые) — */
+  --color-line:        #EFECE4;   /* рамка карточек */
+  --color-divider:     #EDEAE2;
+  --color-hairline:    #F1EEE7;   /* волосяная линия строк */
+
+  /* — Функциональные (приглушённые, точечно) — */
+  --color-warn:        #C08A2E;
+  --color-warn-tint:   #F6EEDD;
+  --color-danger:      #B4544B;
+  --color-danger-tint: #F6E5E2;
+  --color-ok:          #3E7D68;   /* только маленький маркер «выполнено» */
+  --color-info:        #386FBA;
+
+  /* — Радиус (мягче/Apple, но в пределах шкалы; pill — через rounded-full) — */
+  --radius-xs: 5px;
+  --radius-sm: 8px;    /* поля ввода */
+  --radius-md: 11px;
+  --radius-lg: 14px;   /* карточки, панели — верхний край, мягкий Apple-край */
+
+  /* — Тень — */
+  --shadow-micro:  0 1px 2px rgba(40,35,25,.028), 0 4px 14px rgba(40,35,25,.03);
+  --shadow-raised: 0 2px 4px rgba(40,35,25,.06), 0 16px 34px rgba(40,35,25,.10);
+
+  /* — Движение — */
+  --ease-bc: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+  body { background: var(--color-canvas); color: var(--color-ink); }
+}
+
+@layer components {
+  /* Vibrancy-тулбар (правка v1.1): полупрозрачный материал + blur.
+     Нейтральный материал, НЕ цветная заливка. */
+  .bc-vibrancy {
+    background: color-mix(in srgb, var(--color-rail) 72%, transparent);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    border-bottom: 1px solid var(--color-hairline);
+  }
+
+  /* Pill-контролы (правка v1.1): полное скругление для кнопок и поиска.
+     На строки списка НЕ распространяется — строки плоские. */
+  .bc-pill { border-radius: 9999px; }
+}
+
+/* Сгенерированные утилиты (примеры):
+   bg-canvas · bg-surface · bg-rail · bg-accent-500 · text-accent-text
+   text-ink · text-muted · border-line · border-hairline
+   rounded-lg · rounded-full · shadow-micro · shadow-raised · font-sans
+   tabular-nums (базово включён)                                        */
