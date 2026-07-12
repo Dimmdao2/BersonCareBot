@@ -30,7 +30,7 @@ Accepted findings:
 - Per-checkout setup/reset is required for coverage; transaction-only setup misses plain
   `getPool()` / `getDrizzle()` / `DbPort.query` paths.
 - `FORCE ROW LEVEL SECURITY` is already present in the dormant migration chain, not reserved for a final
-  cutover migration. Committed SQL has 160 org/hybrid FORCE statements and 204 patient-side FORCE
+  cutover migration. Committed SQL has 160 org/hybrid FORCE statements and 210 patient-side FORCE
   statements.
 - The current patient wall is not dormant-symmetric: unset patient context denies the patient branch.
 - `#664` is not a GRANT-only cleanup. It needs `WITH CHECK`, triggers, or repo splits for value-level
@@ -147,6 +147,10 @@ Current cutover blockers:
   appointment lifecycle rows, `program_item_discussion_messages`, `support_conversation_messages`,
   `be_appointments`, `lfk_sessions.organization_id`, `reminder_rules.notification_topic_code`,
   `user_channel_preferences.is_preferred_for_auth`, and `online_intake_status_history`.
+- Treat the full `P0_5B_GRANTS.md` "Flagged for extra review" section as B4-fanout triage scope, not only
+  the value-level residuals above: `org_enrollments`, `comments`, `system_settings`,
+  `user_channel_bindings` / `platform_user_contacts` / `user_phone_history`, and the payment/package family
+  are all pre-flip smoke targets.
 
 ### D. Provisioning Scope
 
@@ -175,20 +179,123 @@ Required Phase 0 validation:
 - Read-only audits must not start by running full CI; they start with diff/source analysis.
 - Any scratch DB proof must use a disposable DB only and must print no PII.
 
+## Phase Plan And Estimate
+
+Phase 1 — locked labels + all scoped access labeled: 4-6 focused days.
+
+Likely files:
+- `packages/db-principal/src/index.ts`
+- `apps/webapp/src/infra/db/withClient.ts`
+- `apps/webapp/src/app-layer/db/drizzle.ts`
+- `apps/webapp/src/infra/db/runWebappSql.ts`
+- `apps/integrator/src/infra/db/client.ts`
+- `apps/integrator/src/infra/db/withClient.ts`
+- `apps/integrator/src/infra/db/runIntegratorSql.ts`
+- `apps/media-worker/src/withClient.ts`
+- `apps/media-worker/src/runMediaWorkerSql.ts`
+- `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs`
+- `docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-db-access-surface.mjs`
+- `scripts/check-db-chokepoint.mjs`
+- new scratch/proof smoke scripts under `docs/_TODO/SAAS_FOUNDATION/scripts/`
+- a new migration/ops SQL for `app.current_*()` helper functions, protected context table, and signed setter.
+
+Expected work:
+- Introduce full principal carrier: staff/org, patient/org/platform user, integrator user, bootstrap/infra.
+- Set/clear principal per checkout, not only per transaction.
+- Replace raw policy reads of trusted identity with helper functions backed by protected context.
+- Keep `app.is_staff()` role-derived.
+- Add static gates for runtime `SET app.*` and unlabeled scoped DB access.
+
+Phase 2 — enforce-ready RLS + `#664`: 4-6 focused days.
+
+Likely files:
+- `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs`
+- `docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs`
+- migrations `0160-0175` replacement/follow-up strategy or final cutover migrations
+- `deploy/postgres/p0-5b-grants.sql`
+- `docs/_TODO/SAAS_FOUNDATION/P0_5B_GRANTS.md`
+- booking lifecycle repos/services
+- program discussion repo/service
+- support conversation repo/service
+- reminder rules and LFK session write paths.
+
+Residual mapping:
+- Appointment lifecycle tables: repo split or trigger/WITH CHECK pinning patient actor fields,
+  `manual_override=false`, no staff comments/financial flags from patient role.
+- `program_item_discussion_messages`: trigger/WITH CHECK pin `sender_role='patient'` and
+  `origin='patient_observation'` for patient role.
+- `support_conversation_messages`: trigger/WITH CHECK pin patient sender role.
+- `be_appointments`: transition trigger/service split for patient cancel/reschedule only; no arbitrary
+  status/specialist/branch reassignment.
+- `lfk_sessions.organization_id`: set from protected org context or scoped parent, not nullable accident.
+- `reminder_rules.notification_topic_code`: trace confirmed patient write or narrow values.
+- `user_channel_preferences.is_preferred_for_auth`: re-add safely through a dedicated checked path or trigger.
+- `online_intake_status_history`: add missing patient INSERT shape for the confirmed intake flow.
+
+Extra-review mapping:
+- `org_enrollments`: keep SELECT-only unless a traced patient-session insert path is proven; if re-added,
+  exclude authorization/status forgery.
+- `comments`: keep SELECT-only until a real patient route exists; future patient writes need column
+  restriction and `author_id=self` / `comment_type='individual_override'`.
+- `system_settings`: likely SELECT-only if patient branding/feature reads need it; never app_patient write.
+- `user_channel_bindings`, `platform_user_contacts`, `user_phone_history`: keep SELECT-only until a confirmed
+  patient self-service write flow is traced.
+- Payment/package family: keep as B4-fanout smoke target. If patient-initiated payment flows write these
+  rows, add narrow write grants plus value checks before flip.
+
+Phase 3 — specialist self-registration/provisioning: 2-3 focused days.
+
+Likely files:
+- `apps/webapp/src/infra/repos/pgBookingEngine.ts`
+- `apps/webapp/src/infra/repos/pgOrganizationMembership.ts`
+- `apps/webapp/src/modules/organization-membership/ports.ts`
+- auth email-password register/confirm routes and service layer
+- new `OrganizationProvisioningService` module or app-layer service
+- minimal signup UI/API for specialist intent.
+
+Expected work:
+- Add `createOrganization(freshUuid, title)` instead of reusing default-org upsert semantics.
+- Add membership write port.
+- Create `be_specialists` and active owner membership with `specialist_id`.
+- Do not create `org_enrollments` for the owner.
+- Update seed/provisioning assumptions for separate doctor/admin users.
+
+Phase 4 — rollout/cutover: 2-3 focused days plus owner-operated staging/prod windows.
+
+Likely files:
+- `deploy/HOST_DEPLOY_README.md`
+- `docs/_TODO/SAAS_FOUNDATION/DORMANT_DEPLOY_TEST_RUNBOOK.md`
+- new flip runbook
+- migration/deploy scripts for NO FORCE / FORCE cutover
+- smoke scripts for process-family real-role runs.
+
+Required gates:
+- Fresh disposable prod-copy validation.
+- 2-org + 2-patient deny/allow smoke.
+- Process-family smoke under real `app_staff`/`app_patient` roles.
+- 0 missing-principal shadow entries.
+- 0 permission errors across doctor, patient, integrator, scheduler, queue, media, pre-auth.
+- Rollback: disable signup, revert FORCE/role wiring, restart.
+
+Total estimate: 12-18 focused person-days, consistent with the original owner-facing estimate. The first
+useful milestone is Phase 1 proof package and all scoped DB access labeled; that is the part that should
+not be diluted by UI work.
+
 ## Exit Checklist
 
-- [ ] Locked-label mechanism chosen and justified.
+- [x] Locked-label direction chosen: protected backend-context table + signed SECURITY DEFINER setter +
+      helper functions; raw custom GUCs rejected as trusted identity.
 - [x] Initial spoofing proofs run for custom GUC ACL and signed backend-context setter.
-- [ ] Production-grade locked-label mechanism chosen and justified.
+- [ ] Production-grade locked-label implementation designed with TTL/backend binding/release cleanup.
 - [ ] Remaining spoofing proofs defined and assigned.
 - [x] DB access surface refreshed from current branch.
-- [ ] Non-centralizable entrypoints listed with principal source.
+- [x] Non-centralizable entrypoints listed with principal source.
 - [x] ORG/PATIENT wall migration risks listed.
-- [ ] #664 value-level residuals mapped to concrete enforcement mechanism.
-- [ ] First doctor/admin split reflected in seed/provisioning plan.
-- [ ] Process-family smoke under real app roles planned.
+- [x] #664 value-level residuals and extra-review tails mapped to concrete enforcement/triage mechanism.
+- [x] First doctor/admin split reflected in seed/provisioning plan.
+- [x] Process-family smoke under real app roles planned.
 - [ ] Cluster-global role naming/env-boundary decision recorded.
-- [ ] Phase 1-4 file list and effort estimate written.
+- [x] Phase 1-4 file list and effort estimate written.
 - [x] Independent read-only audits completed on the Phase 0 inputs.
-- [ ] Independent audit completed on the Phase 0 conclusion.
+- [x] Independent audit completed on the Phase 0 conclusion.
 - [ ] Owner receives Phase 0 result before Phase 1+ coding starts.
