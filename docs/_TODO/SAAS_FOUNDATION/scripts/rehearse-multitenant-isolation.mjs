@@ -622,7 +622,8 @@ function proveLegacyDormantCompatibility() {
   psqlUrlFile(fullOwnerUrl, phase4PolicySqlPath);
   const legacyUrl = fullScratchStaffUrl;
   const result = runCaptured("node", ["-e", `
-const { Client } = require("pg");
+const { createRequire } = require("node:module");
+const { Client } = createRequire(${JSON.stringify(path.join(repoRoot, "apps/webapp/package.json"))})("pg");
 (async () => {
   const c = new Client({ connectionString: process.env.CHECK_URL });
   await c.connect();
