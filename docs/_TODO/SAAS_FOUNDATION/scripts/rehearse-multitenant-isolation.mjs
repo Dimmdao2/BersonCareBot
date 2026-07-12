@@ -261,7 +261,8 @@ function restoreNewestProdDump() {
   assertSafeDisposableName(dbName);
   const dumpDir = process.env.REHEARSAL_DUMP_DIR ?? "/opt/backups/postgres/hourly";
   const findDump = [
-    "set -euo pipefail",
+    // no pipefail: `head -n 1` closes the pipe early and SIGPIPEs find/sort (exit 141)
+    "set -eu",
     `find ${quoteShell(dumpDir)} -maxdepth 1 -type f \\( -name '*.dump' -o -name '*.sql' -o -name '*.sql.gz' \\) -printf '%T@ %p\\n' | sort -nr | head -n 1 | cut -d' ' -f2-`,
   ].join("\n");
   const dumpResult = runCaptured("sudo", ["-n", "-u", "postgres", "bash", "-lc", findDump], {
