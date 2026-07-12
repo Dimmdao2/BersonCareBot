@@ -479,8 +479,9 @@ GRANT UPDATE ("submitted_at") ON TABLE "public"."test_attempts" TO app_patient;
 GRANT INSERT ("user_id", "platform_user_id", "title", "is_active", "updated_at", "symptom_tracking_id", "region_ref_id", "side", "diagnosis_text", "diagnosis_ref_id") ON TABLE "public"."lfk_complexes" TO app_patient;
 GRANT INSERT ("organization_id", "instance_id", "event_type", "target_type", "target_id", "payload", "reason") ON TABLE "public"."treatment_program_events" TO app_patient;
 GRANT INSERT ("id", "user_id", "organization_id", "type", "summary") ON TABLE "public"."online_intake_requests" TO app_patient;
-GRANT INSERT ("user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
-GRANT UPDATE ("platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
+GRANT INSERT ("id", "request_id", "organization_id", "from_status", "to_status") ON TABLE "public"."online_intake_status_history" TO app_patient;
+GRANT INSERT ("user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
+GRANT UPDATE ("platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
 
 SELECT format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq

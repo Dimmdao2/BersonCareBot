@@ -97,8 +97,7 @@ patient-writable):**
 - Content feedback: `material_ratings`, `patient_content_rating_feedback` (`/api/patient/material-ratings*`
   — confirmed pure user-owned rating tables, no staff/status column exists at all).
 - `reminder_rules` (`/api/patient/reminders/{create,mute}` — no true staff-owned column exists on this
-  table; `notification_topic_code` was not independently traced as patient-written, re-check before
-  the real flip).
+  table; P2-C2 recomputes `notification_topic_code` for patient-context writes).
 - LFK self-service diary: `lfk_sessions` (full write — confirmed no staff-controlled column; residual
   note: the traced INSERT never explicitly sets `organization_id`, an RLS-policy-side footgun to
   confirm before the flip, not a privilege-escalation one). `lfk_complexes` is now column-restricted,
@@ -206,10 +205,11 @@ is a small, explicit, individually-reviewed list). `REVOKE ALL PRIVILEGES ON TAB
 | `test_attempts` | INSERT | `organization_id`, `instance_stage_item_id`, `patient_user_id` | `accepted_at`, `accepted_by` (doctor-only sign-off, set exclusively by the doctor-authenticated accept route) | High — traced both sides; **the clearest over-grant found in the sweep** (patient could otherwise self-mark its own test as clinically accepted) |
 | `test_attempts` | UPDATE | `submitted_at` | same as INSERT above | High — same trace |
 | `lfk_complexes` | INSERT | `user_id`, `platform_user_id`, `title`, `is_active`, `updated_at`, `symptom_tracking_id`, `region_ref_id`, `side`, `diagnosis_text`, `diagnosis_ref_id` | `origin` (CHECK-constrained `'manual'`/`'assigned_by_specialist'`, `'manual'::text` DEFAULT — a patient could otherwise forge "assigned by a specialist" provenance on a self-created complex), `organization_id` (not referenced by the traced INSERT either) | High — 2026-07-11 second-pass sweep (gpt-5.6-sol finding #1); the patient-facing `createLfkComplex` webapp action is currently disabled entirely, so this exclusion cannot break any live flow today |
-| `user_channel_preferences` | INSERT | `user_id`, `platform_user_id`, `channel_code`, `is_enabled_for_messages`, `is_enabled_for_notifications`, `updated_at` | `is_preferred_for_auth` (controls which channel receives login/OTP codes) | High — traced `upsertPreference`; **pre-flip follow-up required**, see "Value-level residuals" below — the patient's own "preferred OTP channel" feature currently writes this column and will need it re-added with a proven session-scoping guarantee |
-| `user_channel_preferences` | UPDATE | `platform_user_id`, `is_enabled_for_messages`, `is_enabled_for_notifications`, `updated_at` | same as INSERT above | High — same trace (ON CONFLICT DO UPDATE branch of `upsertPreference`) |
+| `user_channel_preferences` | INSERT | `user_id`, `platform_user_id`, `channel_code`, `is_enabled_for_messages`, `is_enabled_for_notifications`, `is_preferred_for_auth`, `updated_at` | value-level auth-channel/ownership constraints are enforced by P2-C2 trigger | High — traced `upsertPreference` and active preferred OTP channel flow; P2-C2 pins patient-context writes to own row + allowed auth channels, existing partial unique index keeps one preferred channel |
+| `user_channel_preferences` | UPDATE | `platform_user_id`, `is_enabled_for_messages`, `is_enabled_for_notifications`, `is_preferred_for_auth`, `updated_at` | same as INSERT above | High — same trace (ON CONFLICT DO UPDATE branch of `upsertPreference`) plus `setPreferredAuthChannel` |
 | `treatment_program_events` | INSERT | `organization_id`, `instance_id`, `event_type`, `target_type`, `target_id`, `payload`, `reason` | `actor_id` (records who performed the audited action — a patient could otherwise forge authorship, e.g. attributing an event to a doctor) | High — 2026-07-11 second-pass sweep (gpt-5.6-sol finding #3); **pre-flip code fix required**, see "Value-level residuals" below — `pgTreatmentProgramEvents.ts`'s `appendEvent` always explicitly references `actor_id`, so this column exclusion will break the currently-active patient progress-tracking flow under `app_patient` until that repo function is changed |
 | `online_intake_requests` | INSERT | `id`, `user_id`, `organization_id`, `type`, `summary` | `status` (CHECK-constrained lifecycle state, `'new'::text` DEFAULT — not referenced by the traced INSERT, which relies on the default), `updated_at` (same reason, DEFAULT `now()`) | High — 2026-07-11 second-pass sweep; traced `createLfkRequest`/`createNutritionRequest` in `pgOnlineIntake.ts` |
+| `online_intake_status_history` | INSERT | `id`, `request_id`, `organization_id`, `from_status`, `to_status` | `changed_by`, `note` | High — traced initial history insert in `createLfkRequest`/`createNutritionRequest`; P2-C2 pins patient-context rows to owned request/org, `from_status IS NULL`, `to_status='new'`, and null `changed_by`/`note` |
 
 ## Value-level residuals (pre-flip, not GRANT-fixable)
 
@@ -319,9 +319,10 @@ comments for the identical reasoning per table.
   the traced patient INSERT path never explicitly sets `organization_id` — confirm the RLS
   policy/default backfills it correctly before the real flip (a cross-tenant-NULL footgun, not a
   privilege-escalation one).
-- **`public.reminder_rules`** — whole-table kept (no true staff-owned column exists on this table), but
-  `notification_topic_code` was not traced as patient-written by any confirmed call site; re-check
-  before the real flip.
+- **`public.reminder_rules`** — whole-table kept (no true staff-owned column exists on this table).
+  P2-C2 recomputes `notification_topic_code` from `category` + `linked_object_type` +
+  `reminder_intent` for patient-context INSERT/UPDATE, matching `notificationTopicCode.ts`, so raw SQL
+  cannot preserve a forged routing topic.
 - **`public.system_settings`** (non-audit) — excluded from app_patient on "no confirmed patient-session
   read path found," but it is plausible some authenticated patient screen wants a feature-flag/branding
   read from this table. If a permission-denied surfaces here during B4-fanout smoke, add it back with
@@ -338,25 +339,6 @@ comments for the identical reasoning per table.
   (time-boxed audit). If patients can trigger their own payment intents today, this whole family likely
   needs write grants before the real flip; the B4-fanout pre-flip process smoke should catch it as a
   hard permission-denied rather than a silent gap.
-- **`public.user_channel_preferences.is_preferred_for_auth`** (2026-07-11 second-pass sweep) — excluded
-  from the write grant entirely (see the column-restriction table above), closing the
-  `platform_users.role`-class self-escalation risk this column carries. **But** `patient/profile/
-  actions.ts`'s `setPreferredAuthOtpChannel` (`AuthOtpChannelPreference.tsx` — "choose which channel
-  receives my login/OTP codes") is a confirmed, currently-ACTIVE patient self-service feature that
-  writes this exact column via `pgChannelPreferences.ts`'s `setPreferredAuthChannel`. Once the real role
-  flip happens, this feature will get `permission denied` until it is re-reviewed: the WHERE clause
-  (`userMatchSql`) already scopes every read/write to the caller's own `user_id`/`platform_user_id`, so
-  re-adding the column with a proven RLS/session-scoping tie (not just "it happens to be scoped today")
-  is the likely resolution, not a permanent removal — tracked as a required B4-fanout pre-flip item.
-- **`public.online_intake_status_history`** (found during this task's exhaustive column sweep, NOT
-  fixed here — out of this task's over-grant-closure scope, noted for completeness) — currently
-  SELECT-only, but the traced `createLfkRequest`/`createNutritionRequest` transaction
-  (`pgOnlineIntake.ts`) ALSO inserts a `(from_status: NULL, to_status: 'new')` row into this table in
-  the same confirmed patient-session transaction. This is an **under-grant** (a functional gap, not a
-  security regression) — the confirmed patient intake-creation flow would get `permission denied` on
-  this table specifically once flipped. Needs a traced, column-restricted INSERT grant (`id, request_id,
-  organization_id, from_status, to_status` — `from_status`/`to_status` are CHECK-constrained lifecycle
-  values, same forgery-shape concern as `online_intake_requests.status` above) before the real flip.
 
 ## Live proof
 
@@ -380,14 +362,14 @@ generator computes:
 5. `app_staff` remains fully unrestricted throughout — including `UPDATE platform_users SET role =
    'admin'`, which succeeds for `app_staff` (no column restriction applies to that role at all),
    contrasting directly with (4).
-6. **(2026-07-11 second-pass sweep addition, taskdb #655, this task)** proofs (j)-(l): `app_patient`
+6. **(2026-07-11 second-pass sweep addition + P2-C2 grant reopen)** proofs (j)-(l): `app_patient`
    **can** `INSERT` its own `lfk_complexes` row and have `origin` take the table's `'manual'` default,
    but gets `permission denied for table` explicitly INSERTing
    `origin='assigned_by_specialist'` (gpt-5.6-sol finding #1). `app_patient` **can** `UPDATE` its own
-   `user_channel_preferences.is_enabled_for_messages`, but gets `permission denied for table` attempting
-   `UPDATE ... SET is_preferred_for_auth = true` on the same row (finding #2). `app_patient` **can**
-   `INSERT` its own `treatment_program_events` row without `actor_id`, but gets `permission denied for
-   table` explicitly INSERTing an `actor_id` value (finding #3).
+   `user_channel_preferences.is_enabled_for_messages` and `is_preferred_for_auth`; P2-C2's separate
+   trigger smoke proves the allowed-channel/own-row value constraints. `app_patient` **can** `INSERT`
+   its own `treatment_program_events` row without `actor_id`, but gets `permission denied for table`
+   explicitly INSERTing an `actor_id` value (finding #3).
 
 ## Gate
 

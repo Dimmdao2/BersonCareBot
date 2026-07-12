@@ -175,6 +175,51 @@ Batch P2-C2 — online intake / channel preference / reminder pins:
   auth channel invariant.
 - `reminder_rules.notification_topic_code`: verify/compute expected topic for patient-created reminders.
 
+Status:
+- Implemented by worker agent on `auto/code-pg-delta` (2026-07-12); no commit/push/branch switch.
+- `deploy/postgres/p2-c2-patient-value-guards.sql` adds invoker-mode triggers using protected context
+  helpers. Invoker-mode is intentional: `app.is_staff()` stays role-derived from the caller.
+- `online_intake_status_history` patient INSERT is pinned to owned request/org, `from_status IS NULL`,
+  `to_status='new'`, `changed_by IS NULL`, `note IS NULL`, request `status='new'`, and no prior
+  history row for that request.
+- `user_channel_preferences` patient INSERT/UPDATE is pinned to own row; `is_preferred_for_auth=true`
+  is allowed only for `telegram|max|email|sms`; the guard matches `pgChannelPreferences.ts`'s
+  canonical `userMatchSql` predicate and rejects a second preferred-auth row across canonical and
+  mixed legacy rows.
+- `reminder_rules` patient INSERT/UPDATE normalizes `notification_topic_code` from
+  `category + linked_object_type + reminder_intent`, matching `notificationTopicCode.ts` semantics.
+- P0.5b grants generator/docs regenerated to re-add the guarded OTP preference column and the initial
+  intake-history INSERT columns.
+- First Codex read-only audit blocked on `user_channel_preferences` ownership predicate drift from
+  `userMatchSql`; worker fixed parity and added smoke coverage for mixed legacy rows.
+- Sol deep audit (`codex-auditor-p2-c2-sol-final-audit-2026-07-12T02-39-14-045Z`) then blocked on:
+  mixed legacy preferred-auth duplicate bypass and repeat initial intake history rows. Worker fixed
+  both and lead validation passed again.
+- Owner-required final Claude Opus audit completed via `agent-port`:
+  `claude-auditor-p2-c2-claude-opus-final-audit-2026-07-12T03-06-09-674Z`.
+  Verdict: PASS WITH RISKS, no blocking P0/P1 findings. The audit confirmed all three intents and
+  verified the prior blockers were fixed: `user_channel_preferences` ownership predicate parity with
+  `pgChannelPreferences.ts`, mixed legacy preferred-auth duplicate rejection, and duplicate/non-new
+  intake initial-history rejection.
+- Non-blocking audit residuals: PostgreSQL `btrim` vs JS `.trim()` whitespace parity for
+  `reminder_intent`; trigger `EXISTS` checks depend on final RLS visibility/concurrency assumptions;
+  current smoke proves trigger behavior on a synthetic scratch schema rather than full generated
+  P0.5b grants + RLS composition; `reminder_rules.integrator_user_id` is not cross-validated when
+  `platform_user_id` matches the patient.
+
+Validation evidence:
+- Static guard: `docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs` wired
+  into `scripts/check-saas-db-regression.mjs`.
+- Scratch-only smoke: `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`
+  creates and drops only `bcb_saas_p2_c2_value_guard_scratch_*`.
+- Lead validation after latest worker fix passed:
+  `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`,
+  `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`,
+  `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`,
+  `git diff --check`,
+  `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`, and
+  `node scripts/check-saas-db-regression.mjs`.
+
 Batch P2-C3 — booking lifecycle and LFK org stamp:
 - `be_appointment_*` and `be_appointments`: patient lifecycle value pins and appointment transition guard.
 - `lfk_sessions.organization_id`: stamp/verify org from current context or parent, deny NULL/mismatch.

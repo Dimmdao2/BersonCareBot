@@ -178,8 +178,9 @@ if (patientTables.some((t) => t.qualifiedName === "public.specialist_tasks")) {
 }
 findOrThrow(staffTables, "public.specialist_tasks"); // still a real app_staff table, sanity-check.
 
-// (j)-(l): second-pass exhaustive sweep additions (taskdb #655, this task) -- lfk_complexes.origin,
-// user_channel_preferences.is_preferred_for_auth, treatment_program_events.actor_id.
+// (j)-(l): second-pass exhaustive sweep additions (taskdb #655, this task) plus P2-C2 grant reopen:
+// lfk_complexes.origin remains excluded, user_channel_preferences.is_preferred_for_auth is re-added
+// behind the P2-C2 value guard, treatment_program_events.actor_id remains excluded.
 const lfkComplexesTable = findOrThrow(patientTables, "public.lfk_complexes");
 if (lfkComplexesTable.privileges !== "SELECT") {
   throw new Error(`Unexpected privileges for public.lfk_complexes: ${lfkComplexesTable.privileges}`);
@@ -198,12 +199,37 @@ if (userChannelPreferencesTable.privileges !== "SELECT") {
 const userChannelPreferencesInsertGrant = findColumnGrantOrThrow("public.user_channel_preferences", "INSERT");
 const userChannelPreferencesUpdateGrant = findColumnGrantOrThrow("public.user_channel_preferences", "UPDATE");
 if (
-  userChannelPreferencesInsertGrant.columns.includes("is_preferred_for_auth") ||
-  userChannelPreferencesUpdateGrant.columns.includes("is_preferred_for_auth")
+  !userChannelPreferencesInsertGrant.columns.includes("is_preferred_for_auth") ||
+  !userChannelPreferencesUpdateGrant.columns.includes("is_preferred_for_auth")
 ) {
   throw new Error(
-    "public.user_channel_preferences INSERT/UPDATE column grants must NOT include is_preferred_for_auth",
+    "public.user_channel_preferences INSERT/UPDATE column grants must include is_preferred_for_auth after P2-C2 guard",
   );
+}
+
+const onlineIntakeStatusHistoryTable = findOrThrow(patientTables, "public.online_intake_status_history");
+if (onlineIntakeStatusHistoryTable.privileges !== "SELECT") {
+  throw new Error(
+    `Unexpected privileges for public.online_intake_status_history: ${onlineIntakeStatusHistoryTable.privileges}`,
+  );
+}
+const onlineIntakeStatusHistoryInsertGrant = findColumnGrantOrThrow(
+  "public.online_intake_status_history",
+  "INSERT",
+);
+for (const requiredColumn of ["id", "request_id", "organization_id", "from_status", "to_status"]) {
+  if (!onlineIntakeStatusHistoryInsertGrant.columns.includes(requiredColumn)) {
+    throw new Error(
+      `public.online_intake_status_history INSERT column grant must include ${requiredColumn}`,
+    );
+  }
+}
+for (const forbiddenColumn of ["changed_by", "note"]) {
+  if (onlineIntakeStatusHistoryInsertGrant.columns.includes(forbiddenColumn)) {
+    throw new Error(
+      `public.online_intake_status_history INSERT column grant must NOT include ${forbiddenColumn}`,
+    );
+  }
 }
 
 const treatmentProgramEventsTable = findOrThrow(patientTables, "public.treatment_program_events");
@@ -294,9 +320,8 @@ CREATE TABLE public.lfk_complexes (
 );
 
 -- (k): user_channel_preferences -- is_preferred_for_auth controls which channel receives login/OTP
--- codes; the audit finding was that a whole-table UPDATE let a patient flip it directly. Carries
--- every column the real INSERT/UPDATE column grants reference (see userChannelPreferences*Grant
--- above).
+-- codes; P2-C2 re-adds the column grant behind a value-level DB guard. This P0.5b smoke only proves
+-- the grant shape, while smoke-p2-c2-patient-value-guards.mjs proves the values.
 CREATE TABLE public.user_channel_preferences (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id text,
@@ -536,26 +561,17 @@ SELECT 1/0;
 \endif
 `;
 
-// (k) user_channel_preferences: still app_patient. Legit notification-toggle UPDATE succeeds; an
-// attempt to flip is_preferred_for_auth is permission-denied (2026-07-11 second-pass sweep, taskdb
-// #655 -- gpt-5.6-sol finding #2).
+// (k) user_channel_preferences: still app_patient. Legit notification-toggle UPDATE succeeds; the
+// preferred-auth column is granted again for the active OTP-channel feature, with value safety proven
+// by the P2-C2 trigger smoke.
 const proofK = String.raw`
 UPDATE public.user_channel_preferences SET is_enabled_for_messages = false WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1';
 SELECT (is_enabled_for_messages = false)::int AS b5g_k_patient_updates_own_toggle FROM public.user_channel_preferences WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1' \gset
 ${fatal("b5g_k_patient_updates_own_toggle", "(k) app_patient must be able to UPDATE its own user_channel_preferences.is_enabled_for_messages")}
 
-\set ON_ERROR_STOP off
 UPDATE public.user_channel_preferences SET is_preferred_for_auth = true WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1';
-\set ON_ERROR_STOP on
-\if :ERROR
-\echo 'CONFIRMED (k): app_patient got permission denied UPDATEing user_channel_preferences.is_preferred_for_auth (column not granted).'
-\else
-\echo 'FATAL (k): app_patient could UPDATE user_channel_preferences.is_preferred_for_auth -- column-level grant boundary is broken!'
-SELECT 1/0;
-\endif
-
-SELECT (is_preferred_for_auth = false)::int AS b5g_k_auth_pref_unchanged FROM public.user_channel_preferences WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1' \gset
-${fatal("b5g_k_auth_pref_unchanged", "(k) user_channel_preferences.is_preferred_for_auth must remain unchanged after the rejected UPDATE")}
+SELECT (is_preferred_for_auth = true)::int AS b5g_k_auth_pref_granted FROM public.user_channel_preferences WHERE platform_user_id = 'b5000000-0000-4000-8000-0000000000a1' \gset
+${fatal("b5g_k_auth_pref_granted", "(k) app_patient must be able to UPDATE user_channel_preferences.is_preferred_for_auth after P2-C2 guard")}
 `;
 
 // (l) treatment_program_events: still app_patient. Legit self-write without actor_id succeeds; an
@@ -610,7 +626,7 @@ try {
   // session to still genuinely BE app_patient (not a fresh superuser connection) when the
   // permission-denied checks run.
   console.log(
-    "--- phases 4-13: proofs (a) staff full surface, (b) patient own table, (c) staff-only denied, (d) infra denied, (e) column-level role-escalation blocked, (f) org_enrollments INSERT denied, (g) booking-profile UPDATE denied, (h) specialist_tasks denied, (j) lfk_complexes.origin forgery blocked, (k) user_channel_preferences.is_preferred_for_auth blocked, (l) treatment_program_events.actor_id forgery blocked, (i) staff unrestricted ---",
+    "--- phases 4-13: proofs (a) staff full surface, (b) patient own table, (c) staff-only denied, (d) infra denied, (e) column-level role-escalation blocked, (f) org_enrollments INSERT denied, (g) booking-profile UPDATE denied, (h) specialist_tasks denied, (j) lfk_complexes.origin forgery blocked, (k) user_channel_preferences.is_preferred_for_auth granted behind P2-C2 guard, (l) treatment_program_events.actor_id forgery blocked, (i) staff unrestricted ---",
   );
   psql(
     [proofA, proofB, proofC, proofD, proofE, proofF, proofG, proofH, proofJ, proofK, proofL, proofI].join("\n"),

@@ -92,15 +92,13 @@ export function getAppStaffGrantTables() {
 //     UPDATE, bypassing setPreferredAuthChannel's assertChannelAllowedForPreferredAuth policy check and
 //     its single-preferred-channel invariant (partial unique index). Confirmed patient-session writes
 //     via pgChannelPreferences.ts's upsertPreference: user_id, platform_user_id, channel_code,
-//     is_enabled_for_messages, is_enabled_for_notifications, updated_at -- is_preferred_for_auth
-//     excluded from both column lists. NOTE (pre-flip follow-up required): patient/profile/actions.ts's
+//     is_enabled_for_messages, is_enabled_for_notifications, updated_at. patient/profile/actions.ts's
 //     setPreferredAuthOtpChannel (AuthOtpChannelPreference.tsx, "choose my OTP delivery channel") is a
-//     confirmed, currently-ACTIVE patient self-service feature that DOES write is_preferred_for_auth via
-//     pgChannelPreferences.ts's setPreferredAuthChannel -- excluding the column here means that feature
-//     will get `permission denied` under app_patient until it is re-reviewed and re-added with a proven
-//     WITH CHECK/RLS tie to the session's own row (userMatchSql already scopes the UPDATE/INSERT WHERE
-//     clause to the caller's own user_id/platform_user_id, but Postgres column GRANTs cannot express
-//     "value must equal current session" on their own -- see P0_5B_GRANTS.md's residual-risk section).
+//     confirmed, currently-ACTIVE patient self-service feature that also writes is_preferred_for_auth via
+//     pgChannelPreferences.ts's setPreferredAuthChannel. P2-C2 re-adds that column narrowly because
+//     deploy/postgres/p2-c2-patient-value-guards.sql now pins patient-context writes to the caller's own
+//     row and only allows auth-capable channels (telegram/max/email/sms); the existing partial unique
+//     index `idx_user_channel_preferences_one_auth_pref` remains the one-preferred-channel invariant.
 //   - public.user_notification_topics / user_notification_topic_channels: SELECT + INSERT + UPDATE
 //     (whole-table -- no staff-owned column exists on either table). profileTopicChannelsModel.ts +
 //     `/api/patient/web-push/unsubscribe` -- the patient's own notification-channel toggles.
@@ -249,7 +247,8 @@ const patientScopedPrivilegeOverrides = new Map([
   ["public.symptom_trackings", "SELECT, INSERT, UPDATE"],
 
   // Online intake: confirmed `/api/patient/online-intake*` (requirePatientApiBusinessAccess),
-  // pgOnlineIntake.ts. online_intake_status_history stays SELECT-only (system-appended status log).
+  // pgOnlineIntake.ts. P2-C2 adds a DB guard for the initial online_intake_status_history row, so the
+  // patient role also gets a column-restricted INSERT for the exact `NULL -> new` history shape.
   //
   // online_intake_requests: SELECT (whole-table) + COLUMN-LEVEL INSERT (see patientColumnGrants).
   // 2026-07-11 second-pass exhaustive sweep (taskdb #655, this task): the traced createLfkRequest/
@@ -314,9 +313,9 @@ const patientScopedPrivilegeOverrides = new Map([
   // Reminders: confirmed `/api/patient/reminders/{create,mute}` (app/app/patient/reminders/
   // actions.ts) -- patient writes is_enabled, interval_minutes/window_start/window_end/days_mask,
   // schedule_type/schedule_data/quiet_hours_* and its own reminder content. No true staff-owned
-  // column exists on this table (no doctor-authorship concept here) -- whole-table kept, but
-  // notification_topic_code (drives delivery-suppression routing, not user-facing) was not traced as
-  // patient-written by any confirmed call site; re-check before the real flip.
+  // column exists on this table (no doctor-authorship concept here) -- whole-table kept. P2-C2 adds a
+  // DB guard that recomputes notification_topic_code from category + linked_object_type +
+  // reminder_intent for patient-context INSERT/UPDATE, preventing arbitrary topic routing.
   ["public.reminder_rules", "SELECT, INSERT, UPDATE"],
 
   // LFK self-service diary: confirmed pgLfkDiary.ts -- patient can create its OWN complex (origin
@@ -623,19 +622,27 @@ export const appPatientColumnGrants = [
     columns: ["id", "user_id", "organization_id", "type", "summary"],
   },
 
-  // user_channel_preferences: is_preferred_for_auth excluded from both INSERT and UPDATE -- see the
-  // residual note next to appPatientBootstrapTables above (this is a pre-flip follow-up item: the
-  // patient's own "preferred OTP channel" profile feature currently writes this column and will need
-  // it re-added with a proven session-scoping guarantee before flip).
+  // online_intake_status_history: only the initial system history row for createLfkRequest/
+  // createNutritionRequest. P2-C2's trigger pins values to from_status NULL, to_status 'new', null
+  // changed_by/note, and an owned request/org.
+  {
+    qualifiedName: "public.online_intake_status_history",
+    privilege: "INSERT",
+    columns: ["id", "request_id", "organization_id", "from_status", "to_status"],
+  },
+
+  // user_channel_preferences: is_preferred_for_auth is included for the active preferred OTP channel
+  // feature. P2-C2's trigger pins patient-context writes to the caller's own row and allowed auth
+  // channels; the existing partial unique index keeps at most one true row per user_id.
   {
     qualifiedName: "public.user_channel_preferences",
     privilege: "INSERT",
-    columns: ["user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at"],
+    columns: ["user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at"],
   },
   {
     qualifiedName: "public.user_channel_preferences",
     privilege: "UPDATE",
-    columns: ["platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at"],
+    columns: ["platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at"],
   },
 ];
 
