@@ -655,6 +655,7 @@ GRANT EXECUTE ON FUNCTION app.current_org_id() TO ${quoteIdent(staffRole)}, ${qu
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
+GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
 GRANT EXECUTE ON FUNCTION app.is_staff() TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
 `);
 

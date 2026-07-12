@@ -50,8 +50,8 @@
   `GRANT app_owner TO bcb_webapp_prod`; скрипт снимает оба права через `EXIT` trap и явный финальный
   revoke перед post-state assertions.
 - **End-state:** `bcb_webapp_prod` снова `NOBYPASSRLS` и не член `app_owner`; схема `app`,
-  `app.is_staff()` и P2-B protected helpers принадлежат `app_owner` (`NOLOGIN`, trusted). Runtime-роли
-  `app_staff`/`app_patient` ничего не владеют.
+  `app.is_staff()` и P2-B protected helpers принадлежат `app_owner` (`NOLOGIN`, trusted, `BYPASSRLS`).
+  Runtime-роли `app_staff`/`app_patient` ничего не владеют.
 - **Опционально на потом (подсказка владельца):** в integrator есть легаси-таблицы — можно пересмотреть R2
   и снять NOT NULL/исключить dead-таблицы из backfill. НЕ блокирует (в single-tenant org просто = дефолт-орг).
 
@@ -171,7 +171,7 @@ sudo systemctl is-active bersoncarebot-api-prod.service \
 prod env. На prod env загружается блоком выше, а повторное sourcing отключается специально, чтобы
 `DATABASE_URL` runtime-owner мигратора не был заменён другим env-файлом во время chain.
 `P2_B_OWNER_ROLE` можно переопределить, если app-owner роль уже выбрана оператором; по умолчанию скрипт
-использует `app_owner`, создаёт её как `NOLOGIN NOBYPASSRLS`, выдаёт membership мигратору только внутри
+использует `app_owner`, создаёт её как `NOLOGIN BYPASSRLS`, выдаёт membership мигратору только внутри
 stopped-writers окна и снимает membership до post-state assertions. Для production `P2_B_SIGNING_SECRET` должен совпадать
 с будущим `DB_PRINCIPAL_SIGNING_SECRET`;
 для rehearsal без locked-runtime допускается одноразовый auto-generated secret.

@@ -207,7 +207,7 @@ DROP ROLE IF EXISTS ${quoteIdent(ownerRole)};
 
 function createRolesSql() {
   return `
-CREATE ROLE ${quoteIdent(ownerRole)} NOLOGIN NOBYPASSRLS;
+CREATE ROLE ${quoteIdent(ownerRole)} NOLOGIN BYPASSRLS;
 CREATE ROLE ${quoteIdent(staffRole)} NOLOGIN NOBYPASSRLS;
 CREATE ROLE ${quoteIdent(patientRole)} NOLOGIN NOBYPASSRLS;
 `;
@@ -342,6 +342,7 @@ function createPolicySurfaceSchemaSql() {
 GRANT USAGE ON SCHEMA public, integrator TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA integrator TO ${quoteIdent(staffRole)}, ${quoteIdent(patientRole)};
+GRANT SELECT, UPDATE ON public.user_phone_history TO ${quoteIdent(ownerRole)};
 `);
 
   return statements.join("\n\n");
@@ -680,7 +681,14 @@ try {
   console.log("--- phase 6: apply strict locked-helper artifact twice + FORCE cutover ---");
   psqlFile("deploy/postgres/phase4-locked-helper-rls-policies.sql", ["-v", "phase4_enforce_locked_context=1"]);
   psqlFile("deploy/postgres/phase4-locked-helper-rls-policies.sql", ["-v", "phase4_enforce_locked_context=1"]);
-  psqlFile("deploy/postgres/phase4-force-rls-cutover.sql");
+  psqlFile("deploy/postgres/phase4-force-rls-cutover.sql", [
+    "-v",
+    `phase4_bootstrap_base_role=${patientRole}`,
+    "-v",
+    `phase4_staff_role=${staffRole}`,
+    "-v",
+    `phase4_owner_role=${ownerRole}`,
+  ]);
 
   console.log("--- phase 7: strict isolation and un-forgeability assertions ---");
   psql(strictAssertionSql());

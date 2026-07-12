@@ -7,6 +7,8 @@ const migrationsDir = "apps/webapp/db/drizzle-migrations";
 const cutoverSqlPath = "deploy/postgres/phase4-force-rls-cutover.sql";
 const noForceCompatMigrationPath = "apps/webapp/db/drizzle-migrations/0177_phase4_no_force_rls_compat.sql";
 const deploySaas667Path = "scripts/deploy-saas-667.sh";
+const r2SmokePath = "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-r2-real-policy-isolation.mjs";
+const rehearsalPath = "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs";
 const migrationFilePattern = /^(016\d|017[0-6])_.*\.sql$/;
 const enableRlsPattern = /ALTER\s+TABLE\s+((?:"[^"]+"\.)?"[^"]+")\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;/gi;
 const forceRlsPattern = /FORCE\s+ROW\s+LEVEL\s+SECURITY/i;
@@ -79,6 +81,8 @@ if (expectedTargets.length === 0) {
 const cutoverSql = readFileSync(cutoverSqlPath, "utf8");
 const noForceCompatMigrationSql = readFileSync(noForceCompatMigrationPath, "utf8");
 const deploySaas667Sql = readFileSync(deploySaas667Path, "utf8");
+const r2SmokeSql = readFileSync(r2SmokePath, "utf8");
+const rehearsalSql = readFileSync(rehearsalPath, "utf8");
 
 for (const fragment of forbiddenCutoverFragments) {
   if (cutoverSql.includes(fragment)) {
@@ -90,10 +94,60 @@ assertIncludes(cutoverSql, "\\set ON_ERROR_STOP on", cutoverSqlPath);
 assertIncludes(cutoverSql, "\\set phase4_force_rls_down 0", cutoverSqlPath);
 assertIncludes(cutoverSql, ":'phase4_force_rls_down' IN ('0', '1')", cutoverSqlPath);
 assertIncludes(cutoverSql, "\\if :phase4_force_rls_down", cutoverSqlPath);
+assertIncludes(cutoverSql, "phase4_bootstrap_base_role", cutoverSqlPath);
+assertIncludes(cutoverSql, "phase4_staff_role", cutoverSqlPath);
+assertIncludes(cutoverSql, "phase4_owner_role", cutoverSqlPath);
+assertIncludes(cutoverSql, "FATAL: missing required psql variable phase4_bootstrap_base_role.", cutoverSqlPath);
+assertIncludes(cutoverSql, "FATAL: missing required psql variable phase4_staff_role.", cutoverSqlPath);
+assertIncludes(cutoverSql, "FATAL: missing required psql variable phase4_owner_role.", cutoverSqlPath);
+assertIncludes(cutoverSql, "pg_roles WHERE rolname = :'phase4_bootstrap_base_role'", cutoverSqlPath);
+assertIncludes(cutoverSql, "pg_roles WHERE rolname = :'phase4_owner_role'", cutoverSqlPath);
+assertIncludes(cutoverSql, "NOT base_role.rolbypassrls", cutoverSqlPath);
+assertIncludes(cutoverSql, "NOT pg_has_role(base_role.rolname, staff_role.rolname, 'member')", cutoverSqlPath);
+assertIncludes(
+  cutoverSql,
+  "SELECT 1 / has_function_privilege(:'phase4_bootstrap_base_role', 'app.close_active_user_phone_history(uuid)', 'EXECUTE')::int",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "SELECT 1 / (SELECT rolbypassrls::int FROM pg_roles WHERE rolname = :'phase4_owner_role')",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "SELECT 1 / has_table_privilege(:'phase4_owner_role', 'public.user_phone_history', 'UPDATE')::int",
+  cutoverSqlPath,
+);
 assertOrdered(cutoverSql, "SELECT 1 / (:'phase4_force_rls_down' IN ('0', '1'))::int", "BEGIN;", cutoverSqlPath);
+assertOrdered(
+  cutoverSql,
+  "phase4_bootstrap_base_role_nobypassrls_not_staff_member",
+  "BEGIN;",
+  cutoverSqlPath,
+);
+assertOrdered(
+  cutoverSql,
+  "phase4_bootstrap_base_role_can_close_phone_history",
+  "BEGIN;",
+  cutoverSqlPath,
+);
+assertOrdered(
+  cutoverSql,
+  "phase4_owner_role_bypassrls",
+  "BEGIN;",
+  cutoverSqlPath,
+);
+assertOrdered(
+  cutoverSql,
+  "phase4_owner_role_can_update_user_phone_history",
+  "BEGIN;",
+  cutoverSqlPath,
+);
 assertOrdered(cutoverSql, "BEGIN;", "COMMIT;", cutoverSqlPath);
 
-const branchMatch = cutoverSql.match(/\\if :phase4_force_rls_down\n(?<down>[\s\S]*?)\\else\n(?<up>[\s\S]*?)\\endif/);
+const branchMatch = [...cutoverSql.matchAll(/\\if :phase4_force_rls_down\n(?<down>[\s\S]*?)\\else\n(?<up>[\s\S]*?)\\endif/g)]
+  .find((match) => match.groups?.down.includes("ROW LEVEL SECURITY") || match.groups?.up.includes("ROW LEVEL SECURITY"));
 if (!branchMatch?.groups) {
   fail(`${cutoverSqlPath} must branch on \\if :phase4_force_rls_down with explicit down/up branches`);
 }
@@ -163,5 +217,22 @@ assertIncludes(deploySaas667Sql, "required_drizzle_hash_groups", deploySaas667Pa
 assertIncludes(deploySaas667Sql, "0115..0177", deploySaas667Path);
 assertIncludes(deploySaas667Sql, "expected at least 178", deploySaas667Path);
 assertIncludes(deploySaas667Sql, "0177_phase4_no_force_rls_compat", deploySaas667Path);
+assertIncludes(deploySaas667Sql, "CREATE ROLE %I NOLOGIN BYPASSRLS", deploySaas667Path);
+assertIncludes(
+  deploySaas667Sql,
+  "ALTER ROLE :\"p2_b_owner_role\" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;",
+  deploySaas667Path,
+);
+assertIncludes(deploySaas667Sql, "owner role % must be NOLOGIN NOSUPERUSER BYPASSRLS", deploySaas667Path);
+
+assertIncludes(r2SmokeSql, "`phase4_bootstrap_base_role=${patientRole}`", r2SmokePath);
+assertIncludes(r2SmokeSql, "`phase4_staff_role=${staffRole}`", r2SmokePath);
+assertIncludes(r2SmokeSql, "`phase4_owner_role=${ownerRole}`", r2SmokePath);
+assertIncludes(r2SmokeSql, "CREATE ROLE ${quoteIdent(ownerRole)} NOLOGIN BYPASSRLS;", r2SmokePath);
+assertIncludes(r2SmokeSql, "GRANT SELECT, UPDATE ON public.user_phone_history TO ${quoteIdent(ownerRole)};", r2SmokePath);
+assertIncludes(rehearsalSql, "`phase4_bootstrap_base_role=${patientLoginRole}`", rehearsalPath);
+assertIncludes(rehearsalSql, "\"phase4_staff_role=app_staff\"", rehearsalPath);
+assertIncludes(rehearsalSql, "`phase4_owner_role=${appOwnerRole}`", rehearsalPath);
+assertIncludes(rehearsalSql, "CREATE ROLE ${quoteIdent(appOwnerRole)} NOLOGIN BYPASSRLS;", rehearsalPath);
 
 console.log(`check-phase4-force-cutover-sql: OK (${expectedTargets.length} targets)`);

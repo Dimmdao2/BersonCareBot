@@ -4,9 +4,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { runWebappPgTextMock, getWebappSqlFromPgClientMock, drizzleSnapshotState } = vi.hoisted(() => ({
+const { runWebappPgTextMock, getWebappSqlFromPgClientMock, principalModeState, drizzleSnapshotState } = vi.hoisted(() => ({
   runWebappPgTextMock: vi.fn(),
   getWebappSqlFromPgClientMock: vi.fn((_client: unknown) => ({ execute: vi.fn() })),
+  principalModeState: {
+    mode: "legacy-guc" as "legacy-guc" | "shadow" | "locked",
+  },
   drizzleSnapshotState: {
     exerciseRow: null as Record<string, unknown> | null,
     mediaRows: [] as Array<{ mediaUrl: string; mediaType: string; sortOrder: number; id: string }>,
@@ -24,6 +27,7 @@ vi.mock("@/infra/repos/materialRatingTargetVideoMediaIds", () => ({
 }));
 
 vi.mock("@bersoncare/db-principal", () => ({
+  buildDbPrincipalApplyOptionsFromEnv: vi.fn(() => ({ mode: principalModeState.mode })),
   getCurrentDbPrincipalOrganizationId: vi.fn(() => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
 }));
 
@@ -99,6 +103,7 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
     runWebappPgTextMock.mockReset();
     getWebappSqlFromPgClientMock.mockReset();
     getWebappSqlFromPgClientMock.mockReturnValue({ execute: vi.fn() });
+    principalModeState.mode = "legacy-guc";
     vi.mocked(resolveMaterialRatingTargetVideoMediaIds).mockReset();
     vi.mocked(resolveMaterialRatingTargetVideoMediaIds).mockResolvedValue([]);
     drizzleSnapshotState.exerciseRow = null;
@@ -169,6 +174,23 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
     ]);
     expect(runWebappPgTextMock.mock.calls[0]?.[2]).toBeDefined();
     expect(runWebappPgTextMock.mock.calls[1]?.[2]).toBeDefined();
+  });
+
+  it("applyPlatformUserPhoneHistoryTransition uses trusted close helper in locked mode", async () => {
+    principalModeState.mode = "locked";
+    runWebappPgTextMock.mockResolvedValue({ rows: [], rowCount: 1 });
+    const txClient = { query: vi.fn() } as unknown as import("pg").PoolClient;
+    await applyPlatformUserPhoneHistoryTransition(txClient, {
+      platformUserId: "550e8400-e29b-41d4-a716-446655440000",
+      newPhoneNormalized: "+79001234567",
+      source: "projection",
+    });
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain(
+      "SELECT app.close_active_user_phone_history($1::uuid)",
+    );
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["550e8400-e29b-41d4-a716-446655440000"]);
+    expect(String(runWebappPgTextMock.mock.calls[1]?.[0])).toContain("INSERT INTO user_phone_history");
   });
 
   it("applyPlatformUserPhoneHistoryTransition skips insert when phone cleared", async () => {

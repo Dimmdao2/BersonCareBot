@@ -97,7 +97,28 @@ cluster, extended with PERMANENT PII NULL-gating assertions proving on strict+FO
 & NOT NULL rows (hole closed); bootstrap (no-context, non-staff) reads+writes ONLY NULL rows; dormant clinic #1 not
 blocked. Independent adversarial audit: **SHIP-WITH-FIXES** — core correct, hole closed exactly, dormant-safe.
 
+## FB#1/FB#2 progress (2026-07-12, deep multi-layer — enforce-only, dormant-safe, NOT needed for TEST-dormant)
+Implemented + rehearsal-verified in layers (each caught by the LIVE prod-copy rehearsal, not by mocked tests):
+- **FB#2 DONE**: pre-FORCE flip-gate asserts the bootstrap base role is NOBYPASSRLS + not a staff member + can
+  EXECUTE the close function; and the owner role is BYPASSRLS + has UPDATE on user_phone_history. Green.
+- **FB#1 function + grants + own-data guard**: `app.close_active_user_phone_history` (SECURITY DEFINER, owner
+  BYPASSRLS, own-data gate for patient sessions), granted to app roles + bootstrap login roles; table DML granted
+  to the owner role AS THE INVOKING TABLE OWNER (after RESET ROLE — app_owner cannot self-grant on public tables);
+  `check_function_bodies=off` for the forward-ref. Deploy applies clean; dormant clinic #1 read confirmed.
+- **FB#1 ORG-session enforce path PROVEN** on prod-copy: close+insert of a phone transition over a pre-existing
+  ORG-stamped active row under strict+FORCE succeeds (no permission error, no unique_violation).
+- **FB#1 BOOTSTRAP-session enforce path — NOT YET PROVEN.** The rehearsal's bootstrap proof fails at the
+  bootstrap session's own INSERT (`permission denied for table user_phone_history`). Root cause is a
+  rehearsal-vs-prod TOPOLOGY divergence, not a code defect: prod pre-auth/OTP sessions run as the DATABASE_URL role
+  = the runtime table OWNER (`bcb_webapp_prod`, NOBYPASSRLS, non-staff), which has table DML by ownership; the
+  rehearsal models the bootstrap base role as a separate `NOINHERIT` login role (`patientLoginRole`) that lacks
+  direct table DML. **Open item:** faithfully model the prod bootstrap connection-role topology in the rehearsal
+  (bootstrap base role must have SELECT/INSERT/UPDATE on the bootstrap-written tables, as the prod owner role does)
+  AND add a flip-gate assertion of that privilege — OR confirm/decide the prod pre-auth connection-role identity.
+  This is genuinely the "owner-gated, unwired" locked-mode connection routing (see 0175 header / audit FB#2).
+
 ## NOT DONE — FLIP-BLOCKERS (must close before any enforce/locked+FORCE cutover; NOT needed for TEST-dormant deploy)
+- [ ] **FB#1-bootstrap [HIGH] prove the bootstrap/OTP phone-write path under enforce** (topology-fidelity above).
 - [ ] **FB#1 [HIGH] user_phone_history close-prior UPDATE vs partial unique index.** Under strict RLS an org-context
   session (admin/integrator) cannot SEE a prior NULL-org active row (OTP/messenger/booking bootstrap origin), so
   `applyPlatformUserPhoneHistoryTransition`'s `UPDATE ... WHERE valid_to IS NULL` won't close it; the new-active

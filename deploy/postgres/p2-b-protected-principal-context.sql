@@ -53,6 +53,16 @@ SELECT 1 / 0 AS p2_b_abort;
 \endif
 
 \if :{?p2_b_down}
+SELECT format($p2_b_user_phone_history_revoke$
+DO $$
+BEGIN
+  IF to_regclass('public.user_phone_history') IS NOT NULL THEN
+    EXECUTE format('REVOKE SELECT, UPDATE ON public.user_phone_history FROM %%I', %L);
+  END IF;
+END $$;
+$p2_b_user_phone_history_revoke$, :'p2_b_owner_role') \gexec
+
+DROP FUNCTION IF EXISTS app.close_active_user_phone_history(uuid);
 DROP FUNCTION IF EXISTS app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text);
 DROP FUNCTION IF EXISTS app.current_org_id();
 DROP FUNCTION IF EXISTS app.current_patient_user_id();
@@ -280,6 +290,26 @@ AS $$
   WHERE backend_pid = pg_backend_pid()
 $$;
 
+-- Server-internal identity maintenance helper. It intentionally does not perform
+-- per-call authorization: callers must pass a server-resolved platform_user_id.
+-- check_function_bodies is disabled only for this CREATE because the function forward-references
+-- public.user_phone_history, which may not yet exist when this deploy artifact runs on a bare
+-- schema (e.g. policy-surface smokes apply p2-b before the table stub). The real deploy chain
+-- applies this after migrations, where the table already exists.
+SET check_function_bodies = off;
+CREATE OR REPLACE FUNCTION app.close_active_user_phone_history(p_user uuid) RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = app, public, pg_catalog
+AS $$
+  UPDATE public.user_phone_history SET valid_to = now()
+  WHERE platform_user_id = p_user AND valid_to IS NULL
+    AND (app.current_patient_user_id() IS NULL OR platform_user_id = app.current_patient_user_id())
+$$;
+RESET check_function_bodies;
+
+ALTER FUNCTION app.close_active_user_phone_history(uuid) OWNER TO :"p2_b_owner_role";
+
 SELECT format($p2_b_is_staff$
 CREATE OR REPLACE FUNCTION app.is_staff() RETURNS boolean
 LANGUAGE sql
@@ -303,6 +333,7 @@ REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION app.current_integrator_user_id() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION app.reset_principal_context() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION app.is_staff() FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)
@@ -312,8 +343,22 @@ GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :"p2_b_staff_role", :
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO :"p2_b_staff_role", :"p2_b_patient_role";
 GRANT EXECUTE ON FUNCTION app.reset_principal_context() TO :"p2_b_staff_role", :"p2_b_patient_role";
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"p2_b_staff_role", :"p2_b_patient_role";
+GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO :"p2_b_staff_role", :"p2_b_patient_role";
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"p2_b_staff_role", :"p2_b_patient_role";
 
 RESET ROLE;
+
+-- Grant table DML to the definer owner role AS THE INVOKING TABLE OWNER (the p2_b_owner_role owns
+-- schema app, NOT the public tables, so it cannot self-grant). Runs after RESET ROLE so current_user
+-- is the invoking table-owner role. Guarded so it is a no-op on bare policy-surface stubs where the
+-- table is created after p2-b.
+SELECT format($p2_b_user_phone_history_grant$
+DO $$
+BEGIN
+  IF to_regclass('public.user_phone_history') IS NOT NULL THEN
+    EXECUTE format('GRANT SELECT, UPDATE ON public.user_phone_history TO %%I', %L);
+  END IF;
+END $$;
+$p2_b_user_phone_history_grant$, :'p2_b_owner_role') \gexec
 
 \echo 'P2-B protected principal context UP complete.'

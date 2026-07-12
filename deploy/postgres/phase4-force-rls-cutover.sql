@@ -18,6 +18,59 @@
 
 SELECT 1 / (:'phase4_force_rls_down' IN ('0', '1'))::int AS phase4_force_rls_down_is_valid;
 
+\if :phase4_force_rls_down
+\else
+\if :{?phase4_bootstrap_base_role}
+\else
+\echo 'FATAL: missing required psql variable phase4_bootstrap_base_role.'
+SELECT 1 / 0 AS phase4_bootstrap_base_role_missing;
+\endif
+
+\if :{?phase4_staff_role}
+\else
+\echo 'FATAL: missing required psql variable phase4_staff_role.'
+SELECT 1 / 0 AS phase4_staff_role_missing;
+\endif
+
+\if :{?phase4_owner_role}
+\else
+\echo 'FATAL: missing required psql variable phase4_owner_role.'
+SELECT 1 / 0 AS phase4_owner_role_missing;
+\endif
+
+SELECT 1 / (
+  length(:'phase4_bootstrap_base_role') > 0
+  AND length(:'phase4_staff_role') > 0
+  AND length(:'phase4_owner_role') > 0
+  AND :'phase4_bootstrap_base_role' <> :'phase4_staff_role'
+  AND :'phase4_bootstrap_base_role' <> :'phase4_owner_role'
+  AND :'phase4_staff_role' <> :'phase4_owner_role'
+)::int AS phase4_bootstrap_role_names_valid;
+
+SELECT 1 / (
+  EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'phase4_bootstrap_base_role')
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'phase4_staff_role')
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'phase4_owner_role')
+)::int AS phase4_bootstrap_roles_exist;
+
+SELECT 1 / (
+  SELECT (NOT base_role.rolbypassrls AND NOT pg_has_role(base_role.rolname, staff_role.rolname, 'member'))::int
+  FROM pg_roles base_role
+  CROSS JOIN pg_roles staff_role
+  WHERE base_role.rolname = :'phase4_bootstrap_base_role'
+    AND staff_role.rolname = :'phase4_staff_role'
+) AS phase4_bootstrap_base_role_nobypassrls_not_staff_member;
+
+SELECT 1 / has_function_privilege(:'phase4_bootstrap_base_role', 'app.close_active_user_phone_history(uuid)', 'EXECUTE')::int
+  AS phase4_bootstrap_base_role_can_close_phone_history;
+
+SELECT 1 / (SELECT rolbypassrls::int FROM pg_roles WHERE rolname = :'phase4_owner_role')
+  AS phase4_owner_role_bypassrls;
+
+SELECT 1 / has_table_privilege(:'phase4_owner_role', 'public.user_phone_history', 'UPDATE')::int
+  AS phase4_owner_role_can_update_user_phone_history;
+\endif
+
 BEGIN;
 
 CREATE TEMP TABLE phase4_force_rls_targets (

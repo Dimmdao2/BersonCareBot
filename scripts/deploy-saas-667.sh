@@ -125,11 +125,11 @@ psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
 psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
   -v p2_b_owner_role="${P2_B_OWNER_ROLE}" \
   -v p2_b_migrator_role="${migrator_role}" <<'SQL'
-SELECT format('CREATE ROLE %I NOLOGIN NOBYPASSRLS', :'p2_b_owner_role')
+SELECT format('CREATE ROLE %I NOLOGIN BYPASSRLS', :'p2_b_owner_role')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_b_owner_role')
 \gexec
 
-ALTER ROLE :"p2_b_owner_role" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE :"p2_b_owner_role" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
 
 SELECT format('GRANT %I TO %I', :'p2_b_owner_role', :'p2_b_migrator_role')
 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_b_migrator_role')
@@ -330,6 +330,13 @@ BEGIN
 
   IF pg_has_role(v_migrator_role, v_owner_role, 'member') THEN
     RAISE EXCEPTION 'ASSERT FAILED: migrator role % is still a member of %', v_migrator_role, v_owner_role;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE rolname = v_owner_role AND rolcanlogin IS FALSE AND rolsuper IS FALSE AND rolbypassrls IS TRUE
+  ) THEN
+    RAISE EXCEPTION 'ASSERT FAILED: owner role % must be NOLOGIN NOSUPERUSER BYPASSRLS', v_owner_role;
   END IF;
 
   SELECT count(*) INTO v_count

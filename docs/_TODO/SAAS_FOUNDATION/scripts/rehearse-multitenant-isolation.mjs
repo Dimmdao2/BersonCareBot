@@ -115,6 +115,7 @@ async function main() {
       psqlUrlFile(fullOwnerUrl, p0_5bGrantsSqlPath);
       proveLegacyDormantCompatibility();
       applyStrictLockedForceCutover();
+      provePhoneHistoryTransitionUnderForce();
     }
 
     const seed = await seedRehearsalData();
@@ -430,6 +431,7 @@ GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO ${quoteIdent(staffLog
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO ${quoteIdent(staffLoginRole)}, ${quoteIdent(patientLoginRole)};
 GRANT EXECUTE ON FUNCTION app.reset_principal_context() TO ${quoteIdent(staffLoginRole)}, ${quoteIdent(patientLoginRole)};
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${quoteIdent(staffLoginRole)}, ${quoteIdent(patientLoginRole)};
+GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO ${quoteIdent(staffLoginRole)}, ${quoteIdent(patientLoginRole)};
 GRANT EXECUTE ON FUNCTION app.is_staff() TO ${quoteIdent(staffLoginRole)}, ${quoteIdent(patientLoginRole)};
 `;
   psqlAdmin(sql);
@@ -438,7 +440,7 @@ GRANT EXECUTE ON FUNCTION app.is_staff() TO ${quoteIdent(staffLoginRole)}, ${quo
 function installSyntheticSchemaAndRls() {
   console.log("--- synthetic: installing P2-B helpers and minimal policy subset ---");
   psqlAdmin(`
-CREATE ROLE ${quoteIdent(appOwnerRole)} NOLOGIN NOBYPASSRLS;
+CREATE ROLE ${quoteIdent(appOwnerRole)} NOLOGIN BYPASSRLS;
 CREATE ROLE app_staff NOLOGIN NOBYPASSRLS;
 CREATE ROLE app_patient NOLOGIN NOBYPASSRLS;
 `);
@@ -652,7 +654,118 @@ const { Client } = createRequire(${JSON.stringify(path.join(repoRoot, "apps/weba
 function applyStrictLockedForceCutover() {
   console.log("--- full: applying strict locked-helper policies and FORCE RLS cutover ---");
   psqlUrlFile(fullOwnerUrl, phase4PolicySqlPath, ["-v", "phase4_enforce_locked_context=1"]);
-  psqlUrlFile(fullOwnerUrl, phase4ForceSqlPath);
+  psqlUrlFile(fullOwnerUrl, phase4ForceSqlPath, [
+    "-v",
+    `phase4_bootstrap_base_role=${patientLoginRole}`,
+    "-v",
+    "phase4_staff_role=app_staff",
+    "-v",
+    `phase4_owner_role=${appOwnerRole}`,
+  ]);
+}
+
+function provePhoneHistoryTransitionUnderForce() {
+  console.log("--- full: proving phone-history close+insert transition under strict+FORCE ---");
+  const orgUserId = randomUUID();
+  const bootstrapUserId = randomUUID();
+  const orgOldHistoryId = randomUUID();
+  const orgNewHistoryId = randomUUID();
+  const bootstrapOldHistoryId = randomUUID();
+  const bootstrapNewHistoryId = randomUUID();
+  psqlUrl(fullSuperuserUrl, String.raw`
+\set ON_ERROR_STOP on
+
+INSERT INTO public.platform_users (id, display_name, role, created_at, updated_at)
+VALUES
+  (${quoteLiteral(orgUserId)}::uuid, 'FB1 Rehearsal Org User', 'client', now(), now()),
+  (${quoteLiteral(bootstrapUserId)}::uuid, 'FB1 Rehearsal Bootstrap User', 'client', now(), now());
+
+INSERT INTO public.user_phone_history (id, platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id)
+VALUES
+  (${quoteLiteral(orgOldHistoryId)}::uuid, ${quoteLiteral(orgUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:org:old`)}, now(), NULL, 'otp', ${quoteLiteral(defaultOrgId)}::uuid),
+  (${quoteLiteral(bootstrapOldHistoryId)}::uuid, ${quoteLiteral(bootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:bootstrap:old`)}, now(), NULL, 'otp', ${quoteLiteral(defaultOrgId)}::uuid);
+
+${installPsqlSignedContextSql({
+  role: "app_staff",
+  nonce: `fb1_staff_${stamp}`,
+  orgId: defaultOrgId,
+})}
+
+SELECT app.close_active_user_phone_history(${quoteLiteral(orgUserId)}::uuid);
+
+INSERT INTO public.user_phone_history (id, platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id)
+VALUES (${quoteLiteral(orgNewHistoryId)}::uuid, ${quoteLiteral(orgUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:org:new`)}, now(), NULL, 'otp', ${quoteLiteral(defaultOrgId)}::uuid);
+
+SELECT (count(*) = 1)::int AS fb1_org_active_count_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(orgUserId)}::uuid
+  AND valid_to IS NULL
+\gset
+\if :fb1_org_active_count_ok
+\else
+\echo 'FATAL: FB#1 org signed context must leave exactly one active user_phone_history row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_org_old_closed_ok
+FROM public.user_phone_history
+WHERE id = ${quoteLiteral(orgOldHistoryId)}::uuid
+  AND valid_to IS NOT NULL
+\gset
+\if :fb1_org_old_closed_ok
+\else
+\echo 'FATAL: FB#1 org signed context did not close the pre-existing active row.'
+SELECT 1/0;
+\endif
+
+SELECT app.release_principal_context();
+RESET ROLE;
+
+SET ROLE ${quoteIdent(patientLoginRole)};
+SET row_security = on;
+
+SELECT (
+  app.current_org_id() IS NULL
+  AND app.current_patient_user_id() IS NULL
+  AND app.current_integrator_user_id() IS NULL
+)::int AS fb1_bootstrap_context_empty_ok
+\gset
+\if :fb1_bootstrap_context_empty_ok
+\else
+\echo 'FATAL: FB#1 bootstrap base-role assertion started with a signed context.'
+SELECT 1/0;
+\endif
+
+SELECT app.close_active_user_phone_history(${quoteLiteral(bootstrapUserId)}::uuid);
+
+INSERT INTO public.user_phone_history (id, platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id)
+VALUES (${quoteLiteral(bootstrapNewHistoryId)}::uuid, ${quoteLiteral(bootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:bootstrap:new`)}, now(), NULL, 'otp', NULL);
+
+SELECT (count(*) = 1)::int AS fb1_bootstrap_active_count_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(bootstrapUserId)}::uuid
+  AND valid_to IS NULL
+\gset
+\if :fb1_bootstrap_active_count_ok
+\else
+\echo 'FATAL: FB#1 bootstrap base role must leave exactly one active user_phone_history row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_bootstrap_old_closed_ok
+FROM public.user_phone_history
+WHERE id = ${quoteLiteral(bootstrapOldHistoryId)}::uuid
+  AND valid_to IS NOT NULL
+\gset
+\if :fb1_bootstrap_old_closed_ok
+\else
+\echo 'FATAL: FB#1 bootstrap base role did not close the pre-existing active row.'
+SELECT 1/0;
+\endif
+
+RESET ROLE;
+`);
+  console.log("CONFIRMED: FB#1 phone-history close+insert path works for org signed context and bootstrap base role.");
 }
 
 async function seedRehearsalData() {
@@ -1070,6 +1183,31 @@ async function applyPatientPrincipal(client, platformUserId) {
     const applied = await proofApi.applyCurrentDbPrincipalToConnection(client, lockedOptions());
     assert(applied === true, "patient principal should be applied");
   });
+}
+
+function installPsqlSignedContextSql({ role, nonce, orgId = null, patientId = null, integratorUserId = null }) {
+  const orgCanonical = orgId ?? "";
+  const patientCanonical = patientId ?? "";
+  const integratorCanonical = integratorUserId == null ? "" : String(integratorUserId);
+  const orgArg = orgId == null ? "NULL::uuid" : `${quoteLiteral(orgId)}::uuid`;
+  const patientArg = patientId == null ? "NULL::uuid" : `${quoteLiteral(patientId)}::uuid`;
+  const integratorArg = integratorUserId == null ? "NULL::bigint" : `${integratorUserId}::bigint`;
+
+  return `
+RESET ROLE;
+SELECT pg_backend_pid() AS ctx_pid, (floor(extract(epoch FROM clock_timestamp()))::bigint + 240) AS ctx_exp \\gset
+SELECT encode(
+  app_ext.hmac(
+    concat_ws('|', 'v1', ${quoteLiteral(nonce)}, (:ctx_pid)::text, (:ctx_exp)::text, ${quoteLiteral(orgCanonical)}, ${quoteLiteral(patientCanonical)}, ${quoteLiteral(integratorCanonical)}),
+    ${quoteLiteral(signingSecret)},
+    'sha256'
+  ),
+  'hex'
+) AS ctx_sig \\gset
+SET ROLE ${quoteIdent(role)};
+SET row_security = on;
+SELECT app.install_signed_context(${quoteLiteral(nonce)}, (:ctx_pid)::integer, (:ctx_exp)::bigint, ${orgArg}, ${patientArg}, ${integratorArg}, :'ctx_sig');
+`;
 }
 
 async function withActorClient(kind, fn) {

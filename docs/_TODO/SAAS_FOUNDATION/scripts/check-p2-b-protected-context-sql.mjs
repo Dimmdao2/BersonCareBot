@@ -49,6 +49,7 @@ requireFragments("P2-B ops SQL", opsSql, [
   "CREATE OR REPLACE FUNCTION app.current_integrator_user_id() RETURNS bigint",
   "CREATE OR REPLACE FUNCTION app.reset_principal_context() RETURNS void",
   "CREATE OR REPLACE FUNCTION app.release_principal_context() RETURNS void",
+  "CREATE OR REPLACE FUNCTION app.close_active_user_phone_history(p_user uuid) RETURNS void",
   "CREATE OR REPLACE FUNCTION app.is_staff() RETURNS boolean",
   "pg_has_role(current_user, %L, 'member')",
   "REVOKE ALL ON app.context_signing_secrets FROM PUBLIC",
@@ -58,6 +59,7 @@ requireFragments("P2-B ops SQL", opsSql, [
   "GRANT EXECUTE ON FUNCTION app.current_org_id()",
   "GRANT EXECUTE ON FUNCTION app.current_patient_user_id()",
   "GRANT EXECUTE ON FUNCTION app.current_integrator_user_id()",
+  "GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid)",
   "\\if :{?p2_b_down}",
 ]);
 
@@ -68,6 +70,7 @@ for (const signature of [
   "app.current_integrator_user_id()",
   "app.reset_principal_context()",
   "app.release_principal_context()",
+  "app.close_active_user_phone_history(uuid)",
   "app.is_staff()",
 ]) {
   requireFragments(`P2-B explicit grants for ${signature}`, opsSql, [
@@ -76,6 +79,42 @@ for (const signature of [
     `TO :"p2_b_staff_role", :"p2_b_patient_role";`,
   ]);
 }
+
+const closeActiveFunctionMatch = opsSql.match(
+  /CREATE OR REPLACE FUNCTION app\.close_active_user_phone_history\(p_user uuid\) RETURNS void[\s\S]*?\$\$;/,
+);
+
+if (!closeActiveFunctionMatch) {
+  fail("P2-B ops SQL must define app.close_active_user_phone_history(uuid)");
+}
+
+const closeActiveFunctionSql = closeActiveFunctionMatch[0];
+requireFragments("close_active_user_phone_history helper", closeActiveFunctionSql, [
+  "LANGUAGE sql",
+  "SECURITY DEFINER",
+  "SET search_path = app, public, pg_catalog",
+  "UPDATE public.user_phone_history SET valid_to = now()",
+  "WHERE platform_user_id = p_user AND valid_to IS NULL",
+  "AND (app.current_patient_user_id() IS NULL OR platform_user_id = app.current_patient_user_id())",
+]);
+requireFragments("close_active_user_phone_history owner/grants", opsSql, [
+  "DROP FUNCTION IF EXISTS app.close_active_user_phone_history(uuid);",
+  "ALTER FUNCTION app.close_active_user_phone_history(uuid) OWNER TO :\"p2_b_owner_role\";",
+  "IF to_regclass('public.user_phone_history') IS NOT NULL THEN",
+  "EXECUTE format('GRANT SELECT, UPDATE ON public.user_phone_history TO %%I', %L);",
+  "$p2_b_user_phone_history_grant$, :'p2_b_owner_role') \\gexec",
+  "EXECUTE format('REVOKE SELECT, UPDATE ON public.user_phone_history FROM %%I', %L);",
+  "$p2_b_user_phone_history_revoke$, :'p2_b_owner_role') \\gexec",
+  "REVOKE EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) FROM PUBLIC;",
+  "GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO :\"p2_b_staff_role\", :\"p2_b_patient_role\";",
+]);
+forbidFragments("close_active_user_phone_history helper", closeActiveFunctionSql, [
+  "organization_id",
+  "current_org_id",
+  "current_integrator_user_id",
+  "is_staff",
+  "RETURNING",
+]);
 
 forbidFragments("P2-B ops SQL", opsSql, [
   "/opt/env/bersoncarebot",
