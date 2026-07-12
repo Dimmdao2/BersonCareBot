@@ -19,11 +19,15 @@
 
 ## Порядок деплоя (черновик последовательности — доводим до «просто проскакивает»)
 1. Свежий прод-дамп → (на проде: сначала бэкап).
-2. **Создать роли** `app_staff`/`app_patient` (`deploy/postgres/p0-5b-role-split-staff-patient.sql`) — ДО migrate.
+2. **Создать роли** `app_staff`/`app_patient` (`deploy/postgres/p0-5b-role-split-staff-patient.sql`) и
+   app-owner роль для P2-B (по умолчанию `app_owner`), плюс `pgcrypto` в схеме `app_ext` — ДО migrate.
 3. **Data-fix аккаунтов** (`p0-data-fix-doctor-admin-split.sql`) — чтобы 0143 прошёл.
 4. **migrate-all.sh** (3 фазы: integrator base → webapp ALL → integrator SaaS).
-5. **Слияние специалистов** (`consolidate-specialist-identity --canonical=518ea988 --commit`) — один активный специалист.
-6. Пост-проверки: 1 doctor, 1 admin, 1 active specialist, webapp=176, RLS включён, org_enrollments заполнены.
+5. **P2-B protected principal context** (`deploy/postgres/p2-b-protected-principal-context.sql`) с
+   `p2_b_owner_role=app_owner`, `p2_b_staff_role=app_staff`, `p2_b_patient_role=app_patient`,
+   `p2_b_signing_secret` из `P2_B_SIGNING_SECRET` / `DB_PRINCIPAL_SIGNING_SECRET` либо одноразовый для rehearsal.
+6. **Слияние специалистов** (`consolidate-specialist-identity --canonical=518ea988 --commit`) — один активный специалист.
+7. Пост-проверки: 1 doctor, 1 admin, 1 active specialist, webapp=178+, RLS ENABLE + NO FORCE, org_enrollments заполнены.
 
 ## Фаза 3 integrator — РЕШЕНО (Option A), проверено на копии
 - **Причина сбоя:** после Фазы 2 на integrator-таблицах FORCE RLS; мигратор `bcb_webapp_prod` (без BYPASSRLS)
@@ -119,9 +123,11 @@ set -a && source /opt/env/bersoncarebot/api.prod && source /opt/env/bersoncarebo
 read -rsp 'SUPERUSER_URL: ' SUPERUSER_URL && echo
 read -rsp 'BYPASSRLS migrator DATABASE_URL: ' DATABASE_URL && echo
 export SUPERUSER_URL DATABASE_URL
+read -rsp 'P2_B_SIGNING_SECRET (optional for rehearsal, required to match locked prod env): ' P2_B_SIGNING_SECRET && echo
+export P2_B_SIGNING_SECRET
 export API_ENV_FILE=/nonexistent WEBAPP_ENV_FILE=/nonexistent
 bash scripts/deploy-saas-667.sh
-unset SUPERUSER_URL DATABASE_URL
+unset SUPERUSER_URL DATABASE_URL P2_B_SIGNING_SECRET
 ```
 
 Units остаются остановленными до успешного завершения всех post-state assertions. После `✅ ALL GREEN`
@@ -144,6 +150,10 @@ sudo systemctl is-active bersoncarebot-api-prod.service \
 `BOOKING_URL=http://localhost:3000` и оба env-path в `/nonexistent`; это предотвращает случайное чтение
 prod env. На prod env загружается блоком выше, а повторное sourcing отключается специально, чтобы
 `DATABASE_URL` мигратора с `BYPASSRLS` не был заменён runtime URL.
+`P2_B_OWNER_ROLE` можно переопределить, если app-owner роль уже выбрана оператором; по умолчанию скрипт
+использует `app_owner`, создаёт её как `NOLOGIN NOBYPASSRLS` и выдаёт membership мигратору для `SET ROLE`
+в P2-B. Для production `P2_B_SIGNING_SECRET` должен совпадать с будущим `DB_PRINCIPAL_SIGNING_SECRET`;
+для rehearsal без locked-runtime допускается одноразовый auto-generated secret.
 
 ### Eyeball verification
 

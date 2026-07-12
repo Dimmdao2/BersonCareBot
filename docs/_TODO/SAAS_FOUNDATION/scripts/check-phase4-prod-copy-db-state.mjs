@@ -288,7 +288,15 @@ async function checkDbState() {
              (r.search_path IS NULL AND COALESCE(cardinality(p.proconfig), 0) = 0)
              OR p.proconfig = ARRAY[r.search_path]
            ) AS search_path_ok,
-           NOT has_function_privilege('PUBLIC', p.oid, 'EXECUTE') AS public_execute_revoked,
+           (
+             p.oid IS NOT NULL
+             AND NOT EXISTS (
+               SELECT 1
+               FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+               WHERE acl.grantee = 0
+                 AND acl.privilege_type = 'EXECUTE'
+             )
+           ) AS public_execute_revoked,
            has_function_privilege('app_staff', p.oid, 'EXECUTE') AS staff_execute_ok,
            has_function_privilege('app_patient', p.oid, 'EXECUTE') AS patient_execute_ok
          FROM resolved r

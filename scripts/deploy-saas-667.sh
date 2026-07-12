@@ -12,15 +12,39 @@ export DATABASE_URL
 export BOOKING_URL="${BOOKING_URL:-http://localhost:3000}"
 export API_ENV_FILE="${API_ENV_FILE:-/nonexistent}"
 export WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/nonexistent}"
+P2_B_OWNER_ROLE="${P2_B_OWNER_ROLE:-app_owner}"
+P2_B_STAFF_ROLE="app_staff"
+P2_B_PATIENT_ROLE="app_patient"
 
 header() {
   printf '\n===== %s =====\n' "$1"
+}
+
+validate_role_name() {
+  local label="$1"
+  local value="$2"
+  if [[ ! "${value}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    printf 'FATAL: %s must be a simple PostgreSQL identifier, got %q\n' "${label}" "${value}" >&2
+    exit 1
+  fi
 }
 
 header "Preflight: migrator must have BYPASSRLS"
 migrator_bypassrls="$(
   psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
     "SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user"
+)"
+migrator_role="$(
+  psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
+    "SELECT current_user"
+)"
+migrator_database="$(
+  psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
+    "SELECT current_database()"
+)"
+superuser_database="$(
+  psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
+    "SELECT current_database()"
 )"
 if [[ "${migrator_bypassrls}" != "t" ]]; then
   cat >&2 <<'EOF'
@@ -32,19 +56,89 @@ See “WHY BYPASSRLS” in docs/_TODO/SAAS_FOUNDATION/DEPLOY_667_SEQUENCE.md.
 EOF
   exit 1
 fi
+if [[ "${superuser_database}" != "${migrator_database}" ]]; then
+  cat >&2 <<EOF
+FATAL: SUPERUSER_URL and DATABASE_URL must point to the same target database.
+SUPERUSER_URL database: ${superuser_database}
+DATABASE_URL database: ${migrator_database}
+EOF
+  exit 1
+fi
+validate_role_name "P2_B_OWNER_ROLE" "${P2_B_OWNER_ROLE}"
+validate_role_name "migrator role" "${migrator_role}"
 
-header "Step 1/4: create dormant app_staff/app_patient roles"
+header "Step 1/5: prepare dormant roles and pgcrypto schema"
 psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
   -f deploy/postgres/p0-5b-role-split-staff-patient.sql
+psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+  -v p2_b_owner_role="${P2_B_OWNER_ROLE}" \
+  -v p2_b_migrator_role="${migrator_role}" <<'SQL'
+SELECT format('CREATE ROLE %I NOLOGIN NOBYPASSRLS', :'p2_b_owner_role')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_b_owner_role')
+\gexec
 
-header "Step 2/4: apply doctor/admin account data-fix"
+ALTER ROLE :"p2_b_owner_role" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+
+SELECT format('GRANT %I TO %I', :'p2_b_owner_role', :'p2_b_migrator_role')
+WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_b_migrator_role')
+\gexec
+
+CREATE SCHEMA IF NOT EXISTS app_ext;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA app_ext;
+
+DO $pgcrypto_schema$
+DECLARE
+  v_pgcrypto_schema text;
+BEGIN
+  SELECT n.nspname
+  INTO v_pgcrypto_schema
+  FROM pg_extension e
+  JOIN pg_namespace n ON n.oid = e.extnamespace
+  WHERE e.extname = 'pgcrypto';
+
+  IF v_pgcrypto_schema IS DISTINCT FROM 'app_ext' THEN
+    RAISE EXCEPTION 'pgcrypto_must_be_installed_in_app_ext';
+  END IF;
+END
+$pgcrypto_schema$;
+SQL
+
+header "Step 2/5: apply doctor/admin account data-fix"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
   -f deploy/postgres/p0-data-fix-doctor-admin-split.sql
 
-header "Step 3/4: run the three-phase migration chain"
+header "Step 3/5: run the three-phase migration chain"
 bash scripts/migrate-all.sh
 
-header "Step 4/4: consolidate specialist identity"
+header "Step 4/5: install protected DB principal context"
+p2_b_signing_secret="${P2_B_SIGNING_SECRET:-${DB_PRINCIPAL_SIGNING_SECRET:-}}"
+if [[ -z "${p2_b_signing_secret}" ]]; then
+  p2_b_signing_secret="$(node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))')"
+fi
+if (( ${#p2_b_signing_secret} < 32 )); then
+  printf 'FATAL: P2_B_SIGNING_SECRET/DB_PRINCIPAL_SIGNING_SECRET must be at least 32 characters when provided.\n' >&2
+  exit 1
+fi
+if [[ "${p2_b_signing_secret}" =~ [[:space:]\\] ]]; then
+  printf 'FATAL: P2_B_SIGNING_SECRET/DB_PRINCIPAL_SIGNING_SECRET must not contain whitespace or backslashes.\n' >&2
+  exit 1
+fi
+p2_b_psql_file="$(mktemp)"
+chmod 600 "${p2_b_psql_file}"
+trap 'rm -f "${p2_b_psql_file}"' EXIT
+{
+  printf '\\set p2_b_owner_role %s\n' "${P2_B_OWNER_ROLE}"
+  printf '\\set p2_b_staff_role %s\n' "${P2_B_STAFF_ROLE}"
+  printf '\\set p2_b_patient_role %s\n' "${P2_B_PATIENT_ROLE}"
+  printf '\\set p2_b_signing_secret %s\n' "${p2_b_signing_secret}"
+  printf '\\i deploy/postgres/p2-b-protected-principal-context.sql\n'
+} > "${p2_b_psql_file}"
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${p2_b_psql_file}"
+rm -f "${p2_b_psql_file}"
+trap - EXIT
+unset p2_b_signing_secret p2_b_psql_file
+
+header "Step 5/5: consolidate specialist identity"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 <<'SQL'
 DO $specialist_fingerprint$
 DECLARE
