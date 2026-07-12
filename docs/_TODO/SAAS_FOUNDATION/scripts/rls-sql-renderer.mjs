@@ -172,6 +172,16 @@ export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, cas
   return `(${columnSql} IS NULL OR ${renderStaffOrPatientPredicate({ patientColumn, castType, patientMode })})`;
 }
 
+export function renderNullableSharedPatientPredicate({ patientColumn, castType = "uuid", patientMode = "enforce" } = {}) {
+  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+    throw new Error("Nullable shared patient predicate requires a patientColumn");
+  }
+
+  const columnSql = quoteSqlIdentifier(patientColumn);
+
+  return `(${columnSql} IS NULL OR ${renderPatientPredicate({ patientColumn, mode: patientMode, castType })})`;
+}
+
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
 // chain-only patient ownership — tables with NO direct patient-identifying column, where the
 // owning patient is only reachable by walking one or more FK hops to a table that DOES carry one
@@ -421,6 +431,35 @@ export function renderStaffOrPatientPredicateForDescriptor(descriptor, { patient
     patientColumn: descriptor.patientColumn,
     castType: descriptor.patientColumnCastType ?? "uuid",
     patientMode,
+  });
+}
+
+export function renderPatientPredicateForDescriptor(descriptor, { patientMode = "enforce" } = {}) {
+  if (descriptor.patientPolymorphic) {
+    return renderPolymorphicPatientPredicate(descriptor.patientPolymorphic, { mode: patientMode });
+  }
+
+  if (descriptor.patientConditionalChain) {
+    return renderConditionalChainPatientPredicate({ ...descriptor.patientConditionalChain, mode: patientMode });
+  }
+
+  if (descriptor.patientConditional) {
+    return renderConditionalPatientPredicate({ ...descriptor.patientConditional, mode: patientMode });
+  }
+
+  if (descriptor.patientChain) {
+    return renderPatientChainPredicate({ ...descriptor.patientChain, mode: patientMode });
+  }
+
+  const render = descriptor.patientColumnNullableShared
+    ? renderNullableSharedPatientPredicate
+    : renderPatientPredicate;
+
+  return render({
+    patientColumn: descriptor.patientColumn,
+    castType: descriptor.patientColumnCastType ?? "uuid",
+    patientMode,
+    mode: patientMode,
   });
 }
 

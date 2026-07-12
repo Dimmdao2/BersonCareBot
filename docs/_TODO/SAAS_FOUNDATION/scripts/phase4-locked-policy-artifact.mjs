@@ -17,8 +17,8 @@ import {
   renderFkPathPatientPredicate,
   renderFkPathPredicate,
   renderOrgPredicate,
+  renderPatientPredicateForDescriptor,
   renderStaffActorCheck,
-  renderStaffOrPatientPredicateForDescriptor,
 } from "./rls-sql-renderer.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -67,16 +67,17 @@ export function renderPhase4StrictPredicate(descriptor) {
     descriptor.scopingKind === "fk_path"
       ? renderFkPathPredicate(descriptor, { mode: "enforce" })
       : renderOrgPredicate(descriptor, { mode: "enforce" });
+  const staffOrgPredicate = `(${renderStaffActorCheck()} AND ${orgPredicate})`;
 
   if (!hasAnyPatientOwnership(descriptor)) {
-    return orgPredicate;
+    return staffOrgPredicate;
   }
 
   if (descriptor.scopingKind === "fk_path") {
-    return `(${orgPredicate} AND (${renderStaffActorCheck()} OR ${renderFkPathPatientPredicate(descriptor)}))`;
+    return `(${staffOrgPredicate} OR ${renderFkPathPatientPredicate(descriptor)})`;
   }
 
-  return `(${orgPredicate} AND ${renderStaffOrPatientPredicateForDescriptor(descriptor, { patientMode: "enforce" })})`;
+  return `(${staffOrgPredicate} OR ${renderPatientPredicateForDescriptor(descriptor, { patientMode: "enforce" })})`;
 }
 
 export function renderPhase4DormantCompatPredicate(descriptor) {

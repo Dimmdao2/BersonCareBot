@@ -9,8 +9,9 @@
  *
  * Proves:
  *   - default artifact mode is dormant-compatible for no-context legacy sessions;
- *   - strict cutover mode + FORCE isolates org A from org B;
- *   - patient P1 cannot see patient P2 in the same org;
+ *   - strict cutover mode + FORCE lets patient P see P-owned rows in org A and org B;
+ *   - patient P cannot see patient Q in the same org;
+ *   - staff in org A cannot see org B;
  *   - plain SET app.org/app.patient_user_id does not forge visibility;
  *   - releasing the locked context under strict mode fails closed.
  */
@@ -348,9 +349,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA integrator TO ${quo
 
 const orgA = "b6000000-0000-4000-8000-0000000000a1";
 const orgB = "b6000000-0000-4000-8000-0000000000b1";
-const patientA1 = "b6000000-0000-4000-8000-00000000a101";
-const patientA2 = "b6000000-0000-4000-8000-00000000a102";
-const patientB1 = "b6000000-0000-4000-8000-00000000b101";
+const patientP = "b6000000-0000-4000-8000-00000000a101";
+const patientQ = "b6000000-0000-4000-8000-00000000a102";
 const rowA1 = "b6100000-0000-4000-8000-000000000001";
 const rowA2 = "b6100000-0000-4000-8000-000000000002";
 const rowB1 = "b6100000-0000-4000-8000-000000000003";
@@ -362,22 +362,23 @@ INSERT INTO public.be_organizations (id, organization_id) VALUES
   ('${orgB}'::uuid, '${orgB}'::uuid);
 
 INSERT INTO public.platform_users (id) VALUES
-  ('${patientA1}'::uuid),
-  ('${patientA2}'::uuid),
-  ('${patientB1}'::uuid);
+  ('${patientP}'::uuid),
+  ('${patientQ}'::uuid);
 
 INSERT INTO public.org_enrollments (id, organization_id, platform_user_id) VALUES
-  ('${rowA1}'::uuid, '${orgA}'::uuid, '${patientA1}'::uuid),
-  ('${rowA2}'::uuid, '${orgA}'::uuid, '${patientA2}'::uuid),
-  ('${rowB1}'::uuid, '${orgB}'::uuid, '${patientB1}'::uuid);
+  ('${rowA1}'::uuid, '${orgA}'::uuid, '${patientP}'::uuid),
+  ('${rowA2}'::uuid, '${orgA}'::uuid, '${patientQ}'::uuid),
+  ('${rowB1}'::uuid, '${orgB}'::uuid, '${patientP}'::uuid);
 
 INSERT INTO public.notification_delivery_attempts (id, organization_id, user_id) VALUES
-  ('${rowA1}'::uuid, '${orgA}'::uuid, '${patientA1}'::uuid),
-  ('${rowA2}'::uuid, '${orgA}'::uuid, '${patientA2}'::uuid),
-  ('${rowB1}'::uuid, '${orgB}'::uuid, '${patientB1}'::uuid);
+  ('${rowA1}'::uuid, '${orgA}'::uuid, '${patientP}'::uuid),
+  ('${rowA2}'::uuid, '${orgA}'::uuid, '${patientQ}'::uuid),
+  ('${rowB1}'::uuid, '${orgB}'::uuid, '${patientP}'::uuid);
 `;
 
 function installContextSql({ role, nonce, orgId, patientId = null, integratorUserId = null }) {
+  const orgCanonical = orgId ?? "";
+  const orgArg = orgId == null ? "NULL::uuid" : `'${orgId}'::uuid`;
   const patientCanonical = patientId ?? "";
   const integratorCanonical = integratorUserId == null ? "" : String(integratorUserId);
   const patientArg = patientId == null ? "NULL::uuid" : `'${patientId}'::uuid`;
@@ -388,7 +389,7 @@ RESET ROLE;
 SELECT pg_backend_pid() AS ctx_pid, (floor(extract(epoch FROM clock_timestamp()))::bigint + 240) AS ctx_exp \\gset
 SELECT encode(
   app_ext.hmac(
-    concat_ws('|', 'v1', '${nonce}', (:ctx_pid)::text, (:ctx_exp)::text, '${orgId}', '${patientCanonical}', '${integratorCanonical}'),
+    concat_ws('|', 'v1', '${nonce}', (:ctx_pid)::text, (:ctx_exp)::text, '${orgCanonical}', '${patientCanonical}', '${integratorCanonical}'),
     '${signingSecret}',
     'sha256'
   ),
@@ -396,7 +397,7 @@ SELECT encode(
 ) AS ctx_sig \\gset
 SET ROLE ${quoteIdent(role)};
 SET row_security = on;
-SELECT app.install_signed_context('${nonce}', (:ctx_pid)::integer, (:ctx_exp)::bigint, '${orgId}'::uuid, ${patientArg}, ${integratorArg}, :'ctx_sig');
+SELECT app.install_signed_context('${nonce}', (:ctx_pid)::integer, (:ctx_exp)::bigint, ${orgArg}, ${patientArg}, ${integratorArg}, :'ctx_sig');
 `;
 }
 
@@ -425,7 +426,7 @@ SELECT 1/0;
 \endif
 
 INSERT INTO public.notification_delivery_attempts (id, organization_id, user_id)
-VALUES ('${writeProbe}'::uuid, '${orgA}'::uuid, '${patientA1}'::uuid);
+VALUES ('${writeProbe}'::uuid, '${orgA}'::uuid, '${patientP}'::uuid);
 
 SELECT (count(*) = 1)::int AS dormant_write_ok FROM public.notification_delivery_attempts WHERE id = '${writeProbe}'::uuid \gset
 \if :dormant_write_ok
@@ -460,56 +461,63 @@ SELECT 1/0;
 
 \echo 'R2 smoke (b) CONFIRMED: FORCE + locked org A context cannot see org B rows.'
 
-${installContextSql({ role: patientRole, nonce: `patient_a1_${stamp}`, orgId: orgA, patientId: patientA1 })}
+${installContextSql({ role: patientRole, nonce: `patient_p_${stamp}`, orgId: null, patientId: patientP })}
 
-SELECT (app.current_org_id() = '${orgA}'::uuid AND app.current_patient_user_id() = '${patientA1}'::uuid)::int AS helper_context_ok \gset
+SELECT (app.current_org_id() IS NULL AND app.current_patient_user_id() = '${patientP}'::uuid)::int AS helper_context_ok \gset
 \if :helper_context_ok
 \else
-\echo 'FATAL: locked helper context was not installed as expected for patient A1.'
+\echo 'FATAL: locked helper context was not installed as expected for patient P identity-only.'
 SELECT 1/0;
 \endif
 
-SELECT (count(*) = 1)::int AS patient_a1_own_ok FROM public.org_enrollments WHERE platform_user_id = '${patientA1}'::uuid \gset
-\if :patient_a1_own_ok
+SELECT (count(*) = 2)::int AS patient_p_own_both_orgs_ok FROM public.org_enrollments WHERE platform_user_id = '${patientP}'::uuid \gset
+\if :patient_p_own_both_orgs_ok
 \else
-\echo 'FATAL: patient A1 must see its own row.'
+\echo 'FATAL: patient P must see P-owned rows in both org A and org B.'
 SELECT 1/0;
 \endif
 
-SELECT (count(*) = 0)::int AS patient_a2_hidden_ok FROM public.org_enrollments WHERE platform_user_id = '${patientA2}'::uuid \gset
-\if :patient_a2_hidden_ok
+SELECT (count(*) = 1)::int AS patient_p_org_b_own_ok FROM public.org_enrollments WHERE organization_id = '${orgB}'::uuid AND platform_user_id = '${patientP}'::uuid \gset
+\if :patient_p_org_b_own_ok
 \else
-\echo 'FATAL: patient A1 must not see patient A2 in the same org.'
+\echo 'FATAL: patient P must see P-owned row in org B without an org DB principal.'
 SELECT 1/0;
 \endif
 
-\echo 'R2 smoke (c) CONFIRMED: patient P1 cannot see patient P2 rows in the same org.'
+SELECT (count(*) = 0)::int AS patient_q_hidden_ok FROM public.org_enrollments WHERE platform_user_id = '${patientQ}'::uuid \gset
+\if :patient_q_hidden_ok
+\else
+\echo 'FATAL: patient P must not see patient Q in org A.'
+SELECT 1/0;
+\endif
+
+\echo 'R2 smoke (c) CONFIRMED: patient P identity-only sees P-owned rows in org A and org B, and cannot see patient Q.'
 
 SET app.org = '${orgB}';
-SET app.patient_user_id = '${patientA2}';
+SET app.patient_user_id = '${patientQ}';
 
-SELECT (app.current_org_id() = '${orgA}'::uuid AND app.current_patient_user_id() = '${patientA1}'::uuid)::int AS raw_forge_ignored_ok \gset
+SELECT (app.current_org_id() IS NULL AND app.current_patient_user_id() = '${patientP}'::uuid)::int AS raw_forge_ignored_ok \gset
 \if :raw_forge_ignored_ok
 \else
 \echo 'FATAL: plain SET app.org/app.patient_user_id changed helper-visible identity.'
 SELECT 1/0;
 \endif
 
-SELECT (count(*) = 0)::int AS forged_patient_a2_still_hidden_ok FROM public.org_enrollments WHERE platform_user_id = '${patientA2}'::uuid \gset
-\if :forged_patient_a2_still_hidden_ok
+SELECT (count(*) = 0)::int AS forged_patient_q_still_hidden_ok FROM public.org_enrollments WHERE platform_user_id = '${patientQ}'::uuid \gset
+\if :forged_patient_q_still_hidden_ok
 \else
-\echo 'FATAL: raw SET app.patient_user_id forged visibility to patient A2.'
+\echo 'FATAL: raw SET app.patient_user_id forged visibility to patient Q.'
 SELECT 1/0;
 \endif
 
-SELECT (count(*) = 0)::int AS forged_org_b_still_hidden_ok FROM public.org_enrollments WHERE organization_id = '${orgB}'::uuid \gset
-\if :forged_org_b_still_hidden_ok
+SELECT (count(*) = 1)::int AS forged_org_b_own_still_visible_ok FROM public.org_enrollments WHERE organization_id = '${orgB}'::uuid AND platform_user_id = '${patientP}'::uuid \gset
+\if :forged_org_b_own_still_visible_ok
 \else
-\echo 'FATAL: raw SET app.org forged visibility to org B.'
+\echo 'FATAL: raw SET app.org changed patient P own-data visibility in org B.'
 SELECT 1/0;
 \endif
 
-\echo 'R2 smoke (d) CONFIRMED: plain SET app.org/app.patient_user_id cannot forge visibility; helpers read app.principal_context.'
+\echo 'R2 smoke (d) CONFIRMED: plain SET app.org/app.patient_user_id cannot forge patient visibility; helpers read app.principal_context.'
 
 SELECT app.release_principal_context();
 RESET app.org;

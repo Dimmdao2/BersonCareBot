@@ -476,27 +476,27 @@ async function proveStaffPrincipal() {
 
 async function provePatientPrincipal() {
   await withClient(patientRole, patientPassword, async (client) => {
-    await runWithDbPatientPrincipal({ organizationId: orgId, platformUserId: patientPlatformUserId }, async () => {
+    await runWithDbPatientPrincipal({ platformUserId: patientPlatformUserId }, async () => {
       const applied = await applyCurrentDbPrincipalToConnection(client, lockedOptions);
       assert(applied === true, "patient principal should be applied");
     });
 
     await client.query("SELECT set_config('app.is_staff', 'true', false)");
     const context = await readHelperContext(client);
-    assert(context.orgId === orgId, "patient principal must install org helper");
+    assert(context.orgId === null, "patient principal must not install org helper");
     assert(context.patientUserId === patientPlatformUserId, "patient principal must install patient helper");
     assert(context.integratorUserId === null, "patient principal must not install integrator helper");
     assert(context.isStaff === false, "patient app role must not become staff through principal or raw GUC");
     assertLabels(
       await readVisibleRuntimeRows(client),
-      ["org1_patient_a"],
-      "patient principal must see only its own rows inside its organization",
+      ["org1_patient_a", "org2_patient_a"],
+      "patient principal must see only its own rows across organizations",
     );
 
     await clearDbPrincipalFromConnection(client, lockedOptions);
     await assertCleared(client, false, "patient principal");
   });
-  console.log("CONFIRMED: locked patient principal sees only its own rows inside its organization.");
+  console.log("CONFIRMED: locked patient principal sees only its own rows across organizations.");
 }
 
 async function proveIntegratorPrincipal() {
@@ -671,7 +671,8 @@ INSERT INTO public.b4_locked_runtime_rows (id, organization_id, patient_user_id,
 VALUES
   (1, ${quoteLiteral(orgId)}::uuid, ${quoteLiteral(patientPlatformUserId)}::uuid, 'org1_patient_a'),
   (2, ${quoteLiteral(orgId)}::uuid, ${quoteLiteral(otherPatientPlatformUserId)}::uuid, 'org1_patient_b'),
-  (3, ${quoteLiteral(otherOrgId)}::uuid, ${quoteLiteral(otherPatientPlatformUserId)}::uuid, 'org2_patient_b');
+  (3, ${quoteLiteral(otherOrgId)}::uuid, ${quoteLiteral(otherPatientPlatformUserId)}::uuid, 'org2_patient_b'),
+  (4, ${quoteLiteral(otherOrgId)}::uuid, ${quoteLiteral(patientPlatformUserId)}::uuid, 'org2_patient_a');
 
 ALTER TABLE public.b4_locked_runtime_rows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.b4_locked_runtime_rows FORCE ROW LEVEL SECURITY;
@@ -686,10 +687,7 @@ CREATE POLICY b4_locked_runtime_patient_rows
   ON public.b4_locked_runtime_rows
   FOR SELECT
   TO ${quoteIdent(appPatientRole)}
-  USING (
-    organization_id = app.current_org_id()
-    AND patient_user_id = app.current_patient_user_id()
-  );
+  USING (patient_user_id = app.current_patient_user_id());
 
 GRANT USAGE ON SCHEMA public TO ${quoteIdent(appStaffRole)}, ${quoteIdent(appPatientRole)};
 GRANT SELECT ON public.b4_locked_runtime_rows TO ${quoteIdent(appStaffRole)}, ${quoteIdent(appPatientRole)};

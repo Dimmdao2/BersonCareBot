@@ -117,13 +117,15 @@ ON CONFLICT (id) DO UPDATE SET secret = EXCLUDED.secret;
 
 CREATE TABLE IF NOT EXISTS app.principal_context (
   backend_pid integer PRIMARY KEY CHECK (backend_pid > 0),
-  org_id uuid NOT NULL,
+  org_id uuid,
   patient_user_id uuid,
   integrator_user_id bigint,
   nonce text NOT NULL,
   expires_epoch bigint NOT NULL,
   installed_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+
+ALTER TABLE app.principal_context ALTER COLUMN org_id DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS app.context_nonce_ledger (
   nonce text PRIMARY KEY,
@@ -181,7 +183,7 @@ BEGIN
     p_nonce,
     p_backend_pid::text,
     p_expires_epoch::text,
-    p_org_id::text,
+    COALESCE(p_org_id::text, ''),
     COALESCE(p_patient_user_id::text, ''),
     COALESCE(p_integrator_user_id::text, '')
   );

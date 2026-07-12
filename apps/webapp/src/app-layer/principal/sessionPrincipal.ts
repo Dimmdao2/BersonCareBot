@@ -27,12 +27,7 @@ export async function stampDbPrincipalFromSession(session: AppSession, source: s
     }
 
     if (canAccessPatient(session.user.role)) {
-      const patientOrganization = buildAppDeps().patientOrganization;
-      if (!patientOrganization) return;
-      const resolved = await patientOrganization.resolveActiveOrganizationForPatient(session.user.userId);
-      if (!resolved.ok) return;
       enterWithDbPatientPrincipal({
-        organizationId: resolved.organizationId,
         platformUserId: session.user.userId,
         source,
       });

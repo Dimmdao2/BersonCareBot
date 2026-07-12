@@ -68,7 +68,6 @@ describe("DB principal context", () => {
     const requestA = (async () => {
       ensureDbPrincipalContext({ source: "request-a:entry" });
       enterWithDbPatientPrincipal({
-        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         platformUserId: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
         source: "request-a",
       });
@@ -79,7 +78,6 @@ describe("DB principal context", () => {
     const requestB = (async () => {
       ensureDbPrincipalContext({ source: "request-b:entry" });
       enterWithDbPatientPrincipal({
-        organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         platformUserId: "bbbbbbbb-bbbb-4bbb-8bbb-000000000002",
         source: "request-b",
       });
@@ -93,12 +91,10 @@ describe("DB principal context", () => {
 
     expect(principalA).toMatchObject({
       kind: "patient",
-      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       platformUserId: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
     });
     expect(principalB).toMatchObject({
       kind: "patient",
-      organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       platformUserId: "bbbbbbbb-bbbb-4bbb-8bbb-000000000002",
     });
 

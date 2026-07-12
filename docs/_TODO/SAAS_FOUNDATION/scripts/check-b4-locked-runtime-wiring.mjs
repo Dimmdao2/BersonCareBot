@@ -256,7 +256,8 @@ function runChecks(overrides = {}) {
     "stampStaffPrincipal(resolved.ctx, \"requireDoctorWorkspaceApiContext\")",
     "stampStaffPrincipal(resolved.ctx, \"requireAdminWorkspaceApiContext\")",
     "stampPatientPrincipalForApi(session)",
-    "resolveActiveOrganizationForPatient(session.user.userId)",
+    "enterWithDbPatientPrincipal({",
+    "platformUserId: session.user.userId",
   ]);
 
   requireFragments(files.webappBootstrapPrincipal, loaded.webappBootstrapPrincipal, [
@@ -269,7 +270,7 @@ function runChecks(overrides = {}) {
     "ensureDbPrincipalContext",
     "enterWithDbStaffPrincipal",
     "enterWithDbPatientPrincipal",
-    "resolveActiveOrganizationForPatient",
+    "platformUserId: session.user.userId",
     "resolveOrganizationForUser",
   ]);
 

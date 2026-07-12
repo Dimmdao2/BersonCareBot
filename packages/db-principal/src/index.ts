@@ -37,7 +37,7 @@ export type DbStaffPrincipal = {
 
 export type DbPatientPrincipal = {
   kind: "patient";
-  organizationId: string;
+  organizationId?: string;
   platformUserId: string;
   source?: string;
 };
@@ -79,7 +79,7 @@ export type DbStaffPrincipalInput = {
 };
 
 export type DbPatientPrincipalInput = {
-  organizationId: string;
+  organizationId?: string | null;
   platformUserId: string;
   source?: string;
 };
@@ -210,7 +210,7 @@ export function createDbStaffPrincipal(input: DbStaffPrincipalInput): DbStaffPri
 export function createDbPatientPrincipal(input: DbPatientPrincipalInput): DbPatientPrincipal {
   return {
     kind: "patient",
-    organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
+    ...(input.organizationId == null ? {} : { organizationId: normalizeDbPrincipalOrganizationId(input.organizationId) }),
     platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
     ...copyOptionalSource(input),
   };
@@ -450,12 +450,10 @@ function copyOptionalSource(input: { source?: string }): { source?: string } {
 function isOrganizationScopedPrincipal(principal: DbPrincipal | undefined): principal is
   | DbOrganizationPrincipal
   | DbStaffPrincipal
-  | DbPatientPrincipal
   | DbIntegratorPrincipal {
   return (
     principal?.kind === "organization" ||
     principal?.kind === "staff" ||
-    principal?.kind === "patient" ||
     principal?.kind === "integrator"
   );
 }
@@ -477,7 +475,7 @@ async function applyDbPrincipal(
       await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
       return;
     case "patient":
-      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
+      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId ?? "", scope);
       await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, principal.platformUserId, scope);
       await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
       return;
@@ -574,12 +572,13 @@ async function installSignedDbPrincipalContext(
   const nonce = signer.nonce?.() ?? randomUUID();
   const patientUserId = principal.kind === "patient" ? principal.platformUserId : "";
   const integratorUserId = principal.kind === "integrator" ? principal.integratorUserId : "";
+  const organizationId = principal.kind === "patient" ? (principal.organizationId ?? "") : principal.organizationId;
   const canonicalPayload = buildCanonicalSignedPrincipalPayload({
     backendPid,
     expiresEpoch,
     integratorUserId,
     nonce,
-    organizationId: principal.organizationId,
+    organizationId,
     patientUserId,
   });
 
@@ -594,7 +593,7 @@ async function installSignedDbPrincipalContext(
       nonce,
       backendPid,
       expiresEpoch,
-      principal.organizationId,
+      organizationId || null,
       patientUserId || null,
       integratorUserId || null,
       createHmac("sha256", signer.secret).update(canonicalPayload).digest("hex"),

@@ -1,11 +1,9 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import {
-  buildDbPrincipalApplyOptionsFromEnv,
   ensureDbPrincipalContext,
   enterWithDbPatientPrincipal,
   enterWithDbStaffPrincipal,
-  type DbPrincipalContextMode,
 } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -105,23 +103,6 @@ function stampStaffPrincipal(ctx: Pick<DoctorWorkspaceAccessContext, "organizati
   });
 }
 
-function patientOrganizationAccessDeniedResponse(reason: string): NextResponse {
-  const error = reason === "organization_selection_required" ? "organization_selection_required" : "organization_required";
-  const status = error === "organization_selection_required" ? 409 : 403;
-  return NextResponse.json({ ok: false, error }, { status });
-}
-
-function currentDbPrincipalContextMode(): DbPrincipalContextMode {
-  return buildDbPrincipalApplyOptionsFromEnv(process.env).mode ?? "legacy-guc";
-}
-
-function warnShadowPatientPrincipalResolution(reason: string): void {
-  console.warn("DB patient principal organization resolution failed in shadow mode", {
-    reason,
-    source: "requirePatientApiBusinessAccess",
-  });
-}
-
 async function stampBestEffortStaffPrincipal(session: AppSession, source: string): Promise<void> {
   if (!isPlatformUserUuid(session.user.userId)) return;
   try {
@@ -140,43 +121,7 @@ async function stampPatientPrincipalForApi(
     return { ok: true };
   }
 
-  const patientOrganization = buildAppDeps().patientOrganization;
-  const mode = currentDbPrincipalContextMode();
-  if (!patientOrganization) {
-    if (mode === "shadow") {
-      warnShadowPatientPrincipalResolution("resolver_unavailable");
-    }
-    if (mode === "locked") {
-      return { ok: false, response: patientOrganizationAccessDeniedResponse("organization_required") };
-    }
-    return { ok: true };
-  }
-
-  let resolved: Awaited<ReturnType<typeof patientOrganization.resolveActiveOrganizationForPatient>>;
-  try {
-    resolved = await patientOrganization.resolveActiveOrganizationForPatient(session.user.userId);
-  } catch {
-    if (mode === "shadow") {
-      warnShadowPatientPrincipalResolution("resolver_error");
-    }
-    if (mode === "locked") {
-      return { ok: false, response: patientOrganizationAccessDeniedResponse("organization_required") };
-    }
-    return { ok: true };
-  }
-
-  if (!resolved.ok) {
-    if (mode === "shadow") {
-      warnShadowPatientPrincipalResolution(resolved.reason);
-    }
-    if (mode === "locked") {
-      return { ok: false, response: patientOrganizationAccessDeniedResponse(resolved.reason) };
-    }
-    return { ok: true };
-  }
-
   enterWithDbPatientPrincipal({
-    organizationId: resolved.organizationId,
     platformUserId: session.user.userId,
     source: "requirePatientApiBusinessAccess",
   });

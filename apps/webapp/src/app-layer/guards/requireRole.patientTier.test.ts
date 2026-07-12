@@ -116,9 +116,9 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
     expect(gate.ok).toBe(true);
     expect(getCurrentDbPrincipal()).toMatchObject({
       kind: "patient",
-      organizationId: PATIENT_ORG_ID,
       platformUserId: sess.user.userId,
     });
+    expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
   });
 
   it("returns 403 patient_activation_required when tier is onboarding and platform entry is bot (miniapp)", async () => {
@@ -157,9 +157,9 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
     expect(gate.ok).toBe(true);
     expect(getCurrentDbPrincipal()).toMatchObject({
       kind: "patient",
-      organizationId: PATIENT_ORG_ID,
       platformUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     });
+    expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
   });
 
   it("allows web/OAuth/email user without phone even with max binding when entry is standalone", async () => {
@@ -232,7 +232,7 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
     expect(gate.response.status).toBe(401);
   });
 
-  it("does not block in legacy-guc when patient organization resolution is ambiguous", async () => {
+  it("stamps patient identity only in legacy-guc without resolving clinic enrollment", async () => {
     vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession());
     resolveMock.mockResolvedValueOnce({
       canonicalUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
@@ -242,21 +242,17 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
       phoneTrustedForPatient: true,
       resolution: "resolved_canon",
     });
-    resolvePatientOrganizationMock.mockResolvedValueOnce({
-      ok: false,
-      reason: "organization_selection_required",
-      organizationIds: [
-        "11111111-1111-4111-8111-111111111111",
-        "22222222-2222-4222-8222-222222222222",
-      ],
-    });
 
     const gate = await requirePatientApiBusinessAccess();
     expect(gate.ok).toBe(true);
-    expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+    expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
   });
 
-  it("logs but does not block in shadow when patient organization resolution is ambiguous", async () => {
+  it("stamps patient identity only in shadow without logging clinic-resolution warnings", async () => {
     setDbPrincipalContextMode("shadow");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession());
@@ -268,29 +264,40 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
       phoneTrustedForPatient: true,
       resolution: "resolved_canon",
     });
-    resolvePatientOrganizationMock.mockResolvedValueOnce({
-      ok: false,
-      reason: "organization_selection_required",
-      organizationIds: [
-        "11111111-1111-4111-8111-111111111111",
-        "22222222-2222-4222-8222-222222222222",
-      ],
+
+    const gate = await requirePatientApiBusinessAccess();
+    expect(gate.ok).toBe(true);
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+    expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("stamps patient identity only in locked when patient has no active clinic enrollment", async () => {
+    setDbPrincipalContextMode("locked");
+    vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession());
+    resolveMock.mockResolvedValueOnce({
+      canonicalUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      dbRole: "client",
+      tier: "patient",
+      hasPhoneInDb: true,
+      phoneTrustedForPatient: true,
+      resolution: "resolved_canon",
     });
 
     const gate = await requirePatientApiBusinessAccess();
     expect(gate.ok).toBe(true);
-    expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
-    expect(warn).toHaveBeenCalledWith(
-      "DB patient principal organization resolution failed in shadow mode",
-      expect.objectContaining({
-        reason: "organization_selection_required",
-        source: "requirePatientApiBusinessAccess",
-      }),
-    );
-    warn.mockRestore();
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+    expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
   });
 
-  it("returns 403 organization_required in locked when patient has no active clinic enrollment", async () => {
+  it("stamps patient identity only in locked when a patient has multiple active clinic enrollments", async () => {
     setDbPrincipalContextMode("locked");
     vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession());
     resolveMock.mockResolvedValueOnce({
@@ -301,49 +308,14 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
       phoneTrustedForPatient: true,
       resolution: "resolved_canon",
     });
-    resolvePatientOrganizationMock.mockResolvedValueOnce({
-      ok: false,
-      reason: "no_active_enrollment",
-    });
 
     const gate = await requirePatientApiBusinessAccess();
-    expect(gate.ok).toBe(false);
-    if (gate.ok) return;
-    expect(gate.response.status).toBe(403);
-    await expect(gate.response.json()).resolves.toMatchObject({
-      ok: false,
-      error: "organization_required",
+    expect(gate.ok).toBe(true);
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     });
-  });
-
-  it("returns 409 in locked when a patient has multiple active clinic enrollments and no selected clinic in session", async () => {
-    setDbPrincipalContextMode("locked");
-    vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession());
-    resolveMock.mockResolvedValueOnce({
-      canonicalUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-      dbRole: "client",
-      tier: "patient",
-      hasPhoneInDb: true,
-      phoneTrustedForPatient: true,
-      resolution: "resolved_canon",
-    });
-    resolvePatientOrganizationMock.mockResolvedValueOnce({
-      ok: false,
-      reason: "organization_selection_required",
-      organizationIds: [
-        "11111111-1111-4111-8111-111111111111",
-        "22222222-2222-4222-8222-222222222222",
-      ],
-    });
-
-    const gate = await requirePatientApiBusinessAccess();
-    expect(gate.ok).toBe(false);
-    if (gate.ok) return;
-    expect(gate.response.status).toBe(409);
-    await expect(gate.response.json()).resolves.toMatchObject({
-      ok: false,
-      error: "organization_selection_required",
-    });
+    expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
   });
 
   it("alias requirePatientApiSessionWithPhone matches requirePatientApiBusinessAccess", async () => {
