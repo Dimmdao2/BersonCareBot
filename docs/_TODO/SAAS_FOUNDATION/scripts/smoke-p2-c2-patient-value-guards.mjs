@@ -166,6 +166,58 @@ GRANT USAGE ON SCHEMA public TO ${patientIdent}, ${staffIdent};
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO ${patientIdent}, ${staffIdent};
 `;
 
+const explicitGrantProofSql = String.raw`
+WITH expected_functions(signature) AS (
+  VALUES
+    ('app.p2_c2_is_patient_context()'),
+    ('app.p2_c2_user_channel_preference_is_owned(text, uuid)'),
+    ('app.p2_c2_expected_reminder_notification_topic_code(text, text, text)'),
+    ('app.p2_c2_guard_online_intake_status_history()'),
+    ('app.p2_c2_guard_user_channel_preferences()'),
+    ('app.p2_c2_guard_reminder_rules()')
+),
+resolved_functions AS (
+  SELECT signature, to_regprocedure(signature) AS function_oid
+  FROM expected_functions
+)
+SELECT (
+  count(*) = 6
+  AND count(*) FILTER (WHERE function_oid IS NOT NULL) = 6
+  AND NOT EXISTS (
+    SELECT 1
+    FROM resolved_functions resolved
+    JOIN pg_proc proc ON proc.oid = resolved.function_oid
+    CROSS JOIN LATERAL aclexplode(COALESCE(proc.proacl, acldefault('f', proc.proowner))) acl
+    WHERE acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
+  )
+)::int AS p2_c2_public_execute_revoked
+FROM resolved_functions \gset
+${fatal("p2_c2_public_execute_revoked", "P2-C2 functions must revoke PUBLIC EXECUTE")}
+
+WITH expected_functions(signature) AS (
+  VALUES
+    ('app.p2_c2_is_patient_context()'),
+    ('app.p2_c2_user_channel_preference_is_owned(text, uuid)'),
+    ('app.p2_c2_expected_reminder_notification_topic_code(text, text, text)'),
+    ('app.p2_c2_guard_online_intake_status_history()'),
+    ('app.p2_c2_guard_user_channel_preferences()'),
+    ('app.p2_c2_guard_reminder_rules()')
+)
+SELECT (
+  bool_and(has_function_privilege(${quoteLiteral(patientRole)}, signature, 'EXECUTE'))
+  AND bool_and(has_function_privilege(${quoteLiteral(staffRole)}, signature, 'EXECUTE'))
+)::int AS p2_c2_explicit_execute_granted
+FROM expected_functions \gset
+${fatal("p2_c2_explicit_execute_granted", "P2-C2 functions must grant EXECUTE to explicit app roles")}
+
+SET SESSION AUTHORIZATION ${patientIdent};
+SELECT app.p2_c2_is_patient_context() AS p2_c2_patient_can_execute_helper;
+RESET SESSION AUTHORIZATION;
+
+\echo 'P2-C2 explicit function grants CONFIRMED.'
+`;
+
 const proofSql = String.raw`
 SELECT encode(app_ext.hmac(
   concat_ws(
@@ -489,7 +541,13 @@ try {
   psql(schemaSql);
 
   console.log("--- p2-c2: applying patient value guard artifact ---");
-  psqlFile(p2c2SqlPath, {});
+  psqlFile(p2c2SqlPath, {
+    p2_c2_staff_role: staffRole,
+    p2_c2_patient_role: patientRole,
+  });
+
+  console.log("--- p2-c2: proving explicit C2 function grants under disposable app roles ---");
+  psql(explicitGrantProofSql);
 
   console.log("--- p2-c2: proving patient value guards under disposable app roles ---");
   psql(proofSql);

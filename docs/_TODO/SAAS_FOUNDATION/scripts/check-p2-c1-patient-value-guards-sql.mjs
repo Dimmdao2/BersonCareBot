@@ -34,6 +34,11 @@ requireFragments("P2-C1 ops SQL", opsSql, [
   "app.p2_c1_is_patient_context()",
   "app.current_patient_user_id() IS NOT NULL AND NOT app.is_staff()",
   "SECURITY INVOKER",
+  "\\set p2_c1_staff_role app_staff",
+  "\\set p2_c1_patient_role app_patient",
+  ":'p2_c1_staff_role'",
+  ":'p2_c1_patient_role'",
+  "p2_c1_roles_exist",
   "app.p2_c1_guard_program_item_discussion_messages()",
   "app.p2_c1_guard_support_conversation_messages()",
   "app.p2_c1_guard_treatment_program_events()",
@@ -53,6 +58,19 @@ requireFragments("P2-C1 ops SQL", opsSql, [
   "CREATE TRIGGER p2_c1_treatment_program_events_patient_insert_guard",
   "\\if :{?p2_c1_down}",
 ]);
+
+for (const signature of [
+  "app.p2_c1_is_patient_context()",
+  "app.p2_c1_guard_program_item_discussion_messages()",
+  "app.p2_c1_guard_support_conversation_messages()",
+  "app.p2_c1_guard_treatment_program_events()",
+]) {
+  requireFragments(`P2-C1 explicit grants for ${signature}`, opsSql, [
+    `REVOKE EXECUTE ON FUNCTION ${signature} FROM PUBLIC;`,
+    `GRANT EXECUTE ON FUNCTION ${signature}`,
+    `TO :"p2_c1_staff_role", :"p2_c1_patient_role";`,
+  ]);
+}
 
 forbidFragments("P2-C1 ops SQL", opsSql, [
   "/opt/env/bersoncarebot",

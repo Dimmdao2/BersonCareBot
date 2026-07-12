@@ -198,6 +198,54 @@ GRANT USAGE ON SCHEMA public TO ${patientIdent}, ${staffIdent};
 GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO ${patientIdent}, ${staffIdent};
 `;
 
+const explicitGrantProofSql = String.raw`
+WITH expected_functions(signature) AS (
+  VALUES
+    ('app.p2_c1_is_patient_context()'),
+    ('app.p2_c1_guard_program_item_discussion_messages()'),
+    ('app.p2_c1_guard_support_conversation_messages()'),
+    ('app.p2_c1_guard_treatment_program_events()')
+),
+resolved_functions AS (
+  SELECT signature, to_regprocedure(signature) AS function_oid
+  FROM expected_functions
+)
+SELECT (
+  count(*) = 4
+  AND count(*) FILTER (WHERE function_oid IS NOT NULL) = 4
+  AND NOT EXISTS (
+    SELECT 1
+    FROM resolved_functions resolved
+    JOIN pg_proc proc ON proc.oid = resolved.function_oid
+    CROSS JOIN LATERAL aclexplode(COALESCE(proc.proacl, acldefault('f', proc.proowner))) acl
+    WHERE acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
+  )
+)::int AS p2_c1_public_execute_revoked
+FROM resolved_functions \gset
+${fatal("p2_c1_public_execute_revoked", "P2-C1 functions must revoke PUBLIC EXECUTE")}
+
+WITH expected_functions(signature) AS (
+  VALUES
+    ('app.p2_c1_is_patient_context()'),
+    ('app.p2_c1_guard_program_item_discussion_messages()'),
+    ('app.p2_c1_guard_support_conversation_messages()'),
+    ('app.p2_c1_guard_treatment_program_events()')
+)
+SELECT (
+  bool_and(has_function_privilege(${quoteLiteral(patientRole)}, signature, 'EXECUTE'))
+  AND bool_and(has_function_privilege(${quoteLiteral(staffRole)}, signature, 'EXECUTE'))
+)::int AS p2_c1_explicit_execute_granted
+FROM expected_functions \gset
+${fatal("p2_c1_explicit_execute_granted", "P2-C1 functions must grant EXECUTE to explicit app roles")}
+
+SET SESSION AUTHORIZATION ${patientIdent};
+SELECT app.p2_c1_is_patient_context() AS p2_c1_patient_can_execute_helper;
+RESET SESSION AUTHORIZATION;
+
+\echo 'P2-C1 explicit function grants CONFIRMED.'
+`;
+
 const proofSql = String.raw`
 SELECT encode(app_ext.hmac(
   concat_ws(
@@ -405,7 +453,13 @@ try {
   psql(schemaSql);
 
   console.log("--- p2-c1: applying patient value guard artifact ---");
-  psqlFile(p2c1SqlPath, {});
+  psqlFile(p2c1SqlPath, {
+    p2_c1_staff_role: staffRole,
+    p2_c1_patient_role: patientRole,
+  });
+
+  console.log("--- p2-c1: proving explicit C1 function grants under disposable app roles ---");
+  psql(explicitGrantProofSql);
 
   console.log("--- p2-c1: proving patient value guards under disposable app roles ---");
   psql(proofSql);

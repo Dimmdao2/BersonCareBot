@@ -281,3 +281,50 @@ Residuals:
   existing service policy calculation.
 - The C3 smoke uses a synthetic schema and broad table grants, so it proves trigger behavior but not
   the exact final generated RLS + P0.5b grant composition end-to-end.
+
+### P2 execute ACL symmetry hardening
+
+Status:
+- Worker hardening slice on `auto/code-pg-delta` (2026-07-12); no commit/push and no prod/test/dev DB
+  touched.
+- P2-B now revokes PUBLIC EXECUTE on the signed setter and helper functions after creation, while
+  keeping explicit EXECUTE grants to the supplied `p2_b_staff_role` / `p2_b_patient_role`. The setter
+  remains the existing `SECURITY DEFINER` function; helper modes are unchanged.
+- P2-C1 and P2-C2 now mirror the C3 grant style: `p2_c1_*` / `p2_c2_*` staff/patient role variables
+  default to `app_staff` / `app_patient`, role existence is checked, PUBLIC EXECUTE is revoked for all
+  helper/trigger functions, and EXECUTE is granted only to the explicit app roles or scratch override
+  roles. All functions remain `SECURITY INVOKER`; no new `SECURITY DEFINER` was introduced.
+- Static checks and scratch smokes now assert the no-PUBLIC + explicit-role EXECUTE contract for P2-B,
+  P2-C1, and P2-C2.
+- Independent Claude Opus audit
+  `claude-auditor-p2-execute-acl-symmetry-opus-audit-2026-07-12T03-53-23-644Z` verdict:
+  PASS WITH RISKS, no blockers. The audit confirmed execute-ACL symmetry is closed across P2-B/C1/C2.
+
+Validation:
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs` on scratch DB
+  `bcb_saas_p2_b_context_scratch_*`.
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs` on scratch DB
+  `bcb_saas_p2_c1_value_guard_scratch_*`.
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs` on scratch DB
+  `bcb_saas_p2_c2_value_guard_scratch_*`.
+- PASS `node --check scripts/check-saas-db-regression.mjs`
+- PASS `node scripts/check-saas-db-regression.mjs`
+- PASS `git diff --check`
+
+Residuals:
+- Deploy gate: before applying these artifacts to a real database, confirm the locked-mode connection
+  role is `app_staff` / `app_patient` or a member of one of those roles; otherwise
+  `app.install_signed_context(...)` will fail after PUBLIC EXECUTE is revoked.
+- Deploy ordering: role provisioning must run before P2-B/C1/C2/C3 artifacts because the scripts now
+  fail closed when the configured app roles are absent.
+- The smokes prove ACLs and trigger behavior on synthetic scratch schemas, not the final generated
+  P0.5b grant + RLS composition end-to-end.

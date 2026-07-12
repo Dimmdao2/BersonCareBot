@@ -21,6 +21,27 @@ DROP FUNCTION IF EXISTS app.p2_c2_is_patient_context();
 \quit
 \endif
 
+\if :{?p2_c2_staff_role}
+\else
+\set p2_c2_staff_role app_staff
+\endif
+
+\if :{?p2_c2_patient_role}
+\else
+\set p2_c2_patient_role app_patient
+\endif
+
+SELECT (
+  EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_c2_staff_role')
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_c2_patient_role')
+)::int AS p2_c2_roles_exist \gset
+
+\if :p2_c2_roles_exist
+\else
+\echo 'FATAL: P2-C2 explicit grants require p2_c2_staff_role/p2_c2_patient_role to exist.'
+SELECT 1 / 0 AS p2_c2_abort;
+\endif
+
 CREATE OR REPLACE FUNCTION app.p2_c2_is_patient_context() RETURNS boolean
 LANGUAGE sql
 STABLE
@@ -225,6 +246,26 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE EXECUTE ON FUNCTION app.p2_c2_is_patient_context() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c2_user_channel_preference_is_owned(text, uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c2_expected_reminder_notification_topic_code(text, text, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c2_guard_online_intake_status_history() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c2_guard_user_channel_preferences() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c2_guard_reminder_rules() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION app.p2_c2_is_patient_context()
+  TO :"p2_c2_staff_role", :"p2_c2_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c2_user_channel_preference_is_owned(text, uuid)
+  TO :"p2_c2_staff_role", :"p2_c2_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c2_expected_reminder_notification_topic_code(text, text, text)
+  TO :"p2_c2_staff_role", :"p2_c2_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c2_guard_online_intake_status_history()
+  TO :"p2_c2_staff_role", :"p2_c2_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c2_guard_user_channel_preferences()
+  TO :"p2_c2_staff_role", :"p2_c2_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c2_guard_reminder_rules()
+  TO :"p2_c2_staff_role", :"p2_c2_patient_role";
 
 DROP TRIGGER IF EXISTS p2_c2_online_intake_status_history_patient_insert_guard ON public.online_intake_status_history;
 CREATE TRIGGER p2_c2_online_intake_status_history_patient_insert_guard

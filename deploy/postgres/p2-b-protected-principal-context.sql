@@ -296,6 +296,14 @@ REVOKE ALL ON app.context_signing_secrets FROM :"p2_b_staff_role", :"p2_b_patien
 REVOKE ALL ON app.principal_context FROM :"p2_b_staff_role", :"p2_b_patient_role";
 REVOKE ALL ON app.context_nonce_ledger FROM :"p2_b_staff_role", :"p2_b_patient_role";
 
+REVOKE EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.current_integrator_user_id() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.reset_principal_context() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.is_staff() FROM PUBLIC;
+
 GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)
   TO :"p2_b_staff_role", :"p2_b_patient_role";
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"p2_b_staff_role", :"p2_b_patient_role";

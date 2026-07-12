@@ -61,6 +61,22 @@ requireFragments("P2-B ops SQL", opsSql, [
   "\\if :{?p2_b_down}",
 ]);
 
+for (const signature of [
+  "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
+  "app.current_org_id()",
+  "app.current_patient_user_id()",
+  "app.current_integrator_user_id()",
+  "app.reset_principal_context()",
+  "app.release_principal_context()",
+  "app.is_staff()",
+]) {
+  requireFragments(`P2-B explicit grants for ${signature}`, opsSql, [
+    `REVOKE EXECUTE ON FUNCTION ${signature} FROM PUBLIC;`,
+    `GRANT EXECUTE ON FUNCTION ${signature}`,
+    `TO :"p2_b_staff_role", :"p2_b_patient_role";`,
+  ]);
+}
+
 forbidFragments("P2-B ops SQL", opsSql, [
   "/opt/env/bersoncarebot",
   "api.prod",

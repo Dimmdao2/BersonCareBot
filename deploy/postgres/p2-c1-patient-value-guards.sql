@@ -19,6 +19,27 @@ DROP FUNCTION IF EXISTS app.p2_c1_is_patient_context();
 \quit
 \endif
 
+\if :{?p2_c1_staff_role}
+\else
+\set p2_c1_staff_role app_staff
+\endif
+
+\if :{?p2_c1_patient_role}
+\else
+\set p2_c1_patient_role app_patient
+\endif
+
+SELECT (
+  EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_c1_staff_role')
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_c1_patient_role')
+)::int AS p2_c1_roles_exist \gset
+
+\if :p2_c1_roles_exist
+\else
+\echo 'FATAL: P2-C1 explicit grants require p2_c1_staff_role/p2_c1_patient_role to exist.'
+SELECT 1 / 0 AS p2_c1_abort;
+\endif
+
 CREATE OR REPLACE FUNCTION app.p2_c1_is_patient_context() RETURNS boolean
 LANGUAGE sql
 STABLE
@@ -157,6 +178,20 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE EXECUTE ON FUNCTION app.p2_c1_is_patient_context() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c1_guard_program_item_discussion_messages() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c1_guard_support_conversation_messages() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.p2_c1_guard_treatment_program_events() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION app.p2_c1_is_patient_context()
+  TO :"p2_c1_staff_role", :"p2_c1_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c1_guard_program_item_discussion_messages()
+  TO :"p2_c1_staff_role", :"p2_c1_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c1_guard_support_conversation_messages()
+  TO :"p2_c1_staff_role", :"p2_c1_patient_role";
+GRANT EXECUTE ON FUNCTION app.p2_c1_guard_treatment_program_events()
+  TO :"p2_c1_staff_role", :"p2_c1_patient_role";
 
 DROP TRIGGER IF EXISTS p2_c1_program_item_discussion_patient_insert_guard ON public.program_item_discussion_messages;
 CREATE TRIGGER p2_c1_program_item_discussion_patient_insert_guard

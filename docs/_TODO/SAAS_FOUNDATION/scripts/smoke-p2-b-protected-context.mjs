@@ -114,6 +114,60 @@ const nullSignatureNonce = `null_signature_${scratchSuffix}`;
 const expiredNonce = `expired_${scratchSuffix}`;
 const wrongBackendNonce = `wrong_backend_${scratchSuffix}`;
 
+const explicitGrantProofSql = String.raw`
+WITH expected_functions(signature) AS (
+  VALUES
+    ('app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)'),
+    ('app.current_org_id()'),
+    ('app.current_patient_user_id()'),
+    ('app.current_integrator_user_id()'),
+    ('app.reset_principal_context()'),
+    ('app.release_principal_context()'),
+    ('app.is_staff()')
+),
+resolved_functions AS (
+  SELECT signature, to_regprocedure(signature) AS function_oid
+  FROM expected_functions
+)
+SELECT (
+  count(*) = 7
+  AND count(*) FILTER (WHERE function_oid IS NOT NULL) = 7
+  AND NOT EXISTS (
+    SELECT 1
+    FROM resolved_functions resolved
+    JOIN pg_proc proc ON proc.oid = resolved.function_oid
+    CROSS JOIN LATERAL aclexplode(COALESCE(proc.proacl, acldefault('f', proc.proowner))) acl
+    WHERE acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
+  )
+)::int AS p2_b_public_execute_revoked
+FROM resolved_functions \gset
+${fatal("p2_b_public_execute_revoked", "P2-B functions must revoke PUBLIC EXECUTE")}
+
+WITH expected_functions(signature) AS (
+  VALUES
+    ('app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)'),
+    ('app.current_org_id()'),
+    ('app.current_patient_user_id()'),
+    ('app.current_integrator_user_id()'),
+    ('app.reset_principal_context()'),
+    ('app.release_principal_context()'),
+    ('app.is_staff()')
+)
+SELECT (
+  bool_and(has_function_privilege(${quoteLiteral(patientRole)}, signature, 'EXECUTE'))
+  AND bool_and(has_function_privilege(${quoteLiteral(staffRole)}, signature, 'EXECUTE'))
+)::int AS p2_b_explicit_execute_granted
+FROM expected_functions \gset
+${fatal("p2_b_explicit_execute_granted", "P2-B functions must grant EXECUTE to explicit app roles")}
+
+SET SESSION AUTHORIZATION ${patientIdent};
+SELECT app.current_org_id() AS p2_b_patient_can_execute_helper;
+RESET SESSION AUTHORIZATION;
+
+\echo 'P2-B explicit function grants CONFIRMED.'
+`;
+
 const proofSql = String.raw`
 SELECT encode(app_ext.hmac(
   concat_ws(
@@ -397,6 +451,9 @@ try {
     p2_b_patient_role: patientRole,
     p2_b_signing_secret: secret,
   });
+
+  console.log("--- p2-b: proving explicit function grants under disposable app roles ---");
+  psql(explicitGrantProofSql);
 
   console.log("--- p2-b: proving protected context behavior under disposable app roles ---");
   psql(proofSql);

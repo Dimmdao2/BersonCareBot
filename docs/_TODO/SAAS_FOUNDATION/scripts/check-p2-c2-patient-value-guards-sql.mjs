@@ -39,6 +39,11 @@ requireFragments("P2-C2 ops SQL", opsSql, [
   "app.p2_c2_is_patient_context()",
   "app.current_patient_user_id() IS NOT NULL AND NOT app.is_staff()",
   "SECURITY INVOKER",
+  "\\set p2_c2_staff_role app_staff",
+  "\\set p2_c2_patient_role app_patient",
+  ":'p2_c2_staff_role'",
+  ":'p2_c2_patient_role'",
+  "p2_c2_roles_exist",
   "app.p2_c2_guard_online_intake_status_history()",
   "NEW.from_status IS NOT NULL",
   "NEW.to_status IS DISTINCT FROM 'new'",
@@ -72,6 +77,21 @@ requireFragments("P2-C2 ops SQL", opsSql, [
   "CREATE TRIGGER p2_c2_reminder_rules_patient_write_guard",
   "\\if :{?p2_c2_down}",
 ]);
+
+for (const signature of [
+  "app.p2_c2_is_patient_context()",
+  "app.p2_c2_user_channel_preference_is_owned(text, uuid)",
+  "app.p2_c2_expected_reminder_notification_topic_code(text, text, text)",
+  "app.p2_c2_guard_online_intake_status_history()",
+  "app.p2_c2_guard_user_channel_preferences()",
+  "app.p2_c2_guard_reminder_rules()",
+]) {
+  requireFragments(`P2-C2 explicit grants for ${signature}`, opsSql, [
+    `REVOKE EXECUTE ON FUNCTION ${signature} FROM PUBLIC;`,
+    `GRANT EXECUTE ON FUNCTION ${signature}`,
+    `TO :"p2_c2_staff_role", :"p2_c2_patient_role";`,
+  ]);
+}
 
 requireFragments("P2-C2 channel preference ownership parity", compactOpsSql, [
   "SELECT p_platform_user_id = app.current_patient_user_id() OR (p_platform_user_id IS NULL AND p_user_id = app.current_patient_user_id()::text)",
