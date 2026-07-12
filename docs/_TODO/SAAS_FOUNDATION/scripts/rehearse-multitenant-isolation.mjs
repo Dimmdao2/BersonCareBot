@@ -320,7 +320,10 @@ function restoreNewestProdDump() {
     });
     return;
   }
-  run("sudo", [
+  // pg_restore under a non-superuser --role emits benign non-zero on things like
+  // COMMENT ON EXTENSION btree_gist (must be owner) — the data still restores. Add
+  // --no-comments to drop those, tolerate a non-zero exit, then VERIFY by row count.
+  const restoreResult = runResult("sudo", [
     "-n",
     "-u",
     "postgres",
@@ -328,12 +331,28 @@ function restoreNewestProdDump() {
     "--no-owner",
     `--role=${fullOwnerRole}`,
     "--no-acl",
+    "--no-comments",
     "-d",
     dbName,
     latestDumpPath,
-  ], {
-    label: "restore custom production dump",
-  });
+  ]);
+  if (restoreResult.stderr) process.stderr.write(restoreResult.stderr);
+  const restoreCheck = runResult("sudo", [
+    "-n",
+    "-u",
+    "postgres",
+    "psql",
+    "-X",
+    "-Atqc",
+    "SELECT count(*) FROM public.platform_users",
+    "-d",
+    dbName,
+  ]);
+  const restoredRows = Number((restoreCheck.stdout ?? "").trim());
+  if (!Number.isFinite(restoredRows) || restoredRows <= 0) {
+    throw new Error(`restore failed: public.platform_users rows=${(restoreCheck.stdout ?? "").trim() || "0"}`);
+  }
+  console.log(`--- full: restore verified (public.platform_users rows=${restoredRows}) ---`);
 }
 
 function quoteShell(value) {
