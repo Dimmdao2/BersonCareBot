@@ -38,3 +38,18 @@ Audit:
 Residual:
 - This is backend foundation only. Process-family live runtime proof and final prod-dump copy rehearsal remain later phase gates.
 - Full fresh prod-dump copy rehearsal for specialist signup provisioning remains a Phase 4 gate; this scratch proof is intentionally bounded and disposable-only.
+- Phase 4 rollout package: `PHASE4_ROLLOUT_RUNBOOK.md` plus DB-free preflight harness
+  `scripts/run-phase4-prod-copy-rehearsal.mjs`.
+
+## Phase 4 handoff
+
+Status: rollout package started after Phase 3 M4.
+
+Artifacts:
+- `PHASE4_ROLLOUT_RUNBOOK.md`
+- `scripts/run-phase4-prod-copy-rehearsal.mjs`
+
+Boundary:
+- Static/preflight gates are available now.
+- Live doctor/patient/integrator/scheduler/queue/media/pre-auth smoke still requires a fresh disposable prod-dump
+  copy, not prod/test/dev.
