@@ -66,6 +66,9 @@ const tempClusterRoot = `/tmp/${dbName}_pg`;
 const tempClusterDataDir = path.join(tempClusterRoot, "data");
 const tempClusterSocketDir = path.join(tempClusterRoot, "socket");
 const tempClusterPort = String(55432 + (process.pid % 1000));
+const appointmentDurationMinutes = 45;
+const appointmentSlotGapMinutes = 120;
+const appointmentBaseMs = Date.UTC(2035, 0, 15, 6, 0, 0);
 
 let pgHarness = null;
 let cleanupStarted = false;
@@ -741,6 +744,7 @@ async function seedRehearsalData() {
         specialistId: s1.specialist_id,
         assignedBy: s1.platform_user_id,
         label: "p1_org1",
+        appointmentSlotIndex: 0,
       });
       await insertPatientRows(client, {
         orgId: defaultOrgId,
@@ -748,6 +752,7 @@ async function seedRehearsalData() {
         specialistId: s1.specialist_id,
         assignedBy: s1.platform_user_id,
         label: "shared_org1",
+        appointmentSlotIndex: 1,
       });
       await insertPatientRows(client, {
         orgId: ids.orgB,
@@ -755,6 +760,7 @@ async function seedRehearsalData() {
         specialistId: ids.s2Specialist,
         assignedBy: ids.s2User,
         label: "shared_orgb",
+        appointmentSlotIndex: 2,
       });
       await insertPatientRows(client, {
         orgId: ids.orgB,
@@ -762,6 +768,7 @@ async function seedRehearsalData() {
         specialistId: ids.s3Specialist,
         assignedBy: ids.s3User,
         label: "p2_orgb_by_s3",
+        appointmentSlotIndex: 3,
       });
 
       await client.query("COMMIT");
@@ -865,6 +872,7 @@ async function insertPatientRows(client, input) {
   const conversationId = randomUUID();
   const messageId = randomUUID();
   const label = `${marker}:${input.label}`;
+  const appointmentSlot = await findNonOverlappingAppointmentSlot(client, input.specialistId, input.appointmentSlotIndex);
   await client.query(`
     INSERT INTO public.be_appointments (
       id,
@@ -885,16 +893,25 @@ async function insertPatientRows(client, input) {
       $2::uuid,
       $3::uuid,
       $4::uuid,
-      now() + interval '30 days',
-      now() + interval '30 days 45 minutes',
-      45,
+      $6::timestamptz,
+      $7::timestamptz,
+      $8::integer,
       'admin_manual',
       'confirmed',
       jsonb_build_object('rehearsal', $5::text),
       now(),
       now()
     )
-  `, [appointmentId, input.orgId, input.specialistId, input.patientId, label]);
+  `, [
+    appointmentId,
+    input.orgId,
+    input.specialistId,
+    input.patientId,
+    label,
+    appointmentSlot.startAt,
+    appointmentSlot.endAt,
+    appointmentDurationMinutes,
+  ]);
   await client.query(`
     INSERT INTO public.treatment_program_instances (
       id,
@@ -939,6 +956,39 @@ async function insertPatientRows(client, input) {
     )
     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'admin', 'text', $5, 'webapp', now())
   `, [messageId, input.orgId, `${label}:message`, conversationId, label]);
+}
+
+async function findNonOverlappingAppointmentSlot(client, specialistId, preferredSlotIndex) {
+  for (let slotIndex = preferredSlotIndex; slotIndex < preferredSlotIndex + 1_000; slotIndex += 1) {
+    const slot = buildAppointmentSlot(slotIndex);
+    const overlap = await client.query(`
+      SELECT 1
+      FROM public.be_appointments
+      WHERE specialist_id = $1::uuid
+        AND status NOT IN (
+          'cancelled_by_patient',
+          'cancelled_by_specialist',
+          'late_cancellation',
+          'no_show',
+          'completed',
+          'visit_confirmed'
+        )
+        AND start_at < $3::timestamptz
+        AND end_at > $2::timestamptz
+      LIMIT 1
+    `, [specialistId, slot.startAt, slot.endAt]);
+    if (overlap.rowCount === 0) return slot;
+  }
+  throw new Error(`could not find non-overlapping rehearsal appointment slot for specialist ${specialistId}`);
+}
+
+function buildAppointmentSlot(slotIndex) {
+  const startMs = appointmentBaseMs + slotIndex * appointmentSlotGapMinutes * 60_000;
+  const endMs = startMs + appointmentDurationMinutes * 60_000;
+  return {
+    startAt: new Date(startMs).toISOString(),
+    endAt: new Date(endMs).toISOString(),
+  };
 }
 
 async function proveIsolation(seed) {
