@@ -127,6 +127,10 @@ const checks = [
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs"],
   },
   {
+    label: "SAAS Phase 4 locked-helper RLS policy artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-locked-policy-artifact.mjs"],
+  },
+  {
     label: "SAAS Phase 4 prod-copy DB-state safety self-test",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs", "--self-test-safety"],
   },
