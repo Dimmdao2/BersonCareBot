@@ -1,6 +1,6 @@
 # Phase 4 rollout runbook — prod-copy rehearsal and cutover
 
-Status: static package sealed through M3 (`9fe23ae5f`, `066c0ab5c`, `9c4ee5294`) and awaiting
+Status: static package sealed through M4 (`9fe23ae5f`, `066c0ab5c`, `9c4ee5294`, `641c9e063`) and awaiting
 owner-provided disposable prod-copy/live evidence for M4. This document does not authorize prod/test/dev DB
 validation by agents.
 

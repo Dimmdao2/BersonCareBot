@@ -1,6 +1,7 @@
 # Phase 3 orchestration — onboarding/provisioning
 
-Status: in progress, started 2026-07-12.
+Status: closed through M4 scratch/static evidence on 2026-07-12. Phase 4 disposable prod-copy/live rehearsal
+remains the next external gate.
 
 Rules:
 - No prod/test/dev database validation.
@@ -43,7 +44,8 @@ Residual:
 
 ## Phase 4 handoff
 
-Status: rollout package started after Phase 3 M4.
+Status: rollout package handed off after Phase 3 M4; Phase 4 static package is sealed, live rehearsal remains
+blocked on owner-provided disposable prod-copy evidence.
 
 Artifacts:
 - `PHASE4_ROLLOUT_RUNBOOK.md`

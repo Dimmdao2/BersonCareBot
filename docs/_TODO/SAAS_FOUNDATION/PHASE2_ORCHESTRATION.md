@@ -1,6 +1,7 @@
 # Phase 2 orchestration — enforce-ready RLS + #664
 
-Status: in progress, started 2026-07-12 by owner command.
+Status: closed for static/scratch Phase 2 proof package on 2026-07-12. Phase 4 disposable prod-copy/live
+rehearsal remains the next external gate.
 
 Rules:
 - No prod/test/dev database validation.
