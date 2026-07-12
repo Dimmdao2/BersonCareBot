@@ -471,3 +471,62 @@ SECURITY DEFINER `SET ROLE` escape hatch and do not use owner/BYPASSRLS as a run
   inventory in C3/C4; this pass deliberately does not grant an ambient infra role.
 - Taskdb could not be updated in this environment because `SECONDBRAIN_DB_URL` is absent; no raw SQL fallback was
   used.
+
+---
+
+## FINALIZATION v0.3 (2026-07-13) — owner decisions folded + review-pass-2 resolved (THIS LAYER IS AUTHORITATIVE)
+
+This section overrides anything above it where they differ. The roadmap is READY for an orchestrator to execute
+phase-by-phase (A1 first), each phase: worker (tier as noted) → independent adversarial audit (different model) →
+lead verification against reality → owner control. Scratch/disposable DB only until owner authorizes TEST/PROD.
+
+### Owner decisions (locked 2026-07-13)
+- **Smoke login (override A1):** on TEST the product smoke authenticates as the owner's **real seeded TEST doctor +
+  TEST patient/user accounts** (TEST is a production-like build with send-safety restrictions on broadcasts). The
+  dev/test auth-bypass is **dev:turbo-only and MUST NOT be used on TEST**. Store TEST smoke credentials in a
+  root-managed secret file (never in repo/logs); reuse the owner's existing live TEST accounts.
+- **Shadow acceptance (override E2/B7):** ONE full pass of the product smoke + a representative background workload
+  with **zero unexplained fail-closed/missing-context events** = shadow PASS. No multi-day soak required for TEST.
+- **Signing-key rotation (override C2/G8):** NO zero-downtime rotation. Generate/rotate the signing key in the
+  **same maintenance window as the flip** (a brief restart pause is acceptable). Drop the dual-key overlap
+  requirement from C2; keep least-permission file storage + fingerprint preflight + redaction.
+
+### #664 is DONE — D1 becomes RE-VERIFY, not implement
+taskdb #664 = done+sealed (commit `02936c257`). The two re-added patient columns are named:
+**`user_channel_preferences.is_preferred_for_auth`** (patient OTP-channel preference) and
+**`public.treatment_program_events.actor_id`** (patient progress). D1 scope → independently RE-VERIFY the WITH CHECK
+value-enforcement + these two columns against reality (malicious cross-org/cross-patient write must fail; legit
+writes pass); only implement if re-verification finds a real gap. Do NOT re-derive the columns.
+
+### Review pass 2 (Claude) — RESOLVED against reality
+- **Finding 1 & 2 ("policies read GUC channel; locked runtime writes signed-helper channel; never meet; blocks R2")
+  = REFUTED.** The FLIP replaces the policy set. `deploy/postgres/phase4-locked-helper-rls-policies.sql` contains
+  **322 `app.current_org_id()/current_patient_user_id()` calls and 0 `current_setting('app.org')`**, and DROPs all
+  161 policies **by the same names the migrations created** (e.g. `saas_org_dormant_p0_8_3` on `org_enrollments` in
+  both 0167 and the artifact), re-creating them helper-based. The full prod-copy rehearsal applied this artifact +
+  FORCE and the S1/S2/S3/P2/P_SHARED isolation matrix PASSED. So under enforce the policies read exactly the signed
+  channel locked mode populates. **No "re-point every policy to the helper channel" phase is needed** — the reviewer
+  analyzed only the dormant/migration policies and missed the flip-time policy swap.
+- **Finding 5 ("fail-open on empty context") = REFUTED for enforce.** The strict `\if :phase4_enforce_locked_context`
+  branch is `(is_staff() AND org-match) OR (patient owns)` with NO empty-context permit → **fail-closed**. The
+  permissive empty-context branch exists only in the dormant-compat `\else` branch (correct for dormant).
+- **Kept as real refinements (fold into the phases below):**
+  - **C0/D2 grant surface (Finding 3, real):** before enforce, C0 must inventory + grant the FULL bootstrap/base-login
+    surface, not just FB#1: the `app_runtime_nonstaff_login` needs direct DML on every genuine pre-auth-written table
+    (OTP → `platform_users`, `user_phone_history`, `user_channel_bindings/preferences`, `platform_user_contacts`;
+    registration → `be_organizations/be_specialists/be_organization_members/specialist_signup_intents`) AND EXECUTE
+    on `app.release_principal_context()` + `app.current_*()` + `app.close_active_user_phone_history()` (these are
+    granted only to app_staff/app_patient today; bootstrap reaches them only if granted to the base login directly).
+    Add a preflight assertion listing this surface.
+  - **Context TTL (Finding 6, real):** add an exit criterion that a request/transaction holding a pooled client
+    longer than the signed-context TTL (default 30s, cap 300s) does not silently lose context → either re-stamp
+    per statement or bound long handlers; the enforce read/write smokes (D3/D4) must include a >30s path.
+  - **§1 framing (Finding 8, real):** dormant safety is `0177_phase4_no_force_rls_compat.sql` (NO FORCE on every
+    table) + owner runtime; the flip's real job is re-applying FORCE via `phase4-force-rls-cutover.sql`. State it
+    against that baseline.
+  - **Integrator (Finding 7):** confirm during C3 that integrator (mapped to `app_patient`) has the grants its write
+    paths need and that its policies (helper-based `current_integrator_user_id()`) resolve under locked context.
+
+### Execution start
+Orchestrator begins at **Phase A1** and proceeds in order; C0 is the first deep-tier architectural phase and gates
+all of C–G. Nothing touches TEST/PROD DBs or real deliveries during implementation; owner authorizes TEST, then PROD.
