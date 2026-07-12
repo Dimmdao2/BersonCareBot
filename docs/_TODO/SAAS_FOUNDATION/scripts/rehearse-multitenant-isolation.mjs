@@ -625,14 +625,15 @@ VALUES (${quoteLiteral(defaultOrgId)}::uuid, ${quoteLiteral(p1)}::uuid, 'active'
 function proveLegacyDormantCompatibility() {
   console.log("--- full: applying dormant helper policies and proving legacy compatibility before strict flip ---");
   psqlUrlFile(fullOwnerUrl, phase4PolicySqlPath);
-  const legacyUrl = fullScratchStaffUrl;
+  // Legacy runtime pre-flip is the plain owner/runtime role (NOT app_staff): under dormant NO-FORCE
+  // RLS the table owner reads clinic #1 fine. (The dormant POLICY permit path is covered by the R2 smoke.)
+  const legacyUrl = fullOwnerUrl;
   const result = runCaptured("node", ["-e", `
 const { createRequire } = require("node:module");
 const { Client } = createRequire(${JSON.stringify(path.join(repoRoot, "apps/webapp/package.json"))})("pg");
 (async () => {
   const c = new Client({ connectionString: process.env.CHECK_URL });
   await c.connect();
-  await c.query("SET ROLE app_staff");
   const r = await c.query("SELECT count(*)::int AS count FROM public.org_enrollments WHERE organization_id = $1::uuid", [process.env.DEFAULT_ORG_ID]);
   await c.end();
   if (Number(r.rows[0].count) < 1) throw new Error("legacy dormant clinic #1 read returned no rows");
