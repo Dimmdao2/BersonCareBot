@@ -34,8 +34,12 @@ Required evidence:
 - `specialist_signup_enabled=false`.
 - Missing-principal shadow count is `0`.
 - No new permission errors across current clinic doctor/patient flows.
-- FORCE RLS is not applied through a dormant migration path; FORCE belongs only to the final cutover
-  migration/step.
+- Compatibility migrations `0160`-`0176` are NO FORCE: they may enable RLS and install policies, but they
+  must not contain `FORCE ROW LEVEL SECURITY`.
+- Migration `0177_phase4_no_force_rls_compat` must run before final cutover; it normalizes already-migrated
+  environments that may have applied the earlier FORCE-containing dormant SQL.
+- Final FORCE / rollback NO FORCE is isolated in `deploy/postgres/phase4-force-rls-cutover.sql` and guarded
+  by `docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs`.
 
 ## Fresh prod-copy rehearsal
 
@@ -125,7 +129,8 @@ Proceed only after all rehearsal gates pass and owner approves the maintenance w
 1. Take backup.
 2. Keep signup disabled.
 3. Enter maintenance.
-4. Apply strict policies and final FORCE cutover step.
+4. Apply strict policies and final FORCE cutover step from the approved cutover DB session:
+   `deploy/postgres/phase4-force-rls-cutover.sql`.
 5. Switch runtime to role/marker-aware credentials.
 6. Smoke doctor and patient flows.
 7. Restore traffic.
@@ -141,7 +146,8 @@ Absolute cutover gates:
 ## Rollback
 
 1. Disable signup.
-2. Return to NO FORCE / legacy-compatible policy state.
+2. Return to NO FORCE / legacy-compatible policy state from the approved cutover DB session:
+   `deploy/postgres/phase4-force-rls-cutover.sql` with `phase4_force_rls_down=1`.
 3. Restore previous runtime role wiring.
 4. Restart affected processes.
 5. Re-run doctor + patient smoke on clinic #1.

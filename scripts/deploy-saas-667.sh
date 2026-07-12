@@ -25,9 +25,9 @@ migrator_bypassrls="$(
 if [[ "${migrator_bypassrls}" != "t" ]]; then
   cat >&2 <<'EOF'
 FATAL: DATABASE_URL does not authenticate as a role with BYPASSRLS.
-FORCE ROW LEVEL SECURITY makes a non-BYPASSRLS migrator see zero integrator rows, so the
-phase-3 organization backfill is skipped and the contacts NOT NULL migration fails.
-Use postgres or a dedicated BYPASSRLS migrator. Never grant BYPASSRLS to the runtime app role.
+This compatibility deploy enables dormant RLS policies but does not apply FORCE. Keep using postgres
+or a dedicated BYPASSRLS migrator so migration/backfill assertions are not affected by RLS policy shape.
+Never grant BYPASSRLS to the runtime app role.
 See “WHY BYPASSRLS” in docs/_TODO/SAAS_FOUNDATION/DEPLOY_667_SEQUENCE.md.
 EOF
   exit 1
@@ -91,27 +91,47 @@ pnpm --dir apps/webapp run consolidate-specialist-identity -- \
   --canonical=518ea988-9b5e-4ad8-8194-a2d98f43bd7b --commit
 
 header "Post-state assertions"
-required_drizzle_hashes="$(node - <<'NODE'
+required_drizzle_hash_groups="$(node - <<'NODE'
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const journal = JSON.parse(fs.readFileSync("apps/webapp/db/drizzle-migrations/meta/_journal.json", "utf8"));
+const legacyForceHashes = {
+  "0160_p0_8_3_public_direct_org_rls": "3ba410ff4e598d886dd9debe32216c4184828cb99fde0cff45a3d3f61a36b1b5",
+  "0161_p0_8_4_public_path_rls": "cbaa2b5de8e42295bbe2b1f0780975f33273e88fff49b90c4e5f9068cb0512f6",
+  "0162_p0_8_5_integrator_scoped_rls": "e5c73d0fe841761e213569dfa5ac941d34ac2a7250166636678b68184fa5bff2",
+  "0163_p0_8_6_bootstrap_hybrid_rls": "f25b5efd272071741ea71376dbd359e2e286525cb1ff309c5fc83ec903d59c92",
+  "0167_p0_8_3_org_enrollments_broadcast_drafts_rls": "a3a400f28d7d75b00d10a6962297ce122a2357f7eb8a8c407a69c08a252f1fce",
+  "0168_p0_8_6_system_settings_audit_rls": "e06038d3f71f1b1b96c12e998f6d1f63a99992ce23e15f073ac7e3e73cf1b714",
+  "0169_p0_8_b4_core_patient_wall_rls": "76b9c460bf383478ee867bdc7b8ddc847a45b44cae16ab05a8ead6620e3a4401",
+  "0170_p0_8_b4_fanout_chain_patient_wall_rls": "055bd40c06521c17adea4ca320586d773d49a769fe50b81884ac279b596f3328",
+  "0171_p0_8_b4_core_3_patient_wall_rls": "69dfac3a3cb2d2491bd03a80c47854528950317a9d40347749558e541bd91484",
+  "0172_p0_8_b4_core_3_census_patient_wall_rls": "e45390dfed841cff3062cdb60d474b89cb6b236a78fb2518165d498330ecdaed",
+  "0173_p0_8_b4_core_3_media_upload_sessions_wall_rls": "b3c1c1c849c1d671dec03c1afbc9c3e4838b3c1cc99377bbdc46179019c41e33",
+  "0174_p0_8_b4_core_4_conditional_polymorphic_patient_wall_rls": "5e73432bf245e322ed9e0f808701c09840e3ac3026f5ae7e597763530c56bbe9",
+  "0175_p0_8_b4_roles_1_is_staff_wall_rls": "ff3c37cdcd6d0282fec26145b2be9afac4091e722860a5b9d60d8b38847c75de",
+};
 const required = journal.entries.filter(({ tag }) => {
   const prefix = Number(tag.slice(0, 4));
-  return prefix >= 115 && prefix <= 175;
+  return prefix >= 115 && prefix <= 177;
 });
 const prefixes = required.map(({ tag }) => Number(tag.slice(0, 4)));
-if (required.length !== 61 || prefixes.some((prefix, index) => prefix !== 115 + index)) {
-  throw new Error("expected exactly one sequential journal tag for every migration 0115..0175");
+if (required.length !== 63 || prefixes.some((prefix, index) => prefix !== 115 + index)) {
+  throw new Error("expected exactly one sequential journal tag for every migration 0115..0177");
+}
+if (!required.some(({ tag }) => tag === "0177_phase4_no_force_rls_compat")) {
+  throw new Error("expected 0177_phase4_no_force_rls_compat in required Drizzle hash groups");
 }
 process.stdout.write(required.map(({ tag }) => {
   const sql = fs.readFileSync(`apps/webapp/db/drizzle-migrations/${tag}.sql`, "utf8");
-  return crypto.createHash("sha256").update(sql).digest("hex");
+  return [crypto.createHash("sha256").update(sql).digest("hex"), legacyForceHashes[tag]]
+    .filter(Boolean)
+    .join("|");
 }).join(","));
 NODE
 )"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
-  -v required_drizzle_hashes="${required_drizzle_hashes}" <<'SQL'
-SELECT set_config('deploy.required_drizzle_hashes', :'required_drizzle_hashes', false);
+  -v required_drizzle_hash_groups="${required_drizzle_hash_groups}" <<'SQL'
+SELECT set_config('deploy.required_drizzle_hash_groups', :'required_drizzle_hash_groups', false);
 
 DO $assertions$
 DECLARE
@@ -119,6 +139,8 @@ DECLARE
   v_admin_id uuid;
   v_ledger_column text;
   v_table text;
+  v_hash_group text;
+  v_hash_group_index integer := 0;
   v_saas_versions text[] := ARRAY[
     '20260707_0001_p0_4_i0_integrator_org_columns_predeclare.sql',
     '20260708_0001_p0_4_i1_integrator_direct_user_org.sql',
@@ -152,13 +174,19 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_count FROM drizzle.__drizzle_migrations;
-  IF v_count < 176 THEN RAISE EXCEPTION 'ASSERT FAILED: Drizzle migration count = %, expected at least 176', v_count; END IF;
+  IF v_count < 178 THEN RAISE EXCEPTION 'ASSERT FAILED: Drizzle migration count = %, expected at least 178', v_count; END IF;
 
-  SELECT count(DISTINCT hash) INTO v_count
-  FROM drizzle.__drizzle_migrations
-  WHERE hash = ANY (string_to_array(current_setting('deploy.required_drizzle_hashes'), ','));
-  IF v_count <> 61 THEN
-    RAISE EXCEPTION 'ASSERT FAILED: applied Drizzle tags 0115..0175 = %, expected 61', v_count;
+  FOREACH v_hash_group IN ARRAY string_to_array(current_setting('deploy.required_drizzle_hash_groups'), ',') LOOP
+    v_hash_group_index := v_hash_group_index + 1;
+    SELECT count(*) INTO v_count
+    FROM drizzle.__drizzle_migrations
+    WHERE hash = ANY (string_to_array(v_hash_group, '|'));
+    IF v_count < 1 THEN
+      RAISE EXCEPTION 'ASSERT FAILED: applied Drizzle migration hash group % from 0115..0177 is missing', v_hash_group_index;
+    END IF;
+  END LOOP;
+  IF v_hash_group_index <> 63 THEN
+    RAISE EXCEPTION 'ASSERT FAILED: Drizzle hash group count = %, expected 63 for 0115..0177', v_hash_group_index;
   END IF;
 
   SELECT column_name INTO v_ledger_column
@@ -195,9 +223,9 @@ BEGIN
   WHERE (n.nspname, c.relname) IN (
     ('integrator', 'contacts'), ('integrator', 'conversations'),
     ('public', 'org_enrollments'), ('public', 'clinical_visit')
-  ) AND c.relrowsecurity IS TRUE AND c.relforcerowsecurity IS TRUE;
+  ) AND c.relrowsecurity IS TRUE AND c.relforcerowsecurity IS FALSE;
   IF v_count <> 4 THEN
-    RAISE EXCEPTION 'ASSERT FAILED: representative FORCE RLS table count = %, expected 4', v_count;
+    RAISE EXCEPTION 'ASSERT FAILED: representative dormant NO FORCE RLS table count = %, expected 4', v_count;
   END IF;
 
   SELECT count(*) INTO v_count FROM pg_roles
@@ -240,7 +268,7 @@ FROM public.platform_users WHERE role = 'admin' AND merged_into_id IS NULL AND i
 UNION ALL SELECT 'active_specialists', count(*), 1 FROM public.be_specialists WHERE is_active IS TRUE
 UNION ALL SELECT 'canonical_appointments_minimum', count(*), 1
 FROM public.be_appointments WHERE specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid
-UNION ALL SELECT 'drizzle_migrations_minimum', count(*), 176 FROM drizzle.__drizzle_migrations
+UNION ALL SELECT 'drizzle_migrations_minimum', count(*), 178 FROM drizzle.__drizzle_migrations
 UNION ALL SELECT 'contacts_null_org', count(*), 0 FROM integrator.contacts WHERE organization_id IS NULL
 UNION ALL SELECT 'required_memberships', count(*), 2 FROM public.be_organization_members
 WHERE platform_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'::uuid

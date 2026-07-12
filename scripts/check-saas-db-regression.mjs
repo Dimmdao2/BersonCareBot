@@ -123,6 +123,10 @@ const checks = [
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs"],
   },
   {
+    label: "SAAS Phase 4 FORCE RLS cutover guard",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs"],
+  },
+  {
     label: "SAAS P2-C1 patient value guard SQL artifact",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs"],
   },

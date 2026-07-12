@@ -1,0 +1,203 @@
+-- Phase 4 final RLS cutover.
+--
+-- UP, default:
+--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 -f deploy/postgres/phase4-force-rls-cutover.sql
+--
+-- DOWN / rollback:
+--   psql <approved-cutover-connection> -v ON_ERROR_STOP=1 -v phase4_force_rls_down=1 -f deploy/postgres/phase4-force-rls-cutover.sql
+--
+-- This file intentionally contains no environment references or database names. Operators provide the
+-- connection string from the approved rollout context.
+
+\set ON_ERROR_STOP on
+
+\if :{?phase4_force_rls_down}
+\else
+\set phase4_force_rls_down 0
+\endif
+
+SELECT 1 / (:'phase4_force_rls_down' IN ('0', '1'))::int AS phase4_force_rls_down_is_valid;
+
+BEGIN;
+
+CREATE TEMP TABLE phase4_force_rls_targets (
+  target text PRIMARY KEY
+) ON COMMIT DROP;
+
+INSERT INTO phase4_force_rls_targets (target)
+VALUES
+  ('"public"."admin_audit_log"'),
+  ('"public"."be_appointment_cancellations"'),
+  ('"public"."be_appointment_events"'),
+  ('"public"."be_appointment_history_events"'),
+  ('"public"."be_appointment_no_shows"'),
+  ('"public"."be_appointment_reschedules"'),
+  ('"public"."be_appointment_staff_comments"'),
+  ('"public"."be_appointments"'),
+  ('"public"."be_availability_rules"'),
+  ('"public"."be_booking_form_fields"'),
+  ('"public"."be_booking_form_submissions"'),
+  ('"public"."be_branches"'),
+  ('"public"."be_cancellation_policies"'),
+  ('"public"."be_clinic_services"'),
+  ('"public"."be_external_entity_mappings"'),
+  ('"public"."be_package_history_events"'),
+  ('"public"."be_package_usages"'),
+  ('"public"."be_patient_booking_profiles"'),
+  ('"public"."be_patient_packages"'),
+  ('"public"."be_patient_timeline_events"'),
+  ('"public"."be_payment_history_events"'),
+  ('"public"."be_payment_intents"'),
+  ('"public"."be_payment_provider_events"'),
+  ('"public"."be_payments"'),
+  ('"public"."be_prepayment_policies"'),
+  ('"public"."be_product_history_events"'),
+  ('"public"."be_product_pay_links"'),
+  ('"public"."be_product_purchases"'),
+  ('"public"."be_products"'),
+  ('"public"."be_refunds"'),
+  ('"public"."be_reschedule_policies"'),
+  ('"public"."be_rooms"'),
+  ('"public"."be_schedule_blocks"'),
+  ('"public"."be_schedule_templates"'),
+  ('"public"."be_service_location_availability"'),
+  ('"public"."be_specialist_locations"'),
+  ('"public"."be_specialist_rooms"'),
+  ('"public"."be_specialist_service_availability"'),
+  ('"public"."be_specialists"'),
+  ('"public"."be_subscription_packages"'),
+  ('"public"."be_working_days"'),
+  ('"public"."be_working_hours"'),
+  ('"public"."broadcast_audit"'),
+  ('"public"."clinical_anamnesis_illness"'),
+  ('"public"."clinical_anamnesis_lifestyle"'),
+  ('"public"."clinical_anamnesis_trauma"'),
+  ('"public"."clinical_complaint"'),
+  ('"public"."clinical_diagnosis"'),
+  ('"public"."clinical_diagnosis_catalog"'),
+  ('"public"."clinical_test_regions"'),
+  ('"public"."clinical_visit"'),
+  ('"public"."content_access_grants_webapp"'),
+  ('"public"."content_pages"'),
+  ('"public"."content_sections"'),
+  ('"public"."courses"'),
+  ('"public"."doctor_notes"'),
+  ('"public"."doctor_patient_support"'),
+  ('"public"."lfk_complex_templates"'),
+  ('"public"."lfk_complexes"'),
+  ('"public"."lfk_exercise_regions"'),
+  ('"public"."lfk_exercises"'),
+  ('"public"."lfk_sessions"'),
+  ('"public"."mailing_logs_webapp"'),
+  ('"public"."material_ratings"'),
+  ('"public"."media_files"'),
+  ('"public"."media_folders"'),
+  ('"public"."media_hls_proxy_error_events"'),
+  ('"public"."media_playback_client_events"'),
+  ('"public"."media_playback_resolution_events"'),
+  ('"public"."media_playback_user_video_first_resolve"'),
+  ('"public"."media_upload_sessions"'),
+  ('"public"."message_log"'),
+  ('"public"."motivational_quotes"'),
+  ('"public"."online_intake_requests"'),
+  ('"public"."operator_health_failure_archive"'),
+  ('"public"."patient_comorbidity"'),
+  ('"public"."patient_content_rating_feedback"'),
+  ('"public"."patient_daily_warmup_presentations"'),
+  ('"public"."patient_diary_day_snapshots"'),
+  ('"public"."patient_files"'),
+  ('"public"."patient_home_blocks"'),
+  ('"public"."patient_lfk_assignments"'),
+  ('"public"."patient_merge_candidates"'),
+  ('"public"."patient_payment"'),
+  ('"public"."patient_practice_completions"'),
+  ('"public"."product_analytics_events_recent"'),
+  ('"public"."product_analytics_user_hourly"'),
+  ('"public"."product_push_notifications"'),
+  ('"public"."recommendation_regions"'),
+  ('"public"."recommendations"'),
+  ('"public"."reference_categories"'),
+  ('"public"."reminder_journal"'),
+  ('"public"."reminder_rules"'),
+  ('"public"."specialist_tasks"'),
+  ('"public"."support_conversations"'),
+  ('"public"."support_questions"'),
+  ('"public"."symptom_trackings"'),
+  ('"public"."test_attempts"'),
+  ('"public"."test_sets"'),
+  ('"public"."tests"'),
+  ('"public"."treatment_program_instances"'),
+  ('"public"."treatment_program_templates"'),
+  ('"public"."user_subscriptions_webapp"'),
+  ('"public"."be_package_items"'),
+  ('"public"."be_patient_package_items"'),
+  ('"public"."broadcast_audit_recipients"'),
+  ('"public"."clinical_complaint_update"'),
+  ('"public"."clinical_diagnosis_status_history"'),
+  ('"public"."clinical_diagnosis_update"'),
+  ('"public"."content_section_slug_history"'),
+  ('"public"."lfk_complex_exercises"'),
+  ('"public"."lfk_complex_template_exercises"'),
+  ('"public"."lfk_exercise_media"'),
+  ('"public"."media_transcode_jobs"'),
+  ('"public"."notification_delivery_attempts"'),
+  ('"public"."online_intake_answers"'),
+  ('"public"."online_intake_attachments"'),
+  ('"public"."online_intake_status_history"'),
+  ('"public"."patient_daily_warmup_video_views"'),
+  ('"public"."patient_home_block_items"'),
+  ('"public"."program_action_log"'),
+  ('"public"."program_item_discussion_messages"'),
+  ('"public"."program_item_discussion_reads"'),
+  ('"public"."reference_items"'),
+  ('"public"."reminder_delivery_events"'),
+  ('"public"."reminder_occurrence_history"'),
+  ('"public"."support_conversation_messages"'),
+  ('"public"."support_delivery_events"'),
+  ('"public"."support_question_messages"'),
+  ('"public"."symptom_entries"'),
+  ('"public"."test_results"'),
+  ('"public"."test_set_items"'),
+  ('"public"."treatment_program_events"'),
+  ('"public"."treatment_program_instance_stage_groups"'),
+  ('"public"."treatment_program_instance_stage_items"'),
+  ('"public"."treatment_program_instance_stages"'),
+  ('"public"."treatment_program_template_stage_groups"'),
+  ('"public"."treatment_program_template_stage_items"'),
+  ('"public"."treatment_program_template_stages"'),
+  ('"public"."webapp_reminder_occurrences"'),
+  ('"integrator"."contacts"'),
+  ('"integrator"."content_access_grants"'),
+  ('"integrator"."conversation_messages"'),
+  ('"integrator"."conversations"'),
+  ('"integrator"."mailing_logs"'),
+  ('"integrator"."mailings"'),
+  ('"integrator"."message_drafts"'),
+  ('"integrator"."question_messages"'),
+  ('"integrator"."user_questions"'),
+  ('"integrator"."user_reminder_delivery_logs"'),
+  ('"integrator"."user_reminder_occurrences"'),
+  ('"integrator"."user_reminder_rules"'),
+  ('"integrator"."user_subscriptions"'),
+  ('"integrator"."system_settings"'),
+  ('"public"."platform_user_contacts"'),
+  ('"public"."system_settings"'),
+  ('"public"."user_phone_history"'),
+  ('"public"."org_enrollments"'),
+  ('"public"."broadcast_drafts"'),
+  ('"public"."system_settings_audit"'),
+  ('"public"."comments"');
+
+\if :phase4_force_rls_down
+SELECT format('ALTER TABLE %s NO FORCE ROW LEVEL SECURITY;', target)
+FROM phase4_force_rls_targets
+ORDER BY target
+\gexec
+\else
+SELECT format('ALTER TABLE %s FORCE ROW LEVEL SECURITY;', target)
+FROM phase4_force_rls_targets
+ORDER BY target
+\gexec
+\endif
+
+COMMIT;
