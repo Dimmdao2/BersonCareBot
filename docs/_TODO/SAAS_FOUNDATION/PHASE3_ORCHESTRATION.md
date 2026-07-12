@@ -27,6 +27,7 @@ Validation, 2026-07-12:
 - `node scripts/check-saas-db-regression.mjs`
 - `node --check` for changed SaaS descriptor/check scripts
 - `git diff --check`
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` (scratch-only local proof: rollout-stop guard ordering, specialist owner provisioning, replay/concurrency convergence, explicit no-`org_enrollments` owner row)
 
 Audit:
 - Independent Codex verifier found two P1 issues in the first pass: consumed-challenge retry and concurrent replay duplication.
@@ -36,3 +37,4 @@ Audit:
 
 Residual:
 - This is backend foundation only. Process-family live runtime proof and final prod-dump copy rehearsal remain later phase gates.
+- Full fresh prod-dump copy rehearsal for specialist signup provisioning remains a Phase 4 gate; this scratch proof is intentionally bounded and disposable-only.
