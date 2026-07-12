@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
+import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import { setSessionFromUser } from "@/modules/auth/service";
 
 const bodySchema = z.object({
@@ -15,6 +16,11 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  }
+
+  const specialistSignupEnabled = await getSpecialistSignupEnabled();
+  if (!specialistSignupEnabled) {
+    return NextResponse.json({ ok: false, error: "specialist_signup_disabled" }, { status: 423 });
   }
 
   const deps = buildAppDeps();

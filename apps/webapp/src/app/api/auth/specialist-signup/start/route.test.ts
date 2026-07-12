@@ -4,6 +4,7 @@ const registerPendingSpecialistVerificationMock = vi.fn();
 const deleteUnverifiedEmailPasswordRegistrationMock = vi.fn();
 const createSpecialistSignupIntentMock = vi.fn();
 const startEmailChallengeMock = vi.fn();
+const getSpecialistSignupEnabledMock = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -19,6 +20,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 vi.mock("@/modules/auth/pinHash", () => ({
   hashPin: async (password: string) => `hashed:${password}`,
+}));
+
+vi.mock("@/modules/auth/specialistSignupRollout", () => ({
+  getSpecialistSignupEnabled: () => getSpecialistSignupEnabledMock(),
 }));
 
 vi.mock("@/modules/auth/emailAuth", async () => {
@@ -37,6 +42,31 @@ describe("POST /api/auth/specialist-signup/start", () => {
     deleteUnverifiedEmailPasswordRegistrationMock.mockReset();
     createSpecialistSignupIntentMock.mockReset();
     startEmailChallengeMock.mockReset();
+    getSpecialistSignupEnabledMock.mockReset();
+    getSpecialistSignupEnabledMock.mockResolvedValue(true);
+  });
+
+  it("returns disabled before creating any pending user or challenge", async () => {
+    getSpecialistSignupEnabledMock.mockResolvedValueOnce(false);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "doctor@example.com",
+          password: "password12",
+          specialistName: "Doctor Owner",
+          organizationTitle: "Clinic One",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(423);
+    expect(registerPendingSpecialistVerificationMock).not.toHaveBeenCalled();
+    expect(startEmailChallengeMock).not.toHaveBeenCalled();
+    expect(createSpecialistSignupIntentMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "specialist_signup_disabled" });
   });
 
   it("creates pending specialist registration, email challenge, and signup intent", async () => {

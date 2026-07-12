@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
 import { hashPin } from "@/modules/auth/pinHash";
+import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -16,6 +17,11 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  }
+
+  const specialistSignupEnabled = await getSpecialistSignupEnabled();
+  if (!specialistSignupEnabled) {
+    return NextResponse.json({ ok: false, error: "specialist_signup_disabled" }, { status: 423 });
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);

@@ -181,6 +181,7 @@ export type PrefetchedPublicAuthConfig = {
   oauthProviders: OauthProviderFlags;
   telegramBotUsername: string | null;
   maxBotOpenUrl: string | null;
+  specialistSignupEnabled: boolean;
   fetchedAt: number;
 };
 
@@ -242,6 +243,7 @@ export function AuthFlowV2({
   const [pwResetCode, setPwResetCode] = useState("");
   const [pwNewPassword, setPwNewPassword] = useState("");
   const [emailSetupPromptEmail, setEmailSetupPromptEmail] = useState<string | null>(null);
+  const specialistSignupEnabled = prefetchedAuthConfig?.specialistSignupEnabled === true;
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -286,6 +288,10 @@ export function AuthFlowV2({
       setEmailAuthMode("verify");
       setEmailRegRetrySec(p.retryAfterSeconds);
     } else if (p.mode === "specialist_signup_verify") {
+      if (!specialistSignupEnabled) {
+        clearAuthFlowPending();
+        return;
+      }
       engageInteractive();
       setStep("email_password");
       setEmailPasswordReturn(
@@ -312,7 +318,7 @@ export function AuthFlowV2({
       setPwResetEmail(p.email);
       setPwResetChallengeId(p.challengeId ?? null);
     }
-  }, [step, prefetchedAuthConfig, engageInteractive]);
+  }, [step, prefetchedAuthConfig, engageInteractive, specialistSignupEnabled]);
 
   const startOauth = async (provider: "yandex" | "google" | "apple") => {
     engageInteractive();
@@ -490,6 +496,10 @@ export function AuthFlowV2({
   };
 
   const openSpecialistSignup = () => {
+    if (!specialistSignupEnabled) {
+      toast.error("Регистрация кабинета специалиста пока недоступна.");
+      return;
+    }
     engageInteractive();
     clearAuthFlowPending();
     setEmailAuthMode("specialist_signup");
@@ -912,15 +922,17 @@ export function AuthFlowV2({
                 >
                   Получить код
                 </Button>
-                <Button
-                  type="button"
-                  variant="link"
-                  className={authLinkButtonClass}
-                  disabled={loading}
-                  onClick={openSpecialistSignup}
-                >
-                  Я специалист
-                </Button>
+                {specialistSignupEnabled ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={openSpecialistSignup}
+                  >
+                    Я специалист
+                  </Button>
+                ) : null}
               </form>
             ) : null}
 
@@ -1053,6 +1065,9 @@ export function AuthFlowV2({
                       code: "too_many_attempts",
                       retryAfterSeconds: data.retryAfterSeconds,
                     };
+                  }
+                  if (res.status === 423 || data.error === "specialist_signup_disabled") {
+                    return { ok: false as const, message: "Регистрация кабинета специалиста пока недоступна." };
                   }
                   if (data.error === "invalid_code") {
                     return { ok: false as const, message: "Неверный код" };

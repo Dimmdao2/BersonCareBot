@@ -7,6 +7,7 @@ const findUserIdByEmailChallengeIdMock = vi.fn();
 const findByUserIdMock = vi.fn();
 const getProfileEmailFieldsMock = vi.fn();
 const setSessionFromUserMock = vi.fn();
+const getSpecialistSignupEnabledMock = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -34,6 +35,10 @@ vi.mock("@/modules/auth/service", () => ({
   setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
 }));
 
+vi.mock("@/modules/auth/specialistSignupRollout", () => ({
+  getSpecialistSignupEnabled: () => getSpecialistSignupEnabledMock(),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/auth/specialist-signup/confirm", () => {
@@ -45,6 +50,29 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     findByUserIdMock.mockReset();
     getProfileEmailFieldsMock.mockReset();
     setSessionFromUserMock.mockReset();
+    getSpecialistSignupEnabledMock.mockReset();
+    getSpecialistSignupEnabledMock.mockResolvedValue(true);
+  });
+
+  it("returns disabled before email challenge verification or provisioning", async () => {
+    getSpecialistSignupEnabledMock.mockResolvedValueOnce(false);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(423);
+    expect(findUserIdByEmailChallengeIdMock).not.toHaveBeenCalled();
+    expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
+    expect(provisionSpecialistOwnerMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "specialist_signup_disabled" });
   });
 
   it("verifies email, provisions specialist owner workspace, and starts doctor session", async () => {

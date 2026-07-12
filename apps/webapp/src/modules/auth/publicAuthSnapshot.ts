@@ -16,10 +16,11 @@ import {
   getYandexOauthRedirectUri,
 } from "@/modules/system-settings/integrationRuntime";
 import { getLoginAlternativesPublicConfig } from "@/modules/auth/loginAlternativesConfig";
+import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import type { PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
 
 export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPublicAuthConfig> {
-  const [yId, ySec, yRedir, gId, gSec, gLogin, aId, aRedir, aTeam, aKid, aPem, alt] = await Promise.all([
+  const [yId, ySec, yRedir, gId, gSec, gLogin, aId, aRedir, aTeam, aKid, aPem, alt, specialistSignupEnabled] = await Promise.all([
     getYandexOauthClientId(),
     getYandexOauthClientSecret(),
     getYandexOauthRedirectUri(),
@@ -32,6 +33,7 @@ export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPubli
     getAppleOauthKeyId(),
     getAppleOauthPrivateKey(),
     getLoginAlternativesPublicConfig(),
+    getSpecialistSignupEnabled(),
   ]);
 
   const yandex = yId.trim().length > 0 && ySec.trim().length > 0 && yRedir.trim().length > 0;
@@ -47,6 +49,7 @@ export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPubli
     oauthProviders: { yandex, google, apple },
     telegramBotUsername: alt.telegramBotUsername,
     maxBotOpenUrl: alt.maxBotOpenUrl,
+    specialistSignupEnabled,
     fetchedAt: Date.now(),
   };
 }

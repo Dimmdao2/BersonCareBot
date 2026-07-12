@@ -104,7 +104,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ### Auth bootstrap / публичные конфиги (observability)
 
-- Серверный снимок `buildPrefetchedPublicAuthConfig` (фактически те же условия, что у **`/api/auth/oauth/providers`**, и публичные поля альтернатив — имена ботов / Max URL для Mini App-подсказок) пробрасывается в **`AuthBootstrap`/`AuthFlowV2`** как **`prefetchedAuthConfig`** / **`initialPublicAuthConfig`** без дублирующих клиентских GET на `/app`.
+- Серверный снимок `buildPrefetchedPublicAuthConfig` (фактически те же условия, что у **`/api/auth/oauth/providers`**, и публичные поля альтернатив — имена ботов / Max URL для Mini App-подсказок, плюс rollout-флаг **`specialist_signup_enabled`**) пробрасывается в **`AuthBootstrap`/`AuthFlowV2`** как **`prefetchedAuthConfig`** / **`initialPublicAuthConfig`** без дублирующих клиентских GET на `/app`.
 
 - Отдельные публичные auth-route могут дополнительно логировать **`logAuthRouteTiming`** (см. реализации маршрутов); секреты в лог не попадают.
 

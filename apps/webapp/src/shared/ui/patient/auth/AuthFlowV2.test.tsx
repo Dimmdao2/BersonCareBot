@@ -52,6 +52,7 @@ const PRE_MINI_APP = {
   oauthProviders: { yandex: false, google: false, apple: false },
   telegramBotUsername: "test_bot",
   maxBotOpenUrl: null as string | null,
+  specialistSignupEnabled: false,
   fetchedAt: Date.now(),
 } as const;
 
@@ -59,6 +60,7 @@ const PRE_WEB_OAUTH = {
   oauthProviders: { yandex: true, google: false, apple: false },
   telegramBotUsername: "test_bot",
   maxBotOpenUrl: null as string | null,
+  specialistSignupEnabled: false,
   fetchedAt: Date.now(),
 } as const;
 
@@ -167,6 +169,7 @@ describe("AuthFlowV2 — mini-app (phone)", () => {
           oauthProviders: { yandex: true, google: false, apple: false },
           telegramBotUsername: "test_bot",
           maxBotOpenUrl: "https://max.ru/test_bot_nick",
+          specialistSignupEnabled: false,
           fetchedAt: Date.now(),
         }}
       />,
@@ -243,6 +246,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
           fetchedAt: Date.now(),
         }}
       />,
@@ -280,6 +284,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
           fetchedAt: Date.now(),
         }}
       />,
@@ -392,6 +397,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: true, google: false, apple: true },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
           fetchedAt: Date.now(),
         }}
       />,
@@ -443,6 +449,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: true },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
           fetchedAt: Date.now(),
         }}
       />,
@@ -475,6 +482,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
           fetchedAt: Date.now(),
         }}
       />,
@@ -513,6 +521,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
           fetchedAt: Date.now(),
         }}
       />,
@@ -538,6 +547,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
           fetchedAt: Date.now(),
         }}
       />,
@@ -581,6 +591,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
           fetchedAt: Date.now(),
         }}
       />,
@@ -621,6 +632,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
           fetchedAt: Date.now(),
         }}
       />,
@@ -665,6 +677,7 @@ describe("AuthFlowV2 — browser", () => {
           oauthProviders: { yandex: false, google: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
           fetchedAt: Date.now(),
         }}
       />,
@@ -687,5 +700,56 @@ describe("AuthFlowV2 — browser", () => {
     await user.type(codeInput, "654321");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
     expect(await screen.findByText(/Превышено количество попыток/i)).toBeInTheDocument();
+  });
+
+  it("specialist signup confirm shows disabled message when rollout is turned off before provisioning", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/start")) {
+          return jsonRes({ ok: true, challengeId: "signup-ch-1", retryAfterSeconds: 60 });
+        }
+        if (url.includes("/api/auth/specialist-signup/confirm")) {
+          return jsonRes({ ok: false, error: "specialist_signup_disabled" }, { ok: false, status: 423 });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Я специалист" }));
+    await user.type(screen.getByLabelText("Email"), "doctor@example.com");
+    await user.type(screen.getByLabelText("Пароль"), "password12");
+    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Название организации"), "Clinic One");
+    await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
+
+    const codeInput = await screen.findByLabelText("Код подтверждения");
+    await user.type(codeInput, "123456");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    expect(await screen.findByText("Регистрация кабинета специалиста пока недоступна.")).toBeInTheDocument();
+  });
+
+  it("hides specialist signup entry when rollout flag is disabled", async () => {
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_MINI_APP }} />);
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Я специалист" })).not.toBeInTheDocument();
   });
 });
