@@ -8,6 +8,7 @@ Scope: Phase R1 proof/evidence only. Read-only/dry-run stage. No `--commit`, no 
 
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_RESULT.json`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`
+- Owner review packet: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md`
 
 Both artifacts use aggregate output only. Dual-source samples were disabled with `--sample-size=0`. Backfill was run with `--summary-only`, which suppresses names, phones, external ids and detail rows.
 
