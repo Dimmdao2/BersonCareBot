@@ -51,17 +51,23 @@ async function startScheduler(): Promise<void> {
 
   while (true) {
     try {
-      await deps.eventGateway.handleIncomingEvent({
-        type: 'schedule.tick',
-        meta: {
-          eventId: `sch:${randomUUID()}`,
-          occurredAt: new Date().toISOString(),
-          source: 'scheduler',
-        },
-        payload: {
-          trigger: 'schedule.tick',
-        },
-      });
+      // handleIncomingEvent does idempotency-key bookkeeping (tenant-agnostic) before routing to the
+      // schedule.tick handler chain (which already installs its own infra principal further down via
+      // scheduler.ts's runSchedulerTick). schedule.tick itself is the only event type this process
+      // ever raises, so wrapping the whole call here is safe and matches the lock-acquisition wrap above.
+      await runWithInfraPrincipal({ source: 'scheduler:handle-tick-event' }, () =>
+        deps.eventGateway.handleIncomingEvent({
+          type: 'schedule.tick',
+          meta: {
+            eventId: `sch:${randomUUID()}`,
+            occurredAt: new Date().toISOString(),
+            source: 'scheduler',
+          },
+          payload: {
+            trigger: 'schedule.tick',
+          },
+        }),
+      );
     } catch (err) {
       logger.error({ err }, 'Runtime scheduler tick failed');
     }
