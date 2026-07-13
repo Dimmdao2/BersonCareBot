@@ -309,6 +309,8 @@ import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
 import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemoryOrganizationMembership";
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
+import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
+import { createInMemoryOrgEntitlementsPort } from "@/infra/repos/inMemoryOrgEntitlements";
 import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
 import { createPatientOrganizationService } from "@/modules/patient-organization/service";
 import { createPgOrganizationProvisioningPort } from "@/infra/repos/pgOrganizationProvisioning";
@@ -490,6 +492,9 @@ const organizationMembershipPort = !inMemoryRepos
 const organizationMembershipService = createOrganizationMembershipService({
   membershipPort: organizationMembershipPort,
 });
+const orgEntitlementsPort = !inMemoryRepos
+  ? createPgOrgEntitlementsPort()
+  : createInMemoryOrgEntitlementsPort();
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
   : null;
@@ -1627,6 +1632,7 @@ function _buildAppDeps() {
     patientDailyWarmupPresentation: patientDailyWarmupPresentationPort,
     patientDailyWarmupVideoViews: patientDailyWarmupVideoViewsPort,
     organizationMembership: organizationMembershipService,
+    orgEntitlements: orgEntitlementsPort,
     patientOrganization: patientOrganizationService,
     organizationProvisioning: organizationProvisioningService,
     organizationInvites: organizationInvitesService,
