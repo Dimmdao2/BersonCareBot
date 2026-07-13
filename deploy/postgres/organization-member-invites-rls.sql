@@ -162,6 +162,7 @@ VOLATILE
 SECURITY DEFINER
 SET search_path = public, pg_catalog
 AS $$
+#variable_conflict use_column
 DECLARE
   v_invite record;
   v_user record;
@@ -226,11 +227,14 @@ BEGIN
       updated_at = now()
   WHERE u.id = v_user.id;
 
-  IF v_invite.invited_role = 'doctor' THEN
-    INSERT INTO public.be_specialists (organization_id, full_name, is_active, sort_order, created_at, updated_at)
-    VALUES (v_invite.organization_id, v_display_name, true, 0, now(), now())
-    RETURNING id INTO v_specialist_id;
-  END IF;
+  -- R1: create the membership only. Auto-provisioning a be_specialists profile is DEFERRED:
+  -- be_specialists is FORCE-RLS with a staff+org policy (app.is_staff() AND organization_id =
+  -- app.current_org_id(), where current_org_id() reads app.principal_context by backend_pid). A
+  -- pre-session SECURITY DEFINER cannot satisfy that without a staff principal context — the same
+  -- pre-session staff-provisioning gap that specialist-signup provisioning has under enforce. The
+  -- invited doctor becomes an active member now; their bookable specialist profile is provisioned
+  -- later from a proper staff context (clinic member management, R3 / signup-provisioning fix).
+  v_specialist_id := NULL;
 
   INSERT INTO public.be_organization_members (
     organization_id,
