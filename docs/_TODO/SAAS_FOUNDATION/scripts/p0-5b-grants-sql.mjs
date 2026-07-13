@@ -28,6 +28,17 @@
 //     privilege escalation). See P0_5B_GRANTS.md for the full table-by-table rationale and the
 //     explicit "flagged for review" list of BOOTSTRAP tables deliberately NOT granted.
 //
+//   NOTE (2026-07-13, taskdb #708 follow-up): `public.courses` ALSO now carries an app_patient
+//   SELECT grant + a patient-assignment RLS policy, but it is installed by the standalone
+//   deploy/postgres/patient-course-assignment-wall.sql, NOT by this generator / p0-5b-grants.sql.
+//   Reason: courses is tiered SCOPED in tiers-218.tsv but its patient-visibility relationship
+//   ("assigned to me" via an EXISTS match on treatment_program_instances.template_id =
+//   courses.program_template_id, a shared-column fan-out, not an owning-row FK chain) does not fit
+//   any of the patientColumn/patientChain/patientConditional(Chain)/patientPolymorphic shapes
+//   buildRlsDescriptors() models, so it was never picked up here. Do not be surprised if a live grant
+//   diff against this file's output shows courses as an "extra" app_patient grant -- it is
+//   intentional, see that script's header for the full rationale.
+//
 // Dormant boundary: identical to p0-5b-role-split-staff-patient.sql -- this file ONLY adds table/
 // sequence/schema GRANTs to the two already-existing (dormant, no-credential) roles. No DATABASE_URL
 // change, no runtime role switch, no RLS/policy change, no new migration.

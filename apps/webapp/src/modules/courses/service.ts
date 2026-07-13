@@ -56,6 +56,24 @@ export function assertValidIntroLessonPage(
   }
 }
 
+async function toCatalogItem(r: CourseRecord, introPages: CourseIntroPagesPort): Promise<CourseCatalogItem> {
+  let introContentSlug: string | null = null;
+  if (r.introLessonPageId) {
+    const page = await introPages.getById(r.introLessonPageId);
+    if (page?.isPublished && !page.archivedAt && !page.deletedAt) {
+      introContentSlug = page.slug;
+    }
+  }
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    priceMinor: r.priceMinor,
+    currency: r.currency,
+    introContentSlug,
+  };
+}
+
 export function createCoursesService(deps: {
   courses: CoursesPort;
   introPages: CourseIntroPagesPort;
@@ -68,21 +86,21 @@ export function createCoursesService(deps: {
       const rows = await courses.listPublished();
       const out: CourseCatalogItem[] = [];
       for (const r of rows) {
-        let introContentSlug: string | null = null;
-        if (r.introLessonPageId) {
-          const page = await introPages.getById(r.introLessonPageId);
-          if (page?.isPublished && !page.archivedAt && !page.deletedAt) {
-            introContentSlug = page.slug;
-          }
-        }
-        out.push({
-          id: r.id,
-          title: r.title,
-          description: r.description,
-          priceMinor: r.priceMinor,
-          currency: r.currency,
-          introContentSlug,
-        });
+        out.push(await toCatalogItem(r, introPages));
+      }
+      return out;
+    },
+
+    /**
+     * Курсы, назначенные ТЕКУЩЕМУ пациенту через его собственную программу — НЕ публичный каталог.
+     * Полная витрина/маркетплейс — отдельная будущая задача (taskdb #724).
+     */
+    async listAssignedForPatient(patientUserId: string): Promise<CourseCatalogItem[]> {
+      assertUuid(patientUserId);
+      const rows = await courses.listAssignedToPatient(patientUserId);
+      const out: CourseCatalogItem[] = [];
+      for (const r of rows) {
+        out.push(await toCatalogItem(r, introPages));
       }
       return out;
     },

@@ -18,6 +18,7 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
   return {
     getByKey: vi.fn().mockResolvedValue(null),
     getByScope: vi.fn().mockResolvedValue([]),
+    getWebPushVapidPublicKeyOnly: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockImplementation(
       async (key, scope, valueJson, updatedBy, options): Promise<SystemSetting> => ({
         key,

@@ -30,6 +30,16 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       return store.get(makeKey(key, scope)) ?? null;
     },
 
+    async getWebPushVapidPublicKeyOnly(): Promise<string | null> {
+      const row = store.get(makeKey("web_push_vapid", "admin"));
+      const vj = row?.valueJson;
+      if (vj === null || typeof vj !== "object" || !("value" in (vj as Record<string, unknown>))) return null;
+      const inner = (vj as Record<string, unknown>).value;
+      if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return null;
+      const pk = (inner as Record<string, unknown>).publicKey;
+      return typeof pk === "string" && pk.trim() ? pk.trim() : null;
+    },
+
     async getByScope(scope: SystemSettingScope, options: SystemSettingsReadOptions = {}): Promise<SystemSetting[]> {
       const organizationId = normalizeOrganizationId(options.organizationId);
       const rows = Array.from(store.values()).filter(

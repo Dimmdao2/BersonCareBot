@@ -144,6 +144,10 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       return port.getByScope(scope, options);
     },
 
+    getWebPushVapidPublicKeyOnly(): Promise<string | null> {
+      return port.getWebPushVapidPublicKeyOnly();
+    },
+
     async updateSetting(
       key: string,
       scope: SystemSettingScope,

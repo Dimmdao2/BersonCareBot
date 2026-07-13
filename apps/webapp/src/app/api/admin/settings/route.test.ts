@@ -480,6 +480,7 @@ describe("PATCH /api/admin/settings", () => {
     const mergePort: SystemSettingsPort = {
       getByKey: vi.fn(async (key) => (key === "smtp_outbound" ? prevStored : null)),
       getByScope: vi.fn(),
+      getWebPushVapidPublicKeyOnly: vi.fn(),
       upsertManyInTransaction: vi.fn(),
       upsert: upsertSpy,
     };

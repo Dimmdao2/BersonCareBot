@@ -7,6 +7,7 @@ import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { courses as coursesTable } from "../../../db/schema/courses";
 import { contentPages } from "../../../db/schema/schema";
 import { treatmentProgramTemplates } from "../../../db/schema/treatmentProgramTemplates";
+import { treatmentProgramInstances } from "../../../db/schema/treatmentProgramInstances";
 import type { CoursesPort } from "@/modules/courses/ports";
 import type {
   CourseRecord,
@@ -246,6 +247,30 @@ export function createPgCoursesPort(): CoursesPort {
         .where(eq(coursesTable.status, "published"))
         .orderBy(desc(coursesTable.updatedAt));
       return rows.map(mapRow);
+    },
+
+    /**
+     * Курсы, назначенные ЭТОМУ пациенту (JOIN на `treatment_program_instances.template_id =
+     * courses.program_template_id`, отфильтрован по `patient_user_id`). Под RLS-стеной эта же
+     * фильтрация дополнительно навязана на уровне БД для роли `app_patient` (см.
+     * deploy/postgres/patient-course-assignment-wall.sql) — здесь дублируется как явный
+     * прикладной фильтр (defense in depth), а не единственная линия защиты.
+     */
+    async listAssignedToPatient(patientUserId) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ course: coursesTable })
+        .from(coursesTable)
+        .innerJoin(
+          treatmentProgramInstances,
+          eq(treatmentProgramInstances.templateId, coursesTable.programTemplateId),
+        )
+        .where(eq(treatmentProgramInstances.patientUserId, patientUserId));
+      const byId = new Map<string, typeof coursesTable.$inferSelect>();
+      for (const r of rows) byId.set(r.course.id, r.course);
+      return [...byId.values()]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map(mapRow);
     },
 
     async listForDoctor(filter) {
