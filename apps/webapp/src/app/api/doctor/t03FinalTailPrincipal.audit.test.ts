@@ -28,8 +28,6 @@ const allowedUncovered: Record<string, string> = {
     "legacy Rubitime admin catalog disposition",
   "src/app/api/admin/rubitime/services/route.ts":
     "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/settings/route.ts":
-    "global system_settings UI writes by current product contract",
   "src/app/api/admin/smtp-test/route.ts":
     "global admin integration test send, not scoped DB write",
   "src/app/api/admin/users/[userId]/archive/route.ts":
@@ -46,14 +44,8 @@ const allowedUncovered: Record<string, string> = {
     "platform identity patient creation; org enrollment is later product/roadmap work, not silent T0.3 rewrite",
   "src/app/api/doctor/messages/conversations/unread-by-patient/route.ts":
     "read-only POST query helper",
-  "src/app/api/doctor/notification-templates/route.ts":
-    "global notification template settings by current product contract",
-  "src/app/api/doctor/settings/route.ts":
-    "global doctor-scope system_settings by current product contract",
   "src/app/api/doctor/treatment-program-promo/refresh/route.ts":
     "global promo maintenance action by current product contract",
-  "src/app/api/doctor/treatment-program-promo/route.ts":
-    "global promo system_settings by current product contract",
   "src/app/api/doctor/web-push/subscribe/route.ts":
     "staff account/channel preference self-service",
   "src/app/api/doctor/web-push/unsubscribe/route.ts":
