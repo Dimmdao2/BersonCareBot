@@ -743,6 +743,12 @@ Use these checklists as the operational tracker. A phase is not complete until e
 
 ### R1 — dual-source history reconciliation and canonical backfill
 
+Execution note 2026-07-14: `R1-DUAL-SOURCE-HISTORY-codex-2026-07-14` saved draft/blocker artifact
+`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_REPORT.md` and added sanitized read-only
+diagnostic script `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs`. No R1 data-proof
+checkbox is closed yet: this worktree has no allowed local dev `DATABASE_URL`, and the existing legacy backfill
+dry-run output is not PII-safe.
+
 - [ ] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [ ] max `record_at` / freshness comparison is recorded for both sources.
 - [ ] raw-only records are imported to canonical or owner-waived with ids and reason.
