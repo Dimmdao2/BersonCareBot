@@ -1254,6 +1254,13 @@
       "when": 1791206400000,
       "tag": "0178_pii_bootstrap_org_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1791292800000,
+      "tag": "0179_organization_member_invites",
+      "breakpoints": true
     }
   ]
 }
