@@ -2,15 +2,16 @@
 
 Run id: `R1-DUAL-SOURCE-HISTORY-codex-2026-07-14-proof-runner`
 
-Scope: Phase R1 proof/evidence only. Read-only/dry-run stage. No `--commit`, no SQL writes, no `/opt` env, no production DB, no PII output. R2 was not started.
+Scope: Phase R1 proof/evidence. The original proof runner was read-only/dry-run with no SQL writes, no `/opt` env, no production DB, and no PII output. The later narrow cleanup commit is documented separately below. R2 was not started.
 
 ## Artifacts
 
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_RESULT.json`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`
+- Cleanup run: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`
 - Owner review packet: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md`
 
-Both artifacts use aggregate output only. Dual-source samples were disabled with `--sample-size=0`. Backfill was run with `--summary-only`, which suppresses names, phones, external ids and detail rows.
+These artifacts use aggregate output only. Dual-source samples were disabled with `--sample-size=0`. Backfill was run with `--summary-only`, which suppresses names, phones, external ids and detail rows.
 
 ## Dual-source audit result
 
@@ -90,7 +91,7 @@ Sanitized dry-run summary:
 | duplicate clusters with multiple canonical rows | 0 |
 | stale vs CSV | not evaluated |
 
-No `--commit` was run.
+Later R1 cleanup note: owner approved a narrow cleanup for test/block rows and canceled duplicate losers. The cleanup used `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`; it did not use `--collapse-dups`, `--drop-stale-from-csv`, or `--drop-legacy`. Post-cleanup summary: unmapped legacy `112`, test/block `0`, canceled `13`, real active `99`, duplicate clusters `3`, stale CSV still skipped. See `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`.
 
 ## Commands run
 
@@ -119,7 +120,7 @@ Open / blocked:
 - legacy-only records are not owner-classified.
 - status/freshness mismatches are counted but not owner-classified.
 - owner has not reviewed `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
-- commit run is not approved and was not run.
+- narrow cleanup commit was approved and run; broader projection/collapse/stale/drop-legacy commit modes remain unauthorized.
 - post-run diagnosis does not show `UNMAPPED 0`, `DUPLICATE 0`, `STALE 0`, and `CONFLICTS 0`.
 - doctor calendar/list/KPI smoke was not run.
 - stale-by-CSV remains unavailable until an approved current CSV exists in the expected path or an explicit CSV path is provided.
@@ -128,4 +129,4 @@ Open / blocked:
 
 Status: **BLOCKED**
 
-Reason: read-only R1 evidence was collected, but acceptance is not met. Remaining blockers are unresolved legacy-only/mismatch classification, unmapped canonical coverage, duplicate clusters, missing CSV stale proof, owner review, and the forbidden/unapproved `--commit` run.
+Reason: read-only R1 evidence was collected and the later narrow cleanup was completed, but acceptance is not met. Remaining blockers are unresolved legacy-only/mismatch classification, unmapped canonical coverage, duplicate clusters, missing CSV stale proof, owner review, and unauthorized broader commit modes.

@@ -755,6 +755,12 @@ from `/home/dev/dev-projects/BersonCareBot`, saved sanitized aggregate dual-sour
 saved the dry-run summary to `RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`. No `--commit` was run; R2
 was not started.
 
+Execution note 2026-07-14: `R1-CLEANUP-codex-2026-07-14` used the approved dev env and owner-approved
+narrow cleanup flags only: `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`.
+It did not use `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`, or run R2. Aggregate results were
+saved to `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`; post-cleanup diagnosis still has unmapped real active rows,
+duplicate clusters, no stale CSV proof, unresolved mismatch classifications, and no doctor smoke.
+
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
 - [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*
@@ -763,8 +769,8 @@ was not started.
 - [x] canonical mapping coverage is recorded.
 - [x] `backfill-canonical-from-legacy-appointments` dry-run output is saved.
 - [ ] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
-- [ ] commit run is approved before any `--commit`.
-- [ ] commit run completes, if approved.
+- [x] commit run is approved before any `--commit`. *(approved only for the narrow cleanup flags in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`; other commit modes remain gated.)*
+- [x] commit run completes, if approved. *(narrow cleanup only; R1 proof still blocked.)*
 - [ ] post-run diagnosis shows `UNMAPPED 0`, `DUPLICATE 0`, `STALE 0`, and `CONFLICTS 0` or approved exceptions.
 - [ ] doctor calendar/list/KPI smoke confirms expected historical records.
 

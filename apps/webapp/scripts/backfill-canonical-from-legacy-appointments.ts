@@ -22,14 +22,16 @@
  * SAFETY: dry-run by default (read-only diagnosis). All writes require `--commit`. Legacy rows are
  * only ever soft-deleted (`deleted_at`), never hard-deleted; canonical/raw are untouched here.
  *
- * Test/block markers treated as deletable (owner 2026-06-13): phone +79189000782 («Берсон»),
- * +70000000000 («БЛОК ОКНА»).
+ * Test/block markers treated as deletable (owner 2026-06-13 / 2026-07-14): phone
+ * +79189000782 («Берсон»), +70000000000 («БЛОК ОКНА»), +79000000000 (normalized
+ * owner-approved `9000000000` test variant).
  *
  * Usage (set webapp DATABASE_URL; on dev use a CLEAN prod snapshot for a trustworthy run):
  *   pnpm backfill-canonical-from-legacy-appointments                    # DRY-RUN: diagnosis only, no writes
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit        # tolerant per-record projection
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --delete-test    # + soft-delete test/block first
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --collapse-dups  # + collapse duplicate clusters
+ *   pnpm backfill-canonical-from-legacy-appointments -- --commit --cleanup-only --delete-test --collapse-canceled-dups  # approved narrow cleanup only, no projection
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --drop-legacy=8361933,8448355  # soft-delete stale ext-ids (audited, no ad-hoc SQL)
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --drop-stale-from-csv          # AUTO: soft-delete legacy absent from the Rubitime CSV (within its date range)
  *   pnpm backfill-canonical-from-legacy-appointments -- --csv=../../.tmp/rubitime-import/records.csv  # CSV path (default)
@@ -54,7 +56,7 @@ import type {
   RubitimeCanonicalProjectionInput,
 } from "@/modules/booking-rubitime-bridge/ports";
 
-const TEST_BLOCK_PHONES = ["+79189000782", "+70000000000"];
+const TEST_BLOCK_PHONES = ["+79189000782", "+70000000000", "+79000000000"];
 const DEFAULT_CSV = "../../.tmp/rubitime-import/records.csv";
 
 type Cli = {
@@ -62,6 +64,8 @@ type Cli = {
   org: string | null;
   deleteTest: boolean;
   collapseDups: boolean;
+  collapseCanceledDups: boolean;
+  cleanupOnly: boolean;
   dropLegacy: string[];
   csvPath: string;
   dropStaleFromCsv: boolean;
@@ -86,6 +90,8 @@ function parseCli(): Cli {
     org,
     deleteTest: argv.includes("--delete-test"),
     collapseDups: argv.includes("--collapse-dups"),
+    collapseCanceledDups: argv.includes("--collapse-canceled-dups"),
+    cleanupOnly: argv.includes("--cleanup-only"),
     dropLegacy,
     csvPath,
     dropStaleFromCsv: argv.includes("--drop-stale-from-csv"),
@@ -195,7 +201,12 @@ async function diagnose(csv: CsvIndex | null, opts: { summaryOnly: boolean }): P
         count(*)::int AS total,
         count(*) FILTER (WHERE phone_normalized IN ${list(TEST_BLOCK_PHONES)} OR nm ILIKE '%берсон%' OR nm ILIKE '%блок окна%')::int AS test_block,
         count(*) FILTER (WHERE status = 'canceled')::int AS cancelled,
-        count(*) FILTER (WHERE status <> 'canceled' AND phone_normalized NOT IN ${list(TEST_BLOCK_PHONES)})::int AS real_active,
+        count(*) FILTER (
+          WHERE status <> 'canceled'
+            AND phone_normalized NOT IN ${list(TEST_BLOCK_PHONES)}
+            AND coalesce(nm, '') NOT ILIKE '%берсон%'
+            AND coalesce(nm, '') NOT ILIKE '%блок окна%'
+        )::int AS real_active,
         count(*) FILTER (WHERE record_at >= now())::int AS future
       FROM unmapped`),
   )[0];
@@ -285,6 +296,7 @@ async function deleteTestBlock(): Promise<string[]> {
     SET deleted_at = now()
     WHERE deleted_at IS NULL
       AND ( phone_normalized IN ${list(TEST_BLOCK_PHONES)}
+            OR coalesce(payload_json->>'name', payload_json->>'contact_name') ILIKE '%берсон%'
             OR coalesce(payload_json->>'name', payload_json->>'contact_name') ILIKE '%блок окна%' )
     RETURNING integrator_record_id`);
   return rows<{ integrator_record_id: string }>(res).map((r) => r.integrator_record_id);
@@ -350,6 +362,62 @@ async function collapseDuplicates(): Promise<{ clusters: number; softDeleted: nu
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(); // most recent first
     });
     for (const loser of g.slice(1)) losers.push(loser.id);
+  }
+  if (losers.length > 0) {
+    await db.execute(sql`UPDATE appointment_records SET deleted_at = now() WHERE id::text IN ${list(losers)}`);
+  }
+  return { clusters, softDeleted: losers.length };
+}
+
+/**
+ * Collapse only cancelled duplicate losers.
+ *
+ * Rule: for each live duplicate cluster `(record_at, phone_normalized)`, delete only rows whose
+ * legacy status is `canceled`. If the whole cluster is cancelled, keep one representative using the
+ * same deterministic winner order as broad duplicate collapse and soft-delete the rest. Non-cancelled
+ * rows are never soft-deleted by this narrow cleanup flag.
+ */
+async function collapseCanceledDuplicates(): Promise<{ clusters: number; softDeleted: number }> {
+  const db = getDrizzle();
+  type CollapseLiveRow = {
+    id: string;
+    record_at: string | Date;
+    phone: string | null;
+    status: string;
+    updated_at: string | Date;
+    mapped: boolean;
+  };
+  const live = rows<CollapseLiveRow>(
+    await db.execute(sql`
+      SELECT ar.id, ar.record_at, ar.phone_normalized AS phone, ar.status, ar.updated_at,
+             (m.canonical_id IS NOT NULL) AS mapped
+      FROM appointment_records ar
+      LEFT JOIN be_external_entity_mappings m
+        ON m.external_system='rubitime' AND m.entity_type='appointment' AND m.external_id = ar.integrator_record_id
+      WHERE ar.deleted_at IS NULL AND ar.record_at IS NOT NULL`),
+  );
+  const groups = new Map<string, CollapseLiveRow[]>();
+  for (const r of live) {
+    const key = `${new Date(r.record_at).toISOString()}|${r.phone ?? ""}`;
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(r);
+  }
+  let clusters = 0;
+  const losers: string[] = [];
+  for (const g of groups.values()) {
+    if (g.length <= 1) continue;
+    const canceled = g.filter((r) => r.status === "canceled");
+    if (canceled.length === 0) continue;
+    clusters++;
+    const nonCanceledCount = g.length - canceled.length;
+    if (nonCanceledCount > 0) {
+      for (const loser of canceled) losers.push(loser.id);
+      continue;
+    }
+    canceled.sort((a, b) => {
+      if (a.mapped !== b.mapped) return a.mapped ? -1 : 1; // mapped representative first
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(); // most recent first
+    });
+    for (const loser of canceled.slice(1)) losers.push(loser.id);
   }
   if (losers.length > 0) {
     await db.execute(sql`UPDATE appointment_records SET deleted_at = now() WHERE id::text IN ${list(losers)}`);
@@ -453,10 +521,10 @@ async function main() {
   await diagnose(csv, { summaryOnly: cli.summaryOnly });
 
   if (!cli.commit) {
-    console.log(`\nDRY-RUN: no writes. Commit flags: [--delete-test] [--collapse-dups] [--drop-stale-from-csv] [--drop-legacy=ids]. Default commit = tolerant projection.`);
+    console.log(`\nDRY-RUN: no writes. Commit flags: [--delete-test] [--collapse-dups] [--collapse-canceled-dups] [--cleanup-only] [--drop-stale-from-csv] [--drop-legacy=ids]. Default commit = tolerant projection.`);
     process.exit(0);
   }
-  if (!enabled) {
+  if (!cli.cleanupOnly && !enabled) {
     console.error(`\n✗ Bridge disabled — projection would no-op. Aborting.`);
     process.exit(1);
   }
@@ -493,8 +561,16 @@ async function main() {
     const { clusters, softDeleted } = await collapseDuplicates();
     console.log(`\n✓ Collapsed ${clusters} duplicate clusters → soft-deleted ${softDeleted} loser rows.`);
   }
+  if (cli.collapseCanceledDups) {
+    const { clusters, softDeleted } = await collapseCanceledDuplicates();
+    console.log(`\n✓ Collapsed ${clusters} duplicate clusters with cancelled losers → soft-deleted ${softDeleted} cancelled loser rows.`);
+  }
 
-  await projectTolerant(orgId, bridge, { summaryOnly: cli.summaryOnly });
+  if (cli.cleanupOnly) {
+    console.log(`\nCleanup-only mode: skipped tolerant projection.`);
+  } else {
+    await projectTolerant(orgId, bridge, { summaryOnly: cli.summaryOnly });
+  }
 
   console.log(`\n----- DIAGNOSIS (after) -----`);
   await diagnose(csv, { summaryOnly: cli.summaryOnly });
