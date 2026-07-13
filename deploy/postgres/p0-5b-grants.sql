@@ -11,7 +11,7 @@
 --   - app_staff: the FULL runtime DML surface -- 219 tables (SCOPED + BOOTSTRAP +
 --     INFRA + LEGACY + TELEMETRY, excluding the 4 pure migration-bookkeeping tables the migrator role
 --     alone touches).
---   - app_patient: ONLY the patient-facing surface -- 110 tables (the patient-owned
+--   - app_patient: ONLY the patient-facing surface -- 111 tables (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
 --
@@ -389,6 +389,7 @@ VALUES
   ('public', 'user_channel_preferences', 'SELECT'),
   ('public', 'user_notification_topic_channels', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_notification_topics', 'SELECT, INSERT, UPDATE'),
+  ('public', 'user_oauth_bindings', 'SELECT'),
   ('public', 'user_phone_history', 'SELECT'),
   ('public', 'user_pins', 'SELECT, INSERT'),
   ('public', 'user_subscriptions_webapp', 'SELECT'),
@@ -518,5 +519,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 110 tables.'
+\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 111 tables.'
 \endif

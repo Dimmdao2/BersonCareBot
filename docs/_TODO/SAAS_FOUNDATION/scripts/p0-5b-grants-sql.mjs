@@ -109,12 +109,25 @@ export function getAppStaffGrantTables() {
 //     paths confirmed (own contact info, own phone history, own Telegram username for profile
 //     display via pgPatientTelegramUsernameMention.ts) but no patient-session WRITE path was found --
 //     bindings/contacts are created by the bind-secret/webhook flow, not a browser PATCH.
+//   - public.user_oauth_bindings: SELECT only. Missed in the original 2026-07-11 sweep -- confirmed
+//     2026-07-13 (taskdb #667 follow-up, patient-side enforce 403 fix) as a read dependency of
+//     resolvePlatformAccessContext's loadCanonRow (apps/webapp/src/infra/repos/pgPlatformAccess.ts),
+//     which every `/api/patient/*` business route calls via requirePatientApiBusinessAccess ->
+//     patientClientBusinessGate as its own-account tier check (`has_web_oauth_binding`, an
+//     EXISTS-only existence check scoped to the caller's own platform_users.id in the same query).
+//     Live on TEST: the missing grant made this ONE central gate throw "permission denied for table
+//     user_oauth_bindings" on every call, silently downgraded by patientClientBusinessGate's blanket
+//     catch to `need_activation` -- a 403 on every patient own-data route for an otherwise fully
+//     enrolled patient. RLS is not enabled on this table (matches platform_users/user_pins/
+//     user_channel_bindings in this same bootstrap subset -- see their notes above); the query itself
+//     is always parameterized to the session's own canonical user id.
 const appPatientBootstrapTables = [
   // SELECT-only at table level -- the UPDATE these two tables get is column-restricted, see
   // patientColumnGrants below.
   { qualifiedName: "public.platform_users", privileges: "SELECT" },
   { qualifiedName: "public.platform_user_contacts", privileges: "SELECT" },
   { qualifiedName: "public.user_phone_history", privileges: "SELECT" },
+  { qualifiedName: "public.user_oauth_bindings", privileges: "SELECT" },
   { qualifiedName: "public.user_pins", privileges: "SELECT, INSERT" },
   { qualifiedName: "public.user_channel_bindings", privileges: "SELECT" },
   // user_channel_preferences: SELECT-only at table level -- the INSERT/UPDATE this table gets are
