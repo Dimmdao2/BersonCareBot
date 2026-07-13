@@ -25,9 +25,16 @@ as a **non-owner** role. NO per-route / per-query org filtering. (The stamp hook
 | Authenticated webapp request | staff / patient | **session membership** (already: sessionPrincipal.ts resolves org from `be_organization_members`) | app_staff / app_patient |
 | Pre-auth: login, OTP, public booking, **registration** | bootstrap | **entry type** (split registration: staff-signup vs patient-signup declares which) | nonstaff pool base |
 | Integrator inbound (Telegram/MAX/webhook) | integrator / organization | the message→user/org mapping (verify in `apps/integrator`) | app_patient / org-scoped |
-| **Dispatch worker** (send a queued broadcast/message) | **infra** | nothing — the task was already filtered at enqueue | app_worker |
+| **Dispatch worker** (send a queued broadcast/message/reminder) | **infra** | nothing — the task was already filtered at enqueue | app_worker |
 | media-worker (transcode) | infra | nothing — media already scoped at upload | app_worker |
-| **Cross-tenant generator** (e.g. reminder scheduler over all orgs) | organization, **per org** | loop one org at a time | app_staff-equiv, org-partitioned — **NOT** blanket app_worker |
+
+**No cross-tenant "generator" job exists in this app (verified).** The scheduler
+(`apps/integrator/src/infra/runtime/scheduler/scheduler.ts`) only `claimDueScheduledJobs()` — it moves
+**already-created, now-due** jobs into the runtime queue; it does NOT scan other clinics' data to generate
+work. Reminders are pre-materialized in-session at booking/config time under filters (`reminder_rules`,
+`webapp_reminder_occurrences`), each already carrying recipient+text+org. So EVERYTHING the worker does is
+pure dispatch of pre-filtered rows → `app_worker` (infra), no org-partitioning. (An earlier draft listed a
+"cross-tenant generator, org-partition" row — that was a generic hedge, not grounded in this codebase; removed.)
 
 ## The security model: filter at ENQUEUE, not at dispatch (owner 2026-07-13)
 The tenant boundary is enforced the moment a task is **queued**, inside a staff/patient session under RLS:
@@ -42,6 +49,13 @@ Upload happens in the doctor's session → media row **org-tagged**. HLS chunks 
 **tagged to the uploader** (inherit org). A patient sees a video only via **program assignment** (the patient's
 program, set by the doctor in-session, only for his own patient). media-worker uses `app_worker` with narrow
 media-table grants; it never widens visibility.
+
+**Marketplace (task #724, owner 2026-07-13) — later, not a walls blocker.** Specialists BUY prepared
+exercise/video sets. Hard constraint: **files are NEVER copied** — one canonical `content_id`; a purchase is a
+**grant row** (`content_access_grants`: user/org → content_id, expires/revoke) referencing the same file. Media
+visibility policy becomes an OR: `(own org) OR (valid grant/entitlement) OR (assigned to patient's program)`.
+Builds on existing `content_access_grants` (RLS on) + `modules/entitlements` + `modules/products` +
+`doctor/lfk-templates`. Mechanics are an engineering call to settle when the store is built.
 
 ## Pools (connections)
 - webapp: **staff pool** (login ∈ app_staff) + **nonstaff/bootstrap pool** (login ∈ app_patient only, so

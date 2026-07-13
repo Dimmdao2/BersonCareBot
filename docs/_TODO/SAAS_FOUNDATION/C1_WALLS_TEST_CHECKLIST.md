@@ -77,6 +77,19 @@ Anchors: Точка Здоровья = org `a0000000-0000-4000-8000-000000000001
 - Next safe steps (on the clone, no live-test risk): two-pool pool-provider code; principal stamping in the
   background units; then a full clone rehearsal of login+isolation THROUGH the running app; only then flip live.
 
+### Update 2 (heartbeat cycle ~05:50)
+- [x] Webapp two-pool code committed (63f149c8c), 20 unit tests verified green locally. Dormant-safe
+      (falls back to single DATABASE_URL when DATABASE_URL_STAFF/NONSTAFF unset).
+- [x] Full grounded architecture doc written: `TENANT_ISOLATION_ARCHITECTURE.md` (awaiting owner sign-off).
+- [x] app_worker narrow-grant surface grounded: media-worker touches `media_files`, `media_transcode_jobs`,
+      `system_settings`; integrator ALREADY has its own principal layer (`integratorPoolProvider` +
+      `infra/principal/organizationPrincipal.ts`) → inbound is already org-aware; fanout is smaller than feared.
+- **BLOCKER for the live flip (honest):** the enforce flip + its break/fix is (a) iterative across webapp +
+  integrator + media-worker (FORCE is DB-wide), (b) owner explicitly wants to be in the loop for the test
+  break/fix, and (c) NOT safely completable in one autonomous pass without risking a broken test mid-fix.
+  So the live FORCE flip waits for an owner-driven session. Autonomous prep (safe, no live-test impact)
+  continues: two-pool committed, architecture grounded, app_worker grant-set mapped. TEST stays working DORMANT.
+
 ## Honest caveats (stated up front, not hidden)
 - **Patient login / registration under enforce may be limited** until the `app_patient` pool is fully wired
   — the morning test focuses on the STAFF side (the isolation you saw leak). I will report patient-side status.

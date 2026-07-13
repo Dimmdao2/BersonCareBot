@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 
 vi.mock('../../../config/appTimezone.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../config/appTimezone.js')>();
@@ -148,7 +149,10 @@ describe('executeAction', () => {
   });
 
   it('handles message.deliver by creating ready delivery job', async () => {
-    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const principalKinds: Array<string | undefined> = [];
+    const enqueue = vi.fn(async () => {
+      principalKinds.push(getCurrentDbPrincipal()?.kind);
+    });
     const action: Action = {
       id: 'a6',
       type: 'message.deliver',
@@ -190,6 +194,8 @@ describe('executeAction', () => {
     expect(result.jobs?.[0]?.targets?.length).toBeGreaterThan(0);
     expect(result.jobs?.[0]?.retry?.maxAttempts).toBe(3);
     expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(principalKinds).toEqual(['infra']);
+    expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 
   it('fans out rubitime message.send to multiple channels when deliveryTargetsPort returns bindings', async () => {

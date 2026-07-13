@@ -1,4 +1,5 @@
 import { maxUserRecipient } from '../../../../integrations/max/maxRecipient.js';
+import { runWithInfraPrincipal } from '../../../../infra/principal/organizationPrincipal.js';
 import type { Action, ActionResult, DomainContext, OutgoingIntent } from '../../../contracts/index.js';
 import type { ExecutorDeps } from '../helpers.js';
 import {
@@ -53,6 +54,14 @@ function channelBindingsToTargets(bindings: Record<string, string> | null | unde
 }
 
 export async function handleDelivery(
+  action: Action,
+  ctx: DomainContext,
+  deps: ExecutorDeps,
+): Promise<ActionResult> {
+  return runWithInfraPrincipal({ source: 'delivery-handler' }, () => handleDeliveryInner(action, ctx, deps));
+}
+
+async function handleDeliveryInner(
   action: Action,
   ctx: DomainContext,
   deps: ExecutorDeps,
