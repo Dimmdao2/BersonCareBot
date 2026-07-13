@@ -2,6 +2,7 @@ import {
   ensureDbPrincipalContext,
   enterWithDbPatientPrincipal,
   enterWithDbStaffPrincipal,
+  getCurrentDbPrincipal,
 } from "@bersoncare/db-principal";
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
 import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
@@ -37,6 +38,7 @@ export async function stampDbPrincipalFromSession(session: AppSession, source: s
         platformUserId: session.user.userId,
         source,
       });
+      console.log("DIAG:stampDbPrincipalFromSession:after-enterWith", source, JSON.stringify(getCurrentDbPrincipal()));
       return;
     }
 

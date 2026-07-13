@@ -59,7 +59,9 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     ...args: Parameters<Pool["query"]>
   ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
+    console.log("DIAG:pool:before-connect", JSON.stringify(getCurrentDbPrincipal()));
     const client = await pool.connect();
+    console.log("DIAG:pool:after-connect", JSON.stringify(getCurrentDbPrincipal()));
     try {
       await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
       const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>;

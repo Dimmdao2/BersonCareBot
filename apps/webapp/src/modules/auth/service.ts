@@ -40,6 +40,7 @@ import {
 // does NOT import `@/app-layer/di/buildAppDeps` (which would cycle back to this file), so a
 // static import here is safe and does not create a require cycle.
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -102,6 +103,7 @@ async function finalizeCurrentSession(session: AppSession): Promise<AppSession> 
     // their first RLS-governed query. Do not revert to a dynamic import; do not add per-route
     // re-stamps instead — this is the one place all such routes share.
     await stampDbPrincipalFromSession(normalized, "getCurrentSession");
+    console.log("DIAG:finalizeCurrentSession:after-stamp", JSON.stringify(getCurrentDbPrincipal()));
   } catch {
     /* Session auth behavior stays legacy-compatible; locked DB ports fail closed if no principal was resolved. */
   }
