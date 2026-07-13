@@ -169,6 +169,14 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toHaveAttribute("aria-haspopup", "menu");
   });
 
+  it("sidebar: active submenu parent does not get primary background", () => {
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor/exercises" menuAccess={menuAccess} />);
+    const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
+
+    expect(trigger.className).not.toContain("bg-primary");
+    expect(trigger.className).not.toContain("hover:bg-primary");
+  });
+
   it("top-level direct links are always visible regardless of groups", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();

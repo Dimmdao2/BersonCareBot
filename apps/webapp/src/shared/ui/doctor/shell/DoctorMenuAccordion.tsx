@@ -173,6 +173,7 @@ function SidebarGroupFlyout({
       <Button
         ref={triggerRef}
         type="button"
+        variant="ghost"
         id={`doctor-sidebar-group-${item.id}`}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -193,9 +194,8 @@ function SidebarGroupFlyout({
           }
         }}
         className={cn(
-          buttonVariants({ variant: "ghost" }),
           "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal",
-          anySubActive && "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+          anySubActive && "font-medium text-primary hover:bg-muted focus-visible:bg-muted",
         )}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -342,9 +342,9 @@ function SheetTwoLevelMenu({
       <div className="flex flex-col gap-1">
         <Button
           type="button"
+          variant="ghost"
           onClick={() => setActiveGroup(null)}
           className={cn(
-            buttonVariants({ variant: "ghost" }),
             "mb-1 h-auto w-full items-center justify-start gap-2 px-3 py-2 font-normal text-muted-foreground",
           )}
         >
@@ -374,13 +374,13 @@ function SheetTwoLevelMenu({
           <Button
             key={item.id}
             type="button"
+            variant="ghost"
             id={`doctor-menu-group-${item.id}`}
             aria-haspopup="menu"
             onClick={() => setActiveGroup(item)}
             className={cn(
-              buttonVariants({ variant: "ghost" }),
               "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left font-normal",
-              anySubActive && "bg-primary/15 font-medium text-primary hover:bg-primary/15",
+              anySubActive && "font-medium text-primary hover:bg-muted",
             )}
           >
             <span className="flex min-w-0 flex-1 items-center gap-2">
