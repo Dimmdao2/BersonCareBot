@@ -5,6 +5,8 @@ import { Check, File, Music } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/doctor/primitives/tooltip";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
+import { cn } from "@/lib/utils";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 import { MediaPickerQuickPreviewDialog } from "@/shared/ui/doctor/media/MediaPickerQuickPreviewDialog";
@@ -93,7 +95,7 @@ const MediaPickerListItem = memo(function MediaPickerListItem({
             <Button
               type="button"
               variant="ghost"
-              className="block h-24 w-full cursor-zoom-in p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn(doctorInteractiveSurfaceButtonClass, "block h-24 w-full cursor-zoom-in text-left")}
               aria-label={`Предпросмотр: ${title}`}
               onClick={() => onQuickPreview(item)}
             >

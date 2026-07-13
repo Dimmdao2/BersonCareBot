@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
 import { cn } from "@/lib/utils";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
 import { ContentRatingChip, type ContentRatingSummary } from "./ContentRatingChip";
 import type { ContentPageListRow } from "./ContentPagesSectionList";
@@ -86,7 +87,10 @@ export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props)
       <Button
         type="button"
         variant="ghost"
-        className="flex h-auto w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left focus-visible:ring-offset-2"
+        className={cn(
+          doctorInteractiveSurfaceButtonClass,
+          "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+        )}
         onClick={() => onSelect(page.id)}
       >
         {inner}

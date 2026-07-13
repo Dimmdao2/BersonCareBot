@@ -4,6 +4,8 @@ import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { cn } from "@/lib/utils";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 import {
   Dialog,
   DialogContent,
@@ -128,14 +130,24 @@ function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void
   const thumbMedia = libraryMediaRowToPreviewUi(item);
   if (item.kind !== "image" && item.kind !== "video") {
     return (
-      <Button type="button" variant="ghost" onClick={onOpen} className="h-auto rounded border border-border p-0">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={onOpen}
+        className={cn(doctorInteractiveSurfaceButtonClass, "rounded border border-border")}
+      >
         <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">—</div>
       </Button>
     );
   }
 
   return (
-    <Button type="button" variant="ghost" onClick={onOpen} className="h-auto rounded border border-border p-0">
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={onOpen}
+      className={cn(doctorInteractiveSurfaceButtonClass, "rounded border border-border")}
+    >
       <MediaThumb
         media={thumbMedia}
         className="flex h-16 w-28 items-center justify-center rounded"
@@ -1549,11 +1561,21 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                       ) : item.kind === "video" ? (
                         <TableMediaThumb item={item} onOpen={() => openLightboxByItemId(item.id)} />
                       ) : item.kind === "audio" ? (
-                        <Button type="button" variant="ghost" onClick={() => openLightboxByItemId(item.id)} className="h-auto p-0 text-primary underline">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => openLightboxByItemId(item.id)}
+                          className={cn(doctorInteractiveSurfaceButtonClass, "text-primary underline")}
+                        >
                           Прослушать
                         </Button>
                       ) : (
-                        <Button type="button" variant="ghost" onClick={() => openLightboxByItemId(item.id)} className="h-auto p-0 text-primary underline">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => openLightboxByItemId(item.id)}
+                          className={cn(doctorInteractiveSurfaceButtonClass, "text-primary underline")}
+                        >
                           Открыть
                         </Button>
                       )}

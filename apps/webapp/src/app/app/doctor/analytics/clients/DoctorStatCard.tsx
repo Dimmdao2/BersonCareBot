@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   doctorMetricLabelClass,
   doctorMetricValueClass,
+  doctorInteractiveSurfaceButtonClass,
   doctorStatCardInteractiveClass,
   doctorStatCardShellClass,
   doctorStatCardShellWarningClass,
@@ -52,7 +53,13 @@ export function DoctorStatCard({
 
   if (onClick) {
     return (
-      <Button id={id} type="button" variant="ghost" className={cn(shellClass, "h-auto w-full justify-start text-left")} onClick={onClick}>
+      <Button
+        id={id}
+        type="button"
+        variant="ghost"
+        className={cn(doctorInteractiveSurfaceButtonClass, shellClass, "w-full justify-start text-left")}
+        onClick={onClick}
+      >
         {inner}
       </Button>
     );

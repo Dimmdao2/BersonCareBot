@@ -43,6 +43,7 @@ import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatal
 import {
   doctorCatalogListEmptyClass,
   doctorCatalogListEmptyTilesClass,
+  doctorInteractiveSurfaceButtonClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
 } from "@/shared/ui/doctor/doctorVisual";
@@ -104,7 +105,10 @@ function ClinicalTestTileCard({
     <Button
       type="button"
       variant="ghost"
-      className="flex h-auto w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] border-0 bg-transparent p-0 text-left"
+      className={cn(
+        doctorInteractiveSurfaceButtonClass,
+        "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+      )}
       onClick={() => onSelect(test.id)}
     >
       <Card

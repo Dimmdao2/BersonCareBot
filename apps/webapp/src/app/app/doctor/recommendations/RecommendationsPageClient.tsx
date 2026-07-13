@@ -48,6 +48,7 @@ import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatal
 import {
   doctorCatalogListEmptyClass,
   doctorCatalogListEmptyTilesClass,
+  doctorInteractiveSurfaceButtonClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
 } from "@/shared/ui/doctor/doctorVisual";
@@ -147,7 +148,10 @@ function RecommendationTileCard({
     <Button
       type="button"
       variant="ghost"
-      className="flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left"
+      className={cn(
+        doctorInteractiveSurfaceButtonClass,
+        "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+      )}
       onClick={() => onSelect(r.id)}
     >
       <Card
