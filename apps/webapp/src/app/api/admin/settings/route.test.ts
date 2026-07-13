@@ -94,6 +94,7 @@ describe("GET /api/admin/settings", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listSettingsByScopeMock.mockReset();
+    listSettingsByScopeMock.mockResolvedValue([]);
     resolveOrganizationForUserMock.mockClear();
   });
 
@@ -135,30 +136,51 @@ describe("GET /api/admin/settings", () => {
 
   it("returns only per-org keys for a clinic manager", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
-    listSettingsByScopeMock.mockResolvedValue([
-      {
-        key: "booking_min_notice_hours",
-        scope: "admin",
-        organizationId: "550e8400-e29b-41d4-a716-446655440010",
-        valueJson: { value: 12 },
-        updatedAt: "",
-        updatedBy: null,
-      } as SystemSetting,
-      {
-        key: "dev_mode",
-        scope: "admin",
-        organizationId: null,
-        valueJson: { value: false },
-        updatedAt: "",
-        updatedBy: null,
-      } as SystemSetting,
-    ]);
+    listSettingsByScopeMock.mockImplementation(async (scope: "admin" | "doctor") =>
+      scope === "admin"
+        ? [
+            {
+              key: "booking_min_notice_hours",
+              scope: "admin",
+              organizationId: "550e8400-e29b-41d4-a716-446655440010",
+              valueJson: { value: 12 },
+              updatedAt: "",
+              updatedBy: null,
+            } as SystemSetting,
+            {
+              key: "dev_mode",
+              scope: "admin",
+              organizationId: null,
+              valueJson: { value: false },
+              updatedAt: "",
+              updatedBy: null,
+            } as SystemSetting,
+          ]
+        : [
+            {
+              key: "patient_label",
+              scope: "doctor",
+              organizationId: "550e8400-e29b-41d4-a716-446655440010",
+              valueJson: { value: "клиент" },
+              updatedAt: "",
+              updatedBy: null,
+            } as SystemSetting,
+            {
+              key: "sms_fallback_enabled",
+              scope: "doctor",
+              organizationId: null,
+              valueJson: { value: true },
+              updatedAt: "",
+              updatedBy: null,
+            } as SystemSetting,
+          ],
+    );
 
     const res = await GET();
 
     expect(res.status).toBe(200);
     const json = (await res.json()) as { settings: SystemSetting[] };
-    expect(json.settings.map((setting) => setting.key)).toEqual(["booking_min_notice_hours"]);
+    expect(json.settings.map((setting) => setting.key)).toEqual(["booking_min_notice_hours", "patient_label"]);
   });
 
   it("redacts web_push_vapid privateKey in GET (hasPrivateKey only)", async () => {
@@ -333,11 +355,39 @@ describe("PATCH /api/admin/settings", () => {
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "patient_label", value: "something" }),
+        body: JSON.stringify({ key: "not_allowed", value: "something" }),
       })
     );
-    // patient_label not in admin scope keys → 400
     expect(res.status).toBe(400);
+  });
+
+  it("updates per-org doctor-scope patient_label through the clinic settings route", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_label",
+      scope: "doctor",
+      valueJson: { value: "клиент" },
+      updatedAt: "",
+      updatedBy: "d1",
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_label", value: { value: "клиент" } }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_label",
+      "doctor",
+      { value: "клиент" },
+      "d1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
+    );
   });
 
   it("returns 200 for admin updating dev_mode", async () => {

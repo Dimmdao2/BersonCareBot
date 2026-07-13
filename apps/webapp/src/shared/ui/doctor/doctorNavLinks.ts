@@ -97,6 +97,12 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     accessTier: "clinic_admin",
   },
   {
+    id: "clinic-settings",
+    label: "Настройки клиники",
+    href: "/app/doctor/clinic/settings",
+    accessTier: "clinic_admin",
+  },
+  {
     id: "analytics",
     label: "Аналитика",
     href: "/app/doctor/analytics",
