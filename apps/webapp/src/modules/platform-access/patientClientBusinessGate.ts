@@ -38,8 +38,14 @@ export async function patientClientBusinessGate(session: AppSession): Promise<Pa
       }
       return "allow";
     } catch (err) {
-      // TEMP DIAG (task: fix patient-side enforce 403s) — remove before landing.
-      console.error("DIAG:patientClientBusinessGate:catch", err);
+      // Fail-safe need_activation on any DB/resolution error (DoD §2). Log so a real outage here
+      // (e.g. a missing app_patient grant) is visible instead of presenting as a silent 403 on
+      // every patient route -- confirmed live on TEST (taskdb #667 follow-up, 2026-07-13): this
+      // catch was swallowing "permission denied for table user_oauth_bindings" from
+      // resolvePlatformAccessContext, downgrading it to need_activation with zero server-side trace.
+      try {
+        console.error("[platform_access] patientClientBusinessGate resolution failed", err);
+      } catch {}
       return "need_activation";
     }
   }
