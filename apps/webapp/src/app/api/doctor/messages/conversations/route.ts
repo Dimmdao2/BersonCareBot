@@ -8,6 +8,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { doctorSupportUnreadOnlyFromQuery } from "@/modules/messaging/supportAdminListQuery";
 import { parsePlatformUserIdFromWebappConversationId } from "@/modules/messaging/supportConversationIds";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
 
 export async function GET(request: Request) {
   const session = await getCurrentSession();
@@ -17,6 +18,9 @@ export async function GET(request: Request) {
   if (!canAccessDoctor(session.user.role)) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
+  // See schedule-kpis/route.ts: getCurrentSession()'s internal stamp did not reliably survive
+  // into this handler's continuation under locked mode — re-stamp explicitly before any query.
+  await stampDbPrincipalFromSession(session, "doctor-messages-conversations");
 
   const deps = buildAppDeps();
   const url = new URL(request.url);

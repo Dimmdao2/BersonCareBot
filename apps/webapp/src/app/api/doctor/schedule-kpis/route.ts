@@ -11,6 +11,7 @@ import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { logger, serializeError } from "@/infra/logging/logger";
+import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
 
 const KpisQuerySchema = z.object({
   from: z.string().min(1, "from is required"),
@@ -25,6 +26,13 @@ export async function GET(req: Request) {
   if (!canAccessDoctor(session.user.role)) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
+  // getCurrentSession() stamps the DB principal internally (finalizeCurrentSession ->
+  // stampDbPrincipalFromSession), but under DB_PRINCIPAL_CONTEXT_MODE=locked that stamp was
+  // observed NOT to reliably survive into this handler's own continuation (found live on TEST
+  // during the C1 walls flip — this route crashed with "DB principal context is required" on
+  // its first RLS-governed query). Re-stamp explicitly, in this function's own continuation,
+  // matching the pattern requireDoctorWorkspaceApiContext() already uses successfully elsewhere.
+  await stampDbPrincipalFromSession(session, "schedule-kpis");
 
   const url = new URL(req.url);
   const raw = {
