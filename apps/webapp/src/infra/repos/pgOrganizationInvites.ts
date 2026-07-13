@@ -185,7 +185,12 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         );
 
         const inserted = await runWebappPgText<InviteRow>(
-          `WITH inserted_invite AS (
+          // NOTE: select FROM the data-modifying CTE (`i`), NOT a fresh scan of
+          // organization_member_invites — a re-scan of the same table inside a
+          // data-modifying CTE does not see the just-inserted row (Postgres CTE
+          // snapshot semantics), which silently returned 0 rows. Joining be_organizations
+          // (a different table) is fine.
+          `WITH i AS (
              INSERT INTO organization_member_invites (
                organization_id,
                invited_email,
@@ -195,10 +200,34 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
                created_by_platform_user_id
              )
              VALUES ($1, $2, $3, $4, $5::timestamptz, $6)
-             RETURNING id
+             RETURNING
+               id,
+               organization_id,
+               invited_email,
+               invited_role,
+               status,
+               expires_at,
+               created_by_platform_user_id,
+               accepted_by_platform_user_id,
+               accepted_membership_id,
+               created_at,
+               accepted_at
            )
-           ${inviteSelectSql}
-           JOIN inserted_invite ins ON ins.id = i.id`,
+           SELECT
+             i.id::text,
+             i.organization_id::text,
+             i.invited_email,
+             i.invited_role,
+             i.status,
+             i.expires_at::text,
+             i.created_by_platform_user_id::text,
+             i.accepted_by_platform_user_id::text,
+             i.accepted_membership_id::text,
+             i.created_at::text,
+             i.accepted_at::text,
+             o.title AS organization_title
+           FROM i
+           LEFT JOIN be_organizations o ON o.id = i.organization_id`,
           [
             input.organizationId,
             input.invitedEmail,
