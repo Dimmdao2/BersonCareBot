@@ -761,6 +761,11 @@ It did not use `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`, or r
 saved to `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`; post-cleanup diagnosis still has unmapped real active rows,
 duplicate clusters, no stale CSV proof, unresolved mismatch classifications, and no doctor smoke.
 
+Execution note 2026-07-14: `R1-STALE-CSV-PROOF-codex-2026-07-14` used the owner-provided CSV attachment in
+summary-only dry-run mode and saved aggregate-only proof to
+`RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`. The CSV proof reports 29 stale-vs-owner-CSV rows. No `--commit`,
+`--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, or R2 work was used.
+
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
 - [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*
@@ -768,6 +773,7 @@ duplicate clusters, no stale CSV proof, unresolved mismatch classifications, and
 - [ ] status/freshness mismatches are classified.
 - [x] canonical mapping coverage is recorded.
 - [x] `backfill-canonical-from-legacy-appointments` dry-run output is saved.
+- [x] owner-provided CSV stale dry-run proof is saved. *(stale result is 29; cleanup remains unauthorized.)*
 - [ ] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
 - [x] commit run is approved before any `--commit`. *(approved only for the narrow cleanup flags in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`; other commit modes remain gated.)*
 - [x] commit run completes, if approved. *(narrow cleanup only; R1 proof still blocked.)*

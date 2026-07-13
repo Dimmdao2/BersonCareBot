@@ -100,7 +100,7 @@ Interpretation: the approved cleanup removed the explicitly allowed test/block r
 
 - `UNMAPPED real active` remains 99.
 - `DUPLICATE clusters` remains 3; broad duplicate collapse was not authorized and was not run.
-- Stale-vs-CSV proof remains unavailable because no approved current CSV was provided.
+- Stale-vs-CSV proof was later completed in `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`; dry-run result is 29 stale-vs-owner-CSV rows, with no cleanup commit authorized.
 - Legacy-only records, status mismatches, record-time mismatches, and mapping anomalies still need owner/reviewer classification or explicit exceptions.
 - Doctor calendar/list/KPI smoke is still not recorded.
 
@@ -169,4 +169,4 @@ Interpretation: the expanded approved categories were idempotent against the cur
 | unexpected canonical source | 6 |
 | missing expected mapping metadata | 6 |
 
-Residual blockers are unchanged from the first cleanup pass; R1 remains blocked and R2 remains forbidden.
+Residual blockers remain, with stale proof now recorded separately in `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`; R1 remains blocked and R2 remains forbidden.

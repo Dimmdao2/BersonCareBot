@@ -21,6 +21,7 @@ R2 must not start while this packet has unresolved decisions.
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_RESULT.json`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`
 
 ## Sanitized Facts
@@ -64,6 +65,15 @@ Approved cleanup, summary-only, after commit:
 | duplicate clusters with multiple canonical rows | 0 |
 | stale CSV check | skipped |
 
+Owner-provided CSV stale proof, summary-only dry-run, after approved cleanup:
+
+| Fact | Count |
+| --- | ---: |
+| CSV physical lines | 394 |
+| parsed Rubitime ids | 392 |
+| CSV date span | 2026-01-16...2026-08-29 |
+| stale vs owner CSV | 29 |
+
 Commit flags used: `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`.
 
 Not used: `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`.
@@ -76,7 +86,7 @@ Not used: `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`.
 | Classify 4 status mismatches and 2 record_at mismatches | A: canonical is correct. B: legacy projection is correct and needs repair. C: accept documented historical divergence. | Determines whether follow-up import or manual repair is required before acceptance. |
 | Handle unmapped legacy and backfill unmapped buckets | B partial completed: approved test/block rows were soft-deleted. Remaining: A map/import valid records or C leave approved exceptions with owner reason. | Acceptance requires unmapped zero or explicit owner-approved exceptions. |
 | Resolve duplicate clusters 7 | C partial completed: canceled duplicate losers were soft-deleted only. Remaining 3 clusters require a separate owner decision. | Prevents double counting in calendar, list, KPI, and future migration proof. |
-| Approve stale CSV proof source | A: provide a current CSV path and date. B: waive CSV stale proof for R1 with reason. C: require rerun with fresh CSV before any commit. | Stale proof remains incomplete while the CSV source is absent or unapproved. |
+| Classify stale-vs-CSV 29 | A: authorize scripted stale cleanup after reviewer confirmation. B: waive as approved historical exceptions with reason. C: require a newer CSV and rerun before any commit. | Stale proof source was provided and dry-run completed; cleanup remains unauthorized and R1 remains blocked until classification/approval is recorded. |
 | Authorize backfill commit | Narrow cleanup commit completed with `--cleanup-only --delete-test --collapse-canceled-dups`. Other commit modes remain unauthorized. | This resolved only the approved cleanup categories; broad projection/collapse/stale/drop-legacy remain gated. |
 | Doctor calendar/list/KPI smoke acceptance | A: owner accepts targeted smoke after commit. B: require pre-commit visual/read-only smoke too. C: require broader doctor analytics smoke. | R1 acceptance cannot close without the agreed smoke surface passing or being waived. |
 
