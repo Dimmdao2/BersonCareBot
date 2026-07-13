@@ -183,7 +183,21 @@ Cross-tenant доступ разрешается только если одно�
 
 `system_settings`: global rows (`organization_id IS NULL`) пишет только platform scope через `updateSetting`; org override пишет clinic scope с org. Mirror `public`/`integrator` сохраняет тот же logical key.
 
-### 5.3. Break-glass
+### 5.3. Reserved `platform_support`
+
+`platform_support` не входит в первый rollout. Это reserved extension point поверх той же platform-scope модели, чтобы обычная поддержка не требовала полного `platform_admin`.
+
+На первом этапе platform support visibility может выполняться `platform_admin` через отдельные platform-support ports/use-cases, но grants, policies, source constants и audit taxonomy не должны предполагать, что единственный platform actor навсегда admin. Позже `app_platform_support` получает узкие capabilities:
+
+- read/search списка пользователей приложения;
+- поиск/просмотр contacts и channel bindings через masked-by-default представления;
+- reveal контакта только с allowlisted `reason_code` и audit event;
+- чтение support inbox/threads/messages через dedicated platform-support ports;
+- отсутствие provisioning, global settings writes, billing/admin mutations и tenant repository bypass.
+
+Support visibility не реализуется через `organization_id = SUPER_ORG OR ...` и не использует обычные clinic repositories. Все cross-tenant support paths требуют `scope_mode='platform'`, actor, source, reason/correlation и immutable audit.
+
+### 5.4. Break-glass
 
 Break-glass не входит в первый rollout. До отдельного owner-approved runbook нельзя добавлять bypass token/role. Будущий механизм должен иметь short TTL, reason, dual approval и отдельный audit; runtime owner/migrator credentials не используются как break-glass.
 
@@ -620,6 +634,7 @@ Rollback не использует `DISABLE ROW LEVEL SECURITY` как штат�
 | O10 | Rubitime legacy timing | Keep explicit observe exception until canonical org source/cutover package approved. | H6/H8. |
 | O11 | Shadow acceptance window/threshold | TEST: zero unexplained violations for one full representative process cycle; any P0 violation blocks enforce. | H3-H8. |
 | O12 | Break-glass | Отдельный later ADR/runbook; отсутствует в first cut. | Production operations. |
+| O13 | `platform_support` timing | Reserved extension point: не входит в первый rollout; support visibility сначала может идти через `platform_admin` + dedicated platform-support ports/audit, без tenant repo bypass. | Future support role/grants. |
 
 До O1–O3, O5–O7 нельзя начинать role/policy/queue implementation. P0 application scoping можно делать сразу при сохранении рекомендованных defaults.
 
