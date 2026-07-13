@@ -64,8 +64,18 @@ describe("DB principal context", () => {
     const pauseA = new Promise<void>((resolve) => {
       resumeA = resolve;
     });
+    const startRequest = <T>(fn: () => Promise<T> | T): Promise<T> =>
+      new Promise<T>((resolve, reject) => {
+        setImmediate(() => {
+          Promise.resolve(fn()).then(resolve, reject);
+        });
+      });
 
-    const requestA = (async () => {
+    // Real requests do not start as sibling IIFEs inside one synchronous async root: Next/Node enters
+    // each handler from its own request async resource. Starting each simulated request in a separate
+    // async root keeps this test focused on cross-request isolation; a shared-root test would only
+    // prove that two callers deliberately mutate the same AsyncLocalStorage cell.
+    const requestA = startRequest(async () => {
       ensureDbPrincipalContext({ source: "request-a:entry" });
       enterWithDbPatientPrincipal({
         platformUserId: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
@@ -73,9 +83,9 @@ describe("DB principal context", () => {
       });
       await pauseA;
       return getCurrentDbPrincipal();
-    })();
+    });
 
-    const requestB = (async () => {
+    const requestB = startRequest(async () => {
       ensureDbPrincipalContext({ source: "request-b:entry" });
       enterWithDbPatientPrincipal({
         platformUserId: "bbbbbbbb-bbbb-4bbb-8bbb-000000000002",
@@ -83,7 +93,7 @@ describe("DB principal context", () => {
       });
       await Promise.resolve();
       return getCurrentDbPrincipal();
-    })();
+    });
 
     const principalB = await requestB;
     resumeA?.();
@@ -98,7 +108,10 @@ describe("DB principal context", () => {
       platformUserId: "bbbbbbbb-bbbb-4bbb-8bbb-000000000002",
     });
 
-    ensureDbPrincipalContext({ source: "request-c:entry" });
-    expect(getCurrentDbPrincipal()).toEqual({ kind: "bootstrap", source: "request-c:entry" });
+    const principalC = await startRequest(() => {
+      ensureDbPrincipalContext({ source: "request-c:entry" });
+      return getCurrentDbPrincipal();
+    });
+    expect(principalC).toEqual({ kind: "bootstrap", source: "request-c:entry" });
   });
 });
