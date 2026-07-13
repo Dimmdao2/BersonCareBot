@@ -40,7 +40,7 @@ import {
 // does NOT import `@/app-layer/di/buildAppDeps` (which would cycle back to this file), so a
 // static import here is safe and does not create a require cycle.
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
-import { ensureDbPrincipalContext, getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { ensureDbPrincipalContext } from "@bersoncare/db-principal";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -95,15 +95,13 @@ function ensureAdminMode(session: AppSession): AppSession {
 async function finalizeCurrentSession(session: AppSession): Promise<AppSession> {
   const normalized = ensureAdminMode(session);
   try {
-    // Central chokepoint: MUST be a static import (see top of file). A dynamic `await import(...)`
-    // here was observed live (TEST, C1 walls flip under DB_PRINCIPAL_CONTEXT_MODE=locked) to stamp
-    // the AsyncLocalStorage DB principal in a continuation that does not reliably survive back to
-    // the caller of getCurrentSession() — every route calling getCurrentSession() directly (not via
-    // a requireRole.ts guard, which re-stamps with its own statically-imported call) got 500s on
-    // their first RLS-governed query. Do not revert to a dynamic import; do not add per-route
-    // re-stamps instead — this is the one place all such routes share.
+    // Central chokepoint (see also ensureDbPrincipalContext() at the top of getCurrentSession()
+    // above, and its doc comment in packages/db-principal). Uses a static import — a dynamic
+    // `await import(...)` was here before and is not the fix by itself, but keeping this a
+    // direct static call avoids one more layer of indirection around the AsyncLocalStorage
+    // continuation. Do not add per-route re-stamps instead — this is the one place all
+    // getCurrentSession() callers share.
     await stampDbPrincipalFromSession(normalized, "getCurrentSession");
-    console.log("DIAG:finalizeCurrentSession:after-stamp", JSON.stringify(getCurrentDbPrincipal()));
   } catch {
     /* Session auth behavior stays legacy-compatible; locked DB ports fail closed if no principal was resolved. */
   }
@@ -778,18 +776,19 @@ export async function exchangeTelegramLoginWidget(
  * даёт `null` (клиент увидит «не авторизован»), даже если cookie ещё не истёк.
  */
 export async function getCurrentSession(): Promise<AppSession | null> {
-  // MUST run before the first `await cookies()` below. Diagnostic proof (TEST, this session):
-  // a principal cell created via enterWith() *after* crossing a Next.js dynamic-API boundary
-  // (cookies()) does not survive back out to the caller once getCurrentSession()'s promise
-  // resolves -- confirmed by logging getCurrentDbPrincipal() at each hop: it was "staff" right
-  // after finalizeCurrentSession's stamp (still inside this function's continuation) and back to
-  // "undefined" one microtask later in the route handler that had done `await getCurrentSession()`.
-  // requireRole.ts guards that call ensureDbPrincipalContext() before invoking getCurrentSession()
-  // were unaffected because their cell already existed *before* the cookies() boundary, so the
-  // later enterWith() calls (here and in the guards' own re-stamp) mutate that pre-existing cell
-  // in place rather than creating a fresh one inside the boundary. Establishing the cell here,
-  // as the very first statement, makes every getCurrentSession() caller behave the same way
-  // without needing its own guard.
+  // MUST run before the first `await cookies()` below — this is the other half of the central
+  // DB-principal fix (see the doc comment on ensureDbPrincipalContext() in
+  // packages/db-principal/src/index.ts). Diagnostic proof (TEST, live logging of
+  // getCurrentDbPrincipal() at each hop, this session): a principal cell created via enterWith()
+  // *after* crossing a Next.js dynamic-API boundary (cookies()) does not survive back out to the
+  // original caller once getCurrentSession()'s promise resolves. requireRole.ts guards that call
+  // ensureDbPrincipalContext() before invoking getCurrentSession() were unaffected because their
+  // cell already existed *before* the cookies() boundary — every enterWith() downstream (here, in
+  // stampDbPrincipalFromSession, in the guards' own re-stamp) now mutates that SAME pre-existing
+  // cell in place (ensureDbPrincipalContext no longer replaces an existing cell), so it survives
+  // the unwind regardless of how many boundaries sit in between. Establishing the cell here, as
+  // the very first statement, makes every getCurrentSession() caller behave the same way whether
+  // or not it goes through a guard.
   ensureDbPrincipalContext({ source: "getCurrentSession:pending" });
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;

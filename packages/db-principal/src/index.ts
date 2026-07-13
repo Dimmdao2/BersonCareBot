@@ -275,7 +275,23 @@ export function enterWithDbPrincipal(principal: DbPrincipal): void {
   principalStorage.enterWith({ current: normalized });
 }
 
+/**
+ * Idempotent setup: guarantees a principal cell exists (so a caller that bails out early still
+ * fails closed under locked mode), WITHOUT clobbering one that's already there.
+ *
+ * This must NOT unconditionally `enterWith()` a fresh cell. Doing so used to silently discard
+ * whatever cell an outer caller had already established (e.g. a requireRole.ts guard, or
+ * getCurrentSession() itself, calling this before crossing a Next.js dynamic-API boundary like
+ * `cookies()`) and replace it with a brand-new one scoped to the current nested continuation.
+ * `enterWithDbPrincipal`/`enterWithDbStaffPrincipal`/etc. would then mutate that *inner* cell
+ * correctly, but the mutation was invisible once execution unwound back out past the boundary —
+ * the outer frame still held its own (never-mutated, still-bootstrap) cell. Confirmed live on
+ * TEST: a route's own DB principal read straight after getCurrentSession() showed "staff", but a
+ * later query in the same request handler saw "bootstrap" again. Reusing the existing cell (like
+ * `enterWithDbPrincipal` already does) fixes this at the source for every caller.
+ */
 export function ensureDbPrincipalContext(input: DbBootstrapPrincipalInput = {}): void {
+  if (principalStorage.getStore()) return;
   principalStorage.enterWith({ current: createDbBootstrapPrincipal(input) });
 }
 
