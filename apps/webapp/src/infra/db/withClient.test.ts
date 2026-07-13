@@ -47,6 +47,23 @@ describe("withClient helpers", () => {
     ]);
   });
 
+  it("destroys checked-out client when connection cleanup fails", async () => {
+    const cleanupError = new Error("cleanup failed");
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string) => {
+      if (sql === "SELECT set_config('app.org', $1, false)") {
+        throw cleanupError;
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await expect(withPoolClient(pool as never, async () => "ok")).rejects.toBe(cleanupError);
+
+    expect(release).toHaveBeenCalledWith(cleanupError);
+  });
+
   it("commits a successful transaction and releases client", async () => {
     const release = vi.fn();
     const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));

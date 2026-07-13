@@ -1,17 +1,57 @@
 import { Pool } from "pg";
-import type { PoolClient } from "pg";
+import type { PoolClient, PoolConfig } from "pg";
 import {
   applyCurrentDbPrincipalToConnection,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
+  getCurrentDbPrincipal,
 } from "@bersoncare/db-principal";
 
 type WebappPoolProviderConfig = {
-  connectionString: string;
+  connectionString?: string;
+  staffConnectionString?: string;
+  nonstaffConnectionString?: string;
+  poolFactory?: (config: PoolConfig) => Pool;
 };
+
+type WebappRuntimePoolKind = "staff" | "nonstaff";
+
+export type WebappPoolRoutingMetrics = {
+  staffSelections: number;
+  nonstaffSelections: number;
+  missingPrincipalSelections: number;
+  bootstrapSelections: number;
+  infraSelections: number;
+  poolRoleMismatches: number;
+};
+
+const poolRoutingMetrics = new WeakMap<Pool, WebappPoolRoutingMetrics>();
 
 function prepareWebappPoolClient(_client: PoolClient): void {
   // Dormant SAAS hook: future per-process DB principal setup belongs here.
+}
+
+function createWebappPool(
+  connectionString: string,
+  max: number,
+  poolFactory: (config: PoolConfig) => Pool,
+): Pool {
+  const pool = poolFactory({
+    connectionString,
+    max,
+  });
+  pool.on("connect", prepareWebappPoolClient);
+  installPrincipalAwarePoolQuery(pool);
+  return pool;
+}
+
+function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
+  if (cleanupError === undefined) {
+    client.release();
+    return;
+  }
+
+  client.release(cleanupError instanceof Error ? cleanupError : new Error("DB principal cleanup failed"));
 }
 
 function installPrincipalAwarePoolQuery(pool: Pool): void {
@@ -25,10 +65,14 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
       const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>;
       return await query(...args);
     } finally {
+      let cleanupError: unknown;
       try {
         await clearDbPrincipalFromConnection(client, principalApplyOptions);
+      } catch (err) {
+        cleanupError = err;
+        throw err;
       } finally {
-        client.release();
+        releasePoolClient(client, cleanupError);
       }
     }
   };
@@ -41,12 +85,136 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
   }) as unknown as Pool["query"];
 }
 
+function choosePoolKindForCurrentPrincipal(metrics: WebappPoolRoutingMetrics): WebappRuntimePoolKind {
+  const principal = getCurrentDbPrincipal();
+  const poolKind: WebappRuntimePoolKind =
+    principal?.kind === "organization" || principal?.kind === "staff" ? "staff" : "nonstaff";
+
+  if (poolKind === "staff") {
+    metrics.staffSelections += 1;
+  } else {
+    metrics.nonstaffSelections += 1;
+  }
+
+  if (!principal) {
+    metrics.missingPrincipalSelections += 1;
+  } else if (principal.kind === "bootstrap") {
+    metrics.bootstrapSelections += 1;
+  } else if (principal.kind === "infra") {
+    metrics.infraSelections += 1;
+  }
+
+  const expectedPoolKind = principal?.kind === "organization" || principal?.kind === "staff" ? "staff" : "nonstaff";
+  if (poolKind !== expectedPoolKind) {
+    metrics.poolRoleMismatches += 1;
+    console.error("webapp_db_pool_role_mismatch", {
+      expectedPoolKind,
+      principalKind: principal?.kind ?? "missing",
+      selectedPoolKind: poolKind,
+    });
+  }
+
+  return poolKind;
+}
+
+function createRoutedWebappPool(input: {
+  staffPool: Pool;
+  nonstaffPool: Pool;
+  metrics: WebappPoolRoutingMetrics;
+}): Pool {
+  let routedPool: Pool;
+  const selectPool = (): Pool => (
+    choosePoolKindForCurrentPrincipal(input.metrics) === "staff" ? input.staffPool : input.nonstaffPool
+  );
+
+  const routedConnect = (): Promise<PoolClient> => selectPool().connect();
+  const routedQuery = (...args: Parameters<Pool["query"]>): ReturnType<Pool["query"]> => selectPool().query(...args);
+  const routedEnd = async (): Promise<void> => {
+    await Promise.all([input.staffPool.end(), input.nonstaffPool.end()]);
+  };
+
+  routedPool = new Proxy(input.nonstaffPool, {
+    get(target, prop, receiver): unknown {
+      switch (prop) {
+        case "connect":
+          return routedConnect;
+        case "query":
+          return routedQuery;
+        case "end":
+          return routedEnd;
+        case "totalCount":
+          return input.staffPool.totalCount + input.nonstaffPool.totalCount;
+        case "idleCount":
+          return input.staffPool.idleCount + input.nonstaffPool.idleCount;
+        case "waitingCount":
+          return input.staffPool.waitingCount + input.nonstaffPool.waitingCount;
+        case "on":
+        case "once":
+        case "off":
+        case "removeListener":
+          return (...args: Parameters<Pool["on"]>) => {
+            const staffMethod = Reflect.get(input.staffPool, prop, input.staffPool);
+            const nonstaffMethod = Reflect.get(input.nonstaffPool, prop, input.nonstaffPool);
+            if (typeof staffMethod === "function") {
+              staffMethod.apply(input.staffPool, args);
+            }
+            if (typeof nonstaffMethod === "function") {
+              nonstaffMethod.apply(input.nonstaffPool, args);
+            }
+            return routedPool;
+          };
+        default:
+          return Reflect.get(target, prop, receiver);
+      }
+    },
+  }) as Pool;
+
+  poolRoutingMetrics.set(routedPool, input.metrics);
+  return routedPool;
+}
+
+function createEmptyRoutingMetrics(): WebappPoolRoutingMetrics {
+  return {
+    staffSelections: 0,
+    nonstaffSelections: 0,
+    missingPrincipalSelections: 0,
+    bootstrapSelections: 0,
+    infraSelections: 0,
+    poolRoleMismatches: 0,
+  };
+}
+
 export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool {
-  const pool = new Pool({
-    connectionString: config.connectionString,
-    max: 5,
+  const poolFactory = config.poolFactory ?? ((poolConfig: PoolConfig) => new Pool(poolConfig));
+  const singleConnectionString = config.connectionString?.trim();
+  const staffConnectionString = config.staffConnectionString?.trim();
+  const nonstaffConnectionString = config.nonstaffConnectionString?.trim();
+
+  if (!staffConnectionString && !nonstaffConnectionString) {
+    if (!singleConnectionString) {
+      throw new Error("Webapp database connection string is not set");
+    }
+    return createWebappPool(singleConnectionString, 5, poolFactory);
+  }
+
+  const resolvedStaffConnectionString = staffConnectionString || singleConnectionString;
+  const resolvedNonstaffConnectionString = nonstaffConnectionString || singleConnectionString;
+  if (!resolvedStaffConnectionString || !resolvedNonstaffConnectionString) {
+    throw new Error("DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback");
+  }
+
+  if (resolvedStaffConnectionString === resolvedNonstaffConnectionString) {
+    return createWebappPool(resolvedStaffConnectionString, 5, poolFactory);
+  }
+
+  return createRoutedWebappPool({
+    staffPool: createWebappPool(resolvedStaffConnectionString, 3, poolFactory),
+    nonstaffPool: createWebappPool(resolvedNonstaffConnectionString, 2, poolFactory),
+    metrics: createEmptyRoutingMetrics(),
   });
-  pool.on("connect", prepareWebappPoolClient);
-  installPrincipalAwarePoolQuery(pool);
-  return pool;
+}
+
+export function getWebappPoolRoutingMetrics(pool: Pool): WebappPoolRoutingMetrics | undefined {
+  const metrics = poolRoutingMetrics.get(pool);
+  return metrics === undefined ? undefined : { ...metrics };
 }

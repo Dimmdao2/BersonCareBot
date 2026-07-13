@@ -4,19 +4,66 @@ import { env } from "@/config/env";
 import { withPoolClient } from "@/infra/db/withClient";
 import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 
+export const DATABASE_URL_STAFF_ENV = "DATABASE_URL_STAFF";
+export const DATABASE_URL_NONSTAFF_ENV = "DATABASE_URL_NONSTAFF";
+
 let pool: Pool | null = null;
 
-export function getPool(): Pool {
-  if (!env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not set");
+type WebappRuntimeDatabaseEnv = {
+  DATABASE_URL?: string;
+  DATABASE_URL_STAFF?: string;
+  DATABASE_URL_NONSTAFF?: string;
+};
+
+function trimOptionalEnv(value: string | undefined): string {
+  return (value ?? "").trim();
+}
+
+export function resolveWebappPoolProviderConfig(input: WebappRuntimeDatabaseEnv): Parameters<typeof createWebappPoolProvider>[0] {
+  const legacyConnectionString = trimOptionalEnv(input.DATABASE_URL);
+  const staffConnectionString = trimOptionalEnv(input.DATABASE_URL_STAFF);
+  const nonstaffConnectionString = trimOptionalEnv(input.DATABASE_URL_NONSTAFF);
+
+  if (!staffConnectionString && !nonstaffConnectionString) {
+    if (!legacyConnectionString) {
+      throw new Error("DATABASE_URL is not set");
+    }
+    return { connectionString: legacyConnectionString };
   }
-  pool ??= createWebappPoolProvider({ connectionString: env.DATABASE_URL });
+
+  const resolvedStaffConnectionString = staffConnectionString || legacyConnectionString;
+  const resolvedNonstaffConnectionString = nonstaffConnectionString || legacyConnectionString;
+  if (!resolvedStaffConnectionString || !resolvedNonstaffConnectionString) {
+    throw new Error("DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback");
+  }
+
+  return {
+    connectionString: legacyConnectionString || undefined,
+    staffConnectionString: resolvedStaffConnectionString,
+    nonstaffConnectionString: resolvedNonstaffConnectionString,
+  };
+}
+
+function readWebappRuntimeDatabaseEnv(): WebappRuntimeDatabaseEnv {
+  return {
+    DATABASE_URL: env.DATABASE_URL || process.env.DATABASE_URL,
+    DATABASE_URL_STAFF: process.env[DATABASE_URL_STAFF_ENV],
+    DATABASE_URL_NONSTAFF: process.env[DATABASE_URL_NONSTAFF_ENV],
+  };
+}
+
+export function getPool(): Pool {
+  pool ??= createWebappPoolProvider(resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()));
 
   return pool;
 }
 
 export async function checkDbHealth(): Promise<boolean> {
-  if (!env.DATABASE_URL) return false;
+  try {
+    resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv());
+  } catch {
+    return false;
+  }
   try {
     return await runWithDbInfraPrincipal({ source: "webapp-health-check" }, () =>
       withPoolClient(getPool(), async (client) => {

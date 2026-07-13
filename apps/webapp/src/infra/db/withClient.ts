@@ -23,10 +23,35 @@ async function releasePreparedClient(
   client: PoolClient,
   options: DbPrincipalApplyOptions,
 ): Promise<void> {
+  let cleanupError: unknown;
   try {
     await clearDbPrincipalFromConnection(client, options);
+  } catch (err) {
+    cleanupError = err;
+    throw err;
   } finally {
+    if (cleanupError === undefined) {
+      client.release();
+    } else {
+      client.release(cleanupError instanceof Error ? cleanupError : new Error("DB principal cleanup failed"));
+    }
+  }
+}
+
+async function releasePreparedClientAfterSetupFailure(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  try {
+    await clearDbPrincipalFromConnection(client, options);
+  } catch (err) {
+    client.release(err instanceof Error ? err : new Error("DB principal cleanup failed"));
+    return;
+  }
+  try {
     client.release();
+  } catch {
+    /* release is synchronous in pg; keep setup failure if a mock throws */
   }
 }
 
@@ -79,7 +104,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
         /* preserve original setup error */
       }
     }
-    await releasePreparedClient(client, principalApplyOptions);
+    await releasePreparedClientAfterSetupFailure(client, principalApplyOptions);
     throw err;
   }
   return {
