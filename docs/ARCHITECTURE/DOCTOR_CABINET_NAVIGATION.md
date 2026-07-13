@@ -20,21 +20,33 @@
 | Коммуникации | Онлайн-заявки, Сообщения, Рассылки |
 | Каталог ЛФК | Упражнения, комплексы, тесты, шаблоны программ, курсы, справочники, … |
 | Контент | Главная пациента, материалы, библиотека файлов |
-| Аналитика *(admin)* | По клиентам, по контенту, по уведомлениям, Использование |
-| Система *(admin)* | Здоровье системы, архив сбоев, журнал операций |
-| Администрирование *(admin)* | Настройки приложения, авторизация, интеграции, **Настройки записи**, технические режимы, **Мердж пациентов** |
+| Управление клиникой *(clinic admin)* | Врачи |
+| Аналитика *(global admin)* | По клиентам, по контенту, по уведомлениям, Использование |
+| Система *(global admin)* | Здоровье системы, архив сбоев, журнал операций |
+| Администрирование *(global admin)* | Настройки приложения, авторизация, интеграции, **Настройки записи**, технические режимы, **Мердж пациентов** |
 
 Пункт **«Расписание»** в меню — **одна прямая ссылка** на `/app/doctor/schedule` (не аккордеон;
 вкладки `cal/work/setup` переключаются внутри страницы). Admin-гейтинг таба «Настройки»
 обеспечивается шеллом, не пунктом меню.
 
-Пункты с `requiresAdminMode: true` видны только при `role === admin`.
+Пункты меню фильтруются по `accessTier`:
+
+- `doctor` (или отсутствие tier) — обычный доступ к кабинету специалиста.
+- `clinic_admin` — управляющий участник клиники (`canManageOrganization`) или global admin в admin mode. Сейчас в меню это только `Врачи` (`/app/doctor/clinic/members`).
+- `global_admin` — только `role === admin` + `adminMode`.
+
+Платформенные страницы настроек и системные/аналитические страницы остаются `global_admin`: `admin/app-settings`,
+`admin/auth`, `admin/integrations`, `admin/technical`, `analytics`, `system-health`, `usage`, `audit-log`,
+`material-ratings`. Они рендерят/используют global `system_settings` и global-only API. `booking-admin` не добавлен
+в clinic-admin меню: у него есть legacy/global интеграционные участки, поэтому добавление требует отдельной проверки
+страницы и всех API.
 
 ## Маршруты (admin / аналитика)
 
 | Назначение | URL | Примечание |
 |------------|-----|------------|
 | Сегодня (рабочий inbox) | `/app/doctor` | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md) |
+| Врачи / команда клиники | `/app/doctor/clinic/members` | `clinic_admin`; `GET /api/clinic/members`, `GET/POST/DELETE /api/clinic/invites` |
 | Календарь записей | `/app/doctor/calendar` | Read switch: `appointment_records` (default) или `be_appointments` (`booking_doctor_appointments_read_source`); API `/api/doctor/booking-engine/calendar` (`readSource`, `freeSlotsEnabled`) |
 | Список записей | `/app/doctor/appointments` | `?tab=appointments\|schedule` · `?view=future\|past`; tab=**schedule** — только admin; RSC fetch через `DoctorAppointmentsReadSwitch`; API пагинации архива: `GET /api/doctor/appointments/list?view=past&offset=N` |
 | Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; пресет **«Сутки»** (`preset=day`) + week/month/custom |

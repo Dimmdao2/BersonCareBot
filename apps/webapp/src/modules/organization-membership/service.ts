@@ -1,4 +1,5 @@
 import type {
+  OrganizationMemberDirectoryRecord,
   OrganizationMembership,
   OrganizationMembershipPort,
   OrganizationMembershipRole,
@@ -70,6 +71,10 @@ export function createOrganizationMembershipService(deps: {
       }
 
       return { ok: true, context: toMembershipContext(memberships[0]) };
+    },
+
+    async listOrganizationMembers(organizationId: string): Promise<OrganizationMemberDirectoryRecord[]> {
+      return deps.membershipPort.listByOrganization(organizationId);
     },
   };
 }

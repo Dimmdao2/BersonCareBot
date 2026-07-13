@@ -29,17 +29,26 @@ export type DoctorMenuLinkItem = {
   /** Подпункты — пункт рендерится как раскрывающийся аккордеон без перехода по клику. */
   items?: DoctorMenuLinkItem[];
   badgeKey?: DoctorMenuBadgeKey;
-  requiresAdminMode?: boolean;
+  /** Visibility tier: omitted means regular doctor workspace access. */
+  accessTier?: DoctorMenuAccessTier;
 };
+
+export type DoctorMenuAccessTier = "doctor" | "clinic_admin" | "global_admin";
 
 export type DoctorMenuAccess = {
   role: UserRole;
   adminMode: boolean;
+  canManageOrganization: boolean;
 };
 
 export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: DoctorMenuAccess): boolean {
-  if (!item.requiresAdminMode) return true;
-  return access.role === "admin";
+  const tier = item.accessTier ?? "doctor";
+  if (tier === "doctor") return true;
+  const isGlobalAdmin = access.role === "admin" && access.adminMode;
+  if (tier === "clinic_admin") {
+    return isGlobalAdmin || access.canManageOrganization;
+  }
+  return isGlobalAdmin;
 }
 
 const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
@@ -82,30 +91,47 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "files-and-media", label: "Файлы и медиа", href: "/app/doctor/content/library" },
   { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
   {
+    id: "clinic-members",
+    label: "Врачи",
+    href: "/app/doctor/clinic/members",
+    accessTier: "clinic_admin",
+  },
+  {
     id: "analytics",
     label: "Аналитика",
     href: "/app/doctor/analytics",
-    requiresAdminMode: true,
+    accessTier: "global_admin",
   },
   {
     id: "settings",
     label: "Настройки",
-    requiresAdminMode: true,
+    accessTier: "global_admin",
     items: [
       {
         id: "admin-app-settings",
         label: "Настройки приложения",
         href: "/app/doctor/admin/app-settings",
+        accessTier: "global_admin",
       },
-      { id: "admin-auth", label: "Авторизация", href: "/app/doctor/admin/auth" },
-      { id: "admin-integrations", label: "Интеграции", href: "/app/doctor/admin/integrations" },
-      { id: "admin-technical", label: "Технические режимы", href: "/app/doctor/admin/technical" },
+      { id: "admin-auth", label: "Авторизация", href: "/app/doctor/admin/auth", accessTier: "global_admin" },
+      {
+        id: "admin-integrations",
+        label: "Интеграции",
+        href: "/app/doctor/admin/integrations",
+        accessTier: "global_admin",
+      },
+      {
+        id: "admin-technical",
+        label: "Технические режимы",
+        href: "/app/doctor/admin/technical",
+        accessTier: "global_admin",
+      },
     ],
   },
   {
     id: "system",
     label: "Система",
-    requiresAdminMode: true,
+    accessTier: "global_admin",
     items: [
       { id: "system-health", label: "Здоровье системы", href: "/app/doctor/system-health" },
       { id: "health-archive", label: "Архив сбоев", href: "/app/doctor/health-archive" },
@@ -120,11 +146,11 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
 ];
 
 /**
- * Плоский список верхнеуровневых пунктов с применённой фильтрацией по `requiresAdminMode`.
+ * Плоский список верхнеуровневых пунктов с применённой фильтрацией по `accessTier`.
  * Подпункты у раскрывающихся пунктов тоже фильтруются; если все подпункты отфильтровались и `href` нет —
  * пункт не попадает в результат.
  *
- * @param access — роль и режим администратора.
+ * @param access — роль, режим администратора и право управления клиникой.
  * @param patientLabel — значение настройки `patient_label` (raw singular из БД).
  *   Нормализуется через `resolvePatientTerms` — регистронезависимо.
  */

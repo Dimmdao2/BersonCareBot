@@ -38,9 +38,15 @@ export function DoctorWorkspaceShell({
   userRole,
   userDisplayName,
   patientLabel,
+  workspaceContext,
   children,
 }: DoctorWorkspaceShellProps) {
   const showDoctorDesktopNav = canAccessDoctor(userRole);
+  const menuAccess = {
+    role: userRole,
+    adminMode,
+    canManageOrganization: workspaceContext?.canManageOrganization ?? false,
+  };
 
   return (
     <DoctorSupportUnreadProvider>
@@ -53,7 +59,7 @@ export function DoctorWorkspaceShell({
         <DoctorHeader
           userDisplayName={userDisplayName}
           adminMode={adminMode}
-          menuAccess={{ role: userRole, adminMode }}
+          menuAccess={menuAccess}
           patientLabel={patientLabel}
           hideMenuOnDesktop={showDoctorDesktopNav}
         />
@@ -61,7 +67,7 @@ export function DoctorWorkspaceShell({
           {showDoctorDesktopNav ? (
             <DoctorAdminSidebar
               userDisplayName={userDisplayName}
-              menuAccess={{ role: userRole, adminMode }}
+              menuAccess={menuAccess}
               patientLabel={patientLabel}
             />
           ) : null}

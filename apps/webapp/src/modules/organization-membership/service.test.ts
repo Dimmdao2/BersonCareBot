@@ -131,4 +131,14 @@ describe("createOrganizationMembershipService", () => {
       },
     });
   });
+
+  it("lists organization members through the membership port", async () => {
+    const row = membership({ organizationId: "org-1", role: "admin", specialistId: null });
+    const { service, port } = serviceFor([row]);
+
+    await expect(service.listOrganizationMembers("org-1")).resolves.toEqual([
+      { ...row, displayName: null },
+    ]);
+    expect(port.listByOrganization).toHaveBeenCalledWith("org-1");
+  });
 });

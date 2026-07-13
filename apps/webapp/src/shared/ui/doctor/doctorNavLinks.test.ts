@@ -10,8 +10,9 @@ import {
   isDoctorNavItemActive,
 } from "./doctorNavLinks";
 
-const doctorAccess = { role: "doctor" as const, adminMode: false };
-const adminAccess = { role: "admin" as const, adminMode: true };
+const doctorAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: false };
+const clinicAdminAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: true };
+const adminAccess = { role: "admin" as const, adminMode: true, canManageOrganization: false };
 
 describe("isDoctorNavItemActive", () => {
   it("matches overview only on /app/doctor", () => {
@@ -53,9 +54,9 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("getDoctorMenuItems returns 11 items in correct order for admin", () => {
+  it("getDoctorMenuItems returns 12 items in correct order for admin", () => {
     const items = getDoctorMenuItems(adminAccess);
-    expect(items).toHaveLength(11);
+    expect(items).toHaveLength(12);
     expect(items.map((i) => i.id)).toEqual([
       "today",
       "patients",
@@ -65,19 +66,29 @@ describe("doctor menu structure", () => {
       "content",
       "files-and-media",
       "courses",
+      "clinic-members",
       "analytics",
       "settings",
       "system",
     ]);
   });
 
-  it("getDoctorMenuItems hides settings, system, and empty analytics for doctor role", () => {
+  it("getDoctorMenuItems hides clinic-management and global sections for plain doctor role", () => {
     const items = getDoctorMenuItems(doctorAccess);
     const ids = items.map((i) => i.id);
+    expect(ids).not.toContain("clinic-members");
     expect(ids).not.toContain("settings");
     expect(ids).not.toContain("system");
-    // analytics is a single admin-only link → hidden for the doctor role
     expect(ids).not.toContain("analytics");
+  });
+
+  it("getDoctorMenuItems shows only the clinic-management members page for clinic admin", () => {
+    const items = getDoctorMenuItems(clinicAdminAccess);
+    const ids = items.map((i) => i.id);
+    expect(ids).toContain("clinic-members");
+    expect(ids).not.toContain("settings");
+    expect(ids).not.toContain("analytics");
+    expect(ids).not.toContain("system");
   });
 
   it("library has 8 sub-items (Курсы moved to top level)", () => {
@@ -102,10 +113,22 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("courses")).toBe(false);
   });
 
-  it("settings has 4 sub-items (without booking-merge)", () => {
+  it("clinic members is a clinic-admin top-level direct link", () => {
+    for (const access of [clinicAdminAccess, adminAccess]) {
+      const items = getDoctorMenuItems(access);
+      const members = items.find((i) => i.id === "clinic-members");
+      expect(members?.label).toBe("Врачи");
+      expect(members?.href).toBe("/app/doctor/clinic/members");
+      expect(members?.accessTier).toBe("clinic_admin");
+      expect(members?.items).toBeUndefined();
+    }
+    expect(isDoctorMenuClusterId("clinic-members")).toBe(false);
+  });
+
+  it("settings has 4 global-admin sub-items (without booking-merge)", () => {
     const items = getDoctorMenuItems(adminAccess);
     const settings = items.find((i) => i.id === "settings");
-    expect(settings?.requiresAdminMode).toBe(true);
+    expect(settings?.accessTier).toBe("global_admin");
     const ids = settings!.items!.map((i) => i.id);
     expect(ids).not.toContain("booking-merge");
     expect(ids).toContain("admin-app-settings");
@@ -117,7 +140,7 @@ describe("doctor menu structure", () => {
   it("system does not have booking-merge (removed per SET-05), has system-health and audit-log", () => {
     const items = getDoctorMenuItems(adminAccess);
     const system = items.find((i) => i.id === "system");
-    expect(system?.requiresAdminMode).toBe(true);
+    expect(system?.accessTier).toBe("global_admin");
     const ids = system!.items!.map((i) => i.id);
     expect(ids).not.toContain("booking-merge");
     expect(ids).toContain("system-health");
@@ -167,6 +190,7 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("system")).toBe(true);
     // analytics collapsed to a single page-shell link → no longer a cluster
     expect(isDoctorMenuClusterId("analytics")).toBe(false);
+    expect(isDoctorMenuClusterId("clinic-members")).toBe(false);
     expect(isDoctorMenuClusterId("today")).toBe(false);
     expect(isDoctorMenuClusterId("patients")).toBe(false);
     expect(isDoctorMenuClusterId("schedule")).toBe(false);
@@ -178,7 +202,7 @@ describe("doctor menu structure", () => {
     const analytics = items.find((i) => i.id === "analytics");
     expect(analytics?.href).toBe("/app/doctor/analytics");
     expect(analytics?.items).toBeUndefined();
-    expect(analytics?.requiresAdminMode).toBe(true);
+    expect(analytics?.accessTier).toBe("global_admin");
   });
 
   it("DOCTOR_MENU_DEFAULT_CLUSTER_ID is library and is a cluster", () => {
@@ -191,8 +215,10 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Сегодня")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Расписание")).toBe(true);
+    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Врачи")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
     expect(hrefs).toContain("/app/doctor/communications");
+    expect(hrefs).toContain("/app/doctor/clinic/members");
     // schedule is now a flat link (no sub-items in DOCTOR_MENU_LINKS)
     expect(hrefs).toContain("/app/doctor/schedule");
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=cal");
@@ -245,15 +271,30 @@ describe("doctor menu structure", () => {
     expect(patients?.label).toBe("Пациенты");
   });
 
-  it("isDoctorMenuLinkVisible hides admin-only items from doctor role", () => {
-    const adminItem = {
+  it("isDoctorMenuLinkVisible evaluates clinic-management and global tiers separately", () => {
+    const clinicItem = {
+      id: "settings",
+      label: "Настройки",
+      href: "/app/doctor/admin/app-settings",
+      accessTier: "clinic_admin" as const,
+    };
+    const globalItem = {
       id: "usage",
       label: "Использование",
       href: "/app/doctor/usage",
-      requiresAdminMode: true as const,
+      accessTier: "global_admin" as const,
     };
-    expect(isDoctorMenuLinkVisible(adminItem, doctorAccess)).toBe(false);
-    expect(isDoctorMenuLinkVisible(adminItem, { role: "admin", adminMode: false })).toBe(true);
-    expect(isDoctorMenuLinkVisible(adminItem, adminAccess)).toBe(true);
+    expect(isDoctorMenuLinkVisible(clinicItem, doctorAccess)).toBe(false);
+    expect(isDoctorMenuLinkVisible(clinicItem, clinicAdminAccess)).toBe(true);
+    expect(isDoctorMenuLinkVisible(clinicItem, adminAccess)).toBe(true);
+    expect(isDoctorMenuLinkVisible(globalItem, doctorAccess)).toBe(false);
+    expect(isDoctorMenuLinkVisible(globalItem, clinicAdminAccess)).toBe(false);
+    expect(isDoctorMenuLinkVisible(globalItem, { role: "admin", adminMode: false, canManageOrganization: true })).toBe(
+      false,
+    );
+    expect(isDoctorMenuLinkVisible(globalItem, { role: "admin", adminMode: false, canManageOrganization: false })).toBe(
+      false,
+    );
+    expect(isDoctorMenuLinkVisible(globalItem, adminAccess)).toBe(true);
   });
 });

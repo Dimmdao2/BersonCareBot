@@ -407,8 +407,7 @@ function SheetTwoLevelMenu({
 }
 
 export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabel, onNavigate }: DoctorMenuAccordionProps) {
-  const { role, adminMode } = menuAccess;
-  const items = useMemo(() => getDoctorMenuItems({ role, adminMode }, patientLabel), [role, adminMode, patientLabel]);
+  const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess, patientLabel]);
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
