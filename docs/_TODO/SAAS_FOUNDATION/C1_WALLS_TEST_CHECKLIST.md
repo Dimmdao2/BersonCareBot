@@ -90,6 +90,24 @@ Anchors: Точка Здоровья = org `a0000000-0000-4000-8000-000000000001
   So the live FORCE flip waits for an owner-driven session. Autonomous prep (safe, no live-test impact)
   continues: two-pool committed, architecture grounded, app_worker grant-set mapped. TEST stays working DORMANT.
 
+## RESULT (verified live 2026-07-13 ~06:5x, HEAD 6146ed139) — WALLS ENFORCED & WORKING ON TEST
+Independently re-verified by the lead against reality (not agent report):
+- Login as BOTH doctors (demo2clinic@example.com / dimmdao@yandex.ru, pw demo1234) → 200.
+- 17 doctor routes swept as clinic-2 → **0 HTTP 500** (the ~44-route re-stamp bug fixed CENTRALLY in
+  `ensureDbPrincipalContext` — one place, per-route patches reverted).
+- **Isolation (the leak you saw, now closed):** clinic-2 `schedule-kpis recordsInPeriod=0`, `conversations []`,
+  `patients {"clients":[]}`; IDOR on a Точка-Здоровья patient → 404. Main doctor → `recordsInPeriod=224`, own data.
+- Background units (worker/scheduler/api/media) active, **0 fail-closed/permission-denied lines** in 5 min.
+- health ok, all 5 units active, prod WireGuard relay untouched.
+- One command flips OFF (rollback): `phase4-force-rls-cutover.sql -v phase4_force_rls_down=1` + env DATABASE_URL→owner + mode=legacy-guc + restart.
+
+### NOT-DONE / caveats (honest)
+- PATIENT login/registration under enforce NOT verified (staff-focused pass; bootstrap uses nonstaff pool — may be rough).
+- Actual message/broadcast DISPATCH not driven end-to-end (units up, no fail-closed spam, but no live send tested).
+- Route sweep sampled ~17; central fix should cover all but not every route exhaustively hit. taskdb #725 tracks the residual audit.
+- Main doctor given a password (demo1234) for the demo; his real login is phone/OTP.
+- Integrator duplicate-table cleanup (T0.4) and marketplace (#724) are separate, deferred, NOT walls blockers.
+
 ## Honest caveats (stated up front, not hidden)
 - **Patient login / registration under enforce may be limited** until the `app_patient` pool is fully wired
   — the morning test focuses on the STAFF side (the isolation you saw leak). I will report patient-side status.
