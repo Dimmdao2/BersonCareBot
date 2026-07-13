@@ -80,7 +80,7 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     confirmEmailChallengeMock.mockResolvedValueOnce({ ok: true });
     provisionSpecialistOwnerMock.mockResolvedValueOnce({
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      specialistId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      specialistId: null,
       membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
     findByUserIdMock.mockResolvedValueOnce({
@@ -116,6 +116,7 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
       ok: true,
       redirectTo: "/app/doctor",
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      specialistId: null,
     });
   });
 

@@ -39,7 +39,9 @@ export function createInMemoryOrganizationProvisioningPort(): OrganizationProvis
     async provisionSpecialistOwner({ userId, challengeId }) {
       const intent = intents.find(
         (candidate) =>
-          candidate.userId === userId && candidate.challengeId === challengeId && candidate.status === "pending",
+          candidate.userId === userId &&
+          candidate.challengeId === challengeId &&
+          (candidate.status === "pending" || candidate.status === "provisioned"),
       );
       if (!intent) {
         throw new Error("specialist_signup_intent_not_found");
@@ -47,7 +49,6 @@ export function createInMemoryOrganizationProvisioningPort(): OrganizationProvis
       if (
         intent.status === "provisioned" &&
         intent.provisionedOrganizationId &&
-        intent.provisionedSpecialistId &&
         intent.provisionedMembershipId
       ) {
         return {
@@ -57,16 +58,22 @@ export function createInMemoryOrganizationProvisioningPort(): OrganizationProvis
         };
       }
       const organizationId = randomUUID();
-      const specialistId = randomUUID();
       const membershipId = randomUUID();
       intent.status = "provisioned";
       intent.provisionedOrganizationId = organizationId;
-      intent.provisionedSpecialistId = specialistId;
+      intent.provisionedSpecialistId = null;
       intent.provisionedMembershipId = membershipId;
       return {
         organizationId,
-        specialistId,
+        specialistId: null,
         membershipId,
+      };
+    },
+
+    async ensureOwnBookableSpecialist() {
+      return {
+        specialistId: randomUUID(),
+        created: true,
       };
     },
   };

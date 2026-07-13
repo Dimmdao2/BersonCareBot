@@ -3,6 +3,11 @@ import type {
   SpecialistOwnerProvisioningResult,
   SpecialistSignupIntentInput,
 } from "./ports";
+import {
+  ensureOwnBookableSpecialist as ensureOwnBookableSpecialistCore,
+  type EnsureOwnBookableSpecialistContext,
+  type EnsureOwnBookableSpecialistOptions,
+} from "./ensureOwnBookableSpecialist";
 
 function normalizeTitle(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -37,6 +42,13 @@ export function createOrganizationProvisioningService(deps: {
       challengeId: string;
     }): Promise<SpecialistOwnerProvisioningResult> {
       return deps.provisioningPort.provisionSpecialistOwner(input);
+    },
+
+    async ensureOwnBookableSpecialist(
+      ctx: EnsureOwnBookableSpecialistContext,
+      options?: EnsureOwnBookableSpecialistOptions,
+    ): Promise<string | null> {
+      return ensureOwnBookableSpecialistCore(deps.provisioningPort, ctx, options);
     },
   };
 }

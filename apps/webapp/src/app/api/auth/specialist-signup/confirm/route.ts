@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     ok: true,
     redirectTo: getRedirectPathForRole("doctor"),
     organizationId: provisioned.organizationId,
-    specialistId: provisioned.specialistId,
+    specialistId: provisioned.specialistId ?? null,
     membershipId: provisioned.membershipId,
   });
 }

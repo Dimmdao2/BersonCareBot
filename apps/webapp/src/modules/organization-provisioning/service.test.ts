@@ -20,8 +20,12 @@ function createPort(): OrganizationProvisioningPort {
     getSpecialistSignupIntentByChallengeId: vi.fn(async () => null),
     provisionSpecialistOwner: vi.fn(async () => ({
       organizationId: "org-1",
-      specialistId: "specialist-1",
+      specialistId: null,
       membershipId: "membership-1",
+    })),
+    ensureOwnBookableSpecialist: vi.fn(async () => ({
+      specialistId: "specialist-1",
+      created: true,
     })),
   };
 }
@@ -69,7 +73,7 @@ describe("createOrganizationProvisioningService", () => {
       service.provisionSpecialistOwner({ userId: "user-1", challengeId: "challenge-1" }),
     ).resolves.toEqual({
       organizationId: "org-1",
-      specialistId: "specialist-1",
+      specialistId: null,
       membershipId: "membership-1",
     });
     expect(port.provisionSpecialistOwner).toHaveBeenCalledWith({

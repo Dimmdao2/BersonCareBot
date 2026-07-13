@@ -6,17 +6,24 @@ import { describe, expect, it } from "vitest";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("createPgOrganizationProvisioningPort", () => {
-  it("keeps specialist owner provisioning in one transaction and does not create owner org enrollment", () => {
+  it("routes specialist owner signup provisioning through the RLS definer function", () => {
+    const src = readFileSync(join(__dirname, "pgOrganizationProvisioning.ts"), "utf8");
+    const phase1Src = src.slice(src.indexOf("async provisionSpecialistOwner"), src.indexOf("async ensureOwnBookableSpecialist"));
+
+    expect(phase1Src).toContain("runWebappTransaction");
+    expect(phase1Src).toContain("SELECT * FROM app.provision_specialist_owner($1, $2)");
+    expect(phase1Src).not.toContain(".insert(beOrganizations)");
+    expect(phase1Src).not.toContain(".insert(beSpecialists)");
+    expect(phase1Src).not.toContain("orgEnrollments");
+  });
+
+  it("keeps staff-context specialist backfill guarded on the current membership", () => {
     const src = readFileSync(join(__dirname, "pgOrganizationProvisioning.ts"), "utf8");
 
-    expect(src).toContain("runWebappTransaction");
-    expect(src).toContain("beOrganizations");
     expect(src).toContain("beSpecialists");
     expect(src).toContain("beOrganizationMembers");
-    expect(src).toContain('role: "owner"');
-    expect(src).toContain('role: "doctor"');
+    expect(src).toContain("ensureOwnBookableSpecialist");
     expect(src).toContain('.for("update")');
-    expect(src).toContain("provisionedOrganizationId");
-    expect(src).not.toContain("orgEnrollments");
+    expect(src).toContain("isNull(beOrganizationMembers.specialistId)");
   });
 });

@@ -21,8 +21,19 @@ export type SpecialistOwnerProvisioningInput = {
 
 export type SpecialistOwnerProvisioningResult = {
   organizationId: string;
-  specialistId: string;
+  specialistId: string | null;
   membershipId: string;
+};
+
+export type EnsureOwnBookableSpecialistInput = {
+  organizationId: string;
+  membershipId: string;
+  fullName: string;
+};
+
+export type EnsureOwnBookableSpecialistResult = {
+  specialistId: string | null;
+  created: boolean;
 };
 
 export type OrganizationProvisioningPort = {
@@ -33,4 +44,7 @@ export type OrganizationProvisioningPort = {
   }): Promise<SpecialistSignupIntent | null>;
   getSpecialistSignupIntentByChallengeId(challengeId: string): Promise<SpecialistSignupIntent | null>;
   provisionSpecialistOwner(input: SpecialistOwnerProvisioningInput): Promise<SpecialistOwnerProvisioningResult>;
+  ensureOwnBookableSpecialist(
+    input: EnsureOwnBookableSpecialistInput,
+  ): Promise<EnsureOwnBookableSpecialistResult>;
 };

@@ -1,12 +1,10 @@
-import { randomUUID } from "node:crypto";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
-import { runWebappTransaction } from "@/infra/db/runWebappSql";
+import { and, eq, isNull } from "drizzle-orm";
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import type {
   OrganizationProvisioningPort,
   SpecialistSignupIntent,
 } from "@/modules/organization-provisioning/ports";
-import { platformUsers } from "../../../db/schema/schema";
-import { beOrganizationMembers, beOrganizations, beSpecialists } from "../../../db/schema/bookingEngine";
+import { beOrganizationMembers, beSpecialists } from "../../../db/schema/bookingEngine";
 import { specialistSignupIntents } from "../../../db/schema/specialistSignupIntents";
 
 function mapIntentRow(row: typeof specialistSignupIntents.$inferSelect): SpecialistSignupIntent {
@@ -71,127 +69,90 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
 
     async provisionSpecialistOwner({ userId, challengeId }) {
       return runWebappTransaction(async (tx) => {
-        const intents = await tx
-          .select()
-          .from(specialistSignupIntents)
+        const result = await runWebappPgText<{
+          ok: boolean;
+          code: string | null;
+          organization_id: string | null;
+          specialist_id: string | null;
+          membership_id: string | null;
+        }>("SELECT * FROM app.provision_specialist_owner($1, $2)", [userId, challengeId], tx);
+        const row = result.rows[0];
+        if (!row) {
+          throw new Error("specialist_signup_provision_insert_failed");
+        }
+        if (!row.ok) {
+          throw new Error(row.code ?? "specialist_signup_provision_insert_failed");
+        }
+        if (!row.organization_id || !row.membership_id) {
+          throw new Error("specialist_signup_provision_insert_failed");
+        }
+        return {
+          organizationId: row.organization_id,
+          specialistId: row.specialist_id,
+          membershipId: row.membership_id,
+        };
+      });
+    },
+
+    async ensureOwnBookableSpecialist({ organizationId, membershipId, fullName }) {
+      return runWebappTransaction(async (tx) => {
+        const membershipRows = await tx
+          .select({
+            id: beOrganizationMembers.id,
+            specialistId: beOrganizationMembers.specialistId,
+          })
+          .from(beOrganizationMembers)
           .where(
             and(
-              eq(specialistSignupIntents.userId, userId),
-              eq(specialistSignupIntents.challengeId, challengeId),
-              eq(specialistSignupIntents.status, "pending"),
+              eq(beOrganizationMembers.id, membershipId),
+              eq(beOrganizationMembers.organizationId, organizationId),
             ),
           )
           .limit(1)
           .for("update");
-        let intent = intents[0] ? mapIntentRow(intents[0]) : null;
-        if (!intent) {
-          const provisionedRows = await tx
-            .select()
-            .from(specialistSignupIntents)
-            .where(
-              and(
-                eq(specialistSignupIntents.userId, userId),
-                eq(specialistSignupIntents.challengeId, challengeId),
-                eq(specialistSignupIntents.status, "provisioned"),
-              ),
-            )
-            .limit(1)
-            .for("update");
-          intent = provisionedRows[0] ? mapIntentRow(provisionedRows[0]) : null;
-          if (
-            intent?.provisionedOrganizationId &&
-            intent.provisionedSpecialistId &&
-            intent.provisionedMembershipId
-          ) {
-            return {
-              organizationId: intent.provisionedOrganizationId,
-              specialistId: intent.provisionedSpecialistId,
-              membershipId: intent.provisionedMembershipId,
-            };
-          }
-          throw new Error("specialist_signup_intent_not_found");
+        const membership = membershipRows[0];
+        if (!membership) {
+          throw new Error("organization_membership_not_found");
+        }
+        if (membership.specialistId) {
+          return { specialistId: membership.specialistId, created: false };
         }
 
         const now = new Date().toISOString();
-        const userRows = await tx
-          .update(platformUsers)
-          .set({
-            role: "doctor",
-            displayName: intent.specialistFullName,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(platformUsers.id, userId),
-              isNull(platformUsers.mergedIntoId),
-              isNotNull(platformUsers.emailVerifiedAt),
-            ),
-          )
-          .returning({ id: platformUsers.id });
-        if (!userRows[0]) {
-          throw new Error("specialist_signup_user_not_verified");
-        }
-
-        const organizationId = randomUUID();
-        const organizations = await tx
-          .insert(beOrganizations)
-          .values({
-            id: organizationId,
-            title: intent.organizationTitle,
-            isActive: true,
-            sortOrder: 0,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning({ id: beOrganizations.id });
-
         const specialists = await tx
           .insert(beSpecialists)
           .values({
             organizationId,
-            fullName: intent.specialistFullName,
+            fullName,
             isActive: true,
             sortOrder: 0,
             createdAt: now,
             updatedAt: now,
           })
           .returning({ id: beSpecialists.id });
-
         const specialistId = specialists[0]?.id;
-        if (!organizations[0]?.id || !specialistId) {
-          throw new Error("specialist_signup_provision_insert_failed");
+        if (!specialistId) {
+          throw new Error("specialist_provision_insert_failed");
         }
 
-        const memberships = await tx
-          .insert(beOrganizationMembers)
-          .values({
-            organizationId,
-            platformUserId: userId,
-            role: "owner",
+        const update = await tx
+          .update(beOrganizationMembers)
+          .set({
             specialistId,
-            status: "active",
-            createdAt: now,
             updatedAt: now,
           })
-          .returning({ id: beOrganizationMembers.id });
-
-        const membershipId = memberships[0]?.id;
-        if (!membershipId) {
-          throw new Error("specialist_signup_membership_insert_failed");
+          .where(
+            and(
+              eq(beOrganizationMembers.id, membershipId),
+              eq(beOrganizationMembers.organizationId, organizationId),
+              isNull(beOrganizationMembers.specialistId),
+            ),
+          );
+        if ((update.rowCount ?? 0) < 1) {
+          throw new Error("specialist_membership_backfill_conflict");
         }
 
-        await tx
-          .update(specialistSignupIntents)
-          .set({
-            status: "provisioned",
-            provisionedOrganizationId: organizationId,
-            provisionedSpecialistId: specialistId,
-            provisionedMembershipId: membershipId,
-            provisionedAt: now,
-          })
-          .where(eq(specialistSignupIntents.id, intent.id));
-
-        return { organizationId, specialistId, membershipId };
+        return { specialistId, created: true };
       });
     },
   };
