@@ -9,6 +9,7 @@ const {
   buildAppDepsMock,
   listTopicsMock,
   persistAdminModesBatchMock,
+  resolveOrganizationForUserMock,
 } = vi.hoisted(() => {
   const listSettingsByScopeMockInner = vi.fn().mockResolvedValue([]);
   const updateSettingMockInner = vi.fn().mockResolvedValue({
@@ -30,6 +31,17 @@ const {
         updatedBy: "a1",
       })),
   );
+  const resolveOrganizationForUserMockInner = vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  }));
   return {
     getSessionMock: vi.fn(),
     listSettingsByScopeMock: listSettingsByScopeMockInner,
@@ -37,6 +49,7 @@ const {
     getSettingMock: getSettingMockInner,
     listTopicsMock: listTopicsMockInner,
     persistAdminModesBatchMock: persistAdminModesBatchMockInner,
+    resolveOrganizationForUserMock: resolveOrganizationForUserMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: {
         listSettingsByScope: listSettingsByScopeMockInner,
@@ -46,6 +59,9 @@ const {
       },
       subscriptionMailingProjection: {
         listTopics: listTopicsMockInner,
+      },
+      organizationMembership: {
+        resolveOrganizationForUser: resolveOrganizationForUserMockInner,
       },
     })),
   };
@@ -278,6 +294,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       expect.any(Object),
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -351,7 +368,7 @@ describe("PATCH /api/admin/settings", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("max_debug_page_enabled", "admin", { value: true }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("max_debug_page_enabled", "admin", { value: true }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 200 for admin updating app_base_url", async () => {
@@ -372,7 +389,7 @@ describe("PATCH /api/admin/settings", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("app_base_url", "admin", { value: "https://example.com" }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("app_base_url", "admin", { value: "https://example.com" }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 400 for invalid smtp_outbound payload", async () => {
@@ -430,6 +447,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       expect.objectContaining({ value: expect.objectContaining({ host: inner.host, password: inner.password }) }),
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -468,20 +486,31 @@ describe("PATCH /api/admin/settings", () => {
 
     const svc = createSystemSettingsService(mergePort);
 
-    /** One PATCH → one buildAppDeps() call; restores default mocked deps for other tests automatically. */
-    buildAppDepsMock.mockReturnValueOnce({
+    /**
+     * P0.11.3: the route now calls `buildAppDeps()` TWICE per single-key PATCH — once inside
+     * `resolveBestEffortOrganizationId()` (needs `organizationMembership`) and once directly for
+     * `deps.systemSettings.*` — so the custom deps object below must be queued for BOTH calls.
+     */
+    const customDeps = {
       systemSettings: {
         listSettingsByScope: listSettingsByScopeMock,
         persistAdminModesBatch: persistAdminModesBatchMock,
-        updateSetting: vi.fn((key: string, scope: "admin", value: unknown, ub: string | null) =>
-          svc.updateSetting(key as SystemSettingKey, scope, value, ub),
+        updateSetting: vi.fn(
+          (key: string, scope: "admin", value: unknown, ub: string | null, options?: { organizationId?: string | null }) =>
+            svc.updateSetting(key as SystemSettingKey, scope, value, ub, options),
         ),
-        getSetting: vi.fn((key: string, scope: "admin") => svc.getSetting(key as SystemSettingKey, scope)),
+        getSetting: vi.fn((key: string, scope: "admin", options?: { organizationId?: string | null }) =>
+          svc.getSetting(key as SystemSettingKey, scope, options),
+        ),
       },
       subscriptionMailingProjection: {
         listTopics: listTopicsMock,
       },
-    });
+      organizationMembership: {
+        resolveOrganizationForUser: resolveOrganizationForUserMock,
+      },
+    };
+    buildAppDepsMock.mockReturnValueOnce(customDeps).mockReturnValueOnce(customDeps);
 
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
 
@@ -589,7 +618,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("web_push_vapid", "admin", { value: pair }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("web_push_vapid", "admin", { value: pair }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
     const json = (await res.json()) as { setting: SystemSetting };
     expect(json.setting.valueJson).toEqual({
       value: { publicKey: pair.publicKey, hasPrivateKey: true },
@@ -660,7 +689,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("web_push_vapid", "admin", { value: { publicKey: pub, privateKey: "" } }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("web_push_vapid", "admin", { value: { publicKey: pub, privateKey: "" } }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
     const json = (await res.json()) as { setting: SystemSetting };
     expect(json.setting.valueJson).toEqual({ value: { publicKey: pub, hasPrivateKey: true } });
   });
@@ -702,7 +731,7 @@ describe("PATCH /api/admin/settings", () => {
         body: JSON.stringify({ key: "dev_mode", value: false }),
       })
     );
-    expect(updateSettingMock).toHaveBeenCalledWith("dev_mode", "admin", { value: false }, "admin-uuid");
+    expect(updateSettingMock).toHaveBeenCalledWith("dev_mode", "admin", { value: false }, "admin-uuid", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 401 when no session on PATCH", async () => {
@@ -772,6 +801,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: "public_only" },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -798,6 +828,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: "contacts_only" },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -824,6 +855,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: 6 },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -866,6 +898,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: 20 },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -911,6 +944,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: false },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -937,6 +971,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: true },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -966,6 +1001,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: "09:30" },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -995,6 +1031,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: true },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -1024,6 +1061,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: ["08:00", "14:00", "20:00"] },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -1102,6 +1140,7 @@ describe("PATCH /api/admin/settings", () => {
         ],
       },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -1194,7 +1233,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("notifications_topics", "admin", { value }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("notifications_topics", "admin", { value }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 200 for admin_incident_alert_config when full v1 shape", async () => {
@@ -1226,7 +1265,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 200 for admin_incident_alert_config when topic keys partial (defaults applied)", async () => {
@@ -1271,7 +1310,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value: expectedValue }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value: expectedValue }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 200 for admin_incident_alert_config and strips unknown topic keys", async () => {
@@ -1318,7 +1357,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value: expectedValue }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value: expectedValue }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 200 for operator_health_alert_config full shape", async () => {
@@ -1348,7 +1387,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("operator_health_alert_config", "admin", { value }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("operator_health_alert_config", "admin", { value }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 400 for operator_health_alert_config invalid digestTime", async () => {
@@ -1404,6 +1443,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -1482,7 +1522,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("notifications_topics", "admin", { value }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("notifications_topics", "admin", { value }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 400 for notifications_topics when id unknown and projection non-empty", async () => {
@@ -1555,6 +1595,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: true },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -1632,6 +1673,7 @@ describe("PATCH /api/admin/settings", () => {
         },
       },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -1684,7 +1726,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("video_default_delivery", "admin", { value: "hls" }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("video_default_delivery", "admin", { value: "hls" }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it.each([
@@ -1709,7 +1751,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith(key, "admin", { value: val }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith(key, "admin", { value: val }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it.each([
@@ -1760,6 +1802,7 @@ describe("PATCH /api/admin/settings", () => {
       "admin",
       { value: true },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -1784,7 +1827,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("patient_booking_url", "admin", { value: "https://example.com/z" }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("patient_booking_url", "admin", { value: "https://example.com/z" }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 200 for patient_booking_url empty (reset to runtime default)", async () => {
@@ -1805,7 +1848,7 @@ describe("PATCH /api/admin/settings", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith("patient_booking_url", "admin", { value: "" }, "a1");
+    expect(updateSettingMock).toHaveBeenCalledWith("patient_booking_url", "admin", { value: "" }, "a1", { organizationId: "550e8400-e29b-41d4-a716-446655440010" });
   });
 
   it("returns 400 for patient_booking_url invalid protocol", async () => {
@@ -1850,6 +1893,7 @@ describe("PATCH /api/admin/settings", () => {
         { key: "debug_forward_to_admin", valueJson: { value: true } },
       ],
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 

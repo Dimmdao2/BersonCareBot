@@ -1,10 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getCurrentSessionMock, getAllTemplatesMock, saveTemplateMock } = vi.hoisted(() => ({
-  getCurrentSessionMock: vi.fn(),
-  getAllTemplatesMock: vi.fn(),
-  saveTemplateMock: vi.fn(),
-}));
+const { getCurrentSessionMock, getAllTemplatesMock, saveTemplateMock, resolveOrganizationForUserMock } = vi.hoisted(
+  () => ({
+    getCurrentSessionMock: vi.fn(),
+    getAllTemplatesMock: vi.fn(),
+    saveTemplateMock: vi.fn(),
+    resolveOrganizationForUserMock: vi.fn(async () => ({
+      ok: true,
+      context: {
+        organizationId: "550e8400-e29b-41d4-a716-446655440010",
+        membershipId: "membership-1",
+        role: "owner",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+      },
+    })),
+  }),
+);
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -15,6 +28,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     notifTemplates: {
       getAllTemplates: getAllTemplatesMock,
       saveTemplate: saveTemplateMock,
+    },
+    organizationMembership: {
+      resolveOrganizationForUser: resolveOrganizationForUserMock,
     },
   }),
 }));
@@ -58,10 +74,10 @@ describe("GET /api/doctor/notification-templates", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when role is client (foreign)", async () => {
+  it("returns 401 when role is client (requireDoctorWorkspaceApiContext rejects non-doctor)", async () => {
     getCurrentSessionMock.mockResolvedValue(PATIENT_SESSION);
     const res = await GET();
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("returns all 6 templates for doctor", async () => {
@@ -97,10 +113,10 @@ describe("PUT /api/doctor/notification-templates", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when role is client (foreign)", async () => {
+  it("returns 401 when role is client (requireDoctorWorkspaceApiContext rejects non-doctor)", async () => {
     getCurrentSessionMock.mockResolvedValue(PATIENT_SESSION);
     const res = await PUT(putReq({ event: "created", audience: "patient", text: "Test" }));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("returns 400 for invalid event", async () => {
@@ -140,7 +156,9 @@ describe("PUT /api/doctor/notification-templates", () => {
     const body = (await res.json()) as { ok: boolean; template: typeof savedEntry };
     expect(body.ok).toBe(true);
     expect(body.template).toEqual(savedEntry);
-    expect(saveTemplateMock).toHaveBeenCalledWith("created", "patient", "Запись: {{date}}", "doc1");
+    expect(saveTemplateMock).toHaveBeenCalledWith("created", "patient", "Запись: {{date}}", "doc1", {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+    });
   });
 
   it("passes trimmed text to saveTemplate", async () => {
@@ -148,7 +166,9 @@ describe("PUT /api/doctor/notification-templates", () => {
     saveTemplateMock.mockResolvedValue({ event: "cancelled", audience: "doctor", text: "Отмена {{date}}", isDefault: false });
 
     await PUT(putReq({ event: "cancelled", audience: "doctor", text: "  Отмена {{date}}  " }));
-    expect(saveTemplateMock).toHaveBeenCalledWith("cancelled", "doctor", "Отмена {{date}}", "doc1");
+    expect(saveTemplateMock).toHaveBeenCalledWith("cancelled", "doctor", "Отмена {{date}}", "doc1", {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+    });
   });
 
   it("returns 400 for missing body fields", async () => {

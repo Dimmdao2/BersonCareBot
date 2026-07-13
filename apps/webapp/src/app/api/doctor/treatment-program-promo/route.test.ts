@@ -7,17 +7,30 @@ const {
   getTemplateMock,
   updateSettingMock,
   buildAppDepsMock,
+  resolveOrganizationForUserMock,
 } = vi.hoisted(() => {
   const getPatientDefaultPromoMockInner = vi.fn().mockResolvedValue(null);
   const countInstancesMockInner = vi.fn().mockResolvedValue(0);
   const getTemplateMockInner = vi.fn();
   const updateSettingMockInner = vi.fn().mockResolvedValue({});
+  const resolveOrganizationForUserMockInner = vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  }));
   return {
     getSessionMock: vi.fn(),
     getPatientDefaultPromoMock: getPatientDefaultPromoMockInner,
     countInstancesMock: countInstancesMockInner,
     getTemplateMock: getTemplateMockInner,
     updateSettingMock: updateSettingMockInner,
+    resolveOrganizationForUserMock: resolveOrganizationForUserMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: {
         getPatientDefaultPromoTreatmentProgramTemplateId: getPatientDefaultPromoMockInner,
@@ -26,6 +39,9 @@ const {
       treatmentProgram: { getTemplate: getTemplateMockInner },
       treatmentProgramInstance: {
         countInstancesForAssignmentSource: countInstancesMockInner,
+      },
+      organizationMembership: {
+        resolveOrganizationForUser: resolveOrganizationForUserMockInner,
       },
     })),
   };
@@ -52,10 +68,10 @@ describe("GET /api/doctor/treatment-program-promo", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 for client role", async () => {
+  it("returns 401 for client role (requireDoctorWorkspaceApiContext rejects non-doctor)", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", bindings: {} } });
     const res = await GET();
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("returns promo config for doctor", async () => {
@@ -80,7 +96,7 @@ describe("PATCH /api/doctor/treatment-program-promo", () => {
     updateSettingMock.mockReset();
   });
 
-  it("returns 403 for client role", async () => {
+  it("returns 401 for client role (requireDoctorWorkspaceApiContext rejects non-doctor)", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", bindings: {} } });
     const res = await PATCH(
       new Request("http://localhost/api/doctor/treatment-program-promo", {
@@ -89,7 +105,7 @@ describe("PATCH /api/doctor/treatment-program-promo", () => {
         body: JSON.stringify({ templateId: TEMPLATE_ID }),
       }),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("clears promo template when templateId is empty", async () => {
@@ -107,6 +123,7 @@ describe("PATCH /api/doctor/treatment-program-promo", () => {
       "admin",
       { value: "" },
       "d1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 
@@ -140,6 +157,7 @@ describe("PATCH /api/doctor/treatment-program-promo", () => {
       "admin",
       { value: TEMPLATE_ID },
       "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
     );
   });
 });
