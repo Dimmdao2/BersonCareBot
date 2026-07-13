@@ -22,9 +22,8 @@
  * SAFETY: dry-run by default (read-only diagnosis). All writes require `--commit`. Legacy rows are
  * only ever soft-deleted (`deleted_at`), never hard-deleted; canonical/raw are untouched here.
  *
- * Test/block markers treated as deletable (owner 2026-06-13 / 2026-07-14): phone
- * +79189000782 («Берсон»), +70000000000 («БЛОК ОКНА»), +79000000000 (normalized
- * owner-approved `9000000000` test variant).
+ * Test/block markers treated as deletable (owner 2026-06-13 / 2026-07-14): explicit
+ * approved phone variants and exact safe name markers only. No fuzzy matching.
  *
  * Usage (set webapp DATABASE_URL; on dev use a CLEAN prod snapshot for a trustworthy run):
  *   pnpm backfill-canonical-from-legacy-appointments                    # DRY-RUN: diagnosis only, no writes
@@ -47,7 +46,7 @@
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import { createPgBookingRubitimeBridgePort } from "@/infra/repos/pgBookingRubitimeBridge";
@@ -56,7 +55,14 @@ import type {
   RubitimeCanonicalProjectionInput,
 } from "@/modules/booking-rubitime-bridge/ports";
 
-const TEST_BLOCK_PHONES = ["+79189000782", "+70000000000", "+79000000000"];
+const TEST_BLOCK_PHONES = [
+  "+79189000782",
+  "+70000000000",
+  "+79000000000",
+  "+79999999999",
+  "+79876543210",
+];
+const TEST_BLOCK_NAME_MARKERS = ["тест", "test", "дмитрий берсон", "берсон", "блок окна"];
 const DEFAULT_CSV = "../../.tmp/rubitime-import/records.csv";
 
 type Cli = {
@@ -156,6 +162,13 @@ function list(values: readonly string[]) {
   return sql`(${sql.join(values.map((v) => sql`${v}`), sql`, `)})`;
 }
 
+function matchesTestBlockName(nameExpr: SQL) {
+  return sql`(${sql.join(
+    TEST_BLOCK_NAME_MARKERS.map((marker) => sql`${nameExpr} LIKE ${`%${marker}%`}`),
+    sql` OR `,
+  )})`;
+}
+
 type CountRow = {
   legacy_live: number;
   canonical_projection: number;
@@ -199,13 +212,15 @@ async function diagnose(csv: CsvIndex | null, opts: { summaryOnly: boolean }): P
       )
       SELECT
         count(*)::int AS total,
-        count(*) FILTER (WHERE phone_normalized IN ${list(TEST_BLOCK_PHONES)} OR nm ILIKE '%берсон%' OR nm ILIKE '%блок окна%')::int AS test_block,
+        count(*) FILTER (
+          WHERE phone_normalized IN ${list(TEST_BLOCK_PHONES)}
+             OR ${matchesTestBlockName(sql`lower(coalesce(nm, ''))`)}
+        )::int AS test_block,
         count(*) FILTER (WHERE status = 'canceled')::int AS cancelled,
         count(*) FILTER (
           WHERE status <> 'canceled'
             AND phone_normalized NOT IN ${list(TEST_BLOCK_PHONES)}
-            AND coalesce(nm, '') NOT ILIKE '%берсон%'
-            AND coalesce(nm, '') NOT ILIKE '%блок окна%'
+            AND NOT ${matchesTestBlockName(sql`lower(coalesce(nm, ''))`)}
         )::int AS real_active,
         count(*) FILTER (WHERE record_at >= now())::int AS future
       FROM unmapped`),
@@ -296,8 +311,7 @@ async function deleteTestBlock(): Promise<string[]> {
     SET deleted_at = now()
     WHERE deleted_at IS NULL
       AND ( phone_normalized IN ${list(TEST_BLOCK_PHONES)}
-            OR coalesce(payload_json->>'name', payload_json->>'contact_name') ILIKE '%берсон%'
-            OR coalesce(payload_json->>'name', payload_json->>'contact_name') ILIKE '%блок окна%' )
+            OR ${matchesTestBlockName(sql`lower(coalesce(payload_json->>'name', payload_json->>'contact_name', ''))`)} )
     RETURNING integrator_record_id`);
   return rows<{ integrator_record_id: string }>(res).map((r) => r.integrator_record_id);
 }
