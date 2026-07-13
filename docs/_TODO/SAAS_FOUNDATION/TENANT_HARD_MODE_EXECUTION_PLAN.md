@@ -299,6 +299,13 @@ node /home/dev/brain/tools/code-search.mjs "runWithDbPrincipal getPool getDrizzl
 
 Gate: 100% runtime DB surfaces классифицированы; новые unclassified DB calls ломают static check; текущие нарушения имеют owner/package, а не silent allow.
 
+Checklist закрытия H0:
+
+- [ ] Все пункты работ H0 закрыты или явно `cancelled` с причиной.
+- [ ] Descriptor, entrypoint matrix и Store mechanic matrix сохранены в docs/scripts и не содержат `unknown global`.
+- [ ] Все H0 Checks выполнены, результаты и known failures записаны в `TENANT_HARD_MODE_LOG.md`.
+- [ ] Gate H0 подтверждён статическим check: новые unclassified DB calls падают.
+
 ### Phase H1 — P0 hotfix walls до общего role flip
 
 #### H1-A. Broadcasts
@@ -336,6 +343,14 @@ pnpm --dir apps/integrator typecheck
 
 Gate: P0 A/B isolation зелёная без DB hard flip; missing workspace context fail-closed; нет global audience/media reads; новая очередь соответствует separation of duties.
 
+Checklist закрытия H1:
+
+- [ ] H1-A Broadcasts закрыт по всем work items, включая org-stamped enqueue и foreign-recipient denial.
+- [ ] H1-B Media закрыт по всем work items, включая upload/multipart и media-worker job org inheritance.
+- [ ] Все Checks для H1 выполнены; падения либо исправлены, либо внесены в blocked/owner-decision с точной причиной.
+- [ ] Gate H1 подтверждён A/B isolation без общего DB role flip.
+- [ ] `TENANT_HARD_MODE_LOG.md` обновлён diff/проверками/known failures.
+
 ### Phase H2 — principal carrier, roles и shadow instrumentation
 
 - [ ] Расширить typed principal contract и убрать несовместимое integrator→patient role mapping.
@@ -365,6 +380,14 @@ Scratch-only proofs: spoofed raw GUC denied; invalid/replayed/expired signature 
 
 Gate: all process families can run shadow; zero unknown principal sources; signed context cannot be forged by runtime roles; shadow report пригоден для domain rollout.
 
+Checklist закрытия H2:
+
+- [ ] Все пункты H2 закрыты или явно `cancelled` с owner decision.
+- [ ] Runtime roles/marker memberships не дают owner/BYPASSRLS и не используются как table owner.
+- [ ] Signed context scratch-only proofs выполнены: spoof/replay/expired/wrong backend pid denied, cleanup проверен.
+- [ ] Static governance seals закрывают raw `SET app.*`, direct principal helpers и missing `source`.
+- [ ] Gate H2 подтверждён shadow run/report по webapp, integrator, scheduler, worker и media-worker.
+
 ### Phase H3 — reproducible RLS/grants and P0 DB enforce
 
 - [ ] Перенести/встроить FORCE RLS, policies, grants, helpers из manual overlays в канонический idempotent migration/cutover path.
@@ -375,6 +398,14 @@ Gate: all process families can run shadow; zero unknown principal sources; signe
 - [ ] Подготовить rollback artifact, возвращающий policy/grant state без удаления tenant data/columns.
 
 Gate: fresh disposable restore получает те же policies/grants без ручного SQL; P0 policies deny cross-org и allow legal flows; rollback proof пройден.
+
+Checklist закрытия H3:
+
+- [ ] FORCE RLS, policies, grants и helpers воспроизводятся из canonical migration/cutover artifact.
+- [ ] Fresh disposable restore и post-migrate checker зелёные без ручного overlay.
+- [ ] P0 ownership backfill/detectors показывают 0 unexplained NULL/orphan/foreign-parent rows.
+- [ ] Real-role A/B proofs закрыты для doctor, clinic_admin, patient denial, worker claim/execute и bootstrap denial.
+- [ ] Rollback artifact проверен и не удаляет tenant data/columns.
 
 ### Phase H4 — clinic staff domains
 
@@ -393,6 +424,14 @@ Schedule settings выделяются в authz-пакет: clinic-owned APIs п
 
 Gate domain: 0 unexplained shadow events за согласованное окно на TEST; A/B matrix зелёная; rollback готов; owner approves enforce.
 
+Checklist закрытия H4:
+
+- [ ] Для каждого clinic staff domain закрыты entrypoint matrix, ownership path и capability order.
+- [ ] Shadow window на TEST даёт 0 unexplained violations либо owner-approved exceptions.
+- [ ] A/B allow/deny tests покрывают SELECT/INSERT/UPDATE/DELETE и различают clinic_admin vs doctor capabilities.
+- [ ] FORCE/policies включены только после backfill/constraint gate и rollback proof.
+- [ ] Domain gate, owner approval и результаты checks записаны в `TENANT_HARD_MODE_LOG.md`.
+
 ### Phase H5 — client wall и multi-org enrollment
 
 - [ ] Ввести runtime patient principal с обязательными `patient_user_id` и resource/enrollment-derived org.
@@ -404,6 +443,14 @@ Gate domain: 0 unexplained shadow events за согласованное окн�
 
 Gate: patient cannot impersonate another patient в той же org и не получает ресурс другой org; все patient writes ограничены column/value contract.
 
+Checklist закрытия H5:
+
+- [ ] Patient principal всегда содержит `patient_user_id` и resource/enrollment-derived org.
+- [ ] Все patient routes классифицированы по источнику org/self scope; first/default org fallback отсутствует.
+- [ ] Global identity/channel reads защищены self + active enrollment без invented org columns.
+- [ ] Multi-org enrollment A+B proof закрыт: own resource allowed, foreign resource denied, ambiguity handled explicitly.
+- [ ] Patient write value/column contracts из `P0_5B_GRANTS.md` проверены.
+
 ### Phase H6 — public, booking, webhook/M2M
 
 - [ ] Public booking derives exact-one org from trusted host/link/profile/branch/service before SCOPED write.
@@ -414,6 +461,14 @@ Gate: patient cannot impersonate another patient в той же org и не по
 - [ ] Rubitime legacy projections не включаются в FORCE до отдельного canonical cutover.
 
 Gate: forged org in payload ignored/denied; unknown/ambiguous org does not write SCOPED data; bootstrap cannot scan business tables.
+
+Checklist закрытия H6:
+
+- [ ] Public booking org source exact-one и trusted; payload org не является source of truth.
+- [ ] Webhook/M2M paths проверяют signature отдельно от tenant derivation и режут mixed-org batches на per-org runs.
+- [ ] Bootstrap grants ограничены identity/org-resolution views/functions и не читают business tables.
+- [ ] Legacy/default-org fallbacks либо мигрированы, либо оформлены как blocked exception с owner deadline.
+- [ ] Rubitime legacy FORCE остаётся заблокирован до отдельного canonical cutover decision.
 
 ### Phase H7 — references/catalog and analytics decisions
 
@@ -432,6 +487,14 @@ Analytics before Store P4:
 
 Gate: no unclassified NULL/global semantics; uniqueness matches ownership model; analytics attribution is deterministic.
 
+Checklist закрытия H7:
+
+- [ ] Owner decision по references/catalog ownership зафиксирован до schema/policy changes.
+- [ ] Unique keys, seed/backfill и NULL/global precedence соответствуют выбранной ownership model.
+- [ ] Clinic reference/catalog A/B read/write tests зелёные.
+- [ ] Analytics ingest/rollups имеют deterministic org attribution, unknown bucket и clinic/platform projection split.
+- [ ] Platform aggregates работают только через audited platform scope.
+
 ### Phase H8 — full cutover and cleanup
 
 - [ ] Все SCOPED descriptors `enforce`; remaining H class has owner-approved isolation/cutover record.
@@ -449,21 +512,29 @@ pnpm install --frozen-lockfile && pnpm run ci
 
 Не повторять full CI без новых изменений. Production policy/role verification выполняется только по owner-approved cutover runbook; этот план не разрешает prod access.
 
+Checklist финального закрытия H8:
+
+- [ ] H0-H7 checklists закрыты или явно `cancelled` с owner-approved reason.
+- [ ] Все SCOPED descriptors в `enforce`; remaining H-class имеет approved isolation/cutover record.
+- [ ] Legacy helpers/fallbacks удалены только после `rg` runtime proof.
+- [ ] TEST process-family smoke и final full CI выполнены один раз на integration/deploy checkpoint.
+- [ ] Production window, backup confirmation и policy/role verification выполняются только по отдельному owner-approved cutover runbook.
+
 ## 9. Migration и backfill gates
 
-Для каждой enforced table family порядок фиксирован:
+Checklist для каждой enforced table family:
 
-1. descriptor/ADR ownership;
-2. schema adds nullable ownership/parent support, если отсутствует;
-3. writers начинают stamp/copy org;
-4. read-only detector считает NULL/orphan/conflicting owner/duplicate key без ПДн;
-5. idempotent backfill на disposable/test copy;
-6. повторный detector = 0 необъяснённых строк;
-7. indexes, FK/check; `NOT VALID` → validate при необходимости;
-8. `NOT NULL`/immutable ownership guard;
-9. RLS `USING` + `WITH CHECK`, grants, FORCE;
-10. real-role allow/deny smoke + rollback proof;
-11. только затем production cutover window.
+- [ ] descriptor/ADR ownership;
+- [ ] schema adds nullable ownership/parent support, если отсутствует;
+- [ ] writers начинают stamp/copy org;
+- [ ] read-only detector считает NULL/orphan/conflicting owner/duplicate key без ПДн;
+- [ ] idempotent backfill на disposable/test copy;
+- [ ] повторный detector = 0 необъяснённых строк;
+- [ ] indexes, FK/check; `NOT VALID` → validate при необходимости;
+- [ ] `NOT NULL`/immutable ownership guard;
+- [ ] RLS `USING` + `WITH CHECK`, grants, FORCE;
+- [ ] real-role allow/deny smoke + rollback proof;
+- [ ] только затем production cutover window.
 
 Backfill запрещено угадывать org при нескольких active enrollments/parents. Такие строки идут в conflict report с opaque ids и owner rule; они не назначаются default org автоматически.
 
@@ -500,16 +571,16 @@ Backfill запрещено угадывать org при нескольких a
 
 ### 11.1. Rollout
 
-1. source/static gates and typed wrappers;
-2. shadow on TEST for all process families;
-3. P0 app walls;
-4. reproducible DB roles/policies on fresh disposable restore;
-5. P0 FORCE on TEST;
-6. domain-by-domain shadow→enforce on TEST;
-7. full process smoke: webapp, integrator API, worker, scheduler, media-worker, public booking/webhook fixtures;
-8. full CI at integration checkpoint;
-9. owner sign-off and backup-confirmed production window;
-10. production canary by domain/process, monitor denial counters, then expand.
+- [ ] source/static gates and typed wrappers;
+- [ ] shadow on TEST for all process families;
+- [ ] P0 app walls;
+- [ ] reproducible DB roles/policies on fresh disposable restore;
+- [ ] P0 FORCE on TEST;
+- [ ] domain-by-domain shadow→enforce on TEST;
+- [ ] full process smoke: webapp, integrator API, worker, scheduler, media-worker, public booking/webhook fixtures;
+- [ ] full CI at integration checkpoint;
+- [ ] owner sign-off and backup-confirmed production window;
+- [ ] production canary by domain/process, monitor denial counters, then expand.
 
 ### 11.2. Rollback triggers
 
@@ -523,13 +594,13 @@ Backfill запрещено угадывать org при нескольких a
 
 ### 11.3. Rollback actions
 
-- stop affected rollout/canary and prevent new enqueue where delivery safety is uncertain;
-- switch affected table family to prebuilt compat policy/grants artifact; do not grant BYPASSRLS;
-- roll back runtime role/context mode for the affected process only per runbook;
-- restart affected units to clear pooled sessions;
-- verify context cleanup and queue lease recovery;
-- preserve ownership columns/backfill data and security logs;
-- re-run focused allow/deny smoke before resuming.
+- [ ] stop affected rollout/canary and prevent new enqueue where delivery safety is uncertain;
+- [ ] switch affected table family to prebuilt compat policy/grants artifact; do not grant BYPASSRLS;
+- [ ] roll back runtime role/context mode for the affected process only per runbook;
+- [ ] restart affected units to clear pooled sessions;
+- [ ] verify context cleanup and queue lease recovery;
+- [ ] preserve ownership columns/backfill data and security logs;
+- [ ] re-run focused allow/deny smoke before resuming.
 
 Rollback не использует `DISABLE ROW LEVEL SECURITY` как штатную кнопку и не переключает runtime на owner/migrator.
 
