@@ -33,10 +33,6 @@ export async function POST(request: Request) {
     if (!intent) {
       return NextResponse.json({ ok: false, error: "expired_code" }, { status: 400 });
     }
-    const emailState = await deps.userProjection.getProfileEmailFields(intent.userId);
-    if (!emailState.emailVerifiedAt) {
-      return NextResponse.json({ ok: false, error: "expired_code" }, { status: 400 });
-    }
     userId = intent.userId;
     shouldVerifyCode = false;
   }
@@ -74,6 +70,9 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "";
     if (message === "specialist_signup_intent_not_found") {
       return NextResponse.json({ ok: false, error: "signup_intent_not_found" }, { status: 400 });
+    }
+    if (message === "specialist_signup_user_not_verified") {
+      return NextResponse.json({ ok: false, error: "expired_code" }, { status: 400 });
     }
     throw error;
   }

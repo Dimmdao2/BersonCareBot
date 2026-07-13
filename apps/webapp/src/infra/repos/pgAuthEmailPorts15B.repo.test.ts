@@ -177,13 +177,15 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     const port = createPgUserPasswordCredentialsPort();
     const uid = await port.findUserIdByEmailChallengeId("ch-1");
     expect(uid).toBe("u1");
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("email_challenges");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain(
+      "app.email_password_find_user_id_by_email_challenge",
+    );
   });
 
   it("createPgUserPasswordCredentialsPort registerPendingVerification uses runWebappTransaction", async () => {
-    runWebappPgTextMock
-      .mockResolvedValueOnce({ rows: [{ id: "u-new" }] })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ ok: true, code: null, user_id: "u-new" }],
+    });
     const port = createPgUserPasswordCredentialsPort();
     const r = await port.registerPendingVerification({
       emailNormalized: "user@example.com",
@@ -192,12 +194,13 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     });
     expect(r).toEqual({ ok: true, userId: "u-new" });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.email_password_register_pending");
   });
 
   it("createPgUserPasswordCredentialsPort registerPendingSpecialistVerification stores doctor role", async () => {
-    runWebappPgTextMock
-      .mockResolvedValueOnce({ rows: [{ id: "u-doctor" }] })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ ok: true, code: null, user_id: "u-doctor" }],
+    });
     const port = createPgUserPasswordCredentialsPort();
     const r = await port.registerPendingSpecialistVerification({
       emailNormalized: "doctor@example.com",
@@ -207,9 +210,9 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     expect(r).toEqual({ ok: true, userId: "u-doctor" });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "doctor@example.com",
+      "hash",
       "Doctor",
-      "doctor@example.com",
-      "doctor@example.com",
       "doctor",
     ]);
   });

@@ -52,21 +52,27 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }> {
     try {
       return await runWebappTransaction(async (tx) => {
-        const ins = await runWebappPgText<{ id: string }>(
-          `INSERT INTO platform_users (display_name, email, email_normalized, role)
-           VALUES ($1, $2, $3, $4)
-           RETURNING id`,
-          [params.displayName, params.emailNormalized, params.emailNormalized, params.role],
+        const result = await runWebappPgText<{
+          ok: boolean;
+          code: string | null;
+          user_id: string | null;
+        }>(
+          `SELECT ok, code, user_id::text AS user_id
+           FROM app.email_password_register_pending($1, $2, $3, $4)`,
+          [params.emailNormalized, params.passwordHash, params.displayName, params.role],
           tx,
         );
-        const userId = ins.rows[0]!.id;
-        await runWebappPgText(
-          `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
-           VALUES ($1::uuid, $2::text, now())`,
-          [userId, params.passwordHash],
-          tx,
-        );
-        return { ok: true as const, userId };
+        const row = result.rows[0];
+        if (!row) {
+          throw new Error("email_password_register_pending_failed");
+        }
+        if (!row.ok) {
+          return { ok: false, reason: "duplicate_email" };
+        }
+        if (!row.user_id) {
+          throw new Error("email_password_register_pending_missing_user_id");
+        }
+        return { ok: true as const, userId: row.user_id };
       });
     } catch (e: unknown) {
       const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: unknown }).code) : "";
@@ -113,18 +119,14 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
     async deleteUnverifiedEmailPasswordRegistration(userId) {
       await runWebappPgText(
-        `DELETE FROM platform_users
-         WHERE id = $1::uuid
-           AND role IN ('client', 'doctor')
-           AND merged_into_id IS NULL
-           AND email_verified_at IS NULL`,
+        "SELECT app.email_password_delete_unverified_registration($1::uuid)",
         [userId],
       );
     },
 
     async findUserIdByEmailChallengeId(challengeId) {
       const r = await runWebappPgText<{ user_id: string }>(
-        "SELECT user_id::text AS user_id FROM email_challenges WHERE id = $1::uuid LIMIT 1",
+        "SELECT app.email_password_find_user_id_by_email_challenge($1::uuid)::text AS user_id",
         [challengeId],
       );
       return r.rows[0]?.user_id ?? null;

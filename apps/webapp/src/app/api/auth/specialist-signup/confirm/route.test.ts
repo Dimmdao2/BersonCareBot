@@ -5,7 +5,6 @@ const provisionSpecialistOwnerMock = vi.fn();
 const getSpecialistSignupIntentByChallengeIdMock = vi.fn();
 const findUserIdByEmailChallengeIdMock = vi.fn();
 const findByUserIdMock = vi.fn();
-const getProfileEmailFieldsMock = vi.fn();
 const setSessionFromUserMock = vi.fn();
 const getSpecialistSignupEnabledMock = vi.fn();
 
@@ -20,9 +19,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     userByPhone: {
       findByUserId: findByUserIdMock,
-    },
-    userProjection: {
-      getProfileEmailFields: getProfileEmailFieldsMock,
     },
   }),
 }));
@@ -48,7 +44,6 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     getSpecialistSignupIntentByChallengeIdMock.mockReset();
     findUserIdByEmailChallengeIdMock.mockReset();
     findByUserIdMock.mockReset();
-    getProfileEmailFieldsMock.mockReset();
     setSessionFromUserMock.mockReset();
     getSpecialistSignupEnabledMock.mockReset();
     getSpecialistSignupEnabledMock.mockResolvedValue(true);
@@ -154,10 +149,6 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
       provisionedSpecialistId: null,
       provisionedMembershipId: null,
     });
-    getProfileEmailFieldsMock.mockResolvedValueOnce({
-      email: "doctor@example.com",
-      emailVerifiedAt: "2026-07-12T00:00:00.000Z",
-    });
     provisionSpecialistOwnerMock.mockResolvedValueOnce({
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       specialistId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -187,5 +178,38 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
       userId: "11111111-1111-4111-8111-111111111111",
       challengeId: "22222222-2222-4222-8222-222222222222",
     });
+  });
+
+  it("maps retry provisioning before verified email to expired_code without direct user email read", async () => {
+    findUserIdByEmailChallengeIdMock.mockResolvedValueOnce(null);
+    getSpecialistSignupIntentByChallengeIdMock.mockResolvedValueOnce({
+      id: "intent-1",
+      userId: "11111111-1111-4111-8111-111111111111",
+      challengeId: "22222222-2222-4222-8222-222222222222",
+      emailNormalized: "doctor@example.com",
+      organizationTitle: "Clinic One",
+      specialistFullName: "Doctor Owner",
+      status: "pending",
+      provisionedOrganizationId: null,
+      provisionedSpecialistId: null,
+      provisionedMembershipId: null,
+    });
+    provisionSpecialistOwnerMock.mockRejectedValueOnce(new Error("specialist_signup_user_not_verified"));
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
+    expect(findByUserIdMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "expired_code" });
   });
 });

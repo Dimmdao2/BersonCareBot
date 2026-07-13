@@ -6,6 +6,17 @@ import { describe, expect, it } from "vitest";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("createPgOrganizationProvisioningPort", () => {
+  it("routes public signup intent create/read through RLS definer functions", () => {
+    const src = readFileSync(join(__dirname, "pgOrganizationProvisioning.ts"), "utf8");
+    const publicSignupSrc = src.slice(src.indexOf("async createSpecialistSignupIntent"), src.indexOf("async provisionSpecialistOwner"));
+
+    expect(publicSignupSrc).toContain("app.create_specialist_signup_intent");
+    expect(publicSignupSrc).toContain("app.get_pending_specialist_signup_intent");
+    expect(publicSignupSrc).toContain("app.get_specialist_signup_intent_by_challenge");
+    expect(publicSignupSrc).not.toContain(".insert(specialistSignupIntents)");
+    expect(publicSignupSrc).not.toContain(".from(specialistSignupIntents)");
+  });
+
   it("routes specialist owner signup provisioning through the RLS definer function", () => {
     const src = readFileSync(join(__dirname, "pgOrganizationProvisioning.ts"), "utf8");
     const phase1Src = src.slice(src.indexOf("async provisionSpecialistOwner"), src.indexOf("async ensureOwnBookableSpecialist"));

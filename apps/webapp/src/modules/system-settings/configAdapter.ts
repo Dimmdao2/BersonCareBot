@@ -38,6 +38,19 @@ async function fetchFromDb(key: string): Promise<string | null> {
   }
 }
 
+async function fetchPublicConfigBoolFromDb(key: string): Promise<boolean | null> {
+  try {
+    const { runWebappPgText } = await import("@/infra/db/runWebappSql");
+    const result = await runWebappPgText<{ value: boolean | null }>(
+      "SELECT app.get_public_config_bool($1) AS value",
+      [key],
+    );
+    return result.rows[0]?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Synchronous read: cache hit → env fallback (no DB). Use after async warm-up or accept first-hit env.
  */
@@ -77,6 +90,20 @@ export async function getConfigValue(key: string, envFallback: string): Promise<
 export async function getConfigBool(key: string, envFallback: boolean): Promise<boolean> {
   const val = await getConfigValue(key, envFallback ? "true" : "false");
   return val === "true" || val === "1";
+}
+
+/**
+ * Public/pre-session boolean config read through a whitelisted SECURITY DEFINER accessor.
+ * Falls back to the regular system_settings reader for staff contexts or before the accessor is deployed.
+ */
+export async function getPublicConfigBool(key: string, envFallback: boolean): Promise<boolean> {
+  const dbValue = await fetchPublicConfigBoolFromDb(key);
+  if (dbValue !== null) {
+    const now = Date.now();
+    cache.set(key, { value: dbValue ? "true" : "false", fetchedAt: now });
+    return dbValue;
+  }
+  return getConfigBool(key, envFallback);
 }
 
 /**
