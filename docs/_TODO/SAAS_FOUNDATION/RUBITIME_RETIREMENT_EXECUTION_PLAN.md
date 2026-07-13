@@ -731,13 +731,13 @@ Use these checklists as the operational tracker. A phase is not complete until e
 
 ### R0 — freeze new Rubitime dependency
 
-- [ ] Static search report for current Rubitime references is saved.
-- [ ] No-new-Rubitime-dependency guard is added or explicitly assigned.
-- [ ] Rubitime settings UI is marked deprecated/internal-only or hidden from ordinary clinic flows.
-- [ ] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches.
-- [ ] Current Rubitime route map is recorded.
-- [ ] Current Rubitime table/reference map is recorded.
-- [ ] R0 review confirms no runtime behavior changed.
+- [x] Static search report for current Rubitime references is saved.
+- [x] No-new-Rubitime-dependency guard is added or explicitly assigned.
+- [x] Rubitime settings UI is marked deprecated/internal-only or hidden from ordinary clinic flows.
+- [x] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches.
+- [x] Current Rubitime route map is recorded.
+- [x] Current Rubitime table/reference map is recorded.
+- [x] R0 review confirms no runtime behavior changed.
 
 ### R1 — dual-source history reconciliation and canonical backfill
 
@@ -898,7 +898,7 @@ Use these checklists as the operational tracker. A phase is not complete until e
 
 Rubitime is retired only when all items below are checked.
 
-- [ ] R0 freeze complete.
+- [x] R0 freeze complete.
 - [ ] R1 dual-source history complete.
 - [ ] R1-HISTORY-CONTRACT complete.
 - [ ] R2 doctor canonical read-source complete.

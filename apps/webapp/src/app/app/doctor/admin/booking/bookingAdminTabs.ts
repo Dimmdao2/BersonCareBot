@@ -19,7 +19,7 @@ export const BOOKING_ADMIN_TABS: BookingAdminTab[] = [
   { id: "overview",     label: "Обзор и настройка",        href: BOOKING_ADMIN_BASE },
   { id: "form-public",  label: "Форма и публичная запись",  href: `${BOOKING_ADMIN_BASE}/form-public` },
   { id: "payments",     label: "Оплата",                   href: `${BOOKING_ADMIN_BASE}/payments` },
-  { id: "integrations", label: "Интеграция Rubitime",      href: `${BOOKING_ADMIN_BASE}/integrations` },
+  { id: "integrations", label: "Rubitime legacy",          href: `${BOOKING_ADMIN_BASE}/integrations` },
 ];
 
 /** Legacy маршруты → актуальная вкладка (redirect + подсветка nav). */

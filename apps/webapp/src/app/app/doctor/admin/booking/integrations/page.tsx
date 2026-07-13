@@ -10,7 +10,7 @@ export default function DoctorAdminBookingIntegrationsPage() {
       <BookingRubitimeMappingSection />
 
       <details className="rounded-xl border border-border bg-card p-3">
-        <summary className={doctorSectionTitleClass}>Справочник Rubitime</summary>
+        <summary className={doctorSectionTitleClass}>Справочник Rubitime legacy/internal</summary>
         <div className="mt-3">
           <RubitimeSection />
         </div>
