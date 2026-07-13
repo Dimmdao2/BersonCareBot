@@ -64,7 +64,11 @@ export async function POST(request: Request) {
       "Ссылка действует 7 дней.",
     ].join("\n\n"),
   );
-  if (!emailResult.ok) {
+  // The invite row is already committed. On production a failed email means the invitee
+  // can't receive the link → surface it as an error so the admin can retry. Outside
+  // production (dev/test, where transactional email is redirected/stubbed) don't hard-fail —
+  // return the invite plus the link so the flow stays usable/verifiable.
+  if (!emailResult.ok && env.NODE_ENV === "production") {
     return NextResponse.json({ ok: false, error: "email_send_failed" }, { status: 503 });
   }
 
@@ -72,6 +76,7 @@ export async function POST(request: Request) {
     ok: true,
     inviteId: result.invite.id,
     expiresAt: result.invite.expiresAt,
+    emailDelivered: emailResult.ok,
     ...(env.NODE_ENV !== "production" ? { inviteUrl } : {}),
   });
 }
