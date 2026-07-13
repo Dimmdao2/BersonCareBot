@@ -68,6 +68,13 @@ export const beOrganizations = pgTable(
     title: text().notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
+    /**
+     * Store P0 (dormant): tariff assignment, nullable. FK to saas_tariffs(id) ON DELETE SET NULL is
+     * enforced at the DB level (see deploy/postgres/store-p0-entitlements-rls.sql and migration
+     * 0180_store_entitlements.sql) but intentionally NOT declared here via drizzle's foreignKey()
+     * builder to avoid a circular import with db/schema/saasEntitlements.ts.
+     */
+    tariffId: uuid("tariff_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },

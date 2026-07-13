@@ -40,4 +40,5 @@ export * from "./patientFiles";
 export * from "./patientClinical";
 export * from "./patientClinicalAnamnesis";
 export * from "./patientPayments";
+export * from "./saasEntitlements";
 export * from "./relations";
