@@ -37,7 +37,9 @@ export async function patientClientBusinessGate(session: AppSession): Promise<Pa
         }
       }
       return "allow";
-    } catch {
+    } catch (err) {
+      // TEMP DIAG (task: fix patient-side enforce 403s) — remove before landing.
+      console.error("DIAG:patientClientBusinessGate:catch", err);
       return "need_activation";
     }
   }
