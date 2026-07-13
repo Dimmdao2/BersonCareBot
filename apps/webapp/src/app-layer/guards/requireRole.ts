@@ -242,6 +242,35 @@ export async function requireAdminWorkspaceApiContext(options?: {
   return resolved;
 }
 
+/**
+ * Для clinic-management API: platform admin in adminMode OR a management-capable member
+ * (`owner`/`admin`) of the resolved organization. Organization is always resolved from the
+ * caller's own active memberships; a selected org outside those memberships is rejected by
+ * `resolveOrganizationForUser`.
+ */
+export async function requireClinicManagementApiContext(options?: {
+  selectedOrganizationId?: string | null;
+}): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+  ensureDbPrincipalContext({ source: "requireClinicManagementApiContext:pending" });
+  const session = await getCurrentSession();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  if (!canAccessDoctor(session.user.role)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  if (!resolved.ok) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
+  }
+  const isGlobalAdmin = session.user.role === "admin" && session.adminMode === true;
+  if (!isGlobalAdmin && !resolved.ctx.canManageOrganization) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  stampStaffPrincipal(resolved.ctx, "requireClinicManagementApiContext");
+  return resolved;
+}
+
 /** Есть ли привязка хотя бы одного мессенджера (альтернатива телефону для части сценариев). */
 export function hasMessengerBinding(session: AppSession): boolean {
   const b = session.user.bindings;

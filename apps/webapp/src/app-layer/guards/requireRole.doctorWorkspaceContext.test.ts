@@ -30,6 +30,7 @@ vi.mock("next/navigation", () => ({
 
 import {
   requireAdminWorkspaceApiContext,
+  requireClinicManagementApiContext,
   requireDoctorApiSession,
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
@@ -225,6 +226,102 @@ describe("requireAdminWorkspaceApiContext", () => {
       kind: "staff",
       organizationId: ORG_1,
       platformUserId: admin.user.userId,
+    });
+  });
+});
+
+describe("requireClinicManagementApiContext", () => {
+  it("returns resolved context for admin in admin mode", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: ORG_1,
+        platformUserId: admin.user.userId,
+        role: "doctor",
+        specialistId: "specialist-1",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
+    });
+
+    const gate = await requireClinicManagementApiContext();
+
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.ctx.organizationId).toBe(ORG_1);
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "staff",
+      organizationId: ORG_1,
+      platformUserId: admin.user.userId,
+    });
+  });
+
+  it("returns resolved context for a management-capable doctor membership", async () => {
+    const doctor = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: ORG_1,
+        platformUserId: doctor.user.userId,
+        role: "owner",
+        specialistId: "specialist-1",
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+      },
+    });
+
+    const gate = await requireClinicManagementApiContext();
+
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.ctx.membershipRole).toBe("owner");
+    expect(gate.ctx.canManageOrganization).toBe(true);
+  });
+
+  it("returns forbidden for a plain specialist membership", async () => {
+    const doctor = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: ORG_1,
+        platformUserId: doctor.user.userId,
+        role: "doctor",
+        specialistId: "specialist-1",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
+    });
+
+    const gate = await requireClinicManagementApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+  });
+
+  it("rejects selected organizations outside the caller memberships", async () => {
+    const doctor = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: false,
+      reason: "selected_membership_not_found",
+    });
+
+    const gate = await requireClinicManagementApiContext({ selectedOrganizationId: ORG_2 });
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
+      platformUserId: doctor.user.userId,
+      selectedOrganizationId: ORG_2,
     });
   });
 });

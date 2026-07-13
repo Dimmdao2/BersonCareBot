@@ -94,6 +94,7 @@ describe("GET /api/admin/settings", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listSettingsByScopeMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
   });
 
   it("returns 401 when no session", async () => {
@@ -110,19 +111,58 @@ describe("GET /api/admin/settings", () => {
 
   it("returns 403 for doctor role", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        organizationId: "550e8400-e29b-41d4-a716-446655440010",
+        membershipId: "membership-1",
+        role: "doctor",
+        specialistId: null,
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
+    });
     const res = await GET();
     expect(res.status).toBe(403);
   });
 
   it("returns 200 for admin role", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     listSettingsByScopeMock.mockResolvedValue([]);
     const res = await GET();
     expect(res.status).toBe(200);
   });
 
+  it("returns only per-org keys for a clinic manager", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+    listSettingsByScopeMock.mockResolvedValue([
+      {
+        key: "booking_min_notice_hours",
+        scope: "admin",
+        organizationId: "550e8400-e29b-41d4-a716-446655440010",
+        valueJson: { value: 12 },
+        updatedAt: "",
+        updatedBy: null,
+      } as SystemSetting,
+      {
+        key: "dev_mode",
+        scope: "admin",
+        organizationId: null,
+        valueJson: { value: false },
+        updatedAt: "",
+        updatedBy: null,
+      } as SystemSetting,
+    ]);
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { settings: SystemSetting[] };
+    expect(json.settings.map((setting) => setting.key)).toEqual(["booking_min_notice_hours"]);
+  });
+
   it("redacts web_push_vapid privateKey in GET (hasPrivateKey only)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const secret = "super_secret_vapid_private_not_for_client";
     listSettingsByScopeMock.mockResolvedValue([
       {
@@ -204,6 +244,7 @@ describe("PATCH /api/admin/settings", () => {
     getSessionMock.mockReset();
     updateSettingMock.mockReset();
     getSettingMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
     listTopicsMock.mockReset();
     listTopicsMock.mockResolvedValue([]);
     persistAdminModesBatchMock.mockReset();
@@ -220,6 +261,17 @@ describe("PATCH /api/admin/settings", () => {
 
   it("returns 403 for doctor role", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        organizationId: "550e8400-e29b-41d4-a716-446655440010",
+        membershipId: "membership-1",
+        role: "doctor",
+        specialistId: null,
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
+    });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -230,8 +282,53 @@ describe("PATCH /api/admin/settings", () => {
     expect(res.status).toBe(403);
   });
 
+  it("allows a clinic manager to update a per-org setting for their own organization", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "booking_min_notice_hours",
+      scope: "admin",
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      valueJson: { value: 24 },
+      updatedAt: "",
+      updatedBy: "d1",
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_min_notice_hours", value: 24 }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "booking_min_notice_hours",
+      "admin",
+      { value: 24 },
+      "d1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
+    );
+  });
+
+  it("forbids a clinic manager from updating a global setting", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "dev_mode", value: true }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for invalid key", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -244,7 +341,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin updating dev_mode", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "dev_mode",
@@ -264,7 +361,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("updates booking_lifecycle_notifications", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "booking_lifecycle_notifications",
@@ -299,7 +396,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("updates booking_slots_read_source", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "booking_slots_read_source",
@@ -319,7 +416,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for invalid booking_slots_read_source", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -331,7 +428,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("updates booking_doctor_appointments_read_source", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "booking_doctor_appointments_read_source",
@@ -351,7 +448,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin updating max_debug_page_enabled (AdminSettingsSection body)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "max_debug_page_enabled",
@@ -372,7 +469,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin updating app_base_url", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "app_base_url",
@@ -393,7 +490,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for invalid smtp_outbound payload", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
@@ -417,7 +514,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin updating smtp_outbound", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const inner = {
       host: "smtp.example.com",
@@ -513,7 +610,7 @@ describe("PATCH /api/admin/settings", () => {
     };
     buildAppDepsMock.mockReturnValueOnce(customDeps).mockReturnValueOnce(customDeps);
 
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
 
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
@@ -546,7 +643,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for web_push_vapid with invalid base64url public key", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const { privateKey } = sampleWebPushVapidKeyPair();
     const res = await PATCH(
@@ -564,7 +661,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for web_push_vapid when public key decodes to wrong length", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const { privateKey } = sampleWebPushVapidKeyPair();
     const shortPub = Buffer.alloc(10, 1).toString("base64url");
@@ -583,7 +680,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 when first web_push_vapid save omits private key", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const { publicKey: pub } = sampleWebPushVapidKeyPair();
     const res = await PATCH(
@@ -601,7 +698,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin updating web_push_vapid with valid pair (response omits privateKey)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const pair = sampleWebPushVapidKeyPair();
     updateSettingMock.mockResolvedValue({
@@ -628,7 +725,7 @@ describe("PATCH /api/admin/settings", () => {
 
   it("audit log for web_push_vapid redacts privateKey in old and new values", async () => {
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const prevPair = sampleWebPushVapidKeyPair();
     const newPair = sampleWebPushVapidKeyPair();
     getSettingMock.mockResolvedValue({
@@ -661,7 +758,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for web_push_vapid when private empty but stored private exists (merge in service)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const newPubPair = sampleWebPushVapidKeyPair();
     const pub = newPubPair.publicKey;
     const stored = sampleWebPushVapidKeyPair();
@@ -696,7 +793,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin updating yandex_oauth_client_id (system_settings)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "yandex_oauth_client_id",
@@ -716,7 +813,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("записывает updated_by из сессии при PATCH", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "admin-uuid", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "admin-uuid", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "dev_mode",
@@ -748,7 +845,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for invalid integrator_linked_phone_source string", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -764,7 +861,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for integrator_linked_phone_source when value is not a string", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -777,7 +874,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 and trims integrator_linked_phone_source for admin", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "integrator_linked_phone_source",
@@ -807,7 +904,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("accepts integrator_linked_phone_source as bare string value", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "integrator_linked_phone_source",
@@ -834,7 +931,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_daily_practice_target in range", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_daily_practice_target",
@@ -861,7 +958,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_home_daily_practice_target out of range", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -874,7 +971,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_daily_warmup_repeat_cooldown_minutes in range", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_daily_warmup_repeat_cooldown_minutes",
@@ -904,7 +1001,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_treatment_plan_item_done_repeat_cooldown_minutes out of range", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -920,7 +1017,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_warmup_skip_to_next_available_enabled boolean", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_warmup_skip_to_next_available_enabled",
@@ -950,7 +1047,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_morning_ping_enabled boolean", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_morning_ping_enabled",
@@ -977,7 +1074,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_morning_ping_local_time HH:MM", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_morning_ping_local_time",
@@ -1007,7 +1104,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_daily_warmup_rotation_enabled boolean", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_daily_warmup_rotation_enabled",
@@ -1037,7 +1134,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_daily_warmup_rotation_times sorted", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_daily_warmup_rotation_times",
@@ -1067,7 +1164,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_home_daily_warmup_rotation_times invalid", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1083,7 +1180,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_home_morning_ping_local_time invalid", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1099,7 +1196,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_mood_icons with five scores sorted on save", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_mood_icons",
@@ -1146,7 +1243,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_home_mood_icons wrong array length", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1167,7 +1264,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_home_mood_icons duplicate score", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1191,7 +1288,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_home_mood_icons invalid imageUrl", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1215,7 +1312,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for notifications_topics when projection empty (structural only)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     listTopicsMock.mockResolvedValue([]);
     updateSettingMock.mockResolvedValue({
@@ -1238,7 +1335,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin_incident_alert_config when full v1 shape", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const value = {
       topics: {
@@ -1270,7 +1367,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin_incident_alert_config when topic keys partial (defaults applied)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const expectedValue = {
       topics: {
@@ -1315,7 +1412,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for admin_incident_alert_config and strips unknown topic keys", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const expectedValue = {
       topics: {
@@ -1362,7 +1459,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for operator_health_alert_config full shape", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const value = {
       topics: { critical_enabled: true, digest_enabled: true, account_conflicts: false },
@@ -1392,7 +1489,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for operator_health_alert_config invalid digestTime", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1417,7 +1514,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for operator_health_projection_thresholds", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const value = {
       retriesDebounceMinutes: 15,
@@ -1449,7 +1546,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for operator_health_projection_thresholds invalid minutes", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1464,7 +1561,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for operator_health_alert_config digestTime not on hour boundary", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1489,7 +1586,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for notifications_topics when ids are subset of projection codes", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     listTopicsMock.mockResolvedValue([
       {
@@ -1527,7 +1624,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for notifications_topics when id unknown and projection non-empty", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     listTopicsMock.mockResolvedValue([
       {
         integratorTopicId: "1",
@@ -1552,7 +1649,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for notifications_topics duplicate ids", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     listTopicsMock.mockResolvedValue([]);
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
@@ -1574,7 +1671,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_app_maintenance_enabled", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_app_maintenance_enabled",
@@ -1601,7 +1698,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_app_maintenance_enabled invalid", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1614,7 +1711,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_app_maintenance_message too long", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1630,7 +1727,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for test_account_identifiers with normalized deduped arrays", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "test_account_identifiers",
@@ -1679,7 +1776,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for test_account_identifiers invalid top-level shape", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1695,7 +1792,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for video_default_delivery invalid enum", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1710,7 +1807,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for video_default_delivery and normalizes to lowercase", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "video_default_delivery",
@@ -1735,7 +1832,7 @@ describe("PATCH /api/admin/settings", () => {
     ["video_hls_pipeline_enabled", false],
     ["video_hls_new_uploads_auto_transcode", true],
   ] as const)("returns 200 for %s boolean PATCH", async (key, val) => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key,
@@ -1760,7 +1857,7 @@ describe("PATCH /api/admin/settings", () => {
     ["video_hls_pipeline_enabled"],
     ["video_hls_new_uploads_auto_transcode"],
   ] as const)("returns 400 for %s invalid boolean value", async (key) => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1778,7 +1875,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_home_morning_ping_enabled via coerce helper", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_home_morning_ping_enabled",
@@ -1808,7 +1905,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_booking_url https", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_booking_url",
@@ -1832,7 +1929,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 200 for patient_booking_url empty (reset to runtime default)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "patient_booking_url",
@@ -1853,7 +1950,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("returns 400 for patient_booking_url invalid protocol", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1869,7 +1966,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("batch: returns 200 and calls persistAdminModesBatch (not updateSetting)", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     const items = [
       { key: "dev_mode", value: { value: false } },
@@ -1899,7 +1996,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("batch: returns 400 empty_batch for items: []", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1914,7 +2011,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("batch: returns 400 duplicate_key_in_batch", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1935,7 +2032,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("batch: returns 400 ambiguous_body when key and items both present", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -1953,7 +2050,7 @@ describe("PATCH /api/admin/settings", () => {
   });
 
   it("batch: returns 400 invalid_value with atIndex for bad integrator_linked_phone_source", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",

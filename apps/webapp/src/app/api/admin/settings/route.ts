@@ -1,16 +1,16 @@
 /**
  * GET  /api/admin/settings — список настроек scope=admin
  * PATCH /api/admin/settings — обновить ключ scope=admin
- * Guard: role === 'admin'
+ * Guard: global admin in adminMode OR clinic manager for per-org keys only.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
+import { isPerOrgSettingKey } from "@/modules/system-settings/orgScopedKeys";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
 import {
   normalizeModesFormBatchItems,
@@ -223,41 +223,34 @@ function auditValueForLog(key: string, value: unknown): unknown {
   return value;
 }
 
-/**
- * P0.11.3: resolves the caller's own clinic `organizationId`, best-effort (never blocks the route —
- * most keys under `ADMIN_SCOPE_KEYS` stay GLOBAL and don't need one). `requireDoctorWorkspaceApiContext`
- * also stamps the DB principal for the org-specific write's RLS check to pass; `canAccessDoctor("admin")`
- * is `true` so this does not require `session.adminMode` (unlike `requireAdminModeSession`), keeping this
- * route's existing `role === "admin"` gate unchanged.
- */
-async function resolveBestEffortOrganizationId(): Promise<string | null> {
-  const workspaceGate = await requireDoctorWorkspaceApiContext();
-  return workspaceGate.ok ? workspaceGate.ctx.organizationId : null;
+function canAccessGlobalSettings(ctx: {
+  session: { user: { role: string }; adminMode?: boolean };
+}): boolean {
+  return ctx.session.user.role === "admin" && ctx.session.adminMode === true;
 }
 
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireClinicManagementApiContext();
+  if (!gate.ok) return gate.response;
 
-  const organizationId = await resolveBestEffortOrganizationId();
+  const organizationId = gate.ctx.organizationId;
   const deps = buildAppDeps();
-  const settings = redactAdminSettingsForClient(
+  const allSettings = redactAdminSettingsForClient(
     await deps.systemSettings.listSettingsByScope("admin", { organizationId }),
   );
+  const settings = canAccessGlobalSettings(gate.ctx)
+    ? allSettings
+    : allSettings.filter((setting) => isPerOrgSettingKey(setting.key));
   return NextResponse.json({ ok: true, settings });
 }
 
 export async function PATCH(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireClinicManagementApiContext();
+  if (!gate.ok) return gate.response;
 
-  const organizationId = await resolveBestEffortOrganizationId();
+  const session = gate.ctx.session;
+  const organizationId = gate.ctx.organizationId;
+  const allowGlobalSettings = canAccessGlobalSettings(gate.ctx);
   const raw = (await request.json().catch(() => null)) as unknown;
 
   if (raw !== null && typeof raw === "object" && "items" in raw) {
@@ -278,6 +271,12 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
       }
       const items = batchParsed.data.items;
+      if (!allowGlobalSettings) {
+        const globalKey = items.find((item) => !isPerOrgSettingKey(item.key))?.key ?? null;
+        if (globalKey) {
+          return NextResponse.json({ ok: false, error: "forbidden_global_setting", key: globalKey }, { status: 403 });
+        }
+      }
       const seen = new Set<string>();
       for (let i = 0; i < items.length; i++) {
         const k = items[i]!.key;
@@ -336,6 +335,12 @@ export async function PATCH(request: Request) {
   // Проверка что ключ входит в глобальный whitelist
   if (!(ALLOWED_KEYS as readonly string[]).includes(parsed.data.key)) {
     return NextResponse.json({ ok: false, error: "invalid_key" }, { status: 400 });
+  }
+  if (!allowGlobalSettings && !isPerOrgSettingKey(parsed.data.key)) {
+    return NextResponse.json(
+      { ok: false, error: "forbidden_global_setting", key: parsed.data.key },
+      { status: 403 },
+    );
   }
 
   const deps = buildAppDeps();

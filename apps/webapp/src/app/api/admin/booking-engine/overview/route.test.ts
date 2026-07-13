@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const getSettingMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -27,7 +27,7 @@ describe("GET /api/admin/booking-engine/overview", () => {
       }),
       isBridgeEnabled: vi.fn().mockResolvedValue(true),
     };
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
         organizationId: "org-1",
