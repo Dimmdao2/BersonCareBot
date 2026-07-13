@@ -36,6 +36,10 @@ import {
   shouldRenewSession,
   writeFreshLoginMarkerCookie,
 } from "./sessionCookie";
+// Static import is deliberate — see the comment on finalizeCurrentSession() below. This module
+// does NOT import `@/app-layer/di/buildAppDeps` (which would cycle back to this file), so a
+// static import here is safe and does not create a require cycle.
+import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -90,7 +94,13 @@ function ensureAdminMode(session: AppSession): AppSession {
 async function finalizeCurrentSession(session: AppSession): Promise<AppSession> {
   const normalized = ensureAdminMode(session);
   try {
-    const { stampDbPrincipalFromSession } = await import("@/app-layer/principal/sessionPrincipal");
+    // Central chokepoint: MUST be a static import (see top of file). A dynamic `await import(...)`
+    // here was observed live (TEST, C1 walls flip under DB_PRINCIPAL_CONTEXT_MODE=locked) to stamp
+    // the AsyncLocalStorage DB principal in a continuation that does not reliably survive back to
+    // the caller of getCurrentSession() — every route calling getCurrentSession() directly (not via
+    // a requireRole.ts guard, which re-stamps with its own statically-imported call) got 500s on
+    // their first RLS-governed query. Do not revert to a dynamic import; do not add per-route
+    // re-stamps instead — this is the one place all such routes share.
     await stampDbPrincipalFromSession(normalized, "getCurrentSession");
   } catch {
     /* Session auth behavior stays legacy-compatible; locked DB ports fail closed if no principal was resolved. */
