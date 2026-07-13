@@ -40,7 +40,7 @@ import {
 // does NOT import `@/app-layer/di/buildAppDeps` (which would cycle back to this file), so a
 // static import here is safe and does not create a require cycle.
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { ensureDbPrincipalContext, getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -778,6 +778,19 @@ export async function exchangeTelegramLoginWidget(
  * даёт `null` (клиент увидит «не авторизован»), даже если cookie ещё не истёк.
  */
 export async function getCurrentSession(): Promise<AppSession | null> {
+  // MUST run before the first `await cookies()` below. Diagnostic proof (TEST, this session):
+  // a principal cell created via enterWith() *after* crossing a Next.js dynamic-API boundary
+  // (cookies()) does not survive back out to the caller once getCurrentSession()'s promise
+  // resolves -- confirmed by logging getCurrentDbPrincipal() at each hop: it was "staff" right
+  // after finalizeCurrentSession's stamp (still inside this function's continuation) and back to
+  // "undefined" one microtask later in the route handler that had done `await getCurrentSession()`.
+  // requireRole.ts guards that call ensureDbPrincipalContext() before invoking getCurrentSession()
+  // were unaffected because their cell already existed *before* the cookies() boundary, so the
+  // later enterWith() calls (here and in the guards' own re-stamp) mutate that pre-existing cell
+  // in place rather than creating a fresh one inside the boundary. Establishing the cell here,
+  // as the very first statement, makes every getCurrentSession() caller behave the same way
+  // without needing its own guard.
+  ensureDbPrincipalContext({ source: "getCurrentSession:pending" });
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const decoded = raw ? decodeSessionCookie(raw) : null;
