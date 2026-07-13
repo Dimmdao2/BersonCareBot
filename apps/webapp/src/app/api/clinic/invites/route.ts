@@ -52,6 +52,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 
+  // A non-production environment is one that permits dev auth shortcuts (dev boxes and the
+  // IP-locked test/staging box, where ALLOW_DEV_AUTH_BYPASS=true and transactional email is
+  // redirected/stubbed). Real production has NODE_ENV=production AND no dev bypass.
+  const isNonProdEnv = env.NODE_ENV !== "production" || env.ALLOW_DEV_AUTH_BYPASS === true;
+
   const baseUrl = await getAppBaseUrl();
   const inviteUrl = buildInviteUrl(baseUrl, token);
   const emailResult = await sendEmailSetupLinkViaIntegrator(
@@ -64,11 +69,11 @@ export async function POST(request: Request) {
       "Ссылка действует 7 дней.",
     ].join("\n\n"),
   );
-  // The invite row is already committed. On production a failed email means the invitee
-  // can't receive the link → surface it as an error so the admin can retry. Outside
-  // production (dev/test, where transactional email is redirected/stubbed) don't hard-fail —
-  // return the invite plus the link so the flow stays usable/verifiable.
-  if (!emailResult.ok && env.NODE_ENV === "production") {
+  // The invite row is already committed. On real production a failed email means the invitee
+  // can't receive the link → surface it so the admin can retry. In a non-prod env (dev/test,
+  // where email is redirected/stubbed) don't hard-fail — return the invite + link so the flow
+  // stays usable/verifiable without an inbox.
+  if (!emailResult.ok && !isNonProdEnv) {
     return NextResponse.json({ ok: false, error: "email_send_failed" }, { status: 503 });
   }
 
@@ -77,6 +82,6 @@ export async function POST(request: Request) {
     inviteId: result.invite.id,
     expiresAt: result.invite.expiresAt,
     emailDelivered: emailResult.ok,
-    ...(env.NODE_ENV !== "production" ? { inviteUrl } : {}),
+    ...(isNonProdEnv ? { inviteUrl } : {}),
   });
 }
