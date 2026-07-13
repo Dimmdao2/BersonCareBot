@@ -32,6 +32,21 @@ pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
 
 Not used: `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`.
 
+## Reusable cutover rule
+
+This cleanup is now a scripted R1 cleanup path, not a manual SQL recipe.
+
+Before production cutover, run the same script and flags on a fresh copy of the live database:
+
+1. restore/sync the live DB copy into the approved non-prod environment;
+2. run the PII-safe dry-run with `--cleanup-only --delete-test --collapse-canceled-dups --summary-only`;
+3. save and audit the aggregate output;
+4. run the commit mode only after owner approval for that exact DB copy;
+5. rerun the PII-safe dry-run and dual-source audit after commit;
+6. carry only the audited script + flags to the production runbook.
+
+Do not re-create this cleanup manually with ad hoc `UPDATE` statements. If another test marker is approved later, add it to the script allowlist, rerun the copy-DB rehearsal, and audit the new aggregate result before any production cutover.
+
 ## Cleanup behavior
 
 - `--delete-test` soft-deleted owner-approved test/block legacy rows and their mapped canonical rows.

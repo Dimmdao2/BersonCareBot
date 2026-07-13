@@ -8,6 +8,9 @@ R1 evidence collection and sanitized artifact audit: **PASS**.
 
 Narrow owner-approved cleanup for test/block rows and canceled duplicate losers: **COMPLETED**.
 
+The approved cleanup path is scripted in `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts`.
+It must be rehearsed on a fresh copy of the live database before production cutover; do not reproduce the cleanup with manual SQL.
+
 `RR-PROOF-01-DUAL-SOURCE`: **BLOCKED** until owner decisions below are resolved and R1 acceptance is updated in the execution plan.
 
 R2 must not start while this packet has unresolved decisions.
