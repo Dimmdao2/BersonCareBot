@@ -5,9 +5,10 @@
  * tweakcn exports shadcn/Tailwind CSS variables; keep this file as the app-level
  * adapter so future theme iterations do not require component rewrites.
  *
- * This file intentionally does not switch the live app to Nunito or the warm
- * canvas globally. Use `.theme-bersoncare-dna` / `[data-theme="bersoncare-dna"]`
- * when we are ready to preview the semantic shadcn token mapping.
+ * This file intentionally does not map DNA tokens to shadcn semantic tokens
+ * globally. Brand tokens stay global as `--bc-*`; app-specific adapters live
+ * under `#app-shell-doctor` and `#app-shell-patient` so future split apps can
+ * evolve independently.
  */
 
 :root {
@@ -84,8 +85,41 @@
   --ease-bc: var(--bc-ease);
 }
 
-.theme-bersoncare-dna,
-[data-theme="bersoncare-dna"] {
+#app-shell-doctor.theme-bersoncare-doctor-dna,
+#app-shell-doctor[data-theme="bersoncare-doctor-dna"] {
+  color-scheme: light;
+  background: var(--bc-canvas);
+  color: var(--bc-ink);
+
+  --background: var(--bc-canvas);
+  --foreground: var(--bc-ink);
+  --card: var(--bc-surface);
+  --card-foreground: var(--bc-ink);
+  --popover: var(--bc-surface);
+  --popover-foreground: var(--bc-ink);
+  --primary: var(--bc-accent-500);
+  --primary-foreground: #ffffff;
+  --secondary: var(--bc-rail);
+  --secondary-foreground: var(--bc-ink);
+  --muted: var(--bc-rail);
+  --muted-foreground: var(--bc-muted);
+  --accent: var(--bc-warm-selected);
+  --accent-foreground: var(--bc-ink);
+  --destructive: var(--bc-danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--bc-line);
+  --input: var(--bc-line);
+  --ring: var(--bc-accent-500);
+  --chart-1: var(--bc-accent-500);
+  --chart-2: var(--bc-accent-200);
+  --chart-3: var(--bc-warn);
+  --chart-4: var(--bc-ok);
+  --chart-5: var(--bc-accent-900);
+  --radius: var(--bc-radius-lg);
+}
+
+#app-shell-patient.theme-bersoncare-patient-dna,
+#app-shell-patient[data-theme="bersoncare-patient-dna"] {
   color-scheme: light;
   background: var(--bc-canvas);
   color: var(--bc-ink);

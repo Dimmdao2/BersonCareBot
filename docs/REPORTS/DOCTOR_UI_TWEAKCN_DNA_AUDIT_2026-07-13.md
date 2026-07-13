@@ -6,7 +6,8 @@
 
 - Добавлен app-level hook для tweakcn/DNA-токенов: `apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css`.
 - Он импортируется из `tailwind-engine.css`, поэтому Tailwind v4 видит `bc-*` theme tokens.
-- Live-интерфейс не переключен глобально на Nunito/теплый canvas. Для безопасного preview есть opt-in scope: `.theme-bersoncare-dna` или `[data-theme="bersoncare-dna"]`.
+- Live-интерфейс не переключен глобально на Nunito/теплый canvas.
+- Global layer содержит только брендовые `--bc-*` токены. Semantic mapping разнесен по app scopes: `#app-shell-doctor.theme-bersoncare-doctor-dna` для врача и `#app-shell-patient.theme-bersoncare-patient-dna` для пациента.
 
 Причина: Design DNA близок к финалу, но шрифт/теплота фона еще будут проверяться на живом продукте. Поэтому сейчас нужен управляемый theme hook, а не внезапный глобальный редизайн.
 
@@ -119,7 +120,7 @@ DNA:
 
 1. **Сначала структура:** довести CMS и media library до master-detail/list-detail модели, не занимаясь финальным цветом.
 2. **Потом shared primitives:** list row, card chrome, metric card, section shell, nav active state.
-3. **Потом токенная миграция через tweakcn:** включить `.theme-bersoncare-dna` на doctor shell в отдельной preview-ветке и сравнить живые экраны.
+3. **Потом токенная миграция через tweakcn:** включить `theme-bersoncare-doctor-dna` на `#app-shell-doctor` в отдельной preview-ветке и сравнить живые экраны.
 4. **После этого шрифт:** отдельно сравнить current system font vs Nunito на реальных врачебных экранах, не решать это вслепую.
 5. **Последним слоем:** chart/status palette и сложные виджеты schedule/analytics.
 
