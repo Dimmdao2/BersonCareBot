@@ -9,6 +9,7 @@ Scope: Phase R1 proof/evidence. The original proof runner was read-only/dry-run 
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_RESULT.json`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`
 - Cleanup run: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`
+- Stale CSV proof: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`
 - Owner review packet: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md`
 
 These artifacts use aggregate output only. Dual-source samples were disabled with `--sample-size=0`. Backfill was run with `--summary-only`, which suppresses names, phones, external ids and detail rows.
@@ -91,7 +92,9 @@ Sanitized dry-run summary:
 | duplicate clusters with multiple canonical rows | 0 |
 | stale vs CSV | not evaluated |
 
-Later R1 cleanup note: owner approved a narrow cleanup for test/block rows and canceled duplicate losers. The cleanup used `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`; it did not use `--collapse-dups`, `--drop-stale-from-csv`, or `--drop-legacy`. Post-cleanup summary: unmapped legacy `112`, test/block `0`, canceled `13`, real active `99`, duplicate clusters `3`, stale CSV still skipped. See `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`.
+Later R1 cleanup note: owner approved a narrow cleanup for test/block rows and canceled duplicate losers. The cleanup used `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`; it did not use `--collapse-dups`, `--drop-stale-from-csv`, or `--drop-legacy`. Post-cleanup summary: unmapped legacy `112`, test/block `0`, canceled `13`, real active `99`, duplicate clusters `3`.
+
+Stale CSV proof note: `R1-STALE-CSV-PROOF-codex-2026-07-14` used owner-provided `records-2.csv` (`394` physical lines, `127600` bytes, `392` parsed Rubitime ids, CSV date span `2026-01-16...2026-08-29`) in `--summary-only` dry-run mode. Result: `29` live legacy rows are stale vs owner CSV. No cleanup commit was run or authorized. See `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`.
 
 ## Commands run
 
@@ -123,10 +126,10 @@ Open / blocked:
 - narrow cleanup commit was approved and run; broader projection/collapse/stale/drop-legacy commit modes remain unauthorized.
 - post-run diagnosis does not show `UNMAPPED 0`, `DUPLICATE 0`, `STALE 0`, and `CONFLICTS 0`.
 - doctor calendar/list/KPI smoke was not run.
-- stale-by-CSV remains unavailable until an approved current CSV exists in the expected path or an explicit CSV path is provided.
+- stale-by-CSV proof is now available, but its `29` rows are not owner-classified and cleanup remains unauthorized.
 
 ## RR-PROOF-01-DUAL-SOURCE
 
 Status: **BLOCKED**
 
-Reason: read-only R1 evidence was collected and the later narrow cleanup was completed, but acceptance is not met. Remaining blockers are unresolved legacy-only/mismatch classification, unmapped canonical coverage, duplicate clusters, missing CSV stale proof, owner review, and unauthorized broader commit modes.
+Reason: read-only R1 evidence was collected, the later narrow cleanup was completed, and owner-provided CSV stale proof was run. Acceptance is still not met. Remaining blockers are unresolved legacy-only/mismatch classification, unmapped canonical coverage, duplicate clusters, stale-vs-CSV classification/approval, owner review, doctor smoke, and unauthorized broader commit modes.

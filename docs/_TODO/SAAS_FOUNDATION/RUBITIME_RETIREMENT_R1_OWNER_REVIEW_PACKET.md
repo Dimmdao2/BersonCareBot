@@ -69,6 +69,8 @@ Owner-provided CSV stale proof, summary-only dry-run, after approved cleanup:
 
 | Fact | Count |
 | --- | ---: |
+| CSV basename | `records-2.csv` |
+| CSV size | 127600 bytes |
 | CSV physical lines | 394 |
 | parsed Rubitime ids | 392 |
 | CSV date span | 2026-01-16...2026-08-29 |
@@ -76,7 +78,7 @@ Owner-provided CSV stale proof, summary-only dry-run, after approved cleanup:
 
 Commit flags used: `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`.
 
-Not used: `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`.
+Not used: `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`, stale cleanup commit mode.
 
 ## Owner Decisions
 

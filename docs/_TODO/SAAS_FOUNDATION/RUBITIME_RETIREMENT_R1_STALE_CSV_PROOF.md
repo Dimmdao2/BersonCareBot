@@ -4,13 +4,15 @@ Run id: `R1-STALE-CSV-PROOF-codex-2026-07-14`
 
 Scope: PII-safe stale proof / dry-run only. No `--commit`, no database writes, no production env, no `/opt`, no R2.
 
+Run timestamp: `2026-07-14T02:49:53+03:00`.
+
 ## Environment
 
 | Field | Value |
 | --- | --- |
 | Worktree | `/home/dev/dev-projects/bcb-walls` |
 | Branch | `auto/code-pg-delta` |
-| Start HEAD | `e0a1384a69d760e17dde6172964cf18d596c65c7` |
+| Run HEAD | `90da725f55d938b29eb9d3bb846277689d29b384` |
 | Database | `bcb_webapp_dev` on `127.0.0.1:5432` |
 | Env source | `/home/dev/dev-projects/BersonCareBot/.env` + `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
 | Telegram token | process-local non-secret placeholder, only for config parsing |
@@ -20,6 +22,8 @@ Scope: PII-safe stale proof / dry-run only. No `--commit`, no database writes, n
 | Check | Result |
 | --- | ---: |
 | File exists | yes |
+| Basename | `records-2.csv` |
+| Size | 127600 bytes |
 | Physical lines | 394 |
 | Header present | yes |
 | Header delimiter | semicolon |
@@ -42,6 +46,11 @@ head -n 1 /home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/reco
 Backfill stale dry-run, no commit:
 
 ```bash
+set -a
+source /home/dev/dev-projects/BersonCareBot/.env
+source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev
+set +a
+TELEGRAM_BOT_TOKEN=dev-placeholder-not-real \
 pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
   --summary-only \
   --csv=/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv
@@ -50,6 +59,10 @@ pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
 Read-only dual-source audit:
 
 ```bash
+set -a
+source /home/dev/dev-projects/BersonCareBot/.env
+source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev
+set +a
 node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs \
   --threshold-minutes=5 \
   --sample-size=0
@@ -96,3 +109,10 @@ Interpretation: the owner CSV completed the previously missing stale-vs-CSV dry-
 - `DUPLICATE clusters` remains 3; broad duplicate collapse was not authorized.
 - Legacy-only records, status mismatches, record-time mismatches, and mapping anomalies still need owner/reviewer classification or explicit exceptions.
 - Doctor calendar/list/KPI smoke is still not recorded.
+
+## Explicit no-go until owner approval
+
+- Do not start R2.
+- Do not drop Rubitime runtime/schema.
+- Do not run stale cleanup with `--commit`, `--drop-stale-from-csv`, or `--drop-legacy`.
+- Do not treat the 29 stale-vs-CSV rows as removable without owner/reviewer classification.
