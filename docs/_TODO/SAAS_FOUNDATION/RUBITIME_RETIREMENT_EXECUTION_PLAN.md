@@ -735,6 +735,8 @@ Use these checklists as the operational tracker. A phase is not complete until e
 - [x] No-new-Rubitime-dependency guard is added or explicitly assigned.
 - [x] Rubitime settings UI is marked deprecated/internal-only or hidden from ordinary clinic flows.
 - [x] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches.
+- [x] New plain read-source literal `"rubitime"` / `'rubitime'` is blocked by the R0 guard.
+- [x] New matching occurrences inside existing high-risk baseline files are blocked by frozen per-file counts.
 - [x] Current Rubitime route map is recorded.
 - [x] Current Rubitime table/reference map is recorded.
 - [x] R0 review confirms no runtime behavior changed.

@@ -12,66 +12,95 @@ const scanRoots = [
   'packages/operator-db-schema/src',
 ];
 
-const allowedIntegratorRubitimeImportFiles = new Set([
-  'apps/integrator/src/app/di.ts',
-  'apps/integrator/src/app/operatorHealthProbeRunner.ts',
-  'apps/integrator/src/app/routes.ts',
-  'apps/integrator/src/infra/scripts/compare-rubitime-records.ts',
-  'apps/integrator/src/infra/scripts/resync-rubitime-records.ts',
-  'apps/integrator/src/integrations/registry.ts',
-]);
-
-const allowedBookingRubitimeSyncImportFiles = new Set([
-  'apps/integrator/src/infra/db/writePort.ts',
-  'apps/webapp/src/infra/repos/pgPatientBookings.ts',
-  'apps/webapp/src/modules/booking-rubitime-bridge/legacyProjection.ts',
-  'apps/webapp/src/modules/patient-booking/compatSyncQuality.ts',
-]);
-
-const allowedReadSourceBranchFiles = new Set([
-  'apps/webapp/src/app-layer/di/buildAppDeps.ts',
-  'apps/webapp/src/app/api/admin/booking-engine/bridge/route.ts',
-  'apps/webapp/src/app/api/admin/booking-engine/overview/route.ts',
-  'apps/webapp/src/app/api/admin/booking-engine/slots-probe/route.ts',
-  'apps/webapp/src/app/api/admin/settings/route.ts',
-  'apps/webapp/src/app/app/doctor/admin/booking/loadBookingAdminOverview.ts',
-  'apps/webapp/src/app/app/settings/BookingEngineSection.tsx',
-  'apps/webapp/src/app/app/settings/BookingScheduleSlotsProbeSection.tsx',
-  'apps/webapp/src/app-layer/booking/staffRubitimeBridgePolicy.ts',
-  'apps/webapp/src/infra/repos/doctorAppointmentsReadSwitch.ts',
-  'apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts',
-  'apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts',
-  'apps/webapp/src/modules/booking-calendar/calendarLegacyFilters.ts',
-  'apps/webapp/src/modules/booking-calendar/mapLegacyRecordToCalendarEvent.ts',
-  'apps/webapp/src/modules/booking-calendar/types.ts',
-  'apps/webapp/src/modules/patient-booking/canonicalCreate.ts',
-  'apps/webapp/src/modules/patient-booking/service.ts',
-  'apps/webapp/src/modules/patient-booking/slotsReadSource.ts',
-  'apps/webapp/src/modules/system-settings/orgScopedKeys.ts',
-  'apps/webapp/src/modules/system-settings/types.ts',
-]);
-
-const allowedWebappRubitimeRouteFiles = new Set([
-  'apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/duplicates/route.ts',
-  'apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/link/route.ts',
-  'apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/booking-profiles/[id]/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/booking-profiles/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/branches/[id]/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/branches/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/cooperators/[id]/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/cooperators/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/services/[id]/route.ts',
-  'apps/webapp/src/app/api/admin/rubitime/services/route.ts',
-  'apps/webapp/src/app/api/doctor/appointments/rubitime/cancel/route.ts',
-  'apps/webapp/src/app/api/doctor/appointments/rubitime/update/route.ts',
-]);
-
-const allowedIntegratorRubitimeRouteFiles = new Set([
-  'apps/integrator/src/integrations/rubitime/adminM2mRoute.ts',
-  'apps/integrator/src/integrations/rubitime/recordM2mRoute.ts',
-  'apps/integrator/src/integrations/rubitime/webhook.ts',
-]);
+const frozenBaselines = {
+  integratorImports: new Map([
+    ['apps/integrator/src/app/di.ts', 1],
+    ['apps/integrator/src/app/operatorHealthProbeRunner.ts', 2],
+    ['apps/integrator/src/app/routes.ts', 2],
+    ['apps/integrator/src/infra/scripts/compare-rubitime-records.ts', 1],
+    ['apps/integrator/src/infra/scripts/resync-rubitime-records.ts', 1],
+    ['apps/integrator/src/integrations/registry.ts', 1],
+  ]),
+  bookingSyncImports: new Map([
+    ['apps/integrator/src/infra/db/writePort.ts', 1],
+    ['apps/webapp/src/infra/repos/pgPatientBookings.ts', 2],
+    ['apps/webapp/src/modules/booking-rubitime-bridge/legacyProjection.ts', 1],
+    ['apps/webapp/src/modules/patient-booking/compatSyncQuality.ts', 1],
+  ]),
+  readSourceBranches: new Map([
+    ['apps/integrator/src/app/operatorHealthProbeRunner.ts', 1],
+    ['apps/integrator/src/infra/db/branchTimezone.ts', 1],
+    ['apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts', 1],
+    ['apps/integrator/src/integrations/google-calendar/calendarDescription.ts', 1],
+    ['apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts', 1],
+    ['apps/integrator/src/integrations/rubitime/config.ts', 1],
+    ['apps/integrator/src/integrations/rubitime/connector.ts', 1],
+    ['apps/integrator/src/integrations/rubitime/index.ts', 1],
+    ['apps/integrator/src/integrations/rubitime/ingestNormalization.ts', 1],
+    ['apps/integrator/src/integrations/rubitime/timezoneContract.fixtures.ts', 3],
+    ['apps/integrator/src/integrations/rubitime/webhook.ts', 10],
+    ['apps/integrator/src/kernel/domain/executor/handlers/delivery.ts', 1],
+    ['apps/webapp/src/app-layer/booking/staffRubitimeBridgePolicy.ts', 1],
+    ['apps/webapp/src/app-layer/di/buildAppDeps.ts', 4],
+    ['apps/webapp/src/app/api/admin/booking-engine/bridge/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/booking-engine/overview/route.ts', 4],
+    ['apps/webapp/src/app/api/admin/booking-engine/slots-probe/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/settings/route.ts', 7],
+    ['apps/webapp/src/app/app/doctor/admin/booking/loadBookingAdminOverview.ts', 6],
+    ['apps/webapp/src/app/app/settings/BookingEngineSection.tsx', 11],
+    ['apps/webapp/src/app/app/settings/BookingScheduleSlotsProbeSection.tsx', 5],
+    ['apps/webapp/src/app/app/settings/SystemHealthSection.tsx', 3],
+    ['apps/webapp/src/infra/repos/doctorAppointmentPurgeFilter.ts', 3],
+    ['apps/webapp/src/infra/repos/doctorAppointmentsReadSwitch.ts', 5],
+    ['apps/webapp/src/infra/repos/pgAppointmentProjection.ts', 1],
+    ['apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts', 3],
+    ['apps/webapp/src/infra/repos/pgBookingCatalog.ts', 1],
+    ['apps/webapp/src/infra/repos/pgBookingEngine.ts', 5],
+    ['apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts', 9],
+    ['apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts', 8],
+    ['apps/webapp/src/infra/repos/pgDoctorAppointments.ts', 1],
+    ['apps/webapp/src/infra/repos/pgDoctorClients.ts', 11],
+    ['apps/webapp/src/infra/repos/pgMemberships.ts', 1],
+    ['apps/webapp/src/infra/repos/pgPatientClinical.ts', 1],
+    ['apps/webapp/src/infra/repos/pgRubitimeMapping.ts', 8],
+    ['apps/webapp/src/modules/auth/emailSetupAccess/ports.ts', 1],
+    ['apps/webapp/src/modules/booking-appointment-sync/syncAttribution.ts', 1],
+    ['apps/webapp/src/modules/booking-appointment-sync/types.ts', 1],
+    ['apps/webapp/src/modules/booking-calendar/calendarLegacyFilters.ts', 2],
+    ['apps/webapp/src/modules/booking-calendar/mapLegacyRecordToCalendarEvent.ts', 1],
+    ['apps/webapp/src/modules/booking-calendar/types.ts', 1],
+    ['apps/webapp/src/modules/integrator/events.ts', 2],
+    ['apps/webapp/src/modules/operator-health/integrationHealthSnapshot.ts', 2],
+    ['apps/webapp/src/modules/operator-health/probeOutboundMeta.ts', 1],
+    ['apps/webapp/src/modules/patient-booking/canonicalCreate.ts', 1],
+    ['apps/webapp/src/modules/patient-booking/service.ts', 1],
+    ['apps/webapp/src/modules/patient-booking/slotsReadSource.ts', 3],
+    ['apps/webapp/src/modules/system-settings/orgScopedKeys.ts', 3],
+    ['apps/webapp/src/modules/system-settings/types.ts', 4],
+    ['apps/webapp/src/shared/lib/fio.ts', 2],
+    ['packages/operator-db-schema/src/integrationWebhook.ts', 1],
+  ]),
+  webappRoutes: new Map([
+    ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/duplicates/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/link/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/booking-profiles/[id]/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/booking-profiles/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/branches/[id]/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/branches/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/cooperators/[id]/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/cooperators/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/services/[id]/route.ts', 1],
+    ['apps/webapp/src/app/api/admin/rubitime/services/route.ts', 1],
+    ['apps/webapp/src/app/api/doctor/appointments/rubitime/cancel/route.ts', 1],
+    ['apps/webapp/src/app/api/doctor/appointments/rubitime/update/route.ts', 1],
+  ]),
+  integratorRoutes: new Map([
+    ['apps/integrator/src/integrations/rubitime/adminM2mRoute.ts', 12],
+    ['apps/integrator/src/integrations/rubitime/recordM2mRoute.ts', 5],
+    ['apps/integrator/src/integrations/rubitime/webhook.ts', 2],
+  ]),
+};
 
 const readSourceBranchTokens = [
   'booking_doctor_appointments_read_source',
@@ -79,6 +108,21 @@ const readSourceBranchTokens = [
   'booking_rubitime_bridge_enabled',
   'rubitime_legacy',
 ];
+
+const patternGroups = {
+  integratorImports: [
+    /from\s+["'][^"']*integrations\/rubitime\//g,
+    /import\(\s*["'][^"']*integrations\/rubitime\//g,
+    /from\s+["']\.\/rubitime\//g,
+    /import\(\s*["']\.\/rubitime\//g,
+  ],
+  bookingSyncImports: [/from\s+["']@bersoncare\/booking-rubitime-sync["']/g],
+  readSourceBranches: [
+    ...readSourceBranchTokens.map((token) => new RegExp(escapeRegExp(token), 'g')),
+    /["']rubitime["']/g,
+  ],
+  integratorRoutes: [/\bapp\.(?:get|post|put|patch|delete)\(\s*["'][^"']*rubitime[^"']*["']/g],
+};
 
 function listSourceFiles(dir) {
   const out = [];
@@ -103,81 +147,66 @@ function listSourceFiles(dir) {
   return out;
 }
 
-function isInsideIntegratorRubitime(rel) {
-  return rel.startsWith('apps/integrator/src/integrations/rubitime/');
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function hasIntegratorRubitimeImport(src) {
-  return (
-    /from\s+["'][^"']*integrations\/rubitime\//.test(src) ||
-    /import\(\s*["'][^"']*integrations\/rubitime\//.test(src) ||
-    /from\s+["']\.\/rubitime\//.test(src) ||
-    /import\(\s*["']\.\/rubitime\//.test(src)
-  );
+function countMatches(src, patterns) {
+  return patterns.reduce((sum, pattern) => {
+    pattern.lastIndex = 0;
+    return sum + [...src.matchAll(pattern)].length;
+  }, 0);
 }
 
-function hasBookingRubitimeSyncImport(src) {
-  return /from\s+["']@bersoncare\/booking-rubitime-sync["']/.test(src);
+function webappRubitimeRouteCount(rel) {
+  return rel.startsWith('apps/webapp/src/app/api/') && rel.endsWith('/route.ts') && rel.includes('rubitime')
+    ? 1
+    : 0;
 }
 
-function hasReadSourceBranchToken(src) {
-  return readSourceBranchTokens.some((token) => src.includes(token));
-}
-
-function hasRubitimeRouteLiteral(src) {
-  return /\bapp\.(?:get|post|put|patch|delete)\(\s*["'][^"']*rubitime[^"']*["']/.test(src);
-}
-
-function collectOffenders(files) {
-  const offenders = {
-    integratorImports: [],
-    bookingSyncImports: [],
-    readSourceBranches: [],
-    webappRoutes: [],
-    integratorRoutes: [],
-  };
+function collectGrowthOffenders(files, category, countForFile) {
+  const offenders = [];
 
   for (const file of files) {
-    const rel = file.rel;
-    const src = file.src;
+    const count = countForFile(file);
+    const baseline = frozenBaselines[category].get(file.rel) ?? 0;
 
-    if (
-      hasIntegratorRubitimeImport(src) &&
-      !isInsideIntegratorRubitime(rel) &&
-      !allowedIntegratorRubitimeImportFiles.has(rel)
-    ) {
-      offenders.integratorImports.push(rel);
-    }
-
-    if (hasBookingRubitimeSyncImport(src) && !allowedBookingRubitimeSyncImportFiles.has(rel)) {
-      offenders.bookingSyncImports.push(rel);
-    }
-
-    if (hasReadSourceBranchToken(src) && !allowedReadSourceBranchFiles.has(rel)) {
-      offenders.readSourceBranches.push(rel);
-    }
-
-    if (
-      rel.startsWith('apps/webapp/src/app/api/') &&
-      rel.endsWith('/route.ts') &&
-      rel.includes('rubitime') &&
-      !allowedWebappRubitimeRouteFiles.has(rel)
-    ) {
-      offenders.webappRoutes.push(rel);
-    }
-
-    if (hasRubitimeRouteLiteral(src) && !allowedIntegratorRubitimeRouteFiles.has(rel)) {
-      offenders.integratorRoutes.push(rel);
+    if (count > baseline) {
+      offenders.push({
+        rel: file.rel,
+        baseline,
+        count,
+      });
     }
   }
 
   return offenders;
 }
 
+function collectOffenders(files) {
+  return {
+    integratorImports: collectGrowthOffenders(files, 'integratorImports', ({ src }) =>
+      countMatches(src, patternGroups.integratorImports),
+    ),
+    bookingSyncImports: collectGrowthOffenders(files, 'bookingSyncImports', ({ src }) =>
+      countMatches(src, patternGroups.bookingSyncImports),
+    ),
+    readSourceBranches: collectGrowthOffenders(files, 'readSourceBranches', ({ src }) =>
+      countMatches(src, patternGroups.readSourceBranches),
+    ),
+    webappRoutes: collectGrowthOffenders(files, 'webappRoutes', ({ rel }) => webappRubitimeRouteCount(rel)),
+    integratorRoutes: collectGrowthOffenders(files, 'integratorRoutes', ({ src }) =>
+      countMatches(src, patternGroups.integratorRoutes),
+    ),
+  };
+}
+
 function printOffenders(label, offenders) {
   if (offenders.length === 0) return;
   console.error(`check-rubitime-retirement-r0-freeze: ${label}`);
-  for (const rel of offenders) console.error(`  - ${rel}`);
+  for (const offender of offenders) {
+    console.error(`  - ${offender.rel} (${offender.count} > baseline ${offender.baseline})`);
+  }
 }
 
 function hasAnyOffenders(offenders) {
@@ -199,6 +228,14 @@ if (process.argv.includes('--self-test')) {
       src: 'const value = "rubitime_legacy";',
     },
     {
+      rel: 'apps/webapp/src/modules/new-booking/plainSource.ts',
+      src: 'const source = "rubitime";',
+    },
+    {
+      rel: 'apps/webapp/src/app/app/settings/BookingEngineSection.tsx',
+      src: Array.from({ length: 12 }, () => 'const source = "rubitime";').join('\n'),
+    },
+    {
       rel: 'apps/webapp/src/app/api/admin/new-rubitime/route.ts',
       src: 'export async function GET() {}',
     },
@@ -211,7 +248,7 @@ if (process.argv.includes('--self-test')) {
   const expected =
     offenders.integratorImports.length === 1 &&
     offenders.bookingSyncImports.length === 1 &&
-    offenders.readSourceBranches.length === 1 &&
+    offenders.readSourceBranches.length === 3 &&
     offenders.webappRoutes.length === 1 &&
     offenders.integratorRoutes.length === 1;
 

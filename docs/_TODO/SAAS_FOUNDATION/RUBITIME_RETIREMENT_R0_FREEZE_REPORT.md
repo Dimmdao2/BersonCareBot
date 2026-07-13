@@ -2,6 +2,8 @@
 
 Run id: `R0-freeze-codex-2026-07-14`
 
+Audit-fix run id: `R0-freeze-dalton-fix-codex-2026-07-14`
+
 Scope: Phase R0 only. No R1/R2/R3 work, no backfill, no DB writes, no production/env/crontab changes, no Rubitime runtime removal.
 
 ## Static search report summary
@@ -77,21 +79,29 @@ Drop/archive candidates after later proof, not touched in R0:
 
 | Table/reference | Current evidence |
 | --- | --- |
-| `public.appointment_records` | `apps/webapp/db/schema/schema.ts`, `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts`; still referenced by legacy doctor/client/history projections. |
-| `integrator.rubitime_records` | `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts`; raw/projection state. |
-| `integrator.rubitime_events` | `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts`; raw webhook/event audit. |
-| `integrator.rubitime_create_retry_jobs` | `apps/integrator/src/infra/db/schema/integratorQueues.ts`; retry/drain candidate. |
-| `integrator.rubitime_api_throttle` | `apps/webapp/db/schema/schema.ts` shadow/introspection reference; runtime throttle candidate. |
-| `rubitime_booking_profiles`, `rubitime_branches`, `rubitime_services`, `rubitime_cooperators` | `apps/webapp/db/schema/schema.ts` and integrator legacy profile/catalog code; v1 profile catalog candidate. |
+| `public.appointment_records` | Schema: `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts:170`. Runtime consumers still include doctor list/KPI/calendar `apps/webapp/src/infra/repos/pgDoctorAppointments.ts:205`, calendar legacy feed `apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts:43`, doctor client history/segments `apps/webapp/src/infra/repos/pgDoctorClients.ts:376`, patient clinical links `apps/webapp/src/infra/repos/pgPatientClinical.ts:318`, memberships/package session accounting `apps/webapp/src/infra/repos/pgMemberships.ts:143`, projection writes/deletes `apps/webapp/src/infra/repos/pgAppointmentProjection.ts:162`, merge/purge ops `packages/platform-merge/src/pgPlatformUserMerge.ts:330` and `apps/webapp/src/infra/platformUserFullPurge.ts:134`. R1/R2 cannot drop this table until those consumers are canonical-only or explicitly migrated. |
+| `integrator.rubitime_records` | Schema: `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts:132`. Runtime/ops consumers include Rubitime resync `apps/integrator/src/infra/scripts/resync-rubitime-records.ts:343`, provider comparison `apps/integrator/src/infra/scripts/compare-rubitime-records.ts:292`, historical time backfill `apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts:200`, and user purge cleanup `apps/webapp/src/infra/platformUserFullPurge.ts:390`. R1 must compare this source directly against `appointment_records`. |
+| `integrator.rubitime_events` | Schema: `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts:162`. Raw webhook/event audit, also purged through `apps/webapp/src/infra/platformUserFullPurge.ts:379`. R1-HISTORY-CONTRACT/R7 must decide archive/export before destructive removal. |
+| `integrator.rubitime_create_retry_jobs` | Schema: `apps/integrator/src/infra/db/schema/integratorQueues.ts:45`. Runtime queue consumer is `apps/integrator/src/infra/db/repos/jobQueue.ts:48`; user purge cleanup is `apps/webapp/src/infra/platformUserFullPurge.ts:398`. R6 cutoff/drain must prove it is empty or archived. |
+| `integrator.rubitime_api_throttle` | Runtime throttle consumer is `apps/integrator/src/integrations/rubitime/rubitimeApiThrottle.ts:47`; schema/migration reference is `apps/integrator/src/integrations/rubitime/db/migrations/20260413_0001_rubitime_api_throttle.sql:3`. Drop only after outbound Rubitime API code is removed. |
+| `rubitime_booking_profiles`, `rubitime_branches`, `rubitime_services`, `rubitime_cooperators` | Legacy v1 profile/catalog tables are represented by webapp schema/admin Rubitime catalog routes and integrator admin M2M routes. R5/R6 should first disable legacy v1 resolve and remove admin/profile runtime routes; not touched in R0. |
 
 Keep/migrate, not drop in Rubitime retirement R0:
 
 | Table/reference | R0 disposition |
 | --- | --- |
-| `integrator.booking_calendar_map` / `public.booking_calendar_map` | Keep or migrate provider-neutral later; GCal map is not removed in R0. |
-| `public.patient_bookings` | Compatibility/business booking table, not a Rubitime-owned drop target. |
-| `public.be_external_entity_mappings` | Keep; Rubitime rows are traceability/mapping, table is canonical infrastructure. |
-| `public.booking_cities`, `booking_branches`, `booking_branch_services`, `booking_services`, `booking_specialists` | Live patient/public catalog until R3-CATALOG proves replacement. |
+| `integrator.booking_calendar_map` / `public.booking_calendar_map` | Keep or migrate provider-neutral later; GCal map is not removed in R0. Evidence: schema `apps/integrator/src/infra/db/schema/integratorPublicProduct.ts:48`, Rubitime webhook/post-create GCal sync `apps/integrator/src/integrations/rubitime/webhook.ts:79` and `apps/integrator/src/integrations/rubitime/postCreateProjection.ts:104`, canonical booking-event route still mounted under Rubitime namespace `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts:848`, webapp caller `apps/webapp/src/modules/integrator/bookingM2mApi.ts:297`. R4/R7 must preserve existing GCal update/delete semantics before any rename/drop. |
+| `public.patient_bookings` | Compatibility/business booking table, not a Rubitime-owned drop target. Evidence: patient booking repo `apps/webapp/src/infra/repos/pgPatientBookings.ts:105`, canonical create/status docs `apps/webapp/src/modules/patient-booking/patient-booking.md:23`, platform merge `packages/platform-merge/src/pgPlatformUserMerge.ts:326`, booking sync package `packages/booking-rubitime-sync/src/upsertPatientBookingFromRubitime.ts:124`. |
+| `public.be_external_entity_mappings` | Keep; Rubitime rows are traceability/mapping, table is canonical infrastructure. Evidence: bridge mapping `apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts:66`, doctor client mapping path `apps/webapp/src/infra/repos/pgDoctorClients.ts:679`, memberships mapping path `apps/webapp/src/infra/repos/pgMemberships.ts:150`, GCal context/description `apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts:20` and `apps/integrator/src/integrations/google-calendar/calendarDescription.ts:88`. |
+| `public.booking_cities`, `booking_branches`, `booking_branch_services`, `booking_services`, `booking_specialists` | Live patient/public catalog until R3-CATALOG proves replacement. Evidence: shared Rubitime lookup package `packages/booking-rubitime-sync/src/lookupBranchServiceByRubitimeIds.ts:42`, catalog repo list/admin writes `apps/webapp/src/infra/repos/pgBookingCatalog.ts:230` and `apps/webapp/src/infra/repos/pgBookingCatalog.ts:522`, patient booking types `apps/webapp/src/modules/patient-booking/types.ts:109`, public booking API surface `apps/webapp/src/app/api/api.md:8`. |
+
+Read-source switch/runtime branch files to hand off to R1/R2:
+
+| Area | Evidence |
+| --- | --- |
+| Doctor read source | `apps/webapp/src/infra/repos/doctorAppointmentsReadSwitch.ts:24` chooses `rubitime_legacy` vs `canonical`; DI reads the setting in `apps/webapp/src/app-layer/di/buildAppDeps.ts:654`; settings validation lives in `apps/webapp/src/app/api/admin/settings/route.ts:397`; doctor analytics still branches in `apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts:118`. |
+| Slots/create read source | `apps/webapp/src/modules/patient-booking/slotsReadSource.ts:1` defines `rubitime` vs `canonical`; DI reads the setting in `apps/webapp/src/app-layer/di/buildAppDeps.ts:1038`; create still checks `slotsReadSource === "rubitime"` in `apps/webapp/src/modules/patient-booking/canonicalCreate.ts:243` and `apps/webapp/src/modules/patient-booking/service.ts:590`; UI settings expose the value in `apps/webapp/src/app/app/settings/BookingEngineSection.tsx:74`. |
+| Doctor R2 surfaces | Doctor list/KPI/calendar references are concentrated in `apps/webapp/src/infra/repos/pgDoctorAppointments.ts:205`, `apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts:43`, `apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts:118`, `apps/webapp/src/app/app/doctor/TodayMiniCalendarWithModal.tsx:52`, and patient/client history tabs through `apps/webapp/src/infra/repos/pgDoctorClients.ts:643`. |
 
 ## Guards/checks added
 
@@ -99,16 +109,18 @@ Added `docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mj
 
 The guard freezes current baseline and fails on:
 
-- new imports from `apps/integrator/src/integrations/rubitime/**` outside the existing baseline allowlist;
-- new imports from `@bersoncare/booking-rubitime-sync` outside existing baseline consumers;
-- new `booking_doctor_appointments_read_source`, `booking_slots_read_source`, `booking_rubitime_bridge_enabled`, or `rubitime_legacy` branches outside existing baseline files;
+- growth above the frozen per-file baseline for imports from `apps/integrator/src/integrations/rubitime/**`;
+- growth above the frozen per-file baseline for imports from `@bersoncare/booking-rubitime-sync`;
+- growth above the frozen per-file baseline for read-source/bridge tokens: `booking_doctor_appointments_read_source`, `booking_slots_read_source`, `booking_rubitime_bridge_enabled`, `rubitime_legacy`, and the plain read-source literal `"rubitime"` / `'rubitime'`;
 - new webapp API route files with `rubitime` in `apps/webapp/src/app/api/**/route.ts`;
-- new integrator `app.get/post/put/patch/delete(...rubitime...)` route literals outside the existing Rubitime route files.
+- growth above the frozen per-file baseline for integrator `app.get/post/put/patch/delete(...rubitime...)` route literals.
+
+This means allowlisted high-risk files are no longer open-ended: adding another matching Rubitime branch/import/route occurrence inside an existing baseline file fails the guard unless the baseline is intentionally reviewed and updated.
 
 Connected checks:
 
-- `pnpm run check:rubitime-retirement-r0`
-- root `pnpm lint` now runs the R0 guard after `scripts/check-db-chokepoint.mjs`.
+- `pnpm run check:rubitime-retirement-r0` is the explicit R0 gate.
+- Root `pnpm lint` does not include the R0 guard; existing ESLint failures must not hide whether the R0 freeze check was run.
 
 ## UI deprecation/internal-only marking
 
@@ -127,6 +139,8 @@ No controls were disabled and no setting value semantics changed.
 - [x] No-new-Rubitime-dependency guard is added.
 - [x] Rubitime settings UI is marked deprecated/internal-only.
 - [x] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches through the R0 guard.
+- [x] New plain read-source literal `"rubitime"` / `'rubitime'` is blocked through the R0 guard.
+- [x] Growth inside baseline high-risk files is blocked through frozen per-file occurrence counts.
 - [x] Current Rubitime route map is recorded.
 - [x] Current Rubitime table/reference map is recorded.
 - [x] R0 review confirms no runtime behavior changed.
@@ -146,12 +160,16 @@ Commands and results:
 | `rg -n "app\\.(get\|post\|delete)\\(...rubitime" apps/integrator/src/integrations/rubitime --glob '*.ts'` | Passed; route map recorded. |
 | `find apps/webapp/src/app/api -type f -path '*rubitime*' -name 'route.ts'` | Passed; route map recorded. |
 | `rg -n "export const ...|be_external_entity_mappings" apps/webapp/db/schema apps/integrator/src/infra/db/schema --glob '*.ts'` | Passed; table/reference map recorded. |
-| `pnpm run check:rubitime-retirement-r0` | Passed. |
-| `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs --self-test` | Passed. |
+| `node /home/dev/brain/tools/code-search.mjs "appointment_records rubitime_records rubitime_events read source switch doctor appointments" --repo bcb -k 20` | Passed; used before exact consumer/reference `rg` for Dalton R0 report enrichment. |
+| `rg -n "appointment_records"` and targeted `rg` for `rubitime_records`, `rubitime_events`, read-source keys, `booking_calendar_map`, `patient_bookings`, `be_external_entity_mappings`, and public `booking_*` catalog tables | Passed; line-level/file-level evidence added above. |
+| `pnpm run check:rubitime-retirement-r0` | Passed after Dalton fixes; baseline guard accepts current legitimate surface. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs --self-test` | Passed after Dalton fixes; synthetic new `const source = "rubitime"` and synthetic growth inside `BookingEngineSection.tsx` are detected. |
+| `git diff --check` | Passed after Dalton fixes. |
+| `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs` | Passed after Dalton fixes. |
 | `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs apps/webapp/src/app/app/settings/BookingEngineSection.tsx apps/webapp/src/app/app/doctor/admin/booking/bookingAdminTabs.ts apps/webapp/src/app/app/doctor/admin/booking/integrations/page.tsx` | Passed with 0 errors; app files were reported as ignored by current ESLint patterns. |
 | `pnpm --dir apps/webapp run lint` | Passed. |
 | `pnpm --dir apps/webapp typecheck` | Passed. |
-| `pnpm lint` | Failed before reaching the R0 guard on pre-existing integrator `no-secrets/no-secrets` findings for literal `DB_PRINCIPAL_CONTEXT_MODE=locked` in `apps/integrator/src/infra/runtime/scheduler/main.ts`, `worker/main.ts`, and `worker/outgoingDeliveryWorker.ts`. |
+| `pnpm lint` | Historical pre-Dalton-fix run failed before reaching the R0 guard on pre-existing integrator `no-secrets/no-secrets` findings for literal `DB_PRINCIPAL_CONTEXT_MODE=locked` in `apps/integrator/src/infra/runtime/scheduler/main.ts`, `worker/main.ts`, and `worker/outgoingDeliveryWorker.ts`. After Dalton fix, `pnpm lint` is no longer described or wired as the R0 gate; the explicit gate is `pnpm run check:rubitime-retirement-r0`. Root lint was not rerun for this fixer pass. |
 
 Implementation note: an initial patch was accidentally applied to sibling `/home/dev/dev-projects/BersonCareBot` because the tool cwd differed from the requested worktree. Those self-made changes were immediately reverted; `git status --short` there returned clean before continuing in `/home/dev/dev-projects/bcb-walls`.
 
