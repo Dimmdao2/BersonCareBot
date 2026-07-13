@@ -7,6 +7,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
@@ -221,6 +223,18 @@ function auditValueForLog(key: string, value: unknown): unknown {
   return value;
 }
 
+/**
+ * P0.11.3: resolves the caller's own clinic `organizationId`, best-effort (never blocks the route —
+ * most keys under `ADMIN_SCOPE_KEYS` stay GLOBAL and don't need one). `requireDoctorWorkspaceApiContext`
+ * also stamps the DB principal for the org-specific write's RLS check to pass; `canAccessDoctor("admin")`
+ * is `true` so this does not require `session.adminMode` (unlike `requireAdminModeSession`), keeping this
+ * route's existing `role === "admin"` gate unchanged.
+ */
+async function resolveBestEffortOrganizationId(): Promise<string | null> {
+  const workspaceGate = await requireDoctorWorkspaceApiContext();
+  return workspaceGate.ok ? workspaceGate.ctx.organizationId : null;
+}
+
 export async function GET() {
   const session = await getCurrentSession();
   if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -228,8 +242,11 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
+  const organizationId = await resolveBestEffortOrganizationId();
   const deps = buildAppDeps();
-  const settings = redactAdminSettingsForClient(await deps.systemSettings.listSettingsByScope("admin"));
+  const settings = redactAdminSettingsForClient(
+    await deps.systemSettings.listSettingsByScope("admin", { organizationId }),
+  );
   return NextResponse.json({ ok: true, settings });
 }
 
@@ -240,6 +257,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
+  const organizationId = await resolveBestEffortOrganizationId();
   const raw = (await request.json().catch(() => null)) as unknown;
 
   if (raw !== null && typeof raw === "object" && "items" in raw) {
@@ -288,7 +306,7 @@ export async function PATCH(request: Request) {
       }
       const deps = buildAppDeps();
       for (const row of norm.rows) {
-        const oldSetting = await deps.systemSettings.getSetting(row.key, "admin");
+        const oldSetting = await deps.systemSettings.getSetting(row.key, "admin", { organizationId });
         console.info("[admin-settings audit]", {
           key: row.key,
           oldValue: auditValueForLog(row.key, oldSetting?.valueJson ?? null),
@@ -297,10 +315,16 @@ export async function PATCH(request: Request) {
           timestamp: new Date().toISOString(),
         });
       }
-      const settings = redactAdminSettingsForClient(
-        await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId),
-      );
-      return NextResponse.json({ ok: true, settings });
+      try {
+        const settings = redactAdminSettingsForClient(
+          await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId, { organizationId }),
+        );
+        return NextResponse.json({ ok: true, settings });
+      } catch (error) {
+        const errResponse = systemSettingsOrgContextErrorResponse(error);
+        if (errResponse) return errResponse;
+        throw error;
+      }
     }
   }
 
@@ -551,7 +575,7 @@ export async function PATCH(request: Request) {
   /** Prefetch for audit: avoid second `getSetting` for `web_push_vapid` (same row as validation). */
   let webPushVapidOldRowForAudit: SystemSetting | null | undefined;
   if (parsed.data.key === "web_push_vapid") {
-    webPushVapidOldRowForAudit = await deps.systemSettings.getSetting("web_push_vapid", "admin");
+    webPushVapidOldRowForAudit = await deps.systemSettings.getSetting("web_push_vapid", "admin", { organizationId });
     const hasExistingPrivate = hasStoredWebPushVapidPrivate(webPushVapidOldRowForAudit?.valueJson ?? null);
     const checked = parseWebPushVapidPatchValue(normalizedValue, { hasExistingPrivate });
     if (!checked.ok) {
@@ -564,7 +588,7 @@ export async function PATCH(request: Request) {
   const oldSetting =
     webPushVapidOldRowForAudit !== undefined
       ? webPushVapidOldRowForAudit
-      : await deps.systemSettings.getSetting(parsed.data.key, "admin");
+      : await deps.systemSettings.getSetting(parsed.data.key, "admin", { organizationId });
   console.info("[admin-settings audit]", {
     key: parsed.data.key,
     oldValue: auditValueForLog(parsed.data.key, oldSetting?.valueJson ?? null),
@@ -573,12 +597,20 @@ export async function PATCH(request: Request) {
     timestamp: new Date().toISOString(),
   });
 
-  const setting = await deps.systemSettings.updateSetting(
-    parsed.data.key,
-    "admin",
-    normalizedValue,
-    session.user.userId
-  );
+  let setting: SystemSetting;
+  try {
+    setting = await deps.systemSettings.updateSetting(
+      parsed.data.key,
+      "admin",
+      normalizedValue,
+      session.user.userId,
+      { organizationId },
+    );
+  } catch (error) {
+    const errResponse = systemSettingsOrgContextErrorResponse(error);
+    if (errResponse) return errResponse;
+    throw error;
+  }
 
   // Invalidate configAdapter cache for updated key (sync to integrator runs inside updateSetting)
   invalidateConfigKey(parsed.data.key);

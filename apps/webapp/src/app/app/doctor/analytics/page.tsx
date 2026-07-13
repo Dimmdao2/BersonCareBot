@@ -28,7 +28,7 @@ type Props = {
 };
 
 export default async function DoctorAnalyticsPage({ searchParams }: Props) {
-  await requireAdminDoctorPage();
+  const session = await requireAdminDoctorPage();
   const sp = await searchParams;
   const rawTab = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
   const initialTab = analyticsTabFromQuery(rawTab);
@@ -37,9 +37,14 @@ export default async function DoctorAnalyticsPage({ searchParams }: Props) {
   const displayIana = await getAppDisplayTimeZone();
   const calendarTodayYmd = DateTime.now().setZone(displayIana).toFormat("yyyy-LL-dd");
   const audience = await loadDoctorAnalyticsAudience();
+  // P0.11.3: patient_label is PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
+  const orgResolution = await deps.organizationMembership.resolveOrganizationForUser({
+    platformUserId: session.user.userId,
+  });
+  const organizationId = orgResolution.ok ? orgResolution.context.organizationId : null;
 
   const [doctorSettings, contactBreakdown] = await Promise.all([
-    deps.systemSettings.listSettingsByScope("doctor"),
+    deps.systemSettings.listSettingsByScope("doctor", { organizationId }),
     deps.doctorClientsPort.getClientContactBreakdown({ excludedUserIds: audience.excludedUserIds }),
   ]);
 

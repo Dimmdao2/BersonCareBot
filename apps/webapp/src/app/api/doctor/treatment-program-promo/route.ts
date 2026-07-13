@@ -5,9 +5,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 import {
   normalizePatientDefaultPromoTreatmentProgramTemplatePatch,
@@ -18,16 +18,16 @@ const patchBodySchema = z.object({
   templateId: z.string(),
 });
 
+/** `patient_default_promo_treatment_program_template_id` is PER-ORG (owner-explicit example, see `orgScopedKeys.ts`). */
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
   const [templateId, activePromo, completedPromo] = await Promise.all([
-    deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId(),
+    deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId({
+      organizationId: gate.ctx.organizationId,
+    }),
     deps.treatmentProgramInstance.countInstancesForAssignmentSource({
       assignmentSource: "promo",
       status: "active",
@@ -46,11 +46,8 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
@@ -67,12 +64,19 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: false, error: normalized.error }, { status: 400 });
   }
 
-  await deps.systemSettings.updateSetting(
-    PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY,
-    "admin",
-    normalized.valueJson,
-    session.user.userId,
-  );
+  try {
+    await deps.systemSettings.updateSetting(
+      PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY,
+      "admin",
+      normalized.valueJson,
+      gate.ctx.session.user.userId,
+      { organizationId: gate.ctx.organizationId },
+    );
+  } catch (error) {
+    const errResponse = systemSettingsOrgContextErrorResponse(error);
+    if (errResponse) return errResponse;
+    throw error;
+  }
   invalidateConfigKey(PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY);
 
   return NextResponse.json({

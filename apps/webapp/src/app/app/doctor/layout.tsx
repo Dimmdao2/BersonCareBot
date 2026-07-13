@@ -34,7 +34,10 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     selectedSpecialistId: workspaceAccess.canManageAllSpecialists ? null : workspaceAccess.specialistId,
   };
   const deps = buildAppDeps();
-  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
+  // P0.11.3: patient_label is PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
+  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", {
+    organizationId: workspaceAccess.organizationId,
+  });
   const patientLabel = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
   return (
     <DoctorWorkspaceShell

@@ -44,15 +44,38 @@ export type NotifTemplateEntry = {
   isDefault: boolean;
 };
 
+type SystemSettingsReadOptionsLike = { organizationId?: string | null };
+type SystemSettingsWriteOptionsLike = { organizationId?: string | null };
+
 type SystemSettingsLike = {
-  getSetting(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null>;
-  updateSetting(key: string, scope: SystemSettingScope, value: unknown, updatedBy: string | null): Promise<SystemSetting>;
+  getSetting(
+    key: SystemSettingKey,
+    scope: SystemSettingScope,
+    options?: SystemSettingsReadOptionsLike,
+  ): Promise<SystemSetting | null>;
+  updateSetting(
+    key: string,
+    scope: SystemSettingScope,
+    value: unknown,
+    updatedBy: string | null,
+    options?: SystemSettingsWriteOptionsLike,
+  ): Promise<SystemSetting>;
 };
 
+/**
+ * Notification templates (`notif_template:*`) are PER-ORG (see `orgScopedKeys.ts`) — each clinic edits
+ * its own wording. `organizationId` is org-first-then-global-fallback on read, and required by the
+ * `system-settings` service chokepoint on write (throws `SystemSettingsOrgContextRequiredError` if
+ * missing — the caller/route resolves it from the current session's organization membership).
+ */
 export function createNotifTemplatesService(systemSettings: SystemSettingsLike) {
-  async function getTemplate(event: NotifTemplateEvent, audience: NotifTemplateAudience): Promise<NotifTemplateEntry> {
+  async function getTemplate(
+    event: NotifTemplateEvent,
+    audience: NotifTemplateAudience,
+    options: SystemSettingsReadOptionsLike = {},
+  ): Promise<NotifTemplateEntry> {
     const key = notifTemplateSettingKey(event, audience);
-    const row = await systemSettings.getSetting(key, "admin");
+    const row = await systemSettings.getSetting(key, "admin", options);
     const stored = extractTextFromValueJson(row?.valueJson ?? null);
     return {
       event,
@@ -63,10 +86,10 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
   }
 
   return {
-    async getAllTemplates(): Promise<NotifTemplateEntry[]> {
+    async getAllTemplates(options: SystemSettingsReadOptionsLike = {}): Promise<NotifTemplateEntry[]> {
       return Promise.all(
         NOTIF_TEMPLATE_EVENTS.flatMap((event) =>
-          NOTIF_TEMPLATE_AUDIENCES.map((audience) => getTemplate(event, audience)),
+          NOTIF_TEMPLATE_AUDIENCES.map((audience) => getTemplate(event, audience, options)),
         ),
       );
     },
@@ -76,9 +99,10 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       audience: NotifTemplateAudience,
       text: string,
       userId: string,
+      options: SystemSettingsWriteOptionsLike = {},
     ): Promise<NotifTemplateEntry> {
       const key = notifTemplateSettingKey(event, audience);
-      await systemSettings.updateSetting(key, "admin", { value: text }, userId);
+      await systemSettings.updateSetting(key, "admin", { value: text }, userId, options);
       return { event, audience, text, isDefault: false };
     },
   };

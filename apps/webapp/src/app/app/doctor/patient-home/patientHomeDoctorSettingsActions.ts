@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
@@ -16,20 +17,42 @@ function revalidatePatientHomePages(): void {
   revalidatePath("/app/patient");
 }
 
-async function requireDoctorOrThrow(): Promise<{ userId: string }> {
+/**
+ * P0.11.3: these actions write PER-ORG keys (`patient_home_daily_practice_target`,
+ * `patient_home_*_repeat_cooldown_minutes`, `patient_home_mood_icons` — see `orgScopedKeys.ts`), so the
+ * caller's own clinic `organizationId` must be resolved here (server actions have no route-level
+ * workspace gate). No active membership → `forbidden`, matching this file's existing throw-on-denial style.
+ */
+async function requireDoctorWorkspaceOrThrow(): Promise<{ userId: string; organizationId: string }> {
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
     throw new Error("forbidden");
   }
-  return { userId: session.user.userId };
+  const resolved = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
+    platformUserId: session.user.userId,
+  });
+  if (!resolved.ok) {
+    throw new Error("forbidden");
+  }
+  return { userId: session.user.userId, organizationId: resolved.context.organizationId };
 }
 
-async function requireAdminOrThrow(): Promise<{ userId: string }> {
+async function requireDoctorOrThrow(): Promise<{ userId: string; organizationId: string }> {
+  return requireDoctorWorkspaceOrThrow();
+}
+
+async function requireAdminOrThrow(): Promise<{ userId: string; organizationId: string }> {
   const session = await getCurrentSession();
   if (!session || session.user.role !== "admin") {
     throw new Error("forbidden");
   }
-  return { userId: session.user.userId };
+  const resolved = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
+    platformUserId: session.user.userId,
+  });
+  if (!resolved.ok) {
+    throw new Error("forbidden");
+  }
+  return { userId: session.user.userId, organizationId: resolved.context.organizationId };
 }
 
 const moodRowSchema = z.object({
@@ -40,16 +63,19 @@ const moodRowSchema = z.object({
 
 export async function savePatientHomePracticeTargetAction(target: number): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId } = await requireDoctorOrThrow();
+    const { userId, organizationId } = await requireDoctorOrThrow();
     if (!Number.isFinite(target) || target < 1 || target > 10) {
       return { ok: false, error: "invalid_range" };
     }
     const deps = buildAppDeps();
-    await deps.systemSettings.updateSetting(
-      "patient_home_daily_practice_target",
-      "admin",
-      { value: target },
-      userId,
+    await withDoctorWorkspacePrincipal({ organizationId }, () =>
+      deps.systemSettings.updateSetting(
+        "patient_home_daily_practice_target",
+        "admin",
+        { value: target },
+        userId,
+        { organizationId },
+      ),
     );
     revalidatePatientHomePages();
     return { ok: true };
@@ -76,27 +102,31 @@ export async function savePatientHomeRepeatCooldownsAction(
   input: z.infer<typeof patientHomeRepeatCooldownsSaveSchema>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId } = await requireAdminOrThrow();
+    const { userId, organizationId } = await requireAdminOrThrow();
     const parsed = patientHomeRepeatCooldownsSaveSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: "invalid_body" };
     }
     const { warmupRepeatMinutes, planItemRepeatMinutes } = parsed.data;
     const deps = buildAppDeps();
-    await Promise.all([
-      deps.systemSettings.updateSetting(
-        "patient_home_daily_warmup_repeat_cooldown_minutes",
-        "admin",
-        { value: warmupRepeatMinutes },
-        userId,
-      ),
-      deps.systemSettings.updateSetting(
-        "patient_treatment_plan_item_done_repeat_cooldown_minutes",
-        "admin",
-        { value: planItemRepeatMinutes },
-        userId,
-      ),
-    ]);
+    await withDoctorWorkspacePrincipal({ organizationId }, () =>
+      Promise.all([
+        deps.systemSettings.updateSetting(
+          "patient_home_daily_warmup_repeat_cooldown_minutes",
+          "admin",
+          { value: warmupRepeatMinutes },
+          userId,
+          { organizationId },
+        ),
+        deps.systemSettings.updateSetting(
+          "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+          "admin",
+          { value: planItemRepeatMinutes },
+          userId,
+          { organizationId },
+        ),
+      ]),
+    );
     revalidatePatientHomePages();
     return { ok: true };
   } catch {
@@ -108,7 +138,7 @@ export async function savePatientHomeMoodIconsAction(
   rows: Array<{ score: number; label: string; imageUrl: string | null }>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId } = await requireDoctorOrThrow();
+    const { userId, organizationId } = await requireDoctorOrThrow();
     const parsed = z.array(moodRowSchema).length(5).safeParse(rows);
     if (!parsed.success) {
       return { ok: false, error: "invalid_body" };
@@ -119,7 +149,11 @@ export async function savePatientHomeMoodIconsAction(
     }
     const sorted = [...parsed.data].sort((a, b) => a.score - b.score);
     const deps = buildAppDeps();
-    await deps.systemSettings.updateSetting("patient_home_mood_icons", "admin", { value: sorted }, userId);
+    await withDoctorWorkspacePrincipal({ organizationId }, () =>
+      deps.systemSettings.updateSetting("patient_home_mood_icons", "admin", { value: sorted }, userId, {
+        organizationId,
+      }),
+    );
     revalidatePatientHomePages();
     return { ok: true };
   } catch {
