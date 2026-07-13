@@ -80,10 +80,12 @@ export function createOrganizationInvitesService(deps: {
 
     async acceptInvite(input: {
       token: string;
+      platformUserId: string;
       expectedEmail: string;
     }) {
       return deps.invitesPort.acceptPendingByTokenHash({
         tokenHash: hashOrganizationInviteToken(input.token),
+        platformUserId: input.platformUserId,
         expectedEmail: normalizeEmail(input.expectedEmail),
       });
     },

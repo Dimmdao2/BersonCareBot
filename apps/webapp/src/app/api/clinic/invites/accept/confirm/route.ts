@@ -57,6 +57,7 @@ export async function POST(request: Request) {
 
   const accepted = await deps.organizationInvites.acceptInvite({
     token: parsed.data.token,
+    platformUserId: otp.userId,
     expectedEmail: lookup.invite.invitedEmail,
   });
   if (!accepted.ok) {

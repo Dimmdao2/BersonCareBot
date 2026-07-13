@@ -51,6 +51,7 @@ export type OrganizationInvitesPort = {
   revokePendingByOrganization(input: { organizationId: string; inviteId: string }): Promise<boolean>;
   acceptPendingByTokenHash(input: {
     tokenHash: string;
+    platformUserId: string;
     expectedEmail: string;
   }): Promise<AcceptOrganizationInviteResult>;
 };

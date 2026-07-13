@@ -29,6 +29,14 @@ function makeRequest(body: unknown): Request {
 describe("clinic invite accept confirm route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const acceptInvite = vi.fn().mockResolvedValue({
+      ok: true,
+      organizationId: "ed63b540-3fb6-499d-897c-f52227ea5dd8",
+      membershipId: "33333333-3333-4333-8333-333333333333",
+      platformUserId: "11111111-1111-4111-8111-111111111111",
+      specialistId: null,
+      role: "admin",
+    });
     buildAppDepsMock.mockReturnValue({
       organizationInvites: {
         lookupPendingByToken: vi.fn().mockResolvedValue({
@@ -39,14 +47,7 @@ describe("clinic invite accept confirm route", () => {
             organizationTitle: "Clinic",
           },
         }),
-        acceptInvite: vi.fn().mockResolvedValue({
-          ok: true,
-          organizationId: "ed63b540-3fb6-499d-897c-f52227ea5dd8",
-          membershipId: "33333333-3333-4333-8333-333333333333",
-          platformUserId: "11111111-1111-4111-8111-111111111111",
-          specialistId: null,
-          role: "admin",
-        }),
+        acceptInvite,
       },
       emailOtpPublicDb: {},
       userByPhone: {
@@ -78,6 +79,12 @@ describe("clinic invite accept confirm route", () => {
       "123456",
       {},
     );
+    const deps = buildAppDepsMock.mock.results[0]?.value;
+    expect(deps.organizationInvites.acceptInvite).toHaveBeenCalledWith({
+      token: "invite-token-with-length",
+      platformUserId: "11111111-1111-4111-8111-111111111111",
+      expectedEmail: "admin-r1@example.com",
+    });
     expect(setSessionFromUserMock).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "11111111-1111-4111-8111-111111111111",

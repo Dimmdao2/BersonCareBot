@@ -86,7 +86,7 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
       return true;
     },
 
-    async acceptPendingByTokenHash({ tokenHash, expectedEmail }): Promise<AcceptOrganizationInviteResult> {
+    async acceptPendingByTokenHash({ tokenHash, platformUserId, expectedEmail }): Promise<AcceptOrganizationInviteResult> {
       const invite = invites.find((candidate) => candidate.tokenHash === tokenHash);
       if (!invite) return { ok: false, code: "invalid_token" };
       if (invite.status !== "pending") return { ok: false, code: "reused_token" };
@@ -98,17 +98,16 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
         return { ok: false, code: "email_mismatch" };
       }
       const membershipId = randomUUID();
-      const userId = randomUUID();
       const specialistId = invite.invitedRole === "doctor" ? randomUUID() : null;
       invite.status = "accepted";
-      invite.acceptedByPlatformUserId = userId;
+      invite.acceptedByPlatformUserId = platformUserId;
       invite.acceptedMembershipId = membershipId;
       invite.acceptedAt = new Date().toISOString();
       return {
         ok: true,
         organizationId: invite.organizationId,
         membershipId,
-        platformUserId: userId,
+        platformUserId,
         specialistId,
         role: invite.invitedRole,
       };

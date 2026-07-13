@@ -2,75 +2,22 @@
  * DB implementation for the public email-OTP login flow port.
  * Satisfies EmailOtpPublicDbPort from modules/auth/emailOtpPublicPort.ts.
  */
-import { getPool } from "@/infra/db/client";
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { EmailOtpPublicDbPort } from "@/modules/auth/emailOtpPublicPort";
 
 export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
   return {
     async findOrCreatePublicEmailUser(emailNorm) {
-      // Use transaction + SELECT FOR UPDATE to prevent race-condition duplicate inserts.
-      return runWebappTransaction(async (tx) => {
-        // Try to find existing active user with this email.
-        const existing = await runWebappPgText<{ id: string }>(
-          `SELECT id FROM platform_users
-           WHERE email_normalized = $1 AND merged_into_id IS NULL
-           LIMIT 1`,
-          [emailNorm],
-          tx,
-        );
-        if (existing.rows[0]) {
-          return { userId: existing.rows[0].id, wasCreated: false };
-        }
-
-        // Email belongs to a merged-away row? Follow the merge chain to the canonical
-        // user (same helper pgUserByPhone uses) instead of creating a ghost duplicate.
-        const merged = await runWebappPgText<{ id: string }>(
-          `SELECT id FROM platform_users
-           WHERE email_normalized = $1 AND merged_into_id IS NOT NULL
-           ORDER BY created_at ASC
-           LIMIT 1`,
-          [emailNorm],
-          tx,
-        );
-        if (merged.rows[0]) {
-          const canonical = await resolveCanonicalUserId(getPool(), merged.rows[0].id);
-          if (canonical) {
-            return { userId: canonical, wasCreated: false };
-          }
-        }
-
-        // None found — insert a new 'client' row with unverified email.
-        // email_normalized uniqueness is enforced by partial index uq_platform_users_email_normalized_active.
-        // Display name defaults to the part before @.
-        const displayName = emailNorm.split("@")[0] ?? emailNorm;
-        const ins = await runWebappPgText<{ id: string }>(
-          `INSERT INTO platform_users (email, email_normalized, display_name, role)
-           VALUES ($1, $1, $2, 'client')
-           ON CONFLICT (email_normalized) WHERE merged_into_id IS NULL AND email_normalized IS NOT NULL DO NOTHING
-           RETURNING id`,
-          [emailNorm, displayName],
-          tx,
-        );
-        if (ins.rows[0]) {
-          return { userId: ins.rows[0].id, wasCreated: true };
-        }
-
-        // ON CONFLICT: another concurrent request inserted — fetch the row.
-        const retry = await runWebappPgText<{ id: string }>(
-          `SELECT id FROM platform_users
-           WHERE email_normalized = $1 AND merged_into_id IS NULL
-           LIMIT 1`,
-          [emailNorm],
-          tx,
-        );
-        const userId = retry.rows[0]?.id;
-        if (!userId) {
-          throw new Error("pgEmailOtpPublic: could not find or create user for email " + emailNorm);
-        }
-        return { userId, wasCreated: false };
-      });
+      const result = await runWebappPgText<{ user_id: string; was_created: boolean }>(
+        `SELECT user_id::text, was_created
+         FROM app.email_otp_public_find_or_create_user($1)`,
+        [emailNorm],
+      );
+      const row = result.rows[0];
+      if (!row) {
+        throw new Error("pgEmailOtpPublic: could not find or create user for email " + emailNorm);
+      }
+      return { userId: row.user_id, wasCreated: row.was_created };
     },
 
     async findLatestEmailChallengeByEmail(emailNorm, nowSec) {
@@ -82,11 +29,8 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
         expires_at: string;
         attempts: string;
       }>(
-        `SELECT id, user_id::text AS user_id, code_hash, expires_at::text, attempts::text
-         FROM email_challenges
-         WHERE email = $1 AND expires_at > $2
-         ORDER BY created_at DESC
-         LIMIT 1`,
+        `SELECT id::text, user_id::text AS user_id, code_hash, expires_at::text, attempts::text
+         FROM app.email_otp_public_find_latest_email_challenge_by_email($1, $2::bigint)`,
         [emailNorm, nowSec],
       );
       return r.rows[0] ?? null;
@@ -95,10 +39,8 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
     async findEmailSendCooldownByEmail(emailNorm) {
       // Pick the most recent cooldown for this email regardless of which user_id owns it.
       const r = await runWebappPgText<{ last_sent_at: Date | string }>(
-        `SELECT last_sent_at FROM email_send_cooldowns
-         WHERE email_normalized = $1
-         ORDER BY last_sent_at DESC
-         LIMIT 1`,
+        `SELECT last_sent_at
+         FROM app.email_otp_public_find_email_send_cooldown_by_email($1)`,
         [emailNorm],
       );
       const raw = r.rows[0]?.last_sent_at;

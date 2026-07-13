@@ -1,6 +1,4 @@
-import { runWebappPgText, runWebappTransaction, type WebappSqlTransactionExecutor } from "@/infra/db/runWebappSql";
-import { getPool } from "@/infra/db/client";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import type {
   AcceptOrganizationInviteResult,
   CreateOrganizationInviteResult,
@@ -29,6 +27,16 @@ type InviteRow = {
   organization_title: string | null;
 };
 
+type AcceptOrgInviteFunctionRow = {
+  ok: boolean;
+  code: string | null;
+  organization_id: string | null;
+  membership_id: string | null;
+  platform_user_id: string | null;
+  specialist_id: string | null;
+  role: string | null;
+};
+
 function parseInviteRole(value: string): OrganizationInviteRole {
   if (ORGANIZATION_INVITE_ROLES.includes(value as OrganizationInviteRole)) {
     return value as OrganizationInviteRole;
@@ -41,6 +49,18 @@ function parseInviteStatus(value: string): OrganizationInviteStatus {
     return value as OrganizationInviteStatus;
   }
   throw new Error(`Unexpected organization_member_invites.status: ${value}`);
+}
+
+function mapAcceptFailureCode(value: string | null): Exclude<AcceptOrganizationInviteResult, { ok: true }>["code"] {
+  switch (value) {
+    case "invalid_token":
+    case "expired_token":
+    case "reused_token":
+    case "email_mismatch":
+      return value;
+    default:
+      throw new Error(`Unexpected app.accept_org_invite failure code: ${value ?? "<null>"}`);
+  }
 }
 
 function mapInvite(row: InviteRow): OrganizationInviteRecord {
@@ -77,81 +97,6 @@ const inviteSelectSql = `
   FROM organization_member_invites i
   LEFT JOIN be_organizations o ON o.id = i.organization_id
 `;
-
-async function findOrCreatePlatformUserByEmailInTx(
-  emailNorm: string,
-  tx: WebappSqlTransactionExecutor,
-): Promise<{ id: string; displayName: string }> {
-  const existing = await runWebappPgText<{ id: string; display_name: string }>(
-    `SELECT id::text, display_name
-     FROM platform_users
-     WHERE email_normalized = $1 AND merged_into_id IS NULL
-     LIMIT 1
-     FOR UPDATE`,
-    [emailNorm],
-    tx,
-  );
-  if (existing.rows[0]) {
-    return { id: existing.rows[0].id, displayName: existing.rows[0].display_name };
-  }
-
-  const merged = await runWebappPgText<{ id: string }>(
-    `SELECT id::text
-     FROM platform_users
-     WHERE email_normalized = $1 AND merged_into_id IS NOT NULL
-     ORDER BY created_at ASC
-     LIMIT 1`,
-    [emailNorm],
-    tx,
-  );
-  if (merged.rows[0]) {
-    const canonical = await resolveCanonicalUserId(getPool(), merged.rows[0].id);
-    if (canonical) {
-      const canonicalRow = await runWebappPgText<{ id: string; display_name: string }>(
-        `SELECT id::text, display_name
-         FROM platform_users
-         WHERE id = $1
-         LIMIT 1
-         FOR UPDATE`,
-        [canonical],
-        tx,
-      );
-      if (canonicalRow.rows[0]) {
-        return {
-          id: canonicalRow.rows[0].id,
-          displayName: canonicalRow.rows[0].display_name,
-        };
-      }
-    }
-  }
-
-  const fallbackDisplayName = emailNorm.split("@")[0] ?? emailNorm;
-  const inserted = await runWebappPgText<{ id: string; display_name: string }>(
-    `INSERT INTO platform_users (email, email_normalized, display_name, role, email_verified_at)
-     VALUES ($1, $1, $2, 'client', now())
-     ON CONFLICT (email_normalized) WHERE merged_into_id IS NULL AND email_normalized IS NOT NULL DO NOTHING
-     RETURNING id::text, display_name`,
-    [emailNorm, fallbackDisplayName],
-    tx,
-  );
-  if (inserted.rows[0]) {
-    return { id: inserted.rows[0].id, displayName: inserted.rows[0].display_name };
-  }
-
-  const retry = await runWebappPgText<{ id: string; display_name: string }>(
-    `SELECT id::text, display_name
-     FROM platform_users
-     WHERE email_normalized = $1 AND merged_into_id IS NULL
-     LIMIT 1
-     FOR UPDATE`,
-    [emailNorm],
-    tx,
-  );
-  if (!retry.rows[0]) {
-    throw new Error("organization_invite_user_find_or_create_failed");
-  }
-  return { id: retry.rows[0].id, displayName: retry.rows[0].display_name };
-}
 
 export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
   return {
@@ -270,9 +215,20 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
 
     async getByTokenHash(tokenHash) {
       const rows = await runWebappPgText<InviteRow>(
-        `${inviteSelectSql}
-         WHERE i.token_hash = $1
-         LIMIT 1`,
+        `SELECT
+           id::text,
+           organization_id::text,
+           invited_email,
+           invited_role,
+           status,
+           expires_at::text,
+           created_by_platform_user_id::text,
+           accepted_by_platform_user_id::text,
+           accepted_membership_id::text,
+           created_at::text,
+           accepted_at::text,
+           organization_title
+         FROM app.lookup_pending_org_invite($1)`,
         [tokenHash],
       );
       return rows.rows[0] ? mapInvite(rows.rows[0]) : null;
@@ -301,105 +257,39 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
       return Boolean(res.rows[0]);
     },
 
-    async acceptPendingByTokenHash({ tokenHash, expectedEmail }): Promise<AcceptOrganizationInviteResult> {
-      return runWebappTransaction(async (tx) => {
-        const locked = await runWebappPgText<InviteRow>(
-          `${inviteSelectSql}
-           WHERE i.token_hash = $1
-           LIMIT 1
-           FOR UPDATE OF i`,
-          [tokenHash],
-          tx,
-        );
-        const invite = locked.rows[0] ? mapInvite(locked.rows[0]) : null;
-        if (!invite) return { ok: false, code: "invalid_token" };
-        if (invite.status !== "pending") return { ok: false, code: "reused_token" };
-        if (new Date(invite.expiresAt).getTime() <= Date.now()) {
-          await runWebappPgText(
-            `UPDATE organization_member_invites
-             SET status = 'expired'
-             WHERE id = $1
-               AND status = 'pending'`,
-            [invite.id],
-            tx,
-          );
-          return { ok: false, code: "expired_token" };
-        }
-        if (invite.invitedEmail !== expectedEmail) {
-          return { ok: false, code: "email_mismatch" };
-        }
-
-        const user = await findOrCreatePlatformUserByEmailInTx(invite.invitedEmail, tx);
-        const displayName = user.displayName.trim() || invite.invitedEmail.split("@")[0] || invite.invitedEmail;
-        await runWebappPgText(
-          `UPDATE platform_users
-           SET role = 'doctor',
-               email = COALESCE(email, $2),
-               email_normalized = COALESCE(email_normalized, $2),
-               email_verified_at = COALESCE(email_verified_at, now()),
-               updated_at = now()
-           WHERE id = $1`,
-          [user.id, invite.invitedEmail],
-          tx,
-        );
-
-        let specialistId: string | null = null;
-        if (invite.invitedRole === "doctor") {
-          const specialist = await runWebappPgText<{ id: string }>(
-            `INSERT INTO be_specialists (organization_id, full_name, is_active, sort_order, created_at, updated_at)
-             VALUES ($1, $2, true, 0, now(), now())
-             RETURNING id::text`,
-            [invite.organizationId, displayName],
-            tx,
-          );
-          specialistId = specialist.rows[0]?.id ?? null;
-          if (!specialistId) throw new Error("organization_invite_specialist_insert_failed");
-        }
-
-        const membership = await runWebappPgText<{ id: string; specialist_id: string | null }>(
-          `INSERT INTO be_organization_members (
-             organization_id,
-             platform_user_id,
-             role,
-             specialist_id,
-             status,
-             created_at,
-             updated_at
-           )
-           VALUES ($1, $2, $3, $4, 'active', now(), now())
-           ON CONFLICT (organization_id, platform_user_id)
-           DO UPDATE SET
-             role = EXCLUDED.role,
-             specialist_id = EXCLUDED.specialist_id,
-             status = 'active',
-             updated_at = now()
-           RETURNING id::text, specialist_id::text`,
-          [invite.organizationId, user.id, invite.invitedRole, specialistId],
-          tx,
-        );
-        const membershipRow = membership.rows[0];
-        if (!membershipRow) throw new Error("organization_invite_membership_insert_failed");
-
-        await runWebappPgText(
-          `UPDATE organization_member_invites
-           SET status = 'accepted',
-               accepted_by_platform_user_id = $2,
-               accepted_membership_id = $3,
-               accepted_at = now()
-           WHERE id = $1`,
-          [invite.id, user.id, membershipRow.id],
-          tx,
-        );
-
-        return {
-          ok: true,
-          organizationId: invite.organizationId,
-          membershipId: membershipRow.id,
-          platformUserId: user.id,
-          specialistId: membershipRow.specialist_id,
-          role: invite.invitedRole,
-        };
-      });
+    async acceptPendingByTokenHash({
+      tokenHash,
+      platformUserId,
+      expectedEmail,
+    }): Promise<AcceptOrganizationInviteResult> {
+      const accepted = await runWebappPgText<AcceptOrgInviteFunctionRow>(
+        `SELECT
+           ok,
+           code,
+           organization_id::text,
+           membership_id::text,
+           platform_user_id::text,
+           specialist_id::text,
+           role
+         FROM app.accept_org_invite($1, $2::uuid, $3)`,
+        [tokenHash, platformUserId, expectedEmail],
+      );
+      const row = accepted.rows[0];
+      if (!row) throw new Error("app.accept_org_invite_returned_no_rows");
+      if (!row.ok) {
+        return { ok: false, code: mapAcceptFailureCode(row.code) };
+      }
+      if (!row.organization_id || !row.membership_id || !row.platform_user_id || !row.role) {
+        throw new Error("app.accept_org_invite_returned_incomplete_success");
+      }
+      return {
+        ok: true,
+        organizationId: row.organization_id,
+        membershipId: row.membership_id,
+        platformUserId: row.platform_user_id,
+        specialistId: row.specialist_id,
+        role: parseInviteRole(row.role),
+      };
     },
   };
 }
