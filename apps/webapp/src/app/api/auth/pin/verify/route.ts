@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
@@ -14,6 +15,7 @@ const bodySchema = z.object({
  * Подтверждение PIN при активной сессии (для опасных действий, напр. удаление дневников).
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/pin/verify:POST");
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const { session } = gate;

@@ -2,6 +2,8 @@
 
 import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
 import {
+  hasAnyPatientOwnership,
+  renderBootstrapHybridOrgGatedPredicate,
   renderBootstrapHybridPredicate,
   renderCreatePolicy,
   renderDropPolicy,
@@ -21,6 +23,7 @@ export const p09EnforceActions = new Set([
   "scoped_fk_path",
   "scoped_pending_default_deny",
   "bootstrap_hybrid",
+  "bootstrap_hybrid_org_gated",
   "bootstrap_global_read",
   "explicit_global",
   "legacy_frozen_deny",
@@ -31,8 +34,9 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   scoped_org: 154,
   scoped_fk_path: 2,
   scoped_pending_default_deny: 1,
-  bootstrap_hybrid: 5,
-  bootstrap_global_read: 21,
+  bootstrap_hybrid: 3,
+  bootstrap_hybrid_org_gated: 2,
+  bootstrap_global_read: 22,
   explicit_global: 24,
   legacy_frozen_deny: 16,
 });
@@ -119,6 +123,18 @@ export function buildP09EnforceDescriptor(descriptor) {
       };
     }
 
+    if (descriptor.scopingKind === "bootstrap_hybrid_org_gated") {
+      return {
+        ...base,
+        predicateTemplate: "org_gated_null_bootstrap",
+        enforceMode: {
+          ...base.enforceMode,
+          action: "bootstrap_hybrid_org_gated",
+          reason: "null_rows_readable_only_to_contextless_bootstrap_org_rows_require_matching_app_org",
+        },
+      };
+    }
+
     if (descriptor.scopingKind === "bootstrap_global") {
       return {
         ...base,
@@ -196,8 +212,8 @@ export function assertP09EnforceDescriptors(descriptors) {
   const actualTables = descriptors.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 223) {
-    throw new Error(`Expected 223 P0.9 enforce descriptors, got ${actualTables.length}`);
+  if (actualTables.length !== 224) {
+    throw new Error(`Expected 224 P0.9 enforce descriptors, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {
@@ -242,7 +258,7 @@ export function renderP09EnforcePredicate(descriptor) {
   if (action === "scoped_org") {
     const orgPredicate = renderOrgPredicate(descriptor, { mode: "enforce" });
 
-    if (!descriptor.patientColumn && !descriptor.patientChain) {
+    if (!hasAnyPatientOwnership(descriptor)) {
       return orgPredicate;
     }
 
@@ -263,6 +279,10 @@ export function renderP09EnforcePredicate(descriptor) {
 
   if (action === "bootstrap_hybrid") {
     return renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
+  }
+
+  if (action === "bootstrap_hybrid_org_gated") {
+    return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
   }
 
   if (action === "bootstrap_global_read" || action === "explicit_global") {

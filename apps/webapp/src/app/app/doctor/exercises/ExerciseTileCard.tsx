@@ -7,6 +7,7 @@ import type { Exercise } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 
 type Props = {
   exercise: Exercise;
@@ -53,7 +54,10 @@ export function ExerciseTileCard({ exercise, onSelect, isActive, squarePreview =
       <Button
         type="button"
         variant="ghost"
-        className="flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left"
+        className={cn(
+          doctorInteractiveSurfaceButtonClass,
+          "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+        )}
         onClick={() => onSelect(exercise.id)}
       >
         {inner}

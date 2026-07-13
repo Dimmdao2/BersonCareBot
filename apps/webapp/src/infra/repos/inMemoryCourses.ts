@@ -17,6 +17,19 @@ export function clearInMemoryCourseUsageSnapshots(): void {
   courseUsageSnapshots.clear();
 }
 
+/** patientUserId -> set of assigned program template ids (fake mirror of `treatment_program_instances`). */
+const patientAssignedTemplateIds = new Map<string, Set<string>>();
+
+export function seedInMemoryPatientAssignedTemplate(patientUserId: string, templateId: string): void {
+  const set = patientAssignedTemplateIds.get(patientUserId) ?? new Set<string>();
+  set.add(templateId);
+  patientAssignedTemplateIds.set(patientUserId, set);
+}
+
+export function clearInMemoryPatientAssignedTemplates(): void {
+  patientAssignedTemplateIds.clear();
+}
+
 function defaultUsageFromCourse(row: CourseRecord): CourseUsageSnapshot {
   return {
     programTemplateId: row.programTemplateId,
@@ -50,6 +63,14 @@ export function createInMemoryCoursesPort(seed: CourseRecord[] = []): CoursesPor
   return {
     async listPublished() {
       return [...store.values()].filter((r) => r.status === "published").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    },
+
+    async listAssignedToPatient(patientUserId) {
+      const templateIds = patientAssignedTemplateIds.get(patientUserId) ?? new Set<string>();
+      return [...store.values()]
+        .filter((r) => templateIds.has(r.programTemplateId))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map((r) => ({ ...r, accessSettings: cloneSettings(r.accessSettings) }));
     },
 
     async listForDoctor(filter) {

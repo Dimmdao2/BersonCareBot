@@ -5,6 +5,5 @@
 -- produced by `node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-6-policy-targets.mjs --sql` for this table.
 
 ALTER TABLE "public"."system_settings_audit" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "public"."system_settings_audit" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "public"."system_settings_audit";
 CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."system_settings_audit" FOR ALL USING (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid))) WITH CHECK (("organization_id" IS NULL OR (NULLIF(current_setting('app.org', true), '') IS NOT NULL AND "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid)));

@@ -1,7 +1,7 @@
 const identifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const gucNamePattern = /^app\.[a-z0-9_]+$/;
 
 export const rlsPredicateModes = new Set(["dormant_permissive", "enforce"]);
+export const patientPredicateModes = new Set(["dormant_symmetric", "enforce"]);
 
 export function quoteSqlIdentifier(identifier) {
   if (typeof identifier !== "string" || identifier.length === 0) {
@@ -35,59 +35,70 @@ export function quoteSqlLiteral(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-export function renderNullableTextGuc(gucName) {
-  if (typeof gucName !== "string" || !gucNamePattern.test(gucName)) {
-    throw new Error(`Unsafe GUC name: ${gucName}`);
-  }
-
-  return `NULLIF(current_setting('${gucName}', true), '')`;
-}
-
 function assertMode(mode) {
   if (!rlsPredicateModes.has(mode)) {
     throw new Error(`Unsupported RLS predicate mode: ${mode}`);
   }
 }
 
-const patientCastTypes = new Set(["uuid", "bigint"]);
-
-// Convention (P0.13/T0.4, established by smoke-p0-13-db-isolation.mjs): the webapp patient
-// identity (platform_users.id, uuid) lives in `app.patient_user_id`; the integrator patient
-// identity (integrator.users.id, bigint) lives in its OWN dedicated GUC `app.integrator_user_id`.
-// A single patient session sets whichever of the two applies (a webapp patient sets
-// app.patient_user_id; an integrator-only identity sets app.integrator_user_id; both may be set
-// together for a bridged identity). castType selects which GUC a given predicate reads — never
-// cast app.patient_user_id to bigint or app.integrator_user_id to uuid.
-const patientGucNameByCastType = {
-  uuid: "app.patient_user_id",
-  bigint: "app.integrator_user_id",
-};
-
-function patientGucNameForCastType(castType) {
-  const gucName = patientGucNameByCastType[castType];
-
-  if (!gucName) {
-    throw new Error(`Unsupported patient cast type for GUC selection: ${castType}`);
+function assertPatientMode(mode) {
+  if (!patientPredicateModes.has(mode)) {
+    throw new Error(`Unsupported patient predicate mode: ${mode}`);
   }
-
-  return gucName;
 }
 
-function renderUuidColumnMatchesGuc({ column, gucName, mode, castType = "uuid" }) {
+const patientCastTypes = new Set(["uuid", "bigint"]);
+const orgContextSql = "app.current_org_id()";
+
+export const dormantCompatibilityPredicate = [
+  "app.current_org_id() IS NULL",
+  "app.current_patient_user_id() IS NULL",
+  "app.current_integrator_user_id() IS NULL",
+  "NOT app.is_staff()",
+].join(" AND ");
+
+// Phase 2 (TASK_FOR_SOL_multitenant_flip.md): trusted org/patient/integrator identity is read only
+// through helper functions backed by the protected backend-context table. Raw custom GUCs remain
+// useful as legacy proof inputs, but generated RLS predicates must not trust current_setting('app.*').
+// castType selects which protected identity helper a predicate reads — never cast the UUID helper to
+// bigint or the bigint helper to UUID.
+const patientContextSqlByCastType = {
+  uuid: "app.current_patient_user_id()",
+  bigint: "app.current_integrator_user_id()",
+};
+
+function patientContextSqlForCastType(castType) {
+  const contextSql = patientContextSqlByCastType[castType];
+
+  if (!contextSql) {
+    throw new Error(`Unsupported patient cast type for context selection: ${castType}`);
+  }
+
+  return contextSql;
+}
+
+function renderOrgColumnMatchesContext({ column, contextSql, mode }) {
   assertMode(mode);
 
-  if (!patientCastTypes.has(castType)) {
-    throw new Error(`Unsupported predicate cast type: ${castType}`);
-  }
-
   const columnSql = quoteSqlIdentifier(column);
-  const gucSql = renderNullableTextGuc(gucName);
 
   if (mode === "dormant_permissive") {
-    return `(${gucSql} IS NULL OR ${columnSql} = ${gucSql}::${castType})`;
+    return `(${contextSql} IS NULL OR ${columnSql} = ${contextSql})`;
   }
 
-  return `(${gucSql} IS NOT NULL AND ${columnSql} = ${gucSql}::${castType})`;
+  return `(${contextSql} IS NOT NULL AND ${columnSql} = ${contextSql})`;
+}
+
+function renderPatientColumnMatchesContext({ column, contextSql, mode }) {
+  assertPatientMode(mode);
+
+  const columnSql = quoteSqlIdentifier(column);
+
+  if (mode === "dormant_symmetric") {
+    return `(${contextSql} IS NULL OR ${columnSql} = ${contextSql})`;
+  }
+
+  return `(${contextSql} IS NOT NULL AND ${columnSql} = ${contextSql})`;
 }
 
 export function renderOrgPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
@@ -97,23 +108,27 @@ export function renderOrgPredicate(descriptor, { mode = "dormant_permissive" } =
     throw new Error("Org predicate requires descriptor.orgColumn");
   }
 
-  return renderUuidColumnMatchesGuc({
+  return renderOrgColumnMatchesContext({
     column: orgColumn,
-    gucName: "app.org",
+    contextSql: orgContextSql,
     mode,
   });
 }
 
-// B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md): patient predicates are ALWAYS
-// fail-closed ("enforce" semantics for the patient branch itself), regardless of whether the
-// surrounding org predicate is rendered dormant_permissive or enforce. There is no
-// "dormant_permissive" patient mode — unset/empty app.patient_user_id never widens visibility.
+// Phase 2 separates org mode from patient mode. Dormant rollout keeps the patient wall symmetric:
+// if no patient/integrator helper is installed, the patient branch permits so compatibility deploys
+// do not break legacy unlabelled reads. Enforce mode is fail-closed.
 export function renderPatientPredicate({ patientColumn = "platform_user_id", mode = "enforce", castType = "uuid" } = {}) {
-  return renderUuidColumnMatchesGuc({
+  assertPatientMode(mode);
+
+  if (!patientCastTypes.has(castType)) {
+    throw new Error(`Unsupported predicate cast type: ${castType}`);
+  }
+
+  return renderPatientColumnMatchesContext({
     column: patientColumn,
-    gucName: patientGucNameForCastType(castType),
+    contextSql: patientContextSqlForCastType(castType),
     mode,
-    castType,
   });
 }
 
@@ -133,16 +148,16 @@ export function renderStaffActorCheck() {
 }
 
 // Owner decision 2026-07-11 (B4-core): doctor/staff visibility is org-wide (variant A, no
-// assignment predicate); the patient wall is absolute — a patient session (app_patient role +
-// app.patient_user_id) sees ONLY its own rows, and an unset/empty context denies (fail-closed).
+// assignment predicate); the patient wall is absolute in enforce mode — a patient session
+// (app_patient role + app.current_patient_user_id()) sees ONLY its own rows.
 // A patient session can never become a member of app_staff (role membership is deploy-time DDL,
 // not something a runtime session can grant itself — enforced by Postgres, not app code).
-export function renderStaffOrPatientPredicate({ patientColumn, castType = "uuid" } = {}) {
+export function renderStaffOrPatientPredicate({ patientColumn, castType = "uuid", patientMode = "enforce" } = {}) {
   if (typeof patientColumn !== "string" || patientColumn.length === 0) {
     throw new Error("Staff-or-patient predicate requires a patientColumn");
   }
 
-  const patientPredicate = renderPatientPredicate({ patientColumn, mode: "enforce", castType });
+  const patientPredicate = renderPatientPredicate({ patientColumn, mode: patientMode, castType });
 
   return `(${renderStaffActorCheck()} OR ${patientPredicate})`;
 }
@@ -154,14 +169,24 @@ export function renderStaffOrPatientPredicate({ patientColumn, castType = "uuid"
 // nullable owner columns where NULL just means "not yet linked to a patient" (e.g.
 // be_appointments.platform_user_id): those correctly fall through to deny-for-patients via the
 // plain renderStaffOrPatientPredicate fail-closed semantics.
-export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, castType = "uuid" } = {}) {
+export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, castType = "uuid", patientMode = "enforce" } = {}) {
   if (typeof patientColumn !== "string" || patientColumn.length === 0) {
     throw new Error("Nullable shared staff-or-patient predicate requires a patientColumn");
   }
 
   const columnSql = quoteSqlIdentifier(patientColumn);
 
-  return `(${columnSql} IS NULL OR ${renderStaffOrPatientPredicate({ patientColumn, castType })})`;
+  return `(${columnSql} IS NULL OR ${renderStaffOrPatientPredicate({ patientColumn, castType, patientMode })})`;
+}
+
+export function renderNullableSharedPatientPredicate({ patientColumn, castType = "uuid", patientMode = "enforce" } = {}) {
+  if (typeof patientColumn !== "string" || patientColumn.length === 0) {
+    throw new Error("Nullable shared patient predicate requires a patientColumn");
+  }
+
+  const columnSql = quoteSqlIdentifier(patientColumn);
+
+  return `(${columnSql} IS NULL OR ${renderPatientPredicate({ patientColumn, mode: patientMode, castType })})`;
 }
 
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
@@ -176,9 +201,11 @@ export function renderNullableSharedStaffOrPatientPredicate({ patientColumn, cas
 // `hops` is ordered from the OUTER (policy) row down to the terminal identity-owning table:
 //   hops[0].localFk is a column on the OUTER row that equals hops[0].alias.parentPk.
 //   hops[i>0].localFk is a column on hops[i-1].alias that equals hops[i].alias.parentPk.
-// `terminalColumn` lives on the LAST hop's alias and is matched against the identity GUC selected
-// by `castType` (uuid -> app.patient_user_id, bigint -> app.integrator_user_id).
-export function renderPatientChainPredicate({ hops, terminalColumn, castType = "uuid" } = {}) {
+// `terminalColumn` lives on the LAST hop's alias and is matched against the protected helper selected
+// by `castType` (uuid -> app.current_patient_user_id(), bigint -> app.current_integrator_user_id()).
+export function renderPatientChainPredicate({ hops, terminalColumn, castType = "uuid", mode = "enforce" } = {}) {
+  assertPatientMode(mode);
+
   if (!Array.isArray(hops) || hops.length === 0) {
     throw new Error("Patient chain predicate requires at least one hop");
   }
@@ -191,7 +218,7 @@ export function renderPatientChainPredicate({ hops, terminalColumn, castType = "
     throw new Error(`Unsupported predicate cast type: ${castType}`);
   }
 
-  const gucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
+  const contextSql = patientContextSqlForCastType(castType);
   const fromParts = [];
   let previousAlias = null;
 
@@ -218,13 +245,18 @@ export function renderPatientChainPredicate({ hops, terminalColumn, castType = "
   const firstHop = hops[0];
   const outerJoinCondition = `${quoteSqlIdentifier(firstHop.alias)}.${quoteSqlIdentifier(firstHop.parentPk)} = ${quoteSqlIdentifier(firstHop.localFk)}`;
   const lastAlias = hops[hops.length - 1].alias;
-  const terminalSql = `${quoteSqlIdentifier(lastAlias)}.${quoteSqlIdentifier(terminalColumn)} = ${gucSql}::${castType}`;
+  const terminalSql = `${quoteSqlIdentifier(lastAlias)}.${quoteSqlIdentifier(terminalColumn)} = ${contextSql}`;
+  const ownPredicate = `EXISTS ( SELECT 1 ${fromParts.join(" ")} WHERE ${outerJoinCondition} AND ${terminalSql} )`;
 
-  return `(${gucSql} IS NOT NULL AND EXISTS ( SELECT 1 ${fromParts.join(" ")} WHERE ${outerJoinCondition} AND ${terminalSql} ))`;
+  if (mode === "dormant_symmetric") {
+    return `(${contextSql} IS NULL OR ${ownPredicate})`;
+  }
+
+  return `(${contextSql} IS NOT NULL AND ${ownPredicate})`;
 }
 
-export function renderStaffOrPatientChainPredicate({ hops, terminalColumn, castType = "uuid" } = {}) {
-  return `(${renderStaffActorCheck()} OR ${renderPatientChainPredicate({ hops, terminalColumn, castType })})`;
+export function renderStaffOrPatientChainPredicate({ hops, terminalColumn, castType = "uuid", patientMode = "enforce" } = {}) {
+  return `(${renderStaffActorCheck()} OR ${renderPatientChainPredicate({ hops, terminalColumn, castType, mode: patientMode })})`;
 }
 
 // B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): dual-role owner
@@ -238,7 +270,10 @@ export function renderConditionalPatientPredicate({
   castType = "uuid",
   discriminatorColumn,
   discriminatorExcludedValue,
+  mode = "enforce",
 } = {}) {
+  assertPatientMode(mode);
+
   if (typeof patientColumn !== "string" || patientColumn.length === 0) {
     throw new Error("Conditional patient predicate requires a patientColumn");
   }
@@ -251,15 +286,20 @@ export function renderConditionalPatientPredicate({
     throw new Error("Conditional patient predicate requires a discriminatorExcludedValue");
   }
 
-  const patientGucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
+  const patientContextSql = patientContextSqlForCastType(castType);
   const sharedBranch = `${quoteSqlIdentifier(discriminatorColumn)} IS DISTINCT FROM ${quoteSqlLiteral(discriminatorExcludedValue)}`;
-  const ownBranch = `${quoteSqlIdentifier(patientColumn)} = ${patientGucSql}::${castType}`;
+  const ownBranch = `${quoteSqlIdentifier(patientColumn)} = ${patientContextSql}`;
+  const ownOrSharedPredicate = `(${sharedBranch} OR ${ownBranch})`;
 
-  return `(${patientGucSql} IS NOT NULL AND (${sharedBranch} OR ${ownBranch}))`;
+  if (mode === "dormant_symmetric") {
+    return `(${patientContextSql} IS NULL OR ${ownOrSharedPredicate})`;
+  }
+
+  return `(${patientContextSql} IS NOT NULL AND ${ownOrSharedPredicate})`;
 }
 
-export function renderStaffOrConditionalPatientPredicate(config) {
-  return `(${renderStaffActorCheck()} OR ${renderConditionalPatientPredicate(config)})`;
+export function renderStaffOrConditionalPatientPredicate(config, { patientMode = "enforce" } = {}) {
+  return `(${renderStaffActorCheck()} OR ${renderConditionalPatientPredicate({ ...config, mode: patientMode })})`;
 }
 
 // B4-core-4: same dual-role shape as renderConditionalPatientPredicate, but the owner/discriminator
@@ -271,7 +311,10 @@ export function renderConditionalChainPatientPredicate({
   castType = "uuid",
   discriminatorColumn,
   discriminatorExcludedValue,
+  mode = "enforce",
 } = {}) {
+  assertPatientMode(mode);
+
   if (!hop || typeof hop.table !== "string" || typeof hop.alias !== "string" || typeof hop.parentPk !== "string" || typeof hop.localFk !== "string") {
     throw new Error("Conditional chain patient predicate requires a hop with table/alias/parentPk/localFk");
   }
@@ -288,10 +331,10 @@ export function renderConditionalChainPatientPredicate({
     throw new Error("Conditional chain patient predicate requires a discriminatorExcludedValue");
   }
 
-  const patientGucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
+  const patientContextSql = patientContextSqlForCastType(castType);
   const aliasSql = quoteSqlIdentifier(hop.alias);
   const sharedBranch = `${aliasSql}.${quoteSqlIdentifier(discriminatorColumn)} IS DISTINCT FROM ${quoteSqlLiteral(discriminatorExcludedValue)}`;
-  const ownBranch = `${aliasSql}.${quoteSqlIdentifier(patientColumn)} = ${patientGucSql}::${castType}`;
+  const ownBranch = `${aliasSql}.${quoteSqlIdentifier(patientColumn)} = ${patientContextSql}`;
   const existsSql = [
     "EXISTS (",
     `SELECT 1 FROM ${renderPolicyTarget(hop.table)} AS ${aliasSql}`,
@@ -300,11 +343,15 @@ export function renderConditionalChainPatientPredicate({
     ")",
   ].join(" ");
 
-  return `(${patientGucSql} IS NOT NULL AND ${existsSql})`;
+  if (mode === "dormant_symmetric") {
+    return `(${patientContextSql} IS NULL OR ${existsSql})`;
+  }
+
+  return `(${patientContextSql} IS NOT NULL AND ${existsSql})`;
 }
 
-export function renderStaffOrConditionalChainPatientPredicate(config) {
-  return `(${renderStaffActorCheck()} OR ${renderConditionalChainPatientPredicate(config)})`;
+export function renderStaffOrConditionalChainPatientPredicate(config, { patientMode = "enforce" } = {}) {
+  return `(${renderStaffActorCheck()} OR ${renderConditionalChainPatientPredicate({ ...config, mode: patientMode })})`;
 }
 
 // B4-core-4: polymorphic ownership (e.g. public.comments.target_type/target_id) — some target_type
@@ -314,7 +361,9 @@ export function renderStaffOrConditionalChainPatientPredicate(config) {
 // OR its target_type is a registered patient-instance variant AND that variant's chain resolves to
 // the requesting patient. Reuses renderPatientChainPredicate per variant (hops[0].localFk is the
 // polymorphic id column on the policy row itself, e.g. "target_id").
-export function renderPolymorphicPatientPredicate({ typeColumn, sharedTypeValues = [], variants = [] } = {}) {
+export function renderPolymorphicPatientPredicate({ typeColumn, sharedTypeValues = [], variants = [], mode = "enforce" } = {}) {
+  assertPatientMode(mode);
+
   if (typeof typeColumn !== "string" || typeColumn.length === 0) {
     throw new Error("Polymorphic patient predicate requires a typeColumn");
   }
@@ -340,33 +389,45 @@ export function renderPolymorphicPatientPredicate({ typeColumn, sharedTypeValues
       hops: variant.hops,
       terminalColumn: variant.terminalColumn,
       castType: variant.castType ?? "uuid",
+      mode: "enforce",
     });
 
     branches.push(`(${typeColumnSql} = ${quoteSqlLiteral(variant.typeValue)} AND ${chainPredicate})`);
   }
 
-  return `(${branches.join(" OR ")})`;
+  const ownOrSharedPredicate = `(${branches.join(" OR ")})`;
+  if (mode === "dormant_symmetric") {
+    const dormantContextUnsetPredicate = Array.from(
+      new Set(variants.map((variant) => patientContextSqlForCastType(variant.castType ?? "uuid"))),
+    )
+      .map((contextSql) => `${contextSql} IS NULL`)
+      .join(" AND ");
+
+    return `(${dormantContextUnsetPredicate} OR ${ownOrSharedPredicate})`;
+  }
+
+  return ownOrSharedPredicate;
 }
 
-export function renderStaffOrPolymorphicPatientPredicate(config) {
-  return `(${renderStaffActorCheck()} OR ${renderPolymorphicPatientPredicate(config)})`;
+export function renderStaffOrPolymorphicPatientPredicate(config, { patientMode = "enforce" } = {}) {
+  return `(${renderStaffActorCheck()} OR ${renderPolymorphicPatientPredicate({ ...config, mode: patientMode })})`;
 }
 
-export function renderStaffOrPatientPredicateForDescriptor(descriptor) {
+export function renderStaffOrPatientPredicateForDescriptor(descriptor, { patientMode = "enforce" } = {}) {
   if (descriptor.patientPolymorphic) {
-    return renderStaffOrPolymorphicPatientPredicate(descriptor.patientPolymorphic);
+    return renderStaffOrPolymorphicPatientPredicate(descriptor.patientPolymorphic, { patientMode });
   }
 
   if (descriptor.patientConditionalChain) {
-    return renderStaffOrConditionalChainPatientPredicate(descriptor.patientConditionalChain);
+    return renderStaffOrConditionalChainPatientPredicate(descriptor.patientConditionalChain, { patientMode });
   }
 
   if (descriptor.patientConditional) {
-    return renderStaffOrConditionalPatientPredicate(descriptor.patientConditional);
+    return renderStaffOrConditionalPatientPredicate(descriptor.patientConditional, { patientMode });
   }
 
   if (descriptor.patientChain) {
-    return renderStaffOrPatientChainPredicate(descriptor.patientChain);
+    return renderStaffOrPatientChainPredicate({ ...descriptor.patientChain, patientMode });
   }
 
   const render = descriptor.patientColumnNullableShared
@@ -376,6 +437,36 @@ export function renderStaffOrPatientPredicateForDescriptor(descriptor) {
   return render({
     patientColumn: descriptor.patientColumn,
     castType: descriptor.patientColumnCastType ?? "uuid",
+    patientMode,
+  });
+}
+
+export function renderPatientPredicateForDescriptor(descriptor, { patientMode = "enforce" } = {}) {
+  if (descriptor.patientPolymorphic) {
+    return renderPolymorphicPatientPredicate(descriptor.patientPolymorphic, { mode: patientMode });
+  }
+
+  if (descriptor.patientConditionalChain) {
+    return renderConditionalChainPatientPredicate({ ...descriptor.patientConditionalChain, mode: patientMode });
+  }
+
+  if (descriptor.patientConditional) {
+    return renderConditionalPatientPredicate({ ...descriptor.patientConditional, mode: patientMode });
+  }
+
+  if (descriptor.patientChain) {
+    return renderPatientChainPredicate({ ...descriptor.patientChain, mode: patientMode });
+  }
+
+  const render = descriptor.patientColumnNullableShared
+    ? renderNullableSharedPatientPredicate
+    : renderPatientPredicate;
+
+  return render({
+    patientColumn: descriptor.patientColumn,
+    castType: descriptor.patientColumnCastType ?? "uuid",
+    patientMode,
+    mode: patientMode,
   });
 }
 
@@ -395,17 +486,25 @@ export function hasAnyPatientOwnership(descriptor) {
 
 // Combines an org predicate (dormant or enforce) with the (always fail-closed) patient wall for
 // direct_org_column / denorm_org_column / self_org_id descriptors that declare patientColumn.
-export function renderOrgAndPatientPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
+export function renderOrgAndPatientPredicate(
+  descriptor,
+  { mode = "dormant_permissive", patientMode = "enforce" } = {},
+) {
   const orgPredicate = renderOrgPredicate(descriptor, { mode });
 
-  return `(${orgPredicate} AND ${renderStaffOrPatientPredicateForDescriptor(descriptor)})`;
+  return `(${orgPredicate} AND ${renderStaffOrPatientPredicateForDescriptor(descriptor, { patientMode })})`;
 }
 
 export function renderBootstrapHybridPredicate({ orgColumn = "organization_id" } = {}) {
   const columnSql = quoteSqlIdentifier(orgColumn);
-  const gucSql = renderNullableTextGuc("app.org");
 
-  return `(${columnSql} IS NULL OR (${gucSql} IS NOT NULL AND ${columnSql} = ${gucSql}::uuid))`;
+  return `(${columnSql} IS NULL OR (${orgContextSql} IS NOT NULL AND ${columnSql} = ${orgContextSql}))`;
+}
+
+export function renderBootstrapHybridOrgGatedPredicate({ orgColumn = "organization_id" } = {}) {
+  const columnSql = quoteSqlIdentifier(orgColumn);
+
+  return `((${orgContextSql} IS NOT NULL AND ${columnSql} = ${orgContextSql}) OR (${columnSql} IS NULL AND ${dormantCompatibilityPredicate}))`;
 }
 
 export function renderPolicyTarget(table) {
@@ -445,12 +544,11 @@ export function renderOrgDormantPolicyStatements(descriptor, { policyName }) {
   }
 
   const predicate = hasAnyPatientOwnership(descriptor)
-    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
+    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
     : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
-    renderForceRowLevelSecurity(descriptor.table),
     renderDropPolicy({ policyName, target: descriptor.table }),
     renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
   ];
@@ -472,12 +570,11 @@ export function renderOrgColumnDormantPolicyStatements(descriptor, { policyName,
   }
 
   const predicate = hasAnyPatientOwnership(descriptor)
-    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
+    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
     : renderOrgPredicate(descriptor, { mode: "dormant_permissive" });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
-    renderForceRowLevelSecurity(descriptor.table),
     renderDropPolicy({ policyName, target: descriptor.table }),
     renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
   ];
@@ -496,18 +593,36 @@ export function renderBootstrapHybridPolicyStatements(descriptor, { policyName }
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
-    renderForceRowLevelSecurity(descriptor.table),
     renderDropPolicy({ policyName, target: descriptor.table }),
     renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
   ];
 }
 
-function renderFkPathExists({ table, alias, parentPk, localFk, parentOrgColumn, gucSql }) {
+export function renderBootstrapHybridOrgGatedPolicyStatements(descriptor, { policyName }) {
+  if (descriptor?.scopingKind !== "bootstrap_hybrid_org_gated") {
+    throw new Error(`Bootstrap hybrid org-gated policy requires bootstrap_hybrid_org_gated descriptor for ${descriptor?.table ?? "<unknown>"}`);
+  }
+
+  if (typeof policyName !== "string" || policyName.length === 0) {
+    throw new Error("Policy name must be a non-empty string");
+  }
+
+  const strictPredicate = renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
+  const predicate = `((${dormantCompatibilityPredicate}) OR ${strictPredicate})`;
+
+  return [
+    renderEnableRowLevelSecurity(descriptor.table),
+    renderDropPolicy({ policyName, target: descriptor.table }),
+    renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
+  ];
+}
+
+function renderFkPathExists({ table, alias, parentPk, localFk, parentOrgColumn }) {
   return [
     "EXISTS (",
     `SELECT 1 FROM ${renderPolicyTarget(table)} AS ${quoteSqlIdentifier(alias)}`,
     `WHERE ${quoteSqlIdentifier(alias)}.${quoteSqlIdentifier(parentPk)} = ${quoteSqlIdentifier(localFk)}`,
-    `AND ${quoteSqlIdentifier(alias)}.${quoteSqlIdentifier(parentOrgColumn)} = ${gucSql}::uuid`,
+    `AND ${quoteSqlIdentifier(alias)}.${quoteSqlIdentifier(parentOrgColumn)} = ${orgContextSql}`,
     ")",
   ].join(" ");
 }
@@ -534,28 +649,25 @@ export function renderFkPathPredicate(descriptor, { mode = "dormant_permissive" 
     throw new Error(`FK-path descriptor ${descriptor.table} is missing path metadata`);
   }
 
-  const gucSql = renderNullableTextGuc("app.org");
   const pathPredicate = `(${renderFkPathExists({
     table: fkPath.parentTable,
     alias: "p0_8_4_parent",
     parentPk: fkPath.parentPk,
     localFk: fkPath.localFk,
     parentOrgColumn: fkPath.parentOrgColumn,
-    gucSql,
   })} AND ${renderFkPathExists({
     table: fkPath.crossCheckTable,
     alias: "p0_8_4_cross",
     parentPk: fkPath.crossCheckPk,
     localFk: fkPath.crossCheckLocalFk,
     parentOrgColumn: fkPath.crossCheckOrgColumn,
-    gucSql,
   })})`;
 
   if (mode === "dormant_permissive") {
-    return `(${gucSql} IS NULL OR ${pathPredicate})`;
+    return `(${orgContextSql} IS NULL OR ${pathPredicate})`;
   }
 
-  return `(${gucSql} IS NOT NULL AND ${pathPredicate})`;
+  return `(${orgContextSql} IS NOT NULL AND ${pathPredicate})`;
 }
 
 // fk_path patient wall: the patient-owner column lives on the SAME immediate FK parent already
@@ -579,22 +691,32 @@ export function renderFkPathPatientPredicate(descriptor) {
     throw new Error(`FK-path patient predicate for ${descriptor.table} requires a patientColumn`);
   }
 
-  const patientGucSql = renderNullableTextGuc(patientGucNameForCastType(castType));
+  const patientContextSql = patientContextSqlForCastType(castType);
   const parentAlias = quoteSqlIdentifier("p0_8_4_patient_parent");
   const existsSql = [
     "EXISTS (",
     `SELECT 1 FROM ${renderPolicyTarget(fkPath.parentTable)} AS ${parentAlias}`,
     `WHERE ${parentAlias}.${quoteSqlIdentifier(fkPath.parentPk)} = ${quoteSqlIdentifier(fkPath.localFk)}`,
-    `AND ${parentAlias}.${quoteSqlIdentifier(patientColumn)} = ${patientGucSql}::${castType}`,
+    `AND ${parentAlias}.${quoteSqlIdentifier(patientColumn)} = ${patientContextSql}`,
     ")",
   ].join(" ");
 
-  return `(${patientGucSql} IS NOT NULL AND ${existsSql})`;
+  return `(${patientContextSql} IS NOT NULL AND ${existsSql})`;
 }
 
-export function renderFkPathAndPatientPredicate(descriptor, { mode = "dormant_permissive" } = {}) {
+export function renderFkPathAndPatientPredicate(
+  descriptor,
+  { mode = "dormant_permissive", patientMode = "enforce" } = {},
+) {
+  assertPatientMode(patientMode);
+
   const orgPredicate = renderFkPathPredicate(descriptor, { mode });
-  const staffOrPatient = `(${renderStaffActorCheck()} OR ${renderFkPathPatientPredicate(descriptor)})`;
+  const patientContextSql = patientContextSqlForCastType(descriptor.patientColumnCastType ?? "uuid");
+  const patientPredicate = renderFkPathPatientPredicate(descriptor);
+  const staffOrPatient =
+    patientMode === "dormant_symmetric"
+      ? `(${renderStaffActorCheck()} OR ${patientContextSql} IS NULL OR ${patientPredicate})`
+      : `(${renderStaffActorCheck()} OR ${patientPredicate})`;
 
   return `(${orgPredicate} AND ${staffOrPatient})`;
 }
@@ -609,12 +731,11 @@ export function renderFkPathDormantPolicyStatements(descriptor, { policyName }) 
   }
 
   const predicate = descriptor.patientColumn
-    ? renderFkPathAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
+    ? renderFkPathAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
     : renderFkPathPredicate(descriptor, { mode: "dormant_permissive" });
 
   return [
     renderEnableRowLevelSecurity(descriptor.table),
-    renderForceRowLevelSecurity(descriptor.table),
     renderDropPolicy({ policyName, target: descriptor.table }),
     renderCreatePolicy({ policyName, target: descriptor.table, predicate }),
   ];

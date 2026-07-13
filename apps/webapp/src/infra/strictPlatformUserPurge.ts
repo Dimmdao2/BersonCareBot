@@ -310,7 +310,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
     }
     return { ok: false, error: "transaction_failed", transactionError: message };
   } finally {
-    tx.release();
+    await tx.release();
   }
 
   const digs = userSnapshot.phone_normalized?.trim() ? phoneDigits(userSnapshot.phone_normalized) : "";

@@ -23,6 +23,14 @@ export type SystemSettingsPort = {
     options?: SystemSettingsReadOptions
   ): Promise<SystemSetting | null>;
   getByScope(scope: SystemSettingScope, options?: SystemSettingsReadOptions): Promise<SystemSetting[]>;
+  /**
+   * Narrow, patient-safe accessor: ONLY the public half of the `web_push_vapid` envelope (never
+   * `privateKey`). On Postgres this reads through a SECURITY DEFINER accessor
+   * (`app.get_web_push_vapid_public_key()`, deploy/postgres/patient-web-push-vapid-public-key-
+   * accessor.sql) so the `app_patient` DB role never needs a grant on `system_settings` itself
+   * (which also holds admin allowlists/secrets). `null` if unset.
+   */
+  getWebPushVapidPublicKeyOnly(): Promise<string | null>;
   upsert(
     key: SystemSettingKey,
     scope: SystemSettingScope,

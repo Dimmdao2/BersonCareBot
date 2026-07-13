@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 function parseDoctorAppointmentsReadSource(valueJson: unknown): "rubitime_legacy" | "canonical" {
   if (
@@ -17,7 +17,7 @@ function parseDoctorAppointmentsReadSource(valueJson: unknown): "rubitime_legacy
 }
 
 export async function GET() {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const { service, organizationId } = gate.ctx;
   const [

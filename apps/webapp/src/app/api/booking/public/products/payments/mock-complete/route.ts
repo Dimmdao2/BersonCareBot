@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -11,6 +12,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/booking/public/products/payments/mock-complete:POST");
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });

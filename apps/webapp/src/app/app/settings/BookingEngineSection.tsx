@@ -66,12 +66,12 @@ type Overview = {
 };
 
 const READ_SOURCE_ITEMS: { value: DoctorAppointmentsReadSource; label: string }[] = [
-  { value: "rubitime_legacy", label: "Rubitime" },
+  { value: "rubitime_legacy", label: "Rubitime legacy" },
   { value: "canonical", label: "Канон" },
 ];
 
 const SLOTS_READ_SOURCE_ITEMS: { value: BookingSlotsReadSource; label: string }[] = [
-  { value: "rubitime", label: "Rubitime" },
+  { value: "rubitime", label: "Rubitime legacy" },
   { value: "canonical", label: "Канон" },
 ];
 
@@ -192,7 +192,11 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
         {data && (
           <>
             {mode === "integrations" ? (
-            <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Rubitime legacy-настройки заморожены для retirement и остаются внутренним техническим контуром до полного перехода записи на канон.
+              </p>
+              <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <Label>Список записей врача</Label>
                 <Select
@@ -288,7 +292,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                     })
                   }
                 />
-                <span className="text-sm">Rubitime-мост</span>
+                <span className="text-sm">Rubitime-мост (legacy/internal)</span>
               </div>
               <Button
                 type="button"
@@ -308,6 +312,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                 {data.mapping.services}, доступность {data.mapping.availabilities}, записи{" "}
                 {data.mapping.appointments}
               </span>
+              </div>
             </div>
             ) : null}
 

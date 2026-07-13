@@ -10,6 +10,7 @@ import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 export type AppointmentReminderSettingsSectionProps = {
   initialEnabled: boolean;
   initialOffsetsMinutes: number[];
+  settingsEndpoint?: "/api/doctor/settings" | "/api/admin/settings";
 };
 
 function formatOffset(minutes: number): string {
@@ -42,6 +43,7 @@ function parseOffsetsText(raw: string): { offsets: number[]; error: string | nul
 export function AppointmentReminderSettingsSection({
   initialEnabled,
   initialOffsetsMinutes,
+  settingsEndpoint = "/api/doctor/settings",
 }: AppointmentReminderSettingsSectionProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [offsets, setOffsets] = useState<number[]>(initialOffsetsMinutes);
@@ -52,7 +54,7 @@ export function AppointmentReminderSettingsSection({
   const [isPending, startTransition] = useTransition();
 
   async function patchDoctorSetting(key: string, value: unknown): Promise<void> {
-    await apiJson("/api/doctor/settings", {
+    await apiJson(settingsEndpoint, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value: { value } }),

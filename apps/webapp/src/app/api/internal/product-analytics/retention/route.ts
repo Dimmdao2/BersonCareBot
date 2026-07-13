@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
 import {
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
   if (!token || !bearerMatchesSecret(token, secret)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  // INFRA pending owner confirmation: retention deletes old analytics rows across all organizations.
+  enterWithDbInfraPrincipal({ source: "api/internal/product-analytics/retention:POST" });
 
   const url = new URL(request.url);
   const dryRun = parseDryRun(url);

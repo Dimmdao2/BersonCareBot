@@ -20,7 +20,7 @@ export async function findEmailSendCooldown(
   emailNormalized: string,
 ): Promise<Date | null> {
   const cooldown = await runWebappPgText<{ last_sent_at: Date | string }>(
-    "SELECT last_sent_at FROM email_send_cooldowns WHERE user_id = $1 AND email_normalized = $2",
+    "SELECT last_sent_at FROM app.email_auth_find_email_send_cooldown($1::uuid, $2)",
     [userId, emailNormalized],
   );
   const raw = cooldown.rows[0]?.last_sent_at;
@@ -31,7 +31,7 @@ export async function findEmailSendCooldown(
 }
 
 export async function deleteEmailChallengesForUser(userId: string): Promise<void> {
-  await runWebappPgText("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
+  await runWebappPgText("SELECT app.email_auth_delete_email_challenges_for_user($1::uuid)", [userId]);
 }
 
 export async function insertEmailChallenge(params: {
@@ -41,22 +41,19 @@ export async function insertEmailChallenge(params: {
   expiresAt: number;
 }): Promise<string> {
   const ins = await runWebappPgText<{ id: string }>(
-    `INSERT INTO email_challenges (user_id, email, code_hash, expires_at, attempts)
-     VALUES ($1, $2, $3, $4, 0) RETURNING id`,
+    `SELECT app.email_auth_insert_email_challenge($1::uuid, $2, $3, $4::bigint)::text AS id`,
     [params.userId, params.email, params.codeHash, params.expiresAt],
   );
   return ins.rows[0]!.id;
 }
 
 export async function deleteEmailChallengeById(challengeId: string): Promise<void> {
-  await runWebappPgText("DELETE FROM email_challenges WHERE id = $1", [challengeId]);
+  await runWebappPgText("SELECT app.email_auth_delete_email_challenge_by_id($1::uuid)", [challengeId]);
 }
 
 export async function upsertEmailSendCooldown(userId: string, emailNormalized: string): Promise<void> {
   await runWebappPgText(
-    `INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
-     VALUES ($1, $2, now())
-     ON CONFLICT (user_id, email_normalized) DO UPDATE SET last_sent_at = now()`,
+    `SELECT app.email_auth_upsert_email_send_cooldown($1::uuid, $2)`,
     [userId, emailNormalized],
   );
 }
@@ -66,32 +63,32 @@ export async function findEmailChallengeForConfirm(
   userId: string,
 ): Promise<EmailChallengeRow | null> {
   const row = await runWebappPgText<EmailChallengeRow>(
-    "SELECT id, email, code_hash, expires_at, attempts FROM email_challenges WHERE id = $1 AND user_id = $2",
+    `SELECT id::text, email, code_hash, expires_at::text, attempts::text
+     FROM app.email_auth_find_email_challenge_for_confirm($1::uuid, $2::uuid)`,
     [challengeId, userId],
   );
   return row.rows[0] ?? null;
 }
 
 export async function updateEmailChallengeAttempts(challengeId: string, attempts: number): Promise<void> {
-  await runWebappPgText("UPDATE email_challenges SET attempts = $1 WHERE id = $2", [attempts, challengeId]);
+  await runWebappPgText("SELECT app.email_auth_update_email_challenge_attempts($1::uuid, $2::integer)", [
+    challengeId,
+    attempts,
+  ]);
 }
 
 export async function findEmailOwnerConflict(userId: string, email: string): Promise<boolean> {
-  const conflict = await runWebappPgText<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE id <> $1::uuid
-       AND merged_into_id IS NULL
-       AND email_normalized = lower(btrim($2::text))
-     LIMIT 1`,
+  const conflict = await runWebappPgText<{ conflict: boolean }>(
+    `SELECT app.email_auth_find_email_owner_conflict($1::uuid, $2) AS conflict`,
     [userId, email],
   );
-  return Boolean(conflict.rows[0]);
+  return Boolean(conflict.rows[0]?.conflict);
 }
 
 export async function verifyUserEmail(userId: string, email: string): Promise<void> {
   await runWebappPgText(
-    "UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = now(), updated_at = now() WHERE id = $2",
-    [email, userId],
+    "SELECT app.email_auth_verify_user_email($1::uuid, $2)",
+    [userId, email],
   );
 }
 
@@ -100,7 +97,8 @@ export async function findEmailChallengeForConsume(
   userId: string,
 ): Promise<EmailChallengeCodeRow | null> {
   const row = await runWebappPgText<EmailChallengeCodeRow>(
-    "SELECT id, code_hash, expires_at, attempts FROM email_challenges WHERE id = $1 AND user_id = $2",
+    `SELECT id::text, code_hash, expires_at::text, attempts::text
+     FROM app.email_auth_find_email_challenge_for_consume($1::uuid, $2::uuid)`,
     [challengeId, userId],
   );
   return row.rows[0] ?? null;
@@ -111,10 +109,8 @@ export async function findLatestEmailChallengeForUser(
   nowSec: number,
 ): Promise<EmailChallengeCodeRow | null> {
   const row = await runWebappPgText<EmailChallengeCodeRow>(
-    `SELECT id, code_hash, expires_at, attempts FROM email_challenges
-     WHERE user_id = $1::uuid AND expires_at > $2
-     ORDER BY created_at DESC
-     LIMIT 1`,
+    `SELECT id::text, code_hash, expires_at::text, attempts::text
+     FROM app.email_auth_find_latest_email_challenge_for_user($1::uuid, $2::bigint)`,
     [userId, nowSec],
   );
   return row.rows[0] ?? null;
@@ -125,10 +121,8 @@ export async function findLatestPendingEmailChallengeForUser(
   nowSec: number,
 ): Promise<EmailChallengeRow | null> {
   const row = await runWebappPgText<EmailChallengeRow>(
-    `SELECT id, email, code_hash, expires_at, attempts FROM email_challenges
-     WHERE user_id = $1::uuid AND expires_at > $2
-     ORDER BY created_at DESC
-     LIMIT 1`,
+    `SELECT id::text, email, code_hash, expires_at::text, attempts::text
+     FROM app.email_auth_find_latest_pending_email_challenge_for_user($1::uuid, $2::bigint)`,
     [userId, nowSec],
   );
   return row.rows[0] ?? null;

@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 /**
  * POST /api/public/support — обращение в поддержку без сессии (экран входа).
  * Rate limit по IP; то же назначение Telegram, что и `/api/patient/support`.
@@ -73,6 +74,7 @@ function fitTelegramMessage(text: string): string {
 }
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/public/support:POST");
   const body = (await request.json().catch(() => null)) as {
     email?: string;
     message?: string;

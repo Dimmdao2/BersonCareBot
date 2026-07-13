@@ -43,8 +43,12 @@ if (expectedP084PublicPolymorphicTargets.join(",") !== "public.comments") {
   fail("P0.8.4 must resolve exactly public.comments as its polymorphic target");
 }
 
-if (statements.length !== descriptors.length * 4) {
-  fail(`Expected ${descriptors.length * 4} policy statements, got ${statements.length}`);
+if (statements.length !== descriptors.length * 3) {
+  fail(`Expected ${descriptors.length * 3} dormant policy statements, got ${statements.length}`);
+}
+
+if (sql.includes("FORCE ROW LEVEL SECURITY")) {
+  fail("P0.8.4 dormant generated SQL must not include FORCE ROW LEVEL SECURITY");
 }
 
 for (const descriptor of descriptors) {
@@ -59,10 +63,6 @@ for (const descriptor of descriptors) {
 
   if (!sql.includes(`ALTER TABLE ${quotedTarget} ENABLE ROW LEVEL SECURITY;`)) {
     fail(`Missing ENABLE RLS statement for ${descriptor.table}`);
-  }
-
-  if (!sql.includes(`ALTER TABLE ${quotedTarget} FORCE ROW LEVEL SECURITY;`)) {
-    fail(`Missing FORCE RLS statement for ${descriptor.table}`);
   }
 
   if (!sql.includes(`DROP POLICY IF EXISTS "${p084PolicyName}" ON ${quotedTarget};`)) {
@@ -121,12 +121,14 @@ if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
   fail(`Expected ${expectedPatientOwnedTargets} P0.8.4 patient-owned targets, got ${patientOwnedDescriptors.length}`);
 }
 
-// GUC alignment (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md B4-fanout, taskdb #656):
+// Helper alignment (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md B4-fanout, taskdb #656):
 // a bigint-cast patient column (integrator identity bridge, e.g. reminder_delivery_events/
-// reminder_occurrence_history.integrator_user_id) must read the DEDICATED `app.integrator_user_id`
-// GUC, not `app.patient_user_id` cast to bigint.
-function patientGucNameFor(descriptor) {
-  return descriptor.patientColumnCastType === "bigint" ? "app.integrator_user_id" : "app.patient_user_id";
+// reminder_occurrence_history.integrator_user_id) must read the DEDICATED integrator helper,
+// not the patient UUID helper.
+function patientHelperFor(descriptor) {
+  return descriptor.patientColumnCastType === "bigint"
+    ? "app.current_integrator_user_id()"
+    : "app.current_patient_user_id()";
 }
 
 for (const descriptor of patientOwnedDescriptors) {
@@ -146,8 +148,8 @@ for (const descriptor of patientOwnedDescriptors) {
     if (!createStatement.includes(`"p0_8_4_patient_parent"."${descriptor.patientColumn}"`)) {
       fail(`${descriptor.table} fk_path patient predicate must EXISTS-join the parent's patient column`);
     }
-  } else if (!createStatement.includes(`"${descriptor.patientColumn}" = NULLIF(current_setting('${patientGucNameFor(descriptor)}'`)) {
-    fail(`${descriptor.table} denorm patient predicate must compare its own ${descriptor.patientColumn} column against ${patientGucNameFor(descriptor)}`);
+  } else if (!createStatement.includes(`"${descriptor.patientColumn}" = ${patientHelperFor(descriptor)}`)) {
+    fail(`${descriptor.table} denorm patient predicate must compare its own ${descriptor.patientColumn} column against ${patientHelperFor(descriptor)}`);
   }
 }
 
@@ -209,7 +211,7 @@ for (const descriptor of patientChainOwnedDescriptors) {
 
   const terminalColumn = descriptor.patientChain.terminalColumn;
 
-  if (!createStatement.includes(`"${terminalColumn}" = NULLIF(current_setting('app.patient_user_id'`)) {
+  if (!createStatement.includes(`"${terminalColumn}" = app.current_patient_user_id()`)) {
     fail(`${descriptor.table} chain-owned policy must terminate on its identity-bearing parent's ${terminalColumn}`);
   }
 }
@@ -252,7 +254,7 @@ for (const descriptor of patientConditionalChainOwnedDescriptors) {
     fail(`${descriptor.table} conditional-chain-owned policy must permit the shared/library branch of its parent`);
   }
 
-  if (!createStatement.includes(`"uploaded_by" = NULLIF(current_setting('app.patient_user_id'`)) {
+  if (!createStatement.includes(`"uploaded_by" = app.current_patient_user_id()`)) {
     fail(`${descriptor.table} conditional-chain-owned policy must permit the patient's own-submission branch of its parent`);
   }
 }

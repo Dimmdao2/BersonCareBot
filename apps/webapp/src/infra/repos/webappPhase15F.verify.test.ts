@@ -16,10 +16,16 @@ const CLASS_B_POOL_QUERY_REL = [
   "infra/repos/pgAdminPlatformUserStats.ts",
   // Added wave3 phase 15G: pool.query for Drizzle ANY-array workaround (broadcast count by user subset)
   "infra/repos/broadcastChannelCounts.ts",
+  // SAAS principal-aware pool: wraps pool.query to stamp the DB principal per connection (transport chokepoint).
+  "infra/db/webappPoolProvider.ts",
 ] as const;
 
-/** Class B: healthcheck query on a checked-out client. */
-const CLASS_B_CLIENT_QUERY_REL = ["infra/db/client.ts"] as const;
+/** Class B: healthcheck / principal-apply query on a checked-out client. */
+const CLASS_B_CLIENT_QUERY_REL = [
+  "infra/db/client.ts",
+  // SAAS principal-aware pool: client.query to apply/clear the DB principal on the checked-out connection.
+  "infra/db/webappPoolProvider.ts",
+] as const;
 
 /** Class C: `client.query` only for TX control / advisory on dedicated PoolClient. */
 const CLASS_C_CLIENT_QUERY_REL = ["infra/db/withClient.ts"] as const;
@@ -90,7 +96,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
   const rawSqlDoc = readFileSync(RAW_SQL_INVENTORY, "utf8");
   const prodFiles = listProdTsFiles(WEBAPP_SRC);
 
-  it("domain pool.query only in Class B allowlist (3 files)", () => {
+  it("domain pool.query only in Class B allowlist (4 files)", () => {
     const offenders: string[] = [];
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
@@ -102,10 +108,10 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
       }
     }
     expect(offenders).toEqual([]);
-    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(3);
+    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(4);
   });
 
-  it("client.query only in Class B health + Class C allowlist (2 files)", () => {
+  it("client.query only in Class B health + Class C allowlist (3 files)", () => {
     const allowed = new Set<string>([...CLASS_B_CLIENT_QUERY_REL, ...CLASS_C_CLIENT_QUERY_REL]);
     const offenders: string[] = [];
     for (const abs of prodFiles) {
@@ -118,7 +124,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
       }
     }
     expect(offenders).toEqual([]);
-    expect(allowed.size).toBe(2);
+    expect(allowed.size).toBe(3);
   });
 
   it("every Class B/C tail file is documented in RAW_SQL_INVENTORY.md", () => {
@@ -147,7 +153,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("post-15 prod tail size is 5 runtime files", () => {
+  it("post-15 prod tail size is 6 runtime files", () => {
     const runtimeTail = new Set<string>();
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
@@ -160,9 +166,14 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
         runtimeTail.add(rel);
       }
     }
-    expect(runtimeTail.size).toBe(5);
-    expect([...runtimeTail].sort()).toEqual(
-      [...CLASS_B_POOL_QUERY_REL, ...CLASS_B_CLIENT_QUERY_REL, ...CLASS_C_CLIENT_QUERY_REL].sort(),
-    );
+    expect(runtimeTail.size).toBe(6);
+    // webappPoolProvider.ts intentionally uses both pool.query and client.query, so it appears in
+    // two capability allowlists — dedupe the expected tail to the set of distinct runtime files.
+    const expectedTail = new Set<string>([
+      ...CLASS_B_POOL_QUERY_REL,
+      ...CLASS_B_CLIENT_QUERY_REL,
+      ...CLASS_C_CLIENT_QUERY_REL,
+    ]);
+    expect([...runtimeTail].sort()).toEqual([...expectedTail].sort());
   });
 });

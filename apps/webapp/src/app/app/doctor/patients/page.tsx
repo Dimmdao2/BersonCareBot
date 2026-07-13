@@ -36,7 +36,9 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
 
   const displayIana = await getAppDisplayTimeZone();
 
-  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
+  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", {
+    organizationId: workspace.organizationId,
+  });
   const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
   const { patientPluralLabel } = resolvePatientTerms(String(patientSingular));
 

@@ -3,8 +3,9 @@ import { sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { Pool, QueryResultRow } from "pg";
 import {
+  getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
-  runWithDbOrganizationPrincipal,
+  runWithDbInfraPrincipal,
 } from "@bersoncare/db-principal";
 import { startMediaWorkerTransaction } from "./withClient.js";
 
@@ -54,18 +55,16 @@ export async function runMediaWorkerSql<T extends QueryResultRow = QueryResultRo
     }
     throw err;
   } finally {
-    tx.release();
+    await tx.release();
   }
 }
 
-export function runWithOptionalMediaWorkerOrganizationPrincipal<T>(
-  organizationId: string | null | undefined,
-  fn: () => T,
-): T {
-  if (!organizationId) {
+export function runWithMediaWorkerInfraPrincipal<T>(source: string, fn: () => T): T {
+  const principal = getCurrentDbPrincipal();
+  if (principal?.kind === "infra") {
     return fn();
   }
-  return runWithDbOrganizationPrincipal(organizationId, fn);
+  return runWithDbInfraPrincipal({ source }, fn);
 }
 
 /**

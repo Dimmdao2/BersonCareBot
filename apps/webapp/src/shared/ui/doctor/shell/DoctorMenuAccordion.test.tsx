@@ -5,8 +5,8 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { DoctorMenuAccordion, formatNavBadgeCount } from "./DoctorMenuAccordion";
 
-const menuAccess = { role: "doctor" as const, adminMode: false };
-const adminAccess = { role: "admin" as const, adminMode: true };
+const menuAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: false };
+const adminAccess = { role: "admin" as const, adminMode: true, canManageOrganization: false };
 
 const pathnameRef = vi.hoisted(() => ({ value: "/app/doctor" }));
 const unreadCountRef = vi.hoisted(() => ({ value: 0 }));
@@ -46,8 +46,9 @@ vi.mock("next/link", () => ({
     id?: string;
     "aria-label"?: string;
     role?: string;
+    prefetch?: boolean;
   }) {
-    const { href, children, onClick, id, "aria-label": ariaLabel, role, ...rest } = props;
+    const { href, children, onClick, id, "aria-label": ariaLabel, role, prefetch: _prefetch, ...rest } = props;
     return (
       <a
         href={href}
@@ -169,6 +170,14 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toHaveAttribute("aria-haspopup", "menu");
   });
 
+  it("sidebar: active submenu parent does not get primary background", () => {
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor/exercises" menuAccess={menuAccess} />);
+    const trigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
+
+    expect(trigger.className).not.toContain("bg-primary");
+    expect(trigger.className).not.toContain("hover:bg-primary");
+  });
+
   it("top-level direct links are always visible regardless of groups", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
@@ -183,8 +192,23 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
-  it("shows settings and system for admin role", () => {
+  it("shows clinic members but hides platform clusters for clinic admin access", () => {
+    render(
+      <DoctorMenuAccordion
+        variant="sidebar"
+        pathname="/app/doctor"
+        menuAccess={{ role: "doctor", adminMode: false, canManageOrganization: true }}
+      />,
+    );
+    expect(screen.getByRole("link", { name: /Врачи/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Настройки/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Аналитика/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
+  });
+
+  it("shows clinic members, settings and system for admin role", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} />);
+    expect(screen.getByRole("link", { name: /Врачи/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Настройки/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Система/ })).toBeInTheDocument();
   });

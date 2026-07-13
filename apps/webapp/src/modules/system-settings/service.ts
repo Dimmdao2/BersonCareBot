@@ -1,6 +1,7 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
 import type { SystemSettingsPort, SystemSettingsReadOptions, SystemSettingsWriteOptions } from "./ports";
 import type { ModesFormKey } from "./modesFormKeys";
+import { isPerOrgSettingKey, SystemSettingsOrgContextRequiredError } from "./orgScopedKeys";
 import { normalizeValueJson } from "./adminSettingsPatchNormalize";
 import { invalidateConfigKey } from "./configAdapter";
 import {
@@ -96,6 +97,23 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
     return (ALLOWED_KEYS as readonly string[]).includes(key);
   }
 
+  /**
+   * P0.11.3 single chokepoint: resolves the `organizationId` that actually reaches the port for a
+   * write. GLOBAL keys are forced to `null` regardless of what the caller passed (defense — a route
+   * handler threading a stale/wrong org never contaminates a platform-wide default). PER-ORG keys
+   * require a resolvable `organizationId`; writing one without it throws rather than silently falling
+   * back to a global row (which would overwrite the platform default for every clinic).
+   * See `orgScopedKeys.ts` for the classification map.
+   */
+  function resolveWriteOrganizationId(key: string, options: SystemSettingsWriteOptions): string | null {
+    if (!isPerOrgSettingKey(key)) return null;
+    const organizationId = options.organizationId?.trim() || null;
+    if (!organizationId) {
+      throw new SystemSettingsOrgContextRequiredError(key);
+    }
+    return organizationId;
+  }
+
   async function readRelayDevContext(): Promise<{
     devMode: boolean;
     testAccounts: TestAccountIdentifiers | null;
@@ -126,6 +144,10 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       return port.getByScope(scope, options);
     },
 
+    getWebPushVapidPublicKeyOnly(): Promise<string | null> {
+      return port.getWebPushVapidPublicKeyOnly();
+    },
+
     async updateSetting(
       key: string,
       scope: SystemSettingScope,
@@ -147,7 +169,7 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
                   value,
                 )
               : value;
-      const organizationId = options.organizationId?.trim() || null;
+      const organizationId = resolveWriteOrganizationId(key, options);
       const result = await port.upsert(key, scope, valueToStore, updatedBy, { organizationId });
       void syncSettingToIntegrator({
         key,
@@ -175,11 +197,10 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
           throw new Error(`unknown_setting_key: ${r.key}`);
         }
       }
-      const organizationId = options.organizationId?.trim() || null;
       const upsertRows = rows.map((r) => ({
         key: r.key,
         scope: "admin" as const,
-        organizationId,
+        organizationId: resolveWriteOrganizationId(r.key, options),
         valueJson: r.valueJson,
         updatedBy,
       }));
@@ -235,9 +256,14 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       );
     },
 
-    /** UUID шаблона промо-программы (`patient_default_promo_treatment_program_template_id`, admin). Пусто → null. */
-    async getPatientDefaultPromoTreatmentProgramTemplateId(): Promise<string | null> {
-      const row = await port.getByKey("patient_default_promo_treatment_program_template_id", "admin");
+    /**
+     * UUID шаблона промо-программы (`patient_default_promo_treatment_program_template_id`, admin, PER-ORG).
+     * Пусто → null. `options.organizationId` — org-first-then-global fallback (см. `orgScopedKeys.ts`).
+     */
+    async getPatientDefaultPromoTreatmentProgramTemplateId(
+      options: SystemSettingsReadOptions = {},
+    ): Promise<string | null> {
+      const row = await port.getByKey("patient_default_promo_treatment_program_template_id", "admin", options);
       if (row?.valueJson === null || row?.valueJson === undefined || typeof row.valueJson !== "object") {
         return null;
       }

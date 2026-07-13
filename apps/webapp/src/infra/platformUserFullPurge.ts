@@ -413,7 +413,7 @@ export async function deleteIntegratorPhoneData(
     }
     throw err;
   } finally {
-    tx.release();
+    await tx.release();
   }
 }
 

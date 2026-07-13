@@ -214,12 +214,12 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
 
 | Gate (15F) | Итог |
 |------------|------|
-| Domain `pool.query` (runtime) | **0** вне allowlist (**3** Class B `pool.query`) |
-| Class B `pool.query` | `runWebappSql.ts` (transport), `pgAdminPlatformUserStats.ts` (uuid[] workaround), `broadcastChannelCounts.ts` (Drizzle ANY-array workaround) |
-| Class B `client.query` | `client.ts` (healthcheck `select 1` через `withPoolClient`) |
+| Domain `pool.query` (runtime) | **0** вне allowlist (**4** Class B `pool.query`) |
+| Class B `pool.query` | `runWebappSql.ts` (transport), `pgAdminPlatformUserStats.ts` (uuid[] workaround), `broadcastChannelCounts.ts` (Drizzle ANY-array workaround), `webappPoolProvider.ts` (SAAS principal-aware pool: wraps `pool.query` to stamp the DB principal per connection) |
+| Class B `client.query` | `client.ts` (healthcheck `select 1` через `withPoolClient`), `webappPoolProvider.ts` (apply/clear DB principal on the checked-out connection) |
 | Class C `client.query` | **6** файлов — TX `BEGIN`/`COMMIT`/`ROLLBACK`; R0/S3 moves checkout to `withClient.ts` |
 | `rg -l` (incl. JSDoc) | legacy snapshot; current R0/S3 gate uses `webappPhase15F.verify.test.ts` |
-| Runtime tail (unique) | **10** файлов = Class B pool (**3**) + Class B client (**1**) + Class C (**6**) |
+| Runtime tail (unique) | Class B pool (**4**) + Class B client (**2**) + Class C (**6**); `webappPoolProvider.ts` учтён и в pool, и в client (использует оба) → **11** distinct файлов |
 | 15A–15E migrated scope | runtime `pool.query`/`client.query` = **0** (Drizzle `db.query.*` relational API — вне gate) |
 | Verify test | `webappPhase15F.verify.test.ts` — **5 passed** (fast) |
 | Phase 15 closure bundle | 15F verify + 15E (incl. bind route) + 15A–15D + analytics read-source — **93 passed** (fast) |

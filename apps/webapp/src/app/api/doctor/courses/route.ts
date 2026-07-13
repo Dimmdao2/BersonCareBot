@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
@@ -48,7 +49,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const { ctx: workspace } = auth;
+  const entitlement = await requireEntitlement("courses");
+  if (!entitlement.ok) return entitlement.response;
+  const { ctx: workspace } = entitlement;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);

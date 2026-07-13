@@ -10,6 +10,7 @@ import {
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
 import { savePatientHomeRepeatCooldownsAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
+import { apiJson } from "@/shared/lib/apiJson";
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
@@ -31,6 +32,7 @@ function minuteTriggerLabel(valueStr: string): string {
 type Props = {
   initialWarmupMinutes: number;
   initialPlanItemMinutes: number;
+  settingsEndpoint?: "/api/admin/settings";
 };
 
 export function PatientHomeRepeatCooldownPanel(props: Props) {
@@ -65,16 +67,37 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
     }
     setPending(true);
     try {
-      const result = await savePatientHomeRepeatCooldownsAction({
-        warmupRepeatMinutes: w,
-        planItemRepeatMinutes: p,
-      });
+      const result = props.settingsEndpoint
+        ? await Promise.all([
+            apiJson<{ ok: true }>(props.settingsEndpoint, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                key: "patient_home_daily_warmup_repeat_cooldown_minutes",
+                value: { value: w },
+              }),
+            }),
+            apiJson<{ ok: true }>(props.settingsEndpoint, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+                value: { value: p },
+              }),
+            }),
+          ]).then(() => ({ ok: true as const }))
+        : await savePatientHomeRepeatCooldownsAction({
+            warmupRepeatMinutes: w,
+            planItemRepeatMinutes: p,
+          });
       if (!result.ok) {
         setError(result.error === "forbidden" ? "Нет доступа." : "Не удалось сохранить.");
         return;
       }
       setMessage("Сохранено");
       router.refresh();
+    } catch {
+      setError("Не удалось сохранить.");
     } finally {
       setPending(false);
     }

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BersonCare — Design DNA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas:#F6F4EF;--surface:#FFFFFF;--rail:#FBFAF6;--warm-sel:#F1EEE7;
+    --a50:#E9F0F8;--a100:#DCE8F5;--a200:#C4D6EC;--a500:#386FBA;--a600:#305F9F;--a700:#28518A;
+    --atext:#2B548C;--a900:#22406B;
+    --ink:#232A31;--ink2:#55606B;--muted:#8B94A0;--faint:#B4BAC2;
+    --border:#EFECE4;--divider:#EDEAE2;--hair:#F1EEE7;
+    --warn:#C08A2E;--danger:#B4544B;--ok:#3E7D68;
+    --rsm:8px;--rmd:11px;--rlg:14px;
+    --shadow:0 1px 2px rgba(40,35,25,.028),0 4px 14px rgba(40,35,25,.03);
+    --font:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--canvas);color:var(--ink);font-family:var(--font);font-weight:400;
+    -webkit-font-smoothing:antialiased;line-height:1.5;}
+  .wrap{max-width:1000px;margin:0 auto;padding:44px 26px 100px;}
+
+  /* header */
+  .hero{margin-bottom:8px;}
+  .hero .logo{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+  .hero .logo .m{width:30px;height:30px;border-radius:8px;background:var(--a500);display:flex;align-items:center;justify-content:center;}
+  .hero .logo .bn{font-size:16px;font-weight:700;letter-spacing:-.01em;}
+  .hero .kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+  .hero h1{font-size:34px;font-weight:600;letter-spacing:-.03em;margin:8px 0 12px;}
+  .hero .sub{font-size:16px;color:var(--ink2);max-width:660px;line-height:1.6;}
+  .meta{margin-top:18px;font-size:12.5px;color:var(--muted);font-weight:500;}
+
+  section{margin-top:52px;}
+  .snum{font-size:12px;font-weight:700;color:var(--atext);letter-spacing:.04em;}
+  h2{font-size:23px;font-weight:600;letter-spacing:-.02em;margin:6px 0 6px;}
+  .lead{font-size:14.5px;color:var(--ink2);line-height:1.65;max-width:680px;}
+  h3{font-size:14px;font-weight:500;color:var(--ink);margin:26px 0 12px;letter-spacing:-.01em;}
+  p{font-size:14px;color:var(--ink2);line-height:1.65;max-width:680px;margin:10px 0;}
+  .divider{height:1px;background:var(--divider);margin-top:52px;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rmd);box-shadow:var(--shadow);}
+  .pad{padding:22px 24px;}
+
+  /* character chips */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 4px;}
+  .chip{font-size:12.5px;font-weight:600;padding:6px 13px;border-radius:999px;background:var(--a50);color:var(--atext);}
+  .chip.neg{background:#F0EEE8;color:var(--ink2);}
+
+  /* principles */
+  .princ{margin-top:20px;}
+  .pr{display:flex;gap:14px;padding:15px 0;border-top:1px solid var(--hair);}
+  .pr:first-child{border-top:none;}
+  .pr .no{font-size:13px;font-weight:700;color:var(--atext);min-width:22px;}
+  .pr .t{font-size:14.5px;font-weight:600;color:var(--ink);}
+  .pr .d{font-size:13px;color:var(--ink2);margin-top:2px;line-height:1.55;}
+
+  /* palette */
+  .pal{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px;}
+  @media(max-width:720px){.pal{grid-template-columns:repeat(2,1fr);}}
+  .sw{border:1px solid var(--border);border-radius:var(--rsm);overflow:hidden;background:#fff;}
+  .sw .c{height:56px;} .sw .m{padding:8px 10px;}
+  .sw .r{font-size:11.5px;font-weight:600;color:var(--ink);} .sw .h{font-size:10.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .scale{display:flex;border-radius:var(--rsm);overflow:hidden;border:1px solid var(--border);margin-top:14px;}
+  .scale .s{flex:1;height:52px;display:flex;align-items:flex-end;padding:6px;}
+  .scale .s span{font-size:9.5px;font-weight:700;}
+
+  /* type specimen */
+  .spec{margin-top:8px;}
+  .spec .row{display:flex;align-items:baseline;gap:16px;padding:13px 0;border-top:1px solid var(--hair);}
+  .spec .row:first-child{border-top:none;}
+  .spec .lab{font-size:11px;font-weight:600;color:var(--muted);width:130px;flex:none;text-transform:uppercase;letter-spacing:.03em;}
+  .wscale{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+  .wc{background:var(--rail);border:1px solid var(--border);border-radius:var(--rsm);padding:12px 16px;text-align:center;}
+  .wc .n{font-size:20px;color:var(--ink);} .wc .l{font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;}
+
+  /* component demos */
+  .demo{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px;align-items:start;}
+  @media(max-width:720px){.demo{grid-template-columns:1fr;}}
+  .dlabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;}
+
+  .li{display:flex;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--hair);position:relative;}
+  .li:first-child{border-top:none;}
+  .li.sel{padding-left:14px;} .li.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--a500);}
+  .li .nm{font-size:13.5px;font-weight:500;} .li.sel .nm{font-weight:600;color:var(--atext);}
+  .li .sub{font-size:12px;color:var(--ink2);} .li .meta{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:500;}
+  .li.sel .meta{color:var(--atext);font-weight:600;}
+
+  .btn{font-family:inherit;font-weight:600;font-size:13px;padding:9px 15px;border-radius:var(--rsm);border:none;cursor:pointer;}
+  .btn.pri{background:var(--a500);color:#fff;} .btn.pri:hover{background:var(--a600);}
+  .btn.sec{background:#fff;color:var(--atext);border:1px solid var(--a200);}
+  .btn.ghost{background:transparent;color:var(--ink2);border:1px solid var(--divider);}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+  .field{display:block;width:100%;font-family:inherit;font-size:13px;padding:10px 12px;border-radius:var(--rsm);
+    border:1px solid #E6E1D6;background:var(--rail);color:var(--ink);}
+  .field.foc{border:1.5px solid var(--a500);background:#fff;}
+  .badge{font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--a50);color:var(--atext);}
+  .badge.neu{background:#F0EEE8;color:var(--ink2);}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--divider);}
+  .tab{font-size:12.5px;font-weight:600;color:var(--muted);padding:8px 12px 10px;border-bottom:2px solid transparent;}
+  .tab.on{color:var(--atext);border-bottom-color:var(--a500);}
+  .track{height:6px;border-radius:99px;background:#EEEBE3;overflow:hidden;margin-top:6px;} .track i{display:block;height:100%;width:64%;background:var(--a500);border-radius:99px;}
+
+  .qrow{display:flex;align-items:center;gap:11px;padding:12px 14px;border-top:1px solid var(--hair);position:relative;}
+  .qrow:first-child{border-top:none;} .qrow::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .qw::before{background:var(--warn);}.qd::before{background:var(--danger);}.qi::before{background:var(--a500);}.qo::before{background:var(--ok);}
+  .qrow .ic{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
+  .qw .ic{background:var(--warn);}.qd .ic{background:var(--danger);}.qi .ic{background:var(--a500);}.qo .ic{background:var(--ok);}
+  .qrow .qt{font-size:13px;font-weight:600;}.qrow .qs{font-size:11.5px;color:var(--ink2);}
+  .qw .qt{color:#7A5A1E;}.qd .qt{color:#8A3E36;}.qi .qt{color:var(--atext);}.qo .qt{color:#2E5F4F;}
+
+  .icons{display:flex;gap:24px;flex-wrap:wrap;align-items:center;margin-top:6px;}
+  .ico{display:flex;flex-direction:column;align-items:center;gap:7px;}
+  .ico .cn{font-size:11px;color:var(--muted);font-weight:500;}
+
+  /* two-col ref */
+  .refs{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px;}
+  @media(max-width:720px){.refs{grid-template-columns:1fr;}}
+  .refcol h3{margin-top:0;}
+  .refcol .rl{padding:9px 0;border-top:1px solid var(--hair);font-size:13.5px;}
+  .refcol .rl:first-of-type{border-top:none;} .refcol .rl b{font-weight:600;color:var(--ink);} .refcol .rl span{color:var(--ink2);}
+  .avoid .rl b{color:#8A3E36;}
+
+  .open{margin-top:16px;} .open .o{padding:10px 0;border-top:1px solid var(--hair);font-size:13.5px;color:var(--ink2);}
+  .open .o:first-child{border-top:none;}
+  .why{margin-top:16px;background:var(--rail);border:1px solid var(--border);border-radius:var(--rmd);
+    padding:14px 18px 14px 20px;position:relative;}
+  .why::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--a500);}
+  .why .wl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--atext);margin-bottom:6px;}
+  .why p{font-size:13px;color:var(--ink2);margin:0;max-width:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="logo"><div class="m"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></div><div class="bn">BersonCare</div></div>
+    <div class="kicker">Design DNA · Визуальная идентичность</div>
+    <h1>Тихая уверенность</h1>
+    <p class="sub">Единый визуальный язык продукта: спокойный, точный, тёплый, лёгкий, надёжный. Этот гайд не только описывает систему — он сам построен по её правилам. По нему дизайнер или ИИ-агент собирает любой новый экран, оставаясь в одном стиле.</p>
+    <div class="meta">Версия 1.0 · июль 2026 · выведено из контролируемых сравнений предпочтений владельца</div>
+  </div>
+
+  <!-- 1 PHILOSOPHY -->
+  <section>
+    <div class="snum">01</div><h2>Философия и характер</h2>
+    <p class="lead">BersonCare — премиальный клинический инструмент, который уважает внимание специалиста и успокаивает пациента. Он выглядит как продукт высокого уровня за счёт сдержанности, чистоты и точности, а не за счёт эффектов. Это сознательно не «типичное медицинское приложение» и не wellness-игрушка.</p>
+    <h3>Характер</h3>
+    <div class="chips">
+      <span class="chip">спокойный</span><span class="chip">точный</span><span class="chip">тёплый</span><span class="chip">лёгкий</span><span class="chip">надёжный</span><span class="chip">ненавязчивый</span>
+    </div>
+    <h3>Антихарактер — чем быть не должен</h3>
+    <div class="chips">
+      <span class="chip neg">шумный</span><span class="chip neg">восторженный</span><span class="chip neg">игривый</span><span class="chip neg">перегруженный</span><span class="chip neg">техно-холодный</span><span class="chip neg">казённо-медицинский</span>
+    </div>
+    <div class="why"><div class="wl">Почему</div><p>Владелец выбирал спокойствие + доверие + сдержанную премиальность и отвергал энергию/«спортивность», тёмные дашборды и пастельно-игровое. Смелость — сдержанная: долговечность важнее выразительности. Приоритет — кабинет специалиста.</p></div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 2 EMOTION -->
+  <section>
+    <div class="snum">02</div><h2>Эмоциональное восприятие</h2>
+    <p class="lead">Общий знаменатель — доверие + спокойствие + компетентность. Ни одно решение не должно повышать тревожность.</p>
+    <div class="demo">
+      <div class="card pad"><div class="dlabel">Специалист</div><p style="margin-top:0">«Я в контроле, без шума.» Собранность, ясность, всё под рукой — как хорошо организованный рабочий стол, а не кабина самолёта.</p></div>
+      <div class="card pad"><div class="dlabel">Пациент</div><p style="margin-top:0">«Обо мне спокойно и понятно заботятся.» Тепло, простота, доверие. Медицинская серьёзность без больничной холодности.</p></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 3 PRINCIPLES -->
+  <section>
+    <div class="snum">03</div><h2>Принципы</h2>
+    <p class="lead">Семь правил. Они приоритетнее частных вкусов и разрешают споры при проектировании.</p>
+    <div class="princ card pad">
+      <div class="pr"><div class="no">1</div><div><div class="t">Ясность важнее украшения</div><div class="d">Если элемент не помогает понять или сделать — его нет.</div></div></div>
+      <div class="pr"><div class="no">2</div><div><div class="t">Цвет — точечно, не заливками</div><div class="d">Акцент как насыщенная деталь или маленький тон. Крупные бледные заливки запрещены — они «мутят» интерфейс.</div></div></div>
+      <div class="pr"><div class="no">3</div><div><div class="t">Состояние — структурой, а не фоном</div><div class="d">Выделение, активность, статус — линией, полоской-акцентом, весом текста или маленьким маркером.</div></div></div>
+      <div class="pr"><div class="no">4</div><div><div class="t">Лёгкий вес по умолчанию</div><div class="d">Начертания не жирные, разделители тонкие, обводки иконок тонкие. Вес — только для иерархии.</div></div></div>
+      <div class="pr"><div class="no">5</div><div><div class="t">Тепло в основе</div><div class="d">Фон тёплый или белый, холодные голубоватые фоны запрещены. Текст — мягкий графит, не чёрный.</div></div></div>
+      <div class="pr"><div class="no">6</div><div><div class="t">Плотно, но не тесно</div><div class="d">Врач — эффективная плотность. Пациент — чуть больше воздуха.</div></div></div>
+      <div class="pr"><div class="no">7</div><div><div class="t">Спокойный тон</div><div class="d">Никакой «восторженности» — ни в цвете, ни в движении, ни в формах.</div></div></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 4 COLOR -->
+  <section>
+    <div class="snum">04</div><h2>Цвет</h2>
+    <p class="lead">Моно-акцентная система: один синий как ядро идентичности, тёплые нейтралы как основа, приглушённые функциональные цвета точечно.</p>
+
+    <h3>Основа</h3>
+    <div class="pal">
+      <div class="sw"><div class="c" style="background:#F6F4EF;border-bottom:1px solid var(--border)"></div><div class="m"><div class="r">Холст</div><div class="h">#F6F4EF</div></div></div>
+      <div class="sw"><div class="c" style="background:#FFFFFF;border-bottom:1px solid var(--border)"></div><div class="m"><div class="r">Поверхность</div><div class="h">#FFFFFF</div></div></div>
+      <div class="sw"><div class="c" style="background:#FBFAF6;border-bottom:1px solid var(--border)"></div><div class="m"><div class="r">Тёплая подложка</div><div class="h">#FBFAF6</div></div></div>
+      <div class="sw"><div class="c" style="background:#F1EEE7;border-bottom:1px solid var(--border)"></div><div class="m"><div class="r">Тёплое выделение</div><div class="h">#F1EEE7</div></div></div>
+    </div>
+
+    <h3>Акцент — синий (ядро бренда)</h3>
+    <div class="scale">
+      <div class="s" style="background:#E9F0F8"><span style="color:#2B548C">50</span></div>
+      <div class="s" style="background:#DCE8F5"><span style="color:#2B548C">100</span></div>
+      <div class="s" style="background:#C4D6EC"><span style="color:#2B548C">200</span></div>
+      <div class="s" style="background:#386FBA"><span style="color:#fff">500</span></div>
+      <div class="s" style="background:#305F9F"><span style="color:#fff">600</span></div>
+      <div class="s" style="background:#28518A"><span style="color:#fff">700</span></div>
+      <div class="s" style="background:#2B548C"><span style="color:#fff">text</span></div>
+      <div class="s" style="background:#22406B"><span style="color:#fff">900</span></div>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">50–200 — только мелкие элементы (бейджи, границы). 500 — кнопки и акценты. 600/700 — наведение/нажатие. text (#2B548C) — ссылки и активный текст.</p>
+
+    <h3>Текст (графит) и границы</h3>
+    <div class="pal">
+      <div class="sw"><div class="c" style="background:#232A31"></div><div class="m"><div class="r">Основной текст</div><div class="h">#232A31</div></div></div>
+      <div class="sw"><div class="c" style="background:#55606B"></div><div class="m"><div class="r">Вторичный</div><div class="h">#55606B</div></div></div>
+      <div class="sw"><div class="c" style="background:#8B94A0"></div><div class="m"><div class="r">Приглушённый</div><div class="h">#8B94A0</div></div></div>
+      <div class="sw"><div class="c" style="background:#EFECE4;border-bottom:1px solid #E4DFD4"></div><div class="m"><div class="r">Границы / линии</div><div class="h">#EFECE4</div></div></div>
+    </div>
+
+    <h3>Функциональные — приглушённые, точечно</h3>
+    <div class="pal">
+      <div class="sw"><div class="c" style="background:#C08A2E"></div><div class="m"><div class="r">Внимание</div><div class="h">#C08A2E</div></div></div>
+      <div class="sw"><div class="c" style="background:#B4544B"></div><div class="m"><div class="r">Ошибка</div><div class="h">#B4544B</div></div></div>
+      <div class="sw"><div class="c" style="background:#3E7D68"></div><div class="m"><div class="r">Успех · только маркер</div><div class="h">#3E7D68</div></div></div>
+      <div class="sw"><div class="c" style="background:#386FBA"></div><div class="m"><div class="r">Инфо · = акцент</div><div class="h">#386FBA</div></div></div>
+    </div>
+
+    <div class="why"><div class="wl">Почему</div><p>Приглушённый синий #386FBA — прямой выбор («синий как основа», «менее восторженный»). Зелёный/бирюза/сирень/фиолет как акценты отвергнуты; зелёный оставлен только как крошечный маркер успеха. Кремовый холст и графитовый текст выбраны напрямую; голубые фоны и чистый чёрный — нет. «Мелкий тон можно, крупная заливка нельзя» — из того, что бейдж понравился, а те же заливки в выделении и статусах — нет.</p></div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 5 TYPE -->
+  <section>
+    <div class="snum">05</div><h2>Типографика</h2>
+    <p class="lead">Гарнитура — <b>Manrope</b> (гуманистичный гротеск с мягкой геометрией, полная кириллица). Отвергнут «механический» шрифт. Ключевое правило — лёгкий вес по умолчанию: начертание 800 не используется.</p>
+    <div class="card pad spec">
+      <div class="row"><div class="lab">Display · 600</div><div style="font-size:24px;font-weight:600;letter-spacing:-.02em">Сегодня спокойный день</div></div>
+      <div class="row"><div class="lab">H1 · 600</div><div style="font-size:18px;font-weight:600;letter-spacing:-.01em">Кабинет специалиста</div></div>
+      <div class="row"><div class="lab">H2 · 500</div><div style="font-size:15px;font-weight:500">Программа реабилитации</div></div>
+      <div class="row"><div class="lab">Body · 400</div><div style="font-size:14px;font-weight:400;color:var(--ink2)">Пациент завершил третий этап, самочувствие стабильное. Следующий контроль назначен на четверг.</div></div>
+      <div class="row"><div class="lab">Small · 500</div><div style="font-size:12px;font-weight:500;color:var(--ink2)">Последний визит 2 дня назад</div></div>
+      <div class="row"><div class="lab">Micro · 600</div><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Активных · 38</div></div>
+    </div>
+    <div class="wscale">
+      <div class="wc"><div class="n" style="font-weight:400">Аа</div><div class="l">400 Regular</div></div>
+      <div class="wc"><div class="n" style="font-weight:500">Аа</div><div class="l">500 Medium</div></div>
+      <div class="wc"><div class="n" style="font-weight:600">Аа</div><div class="l">600 · заголовки</div></div>
+      <div class="wc"><div class="n" style="font-weight:700">Аа</div><div class="l">700 · редко</div></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 6 COMPONENTS -->
+  <section>
+    <div class="snum">06</div><h2>Компоненты</h2>
+    <p class="lead">Общие правила: тёплая рамка, микротень по умолчанию, сбалансированный радиус (кнопки 8, карточки 11), лёгкий вес текста.</p>
+
+    <h3>Списки — ключевой компонент</h3>
+    <p>Плоские строки, волосяная линия во всю ширину. Без аватаров и бейджей: слева сразу имя и текст. Выделение — полоска-акцент слева заподлицо + имя в весе 600 синим. Никаких скруглённых «пилюль».</p>
+    <div class="card" style="margin-top:12px">
+      <div class="li sel"><div><div class="nm">Иванова Анна</div><div class="sub">Программа · этап 3 из 5</div></div><div class="meta">Активна</div></div>
+      <div class="li"><div><div class="nm">Петров Сергей</div><div class="sub">Последний визит 2 дня назад</div></div><div class="meta">Пауза</div></div>
+      <div class="li"><div><div class="nm">Соколова Мария</div><div class="sub">3 теста ждут проверки</div></div><div class="meta">Сегодня</div></div>
+    </div>
+
+    <div class="demo">
+      <div>
+        <div class="dlabel">Кнопки</div>
+        <div class="card pad"><div class="btnrow"><button class="btn pri">Первичная</button><button class="btn sec">Вторичная</button><button class="btn ghost">Ghost</button></div></div>
+        <div class="dlabel" style="margin-top:18px">Вкладки · прогресс</div>
+        <div class="card pad">
+          <div class="tabs"><div class="tab on">Записи</div><div class="tab">Заявки</div><div class="tab">Сообщения</div></div>
+          <div style="margin-top:14px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);font-weight:500"><span>Программа</span><b style="color:var(--ink)">68%</b></div><div class="track"><i></i></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="dlabel">Поля · бейджи</div>
+        <div class="card pad">
+          <input class="field foc" value="Поле в фокусе — тонкая граница">
+          <input class="field" value="Обычное поле" style="margin-top:9px">
+          <div style="margin-top:12px;display:flex;gap:10px;align-items:center"><span class="badge">Новое</span><span class="badge neu">Нейтрально</span></div>
+        </div>
+        <div class="dlabel" style="margin-top:18px">Статусы · «тихий» формат</div>
+        <div class="card">
+          <div class="qrow qw"><div class="ic">!</div><div><div class="qt">Внимание</div><div class="qs">3 теста ждут проверки</div></div></div>
+          <div class="qrow qd"><div class="ic">×</div><div><div class="qt">Ошибка</div><div class="qs">Напоминание не доставлено</div></div></div>
+          <div class="qrow qo"><div class="ic">✓</div><div><div class="qt">Выполнено</div><div class="qs">Пациент завершил этап</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="why"><div class="wl">Почему</div><p>Списки-линии, выделение полоской + весом, отказ от аватаров/бейджей, разделитель во всю ширину, сбалансированный радиус, микротень, тонкий фокус без «нимба», «тихие» статусы с цветным заголовком и маркером — конкретные, явно подтверждённые выборы владельца.</p></div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 7 ICONS -->
+  <section>
+    <div class="snum">07</div><h2>Иконки, иллюстрации, движение</h2>
+    <p class="lead">Иконки — контурные, тонкая обводка ~1.5px, скруглённые концы. Один стиль во всём продукте. Заливные — только маленькие статус-маркеры. Рекомендуемый набор — Lucide.</p>
+    <div class="card pad">
+      <div class="icons">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B548C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-6h6v6"/></svg><span class="cn">Главная</span></div>
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B548C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg><span class="cn">Календарь</span></div>
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B548C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2.5 19c0-3 2.9-5 6.5-5s6.5 2 6.5 5"/><path d="M16 5.2a3 3 0 0 1 0 5.6M18.5 19c0-2.2-1-3.8-2.6-4.6"/></svg><span class="cn">Пациенты</span></div>
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B548C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 3z"/></svg><span class="cn">Сообщения</span></div>
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B548C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 3.5V6h6V3.5M8.5 11h7M8.5 15h5"/></svg><span class="cn">Назначения</span></div>
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B548C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/></svg><span class="cn">Аналитика</span></div>
+      </div>
+    </div>
+    <p><b style="color:var(--ink)">Иллюстрации:</b> минимум. Никакого медицинского клипарта и wellness-облачков. Если нужны — тонкая линейная графика в один тон (моно-синий), в стиле иконок.</p>
+    <p><b style="color:var(--ink)">Движение:</b> сдержанно и коротко — 150–200мс, ease-out, ничего пружинящего. Микро-переходы (fade + лёгкий сдвиг), спокойное раскрытие панелей. Уважать prefers-reduced-motion.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 8 REFERENCES -->
+  <section>
+    <div class="snum">08</div><h2>Ориентиры</h2>
+    <div class="refs">
+      <div class="refcol">
+        <h3>Равняться — по духу</h3>
+        <div class="rl"><b>Linear</b> — <span>сдержанность, волосяные линии, спокойные плоские списки</span></div>
+        <div class="rl"><b>Stripe</b> — <span>ясность, доверие, «взрослый» приглушённый синий, типографика</span></div>
+        <div class="rl"><b>Attio / Height</b> — <span>плоские плотные списки-строки</span></div>
+        <div class="rl"><b>Notion (спокойная сторона)</b> — <span>тёплый фон, лёгкий вес, контент важнее хрома</span></div>
+        <div class="rl"><b>One Medical</b> — <span>тёплое клиническое доверие (но у нас легче и тише)</span></div>
+      </div>
+      <div class="refcol avoid">
+        <h3>Избегать</h3>
+        <div class="rl"><b>«Типичное медприложение»</b> — <span>резкий сине-белый контраст, клипарт, серые таблицы</span></div>
+        <div class="rl"><b>Wellness-пастель</b> — <span>крупные скругления, сиренево-мятная пастель, облачка</span></div>
+        <div class="rl"><b>Тёмные дашборды</b> — <span>тёмный фон, неон, свечение (Whoop/Oura)</span></div>
+        <div class="rl"><b>Тяжёлый Material</b> — <span>выраженные тени, крупные заливки-плитки</span></div>
+        <div class="rl"><b>Игровой стиль</b> — <span>яркие цвета, «восторженность» (Duolingo)</span></div>
+        <div class="rl"><b>Крупные бледные заливки</b> — <span>главный локальный запрет</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 9 OPEN -->
+  <section>
+    <div class="snum">09</div><h2>Открытые вопросы</h2>
+    <p class="lead">«Мелочи, к которым надо присмотреться» — зафиксированы, чтобы не потерялись. Решаются по мере появления реальных экранов.</p>
+    <div class="card pad open">
+      <div class="o">Финальная сила микротени — сверить на множестве карточек.</div>
+      <div class="o">Толщина обводки иконок (1.4 vs 1.5) — решить, увидев меню в живом продукте.</div>
+      <div class="o">Финальный выбор иконочного набора (Lucide как кандидат).</div>
+      <div class="o">Степень тепла и воздуха именно в пациентской части.</div>
+      <div class="o">Тёмная тема — light-first подтверждён; тёмная как вторичная опция позже.</div>
+      <div class="o">Палитра для графиков/аналитики — расширение моно-синего без зелёного как основного.</div>
+    </div>
+    <p style="margin-top:26px;font-size:12.5px;color:var(--muted)">Полная спецификация с дизайн-токенами (CSS + JSON) — в сопроводительном Markdown-документе. Обновлять по мере закрытия открытых вопросов.</p>
+  </section>
+
+</div>
+</body>
+</html>

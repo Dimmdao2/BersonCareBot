@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -32,6 +33,7 @@ const bodySchema = z.object({
  * deliveryChannel: telegram | max | email | sms — куда отправить OTP. Для channel=web значение sms запрещено.
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/phone/start:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

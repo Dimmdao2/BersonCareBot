@@ -1,25 +1,78 @@
 import type { Pool, PoolClient } from "pg";
-import { applyCurrentDbPrincipalToTransaction } from "@bersoncare/db-principal";
+import {
+  applyCurrentDbPrincipalToConnection,
+  applyCurrentDbPrincipalToTransaction,
+  buildDbPrincipalApplyOptionsFromEnv,
+  clearDbPrincipalFromConnection,
+  type DbPrincipalApplyOptions,
+} from "@bersoncare/db-principal";
 import { getPool } from "@/infra/db/client";
 
-async function prepareClientForRequest(_client: PoolClient): Promise<void> {
-  // Dormant SAAS hook: future tenant/app principal setup belongs here.
+function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
+  return buildDbPrincipalApplyOptionsFromEnv(process.env);
 }
 
-async function prepareTransactionClientForRequest(client: PoolClient): Promise<void> {
-  await applyCurrentDbPrincipalToTransaction(client);
+async function prepareClientForRequest(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  await applyCurrentDbPrincipalToConnection(client, options);
+}
+
+async function releasePreparedClient(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  let cleanupError: unknown;
+  try {
+    await clearDbPrincipalFromConnection(client, options);
+  } catch (err) {
+    cleanupError = err;
+    throw err;
+  } finally {
+    if (cleanupError === undefined) {
+      client.release();
+    } else {
+      client.release(cleanupError instanceof Error ? cleanupError : new Error("DB principal cleanup failed"));
+    }
+  }
+}
+
+async function releasePreparedClientAfterSetupFailure(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  try {
+    await clearDbPrincipalFromConnection(client, options);
+  } catch (err) {
+    client.release(err instanceof Error ? err : new Error("DB principal cleanup failed"));
+    return;
+  }
+  try {
+    client.release();
+  } catch {
+    /* release is synchronous in pg; keep setup failure if a mock throws */
+  }
+}
+
+async function prepareTransactionClientForRequest(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  await applyCurrentDbPrincipalToTransaction(client, options);
 }
 
 export async function withPoolClient<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  const principalApplyOptions = getDbPrincipalApplyOptions();
   const client = await pool.connect();
   try {
-    await prepareClientForRequest(client);
+    await prepareClientForRequest(client, principalApplyOptions);
     return await fn(client);
   } finally {
-    client.release();
+    await releasePreparedClient(client, principalApplyOptions);
   }
 }
 
@@ -31,17 +84,18 @@ export type PoolTransactionHandle = {
   client: PoolClient;
   commit(): Promise<void>;
   rollback(): Promise<void>;
-  release(): void;
+  release(): Promise<void>;
 };
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
+  const principalApplyOptions = getDbPrincipalApplyOptions();
   const client = await pool.connect();
   let transactionStarted = false;
   try {
-    await prepareClientForRequest(client);
+    await prepareClientForRequest(client, principalApplyOptions);
     await client.query("BEGIN");
     transactionStarted = true;
-    await prepareTransactionClientForRequest(client);
+    await prepareTransactionClientForRequest(client, principalApplyOptions);
   } catch (err) {
     if (transactionStarted) {
       try {
@@ -50,7 +104,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
         /* preserve original setup error */
       }
     }
-    client.release();
+    await releasePreparedClientAfterSetupFailure(client, principalApplyOptions);
     throw err;
   }
   return {
@@ -61,7 +115,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     rollback: async () => {
       await client.query("ROLLBACK");
     },
-    release: () => client.release(),
+    release: () => releasePreparedClient(client, principalApplyOptions),
   };
 }
 
@@ -82,7 +136,7 @@ export async function withPoolTransaction<T>(
     }
     throw err;
   } finally {
-    tx.release();
+    await tx.release();
   }
 }
 

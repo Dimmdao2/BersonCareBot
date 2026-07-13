@@ -309,6 +309,16 @@ import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
 import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemoryOrganizationMembership";
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
+import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
+import { createInMemoryOrgEntitlementsPort } from "@/infra/repos/inMemoryOrgEntitlements";
+import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
+import { createPatientOrganizationService } from "@/modules/patient-organization/service";
+import { createPgOrganizationProvisioningPort } from "@/infra/repos/pgOrganizationProvisioning";
+import { createInMemoryOrganizationProvisioningPort } from "@/infra/repos/inMemoryOrganizationProvisioning";
+import { createOrganizationProvisioningService } from "@/modules/organization-provisioning/service";
+import { createPgOrganizationInvitesPort } from "@/infra/repos/pgOrganizationInvites";
+import { createInMemoryOrganizationInvitesPort } from "@/infra/repos/inMemoryOrganizationInvites";
+import { createOrganizationInvitesService } from "@/modules/organization-invites/service";
 import { createDoctorWorkspaceDirectoryService } from "@/modules/doctor-workspace/service";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import {
@@ -481,6 +491,24 @@ const organizationMembershipPort = !inMemoryRepos
   : createInMemoryOrganizationMembershipPort();
 const organizationMembershipService = createOrganizationMembershipService({
   membershipPort: organizationMembershipPort,
+});
+const orgEntitlementsPort = !inMemoryRepos
+  ? createPgOrgEntitlementsPort()
+  : createInMemoryOrgEntitlementsPort();
+const patientOrganizationService = !inMemoryRepos
+  ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
+  : null;
+const organizationProvisioningPort = !inMemoryRepos
+  ? createPgOrganizationProvisioningPort()
+  : createInMemoryOrganizationProvisioningPort();
+const organizationProvisioningService = createOrganizationProvisioningService({
+  provisioningPort: organizationProvisioningPort,
+});
+const organizationInvitesPort = !inMemoryRepos
+  ? createPgOrganizationInvitesPort()
+  : createInMemoryOrganizationInvitesPort();
+const organizationInvitesService = createOrganizationInvitesService({
+  invitesPort: organizationInvitesPort,
 });
 const doctorWorkspaceDirectoryService = createDoctorWorkspaceDirectoryService({
   membershipPort: organizationMembershipPort,
@@ -1604,6 +1632,10 @@ function _buildAppDeps() {
     patientDailyWarmupPresentation: patientDailyWarmupPresentationPort,
     patientDailyWarmupVideoViews: patientDailyWarmupVideoViewsPort,
     organizationMembership: organizationMembershipService,
+    orgEntitlements: orgEntitlementsPort,
+    patientOrganization: patientOrganizationService,
+    organizationProvisioning: organizationProvisioningService,
+    organizationInvites: organizationInvitesService,
     doctorWorkspace: doctorWorkspaceDirectoryService,
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,

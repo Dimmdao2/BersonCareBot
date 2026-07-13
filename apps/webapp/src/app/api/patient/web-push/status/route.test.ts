@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 const mockBuildAppDeps = vi.hoisted(() => vi.fn());
-const mockGetWebPushVapidKeyPair = vi.hoisted(() => vi.fn());
+const mockGetWebPushVapidPublicKeyOnly = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
@@ -11,10 +11,6 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: mockBuildAppDeps,
-}));
-
-vi.mock("@/modules/system-settings/webPushVapidRuntime", () => ({
-  getWebPushVapidKeyPair: mockGetWebPushVapidKeyPair,
 }));
 
 import { GET } from "./route";
@@ -26,8 +22,9 @@ const PATIENT_SESSION = {
 describe("GET /api/patient/web-push/status", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetWebPushVapidPublicKeyOnly.mockResolvedValue(null);
     mockBuildAppDeps.mockReturnValue({
-      systemSettings: {},
+      systemSettings: { getWebPushVapidPublicKeyOnly: mockGetWebPushVapidPublicKeyOnly },
       webPushSubscriptions: {
         hasAnyForUserId: vi.fn().mockResolvedValue(false),
       },
@@ -35,7 +32,6 @@ describe("GET /api/patient/web-push/status", () => {
         getPreferences: vi.fn().mockResolvedValue([]),
       },
     });
-    mockGetWebPushVapidKeyPair.mockResolvedValue(null);
   });
 
   it("returns 200 with vapidConfigured false when keys missing", async () => {
@@ -54,10 +50,10 @@ describe("GET /api/patient/web-push/status", () => {
 
   it("returns 200 with publicKey when VAPID configured", async () => {
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: PATIENT_SESSION });
-    mockGetWebPushVapidKeyPair.mockResolvedValue({ publicKey: "pub-k", privateKey: "priv-k" });
+    mockGetWebPushVapidPublicKeyOnly.mockResolvedValue("pub-k");
     const hasAny = vi.fn().mockResolvedValue(true);
     mockBuildAppDeps.mockReturnValue({
-      systemSettings: {},
+      systemSettings: { getWebPushVapidPublicKeyOnly: mockGetWebPushVapidPublicKeyOnly },
       webPushSubscriptions: { hasAnyForUserId: hasAny },
       channelPreferencesPort: {
         getPreferences: vi.fn().mockResolvedValue([

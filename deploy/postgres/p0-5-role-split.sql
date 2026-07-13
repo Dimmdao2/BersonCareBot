@@ -234,6 +234,7 @@ VALUES
   ('public', 'reminder_journal', 'SCOPED'),
   ('public', 'reminder_occurrence_history', 'SCOPED'),
   ('public', 'reminder_rules', 'SCOPED'),
+  ('public', 'specialist_signup_intents', 'BOOTSTRAP'),
   ('public', 'specialist_tasks', 'SCOPED'),
   ('public', 'support_conversation_messages', 'SCOPED'),
   ('public', 'support_conversations', 'SCOPED'),
@@ -417,5 +418,5 @@ SELECT (
 SELECT 1 / 0 AS p0_5_abort;
 \endif
 
-\echo 'P0.5 role split UP complete: 157 SCOPED tables and 26 BOOTSTRAP tables granted to the app role.'
+\echo 'P0.5 role split UP complete: 157 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.'
 \endif

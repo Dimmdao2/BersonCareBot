@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
 import { env } from "@/config/env";
 import { getPool } from "@/app-layer/db/client";
 import { logger } from "@/app-layer/logging/logger";
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
   if (!token || !bearerMatchesSecret(token, secret)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  // INFRA: cleanup scans expired multipart sessions across organizations and purges abandoned rows.
+  enterWithDbInfraPrincipal({ source: "api/internal/media-multipart/cleanup:POST" });
 
   let limit = 25;
   try {

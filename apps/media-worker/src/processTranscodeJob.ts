@@ -20,7 +20,7 @@ import {
 } from "./hlsStorageLayout.js";
 import {
   runMediaWorkerPgText,
-  runWithOptionalMediaWorkerOrganizationPrincipal,
+  runWithMediaWorkerInfraPrincipal,
 } from "./runMediaWorkerSql.js";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import {
@@ -228,7 +228,7 @@ async function uploadDirRecursive(
  * HLS transcode (best-effort; failure to delete is logged but does not fail the job). Never throws.
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
-  return runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId, () =>
+  return runWithMediaWorkerInfraPrincipal("media-worker:process-transcode-job", () =>
     processTranscodeJobInner(ctx, job),
   );
 }

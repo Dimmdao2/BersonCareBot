@@ -25,6 +25,8 @@ describe("checkInsecureSecretsForStartup", () => {
     PORT: 5200,
     APP_BASE_URL: "http://127.0.0.1:5200",
     DATABASE_URL: "",
+    DB_PRINCIPAL_CONTEXT_MODE: "legacy-guc",
+    DB_PRINCIPAL_SIGNING_SECRET: "",
     SESSION_COOKIE_SECRET: "some-safe-session-secret-min-16",
     INTEGRATOR_SHARED_SECRET: "some-safe-integrator-secret-16",
     INTEGRATOR_API_URL: "",

@@ -11,7 +11,10 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 
 vi.mock("@bersoncare/db-principal", () => ({
   getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
+  applyCurrentDbPrincipalToConnection: vi.fn(async () => false),
   applyCurrentDbPrincipalToTransaction: vi.fn(async () => false),
+  clearDbPrincipalFromConnection: vi.fn(async () => undefined),
+  buildDbPrincipalApplyOptionsFromEnv: vi.fn(() => ({ mode: "legacy-guc" })),
 }));
 
 import {

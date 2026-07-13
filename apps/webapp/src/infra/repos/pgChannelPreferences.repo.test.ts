@@ -83,7 +83,13 @@ describe("pgChannelPreferencesPort (repo SQL parity)", () => {
       null,
     );
 
-    expect(transportQueries).toEqual(["BEGIN", "COMMIT"]);
+    expect(transportQueries).toEqual([
+      "BEGIN",
+      "COMMIT",
+      "SELECT set_config('app.org', $1, false)",
+      "SELECT set_config('app.patient_user_id', $1, false)",
+      "SELECT set_config('app.integrator_user_id', $1, false)",
+    ]);
     expect(runWebappPgTextMock.mock.calls.some((c) => String(c[0]).includes("is_preferred_for_auth = false"))).toBe(
       true,
     );

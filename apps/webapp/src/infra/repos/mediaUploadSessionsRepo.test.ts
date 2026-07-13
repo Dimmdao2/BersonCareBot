@@ -179,7 +179,13 @@ describe("mediaUploadSessionsRepo pool wrappers", () => {
       id: "sess-1",
     });
 
-    expect(client.query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
+    expect(client.query.mock.calls.map((call: unknown[]) => call[0])).toEqual([
+      "BEGIN",
+      "COMMIT",
+      "SELECT set_config('app.org', $1, false)",
+      "SELECT set_config('app.patient_user_id', $1, false)",
+      "SELECT set_config('app.integrator_user_id', $1, false)",
+    ]);
   });
 
   it("finalizeMultipartSuccess commits before validating updated row counts", async () => {
@@ -191,6 +197,12 @@ describe("mediaUploadSessionsRepo pool wrappers", () => {
 
     await expect(finalizeMultipartSuccess("sess-1", "media-1")).resolves.toBeUndefined();
 
-    expect(client.query.mock.calls.map((call: unknown[]) => call[0])).toEqual(["BEGIN", "COMMIT"]);
+    expect(client.query.mock.calls.map((call: unknown[]) => call[0])).toEqual([
+      "BEGIN",
+      "COMMIT",
+      "SELECT set_config('app.org', $1, false)",
+      "SELECT set_config('app.patient_user_id', $1, false)",
+      "SELECT set_config('app.integrator_user_id', $1, false)",
+    ]);
   });
 });

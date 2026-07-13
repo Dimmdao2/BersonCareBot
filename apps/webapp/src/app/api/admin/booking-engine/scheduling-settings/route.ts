@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       gate.ctx.organizationId,
       specialistId && specialistId !== "__none__" ? specialistId : null,
     ),
-    deps.systemSettings.getSetting("booking_min_notice_hours", "admin"),
+    deps.systemSettings.getSetting("booking_min_notice_hours", "admin", { organizationId: gate.ctx.organizationId }),
   ]);
   return NextResponse.json({
     ok: true,
@@ -75,13 +75,16 @@ export async function PUT(request: Request) {
       "admin",
       { value: parsed.data.minNoticeHours },
       gate.ctx.session.user.userId,
+      { organizationId: gate.ctx.organizationId },
     );
   }
   const bufferMinutes = await bookingScheduling.getBufferMinutes(
     gate.ctx.organizationId,
     parsed.data.specialistId ?? null,
   );
-  const minNoticeRow = await deps.systemSettings.getSetting("booking_min_notice_hours", "admin");
+  const minNoticeRow = await deps.systemSettings.getSetting("booking_min_notice_hours", "admin", {
+    organizationId: gate.ctx.organizationId,
+  });
   return NextResponse.json({
     ok: true,
     bufferMinutes,

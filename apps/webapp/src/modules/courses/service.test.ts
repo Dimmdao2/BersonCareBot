@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearInMemoryCourseUsageSnapshots,
+  clearInMemoryPatientAssignedTemplates,
   createInMemoryCoursesPort,
   seedInMemoryCourseUsageSnapshot,
+  seedInMemoryPatientAssignedTemplate,
 } from "@/infra/repos/inMemoryCourses";
 import { CourseUsageConfirmationRequiredError } from "./errors";
 import type { CourseIntroPagesPort, CoursesPort } from "./ports";
@@ -194,6 +196,7 @@ describe("createCoursesService", () => {
     const calls: string[] = [];
     const courses: CoursesPort = {
       listPublished: vi.fn(),
+      listAssignedToPatient: vi.fn(),
       listForDoctor: vi.fn(),
       getById: vi.fn(async () => {
         calls.push("getById");
@@ -258,6 +261,43 @@ describe("createCoursesService", () => {
     );
 
     expect(calls).toEqual(["getById", "usage", "runner:start", "update", "runner:end"]);
+  });
+});
+
+describe("createCoursesService listAssignedForPatient", () => {
+  beforeEach(() => {
+    clearInMemoryPatientAssignedTemplates();
+  });
+
+  it("returns only courses assigned via the patient's own program, not the full catalog", async () => {
+    const OTHER_TPL = "44444444-4444-4444-8444-444444444444";
+    const courses = createInMemoryCoursesPort();
+    const assigned = await courses.create({
+      title: "Мой курс",
+      programTemplateId: TPL,
+      status: "published",
+    });
+    await courses.create({
+      title: "Чужой курс",
+      programTemplateId: OTHER_TPL,
+      status: "published",
+    });
+    seedInMemoryPatientAssignedTemplate(PAT, TPL);
+
+    const introPages: CourseIntroPagesPort = { getById: async () => null };
+    const svc = createCoursesService({ courses, introPages, assignTemplateToPatient: vi.fn() });
+    const items = await svc.listAssignedForPatient(PAT);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.id).toBe(assigned.id);
+  });
+
+  it("returns an empty list when the patient has no assigned program", async () => {
+    const courses = createInMemoryCoursesPort();
+    await courses.create({ title: "Курс", programTemplateId: TPL, status: "published" });
+    const introPages: CourseIntroPagesPort = { getById: async () => null };
+    const svc = createCoursesService({ courses, introPages, assignTemplateToPatient: vi.fn() });
+    expect(await svc.listAssignedForPatient(PAT)).toEqual([]);
   });
 });
 

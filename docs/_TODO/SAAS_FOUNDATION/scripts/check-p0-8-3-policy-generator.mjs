@@ -49,13 +49,18 @@ const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descript
 
 function expectedPredicateFor(descriptor) {
   return hasAnyPatientOwnership(descriptor)
-    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive" })
+    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
     : plainOrgPredicate;
 }
 
 assert.equal(targets.length, 105, "P0.8.3 must target exactly 105 public direct-org tables");
 assert.deepEqual(targets, [...expectedP083PublicDirectOrgTargets].sort(), "P0.8.3 targets must stay stable");
-assert.equal(statements.length, targets.length * 4, "Each target must render four DDL statements");
+assert.equal(statements.length, targets.length * 3, "Each dormant target must render ENABLE, DROP, CREATE only");
+assert.doesNotMatch(
+  statements.join("\n"),
+  /FORCE ROW LEVEL SECURITY/,
+  "Dormant generated policy SQL must not include FORCE ROW LEVEL SECURITY",
+);
 
 for (const hold of parentCopyHolds) {
   assert.equal(targets.includes(hold), false, `${hold} must remain a P0.8.4 hold`);
@@ -67,7 +72,7 @@ for (const descriptor of descriptors) {
   assert.equal(descriptor.orgColumn, "organization_id");
 }
 
-// NOTE: statements are rendered exactly 4-per-descriptor, IN THE SAME ORDER as `descriptors` (see
+// NOTE: statements are rendered exactly 3-per-descriptor, IN THE SAME ORDER as `descriptors` (see
 // renderP083PolicyStatements' flatMap) — slice each descriptor's block by POSITION, not by
 // substring-matching the quoted table name. A chain-owned descriptor's CREATE POLICY can legally
 // reference ANOTHER target's quoted qualified name inside its EXISTS clause (e.g. support_questions
@@ -78,29 +83,28 @@ descriptors.forEach((descriptor, index) => {
     .split(".")
     .map((part) => `"${part}"`)
     .join(".");
-  const targetStatements = statements.slice(index * 4, index * 4 + 4);
+  const targetStatements = statements.slice(index * 3, index * 3 + 3);
   const expectedPredicate = expectedPredicateFor(descriptor);
 
-  assert.equal(targetStatements.length, 4, `${target} must have exactly four statements`);
+  assert.equal(targetStatements.length, 3, `${target} must have exactly three dormant statements`);
   assert.equal(targetStatements[0], `ALTER TABLE ${escapedTarget} ENABLE ROW LEVEL SECURITY;`);
-  assert.equal(targetStatements[1], `ALTER TABLE ${escapedTarget} FORCE ROW LEVEL SECURITY;`);
-  assert.equal(targetStatements[2], `DROP POLICY IF EXISTS "${p083PolicyName}" ON ${escapedTarget};`);
+  assert.equal(targetStatements[1], `DROP POLICY IF EXISTS "${p083PolicyName}" ON ${escapedTarget};`);
   assert.equal(
-    targetStatements[3],
+    targetStatements[2],
     `CREATE POLICY "${p083PolicyName}" ON ${escapedTarget} FOR ALL USING (${expectedPredicate}) WITH CHECK (${expectedPredicate});`,
   );
 
   if (hasAnyPatientOwnership(descriptor)) {
     assert.match(
-      targetStatements[3],
+      targetStatements[2],
       /app\.is_staff\(\)/,
-      `${target} patient-owned policy must include the fail-closed staff-or-patient branch`,
+      `${target} patient-owned policy must include the staff-or-patient branch`,
     );
   }
 
   if (descriptor.patientChain) {
     assert.match(
-      targetStatements[3],
+      targetStatements[2],
       /EXISTS \(/,
       `${target} chain-owned policy must include an EXISTS chain to its identity-bearing parent`,
     );
@@ -109,8 +113,8 @@ descriptors.forEach((descriptor, index) => {
 
 assert.match(
   statements.join("\n"),
-  /NULLIF\(current_setting\('app\.org', true\), ''\) IS NULL OR "organization_id" = NULLIF\(current_setting\('app\.org', true\), ''\)::uuid/,
-  "Generated policy must use the dormant permissive org predicate",
+  /app\.current_org_id\(\) IS NULL OR "organization_id" = app\.current_org_id\(\)/,
+  "Generated policy must use the dormant permissive org helper predicate",
 );
 
 assert.equal(
@@ -167,7 +171,7 @@ assert.deepEqual(
 for (const descriptor of patientConditionalOwnedDescriptors) {
   const target = descriptor.table;
   const index = targets.indexOf(target);
-  const createStatement = statements[index * 4 + 3];
+  const createStatement = statements[index * 3 + 2];
 
   assert.match(
     createStatement,
@@ -183,7 +187,7 @@ for (const descriptor of patientConditionalOwnedDescriptors) {
 
   assert.match(
     createStatement,
-    /"uploaded_by" = NULLIF\(current_setting\('app\.patient_user_id'/,
+    /"uploaded_by" = app\.current_patient_user_id\(\)/,
     `${target} conditional-owned policy must permit the patient's own-submission branch`,
   );
 }

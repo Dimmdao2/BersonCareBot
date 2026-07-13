@@ -5,8 +5,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 
 const DOCTOR_SCOPE_KEYS = [
@@ -27,24 +28,26 @@ const patchSchema = z.object({
   value: z.unknown(),
 });
 
+/**
+ * P0.11.3: every DOCTOR_SCOPE_KEYS key except `sms_fallback_enabled` is PER-ORG (see `orgScopedKeys.ts`)
+ * — this route always threads the caller's own clinic `organizationId`; the `system-settings` service
+ * chokepoint forces GLOBAL keys back to `organization_id IS NULL` regardless, so it is always safe to
+ * pass it through here without per-key branching.
+ */
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (session.user.role !== "doctor" && session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
-  const settings = await deps.systemSettings.listSettingsByScope("doctor");
+  const settings = await deps.systemSettings.listSettingsByScope("doctor", {
+    organizationId: gate.ctx.organizationId,
+  });
   return NextResponse.json({ ok: true, settings });
 }
 
 export async function PATCH(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (session.user.role !== "doctor" && session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchSchema.safeParse(raw);
@@ -58,11 +61,18 @@ export async function PATCH(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const setting = await deps.systemSettings.updateSetting(
-    parsed.data.key,
-    "doctor",
-    parsed.data.value,
-    session.user.userId
-  );
-  return NextResponse.json({ ok: true, setting });
+  try {
+    const setting = await deps.systemSettings.updateSetting(
+      parsed.data.key,
+      "doctor",
+      parsed.data.value,
+      gate.ctx.session.user.userId,
+      { organizationId: gate.ctx.organizationId },
+    );
+    return NextResponse.json({ ok: true, setting });
+  } catch (error) {
+    const errResponse = systemSettingsOrgContextErrorResponse(error);
+    if (errResponse) return errResponse;
+    throw error;
+  }
 }

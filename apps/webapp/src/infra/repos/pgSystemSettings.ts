@@ -218,6 +218,14 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       return rowToSetting(r.rows[0]);
     },
 
+    async getWebPushVapidPublicKeyOnly(): Promise<string | null> {
+      const r = await runWebappPgText<{ public_key: string | null }>(
+        `SELECT app.get_web_push_vapid_public_key() AS public_key`,
+      );
+      const v = r.rows[0]?.public_key;
+      return typeof v === "string" && v.trim() ? v.trim() : null;
+    },
+
     async getByScope(scope: SystemSettingScope, options: SystemSettingsReadOptions = {}): Promise<SystemSetting[]> {
       const organizationId = options.organizationId?.trim() || null;
       const r = organizationId

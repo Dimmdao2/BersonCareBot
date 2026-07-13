@@ -6,6 +6,8 @@ import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
+import { cn } from "@/lib/utils";
 
 type MediaItem = {
   id: string;
@@ -66,7 +68,7 @@ export function MediaCard({
           <Button
             type="button"
             variant="ghost"
-            className="block h-auto w-full p-0 text-left"
+            className={cn(doctorInteractiveSurfaceButtonClass, "block w-full text-left")}
             onClick={onOpenPreview}
           >
             <MediaThumb
@@ -81,7 +83,7 @@ export function MediaCard({
           <Button
             type="button"
             variant="ghost"
-            className="block h-auto w-full p-0 text-left"
+            className={cn(doctorInteractiveSurfaceButtonClass, "block w-full text-left")}
             aria-label="Предпросмотр видео"
             onClick={onOpenPreview}
           >

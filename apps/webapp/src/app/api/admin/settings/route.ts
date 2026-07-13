@@ -1,14 +1,16 @@
 /**
  * GET  /api/admin/settings — список настроек scope=admin
  * PATCH /api/admin/settings — обновить ключ scope=admin
- * Guard: role === 'admin'
+ * Guard: global admin in adminMode OR clinic manager for per-org keys only.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
+import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
+import { isPerOrgSettingKey } from "@/modules/system-settings/orgScopedKeys";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
 import {
   normalizeModesFormBatchItems,
@@ -46,6 +48,7 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   "booking_allow_doctor_unlink_past_package_sessions",
   "booking_calendar_show_working_hours",
   "booking_payment_enabled",
+  "specialist_signup_enabled",
   "video_watermark_enabled",
   "video_playback_api_enabled",
   "video_hls_pipeline_enabled",
@@ -78,6 +81,7 @@ const ADMIN_SCOPE_KEYS = [
   "app_display_timezone",
   "patient_app_maintenance_enabled",
   "patient_app_maintenance_message",
+  "specialist_signup_enabled",
   "patient_program_discussion_doctor_reply_from_log_enabled",
   "patient_program_discussion_ui_enabled",
   "patient_program_discussion_media_submission_enabled",
@@ -143,8 +147,22 @@ const ADMIN_SCOPE_KEYS = [
   "operator_health_projection_thresholds",
 ] as const;
 
+const DOCTOR_SCOPE_KEYS = [
+  "patient_label",
+  "doctor_patient_support_comments_without_support_default_enabled",
+  "doctor_patient_support_media_without_support_default_enabled",
+  "doctor_specialist_task_reminder_channels",
+  "doctor_appointment_reminder_enabled",
+  "doctor_appointment_reminder_offsets_minutes",
+  "booking_calendar_default_window",
+  "booking_calendar_default_branch_id",
+  "booking_calendar_default_service_id",
+] as const;
+
+const PATCH_SCOPE_KEYS = [...ADMIN_SCOPE_KEYS, ...DOCTOR_SCOPE_KEYS] as const;
+
 const patchSchema = z.object({
-  key: z.enum(ADMIN_SCOPE_KEYS),
+  key: z.enum(PATCH_SCOPE_KEYS),
   value: z.unknown(),
 });
 
@@ -219,25 +237,40 @@ function auditValueForLog(key: string, value: unknown): unknown {
   return value;
 }
 
-export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+function canAccessGlobalSettings(ctx: {
+  session: { user: { role: string }; adminMode?: boolean };
+}): boolean {
+  return ctx.session.user.role === "admin" && ctx.session.adminMode === true;
+}
 
+function settingScopeForKey(key: (typeof PATCH_SCOPE_KEYS)[number]): "admin" | "doctor" {
+  return (DOCTOR_SCOPE_KEYS as readonly string[]).includes(key) ? "doctor" : "admin";
+}
+
+export async function GET() {
+  const gate = await requireClinicManagementApiContext();
+  if (!gate.ok) return gate.response;
+
+  const organizationId = gate.ctx.organizationId;
   const deps = buildAppDeps();
-  const settings = redactAdminSettingsForClient(await deps.systemSettings.listSettingsByScope("admin"));
+  const [adminSettings, doctorSettings] = await Promise.all([
+    deps.systemSettings.listSettingsByScope("admin", { organizationId }),
+    deps.systemSettings.listSettingsByScope("doctor", { organizationId }),
+  ]);
+  const allSettings = redactAdminSettingsForClient([...adminSettings, ...doctorSettings]);
+  const settings = canAccessGlobalSettings(gate.ctx)
+    ? allSettings
+    : allSettings.filter((setting) => isPerOrgSettingKey(setting.key));
   return NextResponse.json({ ok: true, settings });
 }
 
 export async function PATCH(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireClinicManagementApiContext();
+  if (!gate.ok) return gate.response;
 
+  const session = gate.ctx.session;
+  const organizationId = gate.ctx.organizationId;
+  const allowGlobalSettings = canAccessGlobalSettings(gate.ctx);
   const raw = (await request.json().catch(() => null)) as unknown;
 
   if (raw !== null && typeof raw === "object" && "items" in raw) {
@@ -258,6 +291,12 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
       }
       const items = batchParsed.data.items;
+      if (!allowGlobalSettings) {
+        const globalKey = items.find((item) => !isPerOrgSettingKey(item.key))?.key ?? null;
+        if (globalKey) {
+          return NextResponse.json({ ok: false, error: "forbidden_global_setting", key: globalKey }, { status: 403 });
+        }
+      }
       const seen = new Set<string>();
       for (let i = 0; i < items.length; i++) {
         const k = items[i]!.key;
@@ -286,7 +325,7 @@ export async function PATCH(request: Request) {
       }
       const deps = buildAppDeps();
       for (const row of norm.rows) {
-        const oldSetting = await deps.systemSettings.getSetting(row.key, "admin");
+        const oldSetting = await deps.systemSettings.getSetting(row.key, "admin", { organizationId });
         console.info("[admin-settings audit]", {
           key: row.key,
           oldValue: auditValueForLog(row.key, oldSetting?.valueJson ?? null),
@@ -295,10 +334,16 @@ export async function PATCH(request: Request) {
           timestamp: new Date().toISOString(),
         });
       }
-      const settings = redactAdminSettingsForClient(
-        await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId),
-      );
-      return NextResponse.json({ ok: true, settings });
+      try {
+        const settings = redactAdminSettingsForClient(
+          await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId, { organizationId }),
+        );
+        return NextResponse.json({ ok: true, settings });
+      } catch (error) {
+        const errResponse = systemSettingsOrgContextErrorResponse(error);
+        if (errResponse) return errResponse;
+        throw error;
+      }
     }
   }
 
@@ -311,10 +356,26 @@ export async function PATCH(request: Request) {
   if (!(ALLOWED_KEYS as readonly string[]).includes(parsed.data.key)) {
     return NextResponse.json({ ok: false, error: "invalid_key" }, { status: 400 });
   }
+  if (!allowGlobalSettings && !isPerOrgSettingKey(parsed.data.key)) {
+    return NextResponse.json(
+      { ok: false, error: "forbidden_global_setting", key: parsed.data.key },
+      { status: 403 },
+    );
+  }
 
   const deps = buildAppDeps();
+  const settingScope = settingScopeForKey(parsed.data.key);
 
   let normalizedValue = normalizeValueJson(parsed.data.value);
+
+  if (parsed.data.key === "patient_label") {
+    const inner = normalizedValue.value;
+    const label = typeof inner === "string" ? inner.trim().toLowerCase() : "";
+    if (label !== "пациент" && label !== "клиент") {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: label };
+  }
 
   if (isModesFormKey(parsed.data.key)) {
     const checked = normalizeModesFormPatchItem(parsed.data.key, parsed.data.value);
@@ -371,6 +432,29 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: b };
+  }
+
+  if (
+    parsed.data.key === "doctor_patient_support_comments_without_support_default_enabled" ||
+    parsed.data.key === "doctor_patient_support_media_without_support_default_enabled" ||
+    parsed.data.key === "doctor_appointment_reminder_enabled"
+  ) {
+    const b = coerceAdminBooleanSetting(normalizedValue.value);
+    if (b === null) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: b };
+  }
+
+  if (parsed.data.key === "doctor_appointment_reminder_offsets_minutes") {
+    const inner = normalizedValue.value;
+    if (
+      !Array.isArray(inner) ||
+      inner.some((x) => typeof x !== "number" || !Number.isInteger(x) || x <= 0)
+    ) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: inner };
   }
 
   if (parsed.data.key === "video_presign_ttl_seconds") {
@@ -549,7 +633,7 @@ export async function PATCH(request: Request) {
   /** Prefetch for audit: avoid second `getSetting` for `web_push_vapid` (same row as validation). */
   let webPushVapidOldRowForAudit: SystemSetting | null | undefined;
   if (parsed.data.key === "web_push_vapid") {
-    webPushVapidOldRowForAudit = await deps.systemSettings.getSetting("web_push_vapid", "admin");
+    webPushVapidOldRowForAudit = await deps.systemSettings.getSetting("web_push_vapid", "admin", { organizationId });
     const hasExistingPrivate = hasStoredWebPushVapidPrivate(webPushVapidOldRowForAudit?.valueJson ?? null);
     const checked = parseWebPushVapidPatchValue(normalizedValue, { hasExistingPrivate });
     if (!checked.ok) {
@@ -562,7 +646,7 @@ export async function PATCH(request: Request) {
   const oldSetting =
     webPushVapidOldRowForAudit !== undefined
       ? webPushVapidOldRowForAudit
-      : await deps.systemSettings.getSetting(parsed.data.key, "admin");
+      : await deps.systemSettings.getSetting(parsed.data.key, settingScope, { organizationId });
   console.info("[admin-settings audit]", {
     key: parsed.data.key,
     oldValue: auditValueForLog(parsed.data.key, oldSetting?.valueJson ?? null),
@@ -571,12 +655,20 @@ export async function PATCH(request: Request) {
     timestamp: new Date().toISOString(),
   });
 
-  const setting = await deps.systemSettings.updateSetting(
-    parsed.data.key,
-    "admin",
-    normalizedValue,
-    session.user.userId
-  );
+  let setting: SystemSetting;
+  try {
+    setting = await deps.systemSettings.updateSetting(
+      parsed.data.key,
+      settingScope,
+      normalizedValue,
+      session.user.userId,
+      { organizationId },
+    );
+  } catch (error) {
+    const errResponse = systemSettingsOrgContextErrorResponse(error);
+    if (errResponse) return errResponse;
+    throw error;
+  }
 
   // Invalidate configAdapter cache for updated key (sync to integrator runs inside updateSetting)
   invalidateConfigKey(parsed.data.key);

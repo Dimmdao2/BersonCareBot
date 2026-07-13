@@ -1,10 +1,8 @@
 import { createLogger } from "./logger.js";
 import { loadMediaWorkerEnv } from "./env.js";
 import { createMediaWorkerPoolProvider } from "./poolProvider.js";
-import { readPipelineEnabled } from "./pipelineEnabled.js";
-import { claimNextJob, reclaimStaleProcessing } from "./jobs/claim.js";
-import { processTranscodeJob } from "./processTranscodeJob.js";
 import { createS3Client } from "./s3.js";
+import { runMediaWorkerTick } from "./workerTick.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -31,6 +29,8 @@ async function main() {
     ffmpegTimeoutMs: env.FFMPEG_TIMEOUT_MS,
     maxAttempts: env.MAX_TRANSCODE_ATTEMPTS,
     log,
+    lockId: env.lockId,
+    staleLockMinutes: env.STALE_LOCK_MINUTES,
   };
 
   let shuttingDown = false;
@@ -45,21 +45,15 @@ async function main() {
 
   while (!shuttingDown) {
     try {
-      const enabled = await readPipelineEnabled(pool);
-      if (!enabled) {
-        log.debug("video_hls_pipeline_enabled is false; idle");
+      const result = await runMediaWorkerTick(ctx);
+      if (result === "disabled") {
         await sleep(env.POLL_MS * 3);
         continue;
       }
-
-      await reclaimStaleProcessing(pool, env.STALE_LOCK_MINUTES, log);
-      const job = await claimNextJob(pool, env.lockId);
-      if (!job) {
+      if (result === "idle") {
         await sleep(env.POLL_MS);
         continue;
       }
-      log.info({ jobId: job.id, mediaId: job.mediaId, attempt: job.attempts }, "processing transcode job");
-      await processTranscodeJob(ctx, job);
     } catch (e) {
       log.error({ err: e }, "main loop error");
       await sleep(env.POLL_MS);

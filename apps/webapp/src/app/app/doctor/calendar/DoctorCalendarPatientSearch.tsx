@@ -6,6 +6,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { isDoctorClientSearchQueryAllowed } from "@/modules/doctor-clients/clientSearchMatch";
 import { cn } from "@/lib/utils";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 
 export type CalendarPatientOption = {
   id: string;
@@ -228,7 +229,7 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
             <Button
               type="button"
               variant="ghost"
-              className="h-auto w-full justify-start px-3 py-2 text-left"
+              className={cn(doctorInteractiveSurfaceButtonClass, "w-full justify-start px-3 py-2 text-left hover:bg-muted")}
               onMouseDown={(ev) => ev.preventDefault()}
               onClick={openCreate}
             >

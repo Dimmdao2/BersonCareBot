@@ -7,6 +7,11 @@ import type { ContentSectionRow } from "@/modules/content-sections/ports";
 import type { SystemParentCode } from "@/modules/content-sections/types";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import {
   ContentNav,
@@ -69,15 +74,15 @@ function SystemFolderPane({
   sections,
   pagesBySectionSlug,
   ratingsById,
-  fullSections,
-  publishedCourses,
+  selectedPageId,
+  onSelectPage,
 }: {
   folderCode: SystemParentCode;
   sections: ContentHubSection[];
   pagesBySectionSlug: Record<string, ContentPageListRow[]>;
   ratingsById?: Record<string, ContentRatingSummary>;
-  fullSections: ContentSectionRow[];
-  publishedCourses: PublishedCourseOption[];
+  selectedPageId: string | null;
+  onSelectPage: (id: string) => void;
 }) {
   const label = SYSTEM_FOLDER_LABELS[folderCode] ?? folderCode;
   const childSections = useMemo(
@@ -96,9 +101,6 @@ function SystemFolderPane({
         .sort((a, b) => a.title.localeCompare(b.title, "ru")),
     [sections],
   );
-
-  // One shared selection state for all subsections in this system folder
-  const editor = useInlineContentEditor();
 
   const folderHeader = (
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -126,18 +128,8 @@ function SystemFolderPane({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {folderHeader}
-      {editor.selectedPageId != null ? (
-        <ContentEditorRightPane
-          selectedPageId={editor.selectedPageId}
-          loadedPage={editor.loadedPage}
-          loading={editor.loading}
-          clear={editor.clear}
-          sections={fullSections}
-          publishedCourses={publishedCourses}
-        />
-      ) : (
+      <div className="flex flex-col gap-4">
+        {folderHeader}
         <div className="flex flex-col gap-8">
           {childSections.map((sec) => {
             const rows = pagesBySectionSlug[sec.slug] ?? [];
@@ -152,13 +144,12 @@ function SystemFolderPane({
                 sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
                 allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
                 pagesInSectionCount={rows.length}
-                selectedPageId={editor.selectedPageId}
-                onSelectPage={editor.select}
+                selectedPageId={selectedPageId}
+                onSelectPage={onSelectPage}
               />
             );
           })}
         </div>
-      )}
     </div>
   );
 }
@@ -173,61 +164,46 @@ function ArticleSectionPane({
   sections,
   pagesBySectionSlug,
   ratingsById,
-  fullSections,
-  publishedCourses,
+  selectedPageId,
+  onSelectPage,
 }: {
   sectionSlug: string;
   sectionTitle: string;
   sections: ContentHubSection[];
   pagesBySectionSlug: Record<string, ContentPageListRow[]>;
   ratingsById?: Record<string, ContentRatingSummary>;
-  fullSections: ContentSectionRow[];
-  publishedCourses: PublishedCourseOption[];
+  selectedPageId: string | null;
+  onSelectPage: (id: string) => void;
 }) {
   const sec = sections.find((s) => s.slug === sectionSlug);
   const pages = pagesBySectionSlug[sectionSlug] ?? [];
   const newPageSystemParentCode =
     sec?.kind === "system" && sec.systemParentCode ? sec.systemParentCode : undefined;
 
-  const editor = useInlineContentEditor();
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="m-0 text-base font-semibold">{sectionTitle}</h2>
-        {editor.selectedPageId == null ? (
-          <Link
-            href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}${newPageSystemParentCode ? `&systemParentCode=${encodeURIComponent(newPageSystemParentCode)}` : ""}`}
-            className={buttonVariants({ variant: "default", size: "sm" })}
-          >
-            Создать страницу
-          </Link>
-        ) : null}
+        <Link
+          href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}${newPageSystemParentCode ? `&systemParentCode=${encodeURIComponent(newPageSystemParentCode)}` : ""}`}
+          className={buttonVariants({ variant: "default", size: "sm" })}
+        >
+          Создать страницу
+        </Link>
       </div>
-      {editor.selectedPageId != null ? (
-        <ContentEditorRightPane
-          selectedPageId={editor.selectedPageId}
-          loadedPage={editor.loadedPage}
-          loading={editor.loading}
-          clear={editor.clear}
-          sections={fullSections}
-          publishedCourses={publishedCourses}
-        />
-      ) : (
-        <ContentPagesSectionList
-          sectionSlug={sectionSlug}
-          sectionTitle={sectionTitle}
-          initialPages={pages}
-          ratingsById={ratingsById}
-          showSectionHeading={false}
-          newPageSystemParentCode={newPageSystemParentCode}
-          sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sectionSlug)}`}
-          allowDeleteSection={!isSectionSlugProtectedFromDelete(sectionSlug)}
-          pagesInSectionCount={pages.length}
-          selectedPageId={editor.selectedPageId}
-          onSelectPage={editor.select}
-        />
-      )}
+      <ContentPagesSectionList
+        sectionSlug={sectionSlug}
+        sectionTitle={sectionTitle}
+        initialPages={pages}
+        ratingsById={ratingsById}
+        showSectionHeading={false}
+        newPageSystemParentCode={newPageSystemParentCode}
+        sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sectionSlug)}`}
+        allowDeleteSection={!isSectionSlugProtectedFromDelete(sectionSlug)}
+        pagesInSectionCount={pages.length}
+        selectedPageId={selectedPageId}
+        onSelectPage={onSelectPage}
+      />
     </div>
   );
 }
@@ -292,6 +268,7 @@ export function ContentHubShell({
   );
 
   const { activePaneKey, setActivePaneKey } = useContentNavState(articleSectionEntries);
+  const editor = useInlineContentEditor();
 
   // Sections-management pane: derive SectionListRow[] from already-loaded data
   const sectionsForManagementPane = useMemo((): SectionListRow[] => {
@@ -311,6 +288,84 @@ export function ContentHubShell({
         pagesInSection: pagesBySectionSlug[s.slug]?.length ?? 0,
       }));
   }, [fullSections, pagesBySectionSlug]);
+
+  const renderLeftPanel = () => {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2">
+        <ContentNav
+          articleSections={articleSectionEntries}
+          activePaneKey={activePaneKey}
+          onPaneChange={(key) => {
+            setActivePaneKey(key);
+            if (key === "sections" || key === "patient-home" || key === "media") {
+              editor.clear();
+            }
+          }}
+          countsByPaneKey={countsByPaneKey}
+          className="md:w-full"
+        />
+        <div className="border-t border-border/60 pt-3">
+          {renderMaterialsPanel()}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMaterialsPanel = () => {
+    if (loadError) {
+      return (
+        <p className="px-2 text-xs text-muted-foreground">
+          Список материалов недоступен из-за ошибки загрузки.
+        </p>
+      );
+    }
+
+    if (isSystemParentCode(activePaneKey)) {
+      return (
+        <SystemFolderPane
+          folderCode={activePaneKey}
+          sections={sections}
+          pagesBySectionSlug={pagesBySectionSlug}
+          ratingsById={ratingsById}
+          selectedPageId={editor.selectedPageId}
+          onSelectPage={editor.select}
+        />
+      );
+    }
+
+    if (activePaneKey.startsWith("section:")) {
+      const slug = activePaneKey.slice("section:".length);
+      const sec = sections.find((s) => s.slug === slug);
+      if (!sec) {
+        return <p className="px-2 text-xs text-muted-foreground">Раздел не найден.</p>;
+      }
+      return (
+        <ArticleSectionPane
+          sectionSlug={slug}
+          sectionTitle={sec.title}
+          sections={sections}
+          pagesBySectionSlug={pagesBySectionSlug}
+          ratingsById={ratingsById}
+          selectedPageId={editor.selectedPageId}
+          onSelectPage={editor.select}
+        />
+      );
+    }
+
+    if (activePaneKey === "sections") {
+      return <p className="px-2 text-xs text-muted-foreground">Управление разделами открыто справа.</p>;
+    }
+
+    if (activePaneKey === "patient-home") {
+      return <p className="px-2 text-xs text-muted-foreground">Настройка главной пациента открыта справа.</p>;
+    }
+
+    if (activePaneKey === "media") {
+      return <p className="px-2 text-xs text-muted-foreground">Файлы вынесены в библиотеку.</p>;
+    }
+
+    return <p className="px-2 text-xs text-muted-foreground">Выберите раздел.</p>;
+  };
 
   const renderRightPanel = () => {
     if (loadError) {
@@ -406,39 +461,16 @@ export function ContentHubShell({
       );
     }
 
-    if (isSystemParentCode(activePaneKey)) {
-      return (
-        <SystemFolderPane
-          folderCode={activePaneKey}
-          sections={sections}
-          pagesBySectionSlug={pagesBySectionSlug}
-          ratingsById={ratingsById}
-          fullSections={fullSections}
-          publishedCourses={publishedCourses}
-        />
-      );
-    }
-
-    if (activePaneKey.startsWith("section:")) {
-      const slug = activePaneKey.slice("section:".length);
-      const sec = sections.find((s) => s.slug === slug);
-      if (!sec) {
-        return <p className="text-muted-foreground">Раздел не найден.</p>;
-      }
-      return (
-        <ArticleSectionPane
-          sectionSlug={slug}
-          sectionTitle={sec.title}
-          sections={sections}
-          pagesBySectionSlug={pagesBySectionSlug}
-          ratingsById={ratingsById}
-          fullSections={fullSections}
-          publishedCourses={publishedCourses}
-        />
-      );
-    }
-
-    return <p className="text-muted-foreground">Выберите раздел.</p>;
+    return (
+      <ContentEditorRightPane
+        selectedPageId={editor.selectedPageId}
+        loadedPage={editor.loadedPage}
+        loading={editor.loading}
+        clear={editor.clear}
+        sections={fullSections}
+        publishedCourses={publishedCourses}
+      />
+    );
   };
 
   return (
@@ -447,15 +479,22 @@ export function ContentHubShell({
         id="doctor-content-header"
         title="Контент"
       />
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
-        <ContentNav
-          articleSections={articleSectionEntries}
-          activePaneKey={activePaneKey}
-          onPaneChange={setActivePaneKey}
-          countsByPaneKey={countsByPaneKey}
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-4">{renderRightPanel()}</div>
-      </div>
+      <CatalogSplitLayout
+        left={<CatalogLeftPane stickySplit={false} className="lg:h-full">{renderLeftPanel()}</CatalogLeftPane>}
+        right={
+          <CatalogRightPane contentClassName="px-4 py-4 md:px-5 md:py-5">
+            {renderRightPanel()}
+          </CatalogRightPane>
+        }
+        mobileView={editor.selectedPageId ? "detail" : "list"}
+        mobileBackSlot={
+          <Button type="button" variant="outline" size="sm" className="mb-2" onClick={editor.clear}>
+            ← К материалам
+          </Button>
+        }
+        className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
+        desktopColsClassName="lg:grid-cols-[minmax(18rem,0.9fr)_minmax(0,1.7fr)]"
+      />
     </>
   );
 }

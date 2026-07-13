@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -87,6 +88,7 @@ async function logOAuthStartFailure(
  * Старт OAuth: Яндекс / Google / Apple при наличии ключей в `system_settings` (admin).
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/oauth/start:POST");
   ensureAuthModulePortsBound();
 
   const identity = resolveOAuthStartRateLimitClientKey(request);

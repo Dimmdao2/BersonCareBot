@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -11,6 +12,7 @@ const bodySchema = z.record(z.string(), z.unknown());
  * POST /api/auth/telegram-login — вход через Telegram Login Widget (JSON payload от callback виджета).
  */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/telegram-login:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

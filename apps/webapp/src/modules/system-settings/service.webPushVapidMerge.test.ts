@@ -46,6 +46,7 @@ describe("createSystemSettingsService web_push_vapid merge", () => {
     const port: SystemSettingsPort = {
       getByKey,
       getByScope: vi.fn(),
+      getWebPushVapidPublicKeyOnly: vi.fn(),
       upsertManyInTransaction: vi.fn(),
       upsert,
     };

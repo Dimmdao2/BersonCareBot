@@ -17,34 +17,57 @@
 - [x] **Слияние специалистов** `consolidate-specialist-identity.ts --canonical=518ea988` — скрипт готов/тестовый,
       dry-run на копии подтвердил primary=518ea988, dup=c9515025 (218 приёмов вливаются). Запускается ПОСЛЕ migrate.
 
-## Порядок деплоя (черновик последовательности — доводим до «просто проскакивает»)
+## Порядок деплоя (option D — owner-мigration + временная эскалация)
 1. Свежий прод-дамп → (на проде: сначала бэкап).
-2. **Создать роли** `app_staff`/`app_patient` (`deploy/postgres/p0-5b-role-split-staff-patient.sql`) — ДО migrate.
+2. **Создать роли** `app_staff`/`app_patient` (`deploy/postgres/p0-5b-role-split-staff-patient.sql`) и
+   app-owner роль для P2-B (по умолчанию `app_owner`), плюс `pgcrypto` в схеме `app_ext` — ДО migrate.
+   На этом же superuser-шаге выдать `GRANT USAGE ON SCHEMA app_ext TO app_owner`, временно включить
+   `BYPASSRLS` для runtime-owner мигратора и временно выдать ему membership в `app_owner`.
 3. **Data-fix аккаунтов** (`p0-data-fix-doctor-admin-split.sql`) — чтобы 0143 прошёл.
-4. **migrate-all.sh** (3 фазы: integrator base → webapp ALL → integrator SaaS).
-5. **Слияние специалистов** (`consolidate-specialist-identity --canonical=518ea988 --commit`) — один активный специалист.
-6. Пост-проверки: 1 doctor, 1 admin, 1 active specialist, webapp=176, RLS включён, org_enrollments заполнены.
+4. **migrate-all.sh** под runtime-owner ролью `bcb_webapp_prod` (3 фазы: integrator base → webapp ALL →
+   integrator SaaS). Временный `BYPASSRLS` нужен только для integrator R2 backfill под включённым/FORCE RLS.
+5. **Нормализовать ownership** после migrate: `ALTER SCHEMA app OWNER TO app_owner` и
+   `ALTER FUNCTION app.is_staff() OWNER TO app_owner`, потому что 0175 временно оставляет их за
+   `CURRENT_USER` мигратора.
+6. **P2-B protected principal context** (`deploy/postgres/p2-b-protected-principal-context.sql`) с
+   `p2_b_owner_role=app_owner`, `p2_b_staff_role=app_staff`, `p2_b_patient_role=app_patient`,
+   `p2_b_signing_secret` из `P2_B_SIGNING_SECRET` / `DB_PRINCIPAL_SIGNING_SECRET` либо одноразовый для rehearsal.
+7. **Слияние специалистов** (`consolidate-specialist-identity --canonical=518ea988 --commit`) — один активный специалист.
+8. **Auto-revoke + post-state assertions**: снять `BYPASSRLS` и membership `app_owner` с мигратора
+   (явно на success + `EXIT` trap на failure), затем проверять post-state через `SUPERUSER_URL`.
 
-## Фаза 3 integrator — РЕШЕНО (Option A), проверено на копии
-- **Причина сбоя:** после Фазы 2 на integrator-таблицах FORCE RLS; мигратор `bcb_webapp_prod` (без BYPASSRLS)
-  под FORCE RLS не видит строки → backfill писал 0 → `20260710_0001_r2_...not_null` падал на 69 NULL contacts.
-- **Решение (Option A, стандарт):** миграции — привилегированная операция → гнать migrate-all под ролью с
-  **BYPASSRLS**. Рантайм-безопасность не страдает: приложение после флипа ходит под `app_staff`/`app_patient`
-  (без bypassrls), RLS для рантайма остаётся. На копии с BYPASSRLS-мигратором ВСЕ 3 фазы прошли, contacts
-  null_org=0/69.
-- **Для прода (ops-выбор, нужно подтверждение владельца):** migrate-all запускать под BYPASSRLS-ролью —
-  либо `postgres`, либо отдельная migrator-роль с BYPASSRLS (НЕ давать bypassrls рантайм-роли приложения).
+## Фаза 3 integrator / webapp owner DDL — РЕШЕНО (Option D)
+- **Почему отдельная BYPASSRLS-роль больше не подходит:** prod baseline применяет 0115..0177 впервые,
+  а таблицы prod принадлежат runtime-роли `bcb_webapp_prod`. Миграция 0140 делает
+  `ALTER SEQUENCE ... OWNED BY be_patient_packages.display_number`, где PostgreSQL требует одного owner
+  у sequence и table. Миграции 0160..0175 выполняют `ALTER TABLE`/`CREATE POLICY`, это owner-only DDL;
+  `BYPASSRLS` не даёт права владельца.
+- **Почему runtime-owner без эскалации тоже не подходит:** integrator R2 backfill должен видеть строки под
+  включённым/FORCE RLS, иначе получаются NULL `organization_id` перед NOT NULL.
+- **Решение:** вся цепочка `data-fix → migrate-all → p2-b → consolidation` идёт под `DATABASE_URL`,
+  где `current_user` = owner репрезентативных prod-таблиц (`bcb_webapp_prod`). Внутри остановленного
+  maintenance-window superuser-шаг временно делает `ALTER ROLE bcb_webapp_prod BYPASSRLS` и
+  `GRANT app_owner TO bcb_webapp_prod`; скрипт снимает оба права через `EXIT` trap и явный финальный
+  revoke перед post-state assertions.
+- **End-state:** `bcb_webapp_prod` снова `NOBYPASSRLS` и не член `app_owner`; схема `app`,
+  `app.is_staff()` и P2-B protected helpers принадлежат `app_owner` (`NOLOGIN`, trusted, `BYPASSRLS`).
+  Runtime-роли `app_staff`/`app_patient` ничего не владеют.
 - **Опционально на потом (подсказка владельца):** в integrator есть легаси-таблицы — можно пересмотреть R2
   и снять NOT NULL/исключить dead-таблицы из backfill. НЕ блокирует (в single-tenant org просто = дефолт-орг).
 
-## ПРОВЕРЕНО НА КОПИИ ПРОДА (дамп 2026-07-11 22:15), ДВАЖДЫ
-Полная последовательность (роли → data-fix → migrate-all[bypassrls] → консолидация) прошла end-to-end:
-doctors=1, admins=1, active_specialists=1 (518ea988=233 приёма), webapp=176/176, integrator SaaS=6/6,
-integrator.contacts null_org=0/69, be_organization_members=2, FORCE RLS on. Повторный прогон = no-op (стабильно).
+## REHEARSAL FACTS (дамп 2026-07-11 22:15)
+Старый план с отдельной BYPASSRLS-ролью признан невалидным: он не проходит owner-only DDL в 0140 и
+0160–0175. Prod-faithful rehearsal option D (migrate as runtime owner + temporary BYPASSRLS) прошёл
+data-fix, все webapp Drizzle 0115–0177 и integrator I1–I4/R2, затем упал в P2-B на
+`GRANT USAGE ON SCHEMA app_ext TO :"p2_b_owner_role"`: schema `app_ext` создаётся superuser-шагом, а
+grant выполнялся уже non-superuser мигратором. Текущий фикс переносит этот grant в superuser Step 1 и
+добавляет normalization/revoke assertions; после него нужен повторный clean + no-op rehearsal.
 
 ## Оставшиеся галочки до «готово»
-- [x] Вся последовательность проходит на свежем дампе ДВАЖДЫ (чистый + повтор no-op).
-- [ ] Подтверждение владельца: прод-migrate под BYPASSRLS-ролью (postgres / отдельный migrator).
+- [ ] Вся последовательность option D проходит на свежем дампе ДВАЖДЫ (чистый + повтор no-op) после
+      переноса `app_ext` grant и normalization/revoke правок.
+- [x] Роль для prod-migrate зафиксирована: runtime-owner `bcb_webapp_prod` с временной auto-revoked
+      эскалацией `BYPASSRLS` + `app_owner` внутри stopped-writers окна.
 - [x] Собрать ВСЮ последовательность в один скрипт с pre/post-проверками (Codex).
 - [ ] Финальный аудит последовательности + кода (Codex Sol).
 - [x] Прод-runbook (точные команды, порядок, роль, rollback) — готов к исполнению без импровизации.
@@ -62,8 +85,10 @@ TEST-прогона на этом dump и том же коммите. TEST и PR
 ### Preconditions
 
 - TEST-first прогон на свежем production dump завершён успешно.
-- Выбрана миграционная роль с `BYPASSRLS`: `postgres` либо отдельная migrator-роль. Runtime-роль
-  `bcb_webapp_prod` не подходит; ей `BYPASSRLS` не выдавать.
+- `DATABASE_URL` указывает на runtime-owner роль `bcb_webapp_prod` в целевой БД. Скрипт preflight-проверкой
+  сверяет `current_user` с owner таблицы `public.be_patient_packages`.
+- `SUPERUSER_URL` указывает на ту же БД и нужен только для подготовки ролей/schema, временной эскалации,
+  нормализации ownership, auto-revoke и post-state assertions.
 - Команды выполняются из `/opt/projects/bersoncarebot` на нужном коммите. Скрипт идемпотентен и может
   быть запущен повторно.
 
@@ -108,20 +133,21 @@ ls -lh /opt/backups/postgres/pre-migrations/*.dump
 
 ### Run
 
-Источник runtime-env загружается явно до запуска. Затем `DATABASE_URL` заменяется URL привилегированного
-мигратора; `scripts/deploy-saas-667.sh` сохраняет экспортированный URL и не даёт `migrate-all.sh` повторно
-подхватить runtime DB URL. Значения URL ниже оператор подставляет из защищённого источника; в history их
-не сохранять.
+Источник runtime-env загружается явно до запуска. `DATABASE_URL` остаётся runtime-owner URL
+(`bcb_webapp_prod`); отдельную BYPASSRLS-роль не использовать. `scripts/deploy-saas-667.sh` временно
+эскалирует именно эту роль через `SUPERUSER_URL`, затем автоматически снимает эскалацию.
+Значения URL ниже оператор подставляет из защищённого источника; в history их не сохранять.
 
 ```bash
 cd /opt/projects/bersoncarebot
 set -a && source /opt/env/bersoncarebot/api.prod && source /opt/env/bersoncarebot/webapp.prod && set +a
 read -rsp 'SUPERUSER_URL: ' SUPERUSER_URL && echo
-read -rsp 'BYPASSRLS migrator DATABASE_URL: ' DATABASE_URL && echo
-export SUPERUSER_URL DATABASE_URL
+export SUPERUSER_URL
+read -rsp 'P2_B_SIGNING_SECRET (optional for rehearsal, required to match locked prod env): ' P2_B_SIGNING_SECRET && echo
+export P2_B_SIGNING_SECRET
 export API_ENV_FILE=/nonexistent WEBAPP_ENV_FILE=/nonexistent
 bash scripts/deploy-saas-667.sh
-unset SUPERUSER_URL DATABASE_URL
+unset SUPERUSER_URL P2_B_SIGNING_SECRET
 ```
 
 Units остаются остановленными до успешного завершения всех post-state assertions. После `✅ ALL GREEN`
@@ -143,18 +169,23 @@ sudo systemctl is-active bersoncarebot-api-prod.service \
 `BOOKING_URL` приходит из prod env. Для rehearsal скрипт по умолчанию ставит
 `BOOKING_URL=http://localhost:3000` и оба env-path в `/nonexistent`; это предотвращает случайное чтение
 prod env. На prod env загружается блоком выше, а повторное sourcing отключается специально, чтобы
-`DATABASE_URL` мигратора с `BYPASSRLS` не был заменён runtime URL.
+`DATABASE_URL` runtime-owner мигратора не был заменён другим env-файлом во время chain.
+`P2_B_OWNER_ROLE` можно переопределить, если app-owner роль уже выбрана оператором; по умолчанию скрипт
+использует `app_owner`, создаёт её как `NOLOGIN BYPASSRLS`, выдаёт membership мигратору только внутри
+stopped-writers окна и снимает membership до post-state assertions. Для production `P2_B_SIGNING_SECRET` должен совпадать
+с будущим `DB_PRINCIPAL_SIGNING_SECRET`;
+для rehearsal без locked-runtime допускается одноразовый auto-generated secret.
 
 ### Eyeball verification
 
-После повторной загрузки prod env выполнить read-only проверки под той же `BYPASSRLS` migrator-ролью
-(иначе FORCE RLS скроет строки integrator):
+После повторной загрузки prod env выполнить read-only проверки через `SUPERUSER_URL`, потому что
+`BYPASSRLS` у runtime-owner уже должен быть снят:
 
 ```bash
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-read -rsp 'BYPASSRLS migrator DATABASE_URL: ' DATABASE_URL && echo
-export DATABASE_URL
-psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+read -rsp 'SUPERUSER_URL: ' SUPERUSER_URL && echo
+export SUPERUSER_URL
+psql "$SUPERUSER_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
 SELECT role, count(*)
 FROM public.platform_users
 WHERE role IN ('doctor', 'admin') AND merged_into_id IS NULL AND is_archived IS FALSE
@@ -181,12 +212,12 @@ WHERE regexp_replace(version, '^core:', '') IN (
 SELECT count(*) AS contacts_null_org FROM integrator.contacts WHERE organization_id IS NULL;
 SELECT count(*) AS organization_members FROM public.be_organization_members;
 SQL
-unset DATABASE_URL
+unset SUPERUSER_URL
 ```
 
 Ожидается: doctor=1, admin=1; один active specialist —
-`518ea988-9b5e-4ad8-8194-a2d98f43bd7b` — с appointments > 0; Drizzle ≥176 и применены все теги
-0115–0175; шесть SaaS-строк integrator; NULL `organization_id` отсутствуют во всех R2-таблицах;
+`518ea988-9b5e-4ad8-8194-a2d98f43bd7b` — с appointments > 0; Drizzle ≥178 и применены все теги
+0115–0177; шесть SaaS-строк integrator; NULL `organization_id` отсутствуют во всех R2-таблицах;
 обязательные doctor/admin memberships корректны (дополнительные легитимные members допустимы).
 
 ### Rollback

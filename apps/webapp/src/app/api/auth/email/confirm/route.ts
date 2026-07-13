@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -9,6 +10,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email/confirm:POST");
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });

@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { AppointmentRow } from "@/modules/doctor-appointments/ports";
 import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
-import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
+import { doctorInteractiveSurfaceButtonClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorAppointmentActions } from "./DoctorAppointmentActions";
+import { cn } from "@/lib/utils";
 
 type Props = {
   appointments: AppointmentRow[];
@@ -132,7 +133,7 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
                     <Button
                       type="button"
                       variant="ghost"
-                      className="h-auto w-full justify-start px-0 py-0 text-left"
+                      className={cn(doctorInteractiveSurfaceButtonClass, "w-full justify-start text-left")}
                       onClick={() => setExpandedId((prev) => (prev === a.id ? null : a.id))}
                     >
                       <div className="flex flex-col gap-1">

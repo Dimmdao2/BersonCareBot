@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
 import { env } from "@/config/env";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
   if (!token || !bearerMatchesSecret(token, secret)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  // INFRA pending owner confirmation: due specialist-task reminders are swept across specialists/orgs.
+  enterWithDbInfraPrincipal({ source: "api/internal/specialist-task-reminders/tick:POST" });
 
   const url = new URL(request.url);
   const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50));

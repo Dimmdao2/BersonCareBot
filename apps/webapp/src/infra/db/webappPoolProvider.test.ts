@@ -1,0 +1,214 @@
+/** @vitest-environment node */
+
+import type { Pool, PoolClient, PoolConfig } from "pg";
+import {
+  runWithDbBootstrapPrincipal,
+  runWithDbPatientPrincipal,
+  runWithDbStaffPrincipal,
+} from "@bersoncare/db-principal";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveWebappPoolProviderConfig } from "@/infra/db/client";
+import {
+  createWebappPoolProvider,
+  getWebappPoolRoutingMetrics,
+} from "@/infra/db/webappPoolProvider";
+
+const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const STAFF_USER_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const PATIENT_USER_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+type FakeClient = {
+  query: ReturnType<typeof vi.fn>;
+  release: ReturnType<typeof vi.fn>;
+};
+
+type FakePoolRecord = {
+  config: PoolConfig;
+  connect: ReturnType<typeof vi.fn>;
+  end: ReturnType<typeof vi.fn>;
+  clients: FakeClient[];
+};
+
+function restoreEnvValue(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
+
+function createFakeClient(queryImpl?: (sql: string, values?: readonly unknown[]) => Promise<unknown>): FakeClient {
+  return {
+    query: vi.fn(queryImpl ?? (async () => ({ rows: [], rowCount: 0 }))),
+    release: vi.fn(),
+  };
+}
+
+function createFakePoolFactory(queryImpl?: (sql: string, values?: readonly unknown[]) => Promise<unknown>): {
+  factory: (config: PoolConfig) => Pool;
+  pools: FakePoolRecord[];
+} {
+  const pools: FakePoolRecord[] = [];
+  const factory = (config: PoolConfig): Pool => {
+    const record: FakePoolRecord = {
+      config,
+      connect: vi.fn(async () => {
+        const client = createFakeClient(queryImpl);
+        record.clients.push(client);
+        return client as unknown as PoolClient;
+      }),
+      end: vi.fn(async () => undefined),
+      clients: [],
+    };
+    const partialPool: Partial<Pool> = {};
+    const pool = partialPool as Pool;
+    partialPool.connect = record.connect as unknown as Pool["connect"];
+    partialPool.end = record.end as unknown as Pool["end"];
+    partialPool.on = vi.fn(() => pool) as unknown as Pool["on"];
+    partialPool.once = vi.fn(() => pool) as unknown as Pool["once"];
+    partialPool.off = vi.fn(() => pool) as unknown as Pool["off"];
+    partialPool.removeListener = vi.fn(() => pool) as unknown as Pool["removeListener"];
+    Object.defineProperties(pool, {
+      totalCount: { get: () => 0 },
+      idleCount: { get: () => 0 },
+      waitingCount: { get: () => 0 },
+    });
+    pools.push(record);
+    return pool;
+  };
+  return { factory, pools };
+}
+
+describe("webapp pool provider", () => {
+  const originalDbPrincipalContextMode = process.env.DB_PRINCIPAL_CONTEXT_MODE;
+  const originalDbPrincipalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
+
+  beforeEach(() => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
+    delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
+  });
+
+  afterEach(() => {
+    restoreEnvValue("DB_PRINCIPAL_CONTEXT_MODE", originalDbPrincipalContextMode);
+    restoreEnvValue("DB_PRINCIPAL_SIGNING_SECRET", originalDbPrincipalSigningSecret);
+    vi.restoreAllMocks();
+  });
+
+  it("routes staff and organization-scoped principals to the staff pool before checkout", async () => {
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+
+    await runWithDbStaffPrincipal({ organizationId: ORG_ID, platformUserId: STAFF_USER_ID }, () =>
+      pool.query("SELECT staff_marker"),
+    );
+
+    expect(pools).toHaveLength(2);
+    expect(pools[0]?.config).toMatchObject({ connectionString: "postgres://staff/db", max: 3 });
+    expect(pools[1]?.config).toMatchObject({ connectionString: "postgres://nonstaff/db", max: 2 });
+    expect(pools[0]?.connect).toHaveBeenCalledTimes(1);
+    expect(pools[1]?.connect).not.toHaveBeenCalled();
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
+      staffSelections: 1,
+      nonstaffSelections: 0,
+      poolRoleMismatches: 0,
+    });
+  });
+
+  it("routes patient, bootstrap, and missing principals to the nonstaff pool before checkout", async () => {
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+
+    await runWithDbPatientPrincipal({ organizationId: ORG_ID, platformUserId: PATIENT_USER_ID }, () =>
+      pool.query("SELECT patient_marker"),
+    );
+    await runWithDbBootstrapPrincipal({ source: "unit-test" }, () => pool.query("SELECT bootstrap_marker"));
+    await pool.query("SELECT missing_marker");
+
+    expect(pools[0]?.connect).not.toHaveBeenCalled();
+    expect(pools[1]?.connect).toHaveBeenCalledTimes(3);
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
+      staffSelections: 0,
+      nonstaffSelections: 3,
+      missingPrincipalSelections: 1,
+      bootstrapSelections: 1,
+      poolRoleMismatches: 0,
+    });
+  });
+
+  it("uses one legacy pool for both principals when only DATABASE_URL is resolved", async () => {
+    const { factory, pools } = createFakePoolFactory();
+    const config = resolveWebappPoolProviderConfig({
+      DATABASE_URL: " postgres://legacy/db ",
+      DATABASE_URL_STAFF: "",
+      DATABASE_URL_NONSTAFF: "",
+    });
+    const pool = createWebappPoolProvider({ ...config, poolFactory: factory });
+
+    await runWithDbStaffPrincipal({ organizationId: ORG_ID, platformUserId: STAFF_USER_ID }, () =>
+      pool.query("SELECT staff_marker"),
+    );
+    await runWithDbPatientPrincipal({ organizationId: ORG_ID, platformUserId: PATIENT_USER_ID }, () =>
+      pool.query("SELECT patient_marker"),
+    );
+
+    expect(config).toEqual({ connectionString: "postgres://legacy/db" });
+    expect(pools).toHaveLength(1);
+    expect(pools[0]?.config).toMatchObject({ connectionString: "postgres://legacy/db", max: 5 });
+    expect(pools[0]?.connect).toHaveBeenCalledTimes(2);
+    expect(getWebappPoolRoutingMetrics(pool)).toBeUndefined();
+  });
+
+  it("resolves dual connection strings without requiring legacy DATABASE_URL", () => {
+    expect(
+      resolveWebappPoolProviderConfig({
+        DATABASE_URL: "",
+        DATABASE_URL_STAFF: " postgres://staff/db ",
+        DATABASE_URL_NONSTAFF: " postgres://nonstaff/db ",
+      }),
+    ).toEqual({
+      connectionString: undefined,
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+    });
+  });
+
+  it("uses DATABASE_URL as the missing side fallback when only one dual URL is present", () => {
+    expect(
+      resolveWebappPoolProviderConfig({
+        DATABASE_URL: "postgres://legacy/db",
+        DATABASE_URL_STAFF: "postgres://staff/db",
+        DATABASE_URL_NONSTAFF: "",
+      }),
+    ).toEqual({
+      connectionString: "postgres://legacy/db",
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://legacy/db",
+    });
+  });
+
+  it("destroys the checked-out client when principal cleanup fails in pool.query", async () => {
+    const cleanupError = new Error("cleanup failed");
+    const { factory, pools } = createFakePoolFactory(async (sql: string) => {
+      if (sql === "SELECT ok") {
+        return { rows: [{ ok: true }], rowCount: 1 };
+      }
+      if (sql === "SELECT set_config('app.org', $1, false)") {
+        throw cleanupError;
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+
+    await expect(pool.query("SELECT ok")).rejects.toBe(cleanupError);
+
+    expect(pools[0]?.clients[0]?.release).toHaveBeenCalledWith(cleanupError);
+  });
+});

@@ -1,5 +1,6 @@
 import { pgTable, index, text, bigint, jsonb, timestamp, smallint, uniqueIndex, foreignKey, unique, uuid, check, boolean, integer, bigserial, primaryKey, date } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+import { beOrganizations } from "./bookingEngine"
 
 
 
@@ -130,17 +131,24 @@ export const userPasswordCredentials = pgTable("user_password_credentials", {
 export const userPhoneHistory = pgTable("user_phone_history", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	platformUserId: uuid("platform_user_id").notNull(),
+	organizationId: uuid("organization_id"),
 	phoneNormalized: text("phone_normalized").notNull(),
 	validFrom: timestamp("valid_from", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	validTo: timestamp("valid_to", { withTimezone: true, mode: 'string' }),
 	source: text("source").notNull(),
 }, (table) => [
+	index("idx_user_phone_history_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_user_phone_history_phone").using("btree", table.phoneNormalized.asc().nullsLast().op("text_ops")),
 	index("idx_user_phone_history_user").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.platformUserId],
 			foreignColumns: [platformUsers.id],
 			name: "user_phone_history_platform_user_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [beOrganizations.id],
+			name: "user_phone_history_organization_id_fkey"
 		}).onDelete("cascade"),
 	uniqueIndex("uq_user_phone_history_phone_active").using(
 		"btree",

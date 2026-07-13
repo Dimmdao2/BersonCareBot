@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+// Invariant: p2-b must NOT self-grant USAGE on schema app_ext — on the real deploy p2-b runs as the
+// non-superuser migrator, so that owner-only GRANT must live in the superuser deploy step
+// (scripts/deploy-saas-667.sh Step 1), not here. Regressed twice; this guard catches it.
+{
+  const p2b = readFileSync("deploy/postgres/p2-b-protected-principal-context.sql", "utf8");
+  if (/GRANT\s+USAGE\s+ON\s+SCHEMA\s+app_ext/i.test(p2b)) {
+    console.error(
+      "check-saas-db-regression: FAILED p2-b invariant — 'GRANT USAGE ON SCHEMA app_ext' must not be in p2-b " +
+        "(it breaks the non-superuser migrator deploy; keep it in deploy-saas-667.sh Step 1).",
+    );
+    process.exit(1);
+  }
+  console.log("check-saas-db-regression: p2-b app_ext-grant invariant OK");
+}
 
 const checks = [
   {
@@ -113,6 +129,38 @@ const checks = [
   {
     label: "SAAS P0.13.3 app-level dormant smoke",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-app-dormant-smoke.mjs"],
+  },
+  {
+    label: "SAAS P2-B protected context SQL artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs"],
+  },
+  {
+    label: "SAAS B4 locked principal runtime wiring",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs"],
+  },
+  {
+    label: "SAAS Phase 4 FORCE RLS cutover guard",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs"],
+  },
+  {
+    label: "SAAS Phase 4 locked-helper RLS policy artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-locked-policy-artifact.mjs"],
+  },
+  {
+    label: "SAAS Phase 4 prod-copy DB-state safety self-test",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs", "--self-test-safety"],
+  },
+  {
+    label: "SAAS P2-C1 patient value guard SQL artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs"],
+  },
+  {
+    label: "SAAS P2-C2 patient value guard SQL artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs"],
+  },
+  {
+    label: "SAAS P2-C3 patient booking/LFK guard SQL artifact",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs"],
   },
 ];
 

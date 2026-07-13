@@ -1,8 +1,9 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail } from "@/modules/auth/emailAuth";
-import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 
@@ -12,6 +13,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email-password/login:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -39,9 +41,10 @@ export async function POST(request: Request) {
     telegramId: sessionUser.bindings.telegramId,
     maxId: sessionUser.bindings.maxId,
   });
-  if (sessionUser.role !== envRole) {
-    await deps.userProjection.updateRole(sessionUser.userId, envRole);
-    sessionUser = { ...sessionUser, role: envRole };
+  const effectiveRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
+  if (sessionUser.role !== effectiveRole) {
+    await deps.userProjection.updateRole(sessionUser.userId, effectiveRole);
+    sessionUser = { ...sessionUser, role: effectiveRole };
   }
 
   await setSessionFromUser(sessionUser);

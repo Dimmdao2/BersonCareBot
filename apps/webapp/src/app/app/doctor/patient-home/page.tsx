@@ -35,6 +35,11 @@ export default async function DoctorPatientHomeSettingsPage() {
   const isAdmin = session.user.role === "admin";
 
   const deps = buildAppDeps();
+  // P0.11.3: all settings read below are PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
+  const orgResolution = await deps.organizationMembership.resolveOrganizationForUser({
+    platformUserId: session.user.userId,
+  });
+  const organizationId = orgResolution.ok ? orgResolution.context.organizationId : null;
   const [
     blocks,
     pages,
@@ -53,14 +58,30 @@ export default async function DoctorPatientHomeSettingsPage() {
     deps.contentPages.listAll(),
     deps.contentSections.listAll(),
     deps.courses.listCoursesForDoctor({ includeArchived: true }),
-    deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin"),
-    deps.systemSettings.getSetting("patient_home_mood_icons", "admin"),
-    isAdmin ? deps.systemSettings.getSetting("patient_home_morning_ping_enabled", "admin") : Promise.resolve(null),
-    isAdmin ? deps.systemSettings.getSetting("patient_home_morning_ping_local_time", "admin") : Promise.resolve(null),
-    isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_enabled", "admin") : Promise.resolve(null),
-    isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_times", "admin") : Promise.resolve(null),
-    isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
-    isAdmin ? deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
+    deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin", { organizationId }),
+    deps.systemSettings.getSetting("patient_home_mood_icons", "admin", { organizationId }),
+    isAdmin
+      ? deps.systemSettings.getSetting("patient_home_morning_ping_enabled", "admin", { organizationId })
+      : Promise.resolve(null),
+    isAdmin
+      ? deps.systemSettings.getSetting("patient_home_morning_ping_local_time", "admin", { organizationId })
+      : Promise.resolve(null),
+    isAdmin
+      ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_enabled", "admin", { organizationId })
+      : Promise.resolve(null),
+    isAdmin
+      ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_times", "admin", { organizationId })
+      : Promise.resolve(null),
+    isAdmin
+      ? deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin", {
+          organizationId,
+        })
+      : Promise.resolve(null),
+    isAdmin
+      ? deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin", {
+          organizationId,
+        })
+      : Promise.resolve(null),
   ]);
   const initialPracticeTarget = parsePatientHomeDailyPracticeTarget(practiceSetting?.valueJson ?? null);
   const moodOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);

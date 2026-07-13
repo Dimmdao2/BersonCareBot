@@ -34,6 +34,14 @@ const envSchema = z.object({
     .transform((val) =>
       isTest && process.env.USE_REAL_DATABASE !== "1" ? "" : val ?? ""
     ),
+  DB_PRINCIPAL_CONTEXT_MODE: z
+    .enum(["legacy-guc", "shadow", "locked"])
+    .optional()
+    .default("legacy-guc"),
+  DB_PRINCIPAL_SIGNING_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
   /** Required in production; in test uses safe default. In development must be set (no repo default). */
   SESSION_COOKIE_SECRET: z
     .string()
@@ -172,6 +180,8 @@ const parsed = envSchema.parse({
   PORT: process.env.PORT,
   APP_BASE_URL: process.env.APP_BASE_URL,
   DATABASE_URL: process.env.DATABASE_URL,
+  DB_PRINCIPAL_CONTEXT_MODE: process.env.DB_PRINCIPAL_CONTEXT_MODE,
+  DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,
   SESSION_COOKIE_SECRET: process.env.SESSION_COOKIE_SECRET,
   INTEGRATOR_SHARED_SECRET: process.env.INTEGRATOR_SHARED_SECRET,
   INTEGRATOR_API_URL: process.env.INTEGRATOR_API_URL ?? "",
@@ -274,6 +284,15 @@ if (!isNextBuildPhase) {
 }
 
 rejectInsecureSecrets(parsed);
+
+if (
+  (parsed.DB_PRINCIPAL_CONTEXT_MODE === "shadow" || parsed.DB_PRINCIPAL_CONTEXT_MODE === "locked") &&
+  !parsed.DB_PRINCIPAL_SIGNING_SECRET
+) {
+  throw new Error(
+    `DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=${parsed.DB_PRINCIPAL_CONTEXT_MODE}.`,
+  );
+}
 
 export const env = parsed;
 

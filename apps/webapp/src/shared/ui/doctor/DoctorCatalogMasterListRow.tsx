@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 
 export type DoctorCatalogMasterListRowProps = {
@@ -36,6 +37,7 @@ export function DoctorCatalogMasterListRow({
           variant="ghost"
           onClick={onPick}
           className={cn(
+            doctorInteractiveSurfaceButtonClass,
             "flex min-w-0 flex-1 items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted/80",
             active &&
               "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",

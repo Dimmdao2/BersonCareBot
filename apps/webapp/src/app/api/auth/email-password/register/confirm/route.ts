@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -26,6 +27,7 @@ const LOG_BASE = {
 
 /** Публичное подтверждение email после `POST .../email-password/register` (без сессии до успеха). */
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/email-password/register/confirm:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

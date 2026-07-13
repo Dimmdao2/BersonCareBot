@@ -13,7 +13,10 @@ const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@bersoncare/db-principal", () => ({
   getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
+  applyCurrentDbPrincipalToConnection: vi.fn().mockResolvedValue(undefined),
   applyCurrentDbPrincipalToTransaction: vi.fn().mockResolvedValue(undefined),
+  clearDbPrincipalFromConnection: vi.fn().mockResolvedValue(undefined),
+  buildDbPrincipalApplyOptionsFromEnv: vi.fn(() => ({ mode: "legacy-guc" })),
 }));
 
 vi.mock("@/infra/db/runWebappSql", () => ({

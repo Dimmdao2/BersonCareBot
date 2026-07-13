@@ -27,6 +27,11 @@ describe("doctor courses/references residual principal coverage", () => {
     expect(src).toContain("withDoctorWorkspacePrincipal");
   });
 
+  it("POST /api/doctor/courses is gated by the courses entitlement", () => {
+    const src = readSource("src/app/api/doctor/courses/route.ts");
+    expect(src).toContain('requireEntitlement("courses")');
+  });
+
   it.each(doctorActionFiles)("%s uses selected workspace principal for server action writes", (file) => {
     const src = readSource(file);
     expect(src).not.toContain("requireDoctorAccess");

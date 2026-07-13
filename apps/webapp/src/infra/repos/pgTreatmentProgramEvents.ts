@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, max } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { getCurrentDbPrincipal, getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
@@ -54,6 +54,11 @@ export function createPgTreatmentProgramEventsPort(): TreatmentProgramEventsPort
   return {
     async appendEvent(input: AppendTreatmentProgramEventInput): Promise<TreatmentProgramEventRow> {
       return runDrizzleMutationTransaction(async (tx) => {
+        const principal = getCurrentDbPrincipal();
+        const currentPatientUserId = principal?.kind === "patient" ? principal.platformUserId : null;
+        if (currentPatientUserId && input.actorId && input.actorId !== currentPatientUserId) {
+          throw new Error("patient_event_actor_mismatch");
+        }
         const inst = await tx.query.treatmentProgramInstances.findFirst({
           where: eq(instTable.id, input.instanceId),
         });
@@ -62,7 +67,7 @@ export function createPgTreatmentProgramEventsPort(): TreatmentProgramEventsPort
           .values({
             organizationId: currentWriteOrganizationId(inst?.organizationId),
             instanceId: input.instanceId,
-            actorId: input.actorId,
+            ...(currentPatientUserId ? {} : { actorId: input.actorId }),
             eventType: input.eventType,
             targetType: input.targetType,
             targetId: input.targetId,

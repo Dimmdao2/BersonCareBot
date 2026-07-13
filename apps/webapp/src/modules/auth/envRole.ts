@@ -65,6 +65,22 @@ export function resolveRoleFromEnv(ids: { phone?: string; telegramId?: string; m
   return "client";
 }
 
+/**
+ * Compatibility policy for legacy env-based staff allowlists.
+ *
+ * Env may still promote an existing client session to doctor/admin, but it must not demote
+ * a DB-stored staff role. Self-registered specialists get `platform_users.role='doctor'`
+ * from provisioning and must keep that role on later password logins even when they are not
+ * listed in legacy env allowlists.
+ */
+export function reconcileDbRoleWithEnvRole(currentRole: UserRole, envRole: UserRole): UserRole {
+  if (envRole === "admin") return "admin";
+  if (currentRole === "admin") return "admin";
+  if (envRole === "doctor") return "doctor";
+  if (currentRole === "doctor") return "doctor";
+  return "client";
+}
+
 function idInList(id: string, list: string[]): boolean {
   return list.some((s) => s.trim() === id.trim());
 }

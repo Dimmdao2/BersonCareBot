@@ -17,6 +17,8 @@ type SettingsFormProps = {
   smsFallbackEnabled: boolean;
   supportCommentsWithoutSupportDefault: boolean;
   supportMediaWithoutSupportDefault: boolean;
+  settingsEndpoint?: "/api/doctor/settings" | "/api/admin/settings";
+  showSmsFallback?: boolean;
 };
 
 export function SettingsForm({
@@ -24,6 +26,8 @@ export function SettingsForm({
   smsFallbackEnabled,
   supportCommentsWithoutSupportDefault,
   supportMediaWithoutSupportDefault,
+  settingsEndpoint = "/api/doctor/settings",
+  showSmsFallback = true,
 }: SettingsFormProps) {
   const [label, setLabel] = useState(patientLabel);
   const [smsFallback, setSmsFallback] = useState(smsFallbackEnabled);
@@ -40,18 +44,13 @@ export function SettingsForm({
     setError(null);
     startTransition(async () => {
       try {
-        const [r1, r2, r3, r4] = await Promise.all([
-          fetch("/api/doctor/settings", {
+        const requests = [
+          fetch(settingsEndpoint, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ key: "patient_label", value: { value: label } }),
           }),
-          fetch("/api/doctor/settings", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: "sms_fallback_enabled", value: { value: smsFallback } }),
-          }),
-          fetch("/api/doctor/settings", {
+          fetch(settingsEndpoint, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -59,7 +58,7 @@ export function SettingsForm({
               value: { value: supportCommentsDefault },
             }),
           }),
-          fetch("/api/doctor/settings", {
+          fetch(settingsEndpoint, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -67,8 +66,18 @@ export function SettingsForm({
               value: { value: supportMediaDefault },
             }),
           }),
-        ]);
-        if (!r1.ok || !r2.ok || !r3.ok || !r4.ok) {
+        ];
+        if (showSmsFallback) {
+          requests.push(
+            fetch(settingsEndpoint, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: "sms_fallback_enabled", value: { value: smsFallback } }),
+            }),
+          );
+        }
+        const responses = await Promise.all(requests);
+        if (responses.some((response) => !response.ok)) {
           setError("Не удалось сохранить настройки");
           return;
         }
@@ -104,13 +113,15 @@ export function SettingsForm({
           </p>
         </div>
 
-        <LabeledSwitch
-          label="SMS fallback"
-          hint="Разрешить SMS для OTP и записи на приём; если выключено — только Telegram / Max / email."
-          checked={smsFallback}
-          onCheckedChange={setSmsFallback}
-          disabled={isPending}
-        />
+        {showSmsFallback ? (
+          <LabeledSwitch
+            label="SMS fallback"
+            hint="Разрешить SMS для OTP и записи на приём; если выключено — только Telegram / Max / email."
+            checked={smsFallback}
+            onCheckedChange={setSmsFallback}
+            disabled={isPending}
+          />
+        ) : null}
 
         <LabeledSwitch
           label="Комментарии без сопровождения"

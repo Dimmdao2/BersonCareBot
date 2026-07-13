@@ -2,8 +2,10 @@
 
 import assert from "node:assert/strict";
 import {
+  dormantCompatibilityPredicate,
   quoteQualifiedName,
   quoteSqlIdentifier,
+  renderBootstrapHybridOrgGatedPredicate,
   renderBootstrapHybridPredicate,
   renderOrgPredicate,
   renderPatientChainPredicate,
@@ -12,9 +14,9 @@ import {
   renderStaffOrPatientChainPredicate,
 } from "./rls-sql-renderer.mjs";
 
-const orgGuc = "NULLIF(current_setting('app.org', true), '')";
-const patientGuc = "NULLIF(current_setting('app.patient_user_id', true), '')";
-const integratorGuc = "NULLIF(current_setting('app.integrator_user_id', true), '')";
+const orgContext = "app.current_org_id()";
+const patientContext = "app.current_patient_user_id()";
+const integratorContext = "app.current_integrator_user_id()";
 const orgA = "00000000-0000-4000-8000-000000000001";
 const orgB = "00000000-0000-4000-8000-000000000002";
 const patientA = "10000000-0000-4000-8000-000000000001";
@@ -50,20 +52,26 @@ const directOrgDescriptor = {
 
 assert.equal(
   renderOrgPredicate(directOrgDescriptor, { mode: "dormant_permissive" }),
-  `(${orgGuc} IS NULL OR "organization_id" = ${orgGuc}::uuid)`,
-  "direct org predicate should permit unset app.org in dormant mode",
+  `(${orgContext} IS NULL OR "organization_id" = ${orgContext})`,
+  "direct org predicate should permit unset app.current_org_id() in dormant mode",
 );
 
 assert.equal(
   renderOrgPredicate(directOrgDescriptor, { mode: "enforce" }),
-  `(${orgGuc} IS NOT NULL AND "organization_id" = ${orgGuc}::uuid)`,
-  "direct org predicate should require app.org in enforce mode",
+  `(${orgContext} IS NOT NULL AND "organization_id" = ${orgContext})`,
+  "direct org predicate should require app.current_org_id() in enforce mode",
 );
 
 assert.equal(
   renderPatientPredicate({ patientColumn: "platform_user_id", mode: "enforce" }),
-  `(${patientGuc} IS NOT NULL AND "platform_user_id" = ${patientGuc}::uuid)`,
-  "patient predicate should require matching app.patient_user_id in enforce mode",
+  `(${patientContext} IS NOT NULL AND "platform_user_id" = ${patientContext})`,
+  "patient predicate should require matching app.current_patient_user_id() in enforce mode",
+);
+
+assert.equal(
+  renderPatientPredicate({ patientColumn: "platform_user_id", mode: "dormant_symmetric" }),
+  `(${patientContext} IS NULL OR "platform_user_id" = ${patientContext})`,
+  "patient predicate should permit missing helper only in dormant symmetric mode",
 );
 
 // GUC alignment (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md B4-fanout, taskdb #656):
@@ -71,8 +79,8 @@ assert.equal(
 // `app.integrator_user_id` GUC, never `app.patient_user_id` cast to bigint.
 assert.equal(
   renderPatientPredicate({ patientColumn: "user_id", mode: "enforce", castType: "bigint" }),
-  `(${integratorGuc} IS NOT NULL AND "user_id" = ${integratorGuc}::bigint)`,
-  "bigint-cast patient predicate must require matching app.integrator_user_id, not app.patient_user_id",
+  `(${integratorContext} IS NOT NULL AND "user_id" = ${integratorContext})`,
+  "bigint-cast patient predicate must require matching app.current_integrator_user_id(), not app.current_patient_user_id()",
 );
 
 // Chain-only patient ownership (B4-fanout gap closure, taskdb #656): a single EXISTS with a chain
@@ -86,7 +94,7 @@ assert.equal(
     terminalColumn: "user_id",
     castType: "bigint",
   }),
-  `(${integratorGuc} IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "integrator"."user_reminder_rules" AS "b4f_rule" ON "b4f_rule"."id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."user_id" = ${integratorGuc}::bigint ))`,
+  `(${integratorContext} IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "integrator"."user_reminder_rules" AS "b4f_rule" ON "b4f_rule"."id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."user_id" = ${integratorContext} ))`,
   "chain patient predicate must nest joins from the policy row to the terminal identity column",
 );
 
@@ -102,8 +110,20 @@ assert.match(
 
 assert.equal(
   renderBootstrapHybridPredicate({ orgColumn: "organization_id" }),
-  `("organization_id" IS NULL OR (${orgGuc} IS NOT NULL AND "organization_id" = ${orgGuc}::uuid))`,
-  "bootstrap hybrid predicate should allow global rows or matching app.org",
+  `("organization_id" IS NULL OR (${orgContext} IS NOT NULL AND "organization_id" = ${orgContext}))`,
+  "bootstrap hybrid predicate should allow global rows or matching app.current_org_id()",
+);
+
+assert.equal(
+  dormantCompatibilityPredicate,
+  "app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()",
+  "dormant compatibility predicate should remain the contextless non-staff bootstrap guard",
+);
+
+assert.equal(
+  renderBootstrapHybridOrgGatedPredicate({ orgColumn: "organization_id" }),
+  `((${orgContext} IS NOT NULL AND "organization_id" = ${orgContext}) OR ("organization_id" IS NULL AND ${dormantCompatibilityPredicate}))`,
+  "bootstrap org-gated hybrid predicate should match org rows or contextless NULL-org bootstrap rows",
 );
 
 assert.equal(
@@ -148,4 +168,3 @@ assert.throws(() => quoteSqlIdentifier("organization_id; DROP TABLE patients"), 
 assert.throws(() => quoteQualifiedName("public.patient-files"), /Unsafe SQL identifier/);
 
 console.log("P0.8.2 RLS SQL renderer predicate tests OK.");
-

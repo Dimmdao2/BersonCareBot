@@ -1,8 +1,10 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/booking/public/products/payment-status:GET");
   const params = new URL(request.url).searchParams;
   const purchaseId = params.get("purchaseId")?.trim();
   const contactPhone = params.get("phone")?.trim();

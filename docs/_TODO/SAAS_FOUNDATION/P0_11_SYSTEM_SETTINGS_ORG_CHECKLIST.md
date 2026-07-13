@@ -58,7 +58,34 @@ Checklist:
 - [x] Existing global admin settings still round-trip.
 - [x] Audit rows preserve actor/org context where available.
 
-P0.11.3 execution note (2026-07-08): `updateSetting` and admin batch persistence accept optional
+P0.11.3 execution note (2026-07-13): the 2026-07-08 note above described the *mechanism* only —
+`updateSetting`/`persistAdminModesBatch` accepted an optional `organizationId`, but no caller ever
+passed one, so all 96 rows on TEST stayed global and a clinic-2 edit silently overwrote clinic-1's
+value (the leak the owner found live). Closed today:
+- `apps/webapp/src/modules/system-settings/orgScopedKeys.ts` — exhaustive per-key classification
+  (`Record<SystemSettingKey, "per_org"|"global">`, TS-enforced against `ALLOWED_KEYS`).
+- `service.ts` gained a single write chokepoint (`resolveWriteOrganizationId`): GLOBAL keys are
+  force-written to `organization_id IS NULL` regardless of caller input; PER-ORG keys require a
+  resolvable `organizationId` or throw `SystemSettingsOrgContextRequiredError` (409 at the route)
+  rather than silently falling back to a global row.
+- Route handlers (`doctor/settings`, `admin/settings`, doctor+admin `notification-templates`,
+  `doctor/treatment-program-promo`) and the doctor shell layout/pages now resolve+thread the
+  caller's own clinic `organizationId` via `requireDoctorWorkspaceApiContext()`.
+- Live-verified on the ENFORCED TEST env (curl, both demo doctors): `patient_label` and
+  `notif_template:created:patient` (PER-ORG) diverge correctly per clinic with no cross-clinic
+  bleed; `sms_fallback_enabled` (GLOBAL) stays shared — no regression.
+- NOT done: patient-facing reads of PER-ORG keys through the global `configAdapter` chokepoint
+  (app timezone, patient-home content) still read the global row only; Google Calendar connection
+  instance data kept GLOBAL pending a calendar-sync-worker org-threading audit — both flagged
+  inline in `orgScopedKeys.ts` for owner review, not implemented.
+- **Found, NOT fixed here (separate scope):** the integrator's `/api/integrator/settings/sync`
+  mirror route throws `DB principal context is required before scoped DB access in locked mode`
+  under ENFORCE for every settings write (global AND per-org alike — reproduced live, not caused by
+  today's change). The webapp-side write and the live isolation proof are unaffected (fire-and-forget
+  mirror), but the integrator-side mirror falls behind on TEST until that principal-stamping gap is
+  fixed (tracked separately, spawned as a follow-up task).
+
+Prior note (2026-07-08): `updateSetting` and admin batch persistence accept optional
 `organizationId`, write either the global partial unique row or the org-specific partial unique row,
 and pass the same org semantics to the signed integrator mirror sync/outbox idempotency key. The
 integrator sync route now upserts `integrator.system_settings` with matching global/org conflict

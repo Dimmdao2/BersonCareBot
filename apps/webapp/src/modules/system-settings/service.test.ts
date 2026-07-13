@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSystemSettingsService } from "./service";
 import type { SystemSettingsPort, SystemSettingsUpsertRow } from "./ports";
 import type { SystemSetting } from "./types";
+import { SystemSettingsOrgContextRequiredError } from "./orgScopedKeys";
 
 const syncSettingToIntegratorMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
@@ -17,6 +18,7 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
   return {
     getByKey: vi.fn().mockResolvedValue(null),
     getByScope: vi.fn().mockResolvedValue([]),
+    getWebPushVapidPublicKeyOnly: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockImplementation(
       async (key, scope, valueJson, updatedBy, options): Promise<SystemSetting> => ({
         key,
@@ -104,25 +106,28 @@ describe("SystemSettingsService", () => {
     });
   });
 
-  it("updateSetting passes organization context to port and mirror sync", async () => {
+  it("updateSetting passes organization context to port and mirror sync (PER-ORG key)", async () => {
+    // P0.11.3: this test's original intent is the org-PRESERVING path — the port must actually receive
+    // the caller's organizationId. `support_contact_url` was reclassified GLOBAL (see `orgScopedKeys.ts`),
+    // so it's forced to null now; `patient_label` (PER-ORG) is the key that still exercises this path.
     const port = makePort();
     const service = createSystemSettingsService(port);
-    await service.updateSetting("support_contact_url", "admin", { value: "https://org.example" }, "user-uuid", {
+    await service.updateSetting("patient_label", "doctor", { value: "Клиенты" }, "user-uuid", {
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     });
 
     expect(port.upsert).toHaveBeenCalledWith(
-      "support_contact_url",
-      "admin",
-      { value: "https://org.example" },
+      "patient_label",
+      "doctor",
+      { value: "Клиенты" },
       "user-uuid",
       { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
     );
     expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
-      key: "support_contact_url",
-      scope: "admin",
+      key: "patient_label",
+      scope: "doctor",
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      valueJson: { value: "https://org.example" },
+      valueJson: { value: "Клиенты" },
       updatedBy: "user-uuid",
     });
   });
@@ -146,6 +151,95 @@ describe("SystemSettingsService", () => {
       { key: "debug_forward_to_admin", scope: "admin", organizationId: null, valueJson: { value: true }, updatedBy: "u1" },
     ]);
     expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(2);
+  });
+
+  describe("P0.11.3 org-aware write chokepoint (resolveWriteOrganizationId)", () => {
+    it("updateSetting — PER-ORG key without organizationId → rejects with SystemSettingsOrgContextRequiredError", async () => {
+      const service = createSystemSettingsService(makePort());
+      await expect(
+        service.updateSetting("patient_label", "doctor", { value: "Клиенты" }, "user-uuid"),
+      ).rejects.toThrow(SystemSettingsOrgContextRequiredError);
+      await expect(
+        service.updateSetting("patient_label", "doctor", { value: "Клиенты" }, "user-uuid"),
+      ).rejects.toMatchObject({ name: "SystemSettingsOrgContextRequiredError" });
+    });
+
+    it("updateSetting — PER-ORG key with organizationId → port.upsert receives it", async () => {
+      const port = makePort();
+      const service = createSystemSettingsService(port);
+      await service.updateSetting("patient_label", "doctor", { value: "Клиенты" }, "user-uuid", {
+        organizationId: "org-1",
+      });
+      expect(port.upsert).toHaveBeenCalledWith(
+        "patient_label",
+        "doctor",
+        { value: "Клиенты" },
+        "user-uuid",
+        { organizationId: "org-1" },
+      );
+    });
+
+    it("updateSetting — GLOBAL key forces organizationId: null at the port even when caller passes one", async () => {
+      const port = makePort();
+      const service = createSystemSettingsService(port);
+      await service.updateSetting("dev_mode", "admin", { value: true }, "user-uuid", {
+        organizationId: "org-1",
+      });
+      expect(port.upsert).toHaveBeenCalledWith(
+        "dev_mode",
+        "admin",
+        { value: true },
+        "user-uuid",
+        { organizationId: null },
+      );
+    });
+
+    it("persistAdminModesBatch — mixed PER-ORG + GLOBAL batch resolves organizationId per-row", async () => {
+      const upsertManyInTransaction = vi.fn().mockResolvedValue([
+        {
+          key: "patient_booking_url",
+          scope: "admin",
+          organizationId: "org-1",
+          valueJson: { value: "https://example.com/book" },
+          updatedAt: "",
+          updatedBy: "u1",
+        },
+        { key: "dev_mode", scope: "admin", organizationId: null, valueJson: { value: false }, updatedAt: "", updatedBy: "u1" },
+      ]);
+      const port = makePort({ upsertManyInTransaction });
+      const service = createSystemSettingsService(port);
+      await service.persistAdminModesBatch(
+        [
+          { key: "patient_booking_url", valueJson: { value: "https://example.com/book" } },
+          { key: "dev_mode", valueJson: { value: false } },
+        ],
+        "u1",
+        { organizationId: "org-1" },
+      );
+      expect(upsertManyInTransaction).toHaveBeenCalledWith([
+        {
+          key: "patient_booking_url",
+          scope: "admin",
+          organizationId: "org-1",
+          valueJson: { value: "https://example.com/book" },
+          updatedBy: "u1",
+        },
+        { key: "dev_mode", scope: "admin", organizationId: null, valueJson: { value: false }, updatedBy: "u1" },
+      ]);
+    });
+
+    it("persistAdminModesBatch — PER-ORG key in batch without organizationId → rejects with SystemSettingsOrgContextRequiredError", async () => {
+      const service = createSystemSettingsService(makePort());
+      await expect(
+        service.persistAdminModesBatch(
+          [
+            { key: "patient_booking_url", valueJson: { value: "https://example.com/book" } },
+            { key: "dev_mode", valueJson: { value: false } },
+          ],
+          "u1",
+        ),
+      ).rejects.toThrow(SystemSettingsOrgContextRequiredError);
+    });
   });
 
   it("shouldDispatchRelayToRecipient — dev_mode false → true для любого recipient", async () => {

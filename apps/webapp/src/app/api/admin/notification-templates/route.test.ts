@@ -1,13 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, getAllTemplatesMock, saveTemplateMock } = vi.hoisted(() => ({
+const {
+  requireAdminModeSessionMock,
+  getCurrentSessionMock,
+  getAllTemplatesMock,
+  saveTemplateMock,
+  resolveOrganizationForUserMock,
+} = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
+  // requireDoctorWorkspaceApiContext() (called after requireAdminModeSession) reads the real session
+  // via getCurrentSession() itself — mock it too so it doesn't hit next/server's cookies() in tests.
+  getCurrentSessionMock: vi.fn(async () => ({
+    user: { userId: "admin1", role: "admin" as const, bindings: {} },
+  })),
   getAllTemplatesMock: vi.fn(),
   saveTemplateMock: vi.fn(),
+  resolveOrganizationForUserMock: vi.fn(async () => ({
+    ok: true,
+    context: {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      membershipId: "membership-1",
+      role: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+      canManageAllSpecialists: true,
+    },
+  })),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
+}));
+
+vi.mock("@/modules/auth/service", () => ({
+  getCurrentSession: getCurrentSessionMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -15,6 +41,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     notifTemplates: {
       getAllTemplates: getAllTemplatesMock,
       saveTemplate: saveTemplateMock,
+    },
+    organizationMembership: {
+      resolveOrganizationForUser: resolveOrganizationForUserMock,
     },
   }),
 }));
@@ -181,7 +210,9 @@ describe("PUT /api/admin/notification-templates", () => {
     const body = await res.json() as { ok: boolean; template: typeof savedEntry };
     expect(body.ok).toBe(true);
     expect(body.template).toEqual(savedEntry);
-    expect(saveTemplateMock).toHaveBeenCalledWith("created", "patient", "Запись: {{date}}", "admin1");
+    expect(saveTemplateMock).toHaveBeenCalledWith("created", "patient", "Запись: {{date}}", "admin1", {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+    });
   });
 
   it("passes trimmed text to saveTemplate", async () => {
@@ -194,7 +225,9 @@ describe("PUT /api/admin/notification-templates", () => {
       headers: { "content-type": "application/json" },
     });
     await PUT(req);
-    expect(saveTemplateMock).toHaveBeenCalledWith("cancelled", "doctor", "Отмена {{date}}", "admin1");
+    expect(saveTemplateMock).toHaveBeenCalledWith("cancelled", "doctor", "Отмена {{date}}", "admin1", {
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+    });
   });
 
   it("returns 400 for missing body fields", async () => {

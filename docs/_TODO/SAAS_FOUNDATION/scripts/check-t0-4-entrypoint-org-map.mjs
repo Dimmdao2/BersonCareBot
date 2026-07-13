@@ -146,7 +146,9 @@ function runChecks(overrides = {}) {
 
   for (const needle of [
     "resolveTelegramOrganizationId",
-    "return await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'telegram')",
+    "await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'telegram')",
+    "resolveTelegramIntegratorUserId",
+    "runWithIntegratorPrincipal",
     "runWithOrganizationPrincipal(organizationId, handleEvent)",
     "export async function processTelegramUpdate",
   ]) {
@@ -157,7 +159,9 @@ function runChecks(overrides = {}) {
 
   for (const needle of [
     "resolveMaxOrganizationId",
-    "return await resolveOrganizationIdForMessengerIdentity(externalId, 'max')",
+    "await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max')",
+    "resolveMaxIntegratorUserId",
+    "runWithIntegratorPrincipal",
     "runWithOrganizationPrincipal(organizationId, handleEvent)",
   ]) {
     assertContains(files.maxWebhook, maxWebhook, needle);

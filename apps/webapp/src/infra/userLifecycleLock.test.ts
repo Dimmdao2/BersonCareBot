@@ -47,7 +47,8 @@ describe("withUserLifecycleLock", () => {
     expect(order[1]).toBe("lock:exclusive");
     expect(pgAdvisoryXactLock).toHaveBeenCalledWith(expect.anything(), "00000000-0000-4000-8000-000000000001");
     expect(order.some((s) => s.includes("SELECT 1"))).toBe(true);
-    expect(order[order.length - 1]).toBe("COMMIT");
+    expect(order).toContain("COMMIT");
+    expect(order.indexOf("COMMIT")).toBeGreaterThan(order.indexOf("SELECT 1"));
   });
 
   it("uses shared lock when mode is shared", async () => {

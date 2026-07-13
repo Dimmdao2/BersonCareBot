@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
@@ -23,6 +24,7 @@ import {
  * GET /api/auth/oauth/callback/google — веб-логин Google (не календарь). Refresh token не сохраняем.
  */
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/auth/oauth/callback/google:GET");
   const appBase = await getAppBaseUrl();
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";

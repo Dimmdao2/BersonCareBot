@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { MoreHorizontal } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
+import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent, type ReactNode } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { cn } from "@/lib/utils";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { Separator } from "@/shared/ui/doctor/primitives/separator";
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { libraryMultipartAbort, libraryMultipartUpload } from "./libraryMultipartUpload";
 import { UploadRequestError, uploadWithProgress } from "@/shared/ui/doctor/media/uploadWithProgress";
@@ -38,12 +41,10 @@ import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { MediaLibraryFolderScopeSelect } from "@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect";
 import { buildCrumbsForMediaFolder } from "@/shared/ui/doctor/media/mediaFolderScopeUtils";
 import { useFlatMediaFolders } from "@/shared/ui/doctor/media/useFlatMediaFolders";
 import {
   findClientFilesRootFolder,
-  foldersForLibraryScopeSelect,
   isClientFilesFolderKind,
 } from "@/modules/media/clientFilesFolders";
 import type { MediaFolderRecord } from "@/modules/media/types";
@@ -128,14 +129,24 @@ function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void
   const thumbMedia = libraryMediaRowToPreviewUi(item);
   if (item.kind !== "image" && item.kind !== "video") {
     return (
-      <Button type="button" variant="ghost" onClick={onOpen} className="h-auto rounded border border-border p-0">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={onOpen}
+        className={cn(doctorInteractiveSurfaceButtonClass, "rounded border border-border")}
+      >
         <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">—</div>
       </Button>
     );
   }
 
   return (
-    <Button type="button" variant="ghost" onClick={onOpen} className="h-auto rounded border border-border p-0">
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={onOpen}
+      className={cn(doctorInteractiveSurfaceButtonClass, "rounded border border-border")}
+    >
       <MediaThumb
         media={thumbMedia}
         className="flex h-16 w-28 items-center justify-center rounded"
@@ -173,6 +184,165 @@ function isDescendantOfFolder(flat: FolderRow[], ancestorId: string, nodeId: str
 
 function mediaTitle(item: MediaItem): string {
   return item.displayName?.trim() || item.filename;
+}
+
+function foldersByParent(folders: FolderRow[]): Map<string, FolderRow[]> {
+  const groups = new Map<string, FolderRow[]>();
+  for (const folder of folders) {
+    const key = folder.parentId ?? "__root__";
+    const list = groups.get(key) ?? [];
+    list.push(folder);
+    groups.set(key, list);
+  }
+  for (const list of groups.values()) {
+    list.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }
+  return groups;
+}
+
+type FolderTreeProps = {
+  folders: FolderRow[];
+  foldersLoaded: boolean;
+  viewAllFiles: boolean;
+  currentFolderId: string | null;
+  onSelectAll: () => void;
+  onSelectRoot: () => void;
+  onSelectFolder: (folder: FolderRow) => void;
+  onNewFolder: () => void;
+  onRenameFolder: (folder: { id: string; name: string }) => void;
+  onMoveFolder: (folder: { id: string; name: string }, currentParentId: string | null) => void;
+  onDeleteFolder: (folder: { id: string; name: string }) => void;
+  canCreateFolder: boolean;
+};
+
+function MediaFolderTreePane({
+  folders,
+  foldersLoaded,
+  viewAllFiles,
+  currentFolderId,
+  onSelectAll,
+  onSelectRoot,
+  onSelectFolder,
+  onNewFolder,
+  onRenameFolder,
+  onMoveFolder,
+  onDeleteFolder,
+  canCreateFolder,
+}: FolderTreeProps) {
+  const grouped = useMemo(() => foldersByParent(folders), [folders]);
+
+  function renderFolder(folder: FolderRow, depth: number): ReactNode {
+    const children = grouped.get(folder.id) ?? [];
+    const active = !viewAllFiles && currentFolderId === folder.id;
+    const systemManaged = isClientFilesFolderKind(folder.kind);
+    const Icon = active ? FolderOpen : Folder;
+
+    return (
+      <li key={folder.id}>
+        <div className="group flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            aria-current={active ? "page" : undefined}
+            onClick={() => onSelectFolder(folder)}
+            className={cn(
+              "h-auto min-h-8 flex-1 justify-start gap-1.5 rounded-md border-l-2 py-1.5 pr-2 text-left text-sm",
+              active
+                ? "border-primary bg-muted font-medium text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+            style={{ paddingLeft: `${8 + depth * 14}px` }}
+          >
+            <Icon className="size-3.5 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+          </Button>
+          {!systemManaged ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100 focus:opacity-100"
+                aria-label={`Действия: ${folder.name}`}
+              >
+                <MoreHorizontal className="size-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-44">
+                <DropdownMenuItem onClick={() => onRenameFolder({ id: folder.id, name: folder.name })}>
+                  Переименовать
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onMoveFolder({ id: folder.id, name: folder.name }, folder.parentId ?? null)}>
+                  Переместить…
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => onDeleteFolder({ id: folder.id, name: folder.name })}>
+                  Удалить…
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
+        {children.length > 0 ? (
+          <ul className="mt-0.5 flex flex-col gap-0.5">
+            {children.map((child) => renderFolder(child, depth + 1))}
+          </ul>
+        ) : null}
+      </li>
+    );
+  }
+
+  const rootFolders = grouped.get("__root__") ?? [];
+  const rootActive = !viewAllFiles && currentFolderId === null;
+
+  return (
+    <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
+        <p className="text-sm font-semibold">Папки</p>
+        {canCreateFolder ? (
+          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onNewFolder}>
+            Новая
+          </Button>
+        ) : null}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        <div className="flex flex-col gap-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            aria-current={viewAllFiles ? "page" : undefined}
+            onClick={onSelectAll}
+            className={cn(
+              "h-auto min-h-8 justify-start rounded-md border-l-2 px-2 py-1.5 text-left text-sm",
+              viewAllFiles
+                ? "border-primary bg-muted font-medium text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            Все файлы
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-current={rootActive ? "page" : undefined}
+            onClick={onSelectRoot}
+            className={cn(
+              "h-auto min-h-8 justify-start gap-1.5 rounded-md border-l-2 px-2 py-1.5 text-left text-sm",
+              rootActive
+                ? "border-primary bg-muted font-medium text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            <FolderOpen className="size-3.5" aria-hidden />
+            Корень
+          </Button>
+        </div>
+        <Separator className="my-2" />
+        {!foldersLoaded ? (
+          <p className="px-2 text-xs text-muted-foreground">Загрузка папок…</p>
+        ) : rootFolders.length === 0 ? (
+          <p className="px-2 text-xs text-muted-foreground">Папок пока нет.</p>
+        ) : (
+          <ul className="flex flex-col gap-0.5">{rootFolders.map((folder) => renderFolder(folder, 0))}</ul>
+        )}
+      </div>
+    </aside>
+  );
 }
 
 export type MediaLibraryClientProps = {
@@ -213,8 +383,6 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   /** Список без ограничения по папке в запросе медиа (все файлы библиотеки). */
   const [viewAllFiles, setViewAllFiles] = useState(true);
   const { folders: flatFolderRecords, foldersLoaded: flatFoldersLoaded } = useFlatMediaFolders(true);
-  const [childFolders, setChildFolders] = useState<FolderRow[]>([]);
-  const [foldersLoading, setFoldersLoading] = useState(false);
   const [newFolderDialog, setNewFolderDialog] = useState<NewFolderDialogState>(null);
   const [moveFolderDialog, setMoveFolderDialog] = useState<MoveFolderDialogState>(null);
   const [allFoldersFlat, setAllFoldersFlat] = useState<FolderRow[]>([]);
@@ -231,13 +399,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     () => findClientFilesRootFolder(flatFolderRecords),
     [flatFolderRecords],
   );
-  const scopeSelectFolders = useMemo(
-    () => foldersForLibraryScopeSelect(flatFolderRecords),
-    [flatFolderRecords],
-  );
-
   const currentFolderId = crumbs[crumbs.length - 1]?.id ?? null;
-  const parentForChildFolders = viewAllFiles ? null : currentFolderId;
   const uploadTargetFolderId = viewAllFiles ? null : currentFolderId;
 
   const currentFolderRecord = currentFolderId
@@ -292,31 +454,6 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
   useEffect(() => {
     let cancelled = false;
-    setFoldersLoading(true);
-    const parent = parentForChildFolders;
-    const url =
-      parent === null
-        ? "/api/admin/media/folders"
-        : `/api/admin/media/folders?parentId=${encodeURIComponent(parent)}`;
-    fetch(url, { credentials: "same-origin" })
-      .then(async (res) => {
-        const data = (await res.json()) as { ok?: boolean; items?: FolderRow[] };
-        if (!res.ok || !data.ok) throw new Error("folders_failed");
-        if (!cancelled) setChildFolders(data.items ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setChildFolders([]);
-      })
-      .finally(() => {
-        if (!cancelled) setFoldersLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [parentForChildFolders, reloadKey]);
-
-  useEffect(() => {
-    let cancelled = false;
     fetch("/api/admin/media/delete-errors?limit=1", { credentials: "same-origin" })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; total?: number };
@@ -367,22 +504,21 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     if (index >= 0) setLightboxIndex(index);
   }
 
-  function handleFolderScopeChange(next: string | null | undefined) {
-    if (next === undefined) {
-      setViewAllFiles(true);
-      return;
-    }
-    setViewAllFiles(false);
-    if (next === null) {
-      setCrumbs([{ id: null, label: "Корень" }]);
-      return;
-    }
-    setCrumbs(buildCrumbsForMediaFolder(flatFolderRecords, next));
+  const lightboxItem = lightboxIndex !== null ? (items[lightboxIndex] ?? null) : null;
+
+  function selectAllFiles() {
+    setViewAllFiles(true);
   }
 
-  const folderScopeSelectValue = viewAllFiles ? undefined : currentFolderId;
+  function selectRootFolder() {
+    setViewAllFiles(false);
+    setCrumbs([{ id: null, label: "Корень" }]);
+  }
 
-  const lightboxItem = lightboxIndex !== null ? (items[lightboxIndex] ?? null) : null;
+  function selectFolder(folder: FolderRow) {
+    setViewAllFiles(false);
+    setCrumbs(buildCrumbsForMediaFolder(flatFolderRecords, folder.id));
+  }
 
   async function onLoadMore() {
     if (!hasMore || loadingMore) return;
@@ -1179,103 +1315,52 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         disabled={uploading}
       />
 
-      <div className="flex flex-col gap-2 rounded-md border border-border/80 bg-muted/30 p-3 text-sm">
-        <div className="flex flex-wrap items-center gap-1 text-muted-foreground">
-          {crumbs.map((c, idx) => (
-            <span key={`${c.id ?? "root"}-${idx}`} className="inline-flex items-center gap-0.5">
-              {idx > 0 ? <span aria-hidden>/</span> : null}
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-auto rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setViewAllFiles(false);
-                  setCrumbs(crumbs.slice(0, idx + 1));
-                }}
-              >
-                {c.label}
-              </Button>
-              {c.id && !isClientFilesFolderKind(flatFolderRecords.find((f) => f.id === c.id)?.kind) ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"
-                    aria-label={`Действия: ${c.label}`}
-                  >
-                    <MoreHorizontal className="size-3" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-44">
-                    <DropdownMenuItem onClick={() => openFolderRename({ id: c.id!, name: c.label })}>
-                      Переименовать
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        openFolderMove({ id: c.id!, name: c.label }, crumbs[idx - 1]?.id ?? null)
-                      }
-                    >
-                      Переместить…
-                    </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onClick={() => openFolderDelete({ id: c.id!, name: c.label })}>
-                      Удалить…
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
-            </span>
-          ))}
-        </div>
-        {uploadBlockedAtClientRoot ? (
-          <p className="text-xs text-muted-foreground">Откройте папку клиента, чтобы загрузить файл.</p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-2">
-          {foldersLoading ? (
-            <span className="text-xs text-muted-foreground">Загрузка папок…</span>
-          ) : (
-            childFolders.map((f) => (
-              <span key={f.id} className="inline-flex items-center gap-0.5">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setViewAllFiles(false);
-                    setCrumbs([...crumbs, { id: f.id, label: f.name }]);
-                  }}
-                >
-                  {f.name}
-                </Button>
-                {!isClientFilesFolderKind(f.kind) ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted"
-                      aria-label={`Действия: ${f.name}`}
-                    >
-                      <MoreHorizontal className="size-3" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-44">
-                      <DropdownMenuItem onClick={() => openFolderRename({ id: f.id, name: f.name })}>
-                        Переименовать
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openFolderMove({ id: f.id, name: f.name }, currentFolderId)}>
-                        Переместить…
-                      </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onClick={() => openFolderDelete({ id: f.id, name: f.name })}>
-                        Удалить…
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : null}
-              </span>
-            ))
-          )}
-          {!systemManagedFolder ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => setNewFolderDialog({ name: "" })}>
-              Новая папка
-            </Button>
-          ) : null}
-        </div>
-      </div>
+      <div className="grid min-h-0 gap-3 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,2fr)] lg:items-start">
+        <MediaFolderTreePane
+          folders={flatFolderRecords}
+          foldersLoaded={flatFoldersLoaded}
+          viewAllFiles={viewAllFiles}
+          currentFolderId={currentFolderId}
+          onSelectAll={selectAllFiles}
+          onSelectRoot={selectRootFolder}
+          onSelectFolder={selectFolder}
+          onNewFolder={() => setNewFolderDialog({ name: "" })}
+          onRenameFolder={openFolderRename}
+          onMoveFolder={openFolderMove}
+          onDeleteFolder={openFolderDelete}
+          canCreateFolder={!systemManagedFolder}
+        />
 
-      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-col gap-2 rounded-md border border-border/80 bg-muted/30 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-1 text-muted-foreground">
+              {viewAllFiles ? (
+                <span className="font-medium text-foreground">Все файлы</span>
+              ) : (
+                crumbs.map((c, idx) => (
+                  <span key={`${c.id ?? "root"}-${idx}`} className="inline-flex items-center gap-0.5">
+                    {idx > 0 ? <span aria-hidden>/</span> : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setViewAllFiles(false);
+                        setCrumbs(crumbs.slice(0, idx + 1));
+                      }}
+                    >
+                      {c.label}
+                    </Button>
+                  </span>
+                ))
+              )}
+            </div>
+            {uploadBlockedAtClientRoot ? (
+              <p className="text-xs text-muted-foreground">Откройте папку клиента, чтобы загрузить файл.</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2">
         {canSeeDeleteErrorsLink && s3DeleteQueueErrors != null && s3DeleteQueueErrors > 0 ? (
           <Link
             href="/app/doctor/content/library/delete-errors"
@@ -1328,16 +1413,6 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
             </SelectContent>
           </Select>
         </label>
-
-        <MediaLibraryFolderScopeSelect
-          label="Область списка"
-          className="min-w-[12rem] max-w-[min(100%,22rem)]"
-          value={folderScopeSelectValue}
-          onChange={handleFolderScopeChange}
-          folders={scopeSelectFolders}
-          foldersLoaded={flatFoldersLoaded}
-          clientFilesRootId={clientFilesRoot?.id ?? null}
-        />
 
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Сортировать по</span>
@@ -1549,11 +1624,21 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                       ) : item.kind === "video" ? (
                         <TableMediaThumb item={item} onOpen={() => openLightboxByItemId(item.id)} />
                       ) : item.kind === "audio" ? (
-                        <Button type="button" variant="ghost" onClick={() => openLightboxByItemId(item.id)} className="h-auto p-0 text-primary underline">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => openLightboxByItemId(item.id)}
+                          className={cn(doctorInteractiveSurfaceButtonClass, "text-primary underline")}
+                        >
                           Прослушать
                         </Button>
                       ) : (
-                        <Button type="button" variant="ghost" onClick={() => openLightboxByItemId(item.id)} className="h-auto p-0 text-primary underline">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => openLightboxByItemId(item.id)}
+                          className={cn(doctorInteractiveSurfaceButtonClass, "text-primary underline")}
+                        >
                           Открыть
                         </Button>
                       )}
@@ -1628,6 +1713,8 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           {hasMore ? <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden /> : null}
         </div>
       ) : null}
+        </div>
+      </div>
     </div>
   );
 }

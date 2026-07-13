@@ -386,6 +386,6 @@ export async function executeIntegratorPlatformUserMerge(params: {
     );
     throw error;
   } finally {
-    tx.release();
+    await tx.release();
   }
 }

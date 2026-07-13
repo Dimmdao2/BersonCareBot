@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
@@ -14,14 +14,14 @@ const PostSchema = z.object({
 });
 
 export async function GET() {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const branches = await gate.ctx.service.catalog.listBranches(gate.ctx.organizationId);
   return NextResponse.json({ ok: true, branches });
 }
 
 export async function POST(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);

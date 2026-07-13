@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { handleYandexOAuthCallbackGet } from "@/modules/auth/yandexOAuthCallbackHandler";
 
 /**
@@ -5,5 +6,6 @@ import { handleYandexOAuthCallbackGet } from "@/modules/auth/yandexOAuthCallback
  * Предпочтительно указывать в кабинете Яндекса **`/api/auth/oauth/callback/yandex`**.
  */
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/auth/oauth/callback:GET");
   return handleYandexOAuthCallbackGet(request);
 }

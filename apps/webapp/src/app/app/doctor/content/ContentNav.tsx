@@ -40,6 +40,7 @@ export type ContentNavProps = {
   onPaneChange: (key: ContentNavPaneKey) => void;
   /** Count of pages per pane key (warmups|sos|situations|lessons|section:<slug>). */
   countsByPaneKey?: Record<string, number>;
+  className?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -159,6 +160,7 @@ export function ContentNav({
   activePaneKey,
   onPaneChange,
   countsByPaneKey = {},
+  className,
 }: ContentNavProps) {
   const baseUserSections: SectionVisState[] = useMemo(
     () =>
@@ -197,7 +199,7 @@ export function ContentNav({
 
   return (
     <nav
-      className="flex w-full flex-col gap-0.5 md:w-56 md:shrink-0"
+      className={cn("flex w-full flex-col gap-0.5 md:w-56 md:shrink-0", className)}
       aria-label="Контент и страницы"
     >
       {/* ── Системные разделы ── */}

@@ -17,7 +17,7 @@ export type MessengerPhoneBindTransaction = {
   txDb: TxQuery;
   commit(): Promise<void>;
   rollback(): Promise<void>;
-  release(): void;
+  release(): Promise<void>;
 };
 
 const MAX_MERGE_CHAIN_DEPTH = 32;

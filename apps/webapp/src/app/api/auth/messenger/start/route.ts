@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
@@ -16,6 +17,7 @@ const bodySchema = z.object({
 const LOGIN_TTL_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/messenger/start:POST");
   ensureAuthModulePortsBound();
 
   const raw = (await request.json().catch(() => null)) as unknown;

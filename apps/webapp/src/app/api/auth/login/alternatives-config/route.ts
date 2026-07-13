@@ -1,3 +1,4 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { getLoginAlternativesPublicConfig } from "@/modules/auth/loginAlternativesConfig";
@@ -6,6 +7,7 @@ const ROUTE = "auth/login/alternatives-config";
 
 /** GET — публичный конфиг входа (Max-бот, VK URL и т.д.) для экрана входа, без секретов. */
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/auth/login/alternatives-config:GET");
   const startedAt = Date.now();
   try {
     const cfg = await getLoginAlternativesPublicConfig();

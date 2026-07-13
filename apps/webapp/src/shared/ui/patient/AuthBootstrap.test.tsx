@@ -10,6 +10,7 @@ function browserPrefetchOauthDisabled(): PrefetchedPublicAuthConfig {
     oauthProviders: { yandex: false, google: false, apple: false },
     telegramBotUsername: null,
     maxBotOpenUrl: null,
+    specialistSignupEnabled: false,
     fetchedAt: Date.now(),
   };
 }
@@ -577,6 +578,7 @@ describe("AuthBootstrap", () => {
         oauthProviders: { yandex: false, google: false, apple: false },
         telegramBotUsername: null,
         maxBotOpenUrl: null,
+        specialistSignupEnabled: false,
         fetchedAt: Date.now(),
       }} />,
     );

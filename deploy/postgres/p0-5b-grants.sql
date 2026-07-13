@@ -11,7 +11,7 @@
 --   - app_staff: the FULL runtime DML surface -- 219 tables (SCOPED + BOOTSTRAP +
 --     INFRA + LEGACY + TELEMETRY, excluding the 4 pure migration-bookkeeping tables the migrator role
 --     alone touches).
---   - app_patient: ONLY the patient-facing surface -- 110 tables (the patient-owned
+--   - app_patient: ONLY the patient-facing surface -- 111 tables (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
 --
@@ -389,6 +389,7 @@ VALUES
   ('public', 'user_channel_preferences', 'SELECT'),
   ('public', 'user_notification_topic_channels', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_notification_topics', 'SELECT, INSERT, UPDATE'),
+  ('public', 'user_oauth_bindings', 'SELECT'),
   ('public', 'user_phone_history', 'SELECT'),
   ('public', 'user_pins', 'SELECT, INSERT'),
   ('public', 'user_subscriptions_webapp', 'SELECT'),
@@ -468,6 +469,8 @@ GRANT UPDATE ("pin_hash") ON TABLE "public"."user_pins" TO app_patient;
 GRANT INSERT ("organization_id", "branch_id", "room_id", "specialist_id", "service_id", "platform_user_id", "start_at", "end_at", "duration_minutes", "source", "status", "original_start_at", "reschedule_count", "phone_normalized", "attribution_json", "created_at", "updated_at") ON TABLE "public"."be_appointments" TO app_patient;
 GRANT UPDATE ("status", "updated_at", "start_at", "end_at", "duration_minutes", "branch_id", "room_id", "specialist_id", "service_id", "original_start_at", "reschedule_count") ON TABLE "public"."be_appointments" TO app_patient;
 GRANT UPDATE ("value_text") ON TABLE "public"."be_booking_form_submissions" TO app_patient;
+GRANT UPDATE ("notifications_sent") ON TABLE "public"."be_appointment_cancellations" TO app_patient;
+GRANT UPDATE ("notifications_sent") ON TABLE "public"."be_appointment_reschedules" TO app_patient;
 GRANT INSERT ("organization_id", "integrator_conversation_id", "platform_user_id", "integrator_user_id", "source", "admin_scope", "status", "opened_at", "last_message_at") ON TABLE "public"."support_conversations" TO app_patient;
 GRANT UPDATE ("organization_id", "platform_user_id", "updated_at") ON TABLE "public"."support_conversations" TO app_patient;
 GRANT INSERT ("id", "original_name", "stored_path", "s3_key", "mime_type", "size_bytes", "uploaded_by", "folder_id", "usage_purpose", "video_delivery_override") ON TABLE "public"."media_files" TO app_patient;
@@ -479,8 +482,9 @@ GRANT UPDATE ("submitted_at") ON TABLE "public"."test_attempts" TO app_patient;
 GRANT INSERT ("user_id", "platform_user_id", "title", "is_active", "updated_at", "symptom_tracking_id", "region_ref_id", "side", "diagnosis_text", "diagnosis_ref_id") ON TABLE "public"."lfk_complexes" TO app_patient;
 GRANT INSERT ("organization_id", "instance_id", "event_type", "target_type", "target_id", "payload", "reason") ON TABLE "public"."treatment_program_events" TO app_patient;
 GRANT INSERT ("id", "user_id", "organization_id", "type", "summary") ON TABLE "public"."online_intake_requests" TO app_patient;
-GRANT INSERT ("user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
-GRANT UPDATE ("platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
+GRANT INSERT ("id", "request_id", "organization_id", "from_status", "to_status") ON TABLE "public"."online_intake_status_history" TO app_patient;
+GRANT INSERT ("user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
+GRANT UPDATE ("platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
 
 SELECT format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq
@@ -515,5 +519,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 110 tables.'
+\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 111 tables.'
 \endif

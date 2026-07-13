@@ -1,11 +1,17 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
+import {
+  ensureDbPrincipalContext,
+  enterWithDbPatientPrincipal,
+  enterWithDbStaffPrincipal,
+} from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/app-layer/platform-access";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import type { AppSession } from "@/shared/types/session";
 import type { OrganizationMembershipRole } from "@/modules/organization-membership/ports";
 
@@ -66,6 +72,7 @@ export async function patientRscPersonalDataGate(
 }
 
 export async function requireDoctorAccess(): Promise<AppSession> {
+  ensureDbPrincipalContext({ source: "requireDoctorAccess:pending" });
   const session = await requireSession();
   if (!canAccessDoctor(session.user.role)) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
@@ -86,6 +93,56 @@ export type DoctorWorkspaceAccessContext = {
 function doctorWorkspaceAccessDeniedResponse(reason: string): NextResponse {
   const status = reason === "organization_selection_required" ? 409 : 403;
   return NextResponse.json({ ok: false, error: reason }, { status });
+}
+
+// Best-effort by contract: staff-principal stamping must never throw. Real prod session ids are
+// platform_users UUIDs; legacy/dev/test session ids (e.g. "a1", "admin-1") are not, and would make
+// normalizeUuid throw inside enterWithDbStaffPrincipal. A malformed id must skip stamping, not 500 —
+// in locked mode a missing principal already fail-closes at the DB port, so skipping stays secure.
+function stampStaffPrincipal(ctx: Pick<DoctorWorkspaceAccessContext, "organizationId" | "session">, source: string): void {
+  if (!isPlatformUserUuid(ctx.session.user.userId)) return;
+  try {
+    enterWithDbStaffPrincipal({
+      organizationId: ctx.organizationId,
+      platformUserId: ctx.session.user.userId,
+      source,
+    });
+  } catch {
+    return;
+  }
+}
+
+async function stampBestEffortStaffPrincipal(session: AppSession, source: string): Promise<void> {
+  if (!isPlatformUserUuid(session.user.userId)) return;
+  try {
+    const resolved = await resolveDoctorWorkspaceAccessContext(session);
+    if (!resolved.ok) return;
+    stampStaffPrincipal(resolved.ctx, source);
+  } catch {
+    return;
+  }
+}
+
+async function stampPatientPrincipalForApi(
+  session: AppSession,
+): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  // Best-effort: the lenient isPlatformUserUuid pre-check still lets through ids that fail the
+  // stricter RFC-4122 normalizeUuid inside enterWithDbPatientPrincipal (e.g. non-[89ab] variant
+  // nibble). Stamping must never throw — a malformed id skips stamping, and in locked mode the DB
+  // port already fail-closes without a principal, so skipping stays secure.
+  if (!isPlatformUserUuid(session.user.userId)) {
+    return { ok: true };
+  }
+
+  try {
+    enterWithDbPatientPrincipal({
+      platformUserId: session.user.userId,
+      source: "requirePatientApiBusinessAccess",
+    });
+  } catch {
+    return { ok: true };
+  }
+  return { ok: true };
 }
 
 async function resolveDoctorWorkspaceAccessContext(
@@ -131,6 +188,7 @@ export async function requireDoctorWorkspaceContext(options?: {
   if (!resolved.ok) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
+  stampStaffPrincipal(resolved.ctx, "requireDoctorWorkspaceContext");
   return resolved.ctx;
 }
 
@@ -138,10 +196,12 @@ export async function requireDoctorWorkspaceContext(options?: {
 export async function requireDoctorApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
+  ensureDbPrincipalContext({ source: "requireDoctorApiSession:pending" });
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
   }
+  await stampBestEffortStaffPrincipal(session, "requireDoctorApiSession");
   return { ok: true, session };
 }
 
@@ -149,6 +209,7 @@ export async function requireDoctorApiSession(): Promise<
 export async function requireDoctorWorkspaceApiContext(options?: {
   selectedOrganizationId?: string | null;
 }): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+  ensureDbPrincipalContext({ source: "requireDoctorWorkspaceApiContext:pending" });
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
@@ -157,6 +218,7 @@ export async function requireDoctorWorkspaceApiContext(options?: {
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
+  stampStaffPrincipal(resolved.ctx, "requireDoctorWorkspaceApiContext");
   return resolved;
 }
 
@@ -164,6 +226,7 @@ export async function requireDoctorWorkspaceApiContext(options?: {
 export async function requireAdminWorkspaceApiContext(options?: {
   selectedOrganizationId?: string | null;
 }): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+  ensureDbPrincipalContext({ source: "requireAdminWorkspaceApiContext:pending" });
   const session = await getCurrentSession();
   if (!session) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
@@ -175,6 +238,36 @@ export async function requireAdminWorkspaceApiContext(options?: {
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
+  stampStaffPrincipal(resolved.ctx, "requireAdminWorkspaceApiContext");
+  return resolved;
+}
+
+/**
+ * Для clinic-management API: platform admin in adminMode OR a management-capable member
+ * (`owner`/`admin`) of the resolved organization. Organization is always resolved from the
+ * caller's own active memberships; a selected org outside those memberships is rejected by
+ * `resolveOrganizationForUser`.
+ */
+export async function requireClinicManagementApiContext(options?: {
+  selectedOrganizationId?: string | null;
+}): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+  ensureDbPrincipalContext({ source: "requireClinicManagementApiContext:pending" });
+  const session = await getCurrentSession();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  if (!canAccessDoctor(session.user.role)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  if (!resolved.ok) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
+  }
+  const isGlobalAdmin = session.user.role === "admin" && session.adminMode === true;
+  if (!isGlobalAdmin && !resolved.ctx.canManageOrganization) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  stampStaffPrincipal(resolved.ctx, "requireClinicManagementApiContext");
   return resolved;
 }
 
@@ -215,6 +308,7 @@ export async function requirePatientApiBusinessAccess(options?: {
   /** Для redirectTo в теле 403 (по умолчанию главное меню пациента). */
   returnPath?: string;
 }): Promise<{ ok: true; session: AppSession } | { ok: false; response: NextResponse }> {
+  ensureDbPrincipalContext({ source: "requirePatientApiBusinessAccess:pending" });
   const session = await getCurrentSession();
   if (!session || !canAccessPatient(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
@@ -227,6 +321,11 @@ export async function requirePatientApiBusinessAccess(options?: {
   }
   if (gate === "need_activation") {
     return { ok: false, response: patientActivationRequiredJson(returnPath) };
+  }
+
+  const principal = await stampPatientPrincipalForApi(session);
+  if (!principal.ok) {
+    return principal;
   }
 
   return { ok: true, session };

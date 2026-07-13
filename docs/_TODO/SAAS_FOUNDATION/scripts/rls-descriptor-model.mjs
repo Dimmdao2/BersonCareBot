@@ -33,9 +33,12 @@ const polymorphicResolutions = new Set(["polymorphic_resolver"]);
 
 const bootstrapHybridTables = new Set([
   "integrator.system_settings",
-  "public.platform_user_contacts",
   "public.system_settings",
   "public.system_settings_audit",
+]);
+
+const bootstrapHybridOrgGatedTables = new Set([
+  "public.platform_user_contacts",
   "public.user_phone_history",
 ]);
 
@@ -149,6 +152,16 @@ function scopedDescriptorForBeTable(table) {
 }
 
 function bootstrapDescriptor(table) {
+  if (bootstrapHybridOrgGatedTables.has(table)) {
+    return {
+      tier: "BOOTSTRAP",
+      scopingKind: "bootstrap_hybrid_org_gated",
+      predicateTemplate: "org_gated_null_bootstrap",
+      orgColumn: "organization_id",
+      source: "bootstrap_null_rows_gated_to_contextless_principal",
+    };
+  }
+
   if (bootstrapHybridTables.has(table)) {
     return {
       tier: "BOOTSTRAP",

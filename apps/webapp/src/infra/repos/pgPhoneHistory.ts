@@ -1,4 +1,8 @@
 /** Wave 3 phase 15C — TX-scoped SQL via `runWebappPgText` on caller `PoolClient`. */
+import {
+  buildDbPrincipalApplyOptionsFromEnv,
+  getCurrentDbPrincipalOrganizationId,
+} from "@bersoncare/db-principal";
 import type { Pool, PoolClient } from "pg";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 
@@ -17,18 +21,29 @@ export async function applyPlatformUserPhoneHistoryTransition(
   },
 ): Promise<void> {
   const db = getWebappSqlFromPgClient(client as PoolClient);
-  await runWebappPgText(
-    `UPDATE user_phone_history SET valid_to = now()
-     WHERE platform_user_id = $1::uuid AND valid_to IS NULL`,
-    [opts.platformUserId],
-    db,
-  );
+  const principalMode = buildDbPrincipalApplyOptionsFromEnv(process.env).mode;
+  if (principalMode === "locked") {
+    await runWebappPgText(
+      "SELECT app.close_active_user_phone_history($1::uuid)",
+      [opts.platformUserId],
+      db,
+    );
+  } else {
+    await runWebappPgText(
+      `UPDATE user_phone_history SET valid_to = now()
+       WHERE platform_user_id = $1::uuid AND valid_to IS NULL`,
+      [opts.platformUserId],
+      db,
+    );
+  }
+
   const p = opts.newPhoneNormalized?.trim();
   if (p) {
+    const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
     await runWebappPgText(
-      `INSERT INTO user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
-       VALUES ($1::uuid, $2::text, now(), NULL, $3::text)`,
-      [opts.platformUserId, p, opts.source],
+      `INSERT INTO user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id)
+       VALUES ($1::uuid, $2::text, now(), NULL, $3::text, $4::uuid)`,
+      [opts.platformUserId, p, opts.source, organizationId],
       db,
     );
   }

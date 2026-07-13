@@ -1,7 +1,9 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export async function GET(request: Request) {
+  stampBootstrapPrincipal("api/booking/public/products/link:GET");
   const token = new URL(request.url).searchParams.get("token")?.trim();
   if (!token) {
     return NextResponse.json({ ok: false, error: "token_required" }, { status: 400 });

@@ -8,6 +8,10 @@ export const doctorSectionCardClass = "rounded-xl border border-border bg-card p
 /** Inner list row/card inside page-level sections. */
 export const doctorSectionItemClass = "rounded-lg border border-border/70 bg-background/40 p-3 text-sm";
 
+/** Reset for Button used as an invisible card/list/tile surface. */
+export const doctorInteractiveSurfaceButtonClass =
+  "h-auto shrink whitespace-normal border-0 bg-transparent p-0 font-normal text-inherit shadow-none hover:bg-transparent hover:text-inherit active:bg-transparent active:text-inherit active:shadow-none aria-expanded:bg-transparent aria-expanded:text-inherit focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
 /** Semantic tone for urgent row/card state. */
 export const doctorSectionItemUrgentClass = "border-destructive/40 bg-destructive/5";
 

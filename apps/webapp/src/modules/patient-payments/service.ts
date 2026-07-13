@@ -96,6 +96,11 @@ export function createPatientPaymentsService({
       return { ok: true };
     },
 
+    async resolveOrganizationIdByProviderPaymentId(providerPaymentId: string): Promise<string | null> {
+      const payment = await patientPaymentsPort.findByProviderPaymentId(providerPaymentId);
+      return payment?.organizationId ?? null;
+    },
+
     /**
      * Record a newly created acquiring payment (kind='acquiring', status='pending').
      * Called by the charge-initiation route after the gateway confirms the intent.

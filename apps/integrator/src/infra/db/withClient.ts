@@ -1,21 +1,75 @@
 import type { Pool, PoolClient } from 'pg';
-import { applyCurrentDbPrincipalToTransaction } from '@bersoncare/db-principal';
+import {
+  applyCurrentDbPrincipalToConnection,
+  applyCurrentDbPrincipalToTransaction,
+  buildDbPrincipalApplyOptionsFromEnv,
+  clearDbPrincipalFromConnection,
+  type DbPrincipalApplyOptions,
+} from '@bersoncare/db-principal';
 
-async function prepareIntegratorClient(_client: PoolClient): Promise<void> {
-  // Dormant SAAS hook: future tenant/app principal setup belongs here.
+const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();
+
+function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
+  return buildDbPrincipalApplyOptionsFromEnv(process.env);
 }
 
-export async function prepareIntegratorTransactionClient(client: PoolClient): Promise<void> {
-  await applyCurrentDbPrincipalToTransaction(client);
+function rememberPreparedClient(client: PoolClient, options: DbPrincipalApplyOptions): void {
+  principalApplyOptionsByClient.set(client, options);
+}
+
+function forgetPreparedClient(client: PoolClient): void {
+  principalApplyOptionsByClient.delete(client);
+}
+
+function getPreparedClientOptions(client: PoolClient): DbPrincipalApplyOptions {
+  return principalApplyOptionsByClient.get(client) ?? getDbPrincipalApplyOptions();
+}
+
+function toReleaseError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+async function prepareIntegratorClient(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  await applyCurrentDbPrincipalToConnection(client, options);
+  rememberPreparedClient(client, options);
+}
+
+export async function prepareIntegratorTransactionClient(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions = getPreparedClientOptions(client),
+): Promise<void> {
+  await applyCurrentDbPrincipalToTransaction(client, options);
+}
+
+export async function releasePreparedIntegratorClient(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions = getPreparedClientOptions(client),
+): Promise<void> {
+  try {
+    await clearDbPrincipalFromConnection(client, options);
+  } finally {
+    forgetPreparedClient(client);
+    client.release();
+  }
+}
+
+export async function destroyPreparedIntegratorClient(client: PoolClient, err: unknown): Promise<void> {
+  forgetPreparedClient(client);
+  const releaseWithError = client.release as unknown as (releaseError?: Error) => void;
+  releaseWithError(toReleaseError(err));
 }
 
 export async function checkoutIntegratorPoolClient(pool: Pool): Promise<PoolClient> {
+  const principalApplyOptions = getDbPrincipalApplyOptions();
   const client = await pool.connect();
   try {
-    await prepareIntegratorClient(client);
+    await prepareIntegratorClient(client, principalApplyOptions);
     return client;
   } catch (err) {
-    client.release();
+    await releasePreparedIntegratorClient(client, principalApplyOptions);
     throw err;
   }
 }
@@ -28,7 +82,7 @@ export async function withIntegratorPoolClient<T>(
   try {
     return await fn(client);
   } finally {
-    client.release();
+    await releasePreparedIntegratorClient(client);
   }
 }
 
@@ -36,11 +90,12 @@ export async function withIntegratorPoolTransaction<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  const principalApplyOptions = getDbPrincipalApplyOptions();
   const client = await pool.connect();
   try {
-    await prepareIntegratorClient(client);
+    await prepareIntegratorClient(client, principalApplyOptions);
     await client.query('BEGIN');
-    await prepareIntegratorTransactionClient(client);
+    await prepareIntegratorTransactionClient(client, principalApplyOptions);
     const out = await fn(client);
     await client.query('COMMIT');
     return out;
@@ -52,6 +107,6 @@ export async function withIntegratorPoolTransaction<T>(
     }
     throw err;
   } finally {
-    client.release();
+    await releasePreparedIntegratorClient(client, principalApplyOptions);
   }
 }

@@ -65,6 +65,8 @@ export const ALLOWED_KEYS = [
   "patient_app_maintenance_enabled",
   /** Текст на экране техработ (пациентское приложение). */
   "patient_app_maintenance_message",
+  /** Публичная self-signup регистрация кабинета специалиста; default false для совместимого multi-tenant rollout. */
+  "specialist_signup_enabled",
   /** Rollout фазы 1: interim-ответ врача из журнала программы (doctor UI + API). */
   "patient_program_discussion_doctor_reply_from_log_enabled",
   /** Rollout фазы 3+: patient UI обсуждений элементов программы. */
