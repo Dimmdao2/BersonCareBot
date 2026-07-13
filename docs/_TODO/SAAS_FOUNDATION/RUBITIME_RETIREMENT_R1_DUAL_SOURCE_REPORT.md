@@ -12,14 +12,26 @@ A sanitized opt-in diagnostic script was added:
 
 - `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs`
 
+Sol audit fixer update:
+
+- source CTEs now include every non-empty Rubitime external id, including rows with `record_at IS NULL`;
+- both sources now report explicit `record_at_null` / `record_at_not_null` counts;
+- freshness classification now reports both `raw_newer_updated_at` and `legacy_newer_updated_at`;
+- `record_at` null asymmetry is reported in both directions;
+- mapping coverage now validates canonical target existence, canonical soft-delete state, mapping/canonical organization mismatch, canonical source, and expected mapping metadata;
+- DB guard now includes a post-connect `current_database()` verification inside a read-only transaction before the business query;
+- samples default to disabled (`--sample-size=0`), and opt-in samples are hash-only with a per-run salt that is not printed.
+
 The script is read-only by construction:
 
 - refuses non-dev DB names;
 - refuses `/opt` env paths;
+- refuses selected `/opt`-backed env references such as `PGPASSFILE` / `PGSERVICEFILE`;
+- verifies the connected database name is dev and not prod before the main query;
 - uses `BEGIN READ ONLY` / `SET LOCAL statement_timeout`;
 - runs SELECT-only aggregate SQL via `psql`;
 - does not select `payload_json`, names, phones or emails;
-- masks/hash-shortens external ids in samples before printing.
+- does not print external-id samples by default; opt-in samples are hash-only, with no raw tail.
 
 ## Existing script inspection
 
@@ -35,15 +47,17 @@ The script is read-only by construction:
 `rubitime-r1-dual-source-audit.mjs` is intended to produce the `RR-PROOF-01-DUAL-SOURCE` DB aggregate evidence when a safe dev `DATABASE_URL` is available:
 
 - `appointment_records.integrator_record_id` vs `integrator.rubitime_records.rubitime_record_id` anti-joins;
-- live and total counts plus max `record_at` / `updated_at` freshness for both sources;
+- total non-empty external-id counts, explicit `record_at` null/not-null counts, live counts, and max `record_at` / `updated_at` freshness for both sources;
 - raw-only count;
 - legacy-only count;
 - status mismatch count;
 - `record_at` mismatch count;
-- raw-newer-than-legacy `updated_at` count;
+- raw-newer-than-legacy and legacy-newer-than-raw `updated_at` counts;
+- raw-null/legacy-not-null and legacy-null/raw-not-null `record_at` asymmetry counts;
 - canonical mapping coverage in `be_external_entity_mappings`;
+- mapping validation for canonical target existence, canonical soft-delete state, organization consistency, `source = 'rubitime_projection'`, and expected mapping metadata;
 - orphan Rubitime mapping count where canonical appointment is missing;
-- masked external-id samples for owner/reviewer triage.
+- optional hash-only external-id samples for owner/reviewer triage, disabled by default.
 
 Expected safe run command once dev env is present:
 
@@ -52,16 +66,18 @@ set -a
 source .env
 source apps/webapp/.env.dev
 set +a
-node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --threshold-minutes=5 --sample-size=20
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --threshold-minutes=5
 ```
 
-The database name must include `dev` and must not include `prod`, otherwise the script refuses to run before opening `psql`.
+Default run keeps `--sample-size=0`. Use a non-zero sample size only when the reviewer explicitly accepts hash-only external-id sample output.
+
+The database name in `DATABASE_URL` must include `dev` and must not include `prod`, otherwise the script refuses before opening `psql`. After connecting, the script separately verifies `current_database()` under `BEGIN READ ONLY`; a non-dev or prod connected database is refused before the main business query.
 
 ## Commands run
 
 | Command | Result |
 | --- | --- |
-| `pwd && git status --short --branch && git rev-parse HEAD && git remote -v` | PASS. Worktree `/home/dev/dev-projects/bcb-walls`, branch `auto/code-pg-delta`, HEAD `cc2855b81b52edabf5e4bf46f8b07dce9020edd6`. |
+| `pwd && git status --short --branch && git rev-parse HEAD && git remote -v` | PASS. Worktree `/home/dev/dev-projects/bcb-walls`, branch `auto/code-pg-delta`, HEAD `69dfc8b2ce03f9fdf9f46e30def71e5c1951e1ee` before this fixer commit. |
 | `sed -n ... AGENTS.md`, `docs/ORCHESTRATION_BINDINGS.md`, `README.md`, `docs/README.md`, required `.cursor/rules/*`, R0 report, R1 plan sections | PASS. Required rules/docs read. |
 | `node /home/dev/brain/tools/code-search.mjs "backfill-canonical-from-legacy-appointments rubitime_records appointment_records reconciliation" --repo bcb -k 50` | PASS. Ran before broad/exact file inspection. |
 | `sed -n ... apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` | PASS. Inspected; dry-run is read-only, but output is not PII-safe. |
@@ -76,6 +92,7 @@ The database name must include `dev` and must not include `prod`, otherwise the 
 | `node --check docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | PASS. |
 | `pnpm run check:rubitime-retirement-r0` | PASS. R0 guard still active. |
 | `git diff --check` | PASS. |
+| `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | PASS. |
 
 ## R1 checklist status
 
