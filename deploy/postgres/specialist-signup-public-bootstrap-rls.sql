@@ -23,6 +23,15 @@ SELECT 1 / (:'specialist_signup_public_bootstrap_down' IN ('0', '1'))::int
 BEGIN;
 
 \if :specialist_signup_public_bootstrap_down
+-- Best-effort revoke of the current_org_id EXECUTE grant added in UP (guarded; ignore if absent).
+SELECT pg_get_userbyid(c.relowner) AS specialist_signup_system_settings_owner
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname = 'system_settings' AND c.relkind IN ('r', 'p') \gset
+SELECT quote_ident(COALESCE(:'specialist_signup_system_settings_owner', 'postgres')) AS specialist_signup_system_settings_owner_ident \gset
+SELECT (to_regprocedure('app.current_org_id()') IS NOT NULL)::int AS specialist_signup_has_current_org_id \gset
+\if :specialist_signup_has_current_org_id
+REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :specialist_signup_system_settings_owner_ident;
+\endif
 DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
@@ -344,6 +353,16 @@ GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uui
 GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO app_patient;
+
+-- app.get_public_config_bool reads FORCE-RLS public.system_settings, whose policy predicate
+-- calls app.current_org_id(). A SECURITY DEFINER runs as the function owner (the table owner),
+-- which must be able to EXECUTE that policy helper or the read fails at plan time with
+-- "permission denied for function current_org_id". This grants only EXECUTE on a session-context
+-- reader (same as app_staff/app_patient already hold); it does NOT grant BYPASSRLS.
+SELECT (to_regprocedure('app.current_org_id()') IS NOT NULL)::int AS specialist_signup_has_current_org_id \gset
+\if :specialist_signup_has_current_org_id
+GRANT EXECUTE ON FUNCTION app.current_org_id() TO :specialist_signup_system_settings_owner_ident;
+\endif
 \endif
 
 COMMIT;
